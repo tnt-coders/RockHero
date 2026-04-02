@@ -1,4 +1,4 @@
-# Your guitar. Your tone. Your game.
+# Your guitar, your tone, your game.
 Plug in, rock out, and level up with a note highway and real-time VST tones.
 
 > [!WARNING]
