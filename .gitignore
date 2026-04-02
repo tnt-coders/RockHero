@@ -1,0 +1,12 @@
+# User specific IDE config
+.idea
+
+# Claude/Codex project context
+AGENTS.md
+CLAUDE.md
+
+# CMake user presets
+CMakeUserPresets.json
+
+# Build files
+build
