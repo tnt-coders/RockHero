@@ -1,0 +1,3 @@
+[submodule "project-config"]
+	path = project-config
+	url = https://github.com/tnt-coders/project-config.git

@@ -1,0 +1,6 @@
+[requires]
+open-psarc/0.0.1  #recipe: https://github.com/tnt-coders/open-psarc.git
+
+[generators]
+CMakeDeps
+CMakeToolchain
