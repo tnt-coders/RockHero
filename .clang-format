@@ -1,0 +1,5 @@
+---
+BasedOnStyle: Microsoft
+AccessModifierOffset: -4
+ColumnLimit: 100
+PointerAlignment: Left
