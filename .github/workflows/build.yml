@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+    tags: ['v*']
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pre-commit:
+    uses: tnt-coders/ci-workflows/.github/workflows/pre-commit.yml@master
+  build:
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-build.yml@master
+  lint:
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-lint.yml@master
+  docs:
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-docs.yml@master
+  release:
+    if: github.event_name == 'push'
+    needs: [pre-commit, build, lint, docs]
+    uses: tnt-coders/ci-workflows/.github/workflows/cpp-cmake-conan-release.yml@master
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
