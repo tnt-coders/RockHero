@@ -5,7 +5,7 @@
 #
 # Naming conventions:
 #   Classes/Structs/Types:      CamelCase            (MyClass)
-#   Functions/Methods:          CamelCase            (MyFunction)
+#   Functions/Methods:          camelCase            (myFunction)
 #   Local variables/params:     lower_case           (my_variable)
 #   Class member variables:     lower_case           (m_my_member)
 #   Struct/public members:      lower_case           (my_member)
@@ -27,11 +27,12 @@ Checks: >
   readability-identifier-naming,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: '^(?!.*/tracktion_engine/).*'
 
 CheckOptions:
   # --------------------------------------------------------------------------
@@ -58,25 +59,25 @@ CheckOptions:
   # Functions & Methods
   # --------------------------------------------------------------------------
   - key: readability-identifier-naming.FunctionCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.GlobalFunctionCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.MethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.ClassMethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.PrivateMethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.ProtectedMethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.PublicMethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.VirtualMethodCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.ConstexprFunctionCase
-    value: CamelCase
+    value: camelCase
   - key: readability-identifier-naming.ConstexprMethodCase
-    value: CamelCase
+    value: camelCase
 
   # --------------------------------------------------------------------------
   # Local Variables & Parameters
