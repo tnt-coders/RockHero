@@ -1,3 +1,6 @@
 [submodule "project-config"]
 	path = project-config
 	url = https://github.com/tnt-coders/project-config.git
+[submodule "tracktion_engine"]
+	path = tracktion_engine
+	url = https://github.com/Tracktion/tracktion_engine.git
