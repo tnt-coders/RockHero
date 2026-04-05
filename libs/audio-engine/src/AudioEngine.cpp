@@ -48,7 +48,7 @@ bool AudioEngine::loadFile(const juce::File& file)
 
     const auto length = te::TimeDuration::fromSeconds(audio_file.getLength());
     const auto start = te::TimePosition{};
-    const te::ClipPosition position{{start, start + length}, te::TimeDuration{}};
+    const te::ClipPosition position{.time = {start, start + length}, .offset = te::TimeDuration{}};
 
     const auto clip =
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, false);
