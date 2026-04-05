@@ -5,7 +5,7 @@
 #
 # Naming conventions:
 #   Classes/Structs/Types:      CamelCase            (MyClass)
-#   Functions/Methods:          camelBack            (myFunction)
+#   Functions/Methods:          CamelCase            (MyFunction)
 #   Local variables/params:     lower_case           (my_variable)
 #   Class member variables:     lower_case           (m_my_member)
 #   Struct/public members:      lower_case           (my_member)
@@ -27,12 +27,11 @@ Checks: >
   readability-identifier-naming,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-owning-memory,       # JUCE APIs take raw pointers for non-owning access (e.g. addAndMakeVisible), making this check noisy without gsl::owner annotations
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '^(?!.*/external/).*'
+HeaderFilterRegex: '.*'
 
 CheckOptions:
   # --------------------------------------------------------------------------
@@ -59,25 +58,25 @@ CheckOptions:
   # Functions & Methods
   # --------------------------------------------------------------------------
   - key: readability-identifier-naming.FunctionCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.GlobalFunctionCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.MethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.ClassMethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.PrivateMethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.ProtectedMethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.PublicMethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.VirtualMethodCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.ConstexprFunctionCase
-    value: camelBack
+    value: CamelCase
   - key: readability-identifier-naming.ConstexprMethodCase
-    value: camelBack
+    value: CamelCase
 
   # --------------------------------------------------------------------------
   # Local Variables & Parameters

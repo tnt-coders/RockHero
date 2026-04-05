@@ -11,6 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available" ON)
 option(PROJECT_CONFIG_ENABLE_CLANG_TIDY "Enable clang-tidy target when run-clang-tidy is available"
        ON)
+set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
+    "apps[/\\\\];libs[/\\\\]"
+    CACHE STRING "Limit clang-tidy to project-owned source trees." FORCE)
 
 add_subdirectory(project-config)
 
