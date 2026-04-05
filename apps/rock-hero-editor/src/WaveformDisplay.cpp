@@ -2,6 +2,8 @@
 
 #include "AudioEngine.h"
 
+// TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay
+//       only depends on JUCE types. Then this include can be removed.
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace te = tracktion;

@@ -84,13 +84,19 @@ EditorWindow::EditorWindow(juce::String title)
       m_content(std::make_unique<ContentComponent>(*m_audio_engine))
 {
     setUsingNativeTitleBar(true);
-    setContentOwned(m_content.release(), true);
+    setContentNonOwned(m_content.get(), true);
     setResizable(true, false);
     centreWithSize(800, 300);
     setVisible(true);
 }
 
-EditorWindow::~EditorWindow() = default;
+EditorWindow::~EditorWindow()
+{
+    // Null out DocumentWindow's non-owning pointer before m_content (and its
+    // 60 Hz timer) is destroyed by member destruction. Without this,
+    // ~ResizableWindow would call removeChildComponent on a dangling pointer.
+    clearContentComponent();
+}
 
 void EditorWindow::closeButtonPressed()
 {
