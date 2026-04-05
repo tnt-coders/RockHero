@@ -4,7 +4,7 @@
 
 Rock Hero is an open-source guitar game built in C++. Players plug in a real guitar, hear it processed through real-time VST effects, and play along to songs via a scrolling note highway — while their tone automatically shifts, sweeps, and evolves with the music.
 
-The application is a single, self-contained program. No external DAW required. It should feel like a game, not a production tool.
+The application ships as **two executables** (`rock-hero-editor` and `rock-hero-game`) built on two shared static libraries (`audio-engine` and `song`). No external DAW required. It should feel like a game, not a production tool.
 
 ---
 
@@ -26,9 +26,36 @@ The application is a single, self-contained program. No external DAW required. I
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
+| Song format | open-psarc (Conan) | PSARC format read/write for song packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
+
+---
+
+## Repository Layout
+
+```
+RockHero/
+  apps/
+    rock-hero-editor/   — Editor executable: tone design + chart authoring
+    rock-hero-game/     — Game executable: note highway + scoring
+  libs/
+    audio-engine/       — Tracktion Engine isolation layer (static library)
+    song/               — Song data model + format serialization (static library, no JUCE)
+  docs/                 — Doxygen configuration
+  external/
+    tracktion_engine/   — Git submodule: Tracktion Engine + JUCE 8
+  project-config/       — Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
+```
+
+**Dependency rules:**
+
+- `libs/audio-engine` depends on Tracktion and JUCE audio modules.
+- `libs/song` depends on standard C++ only; no JUCE, no Tracktion. May use format-specific Conan packages (e.g. `open-psarc`).
+- Neither library depends on the other.
+- App executables may depend on both libraries.
+- Tracktion headers are isolated to `audio-engine` implementation files.
 
 ---
 
@@ -44,70 +71,103 @@ Both tracks share a single transport, tempo map, and time signature sequence man
 
 ---
 
+## Song Data Model
+
+The `libs/song` library owns all persistent song data. It depends on standard C++ only.
+
+```
+Song
+  metadata          (title, artist, album, year)
+  audio_asset_ref   (path/identifier for the backing track audio file)
+  tone_timeline_ref (opaque blob — serialized tone automation; interpreted exclusively by audio-engine)
+  chart
+    arrangements[*]
+      part          (Lead | Rhythm | Bass)
+      difficulty    (Easy | Medium | Hard | Expert)
+      note_events[*]
+        time_seconds
+        duration_seconds
+        string_number (1–6)
+        fret
+```
+
+`Song` is the persistence and session root. When a session opens, the application loads a `Song` from disk, passes `audio_asset_ref` to `audio-engine` for playback, and passes `tone_timeline_ref` to `audio-engine` as an opaque blob. The game or editor reads `chart` to drive gameplay or authoring. `song` never interprets tone automation data — that belongs entirely to `audio-engine`.
+
+---
+
+## Application Responsibilities
+
+### `rock-hero-editor`
+
+Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Chart`/`Arrangement` while auditioning playback. Disables structural model edits while transport is running. Tone and chart decisions are kept in one executable by design — they are too tightly coupled to author in separate tools.
+
+### `rock-hero-game`
+
+Loads a `Song` and starts a playback session. Displays the note highway and scoring UX. Owns scoring logic — evaluates note hit/miss events against audio-derived timing. Treats the `Song` model as read-only during gameplay.
+
+---
+
 ## Architecture Diagram
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                       Rock Hero                              │
-│                   (Single Process)                           │
-│                                                              │
-│  ┌─────────────────────────┐  ┌───────────────────────────┐  │
-│  │    Editor Window        │  │    Game Window             │  │
-│  │    (JUCE Components)    │  │    (SDL3 + bgfx)          │  │
-│  │                         │  │                           │  │
-│  │  • Waveform display     │  │  • 3D note highway       │  │
-│  │    (AudioThumbnail)     │  │  • Score display         │  │
-│  │  • Plugin chain view    │  │  • Hit feedback/effects  │  │
-│  │  • Automation envelopes │  │  • Fretboard view        │  │
-│  │  • Transport controls   │  │                           │  │
-│  └────────────┬────────────┘  └─────────────┬─────────────┘  │
-│               │                             │                │
-│               │    ┌───────────────────┐    │                │
-│               │    │  Lock-free        │    │                │
-│               └────┤  Transport State  ├────┘                │
-│                    │  (std::atomic)    │                      │
-│                    └────────┬──────────┘                      │
-│                             │                                │
-│  ┌──────────────────────────┴─────────────────────────────┐  │
-│  │              Tracktion Engine (on JUCE)                 │  │
-│  │                                                        │  │
-│  │  Track 1: Backing Track                                │  │
-│  │    • WaveAudioClip with song audio file                │  │
-│  │                                                        │  │
-│  │  Track 2: Guitar Input                                 │  │
-│  │    • ASIO input device assignment                      │  │
-│  │    • VST plugin chain (amp sim, effects, cab)          │  │
-│  │    • Automation envelopes on plugin parameters         │  │
-│  │    • Plugin bypass/mix automation for mid-song swaps   │  │
-│  │                                                        │  │
-│  │  Shared: Transport, tempo map, time signatures         │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-│  ┌────────────────────────────────────────────────────────┐  │
-│  │              Gameplay Systems                          │  │
-│  │                                                        │  │
-│  │  • Pitch detection (YIN or autocorrelation on input)   │  │
-│  │  • Note matching and scoring logic                     │  │
-│  │  • Latency calibration and compensation                │  │
-│  │  • Note chart data loading and timing                  │  │
-│  └────────────────────────────────────────────────────────┘  │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+┌──────────────────────────────┐   ┌──────────────────────────────┐
+│     rock-hero-editor         │   │     rock-hero-game            │
+│                              │   │                               │
+│  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
+│  │    Editor Window       │  │   │  │    Game Window           │  │
+│  │    (JUCE Components)   │  │   │  │    (SDL3 + bgfx)        │  │
+│  │                        │  │   │  │                          │  │
+│  │  • Waveform display    │  │   │  │  • 3D note highway      │  │
+│  │  • Plugin chain view   │  │   │  │  • Score display        │  │
+│  │  • Automation envelopes│  │   │  │  • Hit feedback/effects │  │
+│  │  • Transport controls  │  │   │  │  • Fretboard view       │  │
+│  └───────────┬────────────┘  │   │  └──────────┬──────────────┘  │
+│              │               │   │             │                  │
+│  ┌───────────┴────────────┐  │   │  ┌──────────┴──────────────┐  │
+│  │  libs/audio-engine     │  │   │  │  libs/audio-engine       │  │
+│  │  (Tracktion Engine)    │  │   │  │  (Tracktion Engine)      │  │
+│  │                        │  │   │  │                          │  │
+│  │  Track 1: Backing Track│  │   │  │  Track 1: Backing Track  │  │
+│  │  Track 2: Guitar Input │  │   │  │  Track 2: Guitar Input   │  │
+│  │  Transport + Automation│  │   │  │  Transport + Automation  │  │
+│  └────────────────────────┘  │   │  └─────────────────────────┘  │
+│                              │   │                               │
+│  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
+│  │  libs/song             │  │   │  │  libs/song               │  │
+│  │  Song/Chart/Arrangement│  │   │  │  Song/Chart/Arrangement  │  │
+│  └────────────────────────┘  │   │  │  + Scoring logic         │  │
+│                              │   │  └─────────────────────────┘  │
+└──────────────────────────────┘   │                               │
+                                   │  ┌─────────────────────────┐  │
+                                   │  │  Gameplay Systems        │  │
+                                   │  │  • Pitch detection       │  │
+                                   │  │  • Note matching         │  │
+                                   │  │  • Latency calibration   │  │
+                                   │  └─────────────────────────┘  │
+                                   └──────────────────────────────┘
 ```
+
+Both executables link `audio-engine` and `song` as static libraries. Static linking avoids singleton aliasing issues and simplifies deployment.
 
 ---
 
 ## Threading Model
 
-Four threads with strict separation of concerns:
+Each executable runs its own set of threads. The threading rules are identical in both — what differs is which threads each process actually uses at a given development stage.
 
 **Audio thread** (Tracktion Engine / JUCE): Highest priority. Runs the ASIO callback, processes the VST plugin chain, plays back the backing track, evaluates automation curves. Copies raw guitar input samples (pre-effects) into a lock-free ring buffer for the analysis thread. Never touches UI, never allocates memory, never blocks.
 
-**Analysis thread** (pitch detection): Reads guitar input from the ring buffer. Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86 detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) to a lock-free output structure. Runs on the clean input signal before the VST plugin chain — distortion and modulation make pitch detection dramatically harder.
+**Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer. Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86 detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) to a lock-free output structure. Runs on the clean input signal before the VST plugin chain — distortion and modulation make pitch detection dramatically harder.
 
-**UI thread** (JUCE message loop): Handles editor window repaints, mouse interaction, transport controls. Also ticks SDL event polling and triggers bgfx frame submissions for the game window. Reads pitch detection results for scoring and visual feedback. JUCE owns this loop; SDL is polled manually from within it.
+**UI thread** (JUCE message loop): Handles editor/game window repaints, mouse interaction, transport controls. Also ticks SDL event polling and triggers bgfx frame submissions for the game window. Reads pitch detection results for scoring and visual feedback. JUCE owns this loop; SDL is polled manually from within it.
 
 **Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
+
+### Rules
+
+- No locks, heap allocation, or file IO on the audio thread.
+- Cross-thread communication uses atomics or lock-free queues.
+- Mutations that can rebuild processing graphs are message-thread only.
 
 ### Thread Communication
 
@@ -158,7 +218,7 @@ All scoring comparisons happen in audio-sample time with calibration offsets app
 
 Built with JUCE components — the same framework Waveform (the DAW built on Tracktion Engine) uses for its entire interface.
 
-The editor consists of:
+The editor (`rock-hero-editor`) consists of:
 
 - **Waveform display**: `juce::AudioThumbnail` showing the backing track with a playhead overlay.
 - **Plugin chain view**: Horizontal row of loaded effects with add/remove/reorder controls.
@@ -173,7 +233,7 @@ UI theming is planned as a distinct later phase — functionality first, polish 
 
 ## Game View
 
-Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL).
+Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero-game`.
 
 The note highway is geometrically simple — textured quads on lanes with perspective projection. bgfx handles this easily with room for glow effects, particles on note hits, and other visual feedback.
 
@@ -200,6 +260,7 @@ All dependencies are compatible with AGPLv3 at zero cost:
 | JUCE | AGPLv3 | Requires project to use AGPLv3 |
 | VST3 SDK | MIT (as of October 2025) | Permissive, compatible with everything |
 | ASIO SDK | Dual GPL3/proprietary (as of October 2025) | GPL3 option compatible |
+| open-psarc | MIT | Permissive, compatible with everything |
 | SDL3 | zlib | Permissive |
 | bgfx | BSD 2-Clause | Permissive |
 
@@ -259,4 +320,4 @@ Visual polish, 3D fretboard, particles, and UI theming come after gameplay funda
 
 If Tracktion Engine proves unsuitable (timing issues, API incompatibilities, debugging friction), the fallback is **JUCE alone** — building a custom transport, automation system, and audio clip playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatManager`, `AudioPlayHead`). This is significant work (several months) but preserves all other architectural decisions.
 
-The architecture is designed for this: Tracktion Engine is isolated behind clean interfaces. The game view, pitch detection, scoring, and editor UI depend on a transport position and a data model, not on Tracktion directly. Either Tracktion or a custom JUCE implementation can back those interfaces.
+The architecture is designed for this: Tracktion Engine is isolated behind `libs/audio-engine`. The game view, pitch detection, scoring, and editor UI depend on a transport position and a data model, not on Tracktion directly. Either Tracktion or a custom JUCE implementation can back those interfaces.

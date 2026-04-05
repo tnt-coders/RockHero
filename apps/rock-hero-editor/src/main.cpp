@@ -5,12 +5,12 @@
 namespace rock_hero
 {
 
-class RockHeroApplication : public juce::JUCEApplication
+class RockHeroEditorApplication : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override
     {
-        return "Rock Hero";
+        return "Rock Hero Editor";
     }
 
     const juce::String getApplicationVersion() override
@@ -44,4 +44,4 @@ private:
 
 } // namespace rock_hero
 
-START_JUCE_APPLICATION(rock_hero::RockHeroApplication)
+START_JUCE_APPLICATION(rock_hero::RockHeroEditorApplication)

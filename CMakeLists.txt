@@ -19,24 +19,21 @@ add_subdirectory(project-config)
 # --------------------------------------------------------------------------
 # EXCLUDE_FROM_ALL prevents Tracktion's examples/benchmarks from building as part of the default
 # target (they still exist as named targets).
-add_subdirectory(tracktion_engine EXCLUDE_FROM_ALL)
+add_subdirectory(external/tracktion_engine EXCLUDE_FROM_ALL)
 
 # --------------------------------------------------------------------------
-# RockHero
+# Tests
 # --------------------------------------------------------------------------
-juce_add_gui_app(RockHero PRODUCT_NAME "Rock Hero" VERSION ${PROJECT_VERSION})
+include(CTest)
 
-target_sources(RockHero PRIVATE src/main.cpp src/AudioEngine.cpp src/EditorWindow.cpp
-                                src/WaveformDisplay.cpp)
+# --------------------------------------------------------------------------
+# Libraries
+# --------------------------------------------------------------------------
+add_subdirectory(libs/audio-engine)
+add_subdirectory(libs/song)
 
-target_include_directories(RockHero PRIVATE include)
-
-target_link_libraries(
-    RockHero
-    PRIVATE tracktion::tracktion_core
-            tracktion::tracktion_engine
-            tracktion::tracktion_graph
-            juce::juce_audio_devices
-            juce::juce_audio_processors
-            juce::juce_audio_utils
-            juce::juce_recommended_warning_flags)
+# --------------------------------------------------------------------------
+# Applications
+# --------------------------------------------------------------------------
+add_subdirectory(apps/rock-hero-editor)
+add_subdirectory(apps/rock-hero-game)

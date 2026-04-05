@@ -1,5 +1,6 @@
 [requires]
 open-psarc/0.0.1  #recipe: https://github.com/tnt-coders/open-psarc.git
+catch2/3.13.0
 
 [generators]
 CMakeDeps
