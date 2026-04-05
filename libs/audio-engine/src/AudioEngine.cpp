@@ -13,8 +13,8 @@ AudioEngine::AudioEngine() : m_engine(std::make_unique<te::Engine>("RockHero"))
     m_engine->getDeviceManager().initialise(0, 2);
 
     // createSingleTrackEdit creates an Edit with one AudioTrack ready for clips.
+    // createSingleTrackEdit already provides one AudioTrack.
     m_edit = te::Edit::createSingleTrackEdit(*m_engine);
-    m_edit->ensureNumberOfAudioTracks(1);
 }
 
 AudioEngine::~AudioEngine()
@@ -28,6 +28,9 @@ AudioEngine::~AudioEngine()
 
 bool AudioEngine::loadFile(const juce::File& file)
 {
+    // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
+    m_edit->getTransport().stop(false, false);
+
     if (!file.existsAsFile())
         return false;
 
