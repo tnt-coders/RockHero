@@ -31,7 +31,7 @@ Checks: >
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: '^(?!.*[\\/]external[\\/]).*'
 
 CheckOptions:
   # --------------------------------------------------------------------------

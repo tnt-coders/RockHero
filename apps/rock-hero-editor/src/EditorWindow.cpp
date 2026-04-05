@@ -16,10 +16,10 @@ struct EditorWindow::ContentComponent : public juce::Component
         addAndMakeVisible(m_waveform_display);
 
         m_load_button.setButtonText("Load File...");
-        m_load_button.onClick = [this] { onLoadClicked(); };
+        m_load_button.onClick = [this] { OnLoadClicked(); };
 
         m_play_stop_button.setButtonText("Play");
-        m_play_stop_button.onClick = [this] { onPlayStopClicked(); };
+        m_play_stop_button.onClick = [this] { OnPlayStopClicked(); };
 
         setSize(800, 300);
     }
@@ -36,7 +36,7 @@ struct EditorWindow::ContentComponent : public juce::Component
     }
 
 private:
-    void onLoadClicked()
+    void OnLoadClicked()
     {
         m_file_chooser = std::make_unique<juce::FileChooser>(
             "Select an audio file", juce::File::getSpecialLocation(juce::File::userMusicDirectory),
@@ -54,7 +54,7 @@ private:
                                     });
     }
 
-    void onPlayStopClicked()
+    void OnPlayStopClicked()
     {
         if (m_audio_engine.isPlaying())
         {
@@ -75,7 +75,7 @@ private:
     std::unique_ptr<juce::FileChooser> m_file_chooser;
 };
 
-EditorWindow::EditorWindow(juce::String title)
+EditorWindow::EditorWindow(const juce::String& title)
     : juce::DocumentWindow(title,
                            juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
                                juce::ResizableWindow::backgroundColourId),

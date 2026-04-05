@@ -31,7 +31,7 @@ public:
     /** Creates the window, its AudioEngine, and the content component.
         @param title  text shown in the title bar (typically the app name)
     */
-    explicit EditorWindow(juce::String title);
+    explicit EditorWindow(const juce::String& title);
 
     /** Clears the content component pointer before destroying owned members. */
     ~EditorWindow() override;

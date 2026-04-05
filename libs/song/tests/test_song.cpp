@@ -29,8 +29,10 @@ TEST_CASE("Arrangement holds note events", "[arrangement]")
     rock_hero::Arrangement arr;
     arr.part = rock_hero::Part::Lead;
     arr.difficulty = rock_hero::Difficulty::Expert;
-    arr.note_events.push_back({1.0, 0.5, 1, 5});
-    arr.note_events.push_back({2.0, 0.0, 6, 0});
+    arr.note_events.push_back(
+        {.time_seconds = 1.0, .duration_seconds = 0.5, .string_number = 1, .fret = 5});
+    arr.note_events.push_back(
+        {.time_seconds = 2.0, .duration_seconds = 0.0, .string_number = 6, .fret = 0});
 
     REQUIRE(arr.note_events.size() == 2);
     REQUIRE(arr.note_events[0].time_seconds == 1.0);
@@ -41,8 +43,12 @@ TEST_CASE("Arrangement holds note events", "[arrangement]")
 TEST_CASE("Chart holds multiple arrangements", "[chart]")
 {
     rock_hero::Chart chart;
-    chart.arrangements.push_back({rock_hero::Part::Lead, rock_hero::Difficulty::Easy, {}});
-    chart.arrangements.push_back({rock_hero::Part::Bass, rock_hero::Difficulty::Expert, {}});
+    chart.arrangements.push_back({.part = rock_hero::Part::Lead,
+                                  .difficulty = rock_hero::Difficulty::Easy,
+                                  .note_events = {}});
+    chart.arrangements.push_back({.part = rock_hero::Part::Bass,
+                                  .difficulty = rock_hero::Difficulty::Expert,
+                                  .note_events = {}});
 
     REQUIRE(chart.arrangements.size() == 2);
     REQUIRE(chart.arrangements[0].part == rock_hero::Part::Lead);
