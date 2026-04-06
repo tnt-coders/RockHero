@@ -1,5 +1,6 @@
-/** @file waveform_display.h
-    @brief Waveform rendering component with a scrolling playhead cursor.
+/*!
+\file waveform_display.h
+\brief Waveform rendering component with a scrolling playhead cursor.
 */
 
 #pragma once
@@ -13,41 +14,52 @@ namespace rock_hero
 
 class AudioEngine;
 
-/** Displays the waveform of the loaded audio file with a scrolling playhead.
+/*!
+\brief Displays the waveform of the loaded audio file with a scrolling playhead.
 
-    Uses a Pimpl (Impl struct) to hide tracktion::SmartThumbnail from this header, keeping Tracktion
-    headers out of consuming translation units.
+Uses a Pimpl (Impl struct) to hide tracktion::SmartThumbnail from this header, keeping Tracktion
+headers out of consuming translation units.
 
-    A private 60 Hz juce::Timer drives repaint during playback and proxy generation. On each tick
-    the timer also calls AudioEngine::updateTransportPositionCache() to mirror the transport
-    position into the lock-free atomic cache.
+A private 60 Hz juce::Timer drives repaint during playback and proxy generation. On each tick
+the timer also calls AudioEngine::updateTransportPositionCache() to mirror the transport
+position into the lock-free atomic cache.
 
-    @see AudioEngine
+\see AudioEngine
 */
 class WaveformDisplay : public juce::Component, private juce::Timer
 {
 public:
-    /** Creates the waveform display and starts the 60 Hz repaint timer.
-        @param engine  the AudioEngine whose transport state drives the cursor
+    /*!
+    \brief Creates the waveform display and starts the 60 Hz repaint timer.
+    \param engine The AudioEngine whose transport state drives the cursor.
     */
     explicit WaveformDisplay(AudioEngine& engine);
 
-    /** Stops the timer and destroys the Pimpl. */
+    /*!
+    \brief Stops the timer and destroys the Pimpl.
+    */
     ~WaveformDisplay() override;
 
-    /** Updates the thumbnail source after a new file has been loaded.
-        @param file  the audio file that was successfully loaded into the engine
+    /*!
+    \brief Updates the thumbnail source after a new file has been loaded.
+    \param file The audio file that was successfully loaded into the engine.
     */
     void setAudioFile(const juce::File& file);
 
-    /** Draws the waveform thumbnail and the playhead cursor line. */
+    /*!
+    \brief Draws the waveform thumbnail and the playhead cursor line.
+    \param g Graphics context used for drawing.
+    */
     void paint(juce::Graphics& g) override;
+
+    /*!
+    \brief Responds to component size changes.
+    */
     void resized() override;
 
 private:
-    /** Called at 60 Hz. Updates the transport position cache and repaints
-        when playing or while the thumbnail proxy is being generated.
-    */
+    // Called at 60 Hz to update the transport position cache and trigger repaint work.
+    // Repaints while playback is running or while the thumbnail proxy is still being generated.
     void timerCallback() override;
 
     AudioEngine& m_audio_engine;
@@ -55,8 +67,11 @@ private:
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 
-    double m_cursor_proportion{0.0};    ///< Normalised cursor position [0, 1].
-    double m_total_length_seconds{0.0}; ///< Duration of the loaded audio file.
+    // Normalised cursor position in the range [0, 1].
+    double m_cursor_proportion{0.0};
+
+    // Duration of the loaded audio file in seconds.
+    double m_total_length_seconds{0.0};
 };
 
 } // namespace rock_hero
