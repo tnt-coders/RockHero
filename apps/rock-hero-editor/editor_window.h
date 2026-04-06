@@ -1,4 +1,4 @@
-/** @file EditorWindow.h
+/** @file editor_window.h
     @brief Main application window for Rock Hero.
 */
 
@@ -15,13 +15,11 @@ class AudioEngine;
 
 /** Main application window.
 
-    Owns the AudioEngine and a ContentComponent that provides the load/play
-    controls and waveform display. ContentComponent is a private nested struct
-    defined in EditorWindow.cpp.
+    Owns the AudioEngine and a ContentComponent that provides the load/play controls and waveform
+    display. ContentComponent is a private nested struct defined in editor_window.cpp.
 
-    The destructor clears the DocumentWindow's non-owning content pointer
-    before member destruction to avoid dangling-pointer issues during
-    teardown.
+    The destructor clears the DocumentWindow's non-owning content pointer before member destruction
+    to avoid dangling-pointer issues during teardown.
 
     @see AudioEngine, WaveformDisplay
 */

@@ -1,5 +1,10 @@
 ---
 BasedOnStyle: Microsoft
+
 AccessModifierOffset: -4
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+BreakBeforeCloseBracketFunction: false
 ColumnLimit: 100
 PointerAlignment: Left
+ReflowComments: Never

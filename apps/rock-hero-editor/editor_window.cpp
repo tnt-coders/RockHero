@@ -1,7 +1,8 @@
-#include "EditorWindow.h"
+#include "editor_window.h"
 
-#include "AudioEngine.h"
-#include "WaveformDisplay.h"
+#include "waveform_display.h"
+
+#include <audio_engine/audio_engine.h>
 
 namespace rock_hero
 {
@@ -38,20 +39,26 @@ struct EditorWindow::ContentComponent : public juce::Component
 private:
     void OnLoadClicked()
     {
+        // Keep the chooser alive for the duration of the async native dialog.
         m_file_chooser = std::make_unique<juce::FileChooser>(
-            "Select an audio file", juce::File::getSpecialLocation(juce::File::userMusicDirectory),
+            "Select an audio file",
+            juce::File::getSpecialLocation(juce::File::userMusicDirectory),
             "*.wav;*.mp3;*.aiff;*.ogg;*.flac");
 
-        m_file_chooser->launchAsync(juce::FileBrowserComponent::openMode |
-                                        juce::FileBrowserComponent::canSelectFiles,
-                                    [this](const juce::FileChooser& chooser) {
-                                        const auto file = chooser.getResult();
-                                        if (file.existsAsFile())
-                                        {
-                                            if (m_audio_engine.loadFile(file))
-                                                m_waveform_display.setAudioFile(file);
-                                        }
-                                    });
+        m_file_chooser->launchAsync(
+            juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+            [this](const juce::FileChooser& chooser) {
+                const auto file = chooser.getResult();
+                if (file.existsAsFile())
+                {
+                    // Only refresh the thumbnail after the engine has accepted the file.
+                    // That keeps the UI from displaying a waveform for a file that failed to load.
+                    if (m_audio_engine.loadFile(file))
+                    {
+                        m_waveform_display.setAudioFile(file);
+                    }
+                }
+            });
     }
 
     void OnPlayStopClicked()
@@ -76,10 +83,11 @@ private:
 };
 
 EditorWindow::EditorWindow(const juce::String& title)
-    : juce::DocumentWindow(title,
-                           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
-                               juce::ResizableWindow::backgroundColourId),
-                           juce::DocumentWindow::allButtons),
+    : juce::DocumentWindow(
+          title,
+          juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
+              juce::ResizableWindow::backgroundColourId),
+          juce::DocumentWindow::allButtons),
       m_audio_engine(std::make_unique<AudioEngine>()),
       m_content(std::make_unique<ContentComponent>(*m_audio_engine))
 {
@@ -92,9 +100,8 @@ EditorWindow::EditorWindow(const juce::String& title)
 
 EditorWindow::~EditorWindow()
 {
-    // Null out DocumentWindow's non-owning pointer before m_content (and its
-    // 60 Hz timer) is destroyed by member destruction. Without this,
-    // ~ResizableWindow would call removeChildComponent on a dangling pointer.
+    // Null out DocumentWindow's non-owning pointer before m_content is destroyed.
+    // Otherwise ~ResizableWindow would call removeChildComponent on a dangling pointer.
     clearContentComponent();
 }
 

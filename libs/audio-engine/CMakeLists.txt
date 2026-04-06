@@ -1,6 +1,6 @@
 add_library(audio_engine STATIC)
 
-target_sources(audio_engine PRIVATE src/AudioEngine.cpp)
+target_sources(audio_engine PRIVATE src/audio_engine.cpp)
 
 target_include_directories(audio_engine PUBLIC include)
 
