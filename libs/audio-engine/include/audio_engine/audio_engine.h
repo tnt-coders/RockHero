@@ -1,5 +1,6 @@
-/** @file audio_engine.h
-    @brief Isolation layer between Tracktion Engine and the rest of the application.
+/*!
+\file audio_engine.h
+\brief Isolation layer between Tracktion Engine and the rest of the application.
 */
 
 #pragma once
@@ -22,26 +23,32 @@ class Edit;
 namespace rock_hero
 {
 
-/** Isolation layer between Tracktion Engine and the rest of the application.
+/*!
+\brief Isolation layer between Tracktion Engine and the rest of the application.
 
-    All other code depends on this interface rather than on Tracktion directly. This boundary
-    enables a fallback-to-raw-JUCE strategy: only audio_engine.cpp and waveform_display.cpp (with a
-    documented TODO to fix) ever include Tracktion headers.
+All other code depends on this interface rather than on Tracktion directly. This boundary
+enables a fallback-to-raw-JUCE strategy: only audio_engine.cpp and waveform_display.cpp (with a
+documented TODO to fix) ever include Tracktion headers.
 
-    Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
-    except getTransportPosition() must be called on the message thread.
+Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
+except getTransportPosition() must be called on the message thread.
 
-    @see EditorWindow, WaveformDisplay
+\see EditorWindow
+\see WaveformDisplay
 */
 class AudioEngine
 {
 public:
-    /** Creates the Tracktion Engine instance and a single-track Edit for playback. Initialises the
-        device manager with stereo output only.
+    /*!
+    \brief Creates the Tracktion Engine instance and a single-track Edit for playback.
+
+    Initialises the device manager with stereo output only.
     */
     AudioEngine();
 
-    /** Stops any active transport and tears down the Edit and Engine in the correct order. */
+    /*!
+    \brief Stops any active transport and tears down the Edit and Engine in the correct order.
+    */
     ~AudioEngine();
 
     AudioEngine(const AudioEngine&) = delete;
@@ -49,48 +56,61 @@ public:
     AudioEngine(AudioEngine&&) = delete;
     AudioEngine& operator=(AudioEngine&&) = delete;
 
-    /** Loads an audio file onto track 0, replacing any existing clip.
+    /*!
+    \brief Loads an audio file onto track 0, replacing any existing clip.
 
-        Stops playback before mutating clips to avoid mid-stream graph rebuilds.
-        Must be called on the message thread.
+    Stops playback before mutating clips to avoid mid-stream graph rebuilds. Must be called on
+    the message thread.
 
-        @param file  the audio file to load (wav, mp3, aiff, ogg, flac)
-        @return true if the clip was inserted successfully
+    \param file The audio file to load.
+    \return True if the clip was inserted successfully.
     */
     bool loadFile(const juce::File& file);
 
-    /** Starts transport playback. Must be called on the message thread. */
+    /*!
+    \brief Starts transport playback.
+    */
     void play();
 
-    /** Stops transport playback. Must be called on the message thread. */
+    /*!
+    \brief Stops transport playback.
+    */
     void stop();
 
-    /** Returns true if the transport is currently playing.
-        Must be called on the message thread.
+    /*!
+    \brief Reports whether the transport is currently playing.
+    \return True when the transport is currently playing.
     */
     [[nodiscard]] bool isPlaying() const;
 
-    /** Returns the current transport position in seconds.
+    /*!
+    \brief Returns the current transport position in seconds.
 
-        Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
-        written by the 60 Hz UI timer shim (updateTransportPositionCache). Will be moved to an
-        audio-thread callback once ASIO input is wired.
+    Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
+    written by the 60 Hz UI timer shim (updateTransportPositionCache). It will be moved to an
+    audio-thread callback once ASIO input is wired.
+
+    \return The cached transport position in seconds.
     */
     [[nodiscard]] double getTransportPosition() const noexcept;
 
-    /** Mirrors the Tracktion transport position into the atomic cache.
+    /*!
+    \brief Mirrors the Tracktion transport position into the atomic cache.
 
-        Called by WaveformDisplay's 60 Hz timer. Must be called on the message thread.
+    Called by WaveformDisplay's 60 Hz timer. Must be called on the message thread.
 
-        @note Temporary shim -- will be removed once the audio thread owns the write to the
-              transport position cache.
+    \note Temporary shim that will be removed once the audio thread owns the write to the
+    transport position cache.
     */
     void updateTransportPositionCache();
 
-    /** Returns a reference to the underlying tracktion::Engine.
+    /*!
+    \brief Returns a reference to the underlying tracktion::Engine.
 
-        This is an intentional bounded Tracktion type leak. Only audio_engine.cpp and
-        waveform_display.cpp should call this.
+    This is an intentional bounded Tracktion type leak. Only audio_engine.cpp and
+    waveform_display.cpp should call this.
+
+    \return The owned tracktion::Engine instance.
     */
     [[nodiscard]] tracktion::Engine& getEngine() noexcept;
 

@@ -26,9 +26,14 @@ Use `cmake --preset release` and `cmake --build --preset release` for optimized 
 
 ## Coding Style & Naming Conventions
 The project uses C++23. Formatting is enforced by `.clang-format` (Microsoft base style, 4-space indentation, 100-column limit, left-aligned pointers). Naming comes from `.clang-tidy`: types use `CamelCase`, functions/methods use `camelCase`, namespaces and local variables use `lower_case`, private/protected member fields use `m_lower_case`, and macros use `UPPER_CASE`. Keep CMake formatted with `cmake-format` through pre-commit.
-When writing or editing comments, wrap them manually so the entire rendered line stays at 100
-characters or fewer, including comment markers and indentation. Do not rely on `clang-format` to
-reflow comments.
+Comment and Doxygen conventions are defined in `docs/comment-style.md`. Follow that document for
+all project-owned comment formatting and documentation decisions.
+Reassess documentation scope whenever a subsystem grows from a single header/source pair into
+multiple cooperating classes or headers, when a subsystem gains nontrivial internal invariants
+around threading, ownership, caching, lifecycle, or synchronization, or when a new subsystem is
+added that is likely to need internal architecture docs. Analyze the codebase first. If it is still
+clearly unnecessary, do not ask. Only ask whether to expand Doxygen coverage when the value of
+broader internal generated documentation becomes genuinely uncertain.
 
 ## Testing Guidelines
 There are no root application tests registered yet, so `ctest` is mainly a guard for future coverage. For tooling changes under `project-config/cmake-conan/`, run the pytest suite from that directory with `pytest -rA`. Add new tests close to the code they validate and follow existing `test_*.py` naming for Python tests.

@@ -215,7 +215,7 @@ SHORT_NAMES            = NO
 # explicit @brief command for a brief description.)
 # The default value is: NO.
 
-JAVADOC_AUTOBRIEF      = YES
+JAVADOC_AUTOBRIEF      = NO
 
 # If the JAVADOC_BANNER tag is set to YES then Doxygen will interpret a line
 # such as
@@ -1028,10 +1028,11 @@ WARN_LOGFILE           =
 
 INPUT                  = libs/audio-engine/include \
                          libs/song/include \
-                         apps/rock-hero-editor/include \
-                         apps/rock-hero-game/src \
+                         apps/rock-hero-editor \
+                         apps/rock-hero-game \
                          README.md \
-                         docs/ARCHITECTURE.md
+                         docs/architecture.md \
+                         docs/comment-style.md
 
 # This tag can be used to specify the character encoding of the source files
 # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
