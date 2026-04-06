@@ -1,9 +1,9 @@
-#include "WaveformDisplay.h"
+#include "waveform_display.h"
 
-#include "AudioEngine.h"
+#include <audio_engine/audio_engine.h>
 
-// TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay
-//       only depends on JUCE types. Then this include can be removed.
+// TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay only depends on JUCE
+//       types. Then this include can be removed.
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace te = tracktion;
@@ -54,13 +54,14 @@ void WaveformDisplay::paint(juce::Graphics& g)
     {
         const auto pct = static_cast<int>(m_impl->thumbnail.getProxyProgress() * 100.0f);
         g.setColour(juce::Colours::white);
-        g.drawText("Building waveform: " + juce::String(pct) + "%", bounds,
-                   juce::Justification::centred);
+        g.drawText(
+            "Building waveform: " + juce::String(pct) + "%", bounds, juce::Justification::centred);
         return;
     }
 
-    const te::TimeRange visible_range{te::TimePosition{},
-                                      te::TimePosition::fromSeconds(m_total_length_seconds)};
+    const te::TimeRange visible_range{
+        te::TimePosition{}, te::TimePosition::fromSeconds(m_total_length_seconds)
+    };
     g.setColour(juce::Colours::lightgreen);
     m_impl->thumbnail.drawChannels(g, bounds, visible_range, 1.0f);
 
@@ -81,6 +82,8 @@ void WaveformDisplay::timerCallback()
     m_audio_engine.updateTransportPositionCache();
 
     const double pos = m_audio_engine.getTransportPosition();
+    // Keep cursor math in normalised space so paint() only needs the current bounds to translate
+    // transport time into screen coordinates.
     m_cursor_proportion = (m_total_length_seconds > 0.0) ? pos / m_total_length_seconds : 0.0;
 
     if (m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())

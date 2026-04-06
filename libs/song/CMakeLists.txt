@@ -1,6 +1,6 @@
 add_library(song STATIC)
 
-target_sources(song PRIVATE src/Song.cpp)
+target_sources(song PRIVATE src/song.cpp)
 
 target_include_directories(song PUBLIC include)
 

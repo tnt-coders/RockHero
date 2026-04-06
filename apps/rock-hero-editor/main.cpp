@@ -1,6 +1,6 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include "EditorWindow.h"
+#include "editor_window.h"
 
 namespace rock_hero
 {

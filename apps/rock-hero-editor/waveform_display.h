@@ -1,4 +1,4 @@
-/** @file WaveformDisplay.h
+/** @file waveform_display.h
     @brief Waveform rendering component with a scrolling playhead cursor.
 */
 
@@ -15,12 +15,11 @@ class AudioEngine;
 
 /** Displays the waveform of the loaded audio file with a scrolling playhead.
 
-    Uses a Pimpl (Impl struct) to hide tracktion::SmartThumbnail from this
-    header, keeping Tracktion headers out of consuming translation units.
+    Uses a Pimpl (Impl struct) to hide tracktion::SmartThumbnail from this header, keeping Tracktion
+    headers out of consuming translation units.
 
-    A private 60 Hz juce::Timer drives repaint during playback and proxy
-    generation. On each tick the timer also calls
-    AudioEngine::updateTransportPositionCache() to mirror the transport
+    A private 60 Hz juce::Timer drives repaint during playback and proxy generation. On each tick
+    the timer also calls AudioEngine::updateTransportPositionCache() to mirror the transport
     position into the lock-free atomic cache.
 
     @see AudioEngine

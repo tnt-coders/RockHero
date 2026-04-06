@@ -24,6 +24,7 @@ Checks: >
   modernize-*,
   -modernize-use-trailing-return-type,
   performance-*,
+  readability-braces-around-statements,
   readability-identifier-naming,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
@@ -34,6 +35,9 @@ WarningsAsErrors: '*'
 HeaderFilterRegex: '^(?!.*[\\/]external[\\/]).*'
 
 CheckOptions:
+  - key: readability-braces-around-statements.ShortStatementLines
+    value: '0'
+
   # --------------------------------------------------------------------------
   # Types
   # --------------------------------------------------------------------------

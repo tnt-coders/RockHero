@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "Arrangement.h"
-#include "Chart.h"
-#include "Song.h"
+#include <song/arrangement.h>
+#include <song/chart.h>
+#include <song/song.h>
 
 TEST_CASE("Song default construction is empty", "[song]")
 {
@@ -43,12 +43,14 @@ TEST_CASE("Arrangement holds note events", "[arrangement]")
 TEST_CASE("Chart holds multiple arrangements", "[chart]")
 {
     rock_hero::Chart chart;
-    chart.arrangements.push_back({.part = rock_hero::Part::Lead,
-                                  .difficulty = rock_hero::Difficulty::Easy,
-                                  .note_events = {}});
-    chart.arrangements.push_back({.part = rock_hero::Part::Bass,
-                                  .difficulty = rock_hero::Difficulty::Expert,
-                                  .note_events = {}});
+    chart.arrangements.push_back(
+        {.part = rock_hero::Part::Lead,
+         .difficulty = rock_hero::Difficulty::Easy,
+         .note_events = {}});
+    chart.arrangements.push_back(
+        {.part = rock_hero::Part::Bass,
+         .difficulty = rock_hero::Difficulty::Expert,
+         .note_events = {}});
 
     REQUIRE(chart.arrangements.size() == 2);
     REQUIRE(chart.arrangements[0].part == rock_hero::Part::Lead);
