@@ -1,4 +1,4 @@
-/** @file Arrangement.h
+/** @file arrangement.h
     @brief Arrangement entity within a Chart: a part/difficulty variant with its note events.
 */
 
@@ -39,9 +39,8 @@ enum class Difficulty : std::uint8_t
 
 /** One playable variant of a Chart, identified by part and difficulty.
 
-    An Arrangement owns the full sequence of NoteEvents the player must
-    execute. The song library treats these as plain data; scoring logic
-    lives in rock-hero-game.
+    An Arrangement owns the full sequence of NoteEvents the player must execute. The song library
+    treats these as plain data; scoring logic lives in rock-hero-game.
 */
 struct Arrangement
 {

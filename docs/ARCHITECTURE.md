@@ -38,8 +38,8 @@ The application ships as **two executables** (`rock-hero-editor` and `rock-hero-
 ```
 RockHero/
   apps/
-    rock-hero-editor/   — Editor executable: tone design + chart authoring
-    rock-hero-game/     — Game executable: note highway + scoring
+    rock-hero-editor/   — Editor executable: flat app layout while the target is small
+    rock-hero-game/     — Game executable: flat app layout while the target is small
   libs/
     audio-engine/       — Tracktion Engine isolation layer (static library)
     song/               — Song data model + format serialization (static library, no JUCE)
@@ -49,12 +49,17 @@ RockHero/
   project-config/       — Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 ```
 
+App targets keep their implementation files at the target root until they grow enough to justify
+feature folders. Reusable libraries keep `src/` plus namespaced public headers under
+`include/<library_name>/` so consumer includes stay explicit and collision-resistant.
+
 **Dependency rules:**
 
 - `libs/audio-engine` depends on Tracktion and JUCE audio modules.
 - `libs/song` depends on standard C++ only; no JUCE, no Tracktion. May use format-specific Conan packages (e.g. `open-psarc`).
 - Neither library depends on the other.
 - App executables may depend on both libraries.
+- Public library headers are included as `<audio_engine/...>` and `<song/...>`.
 - Tracktion headers are isolated to `audio-engine` implementation files.
 
 ---
@@ -63,9 +68,14 @@ RockHero/
 
 Rock Hero is not a general-purpose DAW. It uses exactly two tracks:
 
-**Track 1 — Backing Track**: A `WaveAudioClip` containing the song's audio file. Displayed as a waveform with a playhead in the editor.
+**Track 1 — Backing Track**: A `WaveAudioClip` containing the song's audio file. Displayed as a
+waveform with a playhead in the editor.
 
-**Track 2 — Guitar Input**: Receives live guitar through ASIO. Routed through a chain of VST plugins. Automation envelopes drive plugin parameters over the song's duration — bypass, wet/dry mix, wah position, and any other exposed parameter. Mid-song tone changes are achieved by loading multiple plugins and automating their bypass and mix parameters, with short ramps (5-10ms) to avoid clicks. Tracktion Engine's `RackType` system is available for more complex routing needs.
+**Track 2 — Guitar Input**: Receives live guitar through ASIO. Routed through a chain of VST
+plugins. Automation envelopes drive plugin parameters over the song's duration — bypass, wet/dry
+mix, wah position, and any other exposed parameter. Mid-song tone changes are achieved by loading
+multiple plugins and automating their bypass and mix parameters, with short ramps (5-10ms) to avoid
+clicks. Tracktion Engine's `RackType` system is available for more complex routing needs.
 
 Both tracks share a single transport, tempo map, and time signature sequence managed by Tracktion Engine's `Edit` data model.
 
@@ -155,13 +165,24 @@ Both executables link `audio-engine` and `song` as static libraries. Static link
 
 Each executable runs its own set of threads. The threading rules are identical in both — what differs is which threads each process actually uses at a given development stage.
 
-**Audio thread** (Tracktion Engine / JUCE): Highest priority. Runs the ASIO callback, processes the VST plugin chain, plays back the backing track, evaluates automation curves. Copies raw guitar input samples (pre-effects) into a lock-free ring buffer for the analysis thread. Never touches UI, never allocates memory, never blocks.
+**Audio thread** (Tracktion Engine / JUCE): Highest priority. Runs the ASIO callback, processes the
+VST plugin chain, plays back the backing track, evaluates automation curves. Copies raw guitar input
+samples (pre-effects) into a lock-free ring buffer for the analysis thread. Never touches UI, never
+allocates memory, never blocks.
 
-**Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer. Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86 detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) to a lock-free output structure. Runs on the clean input signal before the VST plugin chain — distortion and modulation make pitch detection dramatically harder.
+**Analysis thread** (pitch detection, `rock-hero-game`): Reads guitar input from the ring buffer.
+Runs pitch detection on overlapping windows (e.g. 2048-sample window, 512-sample hop, ~86
+detections/second at 44.1kHz). Writes results (pitch, confidence, onset timing) to a lock-free
+output structure. Runs on the clean input signal before the VST plugin chain — distortion and
+modulation make pitch detection dramatically harder.
 
-**UI thread** (JUCE message loop): Handles editor/game window repaints, mouse interaction, transport controls. Also ticks SDL event polling and triggers bgfx frame submissions for the game window. Reads pitch detection results for scoring and visual feedback. JUCE owns this loop; SDL is polled manually from within it.
+**UI thread** (JUCE message loop): Handles editor/game window repaints, mouse interaction,
+transport controls. Also ticks SDL event polling and triggers bgfx frame submissions for the game
+window. Reads pitch detection results for scoring and visual feedback. JUCE owns this loop; SDL is
+polled manually from within it.
 
-**Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
+**Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's
+geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
 
 ### Rules
 
@@ -206,9 +227,12 @@ All scoring comparisons happen in audio-sample time with calibration offsets app
 
 ## Gameplay Systems
 
-**Pitch detection**: YIN or autocorrelation on the clean pre-effects signal. Combined with onset detection (detecting *when* the player plays) which is often more reliable than pitch detection for scoring. Polyphonic detection needed for chords.
+**Pitch detection**: YIN or autocorrelation on the clean pre-effects signal. Combined with onset
+detection (detecting *when* the player plays) which is often more reliable than pitch detection for
+scoring. Polyphonic detection needed for chords.
 
-**Note matching and scoring**: Configurable tolerance windows for timing and pitch accuracy. Must handle string bends, hammer-ons, pull-offs, and slides as valid techniques rather than missed notes.
+**Note matching and scoring**: Configurable tolerance windows for timing and pitch accuracy. Must
+handle string bends, hammer-ons, pull-offs, and slides as valid techniques rather than missed notes.
 
 **Latency calibration**: Built into the timing architecture from day one, not bolted on later.
 

@@ -34,6 +34,8 @@ public:
 
     void initialise(const juce::String& /*command_line*/) override
     {
+        // The game app is still a shell window, so construct the DocumentWindow
+        // directly here until there is a dedicated content component to own.
         m_main_window = std::make_unique<GameWindow>(
             getApplicationName(),
             juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
