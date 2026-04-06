@@ -64,14 +64,15 @@ private:
 
     AudioEngine& m_audio_engine;
 
-    struct Impl;
-    std::unique_ptr<Impl> m_impl;
-
     // Normalised cursor position in the range [0, 1].
     double m_cursor_proportion{0.0};
 
     // Duration of the loaded audio file in seconds.
     double m_total_length_seconds{0.0};
+
+    // Impl exists specifically to keep Tracktion-only types out of this public header.
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace rock_hero
