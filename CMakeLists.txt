@@ -2,10 +2,17 @@ cmake_minimum_required(VERSION 3.20)
 project(
     RockHero
     VERSION 0.0.1
+    DESCRIPTION "Guitar-driven rhythm game applications and supporting libraries"
     LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+find_package(PackageBuilder REQUIRED)
+
+include(PackageBuilder)
+
+package_create()
 
 # Set project-config specific options
 option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available" ON)
@@ -54,3 +61,5 @@ add_subdirectory(libs/song)
 # --------------------------------------------------------------------------
 add_subdirectory(apps/rock-hero-editor)
 add_subdirectory(apps/rock-hero-game)
+
+package_install()
