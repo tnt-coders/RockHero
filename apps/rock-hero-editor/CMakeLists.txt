@@ -7,3 +7,5 @@ target_include_directories(rock_hero_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(
     rock_hero_editor PRIVATE audio_engine tracktion::tracktion_engine juce::juce_gui_basics
                              juce::juce_audio_utils juce::juce_recommended_warning_flags)
+
+package_register_target(rock_hero_editor)
