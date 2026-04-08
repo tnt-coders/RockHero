@@ -4,9 +4,10 @@ target_sources(audio_engine PRIVATE src/audio_engine.cpp)
 
 target_include_directories(audio_engine PUBLIC include)
 
-# Disabled because RockHero does not use WebBrowserComponent. JUCE only propagates the required
-# GTK/webkit include paths to targets that explicitly opt in via NEEDS_WEB_BROWSER TRUE.
-target_compile_definitions(audio_engine PRIVATE JUCE_WEB_BROWSER=0)
+# Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
+# the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER
+# TRUE or NEEDS_CURL TRUE.
+target_compile_definitions(audio_engine PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 
 target_link_libraries(
     audio_engine
