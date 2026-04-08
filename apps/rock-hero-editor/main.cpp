@@ -44,4 +44,5 @@ private:
 
 } // namespace rock_hero
 
+// NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
 START_JUCE_APPLICATION(rock_hero::RockHeroEditorApplication)

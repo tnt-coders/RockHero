@@ -20,7 +20,9 @@ AudioEngine::AudioEngine() : m_engine(std::make_unique<te::Engine>("RockHero"))
 AudioEngine::~AudioEngine()
 {
     if (m_edit)
+    {
         m_edit->getTransport().stop(false, false);
+    }
 
     m_edit.reset();
     m_engine.reset();
@@ -32,19 +34,27 @@ bool AudioEngine::loadFile(const juce::File& file)
     m_edit->getTransport().stop(false, false);
 
     if (!file.existsAsFile())
+    {
         return false;
+    }
 
     auto* track = te::getAudioTracks(*m_edit)[0];
     if (track == nullptr)
+    {
         return false;
+    }
 
     // Remove any existing clips on this track.
     for (auto* clip : track->getClips())
+    {
         clip->removeFromParent();
+    }
 
     te::AudioFile audio_file(*m_engine, file);
     if (!audio_file.isValid())
+    {
         return false;
+    }
 
     const auto length = te::TimeDuration::fromSeconds(audio_file.getLength());
     const auto start = te::TimePosition{};
@@ -53,7 +63,9 @@ bool AudioEngine::loadFile(const juce::File& file)
     const auto clip =
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, false);
     if (clip == nullptr)
+    {
         return false;
+    }
 
     auto& transport = m_edit->getTransport();
     transport.looping = false;

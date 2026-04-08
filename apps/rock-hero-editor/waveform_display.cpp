@@ -87,7 +87,9 @@ void WaveformDisplay::timerCallback()
     m_cursor_proportion = (m_total_length_seconds > 0.0) ? pos / m_total_length_seconds : 0.0;
 
     if (m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())
+    {
         repaint();
+    }
 }
 
 } // namespace rock_hero
