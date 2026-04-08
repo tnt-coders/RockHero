@@ -4,9 +4,10 @@ target_sources(rock_hero_editor PRIVATE main.cpp editor_window.cpp waveform_disp
 
 target_include_directories(rock_hero_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Disabled because RockHero does not use WebBrowserComponent. JUCE only propagates the required
-# GTK/webkit include paths to targets that explicitly opt in via NEEDS_WEB_BROWSER TRUE.
-target_compile_definitions(rock_hero_editor PRIVATE JUCE_WEB_BROWSER=0)
+# Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
+# the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER
+# TRUE or NEEDS_CURL TRUE.
+target_compile_definitions(rock_hero_editor PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 
 target_link_libraries(
     rock_hero_editor PRIVATE audio_engine tracktion::tracktion_engine juce::juce_gui_basics
