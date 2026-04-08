@@ -60,6 +60,8 @@ add_subdirectory(libs/song)
 # Applications
 # --------------------------------------------------------------------------
 add_subdirectory(apps/rock-hero-editor)
-add_subdirectory(apps/rock-hero-game)
+add_subdirectory(apps/rock-hero)
 
+# Only the game gets a desktop icon/launcher; the editor is a developer tool.
+set(PACKAGE_BUILDER_DESKTOP_LINKS rock_hero)
 package_install()

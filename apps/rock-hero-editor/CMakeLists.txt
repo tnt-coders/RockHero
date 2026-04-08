@@ -1,4 +1,5 @@
 juce_add_gui_app(rock_hero_editor PRODUCT_NAME "Rock Hero Editor" VERSION ${PROJECT_VERSION})
+set_target_properties(rock_hero_editor PROPERTIES OUTPUT_NAME "rock-hero-editor")
 
 target_sources(rock_hero_editor PRIVATE main.cpp editor_window.cpp waveform_display.cpp)
 
