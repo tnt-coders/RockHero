@@ -1,5 +1,5 @@
 [requires]
-cmake-package-builder/1.1.0  #recipe: https://github.com/tnt-coders/cmake-package-builder.git
+cmake-package-builder/test #recipe: https://github.com/tnt-coders/cmake-package-builder.git
 open-psarc/0.0.1  #recipe: https://github.com/tnt-coders/open-psarc.git
 catch2/3.13.0
 

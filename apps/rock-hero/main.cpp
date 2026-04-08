@@ -14,7 +14,7 @@ public:
     }
 };
 
-class RockHeroGameApplication : public juce::JUCEApplication
+class RockHeroApplication : public juce::JUCEApplication
 {
 public:
     const juce::String getApplicationName() override
@@ -65,4 +65,4 @@ private:
 } // namespace rock_hero
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-START_JUCE_APPLICATION(rock_hero::RockHeroGameApplication)
+START_JUCE_APPLICATION(rock_hero::RockHeroApplication)
