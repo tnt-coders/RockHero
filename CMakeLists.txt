@@ -12,7 +12,7 @@ find_package(PackageBuilder REQUIRED)
 
 include(PackageBuilder)
 
-package_create()
+package_create(PRIMARY_TARGET rock_hero)
 
 # Set project-config specific options
 option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available" ON)

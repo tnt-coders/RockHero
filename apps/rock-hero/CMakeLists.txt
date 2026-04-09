@@ -22,6 +22,8 @@ target_link_libraries(rock_hero PRIVATE audio_engine song juce::juce_gui_basics
 
 package_register_target(
     rock_hero
+    DISPLAY_NAME
+    "Rock Hero"
     ICON
     "${CMAKE_CURRENT_SOURCE_DIR}/resources/rock-hero.ico"
     LINUX_DESKTOP_FILE
