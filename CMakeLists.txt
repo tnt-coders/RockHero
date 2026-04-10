@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.20)
 project(
     RockHero
-    VERSION 0.0.2
+    VERSION 0.0.1
     DESCRIPTION "Guitar-driven rhythm game applications and supporting libraries"
     LANGUAGES C CXX)
 
