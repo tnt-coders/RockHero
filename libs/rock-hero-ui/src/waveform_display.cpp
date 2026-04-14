@@ -1,5 +1,7 @@
 #include <rock_hero_ui/waveform_display.h>
 
+#include <algorithm>
+
 #include <rock_hero_audio/audio_engine.h>
 
 // TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay only depends on JUCE
@@ -77,6 +79,21 @@ void WaveformDisplay::resized()
     // SmartThumbnail draws into the bounds passed to drawChannels — no child layout needed.
 }
 
+void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
+{
+    if (m_total_length_seconds <= 0.0 || !on_seek)
+        return;
+
+    const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
+    const double clamped = std::clamp(ratio, 0.0, 1.0);
+
+    // Update cursor immediately so the playhead moves before the 60 Hz tick fires.
+    m_cursor_proportion = clamped;
+    repaint();
+
+    on_seek(clamped * m_total_length_seconds);
+}
+
 void WaveformDisplay::timerCallback()
 {
     m_audio_engine.updateTransportPositionCache();
@@ -84,12 +101,14 @@ void WaveformDisplay::timerCallback()
     const double pos = m_audio_engine.getTransportPosition();
     // Keep cursor math in normalised space so paint() only needs the current bounds to translate
     // transport time into screen coordinates.
-    m_cursor_proportion = (m_total_length_seconds > 0.0) ? pos / m_total_length_seconds : 0.0;
+    const double new_proportion =
+        (m_total_length_seconds > 0.0) ? pos / m_total_length_seconds : 0.0;
 
-    if (m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())
-    {
+    const bool cursor_moved = new_proportion != m_cursor_proportion;
+    m_cursor_proportion = new_proportion;
+
+    if (cursor_moved || m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())
         repaint();
-    }
 }
 
 } // namespace rock_hero
