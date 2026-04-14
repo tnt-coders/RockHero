@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <song/arrangement.h>
-#include <song/chart.h>
-#include <song/song.h>
+#include <rock_hero_core/arrangement.h>
+#include <rock_hero_core/chart.h>
+#include <rock_hero_core/song.h>
 
 TEST_CASE("Song default construction is empty", "[song]")
 {

@@ -1,6 +1,6 @@
 /*!
-\file editor_window.h
-\brief Main application window for Rock Hero.
+\file main_window.h
+\brief Main application window for Rock Hero Editor.
 */
 
 #pragma once
@@ -18,7 +18,7 @@ class AudioEngine;
 \brief Main application window.
 
 Owns the AudioEngine and a ContentComponent that provides the load/play controls and waveform
-display. ContentComponent is a private nested struct defined in editor_window.cpp.
+display. ContentComponent is a private nested struct defined in main_window.cpp.
 
 The destructor clears the DocumentWindow's non-owning content pointer before member destruction
 to avoid dangling-pointer issues during teardown.
@@ -26,19 +26,19 @@ to avoid dangling-pointer issues during teardown.
 \see AudioEngine
 \see WaveformDisplay
 */
-class EditorWindow : public juce::DocumentWindow
+class MainWindow : public juce::DocumentWindow
 {
 public:
     /*!
     \brief Creates the window, its AudioEngine, and the content component.
     \param title Text shown in the title bar, typically the app name.
     */
-    explicit EditorWindow(const juce::String& title);
+    explicit MainWindow(const juce::String& title);
 
     /*!
     \brief Clears the content component pointer before destroying owned members.
     */
-    ~EditorWindow() override;
+    ~MainWindow() override;
 
     /*!
     \brief Requests application quit when the user closes the window.

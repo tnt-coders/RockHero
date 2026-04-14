@@ -3,7 +3,7 @@
 namespace rock_hero
 {
 
-class GameWindow : public juce::DocumentWindow
+class MainWindow : public juce::DocumentWindow
 {
 public:
     using juce::DocumentWindow::DocumentWindow;
@@ -36,7 +36,7 @@ public:
     {
         // The game app is still a shell window, so construct the DocumentWindow
         // directly here until there is a dedicated content component to own.
-        m_main_window = std::make_unique<GameWindow>(
+        m_main_window = std::make_unique<MainWindow>(
             getApplicationName(),
             juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
                 juce::ResizableWindow::backgroundColourId),
@@ -59,7 +59,7 @@ public:
     }
 
 private:
-    std::unique_ptr<GameWindow> m_main_window;
+    std::unique_ptr<MainWindow> m_main_window;
 };
 
 } // namespace rock_hero

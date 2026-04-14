@@ -1,13 +1,13 @@
-#include "editor_window.h"
+#include "main_window.h"
 
 #include "waveform_display.h"
 
-#include <audio_engine/audio_engine.h>
+#include <rock_hero_audio/audio_engine.h>
 
 namespace rock_hero
 {
 
-struct EditorWindow::ContentComponent : public juce::Component
+struct MainWindow::ContentComponent : public juce::Component
 {
     explicit ContentComponent(AudioEngine& engine)
         : m_audio_engine(engine), m_waveform_display(engine)
@@ -82,7 +82,7 @@ private:
     std::unique_ptr<juce::FileChooser> m_file_chooser;
 };
 
-EditorWindow::EditorWindow(const juce::String& title)
+MainWindow::MainWindow(const juce::String& title)
     : juce::DocumentWindow(
           title,
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
@@ -98,14 +98,14 @@ EditorWindow::EditorWindow(const juce::String& title)
     setVisible(true);
 }
 
-EditorWindow::~EditorWindow()
+MainWindow::~MainWindow()
 {
     // Null out DocumentWindow's non-owning pointer before m_content is destroyed.
     // Otherwise ~ResizableWindow would call removeChildComponent on a dangling pointer.
     clearContentComponent();
 }
 
-void EditorWindow::closeButtonPressed()
+void MainWindow::closeButtonPressed()
 {
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
 }
