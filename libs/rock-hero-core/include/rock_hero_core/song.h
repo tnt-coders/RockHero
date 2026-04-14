@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <song/chart.h>
+#include <rock_hero_core/chart.h>
 
 #include <string>
 
