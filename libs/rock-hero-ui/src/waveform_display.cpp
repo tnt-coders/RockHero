@@ -1,4 +1,4 @@
-#include "waveform_display.h"
+#include <rock_hero_ui/waveform_display.h>
 
 #include <rock_hero_audio/audio_engine.h>
 
