@@ -1,6 +1,6 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
-#include "editor_window.h"
+#include "main_window.h"
 
 namespace rock_hero
 {
@@ -25,7 +25,7 @@ public:
 
     void initialise(const juce::String& /*command_line*/) override
     {
-        m_main_window = std::make_unique<EditorWindow>(getApplicationName());
+        m_main_window = std::make_unique<MainWindow>(getApplicationName());
     }
 
     void shutdown() override
@@ -39,7 +39,7 @@ public:
     }
 
 private:
-    std::unique_ptr<EditorWindow> m_main_window;
+    std::unique_ptr<MainWindow> m_main_window;
 };
 
 } // namespace rock_hero

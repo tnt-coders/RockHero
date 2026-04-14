@@ -1,6 +1,6 @@
 #include "waveform_display.h"
 
-#include <audio_engine/audio_engine.h>
+#include <rock_hero_audio/audio_engine.h>
 
 // TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay only depends on JUCE
 //       types. Then this include can be removed.

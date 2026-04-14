@@ -33,7 +33,7 @@ documented TODO to fix) ever include Tracktion headers.
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
 except getTransportPosition() must be called on the message thread.
 
-\see EditorWindow
+\see MainWindow
 \see WaveformDisplay
 */
 class AudioEngine
