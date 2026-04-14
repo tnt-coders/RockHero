@@ -83,6 +83,21 @@ void AudioEngine::play()
 void AudioEngine::stop()
 {
     m_edit->getTransport().stop(false, false);
+    m_edit->getTransport().setPosition(te::TimePosition{});
+    m_transport_position.store(0.0, std::memory_order_relaxed);
+}
+
+void AudioEngine::pause()
+{
+    // stop(false, false): do not discard recording, do not clear recordings.
+    // Does not reset transport position — that is the semantic difference from stop().
+    m_edit->getTransport().stop(false, false);
+}
+
+void AudioEngine::seek(double seconds)
+{
+    m_edit->getTransport().setPosition(te::TimePosition::fromSeconds(seconds));
+    m_transport_position.store(seconds, std::memory_order_relaxed);
 }
 
 bool AudioEngine::isPlaying() const
