@@ -53,8 +53,8 @@ include(CTest)
 # --------------------------------------------------------------------------
 # Libraries
 # --------------------------------------------------------------------------
-add_subdirectory(libs/audio-engine)
-add_subdirectory(libs/song)
+add_subdirectory(libs/rock-hero-audio)
+add_subdirectory(libs/rock-hero-core)
 
 # --------------------------------------------------------------------------
 # Applications

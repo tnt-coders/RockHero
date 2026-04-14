@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <song/arrangement.h>
+#include <rock_hero_core/arrangement.h>
 
 #include <vector>
 
