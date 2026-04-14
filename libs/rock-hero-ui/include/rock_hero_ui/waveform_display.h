@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -45,6 +46,16 @@ public:
     \param file The audio file that was successfully loaded into the engine.
     */
     void setAudioFile(const juce::File& file);
+
+    /// Called with the target position in seconds when the user clicks the waveform.
+    /// Only fires when a file is loaded (m_total_length_seconds > 0).
+    std::function<void(double)> on_seek;
+
+    /*!
+    \brief Seeks to the clicked position and fires on_seek.
+    \param event The mouse event from the click.
+    */
+    void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
     \brief Draws the waveform thumbnail and the playhead cursor line.

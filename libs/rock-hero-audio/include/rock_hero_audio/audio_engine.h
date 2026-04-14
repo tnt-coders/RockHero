@@ -73,9 +73,27 @@ public:
     void play();
 
     /*!
-    \brief Stops transport playback.
+    \brief Stops transport playback and resets the position to the beginning.
     */
     void stop();
+
+    /*!
+    \brief Pauses transport playback, preserving the current position.
+
+    Use this when the user wants to resume from the same point. Contrast with stop(), which
+    resets the position to the beginning.
+    */
+    void pause();
+
+    /*!
+    \brief Seeks the transport to the given position in seconds.
+
+    Safe to call while playing (playback continues from the new position) or while stopped/paused
+    (only the cursor moves). Clamps to [0, edit length] internally by Tracktion.
+
+    \param seconds Target position in seconds.
+    */
+    void seek(double seconds);
 
     /*!
     \brief Reports whether the transport is currently playing.
