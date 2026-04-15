@@ -1,6 +1,16 @@
 juce_add_binary_data(rock_hero_ui_resources SOURCES resources/play_arrow.svg resources/pause.svg
                      resources/stop.svg)
 
+# BinaryData.h is generated at build time by juce_add_binary_data (via juceaide). The clang-tidy and
+# clang-tidy-fix targets read compile_commands.json without building, so the header would not exist
+# when transport_controls.cpp is analyzed. These dependencies ensure juceaide runs first — it only
+# converts the SVG files to C++ and takes a few seconds; it does not compile JUCE or Tracktion.
+foreach(tidy_target IN ITEMS clang-tidy clang-tidy-fix)
+    if(TARGET ${tidy_target})
+        add_dependencies(${tidy_target} rock_hero_ui_resources)
+    endif()
+endforeach()
+
 add_library(rock_hero_ui STATIC)
 
 target_sources(rock_hero_ui PRIVATE src/waveform_display.cpp src/transport_controls.cpp)
