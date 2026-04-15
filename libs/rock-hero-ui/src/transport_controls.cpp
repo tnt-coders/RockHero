@@ -27,7 +27,9 @@ TransportControls::TransportControls()
     m_play_pause_button->onClick = [this] { onPlayPauseClicked(); };
     m_stop_button->onClick = [this] {
         if (on_stop)
+        {
             on_stop();
+        }
     };
 
     addAndMakeVisible(*m_play_pause_button);
@@ -59,12 +61,16 @@ void TransportControls::onPlayPauseClicked()
     if (m_is_playing)
     {
         if (on_pause)
+        {
             on_pause();
+        }
     }
     else
     {
         if (on_play)
+        {
             on_play();
+        }
     }
 }
 
