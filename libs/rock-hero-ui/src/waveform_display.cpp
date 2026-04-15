@@ -82,7 +82,9 @@ void WaveformDisplay::resized()
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
     if (m_total_length_seconds <= 0.0 || !on_seek)
+    {
         return;
+    }
 
     const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
@@ -108,7 +110,9 @@ void WaveformDisplay::timerCallback()
     m_cursor_proportion = new_proportion;
 
     if (cursor_moved || m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())
+    {
         repaint();
+    }
 }
 
 } // namespace rock_hero
