@@ -35,6 +35,7 @@ set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
     CACHE STRING "Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/" FORCE)
 
 add_subdirectory(project-config)
+include(ProjectConfigJUCEHelpers)
 
 # --------------------------------------------------------------------------
 # Tracktion Engine (brings JUCE 8 via its own modules/juce submodule)

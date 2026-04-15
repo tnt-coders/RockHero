@@ -1,3 +1,4 @@
+#include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace rock_hero
@@ -19,12 +20,12 @@ class RockHeroApplication : public juce::JUCEApplication
 public:
     const juce::String getApplicationName() override
     {
-        return "Rock Hero";
+        return ProjectInfo::projectName;
     }
 
     const juce::String getApplicationVersion() override
     {
-        return "0.0.1";
+        return ProjectInfo::versionString;
     }
 
     bool moreThanOneInstanceAllowed() override
