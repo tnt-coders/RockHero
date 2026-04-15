@@ -18,9 +18,21 @@ package_create(PRIMARY_TARGET rock_hero)
 option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available" ON)
 option(PROJECT_CONFIG_ENABLE_CLANG_TIDY "Enable clang-tidy target when run-clang-tidy is available"
        ON)
+
+# Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/
+string(
+    CONCAT _clang_tidy_regex
+           # Reject any path containing a build/ segment (generated files)
+           [=[^(?!.*[\\/]build[\\/])]=]
+           # Advance to the project source root
+           [=[.*?[\\/]]=]
+           # Must be under apps/ or libs/
+           [=[(apps|libs)[\\/]]=]
+           # C/C++ source files only
+           [=[.*\.(c|cc|cpp|cxx)$]=])
 set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
-    [=[(apps|libs)[\\/].*\.(c|cc|cpp|cxx)$]=]
-    CACHE STRING "Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/." FORCE)
+    "${_clang_tidy_regex}"
+    CACHE STRING "Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/" FORCE)
 
 add_subdirectory(project-config)
 
