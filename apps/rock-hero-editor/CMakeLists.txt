@@ -10,6 +10,8 @@ target_include_directories(rock_hero_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 # TRUE or NEEDS_CURL TRUE.
 target_compile_definitions(rock_hero_editor PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 
+project_config_juce_generate_juce_header(rock_hero_editor)
+
 target_link_libraries(
     rock_hero_editor
     PRIVATE rock_hero_ui rock_hero_audio tracktion::tracktion_engine juce::juce_gui_basics

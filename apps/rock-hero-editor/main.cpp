@@ -1,3 +1,4 @@
+#include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "main_window.h"
@@ -10,12 +11,12 @@ class RockHeroEditorApplication : public juce::JUCEApplication
 public:
     const juce::String getApplicationName() override
     {
-        return "Rock Hero Editor";
+        return ProjectInfo::projectName;
     }
 
     const juce::String getApplicationVersion() override
     {
-        return "0.0.1";
+        return ProjectInfo::versionString;
     }
 
     bool moreThanOneInstanceAllowed() override
