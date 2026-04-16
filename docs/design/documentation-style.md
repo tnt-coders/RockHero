@@ -45,7 +45,7 @@ the closing `*/`.
 
 Example for a top-level declaration:
 
-```cpp
+\code{.cpp}
 /*!
 \brief Returns the current transport position in seconds.
 
@@ -56,18 +56,18 @@ audio-thread callback once ASIO input is wired.
 \return The cached transport position in seconds.
 */
 [[nodiscard]] double getTransportPosition() const noexcept;
-```
+\endcode
 
 Example for an indented member declaration:
 
-```cpp
+\code{.cpp}
     /*!
     \brief Creates the waveform display and starts the 60 Hz repaint timer.
 
     \param engine The AudioEngine whose transport state drives the cursor.
     */
     explicit WaveformDisplay(AudioEngine& engine);
-```
+\endcode
 
 ## Doxygen Commands
 
@@ -109,9 +109,11 @@ If a field does not apply, omit it.
 
 File-level Doxygen headers should include the file name explicitly:
 
-```cpp
+\code{.cpp}
 /*!
 \file waveform_display.h
 \brief Waveform rendering component with a scrolling playhead cursor.
 */
-```
+\endcode
+
+Use this pattern for project-owned public headers when a file-level Doxygen header is warranted.
