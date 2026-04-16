@@ -2,8 +2,8 @@
 
 ## Codex Bootstrap Rules
 - At the start of each non-trivial task, read `CLAUDE.md` and apply its project guidance unless it conflicts with higher-priority runtime instructions.
-- At the start of each non-trivial task, also read `docs/ARCHITECTURE.md`,
-  `docs/ARCHITECTURAL_PRINCIPLES.md`, and `docs/DOCUMENTATION_STYLE.md`, and make design,
+- At the start of each non-trivial task, also read `docs/design/architecture.md`,
+  `docs/design/architectural-principles.md`, and `docs/design/documentation-style.md`, and make design,
   refactoring, layering, testing, and documentation decisions with those documents in mind unless a
   higher-priority runtime instruction overrides them.
 - Treat files in `.claude/agents/*.md` as task-specific playbooks that Codex may apply directly when relevant.
@@ -36,10 +36,10 @@ Use `cmake --preset release` and `cmake --build --preset release` for optimized 
 
 ## Coding Style & Naming Conventions
 The project uses C++23. Formatting is enforced by `.clang-format` (Microsoft base style, 4-space indentation, 100-column limit, left-aligned pointers). Naming comes from `.clang-tidy`: types use `CamelCase`, functions/methods use `camelCase`, namespaces and local variables use `lower_case`, private/protected member fields use `m_lower_case`, and macros use `UPPER_CASE`. Keep CMake formatted with `cmake-format` through pre-commit.
-Architecture and layering decisions should remain aligned with `docs/ARCHITECTURE.md` and
-`docs/ARCHITECTURAL_PRINCIPLES.md`, especially around dependency boundaries, adapter design,
+Architecture and layering decisions should remain aligned with `docs/design/architecture.md` and
+`docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,
 framework isolation, and automated-testable structure.
-Comment and Doxygen conventions are defined in `docs/DOCUMENTATION_STYLE.md`. Follow that document
+Comment and Doxygen conventions are defined in `docs/design/documentation-style.md`. Follow that document
 for all project-owned comment formatting and documentation decisions.
 Reassess documentation scope whenever a subsystem grows from a single header/source pair into
 multiple cooperating classes or headers, when a subsystem gains nontrivial internal invariants
