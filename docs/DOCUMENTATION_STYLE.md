@@ -1,8 +1,9 @@
-# Comment Style
+# Documentation Style
 
 ## Scope
 
-This document defines the canonical comment and Doxygen style for project-owned code in Rock Hero.
+This document defines the canonical documentation, comment, and Doxygen style for project-owned
+code in Rock Hero.
 
 These rules apply to:
 
