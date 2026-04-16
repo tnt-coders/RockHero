@@ -3,7 +3,7 @@
 #include <rock_hero_ui/transport_controls.h>
 #include <rock_hero_ui/waveform_display.h>
 
-#include <rock_hero_audio/audio_engine.h>
+#include <rock_hero_audio_engine/audio_engine.h>
 
 namespace rock_hero
 {
