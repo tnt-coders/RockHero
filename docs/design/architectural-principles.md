@@ -1,6 +1,6 @@
-# Rock Hero Architectural Principles
+# Architectural Principles
 
-This document complements `ARCHITECTURE.md`. `ARCHITECTURE.md` describes the system shape;
+This document complements `architecture.md`. `architecture.md` describes the system shape;
 this document defines the engineering principles and structural constraints that keep the codebase
 scalable and amenable to automated testing as it grows.
 
@@ -62,7 +62,7 @@ tightly coupled.
 
 ## Library Roles
 
-### `rock-hero-core`
+### Rock Hero Core
 
 `rock-hero-core` should become the largest concentration of behavior in the project.
 
@@ -89,7 +89,7 @@ This code should be:
 
 If a new feature can live here, it usually should.
 
-### `rock-hero-audio-engine`
+### Rock Hero Audio Engine
 
 `rock-hero-audio-engine` should act as an adapter around Tracktion and JUCE audio facilities.
 
@@ -108,7 +108,7 @@ other business logic that merely happens to relate to audio.
 
 Its purpose is integration and infrastructure.
 
-### `rock-hero-ui`
+### Rock Hero UI
 
 `rock-hero-ui` should be presentation-focused.
 
