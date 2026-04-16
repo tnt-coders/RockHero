@@ -41,7 +41,7 @@ For the structural engineering rules that govern how new code should be organize
 
 ## Repository Layout
 
-```
+\code{.txt}
 RockHero/
   apps/
     rock-hero-editor/   — Editor executable: flat app layout while the target is small
@@ -54,7 +54,7 @@ RockHero/
   external/
     tracktion_engine/   — Git submodule: Tracktion Engine + JUCE 8
   project-config/       — Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
-```
+\endcode
 
 App targets keep their implementation files at the target root until they grow enough to justify
 feature folders. Reusable libraries keep `src/` plus namespaced public headers under
@@ -106,7 +106,7 @@ Both tracks share a single transport, tempo map, and time signature sequence man
 
 The `rock-hero-core` library owns all persistent song data. It depends on standard C++ only.
 
-```
+\code{.txt}
 Song
   metadata          (title, artist, album, year)
   audio_asset_ref   (path/identifier for the backing track audio file)
@@ -121,7 +121,7 @@ Song
         duration_seconds
         string_number (1–6)
         fret
-```
+\endcode
 
 `Song` is the persistence and session root. When a session opens, the application loads a `Song`
 from disk, passes `audio_asset_ref` to `rock-hero-audio-engine` for playback, and passes
@@ -145,44 +145,44 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 
 ## Architecture Diagram
 
-```
-┌──────────────────────────────┐   ┌──────────────────────────────┐
+\code{.txt}
+┌──────────────────────────────┐   ┌───────────────────────────────┐
 │     rock-hero-editor         │   │     rock-hero                 │
 │                              │   │                               │
 │  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │    Editor Window       │  │   │  │    Game Window           │  │
+│  │    Editor Window       │  │   │  │    Game Window          │  │
 │  │    (JUCE Components)   │  │   │  │    (SDL3 + bgfx)        │  │
-│  │                        │  │   │  │                          │  │
+│  │                        │  │   │  │                         │  │
 │  │  • Waveform display    │  │   │  │  • 3D note highway      │  │
 │  │  • Plugin chain view   │  │   │  │  • Score display        │  │
 │  │  • Automation envelopes│  │   │  │  • Hit feedback/effects │  │
 │  │  • Transport controls  │  │   │  │  • Fretboard view       │  │
 │  └───────────┬────────────┘  │   │  └──────────┬──────────────┘  │
-│              │               │   │             │                  │
+│              │               │   │             │                 │
 │  ┌───────────┴────────────┐  │   │  ┌──────────┴──────────────┐  │
-│  │  libs/rock-hero-       │  │   │  │  libs/rock-hero-         │  │
-│  │  audio-engine          │  │   │  │  audio-engine            │  │
-│  │  (Tracktion Engine)    │  │   │  │  (Tracktion Engine)      │  │
-│  │                        │  │   │  │                          │  │
-│  │  Track 1: Backing Track│  │   │  │  Track 1: Backing Track  │  │
-│  │  Track 2: Guitar Input │  │   │  │  Track 2: Guitar Input   │  │
-│  │  Transport + Automation│  │   │  │  Transport + Automation  │  │
+│  │  libs/rock-hero-       │  │   │  │  libs/rock-hero-        │  │
+│  │  audio-engine          │  │   │  │  audio-engine           │  │
+│  │  (Tracktion Engine)    │  │   │  │  (Tracktion Engine)     │  │
+│  │                        │  │   │  │                         │  │
+│  │  Track 1: Backing Track│  │   │  │  Track 1: Backing Track │  │
+│  │  Track 2: Guitar Input │  │   │  │  Track 2: Guitar Input  │  │
+│  │  Transport + Automation│  │   │  │  Transport + Automation │  │
 │  └────────────────────────┘  │   │  └─────────────────────────┘  │
 │                              │   │                               │
 │  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │  libs/rock-hero-core   │  │   │  │  libs/rock-hero-core     │  │
-│  │  Song/Chart/Arrangement│  │   │  │  Song/Chart/Arrangement  │  │
-│  └────────────────────────┘  │   │  │  + Scoring logic         │  │
+│  │  libs/rock-hero-core   │  │   │  │  libs/rock-hero-core    │  │
+│  │  Song/Chart/Arrangement│  │   │  │  Song/Chart/Arrangement │  │
+│  └────────────────────────┘  │   │  │  + Scoring logic        │  │
 │                              │   │  └─────────────────────────┘  │
 └──────────────────────────────┘   │                               │
                                    │  ┌─────────────────────────┐  │
-                                   │  │  Gameplay Systems        │  │
-                                   │  │  • Pitch detection       │  │
-                                   │  │  • Note matching         │  │
-                                   │  │  • Latency calibration   │  │
+                                   │  │  Gameplay Systems       │  │
+                                   │  │  • Pitch detection      │  │
+                                   │  │  • Note matching        │  │
+                                   │  │  • Latency calibration  │  │
                                    │  └─────────────────────────┘  │
-                                   └──────────────────────────────┘
-```
+                                   └───────────────────────────────┘
+\endcode
 
 Both executables link `rock-hero-audio-engine` and `rock-hero-core` as static libraries. Static
 linking avoids singleton aliasing issues and simplifies deployment.
@@ -220,7 +220,7 @@ geometric simplicity, single-threaded rendering from the UI thread is likely suf
 
 ### Thread Communication
 
-```
+\code{.txt}
 Audio Thread                Analysis Thread           UI / Game Thread
      │                           │                          │
      │  raw input samples        │                          │
@@ -230,7 +230,7 @@ Audio Thread                Analysis Thread           UI / Game Thread
      │  transport position       │                          │
      ├──► [std::atomic] ─────────┼─────────────────────────►│
      │                           │                          │
-```
+\endcode
 
 All communication from the audio thread is lock-free. The audio thread's only outputs are the ring buffer (samples), the atomic transport position, and its normal audio output to the speakers. No mutexes, no blocking, no exceptions.
 
