@@ -9,7 +9,13 @@
 - These playbooks are guidance artifacts, not executable agent definitions in Codex.
 
 ## Project Structure & Module Organization
-`apps/` contains executables (`apps/rock-hero-editor`, `apps/rock-hero-game`). `libs/` contains shared static libraries (`libs/audio-engine`, `libs/song`). `docs/` holds Doxygen inputs such as `Doxyfile.in`. Third-party source submodules live under `external/` (`external/tracktion_engine`). `project-config/` remains a root-level submodule providing shared CMake presets, Conan integration, docs theming, and lint targets; its vendored `cmake-conan/` subtree carries its own pytest suite. Root build outputs go to `build/debug` and `build/release` via presets.
+`apps/` contains executables (`apps/rock-hero-editor`, `apps/rock-hero-game`). `libs/` contains
+shared static libraries (`libs/rock-hero-audio-engine`, `libs/rock-hero-core`,
+`libs/rock-hero-ui`). `docs/` holds Doxygen inputs such as `Doxyfile.in`. Third-party source
+submodules live under `external/` (`external/tracktion_engine`). `project-config/` remains a
+root-level submodule providing shared CMake presets, Conan integration, docs theming, and lint
+targets; its vendored `cmake-conan/` subtree carries its own pytest suite. Root build outputs go
+to `build/debug` and `build/release` via presets.
 
 ## Build, Test, and Development Commands
 Initialize submodules before configuring:
