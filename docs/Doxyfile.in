@@ -1032,8 +1032,9 @@ INPUT                  = libs/rock-hero-audio-engine/include \
                          apps/rock-hero-editor \
                          apps/rock-hero-game \
                          README.md \
-                         docs/architecture.md \
-                         docs/comment-style.md
+                         docs/ARCHITECTURAL_PRINCIPLES.md \
+                         docs/ARCHITECTURE.md \
+                         docs/DOCUMENTATION_STYLE.md
 
 # This tag can be used to specify the character encoding of the source files
 # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
