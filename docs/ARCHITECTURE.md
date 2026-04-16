@@ -45,7 +45,7 @@ For the structural engineering rules that govern how new code should be organize
 RockHero/
   apps/
     rock-hero-editor/   — Editor executable: flat app layout while the target is small
-    rock-hero-game/     — Game executable: flat app layout while the target is small
+    rock-hero/          — Game executable: flat app layout while the target is small
   libs/
     rock-hero-audio-engine/ — Tracktion Engine isolation adapter (static library)
     rock-hero-core/     — Song data model + format serialization (static library, no JUCE)
@@ -67,8 +67,8 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
   format-specific Conan packages (e.g. `open-psarc`).
 - Neither library depends on the other.
 - App executables may depend on both libraries and on `rock-hero-ui`.
-- Public library headers are included as `<rock_hero_audio_engine/...>` and
-  `<rock_hero_core/...>`.
+- Public library headers are included as `<rock_hero_audio_engine/...>`,
+  `<rock_hero_core/...>`, and `<rock_hero_ui/...>`.
 - Tracktion headers are isolated to `rock-hero-audio-engine` implementation files.
 
 **Architectural principles:**
@@ -104,7 +104,7 @@ Both tracks share a single transport, tempo map, and time signature sequence man
 
 ## Song Data Model
 
-The `libs/song` library owns all persistent song data. It depends on standard C++ only.
+The `rock-hero-core` library owns all persistent song data. It depends on standard C++ only.
 
 ```
 Song
@@ -147,7 +147,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 
 ```
 ┌──────────────────────────────┐   ┌──────────────────────────────┐
-│     rock-hero-editor         │   │     rock-hero-game            │
+│     rock-hero-editor         │   │     rock-hero                 │
 │                              │   │                               │
 │  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
 │  │    Editor Window       │  │   │  │    Game Window           │  │
@@ -170,7 +170,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  └────────────────────────┘  │   │  └─────────────────────────┘  │
 │                              │   │                               │
 │  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │  libs/song             │  │   │  │  libs/song               │  │
+│  │  libs/rock-hero-core   │  │   │  │  libs/rock-hero-core     │  │
 │  │  Song/Chart/Arrangement│  │   │  │  Song/Chart/Arrangement  │  │
 │  └────────────────────────┘  │   │  │  + Scoring logic         │  │
 │                              │   │  └─────────────────────────┘  │
@@ -285,7 +285,7 @@ UI theming is planned as a distinct later phase — functionality first, polish 
 
 ## Game View
 
-Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero-game`.
+Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero`.
 
 The note highway is geometrically simple — textured quads on lanes with perspective projection. bgfx handles this easily with room for glow effects, particles on note hits, and other visual feedback.
 
@@ -350,12 +350,25 @@ When gameplay feels "off," these logs reveal whether the issue is transport drif
 
 Visual polish, 3D fretboard, particles, and UI theming come after gameplay fundamentals are proven.
 
+### Testing Infrastructure
+
+Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-library test targets
+live alongside each library:
+
+- `libs/rock-hero-core/tests/` — active; covers `Song`, `Chart`, and `Arrangement` construction
+  and field access
+- `libs/rock-hero-audio-engine/tests/` — not yet added
+- `libs/rock-hero-ui/tests/` — not yet added
+
+Tests are registered with CTest via `catch_discover_tests`. See `ARCHITECTURAL_PRINCIPLES.md` for
+the full testing strategy.
+
 ---
 
 ## Known Risks
 
 | Risk | Severity | Mitigation |
-|------|----------|-----------|
+|------|----------|------------|
 | Tracktion Engine timing doesn't fit gameplay | Moderate | Validate early; architecture supports fallback to raw JUCE |
 | Dual timing systems cause drift/scoring errors | High (conceptual) | Audio thread is single source of truth; timing instrumentation catches drift |
 | VST plugins cause CPU spikes | Low | Performance monitoring, automatic bypass, fallback chains |
