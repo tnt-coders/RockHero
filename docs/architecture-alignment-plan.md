@@ -5,9 +5,9 @@
 This document defines a concrete plan to bring the current Rock Hero codebase into closer alignment
 with:
 
-- `ARCHITECTURE.md`
-- `ARCHITECTURAL_PRINCIPLES.md`
-- `DOCUMENTATION_STYLE.md`
+- `docs/design/architecture.md`
+- `docs/design/architectural-principles.md`
+- `docs/design/documentation-style.md`
 
 The plan is intentionally incremental. The goal is not to rewrite the project at once, but to move
 the codebase toward a structure that scales well, keeps third-party dependencies contained, and
@@ -43,7 +43,7 @@ The codebase should move toward these outcomes:
 4. App targets become thinner composition roots.
 5. Time, threading, hardware, and IO concerns remain at the system boundary.
 6. The majority of automated tests run without GUI, audio hardware, or real-time runtime state.
-7. Public headers follow `DOCUMENTATION_STYLE.md` consistently.
+7. Public headers follow `docs/design/documentation-style.md` consistently.
 
 ## Work Streams
 
@@ -152,7 +152,7 @@ requires a fake, not before.
 - application logic becomes less coupled to concrete runtime objects
 - future subsystem boundaries become clearer earlier
 
-## 5. Grow `rock-hero-core` Into the Main Home for Pure Logic
+## 5. Grow Rock Hero Core Into the Main Home for Pure Logic
 
 ### Objective
 
@@ -169,7 +169,7 @@ Make `rock-hero-core` the primary repository of deterministic business behavior.
 
 ### Expected Result
 
-- stronger alignment with `ARCHITECTURAL_PRINCIPLES.md`
+- stronger alignment with `docs/design/architectural-principles.md`
 - higher test density in pure code
 - reduced pressure to test behavior through the running apps
 

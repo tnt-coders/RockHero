@@ -74,16 +74,16 @@ If you touch preset or submodule wiring, run a fresh configure from the reposito
 
 Before making architectural, testing, or documentation decisions, consult these documents:
 
-- **`docs/ARCHITECTURE.md`** — Full system description: technology stack, two-track design,
+- **`docs/design/architecture.md`** — Full system description: technology stack, two-track design,
   threading model, timing and latency chain, gameplay systems, known risks, and fallback strategy.
   Read this to understand the system shape before adding features or proposing structural changes.
 
-- **`docs/ARCHITECTURAL_PRINCIPLES.md`** — Structural constraints and testability rules. Defines
+- **`docs/design/architectural-principles.md`** — Structural constraints and testability rules. Defines
   library roles, the ports-and-adapters pattern, what belongs in `rock-hero-core` vs. adapters,
   how to treat time and threading, and the decision rules for new code. Consult this whenever
   placing new behavior, designing an interface, or choosing between implementation strategies.
 
-- **`docs/DOCUMENTATION_STYLE.md`** — Doxygen and comment conventions. Defines block format,
+- **`docs/design/documentation-style.md`** — Doxygen and comment conventions. Defines block format,
   required fields, backslash vs. at-sign commands, and blank-line rules. Follow this when writing
   or reviewing any documentation in public headers.
 
