@@ -9,6 +9,9 @@ The application ships as executables built on shared static libraries, with
 and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components. No external DAW
 required. It should feel like a game, not a production tool.
 
+For the structural engineering rules that govern how new code should be organized, see
+`ARCHITECTURAL_PRINCIPLES.md`.
+
 ---
 
 ## What It Does
@@ -67,6 +70,18 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 - Public library headers are included as `<rock_hero_audio_engine/...>` and
   `<rock_hero_core/...>`.
 - Tracktion headers are isolated to `rock-hero-audio-engine` implementation files.
+
+**Architectural principles:**
+
+- Keep most behavior in pure or near-pure libraries rather than in UI or app targets.
+- Treat `rock-hero-audio-engine` as an adapter around Tracktion/JUCE, not as a home for general
+  business logic.
+- Keep `rock-hero-ui` focused on presentation and intent emission rather than policy.
+- Keep time, threading, hardware, and IO concerns at the boundary where they can be simulated or
+  replaced in tests.
+- Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.
+
+See `ARCHITECTURAL_PRINCIPLES.md` for the full guidance.
 
 ---
 
