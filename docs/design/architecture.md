@@ -1,4 +1,4 @@
-# Rock Hero — Project Architecture
+# Project Architecture
 
 ## Overview
 
@@ -10,7 +10,7 @@ and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components.
 required. It should feel like a game, not a production tool.
 
 For the structural engineering rules that govern how new code should be organized, see
-`ARCHITECTURAL_PRINCIPLES.md`.
+`architectural-principles.md`.
 
 ---
 
@@ -81,7 +81,7 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
   replaced in tests.
 - Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.
 
-See `ARCHITECTURAL_PRINCIPLES.md` for the full guidance.
+See `architectural-principles.md` for the full guidance.
 
 ---
 
@@ -133,11 +133,11 @@ that belongs entirely to `rock-hero-audio-engine`.
 
 ## Application Responsibilities
 
-### `rock-hero-editor`
+### Rock Hero Editor
 
 Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Chart`/`Arrangement` while auditioning playback. Disables structural model edits while transport is running. Tone and chart decisions are kept in one executable by design — they are too tightly coupled to author in separate tools.
 
-### `rock-hero-game`
+### Rock Hero Game
 
 Loads a `Song` and starts a playback session. Displays the note highway and scoring UX. Owns scoring logic — evaluates note hit/miss events against audio-derived timing. Treats the `Song` model as read-only during gameplay.
 
@@ -360,7 +360,7 @@ live alongside each library:
 - `libs/rock-hero-audio-engine/tests/` — not yet added
 - `libs/rock-hero-ui/tests/` — not yet added
 
-Tests are registered with CTest via `catch_discover_tests`. See `ARCHITECTURAL_PRINCIPLES.md` for
+Tests are registered with CTest via `catch_discover_tests`. See `architectural-principles.md` for
 the full testing strategy.
 
 ---
