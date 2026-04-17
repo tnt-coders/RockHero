@@ -8,6 +8,16 @@
 #include <filesystem>
 #include <memory>
 
+// Forward declarations; callers need not include Tracktion headers.
+// The inline keyword must match Tracktion's own declaration to avoid C2049 on MSVC.
+namespace tracktion
+{
+inline namespace engine
+{
+class Engine;
+} // namespace engine
+} // namespace tracktion
+
 // Forward declarations — full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
 namespace juce
@@ -20,16 +30,14 @@ template <typename ValueType> class Rectangle;
 namespace rock_hero
 {
 
-class AudioEngine;
-
 /*!
 \brief Owns audio thumbnail proxy generation and drawing, hiding Tracktion types from consumers.
 
 Wraps tracktion::SmartThumbnail behind a Tracktion-free public interface so that UI code can
 render audio thumbnails without including Tracktion headers or linking Tracktion libraries.
 
-Constructed with an AudioEngine (which owns the tracktion::Engine) and a juce::Component that
-receives repaint notifications when the proxy finishes generating.
+Created via AudioEngine::createThumbnail() rather than constructed directly, so that the
+Tracktion Engine reference never leaks into calling code.
 
 \see AudioEngine
 */
@@ -37,11 +45,14 @@ class AudioThumbnail
 {
 public:
     /*!
-    \brief Creates the thumbnail and begins proxy generation once a file is set.
-    \param engine The AudioEngine that owns the Tracktion Engine instance.
+    \brief Creates the thumbnail bound to the given Tracktion Engine instance.
+
+    Prefer AudioEngine::createThumbnail() over calling this constructor directly.
+
+    \param engine The Tracktion Engine instance used for proxy generation.
     \param owner The component that should be repainted when the proxy is ready.
     */
-    AudioThumbnail(AudioEngine& engine, juce::Component& owner);
+    AudioThumbnail(tracktion::Engine& engine, juce::Component& owner);
 
     /*!
     \brief Destroys the thumbnail and releases proxy resources.

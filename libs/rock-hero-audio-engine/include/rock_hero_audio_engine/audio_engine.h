@@ -20,8 +20,15 @@ class Edit;
 } // namespace engine
 } // namespace tracktion
 
+namespace juce
+{
+class Component;
+} // namespace juce
+
 namespace rock_hero
 {
+
+class AudioThumbnail;
 
 /*!
 \brief Isolation layer between Tracktion Engine and the rest of the application.
@@ -123,14 +130,15 @@ public:
     void updateTransportPositionCache();
 
     /*!
-    \brief Returns a reference to the underlying tracktion::Engine.
+    \brief Creates an AudioThumbnail bound to this engine.
 
-    Used internally by rock-hero-audio-engine classes (e.g. AudioThumbnail). No code outside
-    this library should call this.
+    Factory method that passes the internal Tracktion Engine to the thumbnail without exposing
+    it through the public API.
 
-    \return The owned tracktion::Engine instance.
+    \param owner The component that should be repainted when the proxy finishes generating.
+    \return A new AudioThumbnail instance.
     */
-    [[nodiscard]] tracktion::Engine& getEngine() noexcept;
+    [[nodiscard]] std::unique_ptr<AudioThumbnail> createThumbnail(juce::Component& owner);
 
 private:
     std::unique_ptr<tracktion::Engine> m_engine;
