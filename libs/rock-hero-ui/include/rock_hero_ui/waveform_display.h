@@ -7,15 +7,15 @@
 
 #include <filesystem>
 #include <functional>
+#include <memory>
 
 #include <juce_gui_basics/juce_gui_basics.h>
-
-#include <rock_hero_audio_engine/audio_thumbnail.h>
 
 namespace rock_hero
 {
 
 class AudioEngine;
+class AudioThumbnail;
 
 /*!
 \brief Displays the waveform of the loaded audio file with a scrolling playhead.
@@ -77,7 +77,7 @@ private:
     void timerCallback() override;
 
     AudioEngine& m_audio_engine;
-    AudioThumbnail m_thumbnail;
+    std::unique_ptr<AudioThumbnail> m_thumbnail;
 
     // Normalised cursor position in the range [0, 1].
     double m_cursor_proportion{0.0};

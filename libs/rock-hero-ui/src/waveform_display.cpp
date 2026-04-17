@@ -3,12 +3,13 @@
 #include <algorithm>
 
 #include <rock_hero_audio_engine/audio_engine.h>
+#include <rock_hero_audio_engine/audio_thumbnail.h>
 
 namespace rock_hero
 {
 
 WaveformDisplay::WaveformDisplay(AudioEngine& engine)
-    : m_audio_engine(engine), m_thumbnail(engine, *this)
+    : m_audio_engine(engine), m_thumbnail(engine.createThumbnail(*this))
 {
     startTimerHz(60);
 }
@@ -17,7 +18,7 @@ WaveformDisplay::~WaveformDisplay() = default;
 
 void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
-    m_thumbnail.setFile(file);
+    m_thumbnail->setFile(file);
     repaint();
 }
 
@@ -27,16 +28,16 @@ void WaveformDisplay::paint(juce::Graphics& g)
 
     g.fillAll(juce::Colours::black);
 
-    if (m_thumbnail.getLength() <= 0.0)
+    if (m_thumbnail->getLength() <= 0.0)
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Load a file to see the waveform", bounds, juce::Justification::centred);
         return;
     }
 
-    if (m_thumbnail.isGeneratingProxy())
+    if (m_thumbnail->isGeneratingProxy())
     {
-        const auto pct = static_cast<int>(m_thumbnail.getProxyProgress() * 100.0f);
+        const auto pct = static_cast<int>(m_thumbnail->getProxyProgress() * 100.0f);
         g.setColour(juce::Colours::white);
         g.drawText(
             "Building waveform: " + juce::String(pct) + "%", bounds, juce::Justification::centred);
@@ -44,7 +45,7 @@ void WaveformDisplay::paint(juce::Graphics& g)
     }
 
     g.setColour(juce::Colours::lightgreen);
-    m_thumbnail.drawChannels(g, bounds, 1.0f);
+    m_thumbnail->drawChannels(g, bounds, 1.0f);
 
     // Scrolling playhead cursor.
     const auto cursor_x =
@@ -60,7 +61,7 @@ void WaveformDisplay::resized()
 
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
-    const double length = m_thumbnail.getLength();
+    const double length = m_thumbnail->getLength();
     if (length <= 0.0 || !on_seek)
     {
         return;
@@ -81,7 +82,7 @@ void WaveformDisplay::timerCallback()
     m_audio_engine.updateTransportPositionCache();
 
     const double pos = m_audio_engine.getTransportPosition();
-    const double length = m_thumbnail.getLength();
+    const double length = m_thumbnail->getLength();
     // Keep cursor math in normalised space so paint() only needs the current bounds to translate
     // transport time into screen coordinates.
     const double new_proportion = (length > 0.0) ? pos / length : 0.0;
@@ -89,7 +90,7 @@ void WaveformDisplay::timerCallback()
     const bool cursor_moved = new_proportion != m_cursor_proportion;
     m_cursor_proportion = new_proportion;
 
-    if (cursor_moved || m_audio_engine.isPlaying() || m_thumbnail.isGeneratingProxy())
+    if (cursor_moved || m_audio_engine.isPlaying() || m_thumbnail->isGeneratingProxy())
     {
         repaint();
     }
