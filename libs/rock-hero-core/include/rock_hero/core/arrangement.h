@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace rock_hero
+namespace rock_hero::core
 {
 
 /*!
@@ -64,4 +64,4 @@ struct Arrangement
     std::vector<NoteEvent> note_events;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::core

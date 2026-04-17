@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include <rock_hero_core/arrangement.h>
+#include <rock_hero/core/arrangement.h>
 
 #include <vector>
 
-namespace rock_hero
+namespace rock_hero::core
 {
 
 /*!
@@ -24,4 +24,4 @@ struct Chart
     std::vector<Arrangement> arrangements;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::core

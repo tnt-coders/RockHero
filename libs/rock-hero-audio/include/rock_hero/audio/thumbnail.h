@@ -1,5 +1,5 @@
 /*!
-\file audio_thumbnail.h
+\file thumbnail.h
 \brief Tracktion-free audio thumbnail wrapper for use by UI components.
 */
 
@@ -27,7 +27,7 @@ class Graphics;
 template <typename ValueType> class Rectangle;
 } // namespace juce
 
-namespace rock_hero
+namespace rock_hero::audio
 {
 
 /*!
@@ -36,33 +36,33 @@ namespace rock_hero
 Wraps tracktion::SmartThumbnail behind a Tracktion-free public interface so that UI code can
 render audio thumbnails without including Tracktion headers or linking Tracktion libraries.
 
-Created via AudioEngine::createThumbnail() rather than constructed directly, so that the
+Created via Engine::createThumbnail() rather than constructed directly, so that the
 Tracktion Engine reference never leaks into calling code.
 
-\see AudioEngine
+\see Engine
 */
-class AudioThumbnail
+class Thumbnail
 {
 public:
     /*!
     \brief Creates the thumbnail bound to the given Tracktion Engine instance.
 
-    Prefer AudioEngine::createThumbnail() over calling this constructor directly.
+    Prefer Engine::createThumbnail() over calling this constructor directly.
 
     \param engine The Tracktion Engine instance used for proxy generation.
     \param owner The component that should be repainted when the proxy is ready.
     */
-    AudioThumbnail(tracktion::Engine& engine, juce::Component& owner);
+    Thumbnail(tracktion::Engine& engine, juce::Component& owner);
 
     /*!
     \brief Destroys the thumbnail and releases proxy resources.
     */
-    ~AudioThumbnail();
+    ~Thumbnail();
 
-    AudioThumbnail(const AudioThumbnail&) = delete;
-    AudioThumbnail& operator=(const AudioThumbnail&) = delete;
-    AudioThumbnail(AudioThumbnail&&) = delete;
-    AudioThumbnail& operator=(AudioThumbnail&&) = delete;
+    Thumbnail(const Thumbnail&) = delete;
+    Thumbnail& operator=(const Thumbnail&) = delete;
+    Thumbnail(Thumbnail&&) = delete;
+    Thumbnail& operator=(Thumbnail&&) = delete;
 
     /*!
     \brief Sets the audio file whose thumbnail should be displayed.
@@ -108,4 +108,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::audio

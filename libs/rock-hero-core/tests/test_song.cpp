@@ -1,12 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include <rock_hero_core/arrangement.h>
-#include <rock_hero_core/chart.h>
-#include <rock_hero_core/song.h>
+#include <rock_hero/core/arrangement.h>
+#include <rock_hero/core/chart.h>
+#include <rock_hero/core/song.h>
 
 TEST_CASE("Song default construction is empty", "[song]")
 {
-    const rock_hero::Song song;
+    const rock_hero::core::Song song;
     REQUIRE(song.metadata.title.empty());
     REQUIRE(song.metadata.artist.empty());
     REQUIRE(song.audio_asset_ref.empty());
@@ -16,7 +16,7 @@ TEST_CASE("Song default construction is empty", "[song]")
 
 TEST_CASE("Song metadata round-trip", "[song]")
 {
-    rock_hero::Song song;
+    rock_hero::core::Song song;
     song.metadata.title = "Test Song";
     song.metadata.artist = "Test Artist";
     song.metadata.year = 2026;
@@ -26,9 +26,9 @@ TEST_CASE("Song metadata round-trip", "[song]")
 
 TEST_CASE("Arrangement holds note events", "[arrangement]")
 {
-    rock_hero::Arrangement arr;
-    arr.part = rock_hero::Part::Lead;
-    arr.difficulty = rock_hero::Difficulty::Expert;
+    rock_hero::core::Arrangement arr;
+    arr.part = rock_hero::core::Part::Lead;
+    arr.difficulty = rock_hero::core::Difficulty::Expert;
     arr.note_events.push_back(
         {.time_seconds = 1.0, .duration_seconds = 0.5, .string_number = 1, .fret = 5});
     arr.note_events.push_back(
@@ -42,17 +42,17 @@ TEST_CASE("Arrangement holds note events", "[arrangement]")
 
 TEST_CASE("Chart holds multiple arrangements", "[chart]")
 {
-    rock_hero::Chart chart;
+    rock_hero::core::Chart chart;
     chart.arrangements.push_back(
-        {.part = rock_hero::Part::Lead,
-         .difficulty = rock_hero::Difficulty::Easy,
+        {.part = rock_hero::core::Part::Lead,
+         .difficulty = rock_hero::core::Difficulty::Easy,
          .note_events = {}});
     chart.arrangements.push_back(
-        {.part = rock_hero::Part::Bass,
-         .difficulty = rock_hero::Difficulty::Expert,
+        {.part = rock_hero::core::Part::Bass,
+         .difficulty = rock_hero::core::Difficulty::Expert,
          .note_events = {}});
 
     REQUIRE(chart.arrangements.size() == 2);
-    REQUIRE(chart.arrangements[0].part == rock_hero::Part::Lead);
-    REQUIRE(chart.arrangements[1].difficulty == rock_hero::Difficulty::Expert);
+    REQUIRE(chart.arrangements[0].part == rock_hero::core::Part::Lead);
+    REQUIRE(chart.arrangements[1].difficulty == rock_hero::core::Difficulty::Expert);
 }

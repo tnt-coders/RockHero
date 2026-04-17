@@ -10,13 +10,13 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace rock_hero
+namespace rock_hero::ui
 {
 
 /*!
 \brief A horizontal strip containing Play/Pause and Stop transport buttons.
 
-Interaction is entirely callback-based; this component has no knowledge of AudioEngine.
+Interaction is entirely callback-based; this component has no knowledge of the audio engine.
 The owner wires on_play, on_pause, and on_stop, then calls setFileLoaded() and
 setPlaying() to keep button state in sync.
 
@@ -76,4 +76,4 @@ private:
     std::unique_ptr<juce::Drawable> m_stop_drawable;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::ui
