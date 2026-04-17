@@ -15,5 +15,4 @@ target_compile_definitions(rock_hero_ui PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL
 target_link_libraries(
     rock_hero_ui
     PUBLIC juce::juce_gui_basics
-    PRIVATE rock_hero_audio_engine rock_hero_ui_resources tracktion::tracktion_core
-            tracktion::tracktion_engine juce::juce_audio_utils)
+    PRIVATE rock_hero_audio_engine rock_hero_ui_resources)
