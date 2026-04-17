@@ -4,27 +4,11 @@
 
 #include <rock_hero_audio_engine/audio_engine.h>
 
-// TODO: Move SmartThumbnail management into AudioEngine so WaveformDisplay only depends on JUCE
-//       types. Then this include can be removed.
-#include <tracktion_engine/tracktion_engine.h>
-
-namespace te = tracktion;
-
 namespace rock_hero
 {
 
-struct WaveformDisplay::Impl
-{
-    te::SmartThumbnail thumbnail;
-
-    Impl(te::Engine& engine, juce::Component& owner)
-        : thumbnail(engine, te::AudioFile(engine), owner, nullptr)
-    {
-    }
-};
-
 WaveformDisplay::WaveformDisplay(AudioEngine& engine)
-    : m_audio_engine(engine), m_impl(std::make_unique<Impl>(engine.getEngine(), *this))
+    : m_audio_engine(engine), m_thumbnail(engine, *this)
 {
     startTimerHz(60);
 }
@@ -33,10 +17,7 @@ WaveformDisplay::~WaveformDisplay() = default;
 
 void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
-    const juce::File juce_file(file.string());
-    te::AudioFile audio_file(m_audio_engine.getEngine(), juce_file);
-    m_total_length_seconds = audio_file.getLength();
-    m_impl->thumbnail.setNewFile(audio_file);
+    m_thumbnail.setFile(file);
     repaint();
 }
 
@@ -46,27 +27,24 @@ void WaveformDisplay::paint(juce::Graphics& g)
 
     g.fillAll(juce::Colours::black);
 
-    if (m_total_length_seconds <= 0.0)
+    if (m_thumbnail.getLength() <= 0.0)
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Load a file to see the waveform", bounds, juce::Justification::centred);
         return;
     }
 
-    if (m_impl->thumbnail.isGeneratingProxy())
+    if (m_thumbnail.isGeneratingProxy())
     {
-        const auto pct = static_cast<int>(m_impl->thumbnail.getProxyProgress() * 100.0f);
+        const auto pct = static_cast<int>(m_thumbnail.getProxyProgress() * 100.0f);
         g.setColour(juce::Colours::white);
         g.drawText(
             "Building waveform: " + juce::String(pct) + "%", bounds, juce::Justification::centred);
         return;
     }
 
-    const te::TimeRange visible_range{
-        te::TimePosition{}, te::TimePosition::fromSeconds(m_total_length_seconds)
-    };
     g.setColour(juce::Colours::lightgreen);
-    m_impl->thumbnail.drawChannels(g, bounds, visible_range, 1.0f);
+    m_thumbnail.drawChannels(g, bounds, 1.0f);
 
     // Scrolling playhead cursor.
     const auto cursor_x =
@@ -77,12 +55,13 @@ void WaveformDisplay::paint(juce::Graphics& g)
 
 void WaveformDisplay::resized()
 {
-    // SmartThumbnail draws into the bounds passed to drawChannels — no child layout needed.
+    // WaveformThumbnail draws into the bounds passed to drawChannels — no child layout needed.
 }
 
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
-    if (m_total_length_seconds <= 0.0 || !on_seek)
+    const double length = m_thumbnail.getLength();
+    if (length <= 0.0 || !on_seek)
     {
         return;
     }
@@ -94,7 +73,7 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     m_cursor_proportion = clamped;
     repaint();
 
-    on_seek(clamped * m_total_length_seconds);
+    on_seek(clamped * length);
 }
 
 void WaveformDisplay::timerCallback()
@@ -102,15 +81,15 @@ void WaveformDisplay::timerCallback()
     m_audio_engine.updateTransportPositionCache();
 
     const double pos = m_audio_engine.getTransportPosition();
+    const double length = m_thumbnail.getLength();
     // Keep cursor math in normalised space so paint() only needs the current bounds to translate
     // transport time into screen coordinates.
-    const double new_proportion =
-        (m_total_length_seconds > 0.0) ? pos / m_total_length_seconds : 0.0;
+    const double new_proportion = (length > 0.0) ? pos / length : 0.0;
 
     const bool cursor_moved = new_proportion != m_cursor_proportion;
     m_cursor_proportion = new_proportion;
 
-    if (cursor_moved || m_audio_engine.isPlaying() || m_impl->thumbnail.isGeneratingProxy())
+    if (cursor_moved || m_audio_engine.isPlaying() || m_thumbnail.isGeneratingProxy())
     {
         repaint();
     }

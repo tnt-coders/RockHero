@@ -10,6 +10,7 @@
 #include <memory>
 
 // Forward declarations; callers need not include Tracktion headers.
+// The inline keyword must match Tracktion's own declaration to avoid C2049 on MSVC.
 namespace tracktion
 {
 inline namespace engine
@@ -26,11 +27,11 @@ namespace rock_hero
 \brief Isolation layer between Tracktion Engine and the rest of the application.
 
 All other code depends on this interface rather than on Tracktion directly. This boundary
-enables a fallback-to-raw-JUCE strategy: only audio_engine.cpp and waveform_display.cpp (with a
-documented TODO to fix) ever include Tracktion headers.
+enables a fallback-to-raw-JUCE strategy: only rock-hero-audio-engine implementation files
+include Tracktion headers.
 
-Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
-except getTransportPosition() must be called on the message thread.
+Owns the tracktion::Engine and the single tracktion::Edit used for playback.
+All public methods except getTransportPosition() must be called on the message thread.
 
 \see MainWindow
 \see WaveformDisplay
@@ -124,8 +125,8 @@ public:
     /*!
     \brief Returns a reference to the underlying tracktion::Engine.
 
-    This is an intentional bounded Tracktion type leak. Only audio_engine.cpp and
-    waveform_display.cpp should call this.
+    Used internally by rock-hero-audio-engine classes (e.g. AudioThumbnail). No code outside
+    this library should call this.
 
     \return The owned tracktion::Engine instance.
     */
