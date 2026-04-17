@@ -31,9 +31,10 @@ WaveformDisplay::WaveformDisplay(AudioEngine& engine)
 
 WaveformDisplay::~WaveformDisplay() = default;
 
-void WaveformDisplay::setAudioFile(const juce::File& file)
+void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
-    te::AudioFile audio_file(m_audio_engine.getEngine(), file);
+    const juce::File juce_file(file.string());
+    te::AudioFile audio_file(m_audio_engine.getEngine(), juce_file);
     m_total_length_seconds = audio_file.getLength();
     m_impl->thumbnail.setNewFile(audio_file);
     repaint();
