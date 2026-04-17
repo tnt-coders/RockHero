@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <filesystem>
 #include <functional>
 #include <memory>
 
@@ -45,7 +46,7 @@ public:
     \brief Updates the thumbnail source after a new file has been loaded.
     \param file The audio file that was successfully loaded into the engine.
     */
-    void setAudioFile(const juce::File& file);
+    void setAudioFile(const std::filesystem::path& file);
 
     /// Called with the target position in seconds when the user clicks the waveform.
     /// Only fires when a file is loaded (m_total_length_seconds > 0).

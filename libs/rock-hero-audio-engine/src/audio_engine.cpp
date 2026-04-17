@@ -28,12 +28,14 @@ AudioEngine::~AudioEngine()
     m_engine.reset();
 }
 
-bool AudioEngine::loadFile(const juce::File& file)
+bool AudioEngine::loadFile(const std::filesystem::path& file)
 {
     // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
     m_edit->getTransport().stop(false, false);
 
-    if (!file.existsAsFile())
+    const juce::File juce_file(file.string());
+
+    if (!juce_file.existsAsFile())
     {
         return false;
     }
@@ -50,7 +52,7 @@ bool AudioEngine::loadFile(const juce::File& file)
         clip->removeFromParent();
     }
 
-    te::AudioFile audio_file(*m_engine, file);
+    te::AudioFile audio_file(*m_engine, juce_file);
     if (!audio_file.isValid())
     {
         return false;
@@ -61,7 +63,7 @@ bool AudioEngine::loadFile(const juce::File& file)
     const te::ClipPosition position{.time = {start, start + length}, .offset = te::TimeDuration{}};
 
     const auto clip =
-        track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, false);
+        track->insertWaveClip(juce_file.getFileNameWithoutExtension(), juce_file, position, false);
     if (clip == nullptr)
     {
         return false;
