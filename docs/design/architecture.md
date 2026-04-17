@@ -146,42 +146,42 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 ## Architecture Diagram
 
 \code{.txt}
-┌──────────────────────────────┐   ┌───────────────────────────────┐
-│     rock-hero-editor         │   │     rock-hero                 │
-│                              │   │                               │
-│  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │    Editor Window       │  │   │  │    Game Window          │  │
-│  │    (JUCE Components)   │  │   │  │    (SDL3 + bgfx)        │  │
-│  │                        │  │   │  │                         │  │
-│  │  • Waveform display    │  │   │  │  • 3D note highway      │  │
-│  │  • Plugin chain view   │  │   │  │  • Score display        │  │
-│  │  • Automation envelopes│  │   │  │  • Hit feedback/effects │  │
-│  │  • Transport controls  │  │   │  │  • Fretboard view       │  │
-│  └───────────┬────────────┘  │   │  └──────────┬──────────────┘  │
-│              │               │   │             │                 │
-│  ┌───────────┴────────────┐  │   │  ┌──────────┴──────────────┐  │
-│  │  libs/rock-hero-       │  │   │  │  libs/rock-hero-        │  │
-│  │  audio-engine          │  │   │  │  audio-engine           │  │
-│  │  (Tracktion Engine)    │  │   │  │  (Tracktion Engine)     │  │
-│  │                        │  │   │  │                         │  │
-│  │  Track 1: Backing Track│  │   │  │  Track 1: Backing Track │  │
-│  │  Track 2: Guitar Input │  │   │  │  Track 2: Guitar Input  │  │
-│  │  Transport + Automation│  │   │  │  Transport + Automation │  │
-│  └────────────────────────┘  │   │  └─────────────────────────┘  │
-│                              │   │                               │
-│  ┌────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │  libs/rock-hero-core   │  │   │  │  libs/rock-hero-core    │  │
-│  │  Song/Chart/Arrangement│  │   │  │  Song/Chart/Arrangement │  │
-│  └────────────────────────┘  │   │  │  + Scoring logic        │  │
-│                              │   │  └─────────────────────────┘  │
-└──────────────────────────────┘   │                               │
-                                   │  ┌─────────────────────────┐  │
-                                   │  │  Gameplay Systems       │  │
-                                   │  │  • Pitch detection      │  │
-                                   │  │  • Note matching        │  │
-                                   │  │  • Latency calibration  │  │
-                                   │  └─────────────────────────┘  │
-                                   └───────────────────────────────┘
+┌───────────────────────────────┐   ┌───────────────────────────────┐
+│     rock-hero-editor          │   │     rock-hero                 │
+│                               │   │                               │
+│  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
+│  │    Editor Window        │  │   │  │    Game Window          │  │
+│  │    (JUCE Components)    │  │   │  │    (SDL3 + bgfx)        │  │
+│  │                         │  │   │  │                         │  │
+│  │  • Waveform display     │  │   │  │  • 3D note highway      │  │
+│  │  • Plugin chain view    │  │   │  │  • Score display        │  │
+│  │  • Automation envelopes │  │   │  │  • Hit feedback/effects │  │
+│  │  • Transport controls   │  │   │  │  • Fretboard view       │  │
+│  └───────────┬─────────────┘  │   │  └──────────┬──────────────┘  │
+│              │                │   │             │                 │
+│  ┌───────────┴─────────────┐  │   │  ┌──────────┴──────────────┐  │
+│  │  libs/rock-hero-        │  │   │  │  libs/rock-hero-        │  │
+│  │  audio-engine           │  │   │  │  audio-engine           │  │
+│  │  (Tracktion Engine)     │  │   │  │  (Tracktion Engine)     │  │
+│  │                         │  │   │  │                         │  │
+│  │  Track 1: Backing Track │  │   │  │  Track 1: Backing Track │  │
+│  │  Track 2: Guitar Input  │  │   │  │  Track 2: Guitar Input  │  │
+│  │  Transport + Automation │  │   │  │  Transport + Automation │  │
+│  └─────────────────────────┘  │   │  └─────────────────────────┘  │
+│                               │   │                               │
+│  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
+│  │  libs/rock-hero-core    │  │   │  │  libs/rock-hero-core    │  │
+│  │  Song/Chart/Arrangement │  │   │  │  Song/Chart/Arrangement │  │
+│  └─────────────────────────┘  │   │  │  + Scoring logic        │  │
+│                               │   │  └─────────────────────────┘  │
+└───────────────────────────────┘   │                               │
+                                    │  ┌─────────────────────────┐  │
+                                    │  │  Gameplay Systems       │  │
+                                    │  │  • Pitch detection      │  │
+                                    │  │  • Note matching        │  │
+                                    │  │  • Latency calibration  │  │
+                                    │  └─────────────────────────┘  │
+                                    └───────────────────────────────┘
 \endcode
 
 Both executables link `rock-hero-audio-engine` and `rock-hero-core` as static libraries. Static
@@ -221,15 +221,15 @@ geometric simplicity, single-threaded rendering from the UI thread is likely suf
 ### Thread Communication
 
 \code{.txt}
-Audio Thread                Analysis Thread           UI / Game Thread
-     │                           │                          │
-     │  raw input samples        │                          │
-     ├──► [lock-free ring buf] ──►│                          │
-     │                           │  pitch/onset results     │
-     │                           ├──► [lock-free struct] ───►│
-     │  transport position       │                          │
-     ├──► [std::atomic] ─────────┼─────────────────────────►│
-     │                           │                          │
+Audio Thread                Analysis Thread            UI / Game Thread
+     │                            │                           │
+     │  raw input samples         │                           │
+     ├──► [lock-free ring buf] ──►│                           │
+     │                            │  pitch/onset results      │
+     │                            ├──► [lock-free struct] ───►│
+     │  transport position        │                           │
+     ├──► [std::atomic] ──────────┼──────────────────────────►│
+     │                            │                           │
 \endcode
 
 All communication from the audio thread is lock-free. The audio thread's only outputs are the ring buffer (samples), the atomic transport position, and its normal audio output to the speakers. No mutexes, no blocking, no exceptions.
@@ -306,15 +306,15 @@ SDL is initialized without its own event pump. SDL events are polled manually fr
 
 All dependencies are compatible with AGPLv3 at zero cost:
 
-| Dependency | License | Compatibility |
-|-----------|---------|--------------|
-| Tracktion Engine | GPL3 | Compatible (AGPLv3 is more restrictive, governs combined work) |
-| JUCE | AGPLv3 | Requires project to use AGPLv3 |
-| VST3 SDK | MIT (as of October 2025) | Permissive, compatible with everything |
-| ASIO SDK | Dual GPL3/proprietary (as of October 2025) | GPL3 option compatible |
-| open-psarc | MIT | Permissive, compatible with everything |
-| SDL3 | zlib | Permissive |
-| bgfx | BSD 2-Clause | Permissive |
+| License | Dependency | Compatibility |
+|---------|-----------|--------------|
+| GPL3 | Tracktion Engine | Compatible (AGPLv3 is more restrictive, governs combined work) |
+| AGPLv3 | JUCE | Requires project to use AGPLv3 |
+| MIT (as of October 2025) | VST3 SDK | Permissive, compatible with everything |
+| Dual GPL3/proprietary (as of October 2025) | ASIO SDK | GPL3 option compatible |
+| MIT | open-psarc | Permissive, compatible with everything |
+| zlib | SDL3 | Permissive |
+| BSD 2-Clause | bgfx | Permissive |
 
 The project is licensed under **AGPLv3** because JUCE requires it. For a desktop application run locally, AGPLv3 is functionally identical to GPLv3 — the additional network clause only applies to software accessed over a network.
 
