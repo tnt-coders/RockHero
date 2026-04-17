@@ -2,19 +2,17 @@
 
 #include <tracktion_engine/tracktion_engine.h>
 
-namespace te = tracktion;
-
 namespace rock_hero
 {
 
-AudioEngine::AudioEngine() : m_engine(std::make_unique<te::Engine>("RockHero"))
+AudioEngine::AudioEngine() : m_engine(std::make_unique<tracktion::Engine>("RockHero"))
 {
     // Stereo output, no input for now (ASIO guitar input comes later).
     m_engine->getDeviceManager().initialise(0, 2);
 
     // createSingleTrackEdit creates an Edit with one AudioTrack ready for clips.
     // createSingleTrackEdit already provides one AudioTrack.
-    m_edit = te::Edit::createSingleTrackEdit(*m_engine);
+    m_edit = tracktion::Edit::createSingleTrackEdit(*m_engine);
 }
 
 AudioEngine::~AudioEngine()
@@ -40,7 +38,7 @@ bool AudioEngine::loadFile(const std::filesystem::path& file)
         return false;
     }
 
-    auto* track = te::getAudioTracks(*m_edit)[0];
+    auto* track = tracktion::getAudioTracks(*m_edit)[0];
     if (track == nullptr)
     {
         return false;
@@ -52,15 +50,17 @@ bool AudioEngine::loadFile(const std::filesystem::path& file)
         clip->removeFromParent();
     }
 
-    te::AudioFile audio_file(*m_engine, juce_file);
+    tracktion::AudioFile audio_file(*m_engine, juce_file);
     if (!audio_file.isValid())
     {
         return false;
     }
 
-    const auto length = te::TimeDuration::fromSeconds(audio_file.getLength());
-    const auto start = te::TimePosition{};
-    const te::ClipPosition position{.time = {start, start + length}, .offset = te::TimeDuration{}};
+    const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
+    const auto start = tracktion::TimePosition{};
+    const tracktion::ClipPosition position{
+        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
+    };
 
     const auto clip =
         track->insertWaveClip(juce_file.getFileNameWithoutExtension(), juce_file, position, false);
@@ -71,7 +71,7 @@ bool AudioEngine::loadFile(const std::filesystem::path& file)
 
     auto& transport = m_edit->getTransport();
     transport.looping = false;
-    transport.setPosition(te::TimePosition{});
+    transport.setPosition(tracktion::TimePosition{});
 
     m_transport_position.store(0.0, std::memory_order_relaxed);
     return true;
@@ -85,7 +85,7 @@ void AudioEngine::play()
 void AudioEngine::stop()
 {
     m_edit->getTransport().stop(false, false);
-    m_edit->getTransport().setPosition(te::TimePosition{});
+    m_edit->getTransport().setPosition(tracktion::TimePosition{});
     m_transport_position.store(0.0, std::memory_order_relaxed);
 }
 
@@ -98,7 +98,7 @@ void AudioEngine::pause()
 
 void AudioEngine::seek(double seconds)
 {
-    m_edit->getTransport().setPosition(te::TimePosition::fromSeconds(seconds));
+    m_edit->getTransport().setPosition(tracktion::TimePosition::fromSeconds(seconds));
     m_transport_position.store(seconds, std::memory_order_relaxed);
 }
 
