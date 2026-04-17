@@ -6,9 +6,8 @@
 #pragma once
 
 #include <atomic>
+#include <filesystem>
 #include <memory>
-
-#include <juce_core/juce_core.h>
 
 // Forward declarations; callers need not include Tracktion headers.
 namespace tracktion
@@ -65,7 +64,7 @@ public:
     \param file The audio file to load.
     \return True if the clip was inserted successfully.
     */
-    bool loadFile(const juce::File& file);
+    bool loadFile(const std::filesystem::path& file);
 
     /*!
     \brief Starts transport playback.
