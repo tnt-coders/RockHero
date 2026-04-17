@@ -1,6 +1,7 @@
-# Architectural Principles
+\page design_architectural_principles Architectural Principles
 
-This document complements `architecture.md`. `architecture.md` describes the system shape;
+This document complements \ref design_architecture. `Project Architecture` describes the system
+shape;
 this document defines the engineering principles and structural constraints that keep the codebase
 scalable and amenable to automated testing as it grows.
 

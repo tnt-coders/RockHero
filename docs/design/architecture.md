@@ -1,4 +1,4 @@
-# Project Architecture
+\page design_architecture Architecture
 
 ## Overview
 
@@ -10,7 +10,7 @@ and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components.
 required. It should feel like a game, not a production tool.
 
 For the structural engineering rules that govern how new code should be organized, see
-`architectural-principles.md`.
+\ref design_architectural_principles.
 
 ---
 
@@ -81,7 +81,7 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
   replaced in tests.
 - Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.
 
-See `architectural-principles.md` for the full guidance.
+See \ref design_architectural_principles for the full guidance.
 
 ---
 
@@ -360,8 +360,8 @@ live alongside each library:
 - `libs/rock-hero-audio-engine/tests/` — not yet added
 - `libs/rock-hero-ui/tests/` — not yet added
 
-Tests are registered with CTest via `catch_discover_tests`. See `architectural-principles.md` for
-the full testing strategy.
+Tests are registered with CTest via `catch_discover_tests`. See
+\ref design_architectural_principles for the full testing strategy.
 
 ---
 

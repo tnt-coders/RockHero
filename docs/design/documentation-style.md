@@ -1,4 +1,4 @@
-# Documentation Style
+\page design_documentation_style Documentation Style
 
 ## Scope
 
