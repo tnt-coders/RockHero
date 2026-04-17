@@ -1,5 +1,7 @@
 #include <rock_hero_audio_engine/audio_engine.h>
 
+#include <rock_hero_audio_engine/audio_thumbnail.h>
+
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero
@@ -118,9 +120,9 @@ void AudioEngine::updateTransportPositionCache()
     m_transport_position.store(pos, std::memory_order_relaxed);
 }
 
-tracktion::Engine& AudioEngine::getEngine() noexcept
+std::unique_ptr<AudioThumbnail> AudioEngine::createThumbnail(juce::Component& owner)
 {
-    return *m_engine;
+    return std::make_unique<AudioThumbnail>(*m_engine, owner);
 }
 
 } // namespace rock_hero
