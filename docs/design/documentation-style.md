@@ -47,13 +47,13 @@ Example for a top-level declaration:
 
 \code{.cpp}
 /*!
-\\brief Returns the current transport position in seconds.
+\brief Returns the current transport position in seconds.
 
 Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
 written by the 60 Hz UI timer shim (updateTransportPositionCache). It will be moved to an
 audio-thread callback once ASIO input is wired.
 
-\\return The cached transport position in seconds.
+\return The cached transport position in seconds.
 */
 [[nodiscard]] double getTransportPosition() const noexcept;
 \endcode
@@ -62,9 +62,9 @@ Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-    \\brief Creates the waveform display and starts the 60 Hz repaint timer.
+    \brief Creates the waveform display and starts the 60 Hz repaint timer.
 
-    \\param engine The AudioEngine whose transport state drives the cursor.
+    \param engine The AudioEngine whose transport state drives the cursor.
     */
     explicit WaveformDisplay(AudioEngine& engine);
 \endcode
@@ -111,8 +111,8 @@ File-level Doxygen headers should include the file name explicitly:
 
 \code{.cpp}
 /*!
-\\file waveform_display.h
-\\brief Waveform rendering component with a scrolling playhead cursor.
+\file waveform_display.h
+\brief Waveform rendering component with a scrolling playhead cursor.
 */
 \endcode
 
