@@ -1,6 +1,6 @@
 add_library(rock_hero_audio_engine STATIC)
 
-target_sources(rock_hero_audio_engine PRIVATE src/audio_engine.cpp)
+target_sources(rock_hero_audio_engine PRIVATE src/audio_engine.cpp src/audio_thumbnail.cpp)
 
 target_include_directories(rock_hero_audio_engine PUBLIC include)
 
