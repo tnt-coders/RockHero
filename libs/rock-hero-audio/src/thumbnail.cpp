@@ -1,11 +1,11 @@
-#include <rock_hero_audio_engine/audio_thumbnail.h>
+#include <rock_hero/audio/thumbnail.h>
 
 #include <tracktion_engine/tracktion_engine.h>
 
-namespace rock_hero
+namespace rock_hero::audio
 {
 
-struct AudioThumbnail::Impl
+struct Thumbnail::Impl
 {
     tracktion::Engine& engine;
     tracktion::SmartThumbnail thumbnail;
@@ -17,14 +17,14 @@ struct AudioThumbnail::Impl
     }
 };
 
-AudioThumbnail::AudioThumbnail(tracktion::Engine& engine, juce::Component& owner)
+Thumbnail::Thumbnail(tracktion::Engine& engine, juce::Component& owner)
     : m_impl(std::make_unique<Impl>(engine, owner))
 {
 }
 
-AudioThumbnail::~AudioThumbnail() = default;
+Thumbnail::~Thumbnail() = default;
 
-void AudioThumbnail::setFile(const std::filesystem::path& file)
+void Thumbnail::setFile(const std::filesystem::path& file)
 {
     const juce::File juce_file(file.string());
     tracktion::AudioFile audio_file(m_impl->engine, juce_file);
@@ -32,22 +32,22 @@ void AudioThumbnail::setFile(const std::filesystem::path& file)
     m_impl->thumbnail.setNewFile(audio_file);
 }
 
-bool AudioThumbnail::isGeneratingProxy() const
+bool Thumbnail::isGeneratingProxy() const
 {
     return m_impl->thumbnail.isGeneratingProxy();
 }
 
-float AudioThumbnail::getProxyProgress() const
+float Thumbnail::getProxyProgress() const
 {
     return m_impl->thumbnail.getProxyProgress();
 }
 
-double AudioThumbnail::getLength() const
+double Thumbnail::getLength() const
 {
     return m_impl->total_length_seconds;
 }
 
-void AudioThumbnail::drawChannels(
+void Thumbnail::drawChannels(
     juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) const
 {
     const tracktion::TimeRange visible_range{
@@ -57,4 +57,4 @@ void AudioThumbnail::drawChannels(
     m_impl->thumbnail.drawChannels(g, bounds, visible_range, vertical_zoom);
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::audio

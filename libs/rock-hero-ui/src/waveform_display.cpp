@@ -1,14 +1,14 @@
-#include <rock_hero_ui/waveform_display.h>
+#include <rock_hero/ui/waveform_display.h>
 
 #include <algorithm>
 
-#include <rock_hero_audio_engine/audio_engine.h>
-#include <rock_hero_audio_engine/audio_thumbnail.h>
+#include <rock_hero/audio/engine.h>
+#include <rock_hero/audio/thumbnail.h>
 
-namespace rock_hero
+namespace rock_hero::ui
 {
 
-WaveformDisplay::WaveformDisplay(AudioEngine& engine)
+WaveformDisplay::WaveformDisplay(audio::Engine& engine)
     : m_audio_engine(engine), m_thumbnail(engine.createThumbnail(*this))
 {
     startTimerHz(60);
@@ -96,4 +96,4 @@ void WaveformDisplay::timerCallback()
     }
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::ui
