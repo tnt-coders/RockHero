@@ -1,9 +1,8 @@
 #include "main_window.h"
 
+#include <rock_hero/audio/engine.h>
 #include <rock_hero/ui/transport_controls.h>
 #include <rock_hero/ui/waveform_display.h>
-
-#include <rock_hero/audio/engine.h>
 
 namespace rock_hero
 {

@@ -69,9 +69,49 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
   format-specific Conan packages (e.g. `open-psarc`).
 - Neither library depends on the other.
 - App executables may depend on both libraries and on `rock-hero-ui`.
-- Public library headers are included as `<rock_hero/audio/...>`,
-  `<rock_hero/core/...>`, and `<rock_hero/ui/...>`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
+
+### Include-path convention
+
+Each library exposes its public headers through a **PUBLIC** include directory at
+`libs/<lib>/include/`. External consumers — other libraries, apps, and tests — always
+reference first-party headers through the full nested path:
+
+\code{.cpp}
+#include <rock_hero/audio/engine.h>
+#include <rock_hero/core/song.h>
+#include <rock_hero/ui/waveform_display.h>
+\endcode
+
+Each library *additionally* adds a **PRIVATE** include directory pointing at its own nested
+module folder (`libs/<lib>/include/rock_hero/<module>/`). This lets a library's own
+translation units reach their main header by basename with a quoted include. The PRIVATE dir
+is not propagated to consumers, so the short form is only visible inside the owning library.
+
+The project-wide convention for `#include` form is:
+
+| Form | Meaning |
+|------|---------|
+| `"foo.h"` | The **main header** of the current translation unit (same-module, short form via the PRIVATE dir). Reserving quotes for the main header lets clang-format auto-promote it to the top of the file with a blank-line separator. |
+| `<rock_hero/<module>/foo.h>` | Any other first-party header, including sibling headers in the *same* module. Keeps cross-file references uniform regardless of where they are read from. |
+| `<tracktion_engine/...>`, `<juce_*/...>`, `<catch2/...>`, `<BinaryData.h>`, `<JuceHeader.h>` | Third-party. |
+| `<atomic>`, `<algorithm>`, `<filesystem>` | C++ standard library (angle-bracket, no path separator, no extension). |
+
+Example from `libs/rock-hero-audio/src/engine.cpp`:
+
+\code{.cpp}
+#include "engine.h"
+
+#include <rock_hero/audio/thumbnail.h>
+
+#include <tracktion_engine/tracktion_engine.h>
+
+#include <atomic>
+\endcode
+
+The four blocks — main, other first-party, third-party, standard library — are produced
+automatically by clang-format's `IncludeBlocks: Regroup` using the `IncludeCategories`
+defined in `.clang-format`.
 
 **Architectural principles:**
 

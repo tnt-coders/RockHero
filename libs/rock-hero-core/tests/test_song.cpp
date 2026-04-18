@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-
 #include <rock_hero/core/arrangement.h>
 #include <rock_hero/core/chart.h>
 #include <rock_hero/core/song.h>

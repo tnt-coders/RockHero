@@ -1,7 +1,6 @@
-#include <rock_hero/ui/waveform_display.h>
+#include "waveform_display.h"
 
 #include <algorithm>
-
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/audio/thumbnail.h>
 

@@ -6,7 +6,6 @@
 #pragma once
 
 #include <rock_hero/core/chart.h>
-
 #include <string>
 
 namespace rock_hero::core

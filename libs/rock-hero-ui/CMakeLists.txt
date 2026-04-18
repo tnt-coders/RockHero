@@ -5,7 +5,10 @@ add_library(rock_hero_ui STATIC)
 
 target_sources(rock_hero_ui PRIVATE src/waveform_display.cpp src/transport_controls.cpp)
 
-target_include_directories(rock_hero_ui PUBLIC include)
+target_include_directories(
+    rock_hero_ui
+    PUBLIC include
+    PRIVATE include/rock_hero/ui)
 
 # Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
 # the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER

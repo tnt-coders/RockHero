@@ -1,37 +1,45 @@
-#include <rock_hero/audio/engine.h>
+#include "engine.h"
 
+#include <atomic>
 #include <rock_hero/audio/thumbnail.h>
-
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::audio
 {
 
-Engine::Engine() : m_engine(std::make_unique<tracktion::Engine>("RockHero"))
+struct Engine::Impl
 {
-    // Stereo output, no input for now (ASIO guitar input comes later).
-    m_engine->getDeviceManager().initialise(0, 2);
+    std::unique_ptr<tracktion::Engine> engine;
+    std::unique_ptr<tracktion::Edit> edit;
+    std::atomic<double> transport_position{0.0};
+};
 
-    // createSingleTrackEdit creates an Edit with one AudioTrack ready for clips.
-    // createSingleTrackEdit already provides one AudioTrack.
-    m_edit = tracktion::Edit::createSingleTrackEdit(*m_engine);
+Engine::Engine() : m_impl(std::make_unique<Impl>())
+{
+    m_impl->engine = std::make_unique<tracktion::Engine>("RockHero");
+
+    // Stereo output, no input for now (ASIO guitar input comes later).
+    m_impl->engine->getDeviceManager().initialise(0, 2);
+
+    // createSingleTrackEdit already provides one AudioTrack ready for clips.
+    m_impl->edit = tracktion::Edit::createSingleTrackEdit(*m_impl->engine);
 }
 
 Engine::~Engine()
 {
-    if (m_edit)
+    if (m_impl->edit)
     {
-        m_edit->getTransport().stop(false, false);
+        m_impl->edit->getTransport().stop(false, false);
     }
 
-    m_edit.reset();
-    m_engine.reset();
+    m_impl->edit.reset();
+    m_impl->engine.reset();
 }
 
 bool Engine::loadFile(const std::filesystem::path& file)
 {
     // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
-    m_edit->getTransport().stop(false, false);
+    m_impl->edit->getTransport().stop(false, false);
 
     const juce::File juce_file(file.string());
 
@@ -40,7 +48,7 @@ bool Engine::loadFile(const std::filesystem::path& file)
         return false;
     }
 
-    auto* track = tracktion::getAudioTracks(*m_edit)[0];
+    auto* track = tracktion::getAudioTracks(*m_impl->edit)[0];
     if (track == nullptr)
     {
         return false;
@@ -52,7 +60,7 @@ bool Engine::loadFile(const std::filesystem::path& file)
         clip->removeFromParent();
     }
 
-    tracktion::AudioFile audio_file(*m_engine, juce_file);
+    tracktion::AudioFile audio_file(*m_impl->engine, juce_file);
     if (!audio_file.isValid())
     {
         return false;
@@ -71,58 +79,58 @@ bool Engine::loadFile(const std::filesystem::path& file)
         return false;
     }
 
-    auto& transport = m_edit->getTransport();
+    auto& transport = m_impl->edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
 
-    m_transport_position.store(0.0, std::memory_order_relaxed);
+    m_impl->transport_position.store(0.0, std::memory_order_relaxed);
     return true;
 }
 
 void Engine::play()
 {
-    m_edit->getTransport().play(false);
+    m_impl->edit->getTransport().play(false);
 }
 
 void Engine::stop()
 {
-    m_edit->getTransport().stop(false, false);
-    m_edit->getTransport().setPosition(tracktion::TimePosition{});
-    m_transport_position.store(0.0, std::memory_order_relaxed);
+    m_impl->edit->getTransport().stop(false, false);
+    m_impl->edit->getTransport().setPosition(tracktion::TimePosition{});
+    m_impl->transport_position.store(0.0, std::memory_order_relaxed);
 }
 
 void Engine::pause()
 {
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position — that is the semantic difference from stop().
-    m_edit->getTransport().stop(false, false);
+    m_impl->edit->getTransport().stop(false, false);
 }
 
 void Engine::seek(double seconds)
 {
-    m_edit->getTransport().setPosition(tracktion::TimePosition::fromSeconds(seconds));
-    m_transport_position.store(seconds, std::memory_order_relaxed);
+    m_impl->edit->getTransport().setPosition(tracktion::TimePosition::fromSeconds(seconds));
+    m_impl->transport_position.store(seconds, std::memory_order_relaxed);
 }
 
 bool Engine::isPlaying() const
 {
-    return m_edit->getTransport().isPlaying();
+    return m_impl->edit->getTransport().isPlaying();
 }
 
 double Engine::getTransportPosition() const noexcept
 {
-    return m_transport_position.load(std::memory_order_relaxed);
+    return m_impl->transport_position.load(std::memory_order_relaxed);
 }
 
 void Engine::updateTransportPositionCache()
 {
-    const double pos = m_edit->getTransport().getPosition().inSeconds();
-    m_transport_position.store(pos, std::memory_order_relaxed);
+    const double pos = m_impl->edit->getTransport().getPosition().inSeconds();
+    m_impl->transport_position.store(pos, std::memory_order_relaxed);
 }
 
 std::unique_ptr<Thumbnail> Engine::createThumbnail(juce::Component& owner)
 {
-    return std::make_unique<Thumbnail>(*m_engine, owner);
+    return std::make_unique<Thumbnail>(*m_impl->engine, owner);
 }
 
 } // namespace rock_hero::audio

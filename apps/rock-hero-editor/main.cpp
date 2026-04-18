@@ -1,7 +1,7 @@
+#include "main_window.h"
+
 #include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-
-#include "main_window.h"
 
 namespace rock_hero
 {
