@@ -1,4 +1,4 @@
-#include <rock_hero/audio/thumbnail.h>
+#include "thumbnail.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 

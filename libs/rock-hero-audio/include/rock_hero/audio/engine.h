@@ -5,20 +5,8 @@
 
 #pragma once
 
-#include <atomic>
 #include <filesystem>
 #include <memory>
-
-// Forward declarations; callers need not include Tracktion headers.
-// The inline keyword must match Tracktion's own declaration to avoid C2049 on MSVC.
-namespace tracktion
-{
-inline namespace engine
-{
-class Engine;
-class Edit;
-} // namespace engine
-} // namespace tracktion
 
 namespace juce
 {
@@ -141,9 +129,8 @@ public:
     [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
 
 private:
-    std::unique_ptr<tracktion::Engine> m_engine;
-    std::unique_ptr<tracktion::Edit> m_edit;
-    std::atomic<double> m_transport_position{0.0};
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 };
 
 } // namespace rock_hero::audio

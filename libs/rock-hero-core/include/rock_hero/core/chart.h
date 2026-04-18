@@ -6,7 +6,6 @@
 #pragma once
 
 #include <rock_hero/core/arrangement.h>
-
 #include <vector>
 
 namespace rock_hero::core

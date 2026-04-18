@@ -6,9 +6,8 @@
 #pragma once
 
 #include <functional>
-#include <memory>
-
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 
 namespace rock_hero::ui
 {

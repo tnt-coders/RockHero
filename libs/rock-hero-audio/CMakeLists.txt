@@ -2,7 +2,10 @@ add_library(rock_hero_audio STATIC)
 
 target_sources(rock_hero_audio PRIVATE src/engine.cpp src/thumbnail.cpp)
 
-target_include_directories(rock_hero_audio PUBLIC include)
+target_include_directories(
+    rock_hero_audio
+    PUBLIC include
+    PRIVATE include/rock_hero/audio)
 
 # Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
 # the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER
