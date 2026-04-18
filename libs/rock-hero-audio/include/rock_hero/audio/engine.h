@@ -1,5 +1,5 @@
 /*!
-\file audio_engine.h
+\file engine.h
 \brief Isolation layer between Tracktion Engine and the rest of the application.
 */
 
@@ -25,25 +25,25 @@ namespace juce
 class Component;
 } // namespace juce
 
-namespace rock_hero
+namespace rock_hero::audio
 {
 
-class AudioThumbnail;
+class Thumbnail;
 
 /*!
 \brief Isolation layer between Tracktion Engine and the rest of the application.
 
 All other code depends on this interface rather than on Tracktion directly. This boundary
-enables a fallback-to-raw-JUCE strategy: only rock-hero-audio-engine implementation files
+enables a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback.
 All public methods except getTransportPosition() must be called on the message thread.
 
-\see MainWindow
-\see WaveformDisplay
+\see rock_hero::MainWindow
+\see rock_hero::ui::WaveformDisplay
 */
-class AudioEngine
+class Engine
 {
 public:
     /*!
@@ -51,17 +51,17 @@ public:
 
     Initialises the device manager with stereo output only.
     */
-    AudioEngine();
+    Engine();
 
     /*!
     \brief Stops any active transport and tears down the Edit and Engine in the correct order.
     */
-    ~AudioEngine();
+    ~Engine();
 
-    AudioEngine(const AudioEngine&) = delete;
-    AudioEngine& operator=(const AudioEngine&) = delete;
-    AudioEngine(AudioEngine&&) = delete;
-    AudioEngine& operator=(AudioEngine&&) = delete;
+    Engine(const Engine&) = delete;
+    Engine& operator=(const Engine&) = delete;
+    Engine(Engine&&) = delete;
+    Engine& operator=(Engine&&) = delete;
 
     /*!
     \brief Loads an audio file onto track 0, replacing any existing clip.
@@ -130,15 +130,15 @@ public:
     void updateTransportPositionCache();
 
     /*!
-    \brief Creates an AudioThumbnail bound to this engine.
+    \brief Creates a Thumbnail bound to this engine.
 
     Factory method that passes the internal Tracktion Engine to the thumbnail without exposing
     it through the public API.
 
     \param owner The component that should be repainted when the proxy finishes generating.
-    \return A new AudioThumbnail instance.
+    \return A new Thumbnail instance.
     */
-    [[nodiscard]] std::unique_ptr<AudioThumbnail> createThumbnail(juce::Component& owner);
+    [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
 
 private:
     std::unique_ptr<tracktion::Engine> m_engine;
@@ -146,4 +146,4 @@ private:
     std::atomic<double> m_transport_position{0.0};
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::audio

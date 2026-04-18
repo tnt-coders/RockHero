@@ -4,9 +4,11 @@
 
 Rock Hero is an open-source guitar game built in C++. Players plug in a real guitar, hear it processed through real-time VST effects, and play along to songs via a scrolling note highway — while their tone automatically shifts, sweeps, and evolves with the music.
 
-The application ships as executables built on shared static libraries, with
-`rock-hero-audio-engine` providing the Tracktion adapter layer, `rock-hero-core` owning pure data
-and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components. No external DAW
+The application ships as executables built on shared static libraries, one per module, with
+`rock-hero-audio` providing the Tracktion adapter layer, `rock-hero-core` owning pure data
+and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components. Each module
+maps to a sub-namespace under `rock_hero` (`rock_hero::audio`, `rock_hero::core`,
+`rock_hero::ui`) and a matching nested include path (`<rock_hero/audio/*.h>`, etc.). No external DAW
 required. It should feel like a game, not a production tool.
 
 For the structural engineering rules that govern how new code should be organized, see
@@ -47,7 +49,7 @@ RockHero/
     rock-hero-editor/   — Editor executable: flat app layout while the target is small
     rock-hero/          — Game executable: flat app layout while the target is small
   libs/
-    rock-hero-audio-engine/ — Tracktion Engine isolation adapter (static library)
+    rock-hero-audio/ — Tracktion Engine isolation adapter (static library)
     rock-hero-core/     — Song data model + format serialization (static library, no JUCE)
     rock-hero-ui/       — JUCE UI components (static library)
   docs/                 — Doxygen configuration
@@ -58,23 +60,23 @@ RockHero/
 
 App targets keep their implementation files at the target root until they grow enough to justify
 feature folders. Reusable libraries keep `src/` plus namespaced public headers under
-`include/<library_name>/` so consumer includes stay explicit and collision-resistant.
+`include/rock_hero/<module>/` so consumer includes stay explicit and collision-resistant.
 
 **Dependency rules:**
 
-- `libs/rock-hero-audio-engine` depends on Tracktion and JUCE audio modules.
+- `libs/rock-hero-audio` depends on Tracktion and JUCE audio modules.
 - `libs/rock-hero-core` depends on standard C++ only; no JUCE, no Tracktion. May use
   format-specific Conan packages (e.g. `open-psarc`).
 - Neither library depends on the other.
 - App executables may depend on both libraries and on `rock-hero-ui`.
-- Public library headers are included as `<rock_hero_audio_engine/...>`,
-  `<rock_hero_core/...>`, and `<rock_hero_ui/...>`.
-- Tracktion headers are isolated to `rock-hero-audio-engine` implementation files.
+- Public library headers are included as `<rock_hero/audio/...>`,
+  `<rock_hero/core/...>`, and `<rock_hero/ui/...>`.
+- Tracktion headers are isolated to `rock-hero-audio` implementation files.
 
 **Architectural principles:**
 
 - Keep most behavior in pure or near-pure libraries rather than in UI or app targets.
-- Treat `rock-hero-audio-engine` as an adapter around Tracktion/JUCE, not as a home for general
+- Treat `rock-hero-audio` as an adapter around Tracktion/JUCE, not as a home for general
   business logic.
 - Keep `rock-hero-ui` focused on presentation and intent emission rather than policy.
 - Keep time, threading, hardware, and IO concerns at the boundary where they can be simulated or
@@ -111,7 +113,7 @@ Song
   metadata          (title, artist, album, year)
   audio_asset_ref   (path/identifier for the backing track audio file)
   tone_timeline_ref (opaque blob — serialized tone automation; interpreted exclusively by
-                     rock-hero-audio-engine)
+                     rock-hero-audio)
   chart
     arrangements[*]
       part          (Lead | Rhythm | Bass)
@@ -124,10 +126,10 @@ Song
 \endcode
 
 `Song` is the persistence and session root. When a session opens, the application loads a `Song`
-from disk, passes `audio_asset_ref` to `rock-hero-audio-engine` for playback, and passes
-`tone_timeline_ref` to `rock-hero-audio-engine` as an opaque blob. The game or editor reads
+from disk, passes `audio_asset_ref` to `rock-hero-audio` for playback, and passes
+`tone_timeline_ref` to `rock-hero-audio` as an opaque blob. The game or editor reads
 `chart` to drive gameplay or authoring. `rock-hero-core` never interprets tone automation data —
-that belongs entirely to `rock-hero-audio-engine`.
+that belongs entirely to `rock-hero-audio`.
 
 ---
 
@@ -160,8 +162,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  └───────────┬─────────────┘  │   │  └──────────┬──────────────┘  │
 │              │                │   │             │                 │
 │  ┌───────────┴─────────────┐  │   │  ┌──────────┴──────────────┐  │
-│  │  libs/rock-hero-        │  │   │  │  libs/rock-hero-        │  │
-│  │  audio-engine           │  │   │  │  audio-engine           │  │
+│  │  libs/rock-hero-audio   │  │   │  │  libs/rock-hero-audio   │  │
 │  │  (Tracktion Engine)     │  │   │  │  (Tracktion Engine)     │  │
 │  │                         │  │   │  │                         │  │
 │  │  Track 1: Backing Track │  │   │  │  Track 1: Backing Track │  │
@@ -184,7 +185,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
                                     └───────────────────────────────┘
 \endcode
 
-Both executables link `rock-hero-audio-engine` and `rock-hero-core` as static libraries. Static
+Both executables link `rock-hero-audio` and `rock-hero-core` as static libraries. Static
 linking avoids singleton aliasing issues and simplifies deployment.
 
 ---
@@ -357,7 +358,7 @@ live alongside each library:
 
 - `libs/rock-hero-core/tests/` — active; covers `Song`, `Chart`, and `Arrangement` construction
   and field access
-- `libs/rock-hero-audio-engine/tests/` — not yet added
+- `libs/rock-hero-audio/tests/` — not yet added
 - `libs/rock-hero-ui/tests/` — not yet added
 
 Tests are registered with CTest via `catch_discover_tests`. See
@@ -386,6 +387,6 @@ Tests are registered with CTest via `catch_discover_tests`. See
 If Tracktion Engine proves unsuitable (timing issues, API incompatibilities, debugging friction), the fallback is **JUCE alone** — building a custom transport, automation system, and audio clip playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatManager`, `AudioPlayHead`). This is significant work (several months) but preserves all other architectural decisions.
 
 The architecture is designed for this: Tracktion Engine is isolated behind
-`libs/rock-hero-audio-engine`. The game view, pitch detection, scoring, and editor UI depend on a
+`libs/rock-hero-audio`. The game view, pitch detection, scoring, and editor UI depend on a
 transport position and a data model, not on Tracktion directly. Either Tracktion or a custom JUCE
 implementation can back those interfaces.

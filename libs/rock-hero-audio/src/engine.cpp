@@ -1,13 +1,13 @@
-#include <rock_hero_audio_engine/audio_engine.h>
+#include <rock_hero/audio/engine.h>
 
-#include <rock_hero_audio_engine/audio_thumbnail.h>
+#include <rock_hero/audio/thumbnail.h>
 
 #include <tracktion_engine/tracktion_engine.h>
 
-namespace rock_hero
+namespace rock_hero::audio
 {
 
-AudioEngine::AudioEngine() : m_engine(std::make_unique<tracktion::Engine>("RockHero"))
+Engine::Engine() : m_engine(std::make_unique<tracktion::Engine>("RockHero"))
 {
     // Stereo output, no input for now (ASIO guitar input comes later).
     m_engine->getDeviceManager().initialise(0, 2);
@@ -17,7 +17,7 @@ AudioEngine::AudioEngine() : m_engine(std::make_unique<tracktion::Engine>("RockH
     m_edit = tracktion::Edit::createSingleTrackEdit(*m_engine);
 }
 
-AudioEngine::~AudioEngine()
+Engine::~Engine()
 {
     if (m_edit)
     {
@@ -28,7 +28,7 @@ AudioEngine::~AudioEngine()
     m_engine.reset();
 }
 
-bool AudioEngine::loadFile(const std::filesystem::path& file)
+bool Engine::loadFile(const std::filesystem::path& file)
 {
     // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
     m_edit->getTransport().stop(false, false);
@@ -79,50 +79,50 @@ bool AudioEngine::loadFile(const std::filesystem::path& file)
     return true;
 }
 
-void AudioEngine::play()
+void Engine::play()
 {
     m_edit->getTransport().play(false);
 }
 
-void AudioEngine::stop()
+void Engine::stop()
 {
     m_edit->getTransport().stop(false, false);
     m_edit->getTransport().setPosition(tracktion::TimePosition{});
     m_transport_position.store(0.0, std::memory_order_relaxed);
 }
 
-void AudioEngine::pause()
+void Engine::pause()
 {
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position — that is the semantic difference from stop().
     m_edit->getTransport().stop(false, false);
 }
 
-void AudioEngine::seek(double seconds)
+void Engine::seek(double seconds)
 {
     m_edit->getTransport().setPosition(tracktion::TimePosition::fromSeconds(seconds));
     m_transport_position.store(seconds, std::memory_order_relaxed);
 }
 
-bool AudioEngine::isPlaying() const
+bool Engine::isPlaying() const
 {
     return m_edit->getTransport().isPlaying();
 }
 
-double AudioEngine::getTransportPosition() const noexcept
+double Engine::getTransportPosition() const noexcept
 {
     return m_transport_position.load(std::memory_order_relaxed);
 }
 
-void AudioEngine::updateTransportPositionCache()
+void Engine::updateTransportPositionCache()
 {
     const double pos = m_edit->getTransport().getPosition().inSeconds();
     m_transport_position.store(pos, std::memory_order_relaxed);
 }
 
-std::unique_ptr<AudioThumbnail> AudioEngine::createThumbnail(juce::Component& owner)
+std::unique_ptr<Thumbnail> Engine::createThumbnail(juce::Component& owner)
 {
-    return std::make_unique<AudioThumbnail>(*m_engine, owner);
+    return std::make_unique<Thumbnail>(*m_engine, owner);
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::audio

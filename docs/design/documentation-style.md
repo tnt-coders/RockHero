@@ -64,9 +64,9 @@ Example for an indented member declaration:
     /*!
     \brief Creates the waveform display and starts the 60 Hz repaint timer.
 
-    \param engine The AudioEngine whose transport state drives the cursor.
+    \param engine The audio engine whose transport state drives the cursor.
     */
-    explicit WaveformDisplay(AudioEngine& engine);
+    explicit WaveformDisplay(audio::Engine& engine);
 \endcode
 
 ## Doxygen Commands

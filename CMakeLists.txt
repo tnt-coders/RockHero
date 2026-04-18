@@ -66,7 +66,7 @@ include(CTest)
 # --------------------------------------------------------------------------
 # Libraries
 # --------------------------------------------------------------------------
-add_subdirectory(libs/rock-hero-audio-engine)
+add_subdirectory(libs/rock-hero-audio)
 add_subdirectory(libs/rock-hero-core)
 add_subdirectory(libs/rock-hero-ui)
 

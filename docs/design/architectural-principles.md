@@ -90,9 +90,9 @@ This code should be:
 
 If a new feature can live here, it usually should.
 
-### Rock Hero Audio Engine
+### Rock Hero Audio
 
-`rock-hero-audio-engine` should act as an adapter around Tracktion and JUCE audio facilities.
+`rock-hero-audio` should act as an adapter around Tracktion and JUCE audio facilities.
 
 It should contain:
 
@@ -216,7 +216,7 @@ These validate project-owned adapters around frameworks and infrastructure.
 
 Examples:
 
-- `rock-hero-audio-engine` behavior against Tracktion-backed implementations
+- `rock-hero-audio` behavior against Tracktion-backed implementations
 - waveform source/proxy handling
 - serialization adapters
 - transport adapter behavior with fakes at project-owned boundaries
@@ -413,7 +413,7 @@ highest-friction layers.
 - pure unit tests in `rock-hero-core`
 - extracted non-UI services and command/state logic
 - hand-written fakes and stubs for project-owned interfaces
-- adapter tests around `rock-hero-audio-engine`
+- adapter tests around `rock-hero-audio`
 - deterministic fixtures and builders
 - simulation-style tests for gameplay and timing
 
@@ -463,7 +463,7 @@ As the codebase evolves, favor these moves:
 
 - move scoring and gameplay systems into a dedicated non-app library
 - move editor behavior into command-style services outside JUCE components
-- keep waveform backend logic in `rock-hero-audio-engine`, but keep drawing and interaction in
+- keep waveform backend logic in `rock-hero-audio`, but keep drawing and interaction in
   `rock-hero-ui`
 - remove broad Tracktion escape hatches in favor of narrow abstractions
 - keep serialization policy separate from domain state where practical
@@ -477,7 +477,7 @@ Use per-library test targets rather than one large test binary.
 Suggested shape:
 
 - `libs/rock-hero-core/tests`
-- `libs/rock-hero-audio-engine/tests`
+- `libs/rock-hero-audio/tests`
 - `libs/rock-hero-ui/tests` for non-GUI or narrowly scoped GUI wiring checks
 - additional test targets for future pure libraries such as gameplay or editor logic libraries
 
