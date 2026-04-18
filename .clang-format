@@ -6,4 +6,5 @@ AlignAfterOpenBracket: BlockIndent
 BinPackArguments: false
 BreakBeforeCloseBracketFunction: false
 ColumnLimit: 100
+IncludeBlocks: Regroup
 PointerAlignment: Left
