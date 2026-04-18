@@ -40,9 +40,9 @@ cd project-config/cmake-conan && pytest -rA
 RockHero/
   apps/
     rock-hero-editor/       - Editor app (load/play controls, waveform display)
-    rock-hero-game/         - Game app (note highway, scoring)
+    rock-hero/              - Game app (note highway, scoring)
   libs/
-    rock-hero-audio-engine/ - Tracktion Engine isolation adapter (static library)
+    rock-hero-audio/        - Tracktion Engine isolation adapter (static library)
     rock-hero-core/         - Song/Chart/Arrangement types + serialization (static library, no JUCE)
     rock-hero-ui/           - JUCE UI components (static library)
   docs/                     - Doxygen configuration
@@ -50,17 +50,21 @@ RockHero/
   project-config/           - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 ```
 
+Each library is a module with a matching sub-namespace under `rock_hero` and a matching nested
+include path: `rock-hero-audio` ↔ `rock_hero::audio` ↔ `<rock_hero/audio/*.h>`, and so on. CMake
+target IDs stay underscore-separated (`rock_hero_audio`, `rock_hero_core`, `rock_hero_ui`).
+
 Key files:
-- **`libs/rock-hero-audio-engine/include/rock_hero_audio_engine/audio_engine.h`** /
-  **`src/audio_engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
-- **`libs/rock-hero-core/include/rock_hero_core/`** - `Song`, `Chart`, `Arrangement` types +
+- **`libs/rock-hero-audio/include/rock_hero/audio/engine.h`** /
+  **`src/engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
+- **`libs/rock-hero-core/include/rock_hero/core/`** - `Song`, `Chart`, `Arrangement` types +
   format serialization; standard C++ only
-- **`libs/rock-hero-ui/include/rock_hero_ui/`** - Waveform and transport UI components
+- **`libs/rock-hero-ui/include/rock_hero/ui/`** - Waveform and transport UI components
 - **`apps/rock-hero-editor/`** - editor window and app entry point
-- **`apps/rock-hero/src/main.cpp`** - minimal game window entry point
+- **`apps/rock-hero/main.cpp`** - minimal game window entry point
 - **`build/debug/`**, **`build/release/`** - generated build artifacts; do not edit
 
-Dependency rules: `rock-hero-audio-engine` owns all Tracktion headers. `rock-hero-core` depends
+Dependency rules: `rock-hero-audio` owns all Tracktion headers. `rock-hero-core` depends
 on standard C++ only. Apps may depend on both libraries.
 
 JUCE and Tracktion Engine are integrated as a git submodule (`external/tracktion_engine/`), not via
@@ -79,7 +83,7 @@ Before making architectural, testing, or documentation decisions, consult these 
   Read this to understand the system shape before adding features or proposing structural changes.
 
 - **`docs/design/architectural-principles.md`** — Structural constraints and testability rules. Defines
-  library roles, the ports-and-adapters pattern, what belongs in `rock-hero-core` vs. adapters,
+  module roles, the ports-and-adapters pattern, what belongs in `rock-hero-core` vs. adapters,
   how to treat time and threading, and the decision rules for new code. Consult this whenever
   placing new behavior, designing an interface, or choosing between implementation strategies.
 

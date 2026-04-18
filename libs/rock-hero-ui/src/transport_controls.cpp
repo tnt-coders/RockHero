@@ -1,8 +1,8 @@
-#include <rock_hero_ui/transport_controls.h>
+#include <rock_hero/ui/transport_controls.h>
 
 #include <BinaryData.h>
 
-namespace rock_hero
+namespace rock_hero::ui
 {
 
 TransportControls::TransportControls()
@@ -83,4 +83,4 @@ void TransportControls::resized()
     m_stop_button->setBounds(area);
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::ui

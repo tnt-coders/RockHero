@@ -1,16 +1,16 @@
 #include "main_window.h"
 
-#include <rock_hero_ui/transport_controls.h>
-#include <rock_hero_ui/waveform_display.h>
+#include <rock_hero/ui/transport_controls.h>
+#include <rock_hero/ui/waveform_display.h>
 
-#include <rock_hero_audio_engine/audio_engine.h>
+#include <rock_hero/audio/engine.h>
 
 namespace rock_hero
 {
 
 struct MainWindow::ContentComponent : public juce::Component, public juce::KeyListener
 {
-    explicit ContentComponent(AudioEngine& engine)
+    explicit ContentComponent(audio::Engine& engine)
         : m_audio_engine(engine), m_waveform_display(engine)
     {
         addAndMakeVisible(m_load_button);
@@ -90,9 +90,9 @@ private:
             });
     }
 
-    AudioEngine& m_audio_engine;
-    WaveformDisplay m_waveform_display;
-    TransportControls m_transport_controls;
+    audio::Engine& m_audio_engine;
+    ui::WaveformDisplay m_waveform_display;
+    ui::TransportControls m_transport_controls;
     juce::TextButton m_load_button;
     std::unique_ptr<juce::FileChooser> m_file_chooser;
 };
@@ -103,7 +103,7 @@ MainWindow::MainWindow(const juce::String& title)
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons),
-      m_audio_engine(std::make_unique<AudioEngine>()),
+      m_audio_engine(std::make_unique<audio::Engine>()),
       m_content(std::make_unique<ContentComponent>(*m_audio_engine))
 {
     setUsingNativeTitleBar(true);
