@@ -14,6 +14,7 @@ struct Engine::Impl
     std::atomic<double> transport_position{0.0};
 };
 
+// Creates the Tracktion engine and a minimal single-track edit for early playback support.
 Engine::Engine() : m_impl(std::make_unique<Impl>())
 {
     m_impl->engine = std::make_unique<tracktion::Engine>("RockHero");
@@ -25,6 +26,7 @@ Engine::Engine() : m_impl(std::make_unique<Impl>())
     m_impl->edit = tracktion::Edit::createSingleTrackEdit(*m_impl->engine);
 }
 
+// Stops transport activity before destroying Tracktion objects in dependency order.
 Engine::~Engine()
 {
     if (m_impl->edit)
@@ -36,6 +38,7 @@ Engine::~Engine()
     m_impl->engine.reset();
 }
 
+// Replaces the single backing-track clip while keeping graph mutation on the message thread.
 bool Engine::loadFile(const std::filesystem::path& file)
 {
     // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
@@ -87,11 +90,13 @@ bool Engine::loadFile(const std::filesystem::path& file)
     return true;
 }
 
+// Starts Tracktion transport playback from the current edit position.
 void Engine::play()
 {
     m_impl->edit->getTransport().play(false);
 }
 
+// Stops playback and resets both Tracktion and cached transport positions to the start.
 void Engine::stop()
 {
     m_impl->edit->getTransport().stop(false, false);
@@ -99,6 +104,7 @@ void Engine::stop()
     m_impl->transport_position.store(0.0, std::memory_order_relaxed);
 }
 
+// Pauses playback without resetting position so the user can resume from the same point.
 void Engine::pause()
 {
     // stop(false, false): do not discard recording, do not clear recordings.
@@ -106,28 +112,33 @@ void Engine::pause()
     m_impl->edit->getTransport().stop(false, false);
 }
 
+// Moves Tracktion transport and the UI-readable cache to the requested song time.
 void Engine::seek(double seconds)
 {
     m_impl->edit->getTransport().setPosition(tracktion::TimePosition::fromSeconds(seconds));
     m_impl->transport_position.store(seconds, std::memory_order_relaxed);
 }
 
+// Reads Tracktion transport state for UI controls that need current playback status.
 bool Engine::isPlaying() const
 {
     return m_impl->edit->getTransport().isPlaying();
 }
 
+// Returns the lock-free cached transport position for UI painting and future realtime readers.
 double Engine::getTransportPosition() const noexcept
 {
     return m_impl->transport_position.load(std::memory_order_relaxed);
 }
 
+// Mirrors Tracktion's message-thread position into the atomic cache used by UI components.
 void Engine::updateTransportPositionCache()
 {
     const double pos = m_impl->edit->getTransport().getPosition().inSeconds();
     m_impl->transport_position.store(pos, std::memory_order_relaxed);
 }
 
+// Creates a thumbnail wrapper without exposing Tracktion types through public UI-facing headers.
 std::unique_ptr<Thumbnail> Engine::createThumbnail(juce::Component& owner)
 {
     return std::make_unique<Thumbnail>(*m_impl->engine, owner);

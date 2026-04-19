@@ -54,9 +54,7 @@ public:
     */
     Thumbnail(tracktion::Engine& engine, juce::Component& owner);
 
-    /*!
-    \brief Destroys the thumbnail and releases proxy resources.
-    */
+    /*! \brief Destroys the thumbnail and releases proxy resources. */
     ~Thumbnail();
 
     Thumbnail(const Thumbnail&) = delete;

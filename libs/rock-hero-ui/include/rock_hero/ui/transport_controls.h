@@ -28,13 +28,13 @@ public:
     TransportControls();
     ~TransportControls() override;
 
-    /// Called when the user clicks Play (only fires when file is loaded and not playing).
+    /*! \brief Called when the user clicks Play while a file is loaded and playback is stopped. */
     std::function<void()> on_play;
 
-    /// Called when the user clicks Pause (only fires when playing).
+    /*! \brief Called when the user clicks Pause during playback. */
     std::function<void()> on_pause;
 
-    /// Called when the user clicks Stop (always available when file is loaded).
+    /*! \brief Called when the user clicks Stop while a file is loaded. */
     std::function<void()> on_stop;
 
     /*!
@@ -44,7 +44,8 @@ public:
     void setFileLoaded(bool loaded);
 
     /*!
-    \brief Returns true if a file is loaded (i.e. transport buttons are enabled).
+    \brief Reports whether the transport buttons are currently enabled.
+    \return True if a file is loaded.
     */
     [[nodiscard]] bool isFileLoaded() const;
 
@@ -61,6 +62,7 @@ public:
     */
     void onPlayPauseClicked();
 
+    /*! \brief Lays out the transport buttons within the component bounds. */
     void resized() override;
 
 private:
