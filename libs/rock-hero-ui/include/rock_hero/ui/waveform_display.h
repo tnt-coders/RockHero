@@ -41,9 +41,7 @@ public:
     */
     explicit WaveformDisplay(audio::Engine& engine);
 
-    /*!
-    \brief Stops the timer and releases resources.
-    */
+    /*! \brief Stops the timer and releases resources. */
     ~WaveformDisplay() override;
 
     /*!
@@ -52,8 +50,11 @@ public:
     */
     void setAudioFile(const std::filesystem::path& file);
 
-    /// Called with the target position in seconds when the user clicks the waveform.
-    /// Only fires when a file is loaded (thumbnail length > 0).
+    /*!
+    \brief Called with the target position in seconds when the user clicks the waveform.
+
+    Only fires when a file is loaded and the thumbnail length is greater than zero.
+    */
     std::function<void(double)> on_seek;
 
     /*!
@@ -68,9 +69,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*!
-    \brief Responds to component size changes.
-    */
+    /*! \brief Responds to component size changes. */
     void resized() override;
 
 private:

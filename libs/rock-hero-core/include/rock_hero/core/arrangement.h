@@ -12,27 +12,23 @@
 namespace rock_hero::core
 {
 
-/*!
-\brief A single note to be played by the player.
-*/
+/*! \brief A single note to be played by the player. */
 struct NoteEvent
 {
-    // Onset time from the start of the song.
+    /*! \brief Onset time from the start of the song, in seconds. */
     double time_seconds{0.0};
 
-    // Sustain duration. Zero means a non-sustained note.
+    /*! \brief Sustain duration in seconds; zero means a non-sustained note. */
     double duration_seconds{0.0};
 
-    // Guitar string number from 1 to 6. One is high E and six is low E.
+    /*! \brief Guitar string number from 1 to 6; one is high E and six is low E. */
     int string_number{0};
 
-    // Fret number. Zero means an open string.
+    /*! \brief Fret number; zero means an open string. */
     int fret{0};
 };
 
-/*!
-\brief Guitar part within an arrangement.
-*/
+/*! \brief Guitar part within an arrangement. */
 enum class Part : std::uint8_t
 {
     Lead,
@@ -40,9 +36,7 @@ enum class Part : std::uint8_t
     Bass
 };
 
-/*!
-\brief Difficulty tier for an arrangement.
-*/
+/*! \brief Difficulty tier for an arrangement. */
 enum class Difficulty : std::uint8_t
 {
     Easy,
@@ -59,8 +53,13 @@ treats these as plain data; scoring logic lives in rock-hero-game.
 */
 struct Arrangement
 {
+    /*! \brief Guitar part played by this arrangement. */
     Part part{Part::Lead};
+
+    /*! \brief Difficulty tier represented by this arrangement. */
     Difficulty difficulty{Difficulty::Expert};
+
+    /*! \brief Ordered note events the player must execute for this arrangement. */
     std::vector<NoteEvent> note_events;
 };
 

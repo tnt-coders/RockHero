@@ -20,6 +20,7 @@ display or edit any of them.
 */
 struct Chart
 {
+    /*! \brief Playable part/difficulty variants available for the song. */
     std::vector<Arrangement> arrangements;
 };
 

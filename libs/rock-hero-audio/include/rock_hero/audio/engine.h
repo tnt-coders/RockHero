@@ -41,9 +41,7 @@ public:
     */
     Engine();
 
-    /*!
-    \brief Stops any active transport and tears down the Edit and Engine in the correct order.
-    */
+    /*! \brief Stops transport and tears down Tracktion objects in dependency order. */
     ~Engine();
 
     Engine(const Engine&) = delete;
@@ -62,14 +60,10 @@ public:
     */
     bool loadFile(const std::filesystem::path& file);
 
-    /*!
-    \brief Starts transport playback.
-    */
+    /*! \brief Starts transport playback. */
     void play();
 
-    /*!
-    \brief Stops transport playback and resets the position to the beginning.
-    */
+    /*! \brief Stops transport playback and resets the position to the beginning. */
     void stop();
 
     /*!

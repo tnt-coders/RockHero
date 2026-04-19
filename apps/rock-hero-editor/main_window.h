@@ -37,14 +37,10 @@ public:
     */
     explicit MainWindow(const juce::String& title);
 
-    /*!
-    \brief Clears the content component pointer before destroying owned members.
-    */
+    /*! \brief Clears the content component pointer before destroying owned members. */
     ~MainWindow() override;
 
-    /*!
-    \brief Requests application quit when the user closes the window.
-    */
+    /*! \brief Requests application quit when the user closes the window. */
     void closeButtonPressed() override;
 
 private:

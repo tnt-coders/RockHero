@@ -11,14 +11,19 @@
 namespace rock_hero::core
 {
 
-/*!
-\brief Descriptive metadata attached to a Song.
-*/
+/*! \brief Descriptive metadata attached to a Song. */
 struct SongMetadata
 {
+    /*! \brief Song title displayed in browsers and editor views. */
     std::string title;
+
+    /*! \brief Primary artist credited for the song. */
     std::string artist;
+
+    /*! \brief Album or release name associated with the song. */
     std::string album;
+
+    /*! \brief Release year; zero means unknown. */
     int year{0};
 };
 
@@ -36,20 +41,20 @@ Song depends only on standard C++. It has no dependency on JUCE or Tracktion Eng
 */
 struct Song
 {
+    /*! \brief Descriptive metadata for the song. */
     SongMetadata metadata;
 
-    /*!
-\brief Path or asset identifier for the audio backing track.
-*/
+    /*! \brief Path or asset identifier for the audio backing track. */
     std::string audio_asset_ref;
 
     /*!
-\brief Opaque serialized tone automation data.
+    \brief Opaque serialized tone automation data.
 
-Interpreted exclusively by rock-hero-audio; song-model treats it as a pass-through blob.
-*/
+    Interpreted exclusively by rock-hero-audio; song-model treats it as a pass-through blob.
+    */
     std::string tone_timeline_ref;
 
+    /*! \brief Playable chart data for the song. */
     Chart chart;
 };
 
