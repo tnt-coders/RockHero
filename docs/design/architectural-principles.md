@@ -5,7 +5,7 @@ shape;
 this document defines the engineering principles and structural constraints that keep the codebase
 scalable and amenable to automated testing as it grows.
 
-## Purpose
+# Purpose
 
 This document defines the architectural direction for Rock Hero with one explicit priority:
 
@@ -25,7 +25,7 @@ The goal is to make most behavior:
 - independent of real-time threading where possible
 - isolated from third-party framework semantics where possible
 
-## Core Position
+# Core Position
 
 The best way to make Rock Hero testable is **not** to search for clever ways to test framework
 code. It is to make framework-dependent code a relatively small part of the total system.
@@ -40,7 +40,7 @@ That means:
 
 This is the main architectural rule for scalability.
 
-## Design Goal
+# Design Goal
 
 As the codebase grows, the majority of tests should remain:
 
@@ -61,9 +61,9 @@ Only a small minority of tests should require:
 If too much important behavior can only be tested through the running app, the architecture is too
 tightly coupled.
 
-## Library Roles
+# Library Roles
 
-### Rock Hero Core
+## Rock Hero Core
 
 `rock-hero-core` should become the largest concentration of behavior in the project.
 
@@ -90,7 +90,7 @@ This code should be:
 
 If a new feature can live here, it usually should.
 
-### Rock Hero Audio
+## Rock Hero Audio
 
 `rock-hero-audio` should act as an adapter around Tracktion and JUCE audio facilities.
 
@@ -109,7 +109,7 @@ other business logic that merely happens to relate to audio.
 
 Its purpose is integration and infrastructure.
 
-### Rock Hero UI
+## Rock Hero UI
 
 `rock-hero-ui` should be presentation-focused.
 
@@ -131,7 +131,7 @@ It should **not** own:
 
 The right bias is: if a UI component is getting smart, move the intelligence out.
 
-### App Targets
+## App Targets
 
 The app targets should mostly:
 
@@ -143,7 +143,7 @@ The app targets should mostly:
 
 If core behavior lives only in an app target, it is likely too hard to test.
 
-## The Real Strategy: Architect for Testability
+# The Real Strategy: Architect for Testability
 
 There are many testing techniques, but the highest-leverage strategy is structural:
 
@@ -155,7 +155,7 @@ There are many testing techniques, but the highest-leverage strategy is structur
 
 This matters more than the specific test framework.
 
-## Ports and Adapters
+# Ports and Adapters
 
 The project should define small, project-owned interfaces at important boundaries.
 
@@ -175,7 +175,7 @@ fakes or deterministic stubs.
 
 This is preferable to mocking third-party frameworks directly.
 
-### Why This Matters
+## Why This Matters
 
 Mocking JUCE or Tracktion directly is the wrong abstraction level:
 
@@ -186,9 +186,9 @@ Mocking JUCE or Tracktion directly is the wrong abstraction level:
 The project should mock or fake **its own contracts**, not attempt to mock the frameworks
 themselves.
 
-## Preferred Kinds of Tests
+# Preferred Kinds of Tests
 
-### 1. Pure Unit Tests
+## 1. Pure Unit Tests
 
 These should dominate the suite.
 
@@ -210,7 +210,7 @@ These tests should be:
 - easy to diagnose
 - cheap to write in large quantities
 
-### 2. Adapter Tests
+## 2. Adapter Tests
 
 These validate project-owned adapters around frameworks and infrastructure.
 
@@ -223,7 +223,7 @@ Examples:
 
 The goal is to test your integration code without dragging the whole app into the test.
 
-### 3. Focused Integration Tests
+## 3. Focused Integration Tests
 
 These connect a few components together where the interaction matters.
 
@@ -235,7 +235,7 @@ Examples:
 
 These should remain relatively small and intentional.
 
-### 4. Selective UI Wiring Tests
+## 4. Selective UI Wiring Tests
 
 Direct JUCE component tests have value, but only in a narrow role:
 
@@ -245,7 +245,7 @@ Direct JUCE component tests have value, but only in a narrow role:
 
 They should not be treated as the core of the testing strategy.
 
-### 5. Snapshot or Approval Tests
+## 5. Snapshot or Approval Tests
 
 Use these sparingly for stable outputs:
 
@@ -255,13 +255,13 @@ Use these sparingly for stable outputs:
 
 They are regression detectors, not proof of correctness.
 
-### 6. End-to-End Tests
+## 6. End-to-End Tests
 
 These are useful later for stable user flows, not as a primary means of validating logic.
 
 They are slower, more fragile, and more expensive to maintain.
 
-## Anti-Goals
+# Anti-Goals
 
 The project should explicitly avoid these patterns as primary strategy:
 
@@ -274,7 +274,7 @@ The project should explicitly avoid these patterns as primary strategy:
 
 These patterns scale poorly.
 
-## Humble Object, But With the Right Scope
+# Humble Object, But With the Right Scope
 
 The Humble Object pattern is useful, but it should be applied with the right ambition.
 
@@ -293,7 +293,7 @@ That is better.
 For Rock Hero, the strongest path is usually not just "make the JUCE component thinner." It is
 "move behavior into a library that barely knows JUCE exists."
 
-## Time Must Be a Dependency
+# Time Must Be a Dependency
 
 Timing is central to this project. Therefore, time must be explicit.
 
@@ -316,7 +316,7 @@ Instead, inject:
 
 This makes timing-sensitive behavior reproducible in tests.
 
-## Keep Threading at the Boundary
+# Keep Threading at the Boundary
 
 Audio software often becomes hard to test because concurrency spreads everywhere.
 
@@ -341,7 +341,7 @@ The core should not care whether input came from:
 
 If it does care, the boundary is in the wrong place.
 
-## Separate State From Side Effects
+# Separate State From Side Effects
 
 One of the strongest patterns for testability is:
 
@@ -361,7 +361,7 @@ rather than directly mutating the audio engine, filesystem, and UI in one method
 
 This makes behavior observable in tests without needing the real subsystems.
 
-## Add a Replayable Simulation Layer
+# Add a Replayable Simulation Layer
 
 For Rock Hero specifically, a replayable simulation layer should be treated as a first-class
 architectural objective.
@@ -391,7 +391,7 @@ It gives confidence in gameplay behavior without:
 - real plugin chains
 - real rendering
 
-## Recommended Test Pyramid for Rock Hero
+# Recommended Test Pyramid for Rock Hero
 
 The intended test distribution is:
 
@@ -406,9 +406,9 @@ This is not accidental. It is the scaling model.
 As the project grows, the number of tests should grow mostly in the lower layers, not in the
 highest-friction layers.
 
-## Testing Techniques: What to Prefer
+# Testing Techniques: What to Prefer
 
-### Strongly Preferred
+## Strongly Preferred
 
 - pure unit tests in `rock-hero-core`
 - extracted non-UI services and command/state logic
@@ -417,19 +417,19 @@ highest-friction layers.
 - deterministic fixtures and builders
 - simulation-style tests for gameplay and timing
 
-### Selectively Useful
+## Selectively Useful
 
 - direct JUCE component tests for synchronous wiring
 - snapshot tests for stable visual output
 - end-to-end tests once the product has mature flows
 
-### Generally Not Recommended
+## Generally Not Recommended
 
 - broad JUCE wrapper/mocking layers
 - interaction-heavy mock tests as the default
 - verifying implementation details instead of observable behavior
 
-## On Mocks
+# On Mocks
 
 Mocks are not forbidden, but they should not drive the architecture.
 
@@ -457,7 +457,7 @@ Examples where a mock is usually the wrong tool:
 
 The project should resist the trap of creating interfaces only to satisfy mocking tools.
 
-## Concrete Structural Recommendations
+# Concrete Structural Recommendations
 
 As the codebase evolves, favor these moves:
 
@@ -470,7 +470,7 @@ As the codebase evolves, favor these moves:
 - add builders and fixtures for `Song`, `Chart`, `Arrangement`, and note sequences
 - keep app targets small and orchestration-focused
 
-## CMake and Test Layout
+# CMake and Test Layout
 
 Use per-library test targets rather than one large test binary.
 
@@ -483,7 +483,7 @@ Suggested shape:
 
 Register them with `ctest`, but keep most of them free from hardware and windowing requirements.
 
-## Decision Rules for New Code
+# Decision Rules for New Code
 
 When adding a new class, function, or subsystem, ask:
 
@@ -498,7 +498,7 @@ When adding a new class, function, or subsystem, ask:
 If the answer points away from purity or replaceability, treat that as a design warning and justify
 it explicitly.
 
-## Strategic Summary
+# Strategic Summary
 
 Rock Hero should be designed so that automated testability scales with project size rather than
 collapsing under it.

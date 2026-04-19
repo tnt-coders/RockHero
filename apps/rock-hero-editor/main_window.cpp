@@ -7,8 +7,10 @@
 namespace rock_hero
 {
 
+// Editor content component that owns load controls, transport controls, and waveform display.
 struct MainWindow::ContentComponent : public juce::Component, public juce::KeyListener
 {
+    // Wires editor controls directly to the audio engine while editor command services are absent.
     explicit ContentComponent(audio::Engine& engine)
         : m_audio_engine(engine), m_waveform_display(engine)
     {
@@ -39,6 +41,7 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
         setSize(800, 300);
     }
 
+    // Keeps the editor controls in a compact top row and gives remaining space to the waveform.
     void resized() override
     {
         auto area = getLocalBounds().reduced(8);
@@ -50,6 +53,7 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
         m_waveform_display.setBounds(area);
     }
 
+    // Shares Space-bar playback toggling with the transport button path when a file is loaded.
     bool keyPressed(const juce::KeyPress& key, juce::Component* /*origin*/) override
     {
         if (key == juce::KeyPress::spaceKey && m_transport_controls.isFileLoaded())
@@ -61,6 +65,7 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
     }
 
 private:
+    // Opens an asynchronous native file chooser and loads the selected audio file into the engine.
     void OnLoadClicked()
     {
         // Keep the chooser alive for the duration of the async native dialog.
@@ -93,9 +98,11 @@ private:
     ui::WaveformDisplay m_waveform_display;
     ui::TransportControls m_transport_controls;
     juce::TextButton m_load_button;
+    // Owned by the component so the asynchronous native file dialog remains alive.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
 };
 
+// Owns the editor audio engine before creating content that stores references to it.
 MainWindow::MainWindow(const juce::String& title)
     : juce::DocumentWindow(
           title,
@@ -116,6 +123,7 @@ MainWindow::MainWindow(const juce::String& title)
     addKeyListener(m_content.get());
 }
 
+// Removes JUCE's non-owning pointers before owned content and engine members are destroyed.
 MainWindow::~MainWindow()
 {
     removeKeyListener(m_content.get());
@@ -124,6 +132,7 @@ MainWindow::~MainWindow()
     clearContentComponent();
 }
 
+// Routes the native close button through JUCE so normal application shutdown runs.
 void MainWindow::closeButtonPressed()
 {
     juce::JUCEApplication::getInstance()->systemRequestedQuit();
