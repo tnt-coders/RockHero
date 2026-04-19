@@ -1,6 +1,6 @@
 \page design_architecture Architecture
 
-## Overview
+# Overview
 
 Rock Hero is an open-source guitar game built in C++. Players plug in a real guitar, hear it processed through real-time VST effects, and play along to songs via a scrolling note highway — while their tone automatically shifts, sweeps, and evolves with the music.
 
@@ -16,7 +16,7 @@ For the structural engineering rules that govern how new code should be organize
 
 ---
 
-## What It Does
+# What It Does
 
 - Plays back a backing track synchronized with a scrolling note highway.
 - Takes real guitar input through ASIO with sub-10ms latency.
@@ -26,7 +26,7 @@ For the structural engineering rules that govern how new code should be organize
 
 ---
 
-## Technology Stack
+# Technology Stack
 
 | Layer | Technology | Role |
 |-------|-----------|------|
@@ -41,7 +41,7 @@ For the structural engineering rules that govern how new code should be organize
 
 ---
 
-## Repository Layout
+# Repository Layout
 
 \code{.txt}
 RockHero/
@@ -71,7 +71,7 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 - App executables may depend on both libraries and on `rock-hero-ui`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
 
-### Include-path convention
+## Include-path convention
 
 Each library exposes its public headers through a **PUBLIC** include directory at
 `libs/<lib>/include/`. External consumers — other libraries, apps, and tests — always
@@ -127,7 +127,7 @@ See \ref design_architectural_principles for the full guidance.
 
 ---
 
-## Two-Track Design
+# Two-Track Design
 
 Rock Hero is not a general-purpose DAW. It uses exactly two tracks:
 
@@ -144,7 +144,7 @@ Both tracks share a single transport, tempo map, and time signature sequence man
 
 ---
 
-## Song Data Model
+# Song Data Model
 
 The `rock-hero-core` library owns all persistent song data. It depends on standard C++ only.
 
@@ -173,19 +173,19 @@ that belongs entirely to `rock-hero-audio`.
 
 ---
 
-## Application Responsibilities
+# Application Responsibilities
 
-### Rock Hero Editor
+## Rock Hero Editor
 
 Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Chart`/`Arrangement` while auditioning playback. Disables structural model edits while transport is running. Tone and chart decisions are kept in one executable by design — they are too tightly coupled to author in separate tools.
 
-### Rock Hero Game
+## Rock Hero Game
 
 Loads a `Song` and starts a playback session. Displays the note highway and scoring UX. Owns scoring logic — evaluates note hit/miss events against audio-derived timing. Treats the `Song` model as read-only during gameplay.
 
 ---
 
-## Architecture Diagram
+# Architecture Diagram
 
 \code{.txt}
 ┌───────────────────────────────┐   ┌───────────────────────────────┐
@@ -230,7 +230,7 @@ linking avoids singleton aliasing issues and simplifies deployment.
 
 ---
 
-## Threading Model
+# Threading Model
 
 Each executable runs its own set of threads. The threading rules are identical in both — what differs is which threads each process actually uses at a given development stage.
 
@@ -253,13 +253,13 @@ polled manually from within it.
 **Render thread** (optional): bgfx can submit GPU work separately if needed. For the note highway's
 geometric simplicity, single-threaded rendering from the UI thread is likely sufficient.
 
-### Rules
+## Rules
 
 - No locks, heap allocation, or file IO on the audio thread.
 - Cross-thread communication uses atomics or lock-free queues.
 - Mutations that can rebuild processing graphs are message-thread only.
 
-### Thread Communication
+## Thread Communication
 
 \code{.txt}
 Audio Thread                Analysis Thread            UI / Game Thread
@@ -277,7 +277,7 @@ All communication from the audio thread is lock-free. The audio thread's only ou
 
 ---
 
-## Timing and Latency
+# Timing and Latency
 
 The audio thread is the single source of truth for timing. The game view and scoring system derive all state from the transport position — they never maintain independent clocks.
 
@@ -294,7 +294,7 @@ All scoring comparisons happen in audio-sample time with calibration offsets app
 
 ---
 
-## Gameplay Systems
+# Gameplay Systems
 
 **Pitch detection**: YIN or autocorrelation on the clean pre-effects signal. Combined with onset
 detection (detecting *when* the player plays) which is often more reliable than pitch detection for
@@ -307,7 +307,7 @@ handle string bends, hammer-ons, pull-offs, and slides as valid techniques rathe
 
 ---
 
-## Editor UI
+# Editor UI
 
 Built with JUCE components — the same framework Waveform (the DAW built on Tracktion Engine) uses for its entire interface.
 
@@ -324,7 +324,7 @@ UI theming is planned as a distinct later phase — functionality first, polish 
 
 ---
 
-## Game View
+# Game View
 
 Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero`.
 
@@ -334,7 +334,7 @@ SDL is initialized without its own event pump. SDL events are polled manually fr
 
 ---
 
-## VST Plugin Safety
+# VST Plugin Safety
 
 - **Performance monitoring**: Per-buffer processing time tracked for each plugin. Automatic bypass if a plugin consistently overruns.
 - **Fallback chains**: Safe-mode effects during gameplay; full plugin freedom in practice/editor mode.
@@ -343,7 +343,7 @@ SDL is initialized without its own event pump. SDL events are polled manually fr
 
 ---
 
-## Licensing
+# Licensing
 
 All dependencies are compatible with AGPLv3 at zero cost:
 
@@ -363,11 +363,11 @@ Charging for the software is permitted. Anyone can fork, modify, and redistribut
 
 ---
 
-## Development Approach
+# Development Approach
 
 Build the real architecture from the start but keep visuals simple. Start with rectangles scrolling down the screen, not a polished 3D fretboard. Validate the hard unknowns first.
 
-### Build First: Timing Instrumentation
+## Build First: Timing Instrumentation
 
 Before gameplay, add permanent debug logging that records:
 
@@ -379,7 +379,7 @@ Before gameplay, add permanent debug logging that records:
 
 When gameplay feels "off," these logs reveal whether the issue is transport drift, pitch detection latency, calibration error, or render jitter. Without this data, debugging timing is guesswork.
 
-### Prototyping Priorities
+## Prototyping Priorities
 
 1. Timing instrumentation framework
 2. ASIO input through Tracktion Engine with VST plugin chain producing audio
@@ -391,7 +391,7 @@ When gameplay feels "off," these logs reveal whether the issue is transport drif
 
 Visual polish, 3D fretboard, particles, and UI theming come after gameplay fundamentals are proven.
 
-### Testing Infrastructure
+## Testing Infrastructure
 
 Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-library test targets
 live alongside each library:
@@ -406,7 +406,7 @@ Tests are registered with CTest via `catch_discover_tests`. See
 
 ---
 
-## Known Risks
+# Known Risks
 
 | Risk | Severity | Mitigation |
 |------|----------|------------|
@@ -422,7 +422,7 @@ Tests are registered with CTest via `catch_discover_tests`. See
 
 ---
 
-## Fallback Strategy
+# Fallback Strategy
 
 If Tracktion Engine proves unsuitable (timing issues, API incompatibilities, debugging friction), the fallback is **JUCE alone** — building a custom transport, automation system, and audio clip playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatManager`, `AudioPlayHead`). This is significant work (several months) but preserves all other architectural decisions.
 

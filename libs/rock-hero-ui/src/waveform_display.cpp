@@ -7,20 +7,24 @@
 namespace rock_hero::ui
 {
 
+// Creates the Tracktion-backed thumbnail wrapper and starts repaint polling for playback state.
 WaveformDisplay::WaveformDisplay(audio::Engine& engine)
     : m_audio_engine(engine), m_thumbnail(engine.createThumbnail(*this))
 {
     startTimerHz(60);
 }
 
+// Relies on member destruction to release thumbnail resources before the engine reference dies.
 WaveformDisplay::~WaveformDisplay() = default;
 
+// Points the thumbnail at the engine-accepted file and repaints immediately for feedback.
 void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
     m_thumbnail->setFile(file);
     repaint();
 }
 
+// Draws loading, proxy-generation, waveform, and cursor states in one lightweight component.
 void WaveformDisplay::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
@@ -53,11 +57,13 @@ void WaveformDisplay::paint(juce::Graphics& g)
     g.drawLine(cursor_x, 0.0f, cursor_x, static_cast<float>(bounds.getHeight()), 2.0f);
 }
 
+// Documents the intentional absence of child layout while preserving the JUCE override point.
 void WaveformDisplay::resized()
 {
     // WaveformThumbnail draws into the bounds passed to drawChannels — no child layout needed.
 }
 
+// Converts waveform clicks into clamped seek requests and immediate cursor feedback.
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
     const double length = m_thumbnail->getLength();
@@ -76,6 +82,7 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     on_seek(clamped * length);
 }
 
+// Polls transport and thumbnail state until audio-thread ownership of the cache is available.
 void WaveformDisplay::timerCallback()
 {
     m_audio_engine.updateTransportPositionCache();
