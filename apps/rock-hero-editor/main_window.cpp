@@ -12,7 +12,9 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
 {
     // Wires editor controls directly to the audio engine while editor command services are absent.
     explicit ContentComponent(audio::Engine& engine)
-        : m_audio_engine(engine), m_waveform_display(engine)
+        : m_audio_engine(engine), m_waveform_display(engine),
+          m_playing_state_subscription(engine.subscribeOnPlayingStateChanged(
+              [this](bool playing) { m_transport_controls.setPlaying(playing); }))
     {
         addAndMakeVisible(m_load_button);
         addAndMakeVisible(m_transport_controls);
@@ -21,20 +23,11 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
         m_load_button.setButtonText("Load File...");
         m_load_button.onClick = [this] { OnLoadClicked(); };
 
-        m_transport_controls.on_play = [this] {
-            m_audio_engine.play();
-            m_transport_controls.setPlaying(true);
-        };
-
-        m_transport_controls.on_pause = [this] {
-            m_audio_engine.pause();
-            m_transport_controls.setPlaying(false);
-        };
-
-        m_transport_controls.on_stop = [this] {
-            m_audio_engine.stop();
-            m_transport_controls.setPlaying(false);
-        };
+        // Engine's playing-state subscription drives m_transport_controls.setPlaying(),
+        // so these handlers only need to forward the user intent to the engine.
+        m_transport_controls.on_play = [this] { m_audio_engine.play(); };
+        m_transport_controls.on_pause = [this] { m_audio_engine.pause(); };
+        m_transport_controls.on_stop = [this] { m_audio_engine.stop(); };
 
         m_waveform_display.on_seek = [this](double seconds) { m_audio_engine.seek(seconds); };
 
@@ -88,7 +81,6 @@ private:
                     {
                         m_waveform_display.setAudioFile(path);
                         m_transport_controls.setFileLoaded(true);
-                        m_transport_controls.setPlaying(false); // engine stopped during load
                     }
                     else
                     {
@@ -113,6 +105,8 @@ private:
     juce::TextButton m_load_button;
     // Owned by the component so the asynchronous native file dialog remains alive.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
+    // Declared last so its destructor runs first and the callback cannot fire during teardown.
+    audio::Engine::Subscription m_playing_state_subscription;
 };
 
 // Owns the editor audio engine before creating content that stores references to it.
