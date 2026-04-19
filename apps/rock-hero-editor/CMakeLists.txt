@@ -13,8 +13,7 @@ target_compile_definitions(rock_hero_editor PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_
 project_config_juce_generate_juce_header(rock_hero_editor)
 
 target_link_libraries(
-    rock_hero_editor
-    PRIVATE rock_hero_ui rock_hero_audio tracktion::tracktion_engine juce::juce_gui_basics
-            juce::juce_audio_utils juce::juce_recommended_warning_flags)
+    rock_hero_editor PRIVATE rock_hero_ui rock_hero_audio juce::juce_gui_basics
+                             juce::juce_audio_utils juce::juce_recommended_warning_flags)
 
 package_register_target(rock_hero_editor DISPLAY_NAME "Rock Hero Editor")

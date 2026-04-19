@@ -1,7 +1,9 @@
 #include "engine.h"
 
+#include "juce_interop.h"
+#include "tracktion_thumbnail.h"
+
 #include <atomic>
-#include <rock_hero/audio/thumbnail.h>
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::audio
@@ -41,10 +43,7 @@ Engine::~Engine()
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.
 bool Engine::loadFile(const std::filesystem::path& file)
 {
-    // Stop playback before mutating clips to avoid mid-stream graph rebuilds.
-    m_impl->edit->getTransport().stop(false, false);
-
-    const juce::File juce_file(file.string());
+    const juce::File juce_file = toJuceFile(file);
 
     if (!juce_file.existsAsFile())
     {
@@ -57,17 +56,14 @@ bool Engine::loadFile(const std::filesystem::path& file)
         return false;
     }
 
-    // Remove any existing clips on this track.
-    for (auto* clip : track->getClips())
-    {
-        clip->removeFromParent();
-    }
-
     tracktion::AudioFile audio_file(*m_impl->engine, juce_file);
     if (!audio_file.isValid())
     {
         return false;
     }
+
+    // Candidate is valid; now safe to stop playback and mutate the edit.
+    m_impl->edit->getTransport().stop(false, false);
 
     const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
     const auto start = tracktion::TimePosition{};
@@ -75,8 +71,9 @@ bool Engine::loadFile(const std::filesystem::path& file)
         .time = {start, start + length}, .offset = tracktion::TimeDuration{}
     };
 
+    // Final trailing argument asks Tracktion to replace any existing clips on the track.
     const auto clip =
-        track->insertWaveClip(juce_file.getFileNameWithoutExtension(), juce_file, position, false);
+        track->insertWaveClip(juce_file.getFileNameWithoutExtension(), juce_file, position, true);
     if (clip == nullptr)
     {
         return false;
@@ -141,7 +138,7 @@ void Engine::updateTransportPositionCache()
 // Creates a thumbnail wrapper without exposing Tracktion types through public UI-facing headers.
 std::unique_ptr<Thumbnail> Engine::createThumbnail(juce::Component& owner)
 {
-    return std::make_unique<Thumbnail>(*m_impl->engine, owner);
+    return std::make_unique<TracktionThumbnail>(*m_impl->engine, owner);
 }
 
 } // namespace rock_hero::audio
