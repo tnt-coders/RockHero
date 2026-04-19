@@ -3,17 +3,45 @@
 #include "juce_interop.h"
 #include "tracktion_thumbnail.h"
 
+#include <algorithm>
 #include <atomic>
 #include <tracktion_engine/tracktion_engine.h>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::audio
 {
 
-struct Engine::Impl
+struct Engine::Impl : public juce::ChangeListener
 {
     std::unique_ptr<tracktion::Engine> engine;
     std::unique_ptr<tracktion::Edit> edit;
     std::atomic<double> transport_position{0.0};
+
+    std::vector<std::pair<std::size_t, std::function<void(bool)>>> playing_state_callbacks;
+    std::size_t next_subscription_id{1};
+    bool last_known_playing{false};
+
+    // Fires subscribed callbacks only on genuine play/pause transitions.
+    void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
+    {
+        const bool playing = edit->getTransport().isPlaying();
+        if (playing == last_known_playing)
+        {
+            return;
+        }
+        last_known_playing = playing;
+
+        // Copy the list so callbacks may safely unsubscribe themselves during invocation.
+        const auto snapshot = playing_state_callbacks;
+        for (const auto& [id, callback] : snapshot)
+        {
+            if (callback)
+            {
+                callback(playing);
+            }
+        }
+    }
 };
 
 // Creates the Tracktion engine and a minimal single-track edit for early playback support.
@@ -26,6 +54,10 @@ Engine::Engine() : m_impl(std::make_unique<Impl>())
 
     // createSingleTrackEdit already provides one AudioTrack ready for clips.
     m_impl->edit = tracktion::Edit::createSingleTrackEdit(*m_impl->engine);
+
+    // TransportControl derives from juce::ChangeBroadcaster and notifies on any transport
+    // state change; Impl::changeListenerCallback filters to genuine play/pause transitions.
+    m_impl->edit->getTransport().addChangeListener(m_impl.get());
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
@@ -33,11 +65,39 @@ Engine::~Engine()
 {
     if (m_impl->edit)
     {
+        m_impl->edit->getTransport().removeChangeListener(m_impl.get());
         m_impl->edit->getTransport().stop(false, false);
     }
 
     m_impl->edit.reset();
     m_impl->engine.reset();
+}
+
+// Registers a callback for play/pause transitions and returns its RAII handle.
+Engine::Subscription Engine::subscribeOnPlayingStateChanged(
+    std::function<void(bool playing)> callback)
+{
+    const std::size_t id = m_impl->next_subscription_id++;
+    m_impl->playing_state_callbacks.emplace_back(id, std::move(callback));
+    return Subscription{Subscription::Key{}, this, id};
+}
+
+// RAII constructor: stores the engine pointer and registration id.
+Engine::Subscription::Subscription(Key /*key*/, Engine* engine, std::size_t id) noexcept
+    : m_engine(engine), m_id(id)
+{
+}
+
+// Unsubscribes the callback. The handle is non-movable, so m_engine is always non-null.
+Engine::Subscription::~Subscription()
+{
+    auto& callbacks = m_engine->m_impl->playing_state_callbacks;
+    const auto it = std::ranges::find_if(
+        callbacks, [id = m_id](const auto& entry) { return entry.first == id; });
+    if (it != callbacks.end())
+    {
+        callbacks.erase(it);
+    }
 }
 
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.

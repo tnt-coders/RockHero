@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 
 namespace juce
@@ -34,6 +35,61 @@ All public methods except getTransportPosition() must be called on the message t
 class Engine
 {
 public:
+    /*!
+    \brief RAII handle representing an active subscription to an Engine event.
+
+    Returned by Engine::subscribeOnPlayingStateChanged(). The handle unsubscribes the
+    callback when it is destroyed.
+
+    Neither copyable nor movable by design: for its entire lifetime, a Subscription
+    represents a live registration on an Engine. The location where it is constructed is
+    the location where the subscription lives. Factory return uses C++17 guaranteed copy
+    elision, so a Subscription can still be returned by value and stored as a member.
+
+    The handle must not outlive the Engine that produced it. Keep it as a member of the
+    consumer so that consumer destruction cancels the subscription before the Engine is
+    torn down.
+    */
+    class Subscription
+    {
+    public:
+        /*!
+        \brief Access tag that gates Subscription's constructor.
+
+        Only Engine can construct a Key, so only Engine can construct a Subscription.
+        The class exists solely to enforce this restriction at compile time.
+        */
+        class Key
+        {
+        private:
+            Key() = default;
+            friend class Engine;
+        };
+
+        /*!
+        \brief Creates a live subscription handle.
+
+        Callable only by Engine, because forming a Key requires access that only Engine has.
+
+        \param key Access tag produced by Engine.
+        \param engine Engine that owns the subscription registry.
+        \param id Identifier of the registered callback.
+        */
+        Subscription(Key key, Engine* engine, std::size_t id) noexcept;
+
+        /*! \brief Unsubscribes the callback. */
+        ~Subscription();
+
+        Subscription(const Subscription&) = delete;
+        Subscription& operator=(const Subscription&) = delete;
+        Subscription(Subscription&&) = delete;
+        Subscription& operator=(Subscription&&) = delete;
+
+    private:
+        Engine* m_engine{nullptr};
+        std::size_t m_id{0};
+    };
+
     /*!
     \brief Creates the Tracktion Engine instance and a single-track Edit for playback.
 
@@ -121,6 +177,20 @@ public:
     \return A new Thumbnail instance.
     */
     [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
+
+    /*!
+    \brief Registers a callback fired on transitions between playing and not-playing.
+
+    The callback runs on the message thread. It fires only on actual transitions — seeks,
+    loads, and other transport events that leave the playing flag unchanged do not invoke
+    it. Multiple independent subscribers are supported; each gets its own handle.
+
+    \param callback Invoked with the new playing state on each transition.
+    \return A move-only RAII handle; destroying it unsubscribes the callback. The caller
+    owns the handle and must not let it outlive this Engine.
+    */
+    [[nodiscard]] Subscription subscribeOnPlayingStateChanged(
+        std::function<void(bool playing)> callback);
 
 private:
     struct Impl;
