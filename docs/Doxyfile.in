@@ -1026,9 +1026,9 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = libs/rock-hero-audio/include \
-                         libs/rock-hero-core/include \
-                         libs/rock-hero-ui/include \
+INPUT                  = libs/rock-hero-audio \
+                         libs/rock-hero-core \
+                         libs/rock-hero-ui \
                          apps/rock-hero-editor \
                          apps/rock-hero \
                          README.md \
