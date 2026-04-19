@@ -31,17 +31,24 @@ struct NoteEvent
 /*! \brief Guitar part within an arrangement. */
 enum class Part : std::uint8_t
 {
+    /*! \brief Lead guitar part, typically melodies and solos. */
     Lead,
+    /*! \brief Rhythm guitar part, typically chords and riffs. */
     Rhythm,
+    /*! \brief Bass guitar part. */
     Bass
 };
 
 /*! \brief Difficulty tier for an arrangement. */
 enum class Difficulty : std::uint8_t
 {
+    /*! \brief Simplified arrangement aimed at beginners. */
     Easy,
+    /*! \brief Intermediate arrangement between Easy and Hard. */
     Medium,
+    /*! \brief Advanced arrangement demanding solid technique. */
     Hard,
+    /*! \brief Full arrangement as originally written, with no simplifications. */
     Expert
 };
 

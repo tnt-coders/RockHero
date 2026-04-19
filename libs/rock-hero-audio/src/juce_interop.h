@@ -25,7 +25,8 @@ non-ASCII characters survive the conversion.
 inline juce::File toJuceFile(const std::filesystem::path& path)
 {
 #ifdef _WIN32
-    return juce::File(juce::String(path.wstring()));
+    const auto native_path = path.wstring();
+    return juce::File(juce::String(native_path.c_str()));
 #else
     return juce::File(juce::String(path.string()));
 #endif

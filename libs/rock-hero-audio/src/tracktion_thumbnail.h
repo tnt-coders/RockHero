@@ -50,7 +50,9 @@ public:
 
 private:
     tracktion::Engine& m_engine;
-    tracktion::SmartThumbnail m_thumbnail;
+    // Mutable because SmartThumbnail::drawChannels is non-const (it updates internal render
+    // caches) but our Thumbnail interface models drawing as logically const.
+    mutable tracktion::SmartThumbnail m_thumbnail;
     double m_total_length_seconds{0.0};
 };
 
