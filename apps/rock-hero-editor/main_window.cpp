@@ -90,6 +90,19 @@ private:
                         m_transport_controls.setFileLoaded(true);
                         m_transport_controls.setPlaying(false); // engine stopped during load
                     }
+                    else
+                    {
+                        juce::NativeMessageBox::showAsync(
+                            juce::MessageBoxOptions()
+                                .withIconType(juce::MessageBoxIconType::WarningIcon)
+                                .withTitle("Could not load file")
+                                .withMessage(
+                                    "The selected file could not be loaded. It may be "
+                                    "corrupt or in an unsupported format:\n\n" +
+                                    file.getFullPathName())
+                                .withButton("OK"),
+                            nullptr);
+                    }
                 }
             });
     }
