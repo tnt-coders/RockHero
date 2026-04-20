@@ -6,8 +6,6 @@
 #include <algorithm>
 #include <atomic>
 #include <tracktion_engine/tracktion_engine.h>
-#include <utility>
-#include <vector>
 
 namespace rock_hero::audio
 {
@@ -22,9 +20,7 @@ private:
     std::atomic<double> m_transport_position{0.0};
     double m_loaded_length_seconds{0.0};
 
-    std::vector<std::pair<std::size_t, std::function<void(bool)>>> m_playing_state_callbacks;
-    std::vector<std::pair<std::size_t, std::function<void(double)>>> m_transport_position_callbacks;
-    std::size_t m_next_subscription_id{1};
+    juce::ListenerList<Engine::Listener> m_listeners;
     bool m_last_known_playing{false};
 
     // Fires subscribed callbacks only on genuine play/pause transitions.
@@ -37,7 +33,7 @@ private:
         }
         m_last_known_playing = playing;
 
-        NotifyPlayingStateChanged(playing);
+        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. React to that
@@ -67,7 +63,7 @@ private:
             return;
         }
 
-        NotifyTransportPositionChanged(seconds);
+        m_listeners.call(&Engine::Listener::engineTransportPositionChanged, seconds);
     }
 
     [[nodiscard]] double ClampToLoadedRange(double seconds) const noexcept
@@ -84,32 +80,6 @@ private:
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
                raw_position_seconds >= m_loaded_length_seconds;
-    }
-
-    void NotifyPlayingStateChanged(bool playing)
-    {
-        // Copy the list so callbacks may safely unsubscribe themselves during invocation.
-        const auto snapshot = m_playing_state_callbacks;
-        for (const auto& [id, callback] : snapshot)
-        {
-            if (callback)
-            {
-                callback(playing);
-            }
-        }
-    }
-
-    void NotifyTransportPositionChanged(double seconds)
-    {
-        // Copy the list so callbacks may safely unsubscribe themselves during invocation.
-        const auto snapshot = m_transport_position_callbacks;
-        for (const auto& [id, callback] : snapshot)
-        {
-            if (callback)
-            {
-                callback(seconds);
-            }
-        }
     }
 };
 
@@ -147,51 +117,14 @@ Engine::~Engine()
     m_impl->m_engine.reset();
 }
 
-// Registers a callback for play/pause transitions and returns its RAII handle.
-Engine::Subscription Engine::subscribeOnPlayingStateChanged(
-    std::function<void(bool playing)> callback)
+void Engine::addListener(Listener* listener)
 {
-    const std::size_t id = m_impl->m_next_subscription_id++;
-    m_impl->m_playing_state_callbacks.emplace_back(id, std::move(callback));
-    return Subscription{Subscription::Key{}, this, id, Subscription::Kind::playing_state};
+    m_impl->m_listeners.add(listener);
 }
 
-// Registers a callback for transport position changes and returns its RAII handle.
-Engine::Subscription Engine::subscribeOnTransportPositionChanged(
-    std::function<void(double seconds)> callback)
+void Engine::removeListener(Listener* listener)
 {
-    const std::size_t id = m_impl->m_next_subscription_id++;
-    m_impl->m_transport_position_callbacks.emplace_back(id, std::move(callback));
-    return Subscription{Subscription::Key{}, this, id, Subscription::Kind::transport_position};
-}
-
-// RAII constructor: stores the engine pointer and registration id.
-Engine::Subscription::Subscription(Key /*key*/, Engine* engine, std::size_t id, Kind kind) noexcept
-    : m_engine(engine), m_id(id), m_kind(kind)
-{
-}
-
-// Unsubscribes the callback. The handle is non-movable, so m_engine is always non-null.
-Engine::Subscription::~Subscription()
-{
-    auto erase_callback = [id = m_id](auto& callbacks) {
-        const auto it =
-            std::ranges::find_if(callbacks, [id](const auto& entry) { return entry.first == id; });
-        if (it != callbacks.end())
-        {
-            callbacks.erase(it);
-        }
-    };
-
-    switch (m_kind)
-    {
-    case Kind::playing_state:
-        erase_callback(m_engine->m_impl->m_playing_state_callbacks);
-        break;
-    case Kind::transport_position:
-        erase_callback(m_engine->m_impl->m_transport_position_callbacks);
-        break;
-    }
+    m_impl->m_listeners.remove(listener);
 }
 
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.

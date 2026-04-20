@@ -8,13 +8,13 @@ namespace rock_hero
 {
 
 // Editor content component that owns load controls, transport controls, and waveform display.
-struct MainWindow::ContentComponent : public juce::Component, public juce::KeyListener
+struct MainWindow::ContentComponent : public juce::Component,
+                                      public juce::KeyListener,
+                                      private audio::Engine::Listener
 {
     // Wires editor controls directly to the audio engine while editor command services are absent.
     explicit ContentComponent(audio::Engine& engine)
-        : m_audio_engine(engine), m_waveform_display(engine),
-          m_playing_state_subscription(engine.subscribeOnPlayingStateChanged(
-              [this](bool playing) { m_transport_controls.setPlaying(playing); }))
+        : m_audio_engine(engine), m_waveform_display(engine), m_engine_listener(engine, *this)
     {
         addAndMakeVisible(m_load_button);
         addAndMakeVisible(m_transport_controls);
@@ -23,8 +23,8 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
         m_load_button.setButtonText("Load File...");
         m_load_button.onClick = [this] { OnLoadClicked(); };
 
-        // Engine's playing-state subscription drives m_transport_controls.setPlaying(),
-        // so these handlers only need to forward the user intent to the engine.
+        // Engine's playing-state events drive m_transport_controls.setPlaying() via
+        // enginePlayingStateChanged(), so these handlers only forward the user intent.
         m_transport_controls.on_play = [this] { m_audio_engine.play(); };
         m_transport_controls.on_pause = [this] { m_audio_engine.pause(); };
         m_transport_controls.on_stop = [this] { m_audio_engine.stop(); };
@@ -32,6 +32,12 @@ struct MainWindow::ContentComponent : public juce::Component, public juce::KeyLi
         m_waveform_display.on_seek = [this](double seconds) { m_audio_engine.seek(seconds); };
 
         setSize(800, 300);
+    }
+
+    // Mirrors engine playing state into the transport button icon.
+    void enginePlayingStateChanged(bool playing) override
+    {
+        m_transport_controls.setPlaying(playing);
     }
 
     // Keeps the editor controls in a compact top row and gives remaining space to the waveform.
@@ -105,8 +111,8 @@ private:
     juce::TextButton m_load_button;
     // Owned by the component so the asynchronous native file dialog remains alive.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
-    // Declared last so its destructor runs first and the callback cannot fire during teardown.
-    audio::Engine::Subscription m_playing_state_subscription;
+    // Declared last so its destructor detaches the listener before other members are destroyed.
+    audio::ScopedListener<audio::Engine, audio::Engine::Listener> m_engine_listener;
 };
 
 // Owns the editor audio engine before creating content that stores references to it.
