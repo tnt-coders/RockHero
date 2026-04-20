@@ -7,11 +7,12 @@
 namespace rock_hero::ui
 {
 
-// Creates the Tracktion-backed thumbnail wrapper and starts repaint polling for playback state.
+// Creates the Tracktion-backed thumbnail wrapper and listens for transport position changes.
 WaveformDisplay::WaveformDisplay(audio::Engine& engine)
-    : m_audio_engine(engine), m_thumbnail(engine.createThumbnail(*this))
+    : m_thumbnail(engine.createThumbnail(*this)),
+      m_transport_position_subscription(engine.subscribeOnTransportPositionChanged(
+          [this](double seconds) { setTransportPosition(seconds); }))
 {
-    startTimerHz(60);
 }
 
 // Relies on member destruction to release thumbnail resources before the engine reference dies.
@@ -21,6 +22,7 @@ WaveformDisplay::~WaveformDisplay() = default;
 void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
     m_thumbnail->setFile(file);
+    setTransportPosition(0.0);
     repaint();
 }
 
@@ -60,7 +62,7 @@ void WaveformDisplay::paint(juce::Graphics& g)
 // Documents the intentional absence of child layout while preserving the JUCE override point.
 void WaveformDisplay::resized()
 {
-    // WaveformThumbnail draws into the bounds passed to drawChannels — no child layout needed.
+    // WaveformThumbnail draws into the bounds passed to drawChannels; no child layout needed.
 }
 
 // Converts waveform clicks into clamped seek requests and immediate cursor feedback.
@@ -75,29 +77,23 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
 
-    // Update cursor immediately so the playhead moves before the 60 Hz tick fires.
+    // Update cursor immediately so the playhead moves before Tracktion publishes the seek.
     m_cursor_proportion = clamped;
     repaint();
 
     on_seek(clamped * length);
 }
 
-// Polls transport and thumbnail state until audio-thread ownership of the cache is available.
-void WaveformDisplay::timerCallback()
+void WaveformDisplay::setTransportPosition(double seconds)
 {
-    m_audio_engine.updateTransportPositionCache();
-
-    const double pos = m_audio_engine.getTransportPosition();
     const double length = m_thumbnail->getLength();
     // Keep cursor math in normalised space so paint() only needs the current bounds to translate
     // transport time into screen coordinates.
-    const double new_proportion = (length > 0.0) ? pos / length : 0.0;
+    const double new_proportion = (length > 0.0) ? seconds / length : 0.0;
 
-    const bool cursor_moved = new_proportion != m_cursor_proportion;
-    m_cursor_proportion = new_proportion;
-
-    if (cursor_moved || m_audio_engine.isPlaying() || m_thumbnail->isGeneratingProxy())
+    if (new_proportion != m_cursor_proportion)
     {
+        m_cursor_proportion = new_proportion;
         repaint();
     }
 }

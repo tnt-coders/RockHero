@@ -7,7 +7,7 @@
 
 #include <filesystem>
 
-// Forward declarations — full definitions provided by juce_gui_basics, which consuming
+// Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
 namespace juce
 {
@@ -74,10 +74,25 @@ public:
         juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) const = 0;
 
 protected:
+    /*! \brief Allows only derived thumbnail adapters to construct the interface base. */
     Thumbnail() = default;
+
+    /*! \brief Allows derived adapters to copy the interface base when needed. */
     Thumbnail(const Thumbnail&) = default;
+
+    /*!
+    \brief Allows derived adapters to copy-assign the interface base when needed.
+    \return Reference to this thumbnail base.
+    */
     Thumbnail& operator=(const Thumbnail&) = default;
+
+    /*! \brief Allows derived adapters to move the interface base when needed. */
     Thumbnail(Thumbnail&&) = default;
+
+    /*!
+    \brief Allows derived adapters to move-assign the interface base when needed.
+    \return Reference to this thumbnail base.
+    */
     Thumbnail& operator=(Thumbnail&&) = default;
 };
 
