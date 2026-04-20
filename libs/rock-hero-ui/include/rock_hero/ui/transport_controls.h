@@ -17,7 +17,7 @@ namespace rock_hero::ui
 
 Interaction is entirely callback-based; this component has no knowledge of the audio engine.
 The owner wires on_play, on_pause, and on_stop, then calls setFileLoaded(), setPlaying(),
-and setCanStop() to keep button state in sync.
+and setTransportPosition() to keep button state in sync.
 
 Icons are SVGs embedded via juce_add_binary_data (BinaryData::play_arrow_svg, pause_svg,
 stop_svg). Buttons use DrawableButton with ImageFitted style.
@@ -50,10 +50,15 @@ public:
     [[nodiscard]] bool isFileLoaded() const;
 
     /*!
-    \brief Enables or disables the Stop button.
-    \param can_stop True if the current transport state has something for Stop to do.
+    \brief Updates the cached transport position used to gate the Stop button.
+
+    Stop is only useful when something would change: playback is active, or the cursor has
+    moved away from the start. The component combines this position with the playing state
+    to decide whether the Stop button should be enabled.
+
+    \param seconds Current transport position in seconds.
     */
-    void setCanStop(bool can_stop);
+    void setTransportPosition(double seconds);
 
     /*!
     \brief Syncs the play/pause button icon to the current playback state.
@@ -76,7 +81,7 @@ private:
 
     bool m_is_playing{false};
     bool m_file_loaded{false};
-    bool m_can_stop{false};
+    double m_transport_position{0.0};
 
     std::unique_ptr<juce::DrawableButton> m_play_pause_button;
     std::unique_ptr<juce::DrawableButton> m_stop_button;
