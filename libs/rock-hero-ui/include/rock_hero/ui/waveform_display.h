@@ -12,6 +12,7 @@
 
 namespace rock_hero::audio
 {
+// Forward-declared thumbnail port keeps this header independent of Tracktion implementation types.
 class Thumbnail;
 } // namespace rock_hero::audio
 
@@ -69,8 +70,10 @@ public:
     void resized() override;
 
 private:
+    // Receives transport events and converts them into cursor repaint requests.
     void engineTransportPositionChanged(double seconds) override;
 
+    // Tracktion-free thumbnail interface created by the audio engine adapter.
     std::unique_ptr<audio::Thumbnail> m_thumbnail;
 
     // Normalised cursor position in the range [0, 1].

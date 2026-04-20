@@ -10,6 +10,7 @@
 
 namespace rock_hero::audio
 {
+// Forward-declared so the editor window can own the engine without exposing its header here.
 class Engine;
 } // namespace rock_hero::audio
 
@@ -44,9 +45,13 @@ public:
     void closeButtonPressed() override;
 
 private:
+    // Private content component keeps JUCE child widgets out of the public header.
     struct ContentComponent;
 
+    // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<audio::Engine> m_audio_engine;
+
+    // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<ContentComponent> m_content;
 };
 
