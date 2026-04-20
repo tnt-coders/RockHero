@@ -1,6 +1,5 @@
 #include "engine.h"
 
-#include "juce_interop.h"
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
@@ -133,11 +132,9 @@ void Engine::removeListener(Listener* listener)
 }
 
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.
-bool Engine::loadFile(const std::filesystem::path& file)
+bool Engine::loadFile(const juce::File& file)
 {
-    const juce::File juce_file = toJuceFile(file);
-
-    if (!juce_file.existsAsFile())
+    if (!file.existsAsFile())
     {
         return false;
     }
@@ -148,7 +145,7 @@ bool Engine::loadFile(const std::filesystem::path& file)
         return false;
     }
 
-    tracktion::AudioFile audio_file(*m_impl->m_engine, juce_file);
+    tracktion::AudioFile audio_file(*m_impl->m_engine, file);
     if (!audio_file.isValid())
     {
         return false;
@@ -165,7 +162,7 @@ bool Engine::loadFile(const std::filesystem::path& file)
 
     // Final trailing argument asks Tracktion to replace any existing clips on the track.
     const auto clip =
-        track->insertWaveClip(juce_file.getFileNameWithoutExtension(), juce_file, position, true);
+        track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
     if (clip == nullptr)
     {
         return false;

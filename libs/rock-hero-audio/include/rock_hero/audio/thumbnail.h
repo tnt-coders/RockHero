@@ -5,12 +5,11 @@
 
 #pragma once
 
-#include <filesystem>
-
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
 namespace juce
 {
+class File;
 class Graphics;
 template <typename ValueType> class Rectangle;
 } // namespace juce
@@ -21,7 +20,7 @@ namespace rock_hero::audio
 /*!
 \brief Abstract audio thumbnail interface that hides Tracktion types from consumers.
 
-Exposes only standard C++ and JUCE graphics types so that UI code can render audio thumbnails
+Exposes only JUCE-facing file and graphics types so that UI code can render audio thumbnails
 without including Tracktion headers or linking Tracktion libraries. Concrete instances are
 obtained from Engine::createThumbnail().
 
@@ -39,9 +38,9 @@ public:
     Begins asynchronous proxy generation. Use isGeneratingProxy() and getProxyProgress() to
     track progress.
 
-    \param file Path to the audio file.
+    \param file The audio file to display.
     */
-    virtual void setFile(const std::filesystem::path& file) = 0;
+    virtual void setFile(const juce::File& file) = 0;
 
     /*!
     \brief Reports whether the thumbnail proxy is still being generated.

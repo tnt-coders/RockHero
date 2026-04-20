@@ -33,7 +33,7 @@ public:
     TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner);
 
     /*! \copydoc Thumbnail::setFile */
-    void setFile(const std::filesystem::path& file) override;
+    void setFile(const juce::File& file) override;
 
     /*! \copydoc Thumbnail::isGeneratingProxy */
     [[nodiscard]] bool isGeneratingProxy() const override;

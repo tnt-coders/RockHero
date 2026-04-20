@@ -85,13 +85,11 @@ private:
                 const auto file = chooser.getResult();
                 if (file.existsAsFile())
                 {
-                    const std::filesystem::path path(file.getFullPathName().toStdString());
-
                     // Only refresh the thumbnail after the engine has accepted the file.
                     // That keeps the UI from displaying a waveform for a file that failed to load.
-                    if (m_audio_engine.loadFile(path))
+                    if (m_audio_engine.loadFile(file))
                     {
-                        m_waveform_display.setAudioFile(path);
+                        m_waveform_display.setAudioFile(file);
                         m_transport_controls.setFileLoaded(true);
                     }
                     else

@@ -5,12 +5,12 @@
 
 #pragma once
 
-#include <filesystem>
 #include <memory>
 
 namespace juce
 {
 class Component;
+class File;
 } // namespace juce
 
 namespace rock_hero::audio
@@ -185,7 +185,7 @@ public:
     \param file The audio file to load.
     \return True if the clip was inserted successfully.
     */
-    bool loadFile(const std::filesystem::path& file);
+    bool loadFile(const juce::File& file);
 
     /*! \brief Starts transport playback. */
     void play();
