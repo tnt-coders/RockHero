@@ -36,6 +36,14 @@ ctest --preset debug
 
 Use `cmake --preset release` and `cmake --build --preset release` for optimized builds. Generate docs with `cmake --build build/debug --target docs` when Doxygen is installed. Run static analysis with `cmake --build build/debug --target clang-tidy` or `clang-tidy-fix`. Apply formatting with `pre-commit run --all-files`.
 
+### Temporary Codex Build Environment Guardrail
+In the current Codex PowerShell environment, `cmake` and `ctest` may not be on `PATH`, and
+`ninja -C build/debug ...` has repeatedly hung at CMake's generated `VerifyGlobs.cmake` re-check
+step. Prefer focused compile commands from `build/debug/compile_commands.json` for local Codex
+verification unless the build environment has been repaired. When a full CMake build or CTest run
+would be useful, mention briefly that this environment problem should eventually be resolved rather
+than repeatedly retrying the same failing commands.
+
 ## Coding Style & Naming Conventions
 The project uses C++23. Formatting is enforced by `.clang-format` (Microsoft base style, 4-space indentation, 100-column limit, left-aligned pointers). Naming comes from `.clang-tidy`: types use `CamelCase`, functions/methods use `camelCase`, namespaces and local variables use `lower_case`, private/protected member fields use `m_lower_case`, and macros use `UPPER_CASE`. Keep CMake formatted with `cmake-format` through pre-commit.
 Architecture and layering decisions should remain aligned with `docs/design/architecture.md` and
