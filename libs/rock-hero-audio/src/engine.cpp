@@ -26,14 +26,7 @@ private:
     // Fires subscribed callbacks only on genuine play/pause transitions.
     void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
     {
-        const bool playing = m_edit->getTransport().isPlaying();
-        if (playing == m_last_known_playing)
-        {
-            return;
-        }
-        m_last_known_playing = playing;
-
-        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
+        PublishPlayingState(m_edit->getTransport().isPlaying());
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. React to that
@@ -51,8 +44,20 @@ private:
 
         if (ShouldStopAtLoadedEnd(raw_position_seconds))
         {
-            m_edit->getTransport().stop(false, false);
+            StopAndReturnToStart();
         }
+    }
+
+    // Publishes only real play/pause transitions to keep UI updates idempotent.
+    void PublishPlayingState(bool playing)
+    {
+        if (playing == m_last_known_playing)
+        {
+            return;
+        }
+
+        m_last_known_playing = playing;
+        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
     }
 
     void PublishTransportPosition(double seconds)
@@ -80,6 +85,17 @@ private:
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
                raw_position_seconds >= m_loaded_length_seconds;
+    }
+
+    // Applies Stop-button semantics programmatically when playback reaches the loaded file end.
+    void StopAndReturnToStart()
+    {
+        auto& transport = m_edit->getTransport();
+        transport.stop(false, false);
+        transport.setPosition(tracktion::TimePosition{});
+
+        PublishTransportPosition(0.0);
+        PublishPlayingState(false);
     }
 };
 
@@ -151,6 +167,7 @@ bool Engine::loadFile(const std::filesystem::path& file)
 
     // Candidate is valid; now safe to stop playback and mutate the edit.
     m_impl->m_edit->getTransport().stop(false, false);
+    m_impl->PublishPlayingState(false);
 
     const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
     const auto start = tracktion::TimePosition{};
@@ -188,14 +205,13 @@ void Engine::play()
     }
 
     transport.play(false);
+    m_impl->PublishPlayingState(transport.isPlaying());
 }
 
 // Stops playback and resets both Tracktion and cached transport positions to the start.
 void Engine::stop()
 {
-    m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->m_edit->getTransport().setPosition(tracktion::TimePosition{});
-    m_impl->PublishTransportPosition(0.0);
+    m_impl->StopAndReturnToStart();
 }
 
 // Pauses playback without resetting position so the user can resume from the same point.
@@ -204,6 +220,7 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
+    m_impl->PublishPlayingState(false);
 }
 
 // Moves Tracktion transport and the UI-readable cache to the requested song time.
