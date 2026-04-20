@@ -5,9 +5,7 @@
 
 #pragma once
 
-#include <cstddef>
 #include <filesystem>
-#include <functional>
 #include <memory>
 
 namespace juce
@@ -19,6 +17,50 @@ namespace rock_hero::audio
 {
 
 class Thumbnail;
+
+/*!
+\brief Generic RAII helper that attaches a listener to a broadcaster for its lifetime.
+
+Constructs with (broadcaster, listener) and calls broadcaster.addListener(&listener). The
+destructor calls broadcaster.removeListener(&listener). Non-copyable and non-movable so that
+for its entire lifetime it represents exactly one live registration.
+
+Declare a ScopedListener member last in the owning class so that its destructor runs first
+during teardown, ensuring the listener is detached before other members (including those
+consulted by in-flight callbacks) are destroyed.
+
+\tparam Broadcaster Any type exposing addListener / removeListener taking a pointer-to-Listener.
+\tparam Listener The listener interface type attached to the broadcaster.
+*/
+template <class Broadcaster, class Listener> class ScopedListener
+{
+public:
+    /*!
+    \brief Attaches the listener to the broadcaster.
+    \param broadcaster The broadcaster to register with; must outlive this ScopedListener.
+    \param listener The listener to attach; must outlive this ScopedListener.
+    */
+    ScopedListener(Broadcaster& broadcaster, Listener& listener) noexcept
+        : m_broadcaster(broadcaster), m_listener(listener)
+    {
+        m_broadcaster.addListener(&m_listener);
+    }
+
+    /*! \brief Detaches the listener from the broadcaster. */
+    ~ScopedListener()
+    {
+        m_broadcaster.removeListener(&m_listener);
+    }
+
+    ScopedListener(const ScopedListener&) = delete;
+    ScopedListener& operator=(const ScopedListener&) = delete;
+    ScopedListener(ScopedListener&&) = delete;
+    ScopedListener& operator=(ScopedListener&&) = delete;
+
+private:
+    Broadcaster& m_broadcaster;
+    Listener& m_listener;
+};
 
 /*!
 \brief Isolation layer between Tracktion Engine and the rest of the application.
@@ -37,52 +79,69 @@ class Engine
 {
 public:
     /*!
-    \brief RAII handle representing an active subscription to an Engine event.
+    \brief Listener interface for engine transport events.
 
-    Returned by Engine::subscribeOnPlayingStateChanged(). The handle unsubscribes the
-    callback when it is destroyed.
+    Callbacks fire on the message thread. Default implementations are empty so consumers
+    override only the events they care about. Use audio::ScopedListener to attach and
+    detach instances safely; declare the ScopedListener member last in the owning class.
 
-    Neither copyable nor movable by design: for its entire lifetime, a Subscription
-    represents a live registration on an Engine. The location where it is constructed is
-    the location where the subscription lives. Factory return uses C++17 guaranteed copy
-    elision, so a Subscription can still be returned by value and stored as a member.
+    Events are pre-filtered: enginePlayingStateChanged() fires only on genuine transitions,
+    not on every underlying transport change.
 
-    The handle must not outlive the Engine that produced it. Keep it as a member of the
-    consumer so that consumer destruction cancels the subscription before the Engine is
-    torn down.
+    \see ScopedListener
+    \see Engine::addListener
     */
-    class Subscription
+    class Listener
     {
     public:
-        /*! \brief Unsubscribes the callback. */
-        ~Subscription();
+        virtual ~Listener() = default;
 
-        Subscription(const Subscription&) = delete;
-        Subscription& operator=(const Subscription&) = delete;
-        Subscription(Subscription&&) = delete;
-        Subscription& operator=(Subscription&&) = delete;
+        /*!
+        \brief Fires on transitions between playing and not-playing.
 
-    private:
-        friend class Engine;
+        Does not fire for seeks, loads, or other transport events that leave the playing
+        flag unchanged.
 
-        enum class Kind
+        \param playing True when the transport is now playing.
+        */
+        virtual void enginePlayingStateChanged(bool playing)
         {
-            playing_state,
-            transport_position
-        };
+            static_cast<void>(playing);
+        }
 
-        class Key
+        /*!
+        \brief Fires when the transport position changes.
+
+        The value is clamped to the currently loaded audio duration.
+
+        \param seconds New transport position in seconds.
+        */
+        virtual void engineTransportPositionChanged(double seconds)
         {
-        private:
-            Key() = default;
-            friend class Engine;
-        };
+            static_cast<void>(seconds);
+        }
 
-        Subscription(Key key, Engine* engine, std::size_t id, Kind kind) noexcept;
+    protected:
+        /*! \brief Constructs a listener base. */
+        Listener() = default;
 
-        Engine* m_engine{nullptr};
-        std::size_t m_id{0};
-        Kind m_kind{Kind::playing_state};
+        /*! \brief Copies the listener base subobject for derived listener types. */
+        Listener(const Listener&) = default;
+
+        /*! \brief Moves the listener base subobject for derived listener types. */
+        Listener(Listener&&) = default;
+
+        /*!
+        \brief Copies the listener base subobject for derived listener types.
+        \return This listener base.
+        */
+        Listener& operator=(const Listener&) = default;
+
+        /*!
+        \brief Moves the listener base subobject for derived listener types.
+        \return This listener base.
+        */
+        Listener& operator=(Listener&&) = default;
     };
 
     /*!
@@ -99,6 +158,23 @@ public:
     Engine& operator=(const Engine&) = delete;
     Engine(Engine&&) = delete;
     Engine& operator=(Engine&&) = delete;
+
+    /*!
+    \brief Registers a listener for engine transport events.
+
+    The listener must remain alive until removeListener() is called or the Engine is
+    destroyed. Prefer ScopedListener<Engine, Engine::Listener> for automatic lifetime
+    management.
+
+    \param listener Non-null pointer; must outlive the registration.
+    */
+    void addListener(Listener* listener);
+
+    /*!
+    \brief Unregisters a previously added listener.
+    \param listener The same pointer previously passed to addListener().
+    */
+    void removeListener(Listener* listener);
 
     /*!
     \brief Loads an audio file onto track 0, replacing any existing clip.
@@ -162,33 +238,6 @@ public:
     \return A new Thumbnail instance.
     */
     [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
-
-    /*!
-    \brief Registers a callback fired on transitions between playing and not-playing.
-
-    The callback runs on the message thread. It fires only on actual transitions; seeks,
-    loads, and other transport events that leave the playing flag unchanged do not invoke
-    it. Multiple independent subscribers are supported; each gets its own handle.
-
-    \param callback Invoked with the new playing state on each transition.
-    \return A non-copyable, non-movable RAII handle; destroying it unsubscribes the callback.
-    The caller owns the handle and must not let it outlive this Engine.
-    */
-    [[nodiscard]] Subscription subscribeOnPlayingStateChanged(
-        std::function<void(bool playing)> callback);
-
-    /*!
-    \brief Registers a callback fired when the transport position changes.
-
-    The callback runs on the message thread after Tracktion publishes a new transport position.
-    Subscribers receive seconds clamped to the currently loaded audio duration.
-
-    \param callback Invoked with the new transport position in seconds.
-    \return A non-copyable, non-movable RAII handle; destroying it unsubscribes the callback.
-    The caller owns the handle and must not let it outlive this Engine.
-    */
-    [[nodiscard]] Subscription subscribeOnTransportPositionChanged(
-        std::function<void(double seconds)> callback);
 
 private:
     struct Impl;

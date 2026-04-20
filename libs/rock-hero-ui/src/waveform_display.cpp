@@ -7,11 +7,9 @@
 namespace rock_hero::ui
 {
 
-// Creates the Tracktion-backed thumbnail wrapper and listens for transport position changes.
+// Creates the Tracktion-backed thumbnail wrapper and attaches a listener for transport position.
 WaveformDisplay::WaveformDisplay(audio::Engine& engine)
-    : m_thumbnail(engine.createThumbnail(*this)),
-      m_transport_position_subscription(engine.subscribeOnTransportPositionChanged(
-          [this](double seconds) { setTransportPosition(seconds); }))
+    : m_thumbnail(engine.createThumbnail(*this)), m_engine_listener(engine, *this)
 {
 }
 
@@ -19,10 +17,11 @@ WaveformDisplay::WaveformDisplay(audio::Engine& engine)
 WaveformDisplay::~WaveformDisplay() = default;
 
 // Points the thumbnail at the engine-accepted file and repaints immediately for feedback.
+// The engine publishes position 0 from loadFile(), which drives the cursor reset via the
+// listener; this method only needs to update the thumbnail source and request a repaint.
 void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
 {
     m_thumbnail->setFile(file);
-    setTransportPosition(0.0);
     repaint();
 }
 
@@ -65,7 +64,8 @@ void WaveformDisplay::resized()
     // WaveformThumbnail draws into the bounds passed to drawChannels; no child layout needed.
 }
 
-// Converts waveform clicks into clamped seek requests and immediate cursor feedback.
+// Converts waveform clicks into seek requests. The engine responds by publishing a new
+// transport position, which drives the cursor update via engineTransportPositionChanged.
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
     const double length = m_thumbnail->getLength();
@@ -77,14 +77,10 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
 
-    // Update cursor immediately so the playhead moves before Tracktion publishes the seek.
-    m_cursor_proportion = clamped;
-    repaint();
-
     on_seek(clamped * length);
 }
 
-void WaveformDisplay::setTransportPosition(double seconds)
+void WaveformDisplay::engineTransportPositionChanged(double seconds)
 {
     const double length = m_thumbnail->getLength();
     // Keep cursor math in normalised space so paint() only needs the current bounds to translate
