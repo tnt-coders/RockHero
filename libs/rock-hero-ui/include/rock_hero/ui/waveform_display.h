@@ -9,10 +9,10 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <rock_hero/audio/engine.h>
 
 namespace rock_hero::audio
 {
-class Engine;
 class Thumbnail;
 } // namespace rock_hero::audio
 
@@ -23,20 +23,17 @@ namespace rock_hero::ui
 \brief Displays the waveform of the loaded audio file with a scrolling playhead.
 
 Delegates thumbnail proxy generation and drawing to audio::Thumbnail, which keeps all Tracktion
-types out of this library.
-
-A private 60 Hz juce::Timer drives repaint during playback and proxy generation. On each tick
-the timer also calls audio::Engine::updateTransportPositionCache() to mirror the transport
-position into the lock-free atomic cache.
+types out of this library. Transport cursor updates arrive through an audio::Engine
+subscription; thumbnail loading repaints are requested by the thumbnail adapter.
 
 \see rock_hero::audio::Engine
 \see rock_hero::audio::Thumbnail
 */
-class WaveformDisplay : public juce::Component, private juce::Timer
+class WaveformDisplay : public juce::Component
 {
 public:
     /*!
-    \brief Creates the waveform display and starts the 60 Hz repaint timer.
+    \brief Creates the waveform display and subscribes to transport position changes.
     \param engine The audio engine whose transport state drives the cursor.
     */
     explicit WaveformDisplay(audio::Engine& engine);
@@ -73,12 +70,10 @@ public:
     void resized() override;
 
 private:
-    // Called at 60 Hz to update the transport position cache and trigger repaint work.
-    // Repaints while playback is running or while the thumbnail proxy is still being generated.
-    void timerCallback() override;
+    void setTransportPosition(double seconds);
 
-    audio::Engine& m_audio_engine;
     std::unique_ptr<audio::Thumbnail> m_thumbnail;
+    audio::Engine::Subscription m_transport_position_subscription;
 
     // Normalised cursor position in the range [0, 1].
     double m_cursor_proportion{0.0};
