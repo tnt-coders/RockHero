@@ -45,20 +45,27 @@ void TransportControls::setPlaying(bool playing)
 {
     m_is_playing = playing;
     m_play_pause_button->setImages(playing ? m_pause_drawable.get() : m_play_drawable.get());
+    updateButtonStates();
 }
 
 // Enables transport actions only after the editor has successfully loaded an audio file.
 void TransportControls::setFileLoaded(bool loaded)
 {
     m_file_loaded = loaded;
-    m_play_pause_button->setEnabled(loaded);
-    m_stop_button->setEnabled(loaded);
+    updateButtonStates();
 }
 
 // Lets keyboard handlers share the same loaded-file guard as the visible controls.
 bool TransportControls::isFileLoaded() const
 {
     return m_file_loaded;
+}
+
+// Enables Stop only when it would change either playback or cursor position.
+void TransportControls::setCanStop(bool can_stop)
+{
+    m_can_stop = can_stop;
+    updateButtonStates();
 }
 
 // Emits the correct transport intent for both button clicks and Space-bar toggles.
@@ -88,6 +95,13 @@ void TransportControls::resized()
     m_play_pause_button->setBounds(area.removeFromLeft(button_width));
     area.removeFromLeft(4);
     m_stop_button->setBounds(area);
+}
+
+// Applies the current loaded-file and transport-state gates to the visible controls.
+void TransportControls::updateButtonStates()
+{
+    m_play_pause_button->setEnabled(m_file_loaded);
+    m_stop_button->setEnabled(m_file_loaded && m_can_stop);
 }
 
 } // namespace rock_hero::ui
