@@ -19,7 +19,7 @@ WaveformDisplay::~WaveformDisplay() = default;
 // Points the thumbnail at the engine-accepted file and repaints immediately for feedback.
 // The engine publishes position 0 from loadFile(), which drives the cursor reset via the
 // listener; this method only needs to update the thumbnail source and request a repaint.
-void WaveformDisplay::setAudioFile(const std::filesystem::path& file)
+void WaveformDisplay::setAudioFile(const juce::File& file)
 {
     m_thumbnail->setFile(file);
     repaint();

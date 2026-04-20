@@ -1,7 +1,5 @@
 #include "tracktion_thumbnail.h"
 
-#include "juce_interop.h"
-
 namespace rock_hero::audio
 {
 
@@ -12,10 +10,9 @@ TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Componen
 }
 
 // Starts proxy generation for the selected file and caches duration for UI coordinate mapping.
-void TracktionThumbnail::setFile(const std::filesystem::path& file)
+void TracktionThumbnail::setFile(const juce::File& file)
 {
-    const juce::File juce_file = toJuceFile(file);
-    tracktion::AudioFile audio_file(m_engine, juce_file);
+    tracktion::AudioFile audio_file(m_engine, file);
     m_total_length_seconds = audio_file.getLength();
     m_thumbnail.setNewFile(audio_file);
 }
