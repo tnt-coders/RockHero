@@ -23,22 +23,22 @@ namespace rock_hero::ui
 \brief Displays the waveform of the loaded audio file with a scrolling playhead.
 
 Delegates thumbnail proxy generation and drawing to audio::Thumbnail, which keeps all Tracktion
-types out of this library. Transport cursor updates arrive through an audio::Engine
-subscription; thumbnail loading repaints are requested by the thumbnail adapter.
+types out of this library. Transport cursor updates arrive through audio::Engine::Listener;
+thumbnail loading repaints are requested by the thumbnail adapter.
 
 \see rock_hero::audio::Engine
 \see rock_hero::audio::Thumbnail
 */
-class WaveformDisplay : public juce::Component
+class WaveformDisplay : public juce::Component, private audio::Engine::Listener
 {
 public:
     /*!
-    \brief Creates the waveform display and subscribes to transport position changes.
+    \brief Creates the waveform display and attaches a listener for transport position changes.
     \param engine The audio engine whose transport state drives the cursor.
     */
     explicit WaveformDisplay(audio::Engine& engine);
 
-    /*! \brief Stops the timer and releases resources. */
+    /*! \brief Detaches the listener and releases resources. */
     ~WaveformDisplay() override;
 
     /*!
@@ -70,13 +70,15 @@ public:
     void resized() override;
 
 private:
-    void setTransportPosition(double seconds);
+    void engineTransportPositionChanged(double seconds) override;
 
     std::unique_ptr<audio::Thumbnail> m_thumbnail;
-    audio::Engine::Subscription m_transport_position_subscription;
 
     // Normalised cursor position in the range [0, 1].
     double m_cursor_proportion{0.0};
+
+    // Declared last so its destructor detaches the listener before other members are destroyed.
+    audio::ScopedListener<audio::Engine, audio::Engine::Listener> m_engine_listener;
 };
 
 } // namespace rock_hero::ui
