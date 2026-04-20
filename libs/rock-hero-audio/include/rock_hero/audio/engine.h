@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -53,30 +54,6 @@ public:
     class Subscription
     {
     public:
-        /*!
-        \brief Access tag that gates Subscription's constructor.
-
-        Only Engine can construct a Key, so only Engine can construct a Subscription.
-        The class exists solely to enforce this restriction at compile time.
-        */
-        class Key
-        {
-        private:
-            Key() = default;
-            friend class Engine;
-        };
-
-        /*!
-        \brief Creates a live subscription handle.
-
-        Callable only by Engine, because forming a Key requires access that only Engine has.
-
-        \param key Access tag produced by Engine.
-        \param engine Engine that owns the subscription registry.
-        \param id Identifier of the registered callback.
-        */
-        Subscription(Key key, Engine* engine, std::size_t id) noexcept;
-
         /*! \brief Unsubscribes the callback. */
         ~Subscription();
 
@@ -86,8 +63,26 @@ public:
         Subscription& operator=(Subscription&&) = delete;
 
     private:
+        friend class Engine;
+
+        enum class Kind
+        {
+            playing_state,
+            transport_position
+        };
+
+        class Key
+        {
+        private:
+            Key() = default;
+            friend class Engine;
+        };
+
+        Subscription(Key key, Engine* engine, std::size_t id, Kind kind) noexcept;
+
         Engine* m_engine{nullptr};
         std::size_t m_id{0};
+        Kind m_kind{Kind::playing_state};
     };
 
     /*!
@@ -134,7 +129,7 @@ public:
     \brief Seeks the transport to the given position in seconds.
 
     Safe to call while playing (playback continues from the new position) or while stopped/paused
-    (only the cursor moves). Clamps to [0, edit length] internally by Tracktion.
+    (only the cursor moves). Clamps to [0, loaded audio length].
 
     \param seconds Target position in seconds.
     */
@@ -150,22 +145,12 @@ public:
     \brief Returns the current transport position in seconds.
 
     Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
-    written by the 60 Hz UI timer shim (updateTransportPositionCache). It will be moved to an
-    audio-thread callback once ASIO input is wired.
+    written from Tracktion transport position change events on the message thread. It will be
+    moved to an audio-thread callback once ASIO input is wired.
 
     \return The cached transport position in seconds.
     */
     [[nodiscard]] double getTransportPosition() const noexcept;
-
-    /*!
-    \brief Mirrors the Tracktion transport position into the atomic cache.
-
-    Called by WaveformDisplay's 60 Hz timer. Must be called on the message thread.
-
-    \note Temporary shim that will be removed once the audio thread owns the write to the
-    transport position cache.
-    */
-    void updateTransportPositionCache();
 
     /*!
     \brief Creates a Thumbnail bound to this engine.
@@ -181,16 +166,29 @@ public:
     /*!
     \brief Registers a callback fired on transitions between playing and not-playing.
 
-    The callback runs on the message thread. It fires only on actual transitions — seeks,
+    The callback runs on the message thread. It fires only on actual transitions; seeks,
     loads, and other transport events that leave the playing flag unchanged do not invoke
     it. Multiple independent subscribers are supported; each gets its own handle.
 
     \param callback Invoked with the new playing state on each transition.
-    \return A move-only RAII handle; destroying it unsubscribes the callback. The caller
-    owns the handle and must not let it outlive this Engine.
+    \return A non-copyable, non-movable RAII handle; destroying it unsubscribes the callback.
+    The caller owns the handle and must not let it outlive this Engine.
     */
     [[nodiscard]] Subscription subscribeOnPlayingStateChanged(
         std::function<void(bool playing)> callback);
+
+    /*!
+    \brief Registers a callback fired when the transport position changes.
+
+    The callback runs on the message thread after Tracktion publishes a new transport position.
+    Subscribers receive seconds clamped to the currently loaded audio duration.
+
+    \param callback Invoked with the new transport position in seconds.
+    \return A non-copyable, non-movable RAII handle; destroying it unsubscribes the callback.
+    The caller owns the handle and must not let it outlive this Engine.
+    */
+    [[nodiscard]] Subscription subscribeOnTransportPositionChanged(
+        std::function<void(double seconds)> callback);
 
 private:
     struct Impl;
