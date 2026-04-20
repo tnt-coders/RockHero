@@ -37,16 +37,13 @@ struct MainWindow::ContentComponent : public juce::Component,
     // Mirrors engine playing state into the transport button icon.
     void enginePlayingStateChanged(bool playing) override
     {
-        m_is_playing = playing;
         m_transport_controls.setPlaying(playing);
-        UpdateTransportAvailability();
     }
 
-    // Mirrors engine cursor state into Stop availability.
+    // Mirrors engine cursor state into the transport controls for Stop-button gating.
     void engineTransportPositionChanged(double seconds) override
     {
-        m_transport_position_seconds = seconds;
-        UpdateTransportAvailability();
+        m_transport_controls.setTransportPosition(seconds);
     }
 
     // Keeps the editor controls in a compact top row and gives remaining space to the waveform.
@@ -95,9 +92,7 @@ private:
                     if (m_audio_engine.loadFile(path))
                     {
                         m_waveform_display.setAudioFile(path);
-                        m_file_loaded = true;
                         m_transport_controls.setFileLoaded(true);
-                        UpdateTransportAvailability();
                     }
                     else
                     {
@@ -116,21 +111,10 @@ private:
             });
     }
 
-    // Stop is useful while playing, or while paused/stopped away from the start.
-    void UpdateTransportAvailability()
-    {
-        constexpr double stopped_at_start_epsilon_seconds = 0.000001;
-        const bool is_at_start = m_transport_position_seconds <= stopped_at_start_epsilon_seconds;
-        m_transport_controls.setCanStop(m_file_loaded && (m_is_playing || !is_at_start));
-    }
-
     audio::Engine& m_audio_engine;
     ui::WaveformDisplay m_waveform_display;
     ui::TransportControls m_transport_controls;
     juce::TextButton m_load_button;
-    bool m_file_loaded{false};
-    bool m_is_playing{false};
-    double m_transport_position_seconds{0.0};
     // Owned by the component so the asynchronous native file dialog remains alive.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
     // Declared last so its destructor detaches the listener before other members are destroyed.

@@ -61,10 +61,10 @@ bool TransportControls::isFileLoaded() const
     return m_file_loaded;
 }
 
-// Enables Stop only when it would change either playback or cursor position.
-void TransportControls::setCanStop(bool can_stop)
+// Caches the current transport position so updateButtonStates can gate Stop correctly.
+void TransportControls::setTransportPosition(double seconds)
 {
-    m_can_stop = can_stop;
+    m_transport_position = seconds;
     updateButtonStates();
 }
 
@@ -101,7 +101,7 @@ void TransportControls::resized()
 void TransportControls::updateButtonStates()
 {
     m_play_pause_button->setEnabled(m_file_loaded);
-    m_stop_button->setEnabled(m_file_loaded && m_can_stop);
+    m_stop_button->setEnabled(m_file_loaded && (m_is_playing || m_transport_position > 0.0));
 }
 
 } // namespace rock_hero::ui

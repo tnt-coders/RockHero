@@ -26,7 +26,14 @@ private:
     // Fires subscribed callbacks only on genuine play/pause transitions.
     void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
     {
-        PublishPlayingState(m_edit->getTransport().isPlaying());
+        const bool playing = m_edit->getTransport().isPlaying();
+        if (playing == m_last_known_playing)
+        {
+            return;
+        }
+
+        m_last_known_playing = playing;
+        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. React to that
@@ -40,35 +47,18 @@ private:
         }
 
         const double raw_position_seconds = m_edit->getTransport().getPosition().inSeconds();
-        PublishTransportPosition(ClampToLoadedRange(raw_position_seconds));
+        const double clamped_seconds = ClampToLoadedRange(raw_position_seconds);
+        const double previous =
+            m_transport_position.exchange(clamped_seconds, std::memory_order_relaxed);
+        if (previous != clamped_seconds)
+        {
+            m_listeners.call(&Engine::Listener::engineTransportPositionChanged, clamped_seconds);
+        }
 
         if (ShouldStopAtLoadedEnd(raw_position_seconds))
         {
             StopAndReturnToStart();
         }
-    }
-
-    // Publishes only real play/pause transitions to keep UI updates idempotent.
-    void PublishPlayingState(bool playing)
-    {
-        if (playing == m_last_known_playing)
-        {
-            return;
-        }
-
-        m_last_known_playing = playing;
-        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
-    }
-
-    void PublishTransportPosition(double seconds)
-    {
-        const double previous = m_transport_position.exchange(seconds, std::memory_order_relaxed);
-        if (previous == seconds)
-        {
-            return;
-        }
-
-        m_listeners.call(&Engine::Listener::engineTransportPositionChanged, seconds);
     }
 
     [[nodiscard]] double ClampToLoadedRange(double seconds) const noexcept
@@ -88,14 +78,13 @@ private:
     }
 
     // Applies Stop-button semantics programmatically when playback reaches the loaded file end.
+    // Tracktion's ChangeBroadcaster and ValueTree listeners propagate these mutations back
+    // through our own callbacks; no manual listener firing needed.
     void StopAndReturnToStart()
     {
         auto& transport = m_edit->getTransport();
         transport.stop(false, false);
         transport.setPosition(tracktion::TimePosition{});
-
-        PublishTransportPosition(0.0);
-        PublishPlayingState(false);
     }
 };
 
@@ -167,7 +156,6 @@ bool Engine::loadFile(const std::filesystem::path& file)
 
     // Candidate is valid; now safe to stop playback and mutate the edit.
     m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->PublishPlayingState(false);
 
     const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
     const auto start = tracktion::TimePosition{};
@@ -188,8 +176,6 @@ bool Engine::loadFile(const std::filesystem::path& file)
     auto& transport = m_impl->m_edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
-
-    m_impl->PublishTransportPosition(0.0);
     return true;
 }
 
@@ -201,11 +187,9 @@ void Engine::play()
         transport.getPosition().inSeconds() >= m_impl->m_loaded_length_seconds)
     {
         transport.setPosition(tracktion::TimePosition{});
-        m_impl->PublishTransportPosition(0.0);
     }
 
     transport.play(false);
-    m_impl->PublishPlayingState(transport.isPlaying());
 }
 
 // Stops playback and resets both Tracktion and cached transport positions to the start.
@@ -220,7 +204,6 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->PublishPlayingState(false);
 }
 
 // Moves Tracktion transport and the UI-readable cache to the requested song time.
@@ -229,7 +212,6 @@ void Engine::seek(double seconds)
     const double clamped_seconds = m_impl->ClampToLoadedRange(seconds);
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
-    m_impl->PublishTransportPosition(clamped_seconds);
 }
 
 // Reads Tracktion transport state for UI controls that need current playback status.
