@@ -9,8 +9,13 @@
 // translation units (rock-hero-ui) already link.
 namespace juce
 {
+// Forward declaration for file assignment without pulling JUCE headers into this interface.
 class File;
+
+// Forward declaration for draw calls supplied by JUCE UI components.
 class Graphics;
+
+// Forward declaration for draw bounds used by thumbnail rendering.
 template <typename ValueType> class Rectangle;
 } // namespace juce
 
@@ -70,7 +75,7 @@ public:
     \param vertical_zoom Vertical scale factor (1.0 = normal).
     */
     virtual void drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) const = 0;
+        juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) = 0;
 
 protected:
     /*! \brief Allows only derived thumbnail adapters to construct the interface base. */

@@ -45,14 +45,17 @@ public:
     [[nodiscard]] double getLength() const override;
 
     /*! \copydoc Thumbnail::drawChannels */
-    void drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) const override;
+    void drawChannels(juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) override;
 
 private:
+    // Tracktion Engine instance used to resolve AudioFile metadata and proxy generation.
     tracktion::Engine& m_engine;
-    // Mutable because SmartThumbnail::drawChannels is non-const (it updates internal render
-    // caches) but our Thumbnail interface models drawing as logically const.
-    mutable tracktion::SmartThumbnail m_thumbnail;
+
+    // Tracktion's waveform proxy; owns the async proxy-generation state and renders the cached
+    // audio data during drawChannels().
+    tracktion::SmartThumbnail m_thumbnail;
+
+    // Cached duration used by UI coordinate mapping without exposing Tracktion types.
     double m_total_length_seconds{0.0};
 };
 

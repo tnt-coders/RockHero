@@ -47,6 +47,7 @@ public:
     }
 
 private:
+    // Owns the editor window after JUCE startup and releases it during shutdown.
     std::unique_ptr<MainWindow> m_main_window;
 };
 
