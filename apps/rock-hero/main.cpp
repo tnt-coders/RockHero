@@ -8,6 +8,7 @@ namespace rock_hero
 class MainWindow : public juce::DocumentWindow
 {
 public:
+    // Inherits DocumentWindow constructors until the game shell needs custom setup.
     using juce::DocumentWindow::DocumentWindow;
 
     // Routes the native close button through JUCE so normal application shutdown runs.
@@ -69,6 +70,7 @@ public:
     }
 
 private:
+    // Owns the temporary shell window after JUCE startup and releases it during shutdown.
     std::unique_ptr<MainWindow> m_main_window;
 };
 

@@ -9,13 +9,17 @@
 
 namespace juce
 {
+// Forward declaration for UI owners that request engine-created thumbnail adapters.
 class Component;
+
+// Forward declaration for file loading without including JUCE headers in this public adapter.
 class File;
 } // namespace juce
 
 namespace rock_hero::audio
 {
 
+// Forward declaration of the Tracktion-free thumbnail interface returned by Engine.
 class Thumbnail;
 
 /*!
@@ -52,13 +56,23 @@ public:
         m_broadcaster.removeListener(&m_listener);
     }
 
+    /*! \brief Copying is disabled so one object always represents one registration. */
     ScopedListener(const ScopedListener&) = delete;
+
+    /*! \brief Copy assignment is disabled to prevent duplicate listener registrations. */
     ScopedListener& operator=(const ScopedListener&) = delete;
+
+    /*! \brief Moving is disabled because it would change which object owns deregistration. */
     ScopedListener(ScopedListener&&) = delete;
+
+    /*! \brief Move assignment is disabled because registration ownership is fixed. */
     ScopedListener& operator=(ScopedListener&&) = delete;
 
 private:
+    // Broadcaster that owns the listener list this registration is attached to.
     Broadcaster& m_broadcaster;
+
+    // Listener detached from m_broadcaster during destruction.
     Listener& m_listener;
 };
 
@@ -94,6 +108,7 @@ public:
     class Listener
     {
     public:
+        /*! \brief Allows listener implementations to clean up through a base pointer. */
         virtual ~Listener() = default;
 
         /*!
@@ -154,9 +169,19 @@ public:
     /*! \brief Stops transport and tears down Tracktion objects in dependency order. */
     ~Engine();
 
+    /*! \brief Copying is disabled because Tracktion runtime state has unique ownership. */
     Engine(const Engine&) = delete;
+
+    /*! \brief Copy assignment is disabled because Tracktion runtime state has unique ownership. */
     Engine& operator=(const Engine&) = delete;
+
+    /*! \brief Moving is disabled so listener registrations and adapter references stay stable. */
     Engine(Engine&&) = delete;
+
+    /*!
+    \brief Move assignment is disabled so listener registrations and adapter references stay
+    stable.
+    */
     Engine& operator=(Engine&&) = delete;
 
     /*!
@@ -240,7 +265,10 @@ public:
     [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
 
 private:
+    // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;
+
+    // Owns all Tracktion runtime objects and listener state.
     std::unique_ptr<Impl> m_impl;
 };
 

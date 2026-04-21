@@ -109,12 +109,21 @@ private:
             });
     }
 
+    // Referenced engine owns playback and outlives the content component in MainWindow.
     audio::Engine& m_audio_engine;
+
+    // Displays the loaded audio file and sends user seek intent back to the engine.
     ui::WaveformDisplay m_waveform_display;
+
+    // Presents playback controls while leaving transport behavior in the engine.
     ui::TransportControls m_transport_controls;
+
+    // Opens the asynchronous file chooser used to pick a backing track.
     juce::TextButton m_load_button;
+
     // Owned by the component so the asynchronous native file dialog remains alive.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
+
     // Declared last so its destructor detaches the listener before other members are destroyed.
     audio::ScopedListener<audio::Engine, audio::Engine::Listener> m_engine_listener;
 };

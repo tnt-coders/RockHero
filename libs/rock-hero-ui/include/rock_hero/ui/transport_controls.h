@@ -25,7 +25,10 @@ stop_svg). Buttons use DrawableButton with ImageFitted style.
 class TransportControls : public juce::Component
 {
 public:
+    /*! \brief Creates icon-backed transport buttons in their disabled initial state. */
     TransportControls();
+
+    /*! \brief Releases button and icon resources. */
     ~TransportControls() override;
 
     /*! \brief Called when the user clicks Play while a file is loaded and playback is stopped. */
@@ -77,17 +80,31 @@ public:
     void resized() override;
 
 private:
+    // Applies current transport state to enabled flags without emitting callbacks.
     void updateButtonStates();
 
+    // Cached playback state that decides whether the primary button shows Play or Pause.
     bool m_is_playing{false};
+
+    // Tracks whether a loaded file exists, gating all user transport actions.
     bool m_file_loaded{false};
+
+    // Cached cursor position used to decide whether Stop can change state.
     double m_transport_position{0.0};
 
+    // Button that toggles between Play and Pause icons based on m_is_playing.
     std::unique_ptr<juce::DrawableButton> m_play_pause_button;
+
+    // Button that sends Stop intent when playback or cursor state can be reset.
     std::unique_ptr<juce::DrawableButton> m_stop_button;
 
+    // Embedded Play icon retained because DrawableButton stores non-owning image pointers.
     std::unique_ptr<juce::Drawable> m_play_drawable;
+
+    // Embedded Pause icon retained because DrawableButton stores non-owning image pointers.
     std::unique_ptr<juce::Drawable> m_pause_drawable;
+
+    // Embedded Stop icon retained because DrawableButton stores non-owning image pointers.
     std::unique_ptr<juce::Drawable> m_stop_drawable;
 };
 

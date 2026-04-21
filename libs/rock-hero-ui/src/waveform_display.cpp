@@ -80,6 +80,7 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     on_seek(clamped * length);
 }
 
+// Mirrors engine transport events into repaintable cursor state.
 void WaveformDisplay::engineTransportPositionChanged(double seconds)
 {
     const double length = m_thumbnail->getLength();
