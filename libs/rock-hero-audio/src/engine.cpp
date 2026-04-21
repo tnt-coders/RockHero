@@ -9,17 +9,28 @@
 namespace rock_hero::audio
 {
 
+// Private Tracktion/JUCE adapter state hidden behind Engine's public pimpl boundary.
 struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Listener
 {
 private:
     friend class Engine;
 
+    // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
+
+    // Single-track edit used for current early backing-track playback.
     std::unique_ptr<tracktion::Edit> m_edit;
+
+    // Lock-free cache of transport seconds for UI drawing and future realtime readers.
     std::atomic<double> m_transport_position{0.0};
+
+    // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
+    // Message-thread listener list for engine state changes.
     juce::ListenerList<Engine::Listener> m_listeners;
+
+    // Last published playing state, used to suppress duplicate transition notifications.
     bool m_last_known_playing{false};
 
     // Fires subscribed callbacks only on genuine play/pause transitions.
@@ -60,6 +71,7 @@ private:
         }
     }
 
+    // Keeps externally requested positions inside the current loaded file duration.
     [[nodiscard]] double ClampToLoadedRange(double seconds) const noexcept
     {
         if (m_loaded_length_seconds <= 0.0)
@@ -70,6 +82,7 @@ private:
         return std::clamp(seconds, 0.0, m_loaded_length_seconds);
     }
 
+    // Detects the moment Tracktion playback has reached or passed the loaded clip duration.
     [[nodiscard]] bool ShouldStopAtLoadedEnd(double raw_position_seconds) const
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
@@ -121,11 +134,13 @@ Engine::~Engine()
     m_impl->m_engine.reset();
 }
 
+// Registers a message-thread listener for filtered engine transport events.
 void Engine::addListener(Listener* listener)
 {
     m_impl->m_listeners.add(listener);
 }
 
+// Removes a previously registered engine transport listener.
 void Engine::removeListener(Listener* listener)
 {
     m_impl->m_listeners.remove(listener);
