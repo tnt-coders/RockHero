@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <rock_hero/core/timeline.h>
 #include <string>
 #include <vector>
 
@@ -15,11 +16,11 @@ namespace rock_hero::core
 /*! \brief A single note to be played by the player. */
 struct NoteEvent
 {
-    /*! \brief Onset time from the start of the song, in seconds. */
-    double time_seconds{0.0};
+    /*! \brief Note position on the song timeline. */
+    TimePosition position;
 
-    /*! \brief Sustain duration in seconds; zero means a non-sustained note. */
-    double duration_seconds{0.0};
+    /*! \brief Sustain duration; zero means a non-sustained note. */
+    TimeDuration duration;
 
     /*! \brief Guitar string number from 1 to 6; one is high E and six is low E. */
     int string_number{0};
@@ -42,13 +43,13 @@ enum class Part : std::uint8_t
 /*! \brief Difficulty tier for an arrangement. */
 enum class Difficulty : std::uint8_t
 {
-    /*! \brief Simplified arrangement aimed at beginners. */
+    /*! \brief Simple arrangement aimed at beginners. */
     Easy,
     /*! \brief Intermediate arrangement between Easy and Hard. */
     Medium,
     /*! \brief Advanced arrangement demanding solid technique. */
     Hard,
-    /*! \brief Full arrangement as originally written, with no simplifications. */
+    /*! \brief Expert arrangement requiring virtuoso-like ability. */
     Expert
 };
 

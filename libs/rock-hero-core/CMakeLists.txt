@@ -1,6 +1,6 @@
 add_library(rock_hero_core STATIC)
 
-target_sources(rock_hero_core PRIVATE src/song.cpp)
+target_sources(rock_hero_core PRIVATE src/session.cpp src/song.cpp)
 
 target_include_directories(
     rock_hero_core

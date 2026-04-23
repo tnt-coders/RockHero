@@ -9,9 +9,9 @@ namespace rock_hero::ui
 
 // Creates the Tracktion-backed thumbnail wrapper and attaches a listener for transport position.
 WaveformDisplay::WaveformDisplay(audio::Engine& engine)
-    : m_thumbnail(engine.createThumbnail(*this)), m_engine_listener(engine, *this)
-{
-}
+    : m_thumbnail(engine.createThumbnail(*this))
+    , m_engine_listener(engine, *this)
+{}
 
 // Relies on member destruction to release thumbnail resources before the engine reference dies.
 WaveformDisplay::~WaveformDisplay() = default;
