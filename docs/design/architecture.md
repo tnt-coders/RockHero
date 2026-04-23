@@ -65,11 +65,31 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 **Dependency rules:**
 
 - `libs/rock-hero-audio` depends on Tracktion and JUCE audio modules.
+- `libs/rock-hero-audio` may also depend on `libs/rock-hero-core` for project-owned value types
+  and interfaces that need to stay framework-free.
 - `libs/rock-hero-core` depends on standard C++ only; no JUCE, no Tracktion. May use
   format-specific Conan packages (e.g. `open-psarc`).
-- Neither library depends on the other.
+- `libs/rock-hero-core` must not depend on `libs/rock-hero-audio`.
 - App executables may depend on both libraries and on `rock-hero-ui`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
+
+## JUCE CMake linkage
+
+JUCE module targets should be linked with `PRIVATE` visibility on each target that directly uses
+them. This is JUCE's explicit CMake recommendation: publishing module targets with `PUBLIC`
+visibility adds their module sources to consumer targets and can cause repeated JUCE compilation in
+downstream libraries, apps, or tests.
+
+For Rock Hero, that means:
+
+- `rock-hero-audio` links the JUCE modules its own implementation files require as `PRIVATE`.
+- `rock-hero-ui` links the JUCE UI modules its own implementation files require as `PRIVATE`.
+- App targets link the JUCE modules they directly use as `PRIVATE`.
+- Intermediate Rock Hero libraries do not publicly re-export raw `juce::juce_*` module targets.
+
+This is a build-system rule, not a blanket ban on JUCE in public headers. Some public interfaces
+may still mention JUCE types where that is the pragmatic design choice; consumers that compile such
+headers are responsible for linking the JUCE modules they directly use.
 
 ## Include-path convention
 

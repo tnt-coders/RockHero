@@ -4,8 +4,13 @@
 
 This v20 series breaks
 `testable-modular-architecture-refactor-plan-revised-v19.md` into commit-sized
-implementation stages. The architecture decisions from v19 remain in force; v20
-only changes the delivery plan.
+implementation stages.
+
+One v19 decision is intentionally superseded here: the audio-mutation boundary is
+now `audio::IEdit`, not `audio::IPlaybackContent`. `ITransport` remains the live
+playback boundary. Undo/redo implementation remains out of scope for v20, but the
+new `IEdit` stages should leave explicit TODO comments in the likely future
+integration points for project-owned history and broader Tracktion edit commands.
 
 Each stage should be implemented, reviewed, tested, and committed before moving to
 the next stage. Keep compatibility shims until the stage that explicitly removes
@@ -17,7 +22,7 @@ them.
    [v20-01](testable-modular-architecture-refactor-plan-v20-01-core-session.md)
 2. Audio Transport Port:
    [v20-02](testable-modular-architecture-refactor-plan-v20-02-audio-transport-port.md)
-3. Playback Content Port:
+3. Edit Port Scaffolding:
    [v20-03](testable-modular-architecture-refactor-plan-v20-03-playback-content-port.md)
 4. Engine Port Adaptation:
    [v20-04](testable-modular-architecture-refactor-plan-v20-04-engine-port-adaptation.md)
@@ -73,5 +78,6 @@ verification still needs to be run in a repaired environment.
 - No `IThumbnailFactory`.
 - No `ITransportControls`.
 - No full multi-stem playback semantics.
+- No undo/redo implementation yet.
 - No JUCE dependency in `rock-hero-core`.
 - No broad UI automation or end-to-end test suite.

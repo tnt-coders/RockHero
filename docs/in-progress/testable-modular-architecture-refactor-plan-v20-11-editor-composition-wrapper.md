@@ -18,9 +18,9 @@ half-wired controller/view objects.
 3. Constructor parameters:
    - `core::Session&`,
    - `audio::ITransport&`,
-   - `audio::IPlaybackContent&`,
+   - `audio::IEdit&`,
    - `ThumbnailCreator`.
-4. Construct `m_controller(session, transport, playback_content)`.
+4. Construct `m_controller(session, transport, edit)`.
 5. Construct `m_view(m_controller, std::move(create_thumbnail))`.
 6. Call `m_controller.attachView(m_view)` after view construction finishes.
 7. Expose only `juce::Component& component() noexcept`.

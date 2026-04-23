@@ -17,5 +17,5 @@ target_compile_definitions(rock_hero_ui PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL
 
 target_link_libraries(
     rock_hero_ui
-    PUBLIC juce::juce_gui_basics rock_hero_audio
-    PRIVATE rock_hero_ui_resources)
+    PUBLIC rock_hero_audio
+    PRIVATE juce::juce_gui_basics rock_hero_ui_resources)
