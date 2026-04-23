@@ -14,7 +14,9 @@ struct MainWindow::ContentComponent : public juce::Component,
 {
     // Wires editor controls directly to the audio engine while editor command services are absent.
     explicit ContentComponent(audio::Engine& engine)
-        : m_audio_engine(engine), m_waveform_display(engine), m_engine_listener(engine, *this)
+        : m_audio_engine(engine)
+        , m_waveform_display(engine)
+        , m_engine_listener(engine, *this)
     {
         addAndMakeVisible(m_load_button);
         addAndMakeVisible(m_transport_controls);
@@ -134,9 +136,9 @@ MainWindow::MainWindow(const juce::String& title)
           title,
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
               juce::ResizableWindow::backgroundColourId),
-          juce::DocumentWindow::allButtons),
-      m_audio_engine(std::make_unique<audio::Engine>()),
-      m_content(std::make_unique<ContentComponent>(*m_audio_engine))
+          juce::DocumentWindow::allButtons)
+    , m_audio_engine(std::make_unique<audio::Engine>())
+    , m_content(std::make_unique<ContentComponent>(*m_audio_engine))
 {
     setUsingNativeTitleBar(true);
     setContentNonOwned(m_content.get(), true);

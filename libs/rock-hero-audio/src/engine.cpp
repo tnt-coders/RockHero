@@ -101,7 +101,8 @@ private:
 };
 
 // Creates the Tracktion engine and a minimal single-track edit for early playback support.
-Engine::Engine() : m_impl(std::make_unique<Impl>())
+Engine::Engine()
+    : m_impl(std::make_unique<Impl>())
 {
     m_impl->m_engine = std::make_unique<tracktion::Engine>("RockHero");
 
@@ -160,7 +161,7 @@ bool Engine::loadFile(const juce::File& file)
         return false;
     }
 
-    tracktion::AudioFile audio_file(*m_impl->m_engine, file);
+    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
     if (!audio_file.isValid())
     {
         return false;
