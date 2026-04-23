@@ -45,7 +45,8 @@ public:
     \param listener The listener to attach; must outlive this ScopedListener.
     */
     ScopedListener(Broadcaster& broadcaster, Listener& listener) noexcept
-        : m_broadcaster(broadcaster), m_listener(listener)
+        : m_broadcaster(broadcaster)
+        , m_listener(listener)
     {
         m_broadcaster.addListener(&m_listener);
     }

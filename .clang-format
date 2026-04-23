@@ -4,7 +4,11 @@ BasedOnStyle: Microsoft
 AccessModifierOffset: -4
 AlignAfterOpenBracket: BlockIndent
 BinPackArguments: false
+BraceWrapping:
+  SplitEmptyFunction: false
 BreakBeforeCloseBracketFunction: false
+BreakConstructorInitializers: BeforeComma
 ColumnLimit: 100
 IncludeBlocks: Regroup
+PackConstructorInitializers: Never
 PointerAlignment: Left

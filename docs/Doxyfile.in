@@ -1035,6 +1035,7 @@ INPUT                  = libs/rock-hero-audio \
                          docs/design/index.md \
                          docs/design/architecture.md \
                          docs/design/architectural-principles.md \
+                         docs/design/coding-style.md \
                          docs/design/documentation-style.md
 
 # This tag can be used to specify the character encoding of the source files

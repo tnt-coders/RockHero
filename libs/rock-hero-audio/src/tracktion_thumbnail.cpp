@@ -5,14 +5,14 @@ namespace rock_hero::audio
 
 // Creates the Tracktion SmartThumbnail behind the Tracktion-free Thumbnail interface.
 TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner)
-    : m_engine(engine), m_thumbnail(engine, tracktion::AudioFile(engine), owner, nullptr)
-{
-}
+    : m_engine(engine)
+    , m_thumbnail(engine, tracktion::AudioFile(engine), owner, nullptr)
+{}
 
 // Starts proxy generation for the selected file and caches duration for UI coordinate mapping.
 void TracktionThumbnail::setFile(const juce::File& file)
 {
-    tracktion::AudioFile audio_file(m_engine, file);
+    const tracktion::AudioFile audio_file(m_engine, file);
     m_total_length_seconds = audio_file.getLength();
     m_thumbnail.setNewFile(audio_file);
 }
@@ -37,11 +37,11 @@ double TracktionThumbnail::getLength() const
 
 // Draws the full cached audio file into the requested bounds for the current editor view.
 void TracktionThumbnail::drawChannels(
-    juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) const
+    juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom)
 {
-    const tracktion::TimeRange visible_range{
-        tracktion::TimePosition{}, tracktion::TimePosition::fromSeconds(m_total_length_seconds)
-    };
+    const tracktion::TimeRange visible_range(
+        tracktion::TimePosition::fromSeconds(0.0),
+        tracktion::TimePosition::fromSeconds(m_total_length_seconds));
     m_thumbnail.drawChannels(g, bounds, visible_range, vertical_zoom);
 }
 
