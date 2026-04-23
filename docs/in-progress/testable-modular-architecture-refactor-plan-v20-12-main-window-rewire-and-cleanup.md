@@ -25,7 +25,7 @@ that are no longer needed.
    outlive view-owned thumbnails.
 3. Add the initial empty or default "Full Mix" track to the session before constructing
    `ui::Editor`.
-4. Pass the engine as both `audio::ITransport&` and `audio::IPlaybackContent&`.
+4. Pass the engine as both `audio::ITransport&` and `audio::IEdit&`.
 5. Pass a thumbnail creation lambda that calls `audio::Engine::createThumbnail(...)`.
 6. Install `m_editor->component()` as the window content.
 7. Preserve `clearContentComponent()` or equivalent teardown safety.
@@ -72,6 +72,7 @@ compile commands and record that full CMake/CTest still needs to be run elsewher
 
 - Do not add new product features while rewiring.
 - Do not introduce track roles.
+- Do not implement undo/redo.
 - Do not implement multi-stem playback.
 - Do not add a thumbnail factory unless dynamic row creation is implemented in this
   same future scope.

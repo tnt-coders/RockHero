@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make `audio::Engine` implement the new transport and playback-content ports while
+Make `audio::Engine` implement the new transport and edit ports while
 keeping legacy methods alive for existing UI code.
 
 ## Expected Files
@@ -14,28 +14,32 @@ keeping legacy methods alive for existing UI code.
 
 ## Implementation Steps
 
-1. Make `Engine` inherit `ITransport` and `IPlaybackContent`.
+1. Make `Engine` inherit `ITransport` and `IEdit`.
 2. Implement `state()` from the same internal state used by existing playback UI.
 3. Implement `seek(core::TimePosition)` and keep the existing `seek(double)` as a
    temporary compatibility wrapper if needed.
-4. Implement `applyTrackAudio(...)` by adapting the existing single-file load path.
-5. Ensure a failed apply preserves existing audio content and returns `false`.
-6. Ensure a successful apply updates internal transport state synchronously.
+4. Implement `setTrackAudioSource(...)` by adapting the existing single-file load
+   path.
+5. Ensure a failed edit preserves existing audio content and returns `false`.
+6. Ensure a successful edit updates internal transport state synchronously.
 7. Suppress all transport-listener callbacks caused by work inside
-   `applyTrackAudio(...)`.
+   `setTrackAudioSource(...)`.
 8. Keep old public methods such as `loadFile(...)`, `isPlaying()`, and
    `getTransportPosition()` until UI migration stages no longer need them.
+9. Add explicit TODO comments in the engine adapter near the most likely future
+   integration points for project-owned edit history / undo-redo bridging. Do not
+   implement that behavior in this stage.
 
 ## Tests
 
 Add audio adapter tests. Prefer testing the real `Engine` because this stage's main
 risk is the concrete adapter accidentally firing transport listeners from
-`applyTrackAudio(...)`.
+`setTrackAudioSource(...)`.
 
 - `Engine` reports transport state through `ITransport`,
 - failed replacement load preserves existing content,
-- successful apply updates `state()` synchronously,
-- apply-caused length, position, or playing changes do not invoke transport
+- successful edit updates `state()` synchronously,
+- edit-caused length, position, or playing changes do not invoke transport
   listeners.
 
 If direct `Engine` construction is too heavy in this stage, extract the
@@ -46,7 +50,7 @@ acceptable fallback is:
 
 - an automated helper test covering suppression semantics actually used by `Engine`,
 - plus a compile-backed test proving `Engine` is usable through `ITransport&` and
-  `IPlaybackContent&`.
+  `IEdit&`.
 
 If even that helper extraction is not practical, document the specific blocker and
 keep a failing or skipped test TODO out of the tree.
@@ -58,7 +62,7 @@ focused compile commands for `engine.cpp` and any new test source.
 
 ## Exit Criteria
 
-- Later controller code can depend on `ITransport` and `IPlaybackContent`.
+- Later controller code can depend on `ITransport` and `IEdit`.
 - Existing UI still works through legacy `Engine` methods.
 - No Tracktion headers leak into the new port headers.
 
@@ -66,4 +70,5 @@ focused compile commands for `engine.cpp` and any new test source.
 
 - Do not migrate UI code in this stage.
 - Do not delete `Engine::Listener`.
+- Do not implement undo/redo.
 - Do not introduce dynamic multi-track playback semantics.

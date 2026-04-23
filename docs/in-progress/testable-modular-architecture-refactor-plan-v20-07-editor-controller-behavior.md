@@ -16,7 +16,7 @@ with fakes.
 ## Implementation Steps
 
 1. Implement `EditorController` against `core::Session`, `audio::ITransport`,
-   `audio::IPlaybackContent`, and `IEditorView`.
+   `audio::IEdit`, and `IEditorView`.
 2. Register as an `audio::ITransport::Listener` in the constructor and unregister in
    the destructor.
 3. Cache the initial derived `EditorViewState` before view attachment.
@@ -26,9 +26,9 @@ with fakes.
    duplicate view-state pushes.
 6. Implement play/pause, stop, and waveform-click seek decisions in the controller.
 7. For load requests, validate the track id before calling
-   `IPlaybackContent::applyTrackAudio(...)`.
-8. On failed apply, preserve `core::Session` and set a controller-composed error.
-9. On successful apply, call `Session::replaceTrackAsset(...)`.
+   `IEdit::setTrackAudioSource(...)`.
+8. On failed edit, preserve `core::Session` and set a controller-composed error.
+9. On successful edit, call `Session::replaceTrackAsset(...)`.
 10. If that call returns `true`, clear the error, read `transport.state()`, and push
     the derived state.
 11. If that call returns `false`, treat it as an internal consistency failure: assert
@@ -39,7 +39,7 @@ with fakes.
 
 ## Tests
 
-Add fakes for `ITransport`, `IPlaybackContent`, and `IEditorView`. Cover:
+Add fakes for `ITransport`, `IEdit`, and `IEditorView`. Cover:
 
 - `attachView(...)` immediately pushes derived state,
 - duplicate transport states do not push redundant updates,
@@ -50,13 +50,13 @@ Add fakes for `ITransport`, `IPlaybackContent`, and `IEditorView`. Cover:
 - stop intent calls `stop()` only when enabled,
 - waveform click clamps normalized input and seeks by transport duration,
 - later transport ticks preserve a load error,
-- invalid track load does not call `applyTrackAudio(...)`,
+- invalid track load does not call `setTrackAudioSource(...)`,
 - failed load preserves session and reports a composed error,
 - successful load commits the track asset and clears the error,
-- post-apply session commit failure reports an internal error instead of crashing or
+- post-edit session commit failure reports an internal error instead of crashing or
   silently clearing the error, if that path can be reached with the available session
   API,
-- apply-caused transport state changes produce exactly one post-apply push.
+- edit-caused transport state changes produce exactly one post-edit push.
 
 ## Verification
 
@@ -76,4 +76,5 @@ the full test command still needs a repaired environment.
 - Do not extract `EditorView` yet.
 - Do not modify `TransportControls` yet unless compilation requires a minimal include
   fix.
+- Do not implement undo/redo.
 - Do not add test-only state setters to the controller.
