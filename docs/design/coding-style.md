@@ -45,6 +45,20 @@ interfaces because they are uncommon and easy to misread.
 Inside function bodies, use top-level const on pointer variables only when pointer rebinding would
 make the local logic harder to reason about. Do not use `const T* const` as a blanket default.
 
+# Namespace Use
+
+Do not use broad namespace directives for project namespaces:
+
+\code{.cpp}
+using namespace rock_hero;
+using namespace rock_hero::core;
+\endcode
+
+Production `.cpp` files should usually define code inside the namespace that owns the implementation.
+Module-local test `.cpp` files should also wrap their tests in the namespace of the module under
+test. This keeps tests close to the code they verify and avoids treating same-module tests like
+external consumers.
+
 # Parameter Passing
 
 Use the following rules for function parameters.
@@ -101,3 +115,22 @@ static_assert(std::is_trivially_copyable_v<TimePosition>);
 
 If a value type grows beyond these limits, revisit call sites and prefer `const&` for read-only
 parameters.
+
+# Catch2 Assertions
+
+Use `REQUIRE` only when the assertion is a precondition for the rest of the test case. Typical
+examples are pointer checks before dereference and container-size checks before indexing.
+
+Use `CHECK` for independent behavior and value observations. This lets one failing test case report
+all mismatched fields that are still safe to evaluate.
+
+Example:
+
+\code{.cpp}
+REQUIRE(session.tracks().size() == 2);
+CHECK(session.tracks()[0].name == "Full Mix");
+CHECK(session.tracks()[1].name == "Guitar Stem");
+\endcode
+
+Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
+`CHECK_FALSE` for independent observations.

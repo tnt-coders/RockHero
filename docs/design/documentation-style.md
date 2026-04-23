@@ -54,6 +54,11 @@ These rules do not apply to:
 - `.cpp` method comments should explain why the method exists, lifecycle timing, ownership or
   lifetime effects, framework callback role, threading or realtime constraints, user-visible
   behavior, failure behavior, or why a temporary implementation is acceptable.
+- Test `.cpp` files follow the same regular-comment rule. Each `TEST_CASE` should have a concise
+  comment immediately above it explaining the behavior, invariant, or regression it verifies.
+  Test helper classes, member functions, free functions, and member variables should be commented
+  to the same level as production `.cpp` code when they carry test behavior, captured state, fake
+  behavior, or non-obvious setup semantics. Keep these as regular comments, not Doxygen comments.
 - Avoid mechanical restatements. Prefer comments that add intent:
 
 \code{.cpp}
