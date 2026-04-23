@@ -9,7 +9,7 @@ behavior. This gives later controller code a small project-owned interface to fa
 
 - `libs/rock-hero-audio/include/rock_hero/audio/transport_state.h`
 - `libs/rock-hero-audio/include/rock_hero/audio/i_transport.h`
-- `libs/rock-hero-audio/tests/test_transport_port.cpp`
+- `libs/rock-hero-audio/tests/test_transport.cpp`
 - `libs/rock-hero-audio/CMakeLists.txt`
 - possible `libs/rock-hero-audio/tests/CMakeLists.txt`
 
