@@ -14,6 +14,8 @@ target_compile_definitions(rock_hero_audio PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_C
 
 target_link_libraries(
     rock_hero_audio
-    PUBLIC juce::juce_core
+    PUBLIC juce::juce_core rock_hero_core
     PRIVATE tracktion::tracktion_core tracktion::tracktion_engine tracktion::tracktion_graph
             juce::juce_audio_devices juce::juce_audio_processors juce::juce_audio_utils)
+
+add_subdirectory(tests)
