@@ -8,8 +8,8 @@ namespace rock_hero::ui
 // Creates icon buttons from embedded SVGs and wires them to callback-based transport intents.
 TransportControls::TransportControls()
     : m_play_pause_button(
-          std::make_unique<juce::DrawableButton>("play_pause", juce::DrawableButton::ImageFitted)),
-      m_stop_button(
+          std::make_unique<juce::DrawableButton>("play_pause", juce::DrawableButton::ImageFitted))
+    , m_stop_button(
           std::make_unique<juce::DrawableButton>("stop", juce::DrawableButton::ImageFitted))
 {
     m_play_drawable = juce::Drawable::createFromImageData(

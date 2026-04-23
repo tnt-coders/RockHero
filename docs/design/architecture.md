@@ -159,8 +159,8 @@ Song
       part          (Lead | Rhythm | Bass)
       difficulty    (Easy | Medium | Hard | Expert)
       note_events[*]
-        time_seconds
-        duration_seconds
+      position.seconds
+      duration.seconds
         string_number (1–6)
         fret
 \endcode

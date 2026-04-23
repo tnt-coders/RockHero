@@ -3,9 +3,10 @@
 ## Codex Bootstrap Rules
 - At the start of each non-trivial task, read `CLAUDE.md` and apply its project guidance unless it conflicts with higher-priority runtime instructions.
 - At the start of each non-trivial task, also read `docs/design/architecture.md`,
-  `docs/design/architectural-principles.md`, and `docs/design/documentation-style.md`, and make design,
-  refactoring, layering, testing, and documentation decisions with those documents in mind unless a
-  higher-priority runtime instruction overrides them.
+  `docs/design/architectural-principles.md`, `docs/design/coding-style.md`, and
+  `docs/design/documentation-style.md`, and make design, refactoring, layering, coding-style,
+  testing, and documentation decisions with those documents in mind unless a higher-priority
+  runtime instruction overrides them.
 - Treat files in `.claude/agents/*.md` as task-specific playbooks that Codex may apply directly when relevant.
 - Current playbooks:
 - `.claude/agents/tracktion-engine-expert.md` for Tracktion/JUCE integration, audio-thread safety, engine architecture, and related CMake/submodule work.
@@ -49,6 +50,9 @@ The project uses C++23. Formatting is enforced by `.clang-format` (Microsoft bas
 Architecture and layering decisions should remain aligned with `docs/design/architecture.md` and
 `docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,
 framework isolation, and automated-testable structure.
+Coding-style decisions that are not fully enforced by `.clang-format` or `.clang-tidy` are defined
+in `docs/design/coding-style.md`. Follow that document for const correctness, parameter passing,
+and value-type guardrails.
 Comment and Doxygen conventions are defined in `docs/design/documentation-style.md`. Follow that document
 for all project-owned comment formatting and documentation decisions.
 Reassess documentation scope whenever a subsystem grows from a single header/source pair into

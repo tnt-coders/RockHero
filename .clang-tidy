@@ -24,6 +24,7 @@ Checks: >
   modernize-*,
   -modernize-use-trailing-return-type,
   performance-*,
+  misc-const-correctness,
   readability-braces-around-statements,
   readability-identifier-naming,
   cppcoreguidelines-*,
@@ -38,6 +39,24 @@ HeaderFilterRegex: '^(?!.*[\\/]external[\\/]).*'
 CheckOptions:
   - key: readability-braces-around-statements.ShortStatementLines
     value: '0'
+
+  # --------------------------------------------------------------------------
+  # Const correctness
+  # --------------------------------------------------------------------------
+  - key: misc-const-correctness.AnalyzeValues
+    value: 'true'
+  - key: misc-const-correctness.AnalyzeReferences
+    value: 'true'
+  - key: misc-const-correctness.AnalyzePointers
+    value: 'true'
+  - key: misc-const-correctness.WarnPointersAsValues
+    value: 'false'
+  - key: misc-const-correctness.TransformPointersAsValues
+    value: 'false'
+  - key: misc-const-correctness.WarnPointersAsPointers
+    value: 'true'
+  - key: misc-const-correctness.TransformPointersAsPointers
+    value: 'true'
 
   # --------------------------------------------------------------------------
   # Types
