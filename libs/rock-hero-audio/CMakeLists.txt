@@ -7,20 +7,9 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/audio)
 
-# Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
-# the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER
-# TRUE or NEEDS_CURL TRUE.
-target_compile_definitions(rock_hero_audio PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
-
 target_link_libraries(
     rock_hero_audio
     PUBLIC rock_hero_core
-    PRIVATE tracktion::tracktion_core
-            tracktion::tracktion_engine
-            tracktion::tracktion_graph
-            juce::juce_core
-            juce::juce_audio_devices
-            juce::juce_audio_processors
-            juce::juce_audio_utils)
+    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
 
 add_subdirectory(tests)
