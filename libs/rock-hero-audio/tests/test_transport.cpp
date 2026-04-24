@@ -105,7 +105,7 @@ public:
 } // namespace
 
 // Verifies transport snapshots carry semantic timeline value types rather than raw seconds.
-TEST_CASE("TransportState uses timeline position and duration value types")
+TEST_CASE("TransportState uses timeline position and duration value types", "[audio][transport]")
 {
     const TransportState state{
         .playing = true,
@@ -119,7 +119,7 @@ TEST_CASE("TransportState uses timeline position and duration value types")
 }
 
 // Verifies future headless controller tests can treat ITransport as a state source.
-TEST_CASE("ITransport fake stores and returns transport state")
+TEST_CASE("ITransport fake stores and returns transport state", "[audio][transport]")
 {
     const TransportState expected{
         .playing = true,
@@ -133,7 +133,8 @@ TEST_CASE("ITransport fake stores and returns transport state")
 }
 
 // Verifies reference-based listener registration delivers state and stops after removal.
-TEST_CASE("ITransport listeners are registered, notified, and removed by reference")
+TEST_CASE(
+    "ITransport listeners are registered, notified, and removed by reference", "[audio][transport]")
 {
     FakeTransport transport;
     CapturingTransportListener listener;
@@ -151,7 +152,7 @@ TEST_CASE("ITransport listeners are registered, notified, and removed by referen
 }
 
 // Verifies seek intent crosses the transport boundary as a core timeline position.
-TEST_CASE("ITransport seek accepts a timeline position value")
+TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transport]")
 {
     FakeTransport transport;
 

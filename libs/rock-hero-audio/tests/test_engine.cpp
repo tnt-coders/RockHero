@@ -74,7 +74,7 @@ public:
 } // namespace
 
 // Verifies the concrete engine starts with an empty transport snapshot through ITransport.
-TEST_CASE("Engine starts with an empty transport state")
+TEST_CASE("Engine starts with an empty transport state", "[audio][engine][integration]")
 {
     Engine engine;
     ITransport& transport = engine;
@@ -87,7 +87,7 @@ TEST_CASE("Engine starts with an empty transport state")
 }
 
 // Verifies edit-driven source replacement updates state synchronously.
-TEST_CASE("Engine edit updates state synchronously")
+TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -107,7 +107,8 @@ TEST_CASE("Engine edit updates state synchronously")
 }
 
 // Verifies a failed edit request leaves the previously loaded content visible through state().
-TEST_CASE("Failed engine edit preserves the existing loaded content")
+TEST_CASE(
+    "Failed engine edit preserves the existing loaded content", "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -127,7 +128,7 @@ TEST_CASE("Failed engine edit preserves the existing loaded content")
 }
 
 // Verifies direct ITransport commands refresh the concrete engine snapshot immediately.
-TEST_CASE("Engine seek updates transport state synchronously")
+TEST_CASE("Engine seek updates transport state synchronously", "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -149,7 +150,9 @@ TEST_CASE("Engine seek updates transport state synchronously")
 // Verifies that a successful edit naturally notifies the project-owned transport listener before
 // the edit call returns. A load from the empty state changes duration but leaves position at zero,
 // so the legacy Engine::Listener position callback is not expected to fire here.
-TEST_CASE("Engine edit notifies transport listeners when transport-visible state changes")
+TEST_CASE(
+    "Engine edit notifies transport listeners when transport-visible state changes",
+    "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -178,7 +181,9 @@ TEST_CASE("Engine edit notifies transport listeners when transport-visible state
 
 // Verifies that a failed edit leaves listener counts unchanged when transport-visible state does
 // not change.
-TEST_CASE("Failed engine edit does not emit transport callbacks when state is unchanged")
+TEST_CASE(
+    "Failed engine edit does not emit transport callbacks when state is unchanged",
+    "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -206,7 +211,8 @@ TEST_CASE("Failed engine edit does not emit transport callbacks when state is un
 // Verifies that an explicit seek still drives both listener surfaces immediately when position
 // actually changes, confirming the legacy Engine::Listener path remains responsive for real
 // position transitions.
-TEST_CASE("Engine seek notifies position listeners when position changes")
+TEST_CASE(
+    "Engine seek notifies position listeners when position changes", "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
