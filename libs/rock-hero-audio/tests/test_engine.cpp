@@ -1,8 +1,10 @@
 #include <algorithm>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
 #include <filesystem>
 #include <rock_hero/audio/engine.h>
+#include <vector>
 
 namespace rock_hero::audio
 {
@@ -14,15 +16,10 @@ namespace
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IEdit>);
 
-// Returns a repo-local audio fixture path that the real Engine can load in tests.
+// Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
 [[nodiscard]] std::filesystem::path fixtureAudioPath()
 {
-    return std::filesystem::path{ROCK_HERO_AUDIO_TEST_SOURCE_DIR}
-               .parent_path()
-               .parent_path()
-               .parent_path() /
-           "external" / "tracktion_engine" / "examples" / "DemoRunner" / "resources" /
-           "drum_loop.wav";
+    return std::filesystem::path{TEST_DATA_DIR} / "drum_loop.wav";
 }
 
 // Wraps the real fixture path in the framework-free asset type used by IEdit.
@@ -31,53 +28,47 @@ static_assert(std::derived_from<Engine, IEdit>);
     return core::AudioAsset{fixtureAudioPath()};
 }
 
-// Captures legacy Engine listener callbacks so edit-quiet behavior can be verified.
-class CapturingEngineListener final : public Engine::Listener
+// Captures the latest notifications observed through both listener surfaces so transport/edit
+// contract tests can assert on externally visible behavior.
+enum class TemporaryAnalysisEvent
 {
-public:
-    // Records play/pause transitions received from the concrete engine adapter.
-    void enginePlayingStateChanged(bool playing) override
-    {
-        last_playing = playing;
-        ++playing_call_count;
-    }
-
-    // Records position-change callbacks received from the concrete engine adapter.
-    void engineTransportPositionChanged(double seconds) override
-    {
-        last_position_seconds = seconds;
-        ++position_call_count;
-    }
-
-    // Latest playing flag observed through the legacy listener surface.
-    bool last_playing{false};
-
-    // Latest position observed through the legacy listener surface.
-    double last_position_seconds{0.0};
-
-    // Number of play/pause callbacks received.
-    int playing_call_count{0};
-
-    // Number of position callbacks received.
-    int position_call_count{0};
+    engine_playing,
+    engine_position,
+    transport_state,
 };
 
-// Captures project-owned transport callbacks so edit work stays off the transport channel.
-class CapturingTransportListener final : public ITransport::Listener
+// Records callback activity from both listener surfaces.
+class TemporaryAnalysisRecorder final : public Engine::Listener, public ITransport::Listener
 {
 public:
-    // Records the latest transport snapshot pushed through the project-owned listener surface.
-    void onTransportStateChanged(const TransportState& state) override
+    void enginePlayingStateChanged(bool playing) override
     {
-        last_state = state;
-        ++call_count;
+        events.push_back(TemporaryAnalysisEvent::engine_playing);
+        last_playing = playing;
+        ++engine_playing_call_count;
     }
 
-    // Latest state snapshot observed through ITransport::Listener.
-    TransportState last_state{};
+    void engineTransportPositionChanged(double seconds) override
+    {
+        events.push_back(TemporaryAnalysisEvent::engine_position);
+        last_position_seconds = seconds;
+        ++engine_position_call_count;
+    }
 
-    // Number of transport-state callbacks received.
-    int call_count{0};
+    void onTransportStateChanged(const TransportState& state) override
+    {
+        events.push_back(TemporaryAnalysisEvent::transport_state);
+        last_transport_state = state;
+        ++transport_state_call_count;
+    }
+
+    std::vector<TemporaryAnalysisEvent> events{};
+    TransportState last_transport_state{};
+    bool last_playing{false};
+    double last_position_seconds{0.0};
+    int engine_playing_call_count{0};
+    int engine_position_call_count{0};
+    int transport_state_call_count{0};
 };
 
 } // namespace
@@ -95,36 +86,24 @@ TEST_CASE("Engine starts with an empty transport state")
     CHECK(current_state.duration == core::TimeDuration{});
 }
 
-// Verifies edit-driven source replacement updates state synchronously without firing listeners.
-TEST_CASE("Engine edit updates state without notifying transport listeners")
+// Verifies edit-driven source replacement updates state synchronously.
+TEST_CASE("Engine edit updates state synchronously")
 {
     Engine engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
-    CapturingEngineListener engine_listener;
-    CapturingTransportListener transport_listener;
-
-    engine.addListener(&engine_listener);
-    transport.addListener(transport_listener);
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    const auto result = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
+    const auto applied = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
 
-    CHECK(result.applied);
+    CHECK(applied);
 
     const auto current_state = transport.state();
-    CHECK(result.transport_state == current_state);
     CHECK_FALSE(current_state.playing);
     CHECK(current_state.position == core::TimePosition{});
     CHECK(current_state.duration.seconds > 0.0);
-    CHECK(engine_listener.playing_call_count == 0);
-    CHECK(engine_listener.position_call_count == 0);
-    CHECK(transport_listener.call_count == 0);
-
-    transport.removeListener(transport_listener);
-    engine.removeListener(&engine_listener);
 }
 
 // Verifies a failed edit request leaves the previously loaded content visible through state().
@@ -136,15 +115,14 @@ TEST_CASE("Failed engine edit preserves the existing loaded content")
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset).applied);
+    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
 
     const auto loaded_state = transport.state();
     const core::AudioAsset missing_asset{audio_asset.path.parent_path() / "missing.wav"};
 
-    const auto result = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
+    const auto applied = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
 
-    CHECK_FALSE(result.applied);
-    CHECK(result.transport_state == loaded_state);
+    CHECK_FALSE(applied);
     CHECK(transport.state() == loaded_state);
 }
 
@@ -157,7 +135,7 @@ TEST_CASE("Engine seek updates transport state synchronously")
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset).applied);
+    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
 
     const double duration_seconds = transport.state().duration.seconds;
     REQUIRE(duration_seconds > 0.0);
@@ -166,6 +144,101 @@ TEST_CASE("Engine seek updates transport state synchronously")
     transport.seek(core::TimePosition{target_seconds});
 
     CHECK(transport.state().position == core::TimePosition{target_seconds});
+}
+
+// Verifies that a successful edit naturally notifies the project-owned transport listener before
+// the edit call returns. A load from the empty state changes duration but leaves position at zero,
+// so the legacy Engine::Listener position callback is not expected to fire here.
+TEST_CASE("Engine edit notifies transport listeners when transport-visible state changes")
+{
+    Engine engine;
+    IEdit& edit = engine;
+    ITransport& transport = engine;
+    TemporaryAnalysisRecorder recorder;
+
+    engine.addListener(&recorder);
+    transport.addListener(recorder);
+
+    const auto audio_asset = fixtureAudioAsset();
+    REQUIRE(std::filesystem::exists(audio_asset.path));
+
+    const auto applied = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
+
+    CHECK(applied);
+    CHECK(recorder.transport_state_call_count >= 1);
+    CHECK(recorder.last_transport_state == transport.state());
+    CHECK(recorder.last_transport_state.duration.seconds > 0.0);
+    CHECK(recorder.last_transport_state.position == core::TimePosition{});
+    CHECK(recorder.engine_position_call_count == 0);
+    CHECK(recorder.engine_playing_call_count == 0);
+
+    transport.removeListener(recorder);
+    engine.removeListener(&recorder);
+}
+
+// Verifies that a failed edit leaves listener counts unchanged when transport-visible state does
+// not change.
+TEST_CASE("Failed engine edit does not emit transport callbacks when state is unchanged")
+{
+    Engine engine;
+    IEdit& edit = engine;
+    ITransport& transport = engine;
+    TemporaryAnalysisRecorder recorder;
+
+    engine.addListener(&recorder);
+    transport.addListener(recorder);
+
+    const auto missing_asset =
+        core::AudioAsset{fixtureAudioPath().parent_path() / "definitely-missing.wav"};
+
+    const auto applied = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
+
+    CHECK_FALSE(applied);
+    CHECK(recorder.engine_playing_call_count == 0);
+    CHECK(recorder.engine_position_call_count == 0);
+    CHECK(recorder.transport_state_call_count == 0);
+    CHECK(transport.state() == TransportState{});
+
+    transport.removeListener(recorder);
+    engine.removeListener(&recorder);
+}
+
+// Verifies that an explicit seek still drives both listener surfaces immediately when position
+// actually changes, confirming the legacy Engine::Listener path remains responsive for real
+// position transitions.
+TEST_CASE("Engine seek notifies position listeners when position changes")
+{
+    Engine engine;
+    IEdit& edit = engine;
+    ITransport& transport = engine;
+    TemporaryAnalysisRecorder recorder;
+
+    engine.addListener(&recorder);
+    transport.addListener(recorder);
+
+    const auto audio_asset = fixtureAudioAsset();
+    REQUIRE(std::filesystem::exists(audio_asset.path));
+    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+
+    const double duration_seconds = transport.state().duration.seconds;
+    REQUIRE(duration_seconds > 0.25);
+
+    recorder.events.clear();
+    recorder.engine_playing_call_count = 0;
+    recorder.engine_position_call_count = 0;
+    recorder.transport_state_call_count = 0;
+
+    const double target_seconds = std::min(0.25, duration_seconds * 0.5);
+    transport.seek(core::TimePosition{target_seconds});
+
+    CHECK(recorder.engine_position_call_count >= 1);
+    CHECK(recorder.last_position_seconds == Catch::Approx(target_seconds));
+    CHECK(recorder.transport_state_call_count >= 1);
+    CHECK(recorder.last_transport_state.position == core::TimePosition{target_seconds});
+    CHECK_FALSE(recorder.last_transport_state.playing);
+
+    transport.removeListener(recorder);
+    engine.removeListener(&recorder);
 }
 
 } // namespace rock_hero::audio

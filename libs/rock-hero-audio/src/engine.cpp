@@ -298,7 +298,7 @@ TransportState Engine::state() const
 }
 
 // Adapts the current framework-free edit port onto the legacy single-file load path.
-EditResult Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
+bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
 {
     static_cast<void>(track_id);
 
@@ -307,64 +307,7 @@ EditResult Engine::setTrackAudioSource(core::TrackId track_id, const core::Audio
     // undo primitives through Rock Hero interfaces.
     const auto path_text = audio_asset.path.string();
     const juce::File file{path_text};
-
-    if (!file.existsAsFile())
-    {
-        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
-    }
-
-    auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
-    if (track == nullptr)
-    {
-        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
-    }
-
-    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
-    if (!audio_file.isValid())
-    {
-        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
-    }
-
-    // Pre-seed the cached snapshot before the internal stop so the async Tracktion play-state
-    // callback observes no externally visible transport delta to publish.
-    const auto stopped_state = TransportState{
-        .playing = false,
-        .position = m_impl->m_transport_state.position,
-        .duration = m_impl->m_transport_state.duration,
-    };
-    m_impl->ApplyTransportStateSnapshot(stopped_state, false);
-
-    auto& transport = m_impl->m_edit->getTransport();
-    transport.stop(false, false);
-
-    const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
-    const auto start = tracktion::TimePosition{};
-    const tracktion::ClipPosition position{
-        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
-    };
-
-    const auto clip =
-        track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
-    if (clip == nullptr)
-    {
-        m_impl->RefreshTransportState(false);
-        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
-    }
-
-    m_impl->m_loaded_length_seconds = audio_file.getLength();
-    transport.looping = false;
-
-    // Pre-seed the final edit result before setPosition(0) so the synchronous ValueTree callback
-    // becomes a no-op from the listener perspective while state() is already up to date.
-    const auto loaded_state = TransportState{
-        .playing = false,
-        .position = core::TimePosition{},
-        .duration = core::TimeDuration{m_impl->m_loaded_length_seconds},
-    };
-    m_impl->ApplyTransportStateSnapshot(loaded_state, false);
-    transport.setPosition(tracktion::TimePosition{});
-    m_impl->RefreshTransportState(false);
-    return EditResult{.applied = true, .transport_state = m_impl->m_transport_state};
+    return loadFile(file);
 }
 
 // Preserves the legacy double-seconds seek API while controller migration is still in progress.
