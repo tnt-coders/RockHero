@@ -73,23 +73,27 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 - App executables may depend on both libraries and on `rock-hero-ui`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
 
-## JUCE CMake linkage
+## JUCE and Tracktion CMake linkage
 
-JUCE module targets should be linked with `PRIVATE` visibility on each target that directly uses
-them. This is JUCE's explicit CMake recommendation: publishing module targets with `PUBLIC`
-visibility adds their module sources to consumer targets and can cause repeated JUCE compilation in
-downstream libraries, apps, or tests.
+Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes
+(`rock_hero_juce_core`, `rock_hero_tracktion_engine`, and so on). Each wrapper links the raw
+module target privately, then forwards the module's compile definitions and include paths to
+consumers.
 
 For Rock Hero, that means:
 
-- `rock-hero-audio` links the JUCE modules its own implementation files require as `PRIVATE`.
-- `rock-hero-ui` links the JUCE UI modules its own implementation files require as `PRIVATE`.
-- App targets link the JUCE modules they directly use as `PRIVATE`.
-- Intermediate Rock Hero libraries do not publicly re-export raw `juce::juce_*` module targets.
+- Rock Hero libraries and apps link the project-owned wrapper targets, not raw `juce::juce_*` or
+  `tracktion::tracktion_*` module targets.
+- Raw JUCE and Tracktion module targets stay behind the wrapper layer rather than being re-exported
+  through the rest of the project graph.
 
-This is a build-system rule, not a blanket ban on JUCE in public headers. Some public interfaces
-may still mention JUCE types where that is the pragmatic design choice; consumers that compile such
-headers are responsible for linking the JUCE modules they directly use.
+This departs from JUCE's default recommendation of target-local private module links, but it serves
+the modular structure of this repository better by compiling each third-party module through one
+project-owned static target instead of recompiling the same modules separately in multiple Rock Hero
+libraries and apps.
+
+This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
+interfaces may still mention JUCE types where that is the pragmatic design choice.
 
 ## Include-path convention
 

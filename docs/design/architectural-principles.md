@@ -483,22 +483,22 @@ Suggested shape:
 
 Register them with `ctest`, but keep most of them free from hardware and windowing requirements.
 
-## JUCE Module Linkage
+## Third-Party Module Linkage
 
-When a target directly uses JUCE, link the required `juce::juce_*` modules with `PRIVATE`
-visibility on that target. Do not use intermediate Rock Hero libraries to publicly re-export raw
-JUCE module targets. JUCE's own CMake guidance explicitly recommends `PRIVATE` linkage for module
-targets because `PUBLIC` propagation can add JUCE module sources to consumer targets and trigger
-repeated third-party compilation.
+Rock Hero does not link raw `juce::juce_*` or `tracktion::tracktion_*` module targets directly
+from its libraries and apps. Instead, the repository defines project-owned static wrapper targets
+for the JUCE and Tracktion modules it uses. Those wrappers privately link the raw third-party
+module targets, then forward the required compile definitions and include paths to consumers.
 
-This project therefore treats JUCE module linkage as a target-local implementation detail:
+This project therefore treats raw JUCE and Tracktion module linkage as an internal build concern
+behind a project-owned wrapper layer:
 
-- each JUCE-using library or app links the modules it directly needs
-- project-owned interfaces and adapters are exported, not raw JUCE module targets
-- tests that do not directly use JUCE should not inherit JUCE module builds accidentally
+- Rock Hero targets link wrapper targets such as `rock_hero_juce_gui_basics` and
+  `rock_hero_tracktion_engine` rather than raw third-party modules.
+- project-owned interfaces and adapters are exported, not raw JUCE or Tracktion module targets.
 
-This keeps dependency boundaries honest and avoids making one library's JUCE policy contagious
-through the rest of the target graph.
+This keeps the dependency graph explicit while avoiding repeated third-party module compilation
+across the project's modular target structure.
 
 # Decision Rules for New Code
 

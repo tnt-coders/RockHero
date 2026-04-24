@@ -7,6 +7,7 @@ project(
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 find_package(PackageBuilder REQUIRED)
 
@@ -35,7 +36,6 @@ set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
     CACHE STRING "Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/" FORCE)
 
 add_subdirectory(project-config)
-include(ProjectConfigJUCEHelpers)
 
 # --------------------------------------------------------------------------
 # Tracktion Engine (brings JUCE 8 via its own modules/juce submodule)
@@ -57,6 +57,9 @@ foreach(third_party_target IN ITEMS tracktion_core tracktion_engine tracktion_gr
                                             $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-w>)
     endif()
 endforeach()
+
+include(RockHeroJuceHelpers)
+include(RockHeroExternalModules)
 
 # --------------------------------------------------------------------------
 # Tests
