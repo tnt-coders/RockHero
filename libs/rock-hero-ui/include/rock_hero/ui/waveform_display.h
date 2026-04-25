@@ -41,6 +41,20 @@ public:
     /*! \brief Detaches the listener and releases resources. */
     ~WaveformDisplay() override;
 
+    /*! \brief Copying is disabled because JUCE components and listener state are not copyable. */
+    WaveformDisplay(const WaveformDisplay&) = delete;
+
+    /*! \brief Copy assignment is disabled because JUCE components and listener state are not
+     * copyable. */
+    WaveformDisplay& operator=(const WaveformDisplay&) = delete;
+
+    /*! \brief Moving is disabled because JUCE components and listener state are not movable. */
+    WaveformDisplay(WaveformDisplay&&) = delete;
+
+    /*! \brief Move assignment is disabled because JUCE components and listener state are not
+     * movable. */
+    WaveformDisplay& operator=(WaveformDisplay&&) = delete;
+
     /*!
     \brief Updates the thumbnail source after a new file has been loaded.
     \param file The audio file that was successfully loaded into the engine.
@@ -48,14 +62,14 @@ public:
     void setAudioFile(const juce::File& file);
 
     /*!
-    \brief Called with the target position in seconds when the user clicks the waveform.
-
-    Only fires when a file is loaded and the thumbnail length is greater than zero.
+    \brief Stores the callback fired with the target position in seconds when the waveform is
+    clicked.
+    \param on_seek Callback invoked for seek intent.
     */
-    std::function<void(double)> on_seek;
+    void setOnSeek(std::function<void(double)> on_seek);
 
     /*!
-    \brief Seeks to the clicked position and fires on_seek.
+    \brief Seeks to the clicked position and fires the stored seek callback.
     \param event The mouse event from the click.
     */
     void mouseDown(const juce::MouseEvent& event) override;
@@ -72,6 +86,9 @@ public:
 private:
     // Receives transport events and converts them into cursor repaint requests.
     void engineTransportPositionChanged(double seconds) override;
+
+    // Callback fired when the user clicks the waveform and a valid seek target can be derived.
+    std::function<void(double)> m_on_seek{};
 
     // Tracktion-free thumbnail interface created by the audio engine adapter.
     std::unique_ptr<audio::Thumbnail> m_thumbnail;
