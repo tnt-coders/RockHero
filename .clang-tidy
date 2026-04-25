@@ -39,6 +39,11 @@ WarningsAsErrors: '*'
 # exclude external/ with a pattern like ^(?!.*[\\/]external[\\/]).*.
 HeaderFilterRegex: '.*[\\/](apps|libs)[\\/].*'
 
+# Exclude third-party and generated headers explicitly when the current clang-tidy version
+# supports ExcludeHeaderFilterRegex. This keeps generated files such as BinaryData.h and
+# anything under external/ or build/ out of header diagnostics.
+ExcludeHeaderFilterRegex: '.*[\\/](external|build)[\\/].*'
+
 CheckOptions:
   - key: readability-braces-around-statements.ShortStatementLines
     value: '0'
