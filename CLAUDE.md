@@ -109,6 +109,10 @@ left-aligned pointers.
 | Class member fields | `m_lower_case` |
 | Classic enum values, macros | `UPPER_CASE` |
 
+In `readability-identifier-naming`, clang-tidy spells the function/method style as
+`camelBack`. That checker value corresponds to the project convention described here as
+`camelCase`.
+
 Clang-tidy treats warnings as errors.
 
 ## CI

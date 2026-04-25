@@ -73,7 +73,8 @@ verification still needs to be run in a repaired environment.
 
 ## Non-Goals For v20
 
-- No CMake target split.
+- No first-party product target split; project-owned JUCE/Tracktion wrapper targets
+  are part of the build baseline.
 - No separate `controllers` namespace.
 - No `IThumbnailFactory`.
 - No `ITransportControls`.
