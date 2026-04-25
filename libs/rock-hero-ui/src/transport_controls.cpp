@@ -1,6 +1,7 @@
 #include "transport_controls.h"
 
 #include <BinaryData.h>
+#include <utility>
 
 namespace rock_hero::ui
 {
@@ -27,9 +28,9 @@ TransportControls::TransportControls()
 
     m_play_pause_button->onClick = [this] { onPlayPauseClicked(); };
     m_stop_button->onClick = [this] {
-        if (on_stop)
+        if (m_on_stop)
         {
-            on_stop();
+            m_on_stop();
         }
     };
 
@@ -39,6 +40,24 @@ TransportControls::TransportControls()
 
 // Uses default destruction because Drawable ownership is fully represented by unique_ptr members.
 TransportControls::~TransportControls() = default;
+
+// Stores the play callback so button handling can stay private to the component.
+void TransportControls::setOnPlay(std::function<void()> on_play)
+{
+    m_on_play = std::move(on_play);
+}
+
+// Stores the pause callback so button handling can stay private to the component.
+void TransportControls::setOnPause(std::function<void()> on_pause)
+{
+    m_on_pause = std::move(on_pause);
+}
+
+// Stores the stop callback so button handling can stay private to the component.
+void TransportControls::setOnStop(std::function<void()> on_stop)
+{
+    m_on_stop = std::move(on_stop);
+}
 
 // Mirrors engine playback state into the visible play/pause icon.
 void TransportControls::setPlaying(bool playing)
@@ -73,16 +92,16 @@ void TransportControls::onPlayPauseClicked()
 {
     if (m_is_playing)
     {
-        if (on_pause)
+        if (m_on_pause)
         {
-            on_pause();
+            m_on_pause();
         }
     }
     else
     {
-        if (on_play)
+        if (m_on_play)
         {
-            on_play();
+            m_on_play();
         }
     }
 }
