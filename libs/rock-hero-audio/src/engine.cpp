@@ -27,23 +27,71 @@ private:
     // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
-    // Message-thread listener list for engine state changes.
-    juce::ListenerList<Engine::Listener> m_listeners;
+    // Message-thread snapshot exposed through ITransport::state().
+    TransportState m_transport_state{};
 
-    // Last published playing state, used to suppress duplicate transition notifications.
-    bool m_last_known_playing{false};
+    // Message-thread listener list for the legacy Engine listener surface.
+    juce::ListenerList<Engine::Listener> m_engine_listeners;
 
-    // Fires subscribed callbacks only on genuine play/pause transitions.
-    void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
+    // Message-thread listener list for the project-owned ITransport listener surface.
+    juce::ListenerList<ITransport::Listener> m_transport_listeners;
+
+    // Builds the current message-thread transport snapshot from Tracktion state and cached length.
+    [[nodiscard]] TransportState MakeTransportStateSnapshot() const
     {
-        const bool playing = m_edit->getTransport().isPlaying();
-        if (playing == m_last_known_playing)
+        return TransportState{
+            .playing = m_edit->getTransport().isPlaying(),
+            .position = core::TimePosition{ClampToLoadedRange(
+                m_edit->getTransport().getPosition().inSeconds())},
+            .duration = core::TimeDuration{m_loaded_length_seconds},
+        };
+    }
+
+    // Applies a fresh snapshot, keeps the lock-free cache in sync, and notifies listeners only
+    // for the fields that actually changed.
+    void ApplyTransportStateSnapshot(const TransportState& next_state, bool notify_listeners)
+    {
+        const bool playing_changed = m_transport_state.playing != next_state.playing;
+        const bool position_changed = m_transport_state.position != next_state.position;
+        const bool duration_changed = m_transport_state.duration != next_state.duration;
+
+        m_transport_state = next_state;
+        m_transport_position.store(next_state.position.seconds, std::memory_order_relaxed);
+
+        if (!notify_listeners)
         {
             return;
         }
 
-        m_last_known_playing = playing;
-        m_listeners.call(&Engine::Listener::enginePlayingStateChanged, playing);
+        if (playing_changed)
+        {
+            m_engine_listeners.call(
+                &Engine::Listener::enginePlayingStateChanged, next_state.playing);
+        }
+
+        if (position_changed)
+        {
+            m_engine_listeners.call(
+                &Engine::Listener::engineTransportPositionChanged, next_state.position.seconds);
+        }
+
+        if (playing_changed || position_changed || duration_changed)
+        {
+            m_transport_listeners.call(
+                &ITransport::Listener::onTransportStateChanged, m_transport_state);
+        }
+    }
+
+    // Rebuilds the current transport snapshot from Tracktion state and publishes it.
+    void RefreshTransportState(bool notify_listeners)
+    {
+        ApplyTransportStateSnapshot(MakeTransportStateSnapshot(), notify_listeners);
+    }
+
+    // Mirrors Tracktion transport change broadcasts into the project-owned state snapshot.
+    void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
+    {
+        RefreshTransportState(true);
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. React to that
@@ -57,18 +105,13 @@ private:
         }
 
         const double raw_position_seconds = m_edit->getTransport().getPosition().inSeconds();
-        const double clamped_seconds = ClampToLoadedRange(raw_position_seconds);
-        const double previous =
-            m_transport_position.exchange(clamped_seconds, std::memory_order_relaxed);
-        if (previous != clamped_seconds)
-        {
-            m_listeners.call(&Engine::Listener::engineTransportPositionChanged, clamped_seconds);
-        }
-
         if (ShouldStopAtLoadedEnd(raw_position_seconds))
         {
             StopAndReturnToStart();
+            return;
         }
+
+        RefreshTransportState(true);
     }
 
     // Keeps externally requested positions inside the current loaded file duration.
@@ -119,6 +162,9 @@ Engine::Engine()
     // Tracktion mirrors live playhead position into this public ValueTree property from its
     // transport loop. Listening here keeps the adapter event-driven from the UI perspective.
     m_impl->m_edit->getTransport().state.addListener(m_impl.get());
+
+    // Seeds the project-owned snapshot from the freshly created empty edit.
+    m_impl->RefreshTransportState(false);
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
@@ -138,13 +184,25 @@ Engine::~Engine()
 // Registers a message-thread listener for filtered engine transport events.
 void Engine::addListener(Listener* listener)
 {
-    m_impl->m_listeners.add(listener);
+    m_impl->m_engine_listeners.add(listener);
 }
 
 // Removes a previously registered engine transport listener.
 void Engine::removeListener(Listener* listener)
 {
-    m_impl->m_listeners.remove(listener);
+    m_impl->m_engine_listeners.remove(listener);
+}
+
+// Registers a project-owned transport listener that observes the message-thread snapshot.
+void Engine::addListener(ITransport::Listener& listener)
+{
+    m_impl->m_transport_listeners.add(&listener);
+}
+
+// Removes a previously registered project-owned transport listener.
+void Engine::removeListener(ITransport::Listener& listener)
+{
+    m_impl->m_transport_listeners.remove(&listener);
 }
 
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.
@@ -181,6 +239,7 @@ bool Engine::loadFile(const juce::File& file)
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
     if (clip == nullptr)
     {
+        m_impl->RefreshTransportState(true);
         return false;
     }
 
@@ -189,6 +248,7 @@ bool Engine::loadFile(const juce::File& file)
     auto& transport = m_impl->m_edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
+    m_impl->RefreshTransportState(true);
     return true;
 }
 
@@ -203,12 +263,14 @@ void Engine::play()
     }
 
     transport.play(false);
+    m_impl->RefreshTransportState(true);
 }
 
 // Stops playback and resets both Tracktion and cached transport positions to the start.
 void Engine::stop()
 {
     m_impl->StopAndReturnToStart();
+    m_impl->RefreshTransportState(true);
 }
 
 // Pauses playback without resetting position so the user can resume from the same point.
@@ -217,14 +279,98 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
+    m_impl->RefreshTransportState(true);
 }
 
-// Moves Tracktion transport and the UI-readable cache to the requested song time.
-void Engine::seek(double seconds)
+// Moves Tracktion transport to the requested timeline position and publishes the new snapshot.
+void Engine::seek(core::TimePosition position)
 {
-    const double clamped_seconds = m_impl->ClampToLoadedRange(seconds);
+    const double clamped_seconds = m_impl->ClampToLoadedRange(position.seconds);
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
+    m_impl->RefreshTransportState(true);
+}
+
+// Returns the project-owned message-thread snapshot used by ITransport and edit call sites.
+TransportState Engine::state() const
+{
+    return m_impl->m_transport_state;
+}
+
+// Adapts the current framework-free edit port onto the legacy single-file load path.
+EditResult Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
+{
+    static_cast<void>(track_id);
+
+    // TODO: Route this through a project-owned edit-history boundary once undo/redo lands.
+    // The history surface should own transaction semantics instead of exposing Tracktion or JUCE
+    // undo primitives through Rock Hero interfaces.
+    const auto path_text = audio_asset.path.string();
+    const juce::File file{path_text};
+
+    if (!file.existsAsFile())
+    {
+        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
+    }
+
+    auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
+    if (track == nullptr)
+    {
+        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
+    }
+
+    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
+    if (!audio_file.isValid())
+    {
+        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
+    }
+
+    // Pre-seed the cached snapshot before the internal stop so the async Tracktion play-state
+    // callback observes no externally visible transport delta to publish.
+    const auto stopped_state = TransportState{
+        .playing = false,
+        .position = m_impl->m_transport_state.position,
+        .duration = m_impl->m_transport_state.duration,
+    };
+    m_impl->ApplyTransportStateSnapshot(stopped_state, false);
+
+    auto& transport = m_impl->m_edit->getTransport();
+    transport.stop(false, false);
+
+    const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
+    const auto start = tracktion::TimePosition{};
+    const tracktion::ClipPosition position{
+        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
+    };
+
+    const auto clip =
+        track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
+    if (clip == nullptr)
+    {
+        m_impl->RefreshTransportState(false);
+        return EditResult{.applied = false, .transport_state = m_impl->m_transport_state};
+    }
+
+    m_impl->m_loaded_length_seconds = audio_file.getLength();
+    transport.looping = false;
+
+    // Pre-seed the final edit result before setPosition(0) so the synchronous ValueTree callback
+    // becomes a no-op from the listener perspective while state() is already up to date.
+    const auto loaded_state = TransportState{
+        .playing = false,
+        .position = core::TimePosition{},
+        .duration = core::TimeDuration{m_impl->m_loaded_length_seconds},
+    };
+    m_impl->ApplyTransportStateSnapshot(loaded_state, false);
+    transport.setPosition(tracktion::TimePosition{});
+    m_impl->RefreshTransportState(false);
+    return EditResult{.applied = true, .transport_state = m_impl->m_transport_state};
+}
+
+// Preserves the legacy double-seconds seek API while controller migration is still in progress.
+void Engine::seek(double seconds)
+{
+    seek(core::TimePosition{seconds});
 }
 
 // Reads Tracktion transport state for UI controls that need current playback status.
