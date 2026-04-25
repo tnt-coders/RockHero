@@ -89,7 +89,7 @@ private:
                 {
                     // Only refresh the thumbnail after the engine has accepted the file.
                     // That keeps the UI from displaying a waveform for a file that failed to load.
-                    if (m_audio_engine.loadFile(file))
+                    if (m_audio_engine.LoadFile(file))
                     {
                         m_waveform_display.setAudioFile(file);
                         m_transport_controls.setFileLoaded(true);
