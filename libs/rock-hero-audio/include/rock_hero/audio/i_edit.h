@@ -5,36 +5,11 @@
 
 #pragma once
 
-#include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/track.h>
 
 namespace rock_hero::audio
 {
-
-/*!
-\brief Result of applying one audio edit command.
-
-Edit outcomes are reported through this return value rather than through transport-listener
-callbacks. The returned transport snapshot always reflects the backend state immediately after the
-edit attempt finishes, whether the edit succeeded or failed.
-*/
-struct EditResult
-{
-    /*! \brief True when the backend accepted and applied the requested edit. */
-    bool applied{false};
-
-    /*! \brief Transport snapshot immediately after the edit attempt completes. */
-    TransportState transport_state{};
-
-    /*!
-    \brief Compares two edit results by their stored fields.
-    \param lhs Left-hand edit result.
-    \param rhs Right-hand edit result.
-    \return True when both edit results store equal values.
-    */
-    friend bool operator==(const EditResult& lhs, const EditResult& rhs) = default;
-};
 
 /*!
 \brief Project-owned facade over the concrete Tracktion edit model.
@@ -56,18 +31,16 @@ public:
     /*!
     \brief Sets the audio source used for one session track in the playback backend.
 
-    Successful mutation must update the paired transport state synchronously, including any
-    duration change, and return the resulting transport snapshot directly through EditResult.
-    Transport listeners remain reserved for transport-driven state changes such as play, pause,
-    stop, and explicit seek commands.
+    Successful mutation may change transport-visible state such as duration or position as a
+    natural consequence of the edit. Those transport changes are reported through the normal
+    transport state and listener mechanisms rather than through a special edit result type.
 
     \param track_id Track whose audio source should be updated.
     \param audio_asset Framework-free audio asset selected for the track.
-    \return Result of the edit attempt, including whether it applied and the resulting transport
-    snapshot.
+    \return True when the backend accepted and applied the edit; false otherwise.
     \note Current duration semantics describe the most recently set track source only.
     */
-    virtual EditResult setTrackAudioSource(
+    virtual bool setTrackAudioSource(
         core::TrackId track_id, const core::AudioAsset& audio_asset) = 0;
 
     // TODO: Expand this surface with project-owned clip and track edit commands when the editor

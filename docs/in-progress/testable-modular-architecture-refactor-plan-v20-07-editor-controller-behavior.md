@@ -29,8 +29,9 @@ with fakes.
    `IEdit::setTrackAudioSource(...)`.
 8. On failed edit, preserve `core::Session` and set a controller-composed error.
 9. On successful edit, call `Session::replaceTrackAsset(...)`.
-10. If that call returns `true`, clear the error, use the `EditResult` transport
-    snapshot, and push the derived state.
+10. If that call returns `true`, clear the error, read `transport.state()`, and push
+    the derived state. Later transport notifications may also arrive; suppress
+    duplicate view-state pushes.
 11. If that call returns `false`, treat it as an internal consistency failure: assert
     in debug builds, log an error message in release builds, preserve the existing
     session state, set `last_load_error` to a controller-composed internal error, and
@@ -53,8 +54,8 @@ Add fakes for `ITransport`, `IEdit`, and `IEditorView`. Cover:
 - invalid track load does not call `setTrackAudioSource(...)`,
 - failed load preserves session and reports a composed error,
 - successful load commits the track asset and clears the error,
-- successful load uses the `EditResult` transport snapshot instead of performing a
-  second transport-state read,
+- successful load can tolerate the natural transport notification path without
+  double-pushing view state,
 - post-edit session commit failure reports an internal error instead of crashing or
   silently clearing the error, if that path can be reached with the available session
   API,
