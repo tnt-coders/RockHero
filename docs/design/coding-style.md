@@ -134,3 +134,58 @@ CHECK(session.tracks()[1].name == "Guitar Stem");
 
 Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
 `CHECK_FALSE` for independent observations.
+
+# Test File Organization
+
+Split test files by the first meaningful subject under test rather than by arbitrary size or by
+mirroring production file names mechanically.
+
+Examples:
+
+- `test_transport.cpp` for transport-port behavior
+- `test_edit.cpp` for edit-port behavior
+- `test_engine.cpp` for concrete engine adapter behavior
+- `test_session.cpp`, `test_song.cpp`, `test_chart.cpp`, `test_arrangement.cpp` for core model
+  types once each subject has enough tests to stand on its own
+
+Prefer keeping related tests together while the subject is still small. Split into separate test
+files when one of these becomes true:
+
+- the file stops being easy to scan quickly
+- the subject grows distinct invariants or behaviors
+- the tests are better described by a narrower file name
+
+Do not split files purely to create one test file per production header if that makes the test
+layout more fragmented than the behavior warrants.
+
+# Catch2 Tag Conventions
+
+Every `TEST_CASE` should carry tags that describe both the owning module and the immediate subject
+under test.
+
+Current tag shape:
+
+- module tag first: `[audio]`, `[core]`
+- subject tag second: `[transport]`, `[edit]`, `[engine]`, `[session]`, `[song]`,
+  `[chart]`, `[arrangement]`
+- optional classification tags last when needed: for example `[integration]`
+
+Examples:
+
+\code{.cpp}
+TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transport]")
+TEST_CASE("Replacing a missing track asset fails cleanly", "[core][session]")
+TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
+\endcode
+
+Guidelines:
+
+- use the same subject tag across all tests for the same subsystem or type
+- add `[integration]` only when a test exercises a real adapter or otherwise runs materially
+  slower than normal fast unit-style coverage
+- do not invent multiple near-synonyms for the same subject (`[transport]` vs.
+  `[i_transport]` vs. `[playback]`)
+- prefer stable tags that will still make sense after minor refactors
+
+Tags are used for ad hoc filtering and future tooling integration, so consistency matters more
+than perfect taxonomy.

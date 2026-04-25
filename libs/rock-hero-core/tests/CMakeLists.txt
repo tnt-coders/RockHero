@@ -3,7 +3,8 @@ find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 # Keep framework-free domain tests separate from adapter-heavy audio coverage.
-add_executable(rock_hero_core_tests test_session.cpp test_song.cpp)
+add_executable(rock_hero_core_tests test_session.cpp test_song.cpp test_arrangement.cpp
+                                    test_chart.cpp)
 
 # The core tests link only the core library plus Catch2's test main.
 target_link_libraries(rock_hero_core_tests PRIVATE rock_hero_core Catch2::Catch2WithMain)

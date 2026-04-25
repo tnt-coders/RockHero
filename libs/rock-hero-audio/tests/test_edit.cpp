@@ -42,7 +42,7 @@ struct FakeEdit final : IEdit
 } // namespace
 
 // Verifies the audio-edit port receives the session track identity.
-TEST_CASE("IEdit fake receives a track id")
+TEST_CASE("IEdit fake receives a track id", "[audio][edit]")
 {
     FakeEdit edit{true};
 
@@ -55,7 +55,7 @@ TEST_CASE("IEdit fake receives a track id")
 }
 
 // Verifies the audio-edit port receives the framework-free asset reference.
-TEST_CASE("IEdit fake receives an audio asset")
+TEST_CASE("IEdit fake receives an audio asset", "[audio][edit]")
 {
     FakeEdit edit{true};
     const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
@@ -68,7 +68,7 @@ TEST_CASE("IEdit fake receives an audio asset")
 }
 
 // Verifies the port return value can represent failed source changes.
-TEST_CASE("IEdit fake can report failed source changes")
+TEST_CASE("IEdit fake can report failed source changes", "[audio][edit]")
 {
     FakeEdit edit{false};
 
