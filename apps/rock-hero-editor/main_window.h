@@ -41,6 +41,20 @@ public:
     /*! \brief Clears the content component pointer before destroying owned members. */
     ~MainWindow() override;
 
+    /*! \brief Copying is disabled because JUCE windows and owned runtime state are not copyable. */
+    MainWindow(const MainWindow&) = delete;
+
+    /*! \brief Copy assignment is disabled because JUCE windows and owned runtime state are not
+     * copyable. */
+    MainWindow& operator=(const MainWindow&) = delete;
+
+    /*! \brief Moving is disabled because JUCE windows and owned runtime state are not movable. */
+    MainWindow(MainWindow&&) = delete;
+
+    /*! \brief Move assignment is disabled because JUCE windows and owned runtime state are not
+     * movable. */
+    MainWindow& operator=(MainWindow&&) = delete;
+
     /*! \brief Requests application quit when the user closes the window. */
     void closeButtonPressed() override;
 

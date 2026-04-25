@@ -16,8 +16,8 @@ namespace rock_hero::ui
 \brief A horizontal strip containing Play/Pause and Stop transport buttons.
 
 Interaction is entirely callback-based; this component has no knowledge of the audio engine.
-The owner wires on_play, on_pause, and on_stop, then calls setFileLoaded(), setPlaying(),
-and setTransportPosition() to keep button state in sync.
+The owner supplies play, pause, and stop callbacks through setter methods, then calls
+setFileLoaded(), setPlaying(), and setTransportPosition() to keep button state in sync.
 
 Icons are SVGs embedded via juce_add_binary_data (BinaryData::play_arrow_svg, pause_svg,
 stop_svg). Buttons use DrawableButton with ImageFitted style.
@@ -31,14 +31,37 @@ public:
     /*! \brief Releases button and icon resources. */
     ~TransportControls() override;
 
-    /*! \brief Called when the user clicks Play while a file is loaded and playback is stopped. */
-    std::function<void()> on_play;
+    /*! \brief Copying is disabled because JUCE components and callback state are not copyable. */
+    TransportControls(const TransportControls&) = delete;
 
-    /*! \brief Called when the user clicks Pause during playback. */
-    std::function<void()> on_pause;
+    /*! \brief Copy assignment is disabled because JUCE components and callback state are not
+     * copyable. */
+    TransportControls& operator=(const TransportControls&) = delete;
 
-    /*! \brief Called when the user clicks Stop while a file is loaded. */
-    std::function<void()> on_stop;
+    /*! \brief Moving is disabled because JUCE components and callback state are not movable. */
+    TransportControls(TransportControls&&) = delete;
+
+    /*! \brief Move assignment is disabled because JUCE components and callback state are not
+     * movable. */
+    TransportControls& operator=(TransportControls&&) = delete;
+
+    /*!
+    \brief Stores the callback fired when the user clicks Play from a stopped state.
+    \param on_play Callback invoked for Play intent.
+    */
+    void setOnPlay(std::function<void()> on_play);
+
+    /*!
+    \brief Stores the callback fired when the user clicks Pause during playback.
+    \param on_pause Callback invoked for Pause intent.
+    */
+    void setOnPause(std::function<void()> on_pause);
+
+    /*!
+    \brief Stores the callback fired when the user clicks Stop while a file is loaded.
+    \param on_stop Callback invoked for Stop intent.
+    */
+    void setOnStop(std::function<void()> on_stop);
 
     /*!
     \brief Enables or disables the transport buttons.
@@ -70,7 +93,7 @@ public:
     void setPlaying(bool playing);
 
     /*!
-    \brief Handles a play/pause toggle, firing on_play or on_pause as appropriate.
+    \brief Handles a play/pause toggle, firing the stored play or pause callback as appropriate.
 
     Called directly by the Space key handler so the hotkey and the button share one path.
     */
@@ -82,6 +105,15 @@ public:
 private:
     // Applies current transport state to enabled flags without emitting callbacks.
     void updateButtonStates();
+
+    // Callback fired when Play intent is emitted from the primary button.
+    std::function<void()> m_on_play{};
+
+    // Callback fired when Pause intent is emitted from the primary button.
+    std::function<void()> m_on_pause{};
+
+    // Callback fired when Stop intent is emitted from the secondary button.
+    std::function<void()> m_on_stop{};
 
     // Cached playback state that decides whether the primary button shows Play or Pause.
     bool m_is_playing{false};

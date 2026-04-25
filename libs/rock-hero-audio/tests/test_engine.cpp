@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
+#include <cstdint>
 #include <filesystem>
 #include <rock_hero/audio/engine.h>
 #include <vector>
@@ -30,7 +31,7 @@ static_assert(std::derived_from<Engine, IEdit>);
 
 // Captures the latest notifications observed through both listener surfaces so transport/edit
 // contract tests can assert on externally visible behavior.
-enum class TemporaryAnalysisEvent
+enum class TransportNotificationEvent : std::uint8_t
 {
     EnginePlaying,
     EnginePosition,
@@ -38,31 +39,31 @@ enum class TemporaryAnalysisEvent
 };
 
 // Records callback activity from both listener surfaces.
-class TemporaryAnalysisRecorder final : public Engine::Listener, public ITransport::Listener
+class TransportNotificationRecorder final : public Engine::Listener, public ITransport::Listener
 {
 public:
     void enginePlayingStateChanged(bool playing) override
     {
-        events.push_back(TemporaryAnalysisEvent::EnginePlaying);
+        events.push_back(TransportNotificationEvent::EnginePlaying);
         last_playing = playing;
         ++engine_playing_call_count;
     }
 
     void engineTransportPositionChanged(double seconds) override
     {
-        events.push_back(TemporaryAnalysisEvent::EnginePosition);
+        events.push_back(TransportNotificationEvent::EnginePosition);
         last_position_seconds = seconds;
         ++engine_position_call_count;
     }
 
     void onTransportStateChanged(const TransportState& state) override
     {
-        events.push_back(TemporaryAnalysisEvent::TransportState);
+        events.push_back(TransportNotificationEvent::TransportState);
         last_transport_state = state;
         ++transport_state_call_count;
     }
 
-    std::vector<TemporaryAnalysisEvent> events{};
+    std::vector<TransportNotificationEvent> events{};
     TransportState last_transport_state{};
     bool last_playing{false};
     double last_position_seconds{0.0};
@@ -157,7 +158,7 @@ TEST_CASE(
     Engine engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
-    TemporaryAnalysisRecorder recorder;
+    TransportNotificationRecorder recorder;
 
     engine.addListener(&recorder);
     transport.addListener(recorder);
@@ -188,7 +189,7 @@ TEST_CASE(
     Engine engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
-    TemporaryAnalysisRecorder recorder;
+    TransportNotificationRecorder recorder;
 
     engine.addListener(&recorder);
     transport.addListener(recorder);
@@ -217,7 +218,7 @@ TEST_CASE(
     Engine engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
-    TemporaryAnalysisRecorder recorder;
+    TransportNotificationRecorder recorder;
 
     engine.addListener(&recorder);
     transport.addListener(recorder);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/audio/thumbnail.h>
+#include <utility>
 
 namespace rock_hero::ui
 {
@@ -23,6 +24,12 @@ void WaveformDisplay::setAudioFile(const juce::File& file)
 {
     m_thumbnail->setFile(file);
     repaint();
+}
+
+// Stores the seek callback so click handling can keep a private callback member.
+void WaveformDisplay::setOnSeek(std::function<void(double)> on_seek)
+{
+    m_on_seek = std::move(on_seek);
 }
 
 // Draws loading, proxy-generation, waveform, and cursor states in one lightweight component.
@@ -69,7 +76,7 @@ void WaveformDisplay::resized()
 void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
 {
     const double length = m_thumbnail->getLength();
-    if (length <= 0.0 || !on_seek)
+    if (length <= 0.0 || !m_on_seek)
     {
         return;
     }
@@ -77,7 +84,7 @@ void WaveformDisplay::mouseDown(const juce::MouseEvent& event)
     const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
 
-    on_seek(clamped * length);
+    m_on_seek(clamped * length);
 }
 
 // Mirrors engine transport events into repaintable cursor state.

@@ -27,11 +27,11 @@ struct MainWindow::ContentComponent : public juce::Component,
 
         // Engine's playing-state events drive m_transport_controls.setPlaying() via
         // enginePlayingStateChanged(), so these handlers only forward the user intent.
-        m_transport_controls.on_play = [this] { m_audio_engine.play(); };
-        m_transport_controls.on_pause = [this] { m_audio_engine.pause(); };
-        m_transport_controls.on_stop = [this] { m_audio_engine.stop(); };
+        m_transport_controls.setOnPlay([this] { m_audio_engine.play(); });
+        m_transport_controls.setOnPause([this] { m_audio_engine.pause(); });
+        m_transport_controls.setOnStop([this] { m_audio_engine.stop(); });
 
-        m_waveform_display.on_seek = [this](double seconds) { m_audio_engine.seek(seconds); };
+        m_waveform_display.setOnSeek([this](double seconds) { m_audio_engine.seek(seconds); });
 
         setSize(800, 300);
     }
