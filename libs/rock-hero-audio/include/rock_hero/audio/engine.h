@@ -261,10 +261,9 @@ public:
 
     \param track_id Track whose source should be updated.
     \param audio_asset Framework-free asset reference selected for the track.
-    \return Result of the edit attempt, including the post-edit transport snapshot.
+    \return True when the playback backend accepted the requested source.
     */
-    EditResult setTrackAudioSource(
-        core::TrackId track_id, const core::AudioAsset& audio_asset) override;
+    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override;
 
     /*!
     \brief Seeks the transport to the given position in seconds.

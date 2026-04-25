@@ -17,7 +17,7 @@ implementation or broader clip-timeline scope yet.
 1. Add `audio::IEdit`.
 2. Add one minimal mutation method representing the existing single-file editor
    behavior:
-   `setTrackAudioSource(core::TrackId, const core::AudioAsset&) -> EditResult`.
+   `setTrackAudioSource(core::TrackId, const core::AudioAsset&) -> bool`.
 3. Document that this interface is the first project-owned facade over the concrete
    Tracktion edit model. It is intentionally minimal in v20 and should not yet try
    to model all future clip, track, or automation edits.
@@ -25,15 +25,11 @@ implementation or broader clip-timeline scope yet.
    - only the most recently set track source is required to behave correctly,
    - setting a second track id is unspecified until stem playback lands,
    - this is tied to the current `TransportState.duration` semantics.
-5. Add `EditResult` as the project-owned return type for edit commands:
-   - `bool applied`,
-   - `TransportState transport_state`.
-6. Document that successful mutation updates the paired transport state synchronously
-   and returns the resulting transport snapshot through `EditResult`.
-7. Document that transport listeners are reserved for transport-driven changes. Edit
-   outcomes must be read from `EditResult`, not inferred from transport-listener
-   callbacks.
-8. Add explicit TODO comments in the header where broader edit commands and a
+5. Document that successful mutation updates the paired transport state synchronously
+   through the normal transport boundary.
+6. Document that transport listeners may naturally report any transport-visible state
+   changes caused by a successful edit.
+7. Add explicit TODO comments in the header where broader edit commands and a
    project-owned undo/history surface are likely to land later. Do not add
    `undo()`, `redo()`, or `historyState()` yet.
 
@@ -47,7 +43,6 @@ Cover:
 - a fake implementation receives `core::TrackId`,
 - a fake implementation receives `core::AudioAsset`,
 - return values can represent success and failure,
-- `EditResult` can carry the resulting transport snapshot,
 - the test includes only public core/audio port headers, not concrete `Engine` or
   Tracktion headers.
 
@@ -60,7 +55,6 @@ missing full test run.
 ## Exit Criteria
 
 - Audio mutation is represented by `IEdit`, not `ITransport`.
-- `EditResult` owns edit outcome delivery, including the resulting transport snapshot.
 - The header contains explicit TODO comments for future edit-surface expansion and
   future project-owned undo/history integration.
 - Existing editor behavior still builds through old `Engine::loadFile(...)`.
