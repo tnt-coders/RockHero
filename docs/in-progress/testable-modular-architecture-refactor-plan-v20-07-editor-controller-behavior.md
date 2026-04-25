@@ -27,12 +27,20 @@ with fakes.
 6. Implement play/pause, stop, and waveform-click seek decisions in the controller.
 7. For load requests, validate the track id before calling
    `IEdit::setTrackAudioSource(...)`.
-8. On failed edit, preserve `core::Session` and set a controller-composed error.
-9. On successful edit, call `Session::replaceTrackAsset(...)`.
-10. If that call returns `true`, clear the error, read `transport.state()`, and push
-    the derived state. Later transport notifications may also arrive; suppress
-    duplicate view-state pushes.
-11. If that call returns `false`, treat it as an internal consistency failure: assert
+8. Mark an internal "edit in progress" state before calling `IEdit`. Natural
+   `ITransport::Listener` callbacks may arrive reentrantly during the edit call
+   before the session commit path runs.
+9. If transport callbacks arrive while an edit is in progress, do not immediately
+   push a state derived from pre-commit session data. Instead, record that a
+   refresh is pending and let the load workflow finish first.
+10. On failed edit, preserve `core::Session`, set a controller-composed error, then
+    derive and push the final state once the in-flight edit window closes.
+11. On successful edit, call `Session::replaceTrackAsset(...)`.
+12. If that call returns `true`, clear the error, read `transport.state()`, and push
+    the derived state once after the session and transport are back in sync. If a
+    deferred transport refresh is pending, satisfy it through the same final
+    derivation path instead of pushing an additional intermediate state.
+13. If that call returns `false`, treat it as an internal consistency failure: assert
     in debug builds, log an error message in release builds, preserve the existing
     session state, set `last_load_error` to a controller-composed internal error, and
     push a view state. Do not terminate the process and do not silently pretend the
@@ -54,12 +62,14 @@ Add fakes for `ITransport`, `IEdit`, and `IEditorView`. Cover:
 - invalid track load does not call `setTrackAudioSource(...)`,
 - failed load preserves session and reports a composed error,
 - successful load commits the track asset and clears the error,
-- successful load can tolerate the natural transport notification path without
-  double-pushing view state,
+- successful load tolerates reentrant transport notifications during `IEdit`
+  without pushing a stale intermediate state derived from pre-commit session data,
+- successful load produces exactly one final post-load push after session commit,
 - post-edit session commit failure reports an internal error instead of crashing or
   silently clearing the error, if that path can be reached with the available session
   API,
-- edit-caused transport state changes produce exactly one post-edit push.
+- edit-caused transport state changes do not bypass duplicate-suppression rules once
+  the in-flight edit window closes.
 
 ## Verification
 
