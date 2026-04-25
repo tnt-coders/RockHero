@@ -299,7 +299,7 @@ When implementation begins, update the canonical design docs to reflect these de
   framework-free presentation logic.
 - `architectural-principles.md`: keep the current guidance, but add the three-domain submodule
   strategy and presenter placement rule.
-- `documentation-style.md`: no architectural change needed; apply its Doxygen/comment rules to
+- `documentation-conventions.md`: no architectural change needed; apply its Doxygen/comment rules to
   any new public headers.
 
 ## Assumptions

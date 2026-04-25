@@ -9,9 +9,11 @@ TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Componen
     , m_thumbnail(engine, tracktion::AudioFile(engine), owner, nullptr)
 {}
 
-// Starts proxy generation for the selected file and caches duration for UI coordinate mapping.
-void TracktionThumbnail::setFile(const juce::File& file)
+// Translates the project-owned asset path into JUCE/Tracktion file types at the adapter boundary.
+void TracktionThumbnail::setSource(const core::AudioAsset& audio_asset)
 {
+    const auto path_text = audio_asset.path.wstring();
+    const juce::File file{juce::String{path_text.c_str()}};
     const tracktion::AudioFile audio_file(m_engine, file);
     m_total_length_seconds = audio_file.getLength();
     m_thumbnail.setNewFile(audio_file);

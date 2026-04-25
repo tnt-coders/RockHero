@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/core/audio_asset.h>
 #include <utility>
 
 namespace rock_hero::ui
@@ -17,12 +18,12 @@ WaveformDisplay::WaveformDisplay(audio::Engine& engine)
 // Relies on member destruction to release thumbnail resources before the engine reference dies.
 WaveformDisplay::~WaveformDisplay() = default;
 
-// Points the thumbnail at the engine-accepted file and repaints immediately for feedback.
+// Points the thumbnail at the engine-accepted audio asset and repaints immediately for feedback.
 // The engine publishes position 0 from loadFile(), which drives the cursor reset via the
 // listener; this method only needs to update the thumbnail source and request a repaint.
-void WaveformDisplay::setAudioFile(const juce::File& file)
+void WaveformDisplay::setAudioSource(const core::AudioAsset& audio_asset)
 {
-    m_thumbnail->setFile(file);
+    m_thumbnail->setSource(audio_asset);
     repaint();
 }
 

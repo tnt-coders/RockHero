@@ -5,13 +5,12 @@
 
 #pragma once
 
+#include <rock_hero/core/audio_asset.h>
+
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
 namespace juce
 {
-// Forward declaration for file assignment without pulling JUCE headers into this interface.
-class File;
-
 // Forward declaration for draw calls supplied by JUCE UI components.
 class Graphics;
 
@@ -26,8 +25,9 @@ namespace rock_hero::audio
 \brief Abstract audio thumbnail interface that hides Tracktion types from consumers.
 
 Exposes only JUCE-facing file and graphics types so that UI code can render audio thumbnails
-without including Tracktion headers or linking Tracktion libraries. Concrete instances are
-obtained from Engine::createThumbnail().
+without including Tracktion headers or linking Tracktion libraries. Thumbnail source assignment
+uses the project-owned core::AudioAsset value so UI code stays framework-free at the loading
+boundary. Concrete instances are obtained from Engine::createThumbnail().
 
 \see Engine
 */
@@ -38,14 +38,14 @@ public:
     virtual ~Thumbnail() = default;
 
     /*!
-    \brief Sets the audio file whose thumbnail should be displayed.
+    \brief Sets the audio asset whose thumbnail should be displayed.
 
     Begins asynchronous proxy generation. Use isGeneratingProxy() and getProxyProgress() to
     track progress.
 
-    \param file The audio file to display.
+    \param audio_asset Framework-free audio asset reference to display.
     */
-    virtual void setFile(const juce::File& file) = 0;
+    virtual void setSource(const core::AudioAsset& audio_asset) = 0;
 
     /*!
     \brief Reports whether the thumbnail proxy is still being generated.

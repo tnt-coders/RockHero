@@ -305,8 +305,8 @@ bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset&
     // TODO: Route this through a project-owned edit-history boundary once undo/redo lands.
     // The history surface should own transaction semantics instead of exposing Tracktion or JUCE
     // undo primitives through Rock Hero interfaces.
-    const auto path_text = audio_asset.path.string();
-    const juce::File file{path_text};
+    const auto path_text = audio_asset.path.wstring();
+    const juce::File file{juce::String{path_text.c_str()}};
     return loadFile(file);
 }
 
