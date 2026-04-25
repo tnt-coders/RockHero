@@ -1,4 +1,4 @@
-\page design_documentation_style Documentation Style
+\page design_documentation_conventions Documentation Conventions
 
 # Scope
 

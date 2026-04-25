@@ -87,10 +87,10 @@ Before making architectural, testing, or documentation decisions, consult these 
   how to treat time and threading, and the decision rules for new code. Consult this whenever
   placing new behavior, designing an interface, or choosing between implementation strategies.
 
-- **`docs/design/coding-style.md`** — C++ coding rules that are not fully captured by clang-format
+- **`docs/design/coding-conventions.md`** — C++ coding rules that are not fully captured by clang-format
   or clang-tidy, including const correctness, parameter passing, and value-type guardrails.
 
-- **`docs/design/documentation-style.md`** — Doxygen and comment conventions. Defines block
+- **`docs/design/documentation-conventions.md`** — Doxygen and comment conventions. Defines block
   format, required fields, backslash vs. at-sign commands, and blank-line rules. Follow this when
   writing or reviewing any documentation in public headers.
 

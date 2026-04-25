@@ -16,6 +16,12 @@ namespace rock_hero::audio
 class Thumbnail;
 } // namespace rock_hero::audio
 
+namespace rock_hero::core
+{
+// Forward declaration keeps the UI header free of unnecessary core include churn.
+struct AudioAsset;
+} // namespace rock_hero::core
+
 namespace rock_hero::ui
 {
 
@@ -56,10 +62,10 @@ public:
     WaveformDisplay& operator=(WaveformDisplay&&) = delete;
 
     /*!
-    \brief Updates the thumbnail source after a new file has been loaded.
-    \param file The audio file that was successfully loaded into the engine.
+    \brief Updates the thumbnail source after a new audio asset has been loaded.
+    \param audio_asset The framework-free audio asset accepted by the engine.
     */
-    void setAudioFile(const juce::File& file);
+    void setAudioSource(const core::AudioAsset& audio_asset);
 
     /*!
     \brief Stores the callback fired with the target position in seconds when the waveform is

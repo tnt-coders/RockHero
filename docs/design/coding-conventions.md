@@ -1,6 +1,6 @@
-\page design_coding_style Coding Style
+\page design_coding_conventions Coding Conventions
 
-# Coding Style Scope
+# Coding Conventions Scope
 
 This document defines project-owned C++ coding rules that are not fully captured by
 `.clang-format` or `.clang-tidy`.

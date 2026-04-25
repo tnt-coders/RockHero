@@ -32,8 +32,8 @@ public:
     */
     TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner);
 
-    /*! \copydoc Thumbnail::setFile */
-    void setFile(const juce::File& file) override;
+    /*! \copydoc Thumbnail::setSource */
+    void setSource(const core::AudioAsset& audio_asset) override;
 
     /*! \copydoc Thumbnail::isGeneratingProxy */
     [[nodiscard]] bool isGeneratingProxy() const override;

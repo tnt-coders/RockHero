@@ -1,6 +1,7 @@
 #include "main_window.h"
 
 #include <rock_hero/audio/engine.h>
+#include <rock_hero/core/audio_asset.h>
 #include <rock_hero/ui/transport_controls.h>
 #include <rock_hero/ui/waveform_display.h>
 
@@ -87,11 +88,15 @@ private:
                 const auto file = chooser.getResult();
                 if (file.existsAsFile())
                 {
+                    const core::AudioAsset audio_asset{
+                        std::filesystem::path{file.getFullPathName().toWideCharPointer()}
+                    };
+
                     // Only refresh the thumbnail after the engine has accepted the file.
                     // That keeps the UI from displaying a waveform for a file that failed to load.
                     if (m_audio_engine.loadFile(file))
                     {
-                        m_waveform_display.setAudioFile(file);
+                        m_waveform_display.setAudioSource(audio_asset);
                         m_transport_controls.setFileLoaded(true);
                     }
                     else
