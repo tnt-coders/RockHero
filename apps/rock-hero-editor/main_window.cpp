@@ -23,7 +23,7 @@ struct MainWindow::ContentComponent : public juce::Component,
         addAndMakeVisible(m_waveform_display);
 
         m_load_button.setButtonText("Load File...");
-        m_load_button.onClick = [this] { OnLoadClicked(); };
+        m_load_button.onClick = [this] { onLoadClicked(); };
 
         // Engine's playing-state events drive m_transport_controls.setPlaying() via
         // enginePlayingStateChanged(), so these handlers only forward the user intent.
@@ -73,7 +73,7 @@ struct MainWindow::ContentComponent : public juce::Component,
 
 private:
     // Opens an asynchronous native file chooser and loads the selected audio file into the engine.
-    void OnLoadClicked()
+    void onLoadClicked()
     {
         // Keep the chooser alive for the duration of the async native dialog.
         m_file_chooser = std::make_unique<juce::FileChooser>(
@@ -89,7 +89,7 @@ private:
                 {
                     // Only refresh the thumbnail after the engine has accepted the file.
                     // That keeps the UI from displaying a waveform for a file that failed to load.
-                    if (m_audio_engine.LoadFile(file))
+                    if (m_audio_engine.loadFile(file))
                     {
                         m_waveform_display.setAudioFile(file);
                         m_transport_controls.setFileLoaded(true);

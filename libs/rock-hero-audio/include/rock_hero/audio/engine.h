@@ -170,7 +170,7 @@ public:
     Engine();
 
     /*! \brief Stops transport and tears down Tracktion objects in dependency order. */
-    ~Engine();
+    ~Engine() override;
 
     /*! \brief Copying is disabled because Tracktion runtime state has unique ownership. */
     Engine(const Engine&) = delete;
