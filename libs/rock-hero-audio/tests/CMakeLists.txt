@@ -7,7 +7,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
                "${CMAKE_CURRENT_BINARY_DIR}/test-data/drum_loop.wav" COPYONLY)
 
 # Real-engine adapter coverage stays in a dedicated per-library test binary.
-add_executable(rock_hero_audio_tests test_edit.cpp test_engine.cpp test_transport.cpp)
+add_executable(rock_hero_audio_tests test_edit.cpp test_engine.cpp test_thumbnail_source.cpp
+                                     test_transport.cpp)
 
 # Link the concrete audio library plus Catch2's generated main entrypoint.
 target_link_libraries(rock_hero_audio_tests PRIVATE rock_hero_audio Catch2::Catch2WithMain)
