@@ -20,17 +20,17 @@ option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available"
 option(PROJECT_CONFIG_ENABLE_CLANG_TIDY "Enable clang-tidy target when run-clang-tidy is available"
        ON)
 
-# Limit clang-tidy to project-owned C/C++ files under apps/ and libs/
+# run-clang-tidy filters compile_commands entries with Python's regex engine via re.search(). Unlike
+# .clang-tidy's HeaderFilterRegex, this path can use Python regex features such as negative
+# lookahead.
 string(
     CONCAT _clang_tidy_regex
            # Reject any path containing a build/ segment (generated files)
            [=[^(?!.*[\\/]build[\\/])]=]
-           # Advance to the project source root
-           [=[.*?[\\/]]=]
-           # Must be under apps/ or libs/
-           [=[(apps|libs)[\\/]]=]
-           # C/C++ source and header files
-           [=[.*\.(c|cc|cpp|cxx|h|hpp)$]=])
+           # Match only project-owned translation units under apps/ or libs/
+           [=[.*[\\/](apps|libs)[\\/]]=]
+           # C/C++ source files only
+           [=[.*\.(c|cc|cpp|cxx)$]=])
 set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
     "${_clang_tidy_regex}"
     CACHE STRING "Limit clang-tidy to project-owned C/C++ files under apps/ and libs/" FORCE)
