@@ -37,11 +37,11 @@ private:
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
 
     // Builds the current message-thread transport snapshot from Tracktion state and cached length.
-    [[nodiscard]] TransportState MakeTransportStateSnapshot() const
+    [[nodiscard]] TransportState makeTransportStateSnapshot() const
     {
         return TransportState{
             .playing = m_edit->getTransport().isPlaying(),
-            .position = core::TimePosition{ClampToLoadedRange(
+            .position = core::TimePosition{clampToLoadedRange(
                 m_edit->getTransport().getPosition().inSeconds())},
             .duration = core::TimeDuration{m_loaded_length_seconds},
         };
@@ -49,7 +49,7 @@ private:
 
     // Applies a fresh snapshot, keeps the lock-free cache in sync, and notifies listeners only
     // for the fields that actually changed.
-    void ApplyTransportStateSnapshot(const TransportState& next_state, bool notify_listeners)
+    void applyTransportStateSnapshot(const TransportState& next_state, bool notify_listeners)
     {
         const bool playing_changed = m_transport_state.playing != next_state.playing;
         const bool position_changed = m_transport_state.position != next_state.position;
@@ -83,15 +83,15 @@ private:
     }
 
     // Rebuilds the current transport snapshot from Tracktion state and publishes it.
-    void RefreshTransportState(bool notify_listeners)
+    void refreshTransportState(bool notify_listeners)
     {
-        ApplyTransportStateSnapshot(MakeTransportStateSnapshot(), notify_listeners);
+        applyTransportStateSnapshot(makeTransportStateSnapshot(), notify_listeners);
     }
 
     // Mirrors Tracktion transport change broadcasts into the project-owned state snapshot.
     void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
     {
-        RefreshTransportState(true);
+        refreshTransportState(true);
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. React to that
@@ -105,17 +105,17 @@ private:
         }
 
         const double raw_position_seconds = m_edit->getTransport().getPosition().inSeconds();
-        if (ShouldStopAtLoadedEnd(raw_position_seconds))
+        if (shouldStopAtLoadedEnd(raw_position_seconds))
         {
-            StopAndReturnToStart();
+            stopAndReturnToStart();
             return;
         }
 
-        RefreshTransportState(true);
+        refreshTransportState(true);
     }
 
     // Keeps externally requested positions inside the current loaded file duration.
-    [[nodiscard]] double ClampToLoadedRange(double seconds) const noexcept
+    [[nodiscard]] double clampToLoadedRange(double seconds) const noexcept
     {
         if (m_loaded_length_seconds <= 0.0)
         {
@@ -126,7 +126,7 @@ private:
     }
 
     // Detects the moment Tracktion playback has reached or passed the loaded clip duration.
-    [[nodiscard]] bool ShouldStopAtLoadedEnd(double raw_position_seconds) const
+    [[nodiscard]] bool shouldStopAtLoadedEnd(double raw_position_seconds) const
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
                raw_position_seconds >= m_loaded_length_seconds;
@@ -135,7 +135,7 @@ private:
     // Applies Stop-button semantics programmatically when playback reaches the loaded file end.
     // Tracktion's ChangeBroadcaster and ValueTree listeners propagate these mutations back
     // through our own callbacks; no manual listener firing needed.
-    void StopAndReturnToStart()
+    void stopAndReturnToStart()
     {
         auto& transport = m_edit->getTransport();
         transport.stop(false, false);
@@ -164,7 +164,7 @@ Engine::Engine()
     m_impl->m_edit->getTransport().state.addListener(m_impl.get());
 
     // Seeds the project-owned snapshot from the freshly created empty edit.
-    m_impl->RefreshTransportState(false);
+    m_impl->refreshTransportState(false);
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
@@ -239,7 +239,7 @@ bool Engine::loadFile(const juce::File& file)
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
     if (clip == nullptr)
     {
-        m_impl->RefreshTransportState(true);
+        m_impl->refreshTransportState(true);
         return false;
     }
 
@@ -248,7 +248,7 @@ bool Engine::loadFile(const juce::File& file)
     auto& transport = m_impl->m_edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
-    m_impl->RefreshTransportState(true);
+    m_impl->refreshTransportState(true);
     return true;
 }
 
@@ -263,14 +263,14 @@ void Engine::play()
     }
 
     transport.play(false);
-    m_impl->RefreshTransportState(true);
+    m_impl->refreshTransportState(true);
 }
 
 // Stops playback and resets both Tracktion and cached transport positions to the start.
 void Engine::stop()
 {
-    m_impl->StopAndReturnToStart();
-    m_impl->RefreshTransportState(true);
+    m_impl->stopAndReturnToStart();
+    m_impl->refreshTransportState(true);
 }
 
 // Pauses playback without resetting position so the user can resume from the same point.
@@ -279,16 +279,16 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->RefreshTransportState(true);
+    m_impl->refreshTransportState(true);
 }
 
 // Moves Tracktion transport to the requested timeline position and publishes the new snapshot.
 void Engine::seek(core::TimePosition position)
 {
-    const double clamped_seconds = m_impl->ClampToLoadedRange(position.seconds);
+    const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
-    m_impl->RefreshTransportState(true);
+    m_impl->refreshTransportState(true);
 }
 
 // Returns the project-owned message-thread snapshot used by ITransport and edit call sites.
