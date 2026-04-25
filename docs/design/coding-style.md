@@ -17,6 +17,21 @@ These rules do not apply to:
 - generated files
 - vendored third-party content
 
+# Naming Conventions
+
+Naming is enforced by `.clang-tidy` and should be treated as the source of truth for linted code.
+
+The project naming conventions are:
+
+- types and scoped enum values use `CamelCase`
+- functions and methods use `camelCase`
+- namespaces, local variables, and parameters use `lower_case`
+- private and protected member fields use `m_lower_case`
+- macros and classic enum values use `UPPER_CASE`
+
+The underlying `readability-identifier-naming` checker uses the value name `camelBack` for
+function and method identifiers. In project documentation, refer to that style as `camelCase`.
+
 # Const Correctness
 
 Use `const` wherever practical by default.

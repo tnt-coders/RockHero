@@ -20,7 +20,7 @@ option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available"
 option(PROJECT_CONFIG_ENABLE_CLANG_TIDY "Enable clang-tidy target when run-clang-tidy is available"
        ON)
 
-# Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/
+# Limit clang-tidy to project-owned C/C++ files under apps/ and libs/
 string(
     CONCAT _clang_tidy_regex
            # Reject any path containing a build/ segment (generated files)
@@ -29,11 +29,11 @@ string(
            [=[.*?[\\/]]=]
            # Must be under apps/ or libs/
            [=[(apps|libs)[\\/]]=]
-           # C/C++ source files only
-           [=[.*\.(c|cc|cpp|cxx)$]=])
+           # C/C++ source and header files
+           [=[.*\.(c|cc|cpp|cxx|h|hpp)$]=])
 set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
     "${_clang_tidy_regex}"
-    CACHE STRING "Limit clang-tidy to project-owned C/C++ sources under apps/ and libs/" FORCE)
+    CACHE STRING "Limit clang-tidy to project-owned C/C++ files under apps/ and libs/" FORCE)
 
 add_subdirectory(project-config)
 
