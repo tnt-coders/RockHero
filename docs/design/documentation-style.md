@@ -26,6 +26,45 @@ These rules do not apply to:
 - Preserve intentional blank lines between comment paragraphs or sections.
 - Normal non-Doxygen comments follow the same 100-character limit.
 
+# CMake Comment Coverage
+
+Project-owned CMake files should be well commented.
+
+This applies to:
+
+- root `CMakeLists.txt`
+- module `CMakeLists.txt`
+- test `CMakeLists.txt`
+- project-owned `.cmake` helper files
+
+Comments in CMake should explain:
+
+- target purpose
+- why a dependency is public or private when that is not obvious
+- why a compile definition, wrapper target, generated file, or packaging step exists
+- any non-obvious build-system constraint, policy, or workaround
+
+Do not add mechanical comments that merely restate the command name. Prefer short comments that
+explain intent and architectural role.
+
+Examples:
+
+\code{.cmake}
+# Depend on project-owned wrapper targets rather than raw JUCE/Tracktion module targets.
+target_link_libraries(
+    rock_hero_audio
+    PUBLIC rock_hero_core
+    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+\endcode
+
+\code{.cmake}
+# Copy the canonical fixture into the build tree so the test target owns its runtime inputs.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
+    "${CMAKE_CURRENT_BINARY_DIR}/test-data/drum_loop.wav"
+    COPYONLY)
+\endcode
+
 # Doxygen Scope
 
 - Document all project-owned headers with Doxygen.

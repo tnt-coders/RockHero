@@ -7,7 +7,7 @@ namespace rock_hero::core
 {
 
 // Verifies that new tracks receive stable nonzero identities.
-TEST_CASE("Adding a track creates a stable nonzero TrackId", "[session]")
+TEST_CASE("Adding a track creates a stable nonzero TrackId", "[core][session]")
 {
     Session session;
 
@@ -22,7 +22,7 @@ TEST_CASE("Adding a track creates a stable nonzero TrackId", "[session]")
 }
 
 // Verifies that a row can exist before the user has assigned any audio file.
-TEST_CASE("Adding an empty track is valid", "[session]")
+TEST_CASE("Adding an empty track is valid", "[core][session]")
 {
     Session session;
 
@@ -37,7 +37,7 @@ TEST_CASE("Adding an empty track is valid", "[session]")
 }
 
 // Verifies that session row projections can preserve the order chosen by the editor.
-TEST_CASE("Tracks preserve insertion order", "[session]")
+TEST_CASE("Tracks preserve insertion order", "[core][session]")
 {
     Session session;
 
@@ -52,7 +52,7 @@ TEST_CASE("Tracks preserve insertion order", "[session]")
 }
 
 // Verifies replacing one track asset does not disturb neighboring track data.
-TEST_CASE("Replacing a track asset updates only that track", "[session]")
+TEST_CASE("Replacing a track asset updates only that track", "[core][session]")
 {
     Session session;
     const auto first_id =
@@ -69,7 +69,7 @@ TEST_CASE("Replacing a track asset updates only that track", "[session]")
 }
 
 // Verifies missing-track replacement remains recoverable for controller error handling.
-TEST_CASE("Replacing a missing track asset fails cleanly", "[session]")
+TEST_CASE("Replacing a missing track asset fails cleanly", "[core][session]")
 {
     Session session;
     const auto existing_id =
