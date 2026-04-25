@@ -32,9 +32,9 @@ static_assert(std::derived_from<Engine, IEdit>);
 // contract tests can assert on externally visible behavior.
 enum class TemporaryAnalysisEvent
 {
-    engine_playing,
-    engine_position,
-    transport_state,
+    EnginePlaying,
+    EnginePosition,
+    TransportState,
 };
 
 // Records callback activity from both listener surfaces.
@@ -43,21 +43,21 @@ class TemporaryAnalysisRecorder final : public Engine::Listener, public ITranspo
 public:
     void enginePlayingStateChanged(bool playing) override
     {
-        events.push_back(TemporaryAnalysisEvent::engine_playing);
+        events.push_back(TemporaryAnalysisEvent::EnginePlaying);
         last_playing = playing;
         ++engine_playing_call_count;
     }
 
     void engineTransportPositionChanged(double seconds) override
     {
-        events.push_back(TemporaryAnalysisEvent::engine_position);
+        events.push_back(TemporaryAnalysisEvent::EnginePosition);
         last_position_seconds = seconds;
         ++engine_position_call_count;
     }
 
     void onTransportStateChanged(const TransportState& state) override
     {
-        events.push_back(TemporaryAnalysisEvent::transport_state);
+        events.push_back(TemporaryAnalysisEvent::TransportState);
         last_transport_state = state;
         ++transport_state_call_count;
     }
@@ -76,8 +76,8 @@ public:
 // Verifies the concrete engine starts with an empty transport snapshot through ITransport.
 TEST_CASE("Engine starts with an empty transport state", "[audio][engine][integration]")
 {
-    Engine engine;
-    ITransport& transport = engine;
+    Engine const engine;
+    ITransport const& transport = engine;
 
     const auto current_state = transport.state();
 
@@ -91,7 +91,7 @@ TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integratio
 {
     Engine engine;
     IEdit& edit = engine;
-    ITransport& transport = engine;
+    ITransport const& transport = engine;
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
@@ -112,7 +112,7 @@ TEST_CASE(
 {
     Engine engine;
     IEdit& edit = engine;
-    ITransport& transport = engine;
+    ITransport const& transport = engine;
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
