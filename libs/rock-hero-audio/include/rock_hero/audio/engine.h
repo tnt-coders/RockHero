@@ -6,6 +6,8 @@
 #pragma once
 
 #include <memory>
+#include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_transport.h>
 
 namespace juce
 {
@@ -90,7 +92,7 @@ All public methods except getTransportPosition() must be called on the message t
 \see rock_hero::MainWindow
 \see rock_hero::ui::WaveformDisplay
 */
-class Engine
+class Engine : public ITransport, public IEdit
 {
 public:
     /*!
@@ -214,10 +216,10 @@ public:
     bool loadFile(const juce::File& file);
 
     /*! \brief Starts transport playback. */
-    void play();
+    void play() override;
 
     /*! \brief Stops transport playback and resets the position to the beginning. */
-    void stop();
+    void stop() override;
 
     /*!
     \brief Pauses transport playback, preserving the current position.
@@ -225,7 +227,44 @@ public:
     Use this when the user wants to resume from the same point. Contrast with stop(), which
     resets the position to the beginning.
     */
-    void pause();
+    void pause() override;
+
+    /*!
+    \brief Moves the transport to the given timeline position.
+    \param position Target playback position on the session timeline.
+    */
+    void seek(core::TimePosition position) override;
+
+    /*!
+    \brief Returns the current transport snapshot.
+    \return Current message-thread snapshot of playing state, position, and duration.
+    */
+    [[nodiscard]] TransportState state() const override;
+
+    /*!
+    \brief Registers a project-owned transport listener.
+    \param listener The listener to notify until it is removed.
+    */
+    void addListener(ITransport::Listener& listener) override;
+
+    /*!
+    \brief Removes a previously registered project-owned transport listener.
+    \param listener The same listener previously registered with addListener().
+    */
+    void removeListener(ITransport::Listener& listener) override;
+
+    /*!
+    \brief Applies a framework-free audio asset to the current single-track playback edit.
+
+    This is the first concrete implementation of audio::IEdit. It adapts the existing single-file
+    playback path and therefore still applies only one backing-track source at a time.
+
+    \param track_id Track whose source should be updated.
+    \param audio_asset Framework-free asset reference selected for the track.
+    \return Result of the edit attempt, including the post-edit transport snapshot.
+    */
+    EditResult setTrackAudioSource(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override;
 
     /*!
     \brief Seeks the transport to the given position in seconds.
