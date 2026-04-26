@@ -14,6 +14,7 @@
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
 #include <rock_hero/ui/track_view_state.h>
+#include <rock_hero/ui/transport_controls_state.h>
 #include <utility>
 #include <vector>
 
@@ -273,6 +274,27 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
     CHECK(track_state == same_track_state);
     CHECK(first_state == same_state);
     CHECK_FALSE(first_state == different_state);
+}
+
+// Verifies the transport-controls state stays a small framework-free value type.
+TEST_CASE("TransportControlsState stores simple transport UI flags", "[ui][editor-controller]")
+{
+    const TransportControlsState default_state{};
+    const TransportControlsState pause_state{
+        .play_pause_enabled = true,
+        .stop_enabled = true,
+        .play_pause_shows_pause_icon = true,
+    };
+    const TransportControlsState same_pause_state{
+        .play_pause_enabled = true,
+        .stop_enabled = true,
+        .play_pause_shows_pause_icon = true,
+    };
+
+    CHECK(default_state.play_pause_enabled == false);
+    CHECK(default_state.stop_enabled == false);
+    CHECK(default_state.play_pause_shows_pause_icon == false);
+    CHECK(pause_state == same_pause_state);
 }
 
 // Verifies a fake view can receive framework-free editor state without JUCE initialization.

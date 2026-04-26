@@ -2,8 +2,9 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
-# Headless contract and controller-behavior tests for the framework-free UI layer.
-add_executable(rock_hero_ui_tests test_editor_controller.cpp test_track_view.cpp)
+# Headless contract, controller-behavior, and narrow widget tests for the UI layer.
+add_executable(rock_hero_ui_tests test_editor_controller.cpp test_track_view.cpp
+                                  test_transport_controls.cpp)
 
 # Link the concrete UI library so tests inherit its public headers and transitive dependencies.
 target_link_libraries(rock_hero_ui_tests PRIVATE rock_hero_ui Catch2::Catch2WithMain)
