@@ -42,8 +42,8 @@ removes them.
    [v20-06](testable-modular-architecture-refactor-plan-v20-06-editor-controller-contracts.md)
 7. Editor Controller Behavior:
    [v20-07](testable-modular-architecture-refactor-plan-v20-07-editor-controller-behavior.md)
-8. Waveform Row Component:
-   [v20-08](testable-modular-architecture-refactor-plan-v20-08-waveform-row-component.md)
+8. Track View:
+   [v20-08](testable-modular-architecture-refactor-plan-v20-08-track-view.md)
 9. Transport Controls State:
    [v20-09](testable-modular-architecture-refactor-plan-v20-09-transport-controls-state.md)
 10. Editor View Extraction:

@@ -41,7 +41,63 @@ position callbacks.
 
 ## Relevant Commits
 
-### Likely start of regression window
+### CI observation from later investigation
+
+#### `ed9139f` - `Remove cursor_proportion (no longer needed in updated design)`
+
+Date: April 25, 2026
+
+Observed status:
+
+- macOS build reportedly succeeded at this commit
+
+Why it matters:
+
+- This provides a concrete "known good" point later in history than the earlier broad regression
+  guess.
+- This commit changes plan docs, `EditorViewState`, and the headless UI controller test. It does
+  not touch `rock-hero-audio`.
+
+#### `fe2ee4d` - `Fixed clang-tidy issues`
+
+Date: April 25, 2026
+
+Observed status:
+
+- macOS build reportedly started failing at this commit
+
+Why it matters:
+
+- This is a very tight commit-to-commit transition after `ed9139f`.
+- However, the diff only changes `libs/rock-hero-ui/tests/test_editor_controller.cpp`.
+- It does **not** touch `libs/rock-hero-audio/src/engine.cpp`,
+  `libs/rock-hero-audio/tests/test_engine.cpp`, or the concrete Tracktion transport code path.
+
+Implication:
+
+- If the macOS audio seek crash really first appears at `fe2ee4d`, then the failure may be:
+  - caused by a factor other than the committed audio code in that exact diff,
+  - a latent or nondeterministic failure that was merely first observed there,
+  - or a CI attribution/bisect issue that needs re-checking.
+
+#### `3fa844d` - `Fixed linter issues on macOs`
+
+Date: April 26, 2026
+
+Observed status:
+
+- latest commit reportedly works again
+
+Why it matters:
+
+- This makes the issue look non-monotonic rather than like a clean regression introduced by
+  `fe2ee4d`.
+- That increases the likelihood of:
+  - a flaky or timing-sensitive runtime bug,
+  - CI or environment variation on macOS,
+  - or a latent defect whose visibility depends on build shape or scheduling.
+
+### Earlier code changes that still warrant comparison
 
 #### `134d6a5` - `Replace transport polling with event-driven Engine subscriptions`
 
