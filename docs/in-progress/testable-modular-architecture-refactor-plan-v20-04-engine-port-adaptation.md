@@ -22,8 +22,10 @@ keeping legacy methods alive for existing UI code.
    path.
 5. Ensure a failed edit preserves existing audio content and returns `false`.
 6. Ensure a successful edit updates internal transport state synchronously.
-7. Let transport listeners naturally report any resulting transport-visible state
-   changes instead of adding special suppression or edit-result transport plumbing.
+7. Let transport listeners naturally report any resulting coarse transport state
+   changes instead of adding special suppression or edit-result transport
+   plumbing. Position remains visible through `state()` for later pull-driven
+   view code, but the project-owned listener surface should stay coarse.
 8. Keep old public methods such as `loadFile(...)`, `isPlaying()`, and
    `getTransportPosition()` until UI migration stages no longer need them.
 9. Add explicit TODO comments in the engine adapter near the most likely future
