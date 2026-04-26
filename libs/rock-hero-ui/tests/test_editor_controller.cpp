@@ -1,10 +1,21 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <functional>
 #include <optional>
-#include <rock_hero/ui/editor/editor_view_state.h>
-#include <rock_hero/ui/editor/i_editor_controller.h>
-#include <rock_hero/ui/editor/i_editor_view.h>
-#include <rock_hero/ui/editor/track_view_state.h>
+#include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/audio/transport_state.h>
+#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/session.h>
+#include <rock_hero/core/timeline.h>
+#include <rock_hero/core/track.h>
+#include <rock_hero/ui/editor_controller.h>
+#include <rock_hero/ui/editor_view_state.h>
+#include <rock_hero/ui/i_editor_controller.h>
+#include <rock_hero/ui/i_editor_view.h>
+#include <rock_hero/ui/track_view_state.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::ui
 {
@@ -81,6 +92,99 @@ public:
 
     // Number of waveform click requests received.
     int waveform_click_count{0};
+};
+
+// Records control intents and exposes a manual notification hook so controller tests can drive
+// coarse transition-shaped callbacks deterministically.
+class FakeTransport final : public audio::ITransport
+{
+public:
+    void play() override
+    {
+        ++play_call_count;
+    }
+
+    void pause() override
+    {
+        ++pause_call_count;
+    }
+
+    void stop() override
+    {
+        ++stop_call_count;
+    }
+
+    // Records the requested seek so tests can verify clamping and duration scaling.
+    void seek(core::TimePosition position) override
+    {
+        last_seek_position = position;
+        ++seek_call_count;
+    }
+
+    [[nodiscard]] audio::TransportState state() const override
+    {
+        return current_state;
+    }
+
+    void addListener(Listener& listener) override
+    {
+        listeners.push_back(&listener);
+    }
+
+    void removeListener(Listener& listener) override
+    {
+        std::erase(listeners, &listener);
+    }
+
+    // Updates the snapshot and fires a coarse listener callback to mimic a real coarse transition.
+    void setStateAndNotify(const audio::TransportState& new_state)
+    {
+        current_state = new_state;
+        for (Listener* listener : listeners)
+        {
+            listener->onTransportStateChanged(current_state);
+        }
+    }
+
+    // Updates the snapshot without notifying so tests can assert the controller does not poll.
+    void setStateSilently(const audio::TransportState& new_state)
+    {
+        current_state = new_state;
+    }
+
+    audio::TransportState current_state{};
+    std::vector<Listener*> listeners{};
+    std::optional<core::TimePosition> last_seek_position{};
+    int play_call_count{0};
+    int pause_call_count{0};
+    int stop_call_count{0};
+    int seek_call_count{0};
+};
+
+// Configurable IEdit fake that records calls and can simulate reentrant transport notifications
+// arriving while an edit is mid-flight.
+class FakeEdit final : public audio::IEdit
+{
+public:
+    // Returns the configured next_result and optionally fires an injected reentrant action
+    // before returning so reentrancy paths can be exercised deterministically.
+    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    {
+        last_track_id = track_id;
+        last_audio_asset = audio_asset;
+        ++set_track_audio_source_call_count;
+        if (during_edit_action)
+        {
+            during_edit_action();
+        }
+        return next_result;
+    }
+
+    bool next_result{true};
+    int set_track_audio_source_call_count{0};
+    std::optional<core::TrackId> last_track_id{};
+    std::optional<core::AudioAsset> last_audio_asset{};
+    std::function<void()> during_edit_action{};
 };
 
 } // namespace
@@ -213,6 +317,318 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
     CHECK(controller.last_normalized_x == std::optional<double>{0.75});
+}
+
+// Confirms attachView immediately delivers the controller's cached state so the view never
+// renders against a stale or default snapshot before the first transition arrives.
+TEST_CASE("EditorController pushes derived state on view attachment", "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", std::nullopt);
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+
+    controller.attachView(view);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == 1);
+    CHECK(view.last_state->load_button_enabled == true);
+    CHECK(view.last_state->play_pause_enabled == false);
+    CHECK(view.last_state->stop_enabled == false);
+    CHECK(view.last_state->play_pause_shows_pause_icon == false);
+    REQUIRE(view.last_state->tracks.size() == 1);
+    CHECK(view.last_state->tracks.front().display_name == "Full Mix");
+    CHECK_FALSE(view.last_state->last_load_error.has_value());
+}
+
+// Verifies the controller does not poll transport state independently; only listener callbacks
+// drive view pushes, so position-only changes never reach the view.
+TEST_CASE("EditorController does not push without a transport callback", "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.setStateSilently(
+        audio::TransportState{
+            .playing = false,
+            .position = core::TimePosition{1.5},
+            .duration = core::TimeDuration{4.0},
+        });
+
+    CHECK(view.set_state_call_count == 1);
+}
+
+// Each coarse transport transition produces exactly one fresh push so the view stays current
+// without an extra duplicate-suppression layer in the controller.
+TEST_CASE("EditorController pushes one state per coarse transition", "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = true,
+            .position = core::TimePosition{0.0},
+            .duration = core::TimeDuration{4.0},
+        });
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == 2);
+    CHECK(view.last_state->play_pause_shows_pause_icon == true);
+    CHECK(view.last_state->stop_enabled == true);
+
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = false,
+            .position = core::TimePosition{2.0},
+            .duration = core::TimeDuration{4.0},
+        });
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == 3);
+    CHECK(view.last_state->play_pause_shows_pause_icon == false);
+    CHECK(view.last_state->stop_enabled == false);
+}
+
+// Play intent issues play() when stopped and pause() when playing, mirroring the toggle the view
+// would render through play_pause_shows_pause_icon.
+TEST_CASE(
+    "EditorController play intent toggles transport when a track has audio",
+    "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+
+    controller.onPlayPausePressed();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 0);
+
+    transport.current_state.playing = true;
+    controller.onPlayPausePressed();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 1);
+}
+
+// Without a track that owns an audio asset there is nothing to play, so the intent must be a
+// no-op rather than start a silent transport.
+TEST_CASE(
+    "EditorController play intent is ignored when no track has an asset", "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", std::nullopt);
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+
+    controller.onPlayPausePressed();
+
+    CHECK(transport.play_call_count == 0);
+    CHECK(transport.pause_call_count == 0);
+}
+
+// The stop intent must respect the same gate the view publishes, so a stopped transport stays
+// stopped even when an alternate input path tries to fire a stop.
+TEST_CASE(
+    "EditorController stop intent fires only while transport is playing", "[ui][editor-controller]")
+{
+    core::Session session;
+    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 0);
+
+    transport.current_state.playing = true;
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 1);
+}
+
+// Waveform clicks clamp out-of-range input and convert normalized positions through the current
+// transport duration so the seek target stays inside loaded content.
+TEST_CASE(
+    "EditorController waveform click clamps and scales by duration", "[ui][editor-controller]")
+{
+    core::Session session;
+    FakeTransport transport;
+    transport.current_state.duration = core::TimeDuration{4.0};
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+
+    controller.onWaveformClicked(0.5);
+    REQUIRE(transport.last_seek_position.has_value());
+    CHECK(transport.last_seek_position->seconds == 2.0);
+
+    controller.onWaveformClicked(-0.25);
+    REQUIRE(transport.last_seek_position.has_value());
+    CHECK(transport.last_seek_position->seconds == 0.0);
+
+    controller.onWaveformClicked(1.5);
+    REQUIRE(transport.last_seek_position.has_value());
+    CHECK(transport.last_seek_position->seconds == 4.0);
+}
+
+// Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback
+// for content the session has no record of.
+TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][editor-controller]")
+{
+    core::Session session;
+    const core::TrackId valid_id = session.addTrack("Full Mix", std::nullopt);
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const core::TrackId unknown_id{valid_id.value + 999};
+    controller.onLoadAudioAssetRequested(
+        unknown_id, core::AudioAsset{std::filesystem::path{"b.wav"}});
+
+    CHECK(edit.set_track_audio_source_call_count == 0);
+    CHECK(view.set_state_call_count == 1);
+}
+
+// A failed IEdit call must leave the session unchanged and surface a controller-composed error
+// message that includes the rejected file path.
+TEST_CASE(
+    "EditorController failed load preserves session and reports error", "[ui][editor-controller]")
+{
+    core::Session session;
+    const core::TrackId track_id =
+        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    edit.next_result = false;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const core::AudioAsset replacement{std::filesystem::path{"new.wav"}};
+    controller.onLoadAudioAssetRequested(track_id, replacement);
+
+    REQUIRE(session.findTrack(track_id) != nullptr);
+    CHECK(
+        session.findTrack(track_id)->audio_asset ==
+        std::optional<core::AudioAsset>{core::AudioAsset{std::filesystem::path{"old.wav"}}});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    CHECK(view.last_state->last_load_error->find("new.wav") != std::string::npos);
+}
+
+// A successful IEdit call commits the asset to the session, clears any prior error, and emits
+// a single post-load push.
+TEST_CASE(
+    "EditorController successful load commits asset and clears error", "[ui][editor-controller]")
+{
+    core::Session session;
+    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    // Force an initial error so the success path has something to clear.
+    edit.next_result = false;
+    controller.onLoadAudioAssetRequested(
+        track_id, core::AudioAsset{std::filesystem::path{"first.wav"}});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    const int pushes_before_success = view.set_state_call_count;
+
+    edit.next_result = true;
+    const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
+    controller.onLoadAudioAssetRequested(track_id, replacement);
+
+    REQUIRE(session.findTrack(track_id) != nullptr);
+    CHECK(session.findTrack(track_id)->audio_asset == std::optional<core::AudioAsset>{replacement});
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->last_load_error.has_value());
+    CHECK(view.set_state_call_count == pushes_before_success + 1);
+}
+
+// Reentrant transport notifications during an in-flight edit must be coalesced into a single
+// final push so the view never observes a state derived from pre-commit session data.
+TEST_CASE(
+    "EditorController coalesces reentrant edit callbacks into one push", "[ui][editor-controller]")
+{
+    core::Session session;
+    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+    const int pushes_before_load = view.set_state_call_count;
+
+    edit.during_edit_action = [&] {
+        transport.setStateAndNotify(
+            audio::TransportState{
+                .playing = true,
+                .position = core::TimePosition{0.0},
+                .duration = core::TimeDuration{4.0},
+            });
+    };
+
+    const core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
+    controller.onLoadAudioAssetRequested(track_id, replacement);
+
+    CHECK(view.set_state_call_count == pushes_before_load + 1);
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->tracks.size() == 1);
+    CHECK(
+        view.last_state->tracks.front().audio_asset ==
+        std::optional<core::AudioAsset>{replacement});
+    CHECK(view.last_state->play_pause_shows_pause_icon == true);
+}
+
+// Coarse transport transitions that arrive after a failed load must preserve the existing error;
+// nothing in the controller's listener path should silently clear load-error state.
+TEST_CASE(
+    "EditorController preserves load error across later transitions", "[ui][editor-controller]")
+{
+    core::Session session;
+    const core::TrackId track_id =
+        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
+    FakeTransport transport;
+    FakeEdit edit;
+    edit.next_result = false;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+    controller.onLoadAudioAssetRequested(
+        track_id, core::AudioAsset{std::filesystem::path{"new.wav"}});
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    const std::string original_error = *view.last_state->last_load_error;
+
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = true,
+            .position = core::TimePosition{0.0},
+            .duration = core::TimeDuration{4.0},
+        });
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    CHECK(*view.last_state->last_load_error == original_error);
 }
 
 } // namespace rock_hero::ui

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/ui/editor/editor_view_state.h>
+#include <rock_hero/ui/editor_view_state.h>
 
 namespace rock_hero::ui
 {
