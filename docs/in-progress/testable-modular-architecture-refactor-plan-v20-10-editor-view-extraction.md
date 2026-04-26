@@ -3,11 +3,10 @@
 ## Goal
 
 Move the editor component tree out of `MainWindow::ContentComponent` and into
-`rock_hero::ui::EditorView`.
-
-Do this without reopening the completed controller/state stages. `EditorViewState`
-and its `cursor_proportion` field remain in place for v20, but live cursor animation
-must not depend on pushing a full `EditorViewState` every frame.
+`rock_hero::ui::EditorView`. Add the editor-wide playhead cursor overlay that
+sources transport position via a vsync-rate pull from `audio::ITransport`,
+independent of `IEditorView::setState` (see stage 06's Cursor Architecture
+note).
 
 ## Expected Files
 
@@ -33,19 +32,28 @@ must not depend on pushing a full `EditorViewState` every frame.
 8. Convert `juce::File` to `core::AudioAsset` only in the file chooser callback.
 9. Source the load target from `EditorViewState.tracks.front().track_id`.
 10. Disable load when `EditorViewState.tracks` is empty.
-11. Add one editor-wide playhead cursor overlay component across the waveform row
-    area. Individual rows draw only their own waveform content; they do not draw
-    synchronized per-row cursors.
-12. Use `EditorViewState.cursor_proportion` only as coarse snapshot state for the
-    cursor overlay, such as initial placement and transport jumps after load, seek,
-    stop, or other discrete state changes.
-13. Do not design `EditorView` so smooth cursor motion requires a full
-    `IEditorView::setState(...)` call on every animation frame.
-14. If a minimal smooth-motion path is practical in this stage, keep it local to the
-    cursor overlay through a pull-based UI cadence and a narrow transport read path.
-    If that is not practical yet, leave explicit TODO comments that the overlay is a
-    structural split preparing for a later smooth-motion implementation.
-15. Present `last_load_error` on an edge using
+11. Add one editor-wide playhead cursor overlay component across the waveform
+    row area. Individual rows draw only their own waveform content; they do not
+    draw synchronized per-row cursors.
+12. The cursor overlay receives a non-owning `audio::ITransport&` (or a narrower
+    project-owned position-reader interface if one is introduced for testing
+    convenience) through its constructor. `EditorView` wires the production
+    transport in at composition time; tests construct the overlay against a
+    fake.
+13. The cursor overlay runs a `juce::VBlankAttachment` (preferred) or a 60 Hz
+    `juce::Timer` whose callback reads `transport.state().position` and
+    `transport.state().duration`, computes the current cursor x, and triggers a
+    repaint of only the narrow strip covering the previous and current cursor
+    positions. The static waveform underneath stays in `TrackWaveformRow` and is
+    not invalidated by cursor motion.
+14. The cursor overlay is fully independent of `IEditorView::setState`. It does
+    not read from `EditorViewState`, does not register with the controller, and
+    does not depend on transport listeners. Cursor motion is sourced solely from
+    the vsync pull described above.
+15. Discrete cursor jumps (after seek, stop, load) require no special handling
+    in the overlay because the next vsync tick reads the new transport position
+    naturally.
+16. Present `last_load_error` on an edge using
     `std::optional<std::string> m_last_presented_error`.
 
 ## Tests
@@ -58,10 +66,17 @@ fake `IEditorController` and fake `audio::Thumbnail`.
 - load intent uses `EditorViewState.tracks.front().track_id`,
 - same load error is not presented twice,
 - `ThumbnailCreator` is invoked exactly once during construction,
-- created thumbnail is installed on the initial row before the constructor returns,
+- created thumbnail is installed on the initial row before the constructor
+  returns,
 - a single cursor overlay is owned by `EditorView`, not by individual rows,
-- applying `setState(...)` updates the overlay's coarse cursor state without
-  requiring cursor ownership in the waveform rows.
+- the cursor overlay reads its position from the injected transport, not from
+  `EditorViewState`, and a `setState(...)` push that does not change transport
+  state does not move the cursor,
+- ticking the overlay's vsync callback against a fake transport with a known
+  position computes the expected cursor x and invalidates only the narrow strip
+  around it (verifiable through a stub repaint sink if the JUCE test harness
+  permits, otherwise extract the cursor-x computation into a tiny helper and
+  test that in isolation).
 
 If file chooser behavior cannot be automated cleanly, isolate and test the path from
 an already selected file/asset to controller intent. Do not rely only on manual GUI
@@ -75,10 +90,11 @@ test setup supports them.
 ## Exit Criteria
 
 - `EditorView` emits user intents through `IEditorController`.
-- `EditorView` renders only `EditorViewState`.
+- `EditorView` renders `EditorViewState` for transition-shaped state and reads
+  transport via the injected `audio::ITransport` for cursor motion.
 - `EditorView` owns the single playhead cursor overlay across all waveform rows.
-- Smooth cursor motion is structurally separated from row rendering, even if the
-  first extracted overlay still uses coarse snapshot updates.
+- The cursor overlay sources motion via a vsync-rate pull from `ITransport` and
+  is not driven by `IEditorView::setState`.
 - `EditorView` does not include or own concrete `audio::Engine`.
 - `ThumbnailCreator` is consumed during construction and not retained.
 

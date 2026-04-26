@@ -6,22 +6,25 @@ This v20 series breaks
 `testable-modular-architecture-refactor-plan-revised-v19.md` into commit-sized
 implementation stages.
 
-One v19 decision is intentionally superseded here: the audio-mutation boundary is
-now `audio::IEdit`, not `audio::IPlaybackContent`. `ITransport` remains the live
-playback boundary. Undo/redo implementation remains out of scope for v20, but the
-new `IEdit` stages should leave explicit TODO comments in the likely future
-integration points for project-owned history and broader Tracktion edit commands.
+Two v19 decisions are intentionally superseded here:
 
-Each stage should be implemented, reviewed, tested, and committed before moving to
-the next stage. Keep compatibility shims until the stage that explicitly removes
-them.
+- The audio-mutation boundary is now `audio::IEdit`, not
+  `audio::IPlaybackContent`. `ITransport` remains the live playback boundary.
+  Undo/redo implementation remains out of scope for v20, but the new `IEdit`
+  stages should leave explicit TODO comments in the likely future integration
+  points for project-owned history and broader Tracktion edit commands.
+- `EditorViewState` no longer carries `double cursor_proportion`. The editor's
+  playhead cursor is sourced by an editor-wide overlay component (introduced in
+  stage 10) via a vsync-rate pull from `audio::ITransport`. The state channel
+  carries discrete transition-shaped data only; the controller subscribes only
+  to transition-shaped fields of `TransportState` (ignoring `position`), so
+  every push corresponds to a real change and no duplicate-suppression layer is
+  needed. See stage 06 for the Cursor Architecture rationale and stage 10 for
+  the overlay implementation.
 
-Cursor-smoothness concerns discovered after the earlier controller/state stages do
-not require reopening completed stages. Treat those concerns as forward-only
-constraints on stage 08 and later: keep the existing `EditorViewState` and
-`cursor_proportion` contract for coarse snapshot correctness, but avoid coupling the
-remaining waveform/view extraction work to full-state pushes for every animation
-frame.
+Each stage should be implemented, reviewed, tested, and committed before moving
+to the next stage. Keep compatibility shims until the stage that explicitly
+removes them.
 
 ## Stage Order
 
