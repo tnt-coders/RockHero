@@ -5,6 +5,10 @@
 Move the editor component tree out of `MainWindow::ContentComponent` and into
 `rock_hero::ui::EditorView`.
 
+Do this without reopening the completed controller/state stages. `EditorViewState`
+and its `cursor_proportion` field remain in place for v20, but live cursor animation
+must not depend on pushing a full `EditorViewState` every frame.
+
 ## Expected Files
 
 - `libs/rock-hero-ui/include/rock_hero/ui/editor_view.h`
@@ -29,10 +33,19 @@ Move the editor component tree out of `MainWindow::ContentComponent` and into
 8. Convert `juce::File` to `core::AudioAsset` only in the file chooser callback.
 9. Source the load target from `EditorViewState.tracks.front().track_id`.
 10. Disable load when `EditorViewState.tracks` is empty.
-11. Draw one editor-wide playhead cursor overlay across the waveform row area from
-    `EditorViewState.cursor_proportion`. Individual rows draw only their own
-    waveform content; they do not draw synchronized per-row cursors.
-12. Present `last_load_error` on an edge using
+11. Add one editor-wide playhead cursor overlay component across the waveform row
+    area. Individual rows draw only their own waveform content; they do not draw
+    synchronized per-row cursors.
+12. Use `EditorViewState.cursor_proportion` only as coarse snapshot state for the
+    cursor overlay, such as initial placement and transport jumps after load, seek,
+    stop, or other discrete state changes.
+13. Do not design `EditorView` so smooth cursor motion requires a full
+    `IEditorView::setState(...)` call on every animation frame.
+14. If a minimal smooth-motion path is practical in this stage, keep it local to the
+    cursor overlay through a pull-based UI cadence and a narrow transport read path.
+    If that is not practical yet, leave explicit TODO comments that the overlay is a
+    structural split preparing for a later smooth-motion implementation.
+15. Present `last_load_error` on an edge using
     `std::optional<std::string> m_last_presented_error`.
 
 ## Tests
@@ -46,8 +59,9 @@ fake `IEditorController` and fake `audio::Thumbnail`.
 - same load error is not presented twice,
 - `ThumbnailCreator` is invoked exactly once during construction,
 - created thumbnail is installed on the initial row before the constructor returns,
-- a single cursor overlay is derived from `EditorViewState.cursor_proportion` and is
-  owned by `EditorView`, not by individual rows.
+- a single cursor overlay is owned by `EditorView`, not by individual rows,
+- applying `setState(...)` updates the overlay's coarse cursor state without
+  requiring cursor ownership in the waveform rows.
 
 If file chooser behavior cannot be automated cleanly, isolate and test the path from
 an already selected file/asset to controller intent. Do not rely only on manual GUI
@@ -63,6 +77,8 @@ test setup supports them.
 - `EditorView` emits user intents through `IEditorController`.
 - `EditorView` renders only `EditorViewState`.
 - `EditorView` owns the single playhead cursor overlay across all waveform rows.
+- Smooth cursor motion is structurally separated from row rendering, even if the
+  first extracted overlay still uses coarse snapshot updates.
 - `EditorView` does not include or own concrete `audio::Engine`.
 - `ThumbnailCreator` is consumed during construction and not retained.
 

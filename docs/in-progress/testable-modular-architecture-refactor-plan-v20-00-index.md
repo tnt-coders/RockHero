@@ -16,6 +16,13 @@ Each stage should be implemented, reviewed, tested, and committed before moving 
 the next stage. Keep compatibility shims until the stage that explicitly removes
 them.
 
+Cursor-smoothness concerns discovered after the earlier controller/state stages do
+not require reopening completed stages. Treat those concerns as forward-only
+constraints on stage 08 and later: keep the existing `EditorViewState` and
+`cursor_proportion` contract for coarse snapshot correctness, but avoid coupling the
+remaining waveform/view extraction work to full-state pushes for every animation
+frame.
+
 ## Stage Order
 
 1. Core Session Model:

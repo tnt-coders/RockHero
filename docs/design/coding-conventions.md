@@ -74,6 +74,31 @@ Module-local test `.cpp` files should also wrap their tests in the namespace of 
 test. This keeps tests close to the code they verify and avoids treating same-module tests like
 external consumers.
 
+# Public Header Organization
+
+Prefer one primary project-owned type per public header under `include/rock_hero/...` when that
+type is intended to be referenced directly outside a single implementation file.
+
+This applies especially to:
+
+- public structs and classes used across multiple modules or layers
+- view-state and controller-contract types
+- port and adapter interfaces
+
+Benefits:
+
+- the type is easy to locate from its name
+- Doxygen output stays easier to navigate
+- headers stay focused instead of becoming catch-all model bundles
+
+Prefer an owning header to include related type headers rather than redefining several externally
+meaningful types in one file. For example, `editor_view_state.h` should include
+`track_waveform_state.h` rather than also defining `TrackWaveformState`.
+
+This is a default, not an absolute rule. Small private helper types that are tightly coupled to
+one owning public type may still live in the same header when splitting them would make the API
+harder to read rather than easier.
+
 # Parameter Passing
 
 Use the following rules for function parameters.
