@@ -41,6 +41,15 @@ that are no longer needed.
     compatibility shim.
 14. Remove `WaveformDisplay` source, header, tests, CMake entries, and any remaining
     references once those dependencies are migrated.
+15. Collapse `audio::ScopedListener` onto a single reference-based form. Once `Engine::Listener`
+    is gone, every remaining listener surface in the project (`ITransport::Listener`,
+    `TrackView::Listener`, `TransportControls::Listener`) takes its listener by reference, so
+    the helper should call `m_broadcaster.addListener(m_listener)` and
+    `m_broadcaster.removeListener(m_listener)` rather than passing `&m_listener`. After the
+    helper is converted, replace the manual `addListener` / `removeListener` pair in
+    `EditorController`'s constructor and destructor with a `ScopedListener` member declared last
+    so its destructor runs first during teardown. Remove the corresponding "manual subscription"
+    note from `EditorController`'s class documentation in the same change.
 
 ## Tests
 
