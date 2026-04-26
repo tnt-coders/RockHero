@@ -33,9 +33,6 @@ struct EditorViewState
     /*! \brief Selects whether the play/pause control should render a pause icon. */
     bool play_pause_shows_pause_icon{false};
 
-    /*! \brief Shared cursor position normalized to [0, 1] across the displayed waveform rows. */
-    double cursor_proportion{0.0};
-
     /*! \brief Current waveform rows shown by the editor. */
     std::vector<TrackWaveformState> tracks;
 
