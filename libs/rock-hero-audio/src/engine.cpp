@@ -75,7 +75,10 @@ private:
                 &Engine::Listener::engineTransportPositionChanged, next_state.position.seconds);
         }
 
-        if (playing_changed || position_changed || duration_changed)
+        // Project-owned transport listeners observe coarse transitions only. Position remains part
+        // of state() so view code can poll it at render cadence without forcing callbacks on every
+        // playhead tick.
+        if (playing_changed || duration_changed)
         {
             m_transport_listeners.call(
                 &ITransport::Listener::onTransportStateChanged, m_transport_state);
