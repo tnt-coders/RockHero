@@ -211,6 +211,26 @@ files when one of these becomes true:
 Do not split files purely to create one test file per production header if that makes the test
 layout more fragmented than the behavior warrants.
 
+# Catch2 Test Name Length
+
+Keep every `TEST_CASE` name at **78 characters or fewer**.
+
+This is a hard limit, not a style preference. CMake's `catch_discover_tests` enumerates tests by
+running the test binary with Catch2's `--list-tests` reporter and parsing its output. In the
+non-TTY environment used during build-time discovery, Catch2 falls back to an 80-column console
+width and word-wraps any test name whose rendered line exceeds it. Each wrapped fragment then
+becomes its own `add_test()` registration, so a single `TEST_CASE` ends up split across two or
+more entries that all show as skipped in CTest and IDE test runners. Catch2 prefixes test names
+with two spaces of indentation in this listing, leaving a 78-character budget for the name
+itself.
+
+The limit applies to the literal test-name string only. Tags, fixtures, and the `TEST_CASE`
+macro syntax around the name do not count against it.
+
+If the descriptive name does not fit in 78 characters, prefer rewriting it to be tighter rather
+than carrying the wrap risk forward. Names should still convey behavior, not just shorten for
+the sake of fitting.
+
 # Catch2 Tag Conventions
 
 Every `TEST_CASE` should carry tags that describe both the owning module and the immediate subject

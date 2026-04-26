@@ -5,7 +5,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/audio/thumbnail.h>
-#include <rock_hero/ui/editor/track_view.h>
+#include <rock_hero/ui/track_view.h>
 
 namespace rock_hero::ui
 {

@@ -6,7 +6,7 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/ui/editor/track_view_state.h>
+#include <rock_hero/ui/track_view_state.h>
 #include <string>
 #include <vector>
 
