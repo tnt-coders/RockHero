@@ -334,13 +334,16 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 1);
-    CHECK(view.last_state->load_button_enabled == true);
-    CHECK(view.last_state->play_pause_enabled == false);
-    CHECK(view.last_state->stop_enabled == false);
-    CHECK(view.last_state->play_pause_shows_pause_icon == false);
-    REQUIRE(view.last_state->tracks.size() == 1);
-    CHECK(view.last_state->tracks.front().display_name == "Full Mix");
-    CHECK_FALSE(view.last_state->last_load_error.has_value());
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->load_button_enabled == true);
+        CHECK(view.last_state->play_pause_enabled == false);
+        CHECK(view.last_state->stop_enabled == false);
+        CHECK(view.last_state->play_pause_shows_pause_icon == false);
+        REQUIRE(view.last_state->tracks.size() == 1);
+        CHECK(view.last_state->tracks.front().display_name == "Full Mix");
+        CHECK_FALSE(view.last_state->last_load_error.has_value());
+    }
 }
 
 // Verifies the controller does not poll transport state independently; only listener callbacks
@@ -386,8 +389,11 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 2);
-    CHECK(view.last_state->play_pause_shows_pause_icon == true);
-    CHECK(view.last_state->stop_enabled == true);
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->play_pause_shows_pause_icon == true);
+        CHECK(view.last_state->stop_enabled == true);
+    }
 
     transport.setStateAndNotify(
         audio::TransportState{
@@ -398,8 +404,11 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 3);
-    CHECK(view.last_state->play_pause_shows_pause_icon == false);
-    CHECK(view.last_state->stop_enabled == false);
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->play_pause_shows_pause_icon == false);
+        CHECK(view.last_state->stop_enabled == false);
+    }
 }
 
 // Play intent issues play() when stopped and pause() when playing, mirroring the toggle the view
@@ -472,16 +481,16 @@ TEST_CASE(
     EditorController controller{session, transport, edit};
 
     controller.onWaveformClicked(0.5);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == 2.0);
+    CHECK(
+        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
 
     controller.onWaveformClicked(-0.25);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == 0.0);
+    CHECK(
+        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{0.0}});
 
     controller.onWaveformClicked(1.5);
-    REQUIRE(transport.last_seek_position.has_value());
-    CHECK(transport.last_seek_position->seconds == 4.0);
+    CHECK(
+        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{4.0}});
 }
 
 // Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback
@@ -527,8 +536,14 @@ TEST_CASE(
         session.findTrack(track_id)->audio_asset ==
         std::optional<core::AudioAsset>{core::AudioAsset{std::filesystem::path{"old.wav"}}});
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_load_error.has_value());
-    CHECK(view.last_state->last_load_error->find("new.wav") != std::string::npos);
+    if (view.last_state.has_value())
+    {
+        REQUIRE(view.last_state->last_load_error.has_value());
+        if (view.last_state->last_load_error.has_value())
+        {
+            CHECK(view.last_state->last_load_error->find("new.wav") != std::string::npos);
+        }
+    }
 }
 
 // A successful IEdit call commits the asset to the session, clears any prior error, and emits
@@ -549,7 +564,10 @@ TEST_CASE(
     controller.onLoadAudioAssetRequested(
         track_id, core::AudioAsset{std::filesystem::path{"first.wav"}});
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_load_error.has_value());
+    if (view.last_state.has_value())
+    {
+        REQUIRE(view.last_state->last_load_error.has_value());
+    }
     const int pushes_before_success = view.set_state_call_count;
 
     edit.next_result = true;
@@ -559,7 +577,10 @@ TEST_CASE(
     REQUIRE(session.findTrack(track_id) != nullptr);
     CHECK(session.findTrack(track_id)->audio_asset == std::optional<core::AudioAsset>{replacement});
     REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->last_load_error.has_value());
+    if (view.last_state.has_value())
+    {
+        CHECK_FALSE(view.last_state->last_load_error.has_value());
+    }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
 }
 
@@ -591,11 +612,14 @@ TEST_CASE(
 
     CHECK(view.set_state_call_count == pushes_before_load + 1);
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->tracks.size() == 1);
-    CHECK(
-        view.last_state->tracks.front().audio_asset ==
-        std::optional<core::AudioAsset>{replacement});
-    CHECK(view.last_state->play_pause_shows_pause_icon == true);
+    if (view.last_state.has_value())
+    {
+        REQUIRE(view.last_state->tracks.size() == 1);
+        CHECK(
+            view.last_state->tracks.front().audio_asset ==
+            std::optional<core::AudioAsset>{replacement});
+        CHECK(view.last_state->play_pause_shows_pause_icon == true);
+    }
 }
 
 // Coarse transport transitions that arrive after a failed load must preserve the existing error;
@@ -616,8 +640,12 @@ TEST_CASE(
         track_id, core::AudioAsset{std::filesystem::path{"new.wav"}});
 
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_load_error.has_value());
-    const std::string original_error = *view.last_state->last_load_error;
+    std::optional<std::string> original_error{};
+    if (view.last_state.has_value())
+    {
+        REQUIRE(view.last_state->last_load_error.has_value());
+        original_error = view.last_state->last_load_error;
+    }
 
     transport.setStateAndNotify(
         audio::TransportState{
@@ -627,8 +655,10 @@ TEST_CASE(
         });
 
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_load_error.has_value());
-    CHECK(*view.last_state->last_load_error == original_error);
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->last_load_error == original_error);
+    }
 }
 
 } // namespace rock_hero::ui

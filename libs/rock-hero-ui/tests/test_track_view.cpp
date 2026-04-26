@@ -199,7 +199,10 @@ TEST_CASE("TrackView reports normalized click position", "[ui][track-view]")
     CHECK(listener.click_count == 1);
     CHECK(listener.last_view == &view);
     REQUIRE(listener.last_normalized_x.has_value());
-    CHECK(listener.last_normalized_x.value() == Catch::Approx(0.25));
+    if (listener.last_normalized_x.has_value())
+    {
+        CHECK(listener.last_normalized_x.value() == Catch::Approx(0.25));
+    }
 }
 
 } // namespace rock_hero::ui
