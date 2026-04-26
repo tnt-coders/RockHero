@@ -34,8 +34,13 @@ that are no longer needed.
 10. Remove old `Engine::Listener` UI coupling when no external UI implementers remain.
 11. Remove legacy `Engine` methods that are no longer part of the port surface and no
     longer used.
-12. Remove obsolete `WaveformDisplay` only if fully replaced and no other target uses
-    it. If uncertain, leave it for a separate cleanup commit.
+12. Remove obsolete `WaveformDisplay`.
+13. If any target, helper, or test still depends on `WaveformDisplay`, migrate that
+    dependency in this stage to `ui::Editor`, `EditorView`, `TrackView`, or the shared
+    cursor-overlay path as appropriate rather than leaving `WaveformDisplay` behind as a
+    compatibility shim.
+14. Remove `WaveformDisplay` source, header, tests, CMake entries, and any remaining
+    references once those dependencies are migrated.
 
 ## Tests
 
@@ -65,7 +70,8 @@ compile commands and record that full CMake/CTest still needs to be run elsewher
 
 - The editor app composes `audio::Engine`, `core::Session`, and `ui::Editor`.
 - No app code manually wires controller/view/thumbnail internals.
-- Old direct engine UI coupling is gone or explicitly isolated as a deferred cleanup.
+- Old direct engine UI coupling is gone.
+- `WaveformDisplay` no longer exists in project-owned code.
 - The final architecture still matches the v19 goal alignment checkpoint.
 
 ## Do Not Do

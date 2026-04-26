@@ -29,6 +29,19 @@ The project naming conventions are:
 - private and protected member fields use `m_lower_case`
 - macros and classic enum values use `UPPER_CASE`
 
+When a project-owned UI type is the presentation counterpart of a project-owned data or domain
+type, name the data type after what it is and name the UI type with the same base name plus
+`View`.
+
+Examples:
+
+- `Track` / `TrackView`
+- `Clip` / `ClipView`
+
+Do not introduce alternate suffixes such as `Row`, `Lane`, or `Display` for these direct
+data-to-view pairs unless the type represents a genuinely different concept from the underlying
+data object.
+
 The underlying `readability-identifier-naming` checker uses the value name `camelBack` for
 function and method identifiers. In project documentation, refer to that style as `camelCase`.
 
@@ -93,7 +106,7 @@ Benefits:
 
 Prefer an owning header to include related type headers rather than redefining several externally
 meaningful types in one file. For example, `editor_view_state.h` should include
-`track_waveform_state.h` rather than also defining `TrackWaveformState`.
+`track_view_state.h` rather than also defining `TrackViewState`.
 
 This is a default, not an absolute rule. Small private helper types that are tightly coupled to
 one owning public type may still live in the same header when splitting them would make the API

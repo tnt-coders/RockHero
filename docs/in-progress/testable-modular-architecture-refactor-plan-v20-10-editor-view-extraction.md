@@ -12,6 +12,7 @@ note).
 
 - `libs/rock-hero-ui/include/rock_hero/ui/editor_view.h`
 - `libs/rock-hero-ui/src/editor_view.cpp`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/track_view.h`
 - `libs/rock-hero-ui/include/rock_hero/ui/thumbnail_creator.h` or equivalent
   view/composition header
 - possible UI tests for view wiring
@@ -25,7 +26,7 @@ note).
    `std::unique_ptr<audio::Thumbnail>`.
 3. Implement `EditorView` as a JUCE component that implements `IEditorView`.
 4. Require `IEditorController&` and `ThumbnailCreator` in the constructor.
-5. Construct the initial `TrackWaveformRow` in the view constructor.
+5. Construct the initial `TrackView` in the view constructor.
 6. Immediately invoke `ThumbnailCreator` with the row component as owner and transfer
    the thumbnail into the row.
 7. Own load button, transport controls, waveform rows, and file chooser.
@@ -44,7 +45,7 @@ note).
     `juce::Timer` whose callback reads `transport.state().position` and
     `transport.state().duration`, computes the current cursor x, and triggers a
     repaint of only the narrow strip covering the previous and current cursor
-    positions. The static waveform underneath stays in `TrackWaveformRow` and is
+    positions. The static waveform underneath stays in `TrackView` and is
     not invalidated by cursor motion.
 14. The cursor overlay is fully independent of `IEditorView::setState`. It does
     not read from `EditorViewState`, does not register with the controller, and
