@@ -17,7 +17,7 @@ public:
         : m_state{initial_state}
     {}
 
-    // Simulates the transport starting playback and broadcasts the resulting state.
+    // Simulates the transport starting playback and broadcasts the resulting coarse transition.
     void play() override
     {
         m_state.playing = true;
@@ -49,13 +49,10 @@ public:
     }
 
     // Records seek intent through the same semantic time type exposed by ITransport.
+    // Position-only movement remains available through state() but does not broadcast.
     void seek(rock_hero::core::TimePosition position) override
     {
         m_state.position = position;
-        for (Listener* listener : m_listeners)
-        {
-            listener->onTransportStateChanged(m_state);
-        }
     }
 
     // Returns the fake's current snapshot so tests can verify state-based consumers.
@@ -132,7 +129,8 @@ TEST_CASE("ITransport fake stores and returns transport state", "[audio][transpo
     CHECK(transport.state() == expected);
 }
 
-// Verifies reference-based listener registration delivers state and stops after removal.
+// Verifies reference-based listener registration delivers coarse transitions and stops after
+// removal.
 TEST_CASE(
     "ITransport listeners are registered, notified, and removed by reference", "[audio][transport]")
 {
@@ -140,10 +138,10 @@ TEST_CASE(
     CapturingTransportListener listener;
 
     transport.addListener(listener);
-    transport.seek(rock_hero::core::TimePosition{8.0});
+    transport.play();
 
     CHECK(listener.call_count == 1);
-    CHECK(listener.last_state.position == rock_hero::core::TimePosition{8.0});
+    CHECK(listener.last_state.playing);
 
     transport.removeListener(listener);
     transport.pause();
@@ -151,14 +149,19 @@ TEST_CASE(
     CHECK(listener.call_count == 1);
 }
 
-// Verifies seek intent crosses the transport boundary as a core timeline position.
+// Verifies seek intent crosses the transport boundary as a core timeline position without forcing
+// a coarse listener callback for position-only motion.
 TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transport]")
 {
     FakeTransport transport;
+    CapturingTransportListener listener;
+
+    transport.addListener(listener);
 
     transport.seek(rock_hero::core::TimePosition{42.0});
 
     CHECK(transport.state().position == rock_hero::core::TimePosition{42.0});
+    CHECK(listener.call_count == 0);
 }
 
 } // namespace rock_hero::audio

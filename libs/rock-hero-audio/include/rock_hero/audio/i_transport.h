@@ -16,11 +16,16 @@ namespace rock_hero::audio
 The current contract is owned by the message thread. Callers must invoke control methods,
 state(), addListener(), and removeListener() from the message thread. Listener callbacks are also
 delivered on the message thread.
+
+Continuous transport position is available through state(). Listener callbacks are reserved for
+coarse transition-shaped changes such as play/pause/stop or duration changes, so UI code that
+needs smooth cursor motion should poll state() at its own render cadence rather than waiting for
+listener delivery.
 */
 class ITransport
 {
 public:
-    /*! \brief Receives coarse transport state snapshots. */
+    /*! \brief Receives coarse transition-shaped transport state snapshots. */
     class Listener
     {
     public:
@@ -29,7 +34,12 @@ public:
 
         /*!
         \brief Handles a changed transport state snapshot.
-        \param state The current message-thread transport snapshot.
+
+        This callback is intended for transition-shaped updates rather than for every position tick.
+        Callers that need smooth playback cursor motion should pull state().position at their own
+        render cadence instead.
+
+        \param state The current message-thread transport snapshot after a coarse state transition.
         */
         virtual void onTransportStateChanged(const TransportState& state) = 0;
 
