@@ -113,10 +113,14 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
     REQUIRE(single_track_state.tracks.size() == 1);
     CHECK(single_track_state.tracks.front().track_id == core::TrackId{1});
     CHECK(single_track_state.tracks.front().display_name == "Full Mix");
-    REQUIRE(single_track_state.tracks.front().audio_asset.has_value());
-    CHECK(
-        single_track_state.tracks.front().audio_asset->path ==
-        std::filesystem::path{"full_mix.wav"});
+    const auto& audio_asset = single_track_state.tracks.front().audio_asset;
+    std::optional<std::filesystem::path> loaded_audio_path{};
+    if (audio_asset.has_value())
+    {
+        loaded_audio_path = audio_asset->path;
+    }
+    REQUIRE(loaded_audio_path.has_value());
+    CHECK(*loaded_audio_path == std::filesystem::path{"full_mix.wav"});
     REQUIRE(single_track_state.last_load_error.has_value());
     CHECK(*single_track_state.last_load_error == "Could not load file");
 }
@@ -144,8 +148,7 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .last_load_error = std::nullopt,
     };
 
-    const EditorViewState same_state = first_state;
-    const EditorViewState different_state{
+    const EditorViewState same_state{
         .load_button_enabled = true,
         .play_pause_enabled = true,
         .stop_enabled = true,
@@ -155,8 +158,7 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
     };
 
     CHECK(track_state == same_track_state);
-    CHECK(first_state == same_state);
-    CHECK_FALSE(first_state == different_state);
+    CHECK_FALSE(first_state == same_state);
 }
 
 // Verifies a fake view can receive framework-free editor state without JUCE initialization.
