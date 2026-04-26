@@ -19,7 +19,7 @@ namespace
     const auto position = juce::Point<float>{x, y};
     const auto event_time = juce::Time::getCurrentTime();
 
-    return juce::MouseEvent(
+    return {
         juce::Desktop::getInstance().getMainMouseSource(),
         position,
         juce::ModifierKeys::leftButtonModifier,
@@ -34,7 +34,8 @@ namespace
         position,
         event_time,
         1,
-        false);
+        false
+    };
 }
 
 // Records thumbnail source refreshes so tests can verify row-local asset diff behavior.
@@ -114,7 +115,7 @@ public:
 // Verifies a newly present audio asset refreshes the track-view-owned thumbnail exactly once.
 TEST_CASE("TrackView refreshes thumbnail when a present asset arrives", "[ui][track-view]")
 {
-    juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TrackView view;
     auto thumbnail = std::make_unique<FakeThumbnail>();
     auto* thumbnail_ptr = thumbnail.get();
@@ -136,7 +137,7 @@ TEST_CASE("TrackView refreshes thumbnail when a present asset arrives", "[ui][tr
 // Verifies reapplying the same present asset does not trigger another thumbnail refresh.
 TEST_CASE("TrackView does not refresh thumbnail twice for the same asset", "[ui][track-view]")
 {
-    juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TrackView view;
     auto thumbnail = std::make_unique<FakeThumbnail>();
     auto* thumbnail_ptr = thumbnail.get();
@@ -157,7 +158,7 @@ TEST_CASE("TrackView does not refresh thumbnail twice for the same asset", "[ui]
 // Verifies changing to a different present asset triggers another thumbnail refresh.
 TEST_CASE("TrackView refreshes thumbnail again when the asset changes", "[ui][track-view]")
 {
-    juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TrackView view;
     auto thumbnail = std::make_unique<FakeThumbnail>();
     auto* thumbnail_ptr = thumbnail.get();
@@ -186,7 +187,7 @@ TEST_CASE("TrackView refreshes thumbnail again when the asset changes", "[ui][tr
 // Verifies track-local hit testing emits a normalized horizontal click position.
 TEST_CASE("TrackView reports normalized click position", "[ui][track-view]")
 {
-    juce::ScopedJuceInitialiser_GUI scoped_gui;
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
     TrackView view;
     FakeTrackViewListener listener;
 
@@ -197,8 +198,8 @@ TEST_CASE("TrackView reports normalized click position", "[ui][track-view]")
 
     CHECK(listener.click_count == 1);
     CHECK(listener.last_view == &view);
-    CHECK(listener.last_normalized_x.has_value());
-    CHECK(*listener.last_normalized_x == Catch::Approx(0.25));
+    REQUIRE(listener.last_normalized_x.has_value());
+    CHECK(listener.last_normalized_x.value() == Catch::Approx(0.25));
 }
 
 } // namespace rock_hero::ui
