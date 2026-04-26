@@ -17,58 +17,74 @@ with fakes.
 
 1. Implement `EditorController` against `core::Session`, `audio::ITransport`,
    `audio::IEdit`, and `IEditorView`.
-2. Register as an `audio::ITransport::Listener` in the constructor and unregister in
-   the destructor.
-3. Cache the initial derived `EditorViewState` before view attachment.
-4. Implement `attachView(IEditorView&)` as a non-owning bind that immediately pushes
-   cached state.
-5. On transport events, re-derive from current session and transport state; suppress
-   duplicate view-state pushes.
-6. Implement play/pause, stop, and waveform-click seek decisions in the controller.
-7. For load requests, validate the track id before calling
+2. Register as an `audio::ITransport::Listener` in the constructor and unregister
+   in the destructor.
+3. Treat the controller's listener handler as a transition-only filter. Cache the
+   most recent observed `TransportState` and, on each `onTransportStateChanged`
+   call, compare incoming state against the cache on transition-shaped fields
+   only — `playing`, `duration`, and any future load/file flags. Ignore the
+   `position` field. If no transition-shaped field changed, do nothing. If any
+   did, update the cache, re-derive `EditorViewState`, and push.
+4. Cache the initial derived `EditorViewState` before view attachment.
+5. Implement `attachView(IEditorView&)` as a non-owning bind that immediately
+   pushes cached state.
+6. Because the controller filters at the source on transition-shaped fields,
+   every push corresponds to a real change. Do not add a downstream
+   "is the new derived state equal to the last pushed state" suppression layer;
+   it is unnecessary under this subscription policy and would only mask bugs in
+   the source-side filter.
+7. Implement play/pause, stop, and waveform-click seek decisions in the controller.
+8. For load requests, validate the track id before calling
    `IEdit::setTrackAudioSource(...)`.
-8. Mark an internal "edit in progress" state before calling `IEdit`. Natural
+9. Mark an internal "edit in progress" state before calling `IEdit`. Natural
    `ITransport::Listener` callbacks may arrive reentrantly during the edit call
    before the session commit path runs.
-9. If transport callbacks arrive while an edit is in progress, do not immediately
-   push a state derived from pre-commit session data. Instead, record that a
-   refresh is pending and let the load workflow finish first.
-10. On failed edit, preserve `core::Session`, set a controller-composed error, then
-    derive and push the final state once the in-flight edit window closes.
-11. On successful edit, call `Session::replaceTrackAsset(...)`.
-12. If that call returns `true`, clear the error, read `transport.state()`, and push
-    the derived state once after the session and transport are back in sync. If a
-    deferred transport refresh is pending, satisfy it through the same final
+10. If transport callbacks arrive while an edit is in progress, do not immediately
+    push a state derived from pre-commit session data. Instead, record that a
+    refresh is pending and let the load workflow finish first.
+11. On failed edit, preserve `core::Session`, set a controller-composed error,
+    then derive and push the final state once the in-flight edit window closes.
+12. On successful edit, call `Session::replaceTrackAsset(...)`.
+13. If that call returns `true`, clear the error, read `transport.state()`, and
+    push the derived state once after the session and transport are back in sync.
+    If a deferred transport refresh is pending, satisfy it through the same final
     derivation path instead of pushing an additional intermediate state.
-13. If that call returns `false`, treat it as an internal consistency failure: assert
-    in debug builds, log an error message in release builds, preserve the existing
-    session state, set `last_load_error` to a controller-composed internal error, and
-    push a view state. Do not terminate the process and do not silently pretend the
-    session and audio state are synchronized.
+14. If that call returns `false`, treat it as an internal consistency failure:
+    assert in debug builds, log an error message in release builds, preserve the
+    existing session state, set `last_load_error` to a controller-composed
+    internal error, and push a view state. Do not terminate the process and do
+    not silently pretend the session and audio state are synchronized.
 
 ## Tests
 
 Add fakes for `ITransport`, `IEdit`, and `IEditorView`. Cover:
 
 - `attachView(...)` immediately pushes derived state,
-- duplicate transport states do not push redundant updates,
+- transport-state changes that move only `position` (no other field) do **not**
+  push a new view state, because the controller subscribes only to
+  transition-shaped fields,
+- transport-state changes that move `playing` or `duration` push exactly one
+  fresh view state per transition,
 - play intent calls `play()` when a session track has an asset and transport is
   stopped,
 - play intent calls `pause()` when transport is playing,
 - play intent is ignored when no track has an asset,
 - stop intent calls `stop()` only when enabled,
 - waveform click clamps normalized input and seeks by transport duration,
-- later transport ticks preserve a load error,
+- later transition events (e.g., a play-state change) preserve a load error
+  rather than implicitly clearing it,
 - invalid track load does not call `setTrackAudioSource(...)`,
 - failed load preserves session and reports a composed error,
 - successful load commits the track asset and clears the error,
 - successful load tolerates reentrant transport notifications during `IEdit`
-  without pushing a stale intermediate state derived from pre-commit session data,
-- successful load produces exactly one final post-load push after session commit,
-- post-edit session commit failure reports an internal error instead of crashing or
-  silently clearing the error, if that path can be reached with the available session
-  API,
-- edit-caused transport state changes do not bypass duplicate-suppression rules once
+  without pushing a stale intermediate state derived from pre-commit session
+  data,
+- successful load produces exactly one final post-load push after session
+  commit,
+- post-edit session commit failure reports an internal error instead of crashing
+  or silently clearing the error, if that path can be reached with the available
+  session API,
+- edit-caused transition events do not produce extra intermediate pushes once
   the in-flight edit window closes.
 
 ## Verification

@@ -5,10 +5,11 @@
 Prepare waveform rendering for multi-track-shaped view state while keeping the first
 implementation as one row.
 
-This stage does not revisit the already-completed controller or `EditorViewState`
-contract work. Any cursor smoothness changes from this point forward must preserve
-those completed stages and instead shape how the remaining JUCE view pieces are
-split.
+The cursor is owned by an editor-wide overlay component introduced in stage 10,
+not by `TrackWaveformRow`. The cursor is sourced via a vsync pull from
+`audio::ITransport` (see stage 06's Cursor Architecture note and stage 10).
+Rows render only static waveform content; they neither store cursor state nor
+animate.
 
 ## Expected Files
 
@@ -27,16 +28,14 @@ split.
 5. Call `Thumbnail::setSource(asset)` only when the asset changes to a present value.
 6. Draw only row-local waveform content from `TrackWaveformState`.
 7. Do not draw the playhead cursor in `TrackWaveformRow`. The editor has one
-   window-wide cursor across all waveform rows; `EditorView` owns that overlay.
-8. Keep row responsibilities limited to waveform rendering, row-local hit testing,
-   and row-local asset refresh. Do not add live transport listeners, cursor timers,
-   or per-frame animation logic to the row.
-9. Treat the existing `EditorViewState.cursor_proportion` field as compatibility
-   snapshot state for later stages, not as a reason to put live cursor motion back
-   into each row.
-10. Emit waveform-click intent to the parent through a local listener or equivalent
-    local callback, keeping public callback members out of the design.
-11. Leave existing `WaveformDisplay` in place until `EditorView` replaces it.
+   window-wide cursor overlay across all waveform rows; `EditorView` owns that
+   overlay (see stage 10).
+8. Keep row responsibilities limited to waveform rendering, row-local hit
+   testing, and row-local asset refresh. Do not add transport listeners, cursor
+   timers, or per-frame animation logic to the row.
+9. Emit waveform-click intent to the parent through a local listener or
+   equivalent local callback, keeping public callback members out of the design.
+10. Leave existing `WaveformDisplay` in place until `EditorView` replaces it.
 
 ## Tests
 
