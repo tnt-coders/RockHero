@@ -1,4 +1,4 @@
-#include "editor/track_view.h"
+#include "track_view.h"
 
 #include <algorithm>
 #include <rock_hero/audio/thumbnail.h>
