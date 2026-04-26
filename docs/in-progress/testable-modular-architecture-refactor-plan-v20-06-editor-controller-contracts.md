@@ -7,7 +7,7 @@ editor workflow testable without JUCE initialization.
 
 ## Expected Files
 
-- `libs/rock-hero-ui/include/rock_hero/ui/editor/track_waveform_state.h`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/track_view_state.h`
 - `libs/rock-hero-ui/include/rock_hero/ui/editor/editor_view_state.h`
 - `libs/rock-hero-ui/include/rock_hero/ui/editor/i_editor_view.h`
 - `libs/rock-hero-ui/include/rock_hero/ui/editor/i_editor_controller.h`
@@ -17,13 +17,13 @@ editor workflow testable without JUCE initialization.
 
 ## Implementation Steps
 
-1. Add `TrackWaveformState` with exactly the fields v19 specifies:
+1. Add `TrackViewState` with exactly the fields v19 specifies:
    - `core::TrackId track_id`,
    - `std::string display_name`,
    - `std::optional<core::AudioAsset> audio_asset`.
 
-   Define `TrackWaveformState` in its own public header,
-   `rock_hero/ui/editor/track_waveform_state.h`, rather than bundling it into
+   Define `TrackViewState` in its own public header,
+   `rock_hero/ui/editor/track_view_state.h`, rather than bundling it into
    `editor_view_state.h`.
 
    Do not add `muted`, `gain`, `selected`, per-row playhead, or per-row length.
@@ -38,11 +38,11 @@ editor workflow testable without JUCE initialization.
    - `bool play_pause_enabled`,
    - `bool stop_enabled`,
    - `bool play_pause_shows_pause_icon`,
-   - `std::vector<TrackWaveformState> tracks`,
+   - `std::vector<TrackViewState> tracks`,
    - `std::optional<std::string> last_load_error`.
 
    Keep `EditorViewState` in `editor_view_state.h` and include
-   `track_waveform_state.h` there instead of redefining the row type.
+   `track_view_state.h` there instead of redefining the track-view type.
 3. Add `IEditorView` with `setState(const EditorViewState&)`.
 4. Add `IEditorController` with user-intent methods:
    - `onLoadAudioAssetRequested(core::TrackId, core::AudioAsset)`,

@@ -3,7 +3,7 @@
 #include <rock_hero/ui/editor/editor_view_state.h>
 #include <rock_hero/ui/editor/i_editor_controller.h>
 #include <rock_hero/ui/editor/i_editor_view.h>
-#include <rock_hero/ui/editor/track_waveform_state.h>
+#include <rock_hero/ui/editor/track_view_state.h>
 #include <utility>
 
 namespace rock_hero::ui
@@ -102,7 +102,7 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
-        .tracks = {TrackWaveformState{
+        .tracks = {TrackViewState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
             .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
@@ -129,12 +129,12 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
 // Verifies row and editor state types support value comparisons for duplicate suppression.
 TEST_CASE("Editor view-state types support value comparison", "[ui][editor-controller]")
 {
-    const TrackWaveformState track_state{
+    const TrackViewState track_state{
         .track_id = core::TrackId{7},
         .display_name = "Guitar",
         .audio_asset = core::AudioAsset{std::filesystem::path{"guitar.wav"}},
     };
-    const TrackWaveformState same_track_state{
+    const TrackViewState same_track_state{
         .track_id = core::TrackId{7},
         .display_name = "Guitar",
         .audio_asset = core::AudioAsset{std::filesystem::path{"guitar.wav"}},
@@ -180,7 +180,7 @@ TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
         .play_pause_enabled = false,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .tracks = {TrackWaveformState{
+        .tracks = {TrackViewState{
             .track_id = core::TrackId{3},
             .display_name = "Backing Track",
             .audio_asset = core::AudioAsset{std::filesystem::path{"backing.wav"}},
