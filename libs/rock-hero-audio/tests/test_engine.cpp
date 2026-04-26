@@ -209,11 +209,11 @@ TEST_CASE(
     engine.removeListener(&recorder);
 }
 
-// Verifies that an explicit seek still drives both listener surfaces immediately when position
-// actually changes, confirming the legacy Engine::Listener path remains responsive for real
-// position transitions.
+// Verifies that an explicit seek still drives the legacy Engine::Listener position callback while
+// the project-owned transport listener stays coarse-grained.
 TEST_CASE(
-    "Engine seek notifies position listeners when position changes", "[audio][engine][integration]")
+    "Engine seek keeps transport listeners coarse while legacy position listeners still fire",
+    "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -240,8 +240,7 @@ TEST_CASE(
 
     CHECK(recorder.engine_position_call_count >= 1);
     CHECK(recorder.last_position_seconds == Catch::Approx(target_seconds));
-    CHECK(recorder.transport_state_call_count >= 1);
-    CHECK(recorder.last_transport_state.position == core::TimePosition{target_seconds});
+    CHECK(recorder.transport_state_call_count == 0);
     CHECK_FALSE(recorder.last_transport_state.playing);
 
     transport.removeListener(recorder);

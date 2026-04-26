@@ -19,20 +19,19 @@ with fakes.
    `audio::IEdit`, and `IEditorView`.
 2. Register as an `audio::ITransport::Listener` in the constructor and unregister
    in the destructor.
-3. Treat the controller's listener handler as a transition-only filter. Cache the
-   most recent observed `TransportState` and, on each `onTransportStateChanged`
-   call, compare incoming state against the cache on transition-shaped fields
-   only — `playing`, `duration`, and any future load/file flags. Ignore the
-   `position` field. If no transition-shaped field changed, do nothing. If any
-   did, update the cache, re-derive `EditorViewState`, and push.
+3. Treat the controller's transport subscription as transition-shaped only.
+   `audio::ITransport::Listener` already omits position-only motion, so the
+   controller should cache the last coarse snapshot and re-derive
+   `EditorViewState` when listener delivery reflects a real coarse transition
+   such as `playing` or `duration`.
 4. Cache the initial derived `EditorViewState` before view attachment.
 5. Implement `attachView(IEditorView&)` as a non-owning bind that immediately
    pushes cached state.
-6. Because the controller filters at the source on transition-shaped fields,
+6. Because the transport port already delivers only transition-shaped callbacks,
    every push corresponds to a real change. Do not add a downstream
    "is the new derived state equal to the last pushed state" suppression layer;
    it is unnecessary under this subscription policy and would only mask bugs in
-   the source-side filter.
+   the source-side transport publication or controller derivation.
 7. Implement play/pause, stop, and waveform-click seek decisions in the controller.
 8. For load requests, validate the track id before calling
    `IEdit::setTrackAudioSource(...)`.
@@ -61,8 +60,8 @@ Add fakes for `ITransport`, `IEdit`, and `IEditorView`. Cover:
 
 - `attachView(...)` immediately pushes derived state,
 - transport-state changes that move only `position` (no other field) do **not**
-  push a new view state, because the controller subscribes only to
-  transition-shaped fields,
+  push a new view state, because the transport listener surface is coarse and
+  the controller does not own cursor motion,
 - transport-state changes that move `playing` or `duration` push exactly one
   fresh view state per transition,
 - play intent calls `play()` when a session track has an asset and transport is
