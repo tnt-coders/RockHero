@@ -120,9 +120,10 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
         loaded_audio_path = audio_asset->path;
     }
     REQUIRE(loaded_audio_path.has_value());
-    CHECK(*loaded_audio_path == std::filesystem::path{"full_mix.wav"});
-    REQUIRE(single_track_state.last_load_error.has_value());
-    CHECK(*single_track_state.last_load_error == "Could not load file");
+    CHECK(
+        loaded_audio_path ==
+        std::optional<std::filesystem::path>{std::filesystem::path{"full_mix.wav"}});
+    CHECK(single_track_state.last_load_error == std::optional<std::string>{"Could not load file"});
 }
 
 // Verifies row and editor state types support value comparisons for duplicate suppression.
@@ -151,6 +152,14 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
     const EditorViewState same_state{
         .load_button_enabled = true,
         .play_pause_enabled = true,
+        .stop_enabled = false,
+        .play_pause_shows_pause_icon = false,
+        .tracks = {same_track_state},
+        .last_load_error = std::nullopt,
+    };
+    const EditorViewState different_state{
+        .load_button_enabled = true,
+        .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = false,
         .tracks = {track_state},
@@ -158,7 +167,8 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
     };
 
     CHECK(track_state == same_track_state);
-    CHECK_FALSE(first_state == same_state);
+    CHECK(first_state == same_state);
+    CHECK_FALSE(first_state == different_state);
 }
 
 // Verifies a fake view can receive framework-free editor state without JUCE initialization.
@@ -181,8 +191,7 @@ TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
     view.setState(state);
 
     CHECK(view.set_state_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK(*view.last_state == state);
+    CHECK(view.last_state == std::optional<EditorViewState>{state});
 }
 
 // Verifies a fake controller can receive the current editor intents without JUCE callback types.
@@ -198,15 +207,12 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     controller.onWaveformClicked(0.75);
 
     CHECK(controller.load_request_count == 1);
-    REQUIRE(controller.last_track_id.has_value());
-    CHECK(*controller.last_track_id == track_id);
-    REQUIRE(controller.last_audio_asset.has_value());
-    CHECK(*controller.last_audio_asset == audio_asset);
+    CHECK(controller.last_track_id == std::optional<core::TrackId>{track_id});
+    CHECK(controller.last_audio_asset == std::optional<core::AudioAsset>{audio_asset});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
-    REQUIRE(controller.last_normalized_x.has_value());
-    CHECK(*controller.last_normalized_x == 0.75);
+    CHECK(controller.last_normalized_x == std::optional<double>{0.75});
 }
 
 } // namespace rock_hero::ui
