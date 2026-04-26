@@ -7,9 +7,10 @@ editor workflow testable without JUCE initialization.
 
 ## Expected Files
 
-- `libs/rock-hero-ui/include/rock_hero/ui/controllers/editor_view_state.h`
-- `libs/rock-hero-ui/include/rock_hero/ui/controllers/i_editor_view.h`
-- `libs/rock-hero-ui/include/rock_hero/ui/controllers/i_editor_controller.h`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/track_waveform_state.h`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/editor_view_state.h`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/i_editor_view.h`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/i_editor_controller.h`
 - `libs/rock-hero-ui/tests/test_editor_controller_contracts.cpp`
 - `libs/rock-hero-ui/CMakeLists.txt`
 - possible `libs/rock-hero-ui/tests/CMakeLists.txt`
@@ -20,6 +21,10 @@ editor workflow testable without JUCE initialization.
    - `core::TrackId track_id`,
    - `std::string display_name`,
    - `std::optional<core::AudioAsset> audio_asset`.
+
+   Define `TrackWaveformState` in its own public header,
+   `rock_hero/ui/editor/track_waveform_state.h`, rather than bundling it into
+   `editor_view_state.h`.
 
    Do not add `muted`, `gain`, `selected`, per-row playhead, or per-row length.
    Mute and gain have no rendering behavior in this revision; `selected` was cut
@@ -33,13 +38,16 @@ editor workflow testable without JUCE initialization.
    - `double cursor_proportion` (single shared playhead, not per-row),
    - `std::vector<TrackWaveformState> tracks`,
    - `std::optional<std::string> last_load_error`.
+
+   Keep `EditorViewState` in `editor_view_state.h` and include
+   `track_waveform_state.h` there instead of redefining the row type.
 3. Add `IEditorView` with `setState(const EditorViewState&)`.
 4. Add `IEditorController` with user-intent methods:
    - `onLoadAudioAssetRequested(core::TrackId, core::AudioAsset)`,
    - `onPlayPausePressed()`,
    - `onStopPressed()`,
    - `onWaveformClicked(double normalized_x)`.
-5. Keep these files under the physical `controllers/` folder but in namespace
+5. Keep these files under the physical `editor/` folder but in namespace
    `rock_hero::ui`.
 6. Do not include JUCE headers in these controller contracts.
 
