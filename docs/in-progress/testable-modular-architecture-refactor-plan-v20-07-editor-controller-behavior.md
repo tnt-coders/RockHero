@@ -7,8 +7,8 @@ with fakes.
 
 ## Expected Files
 
-- `libs/rock-hero-ui/include/rock_hero/ui/controllers/editor_controller.h`
-- `libs/rock-hero-ui/src/controllers/editor_controller.cpp`
+- `libs/rock-hero-ui/include/rock_hero/ui/editor/editor_controller.h`
+- `libs/rock-hero-ui/src/editor/editor_controller.cpp`
 - `libs/rock-hero-ui/tests/test_editor_controller.cpp`
 - `libs/rock-hero-ui/CMakeLists.txt`
 - possible `libs/rock-hero-ui/tests/CMakeLists.txt`

@@ -5,6 +5,11 @@
 Prepare waveform rendering for multi-track-shaped view state while keeping the first
 implementation as one row.
 
+This stage does not revisit the already-completed controller or `EditorViewState`
+contract work. Any cursor smoothness changes from this point forward must preserve
+those completed stages and instead shape how the remaining JUCE view pieces are
+split.
+
 ## Expected Files
 
 - `libs/rock-hero-ui/include/rock_hero/ui/track_waveform_row.h`
@@ -22,11 +27,16 @@ implementation as one row.
 5. Call `Thumbnail::setSource(asset)` only when the asset changes to a present value.
 6. Draw only row-local waveform content from `TrackWaveformState`.
 7. Do not draw the playhead cursor in `TrackWaveformRow`. The editor has one
-   window-wide cursor across all waveform rows; `EditorView` owns that overlay and
-   derives it from `EditorViewState.cursor_proportion`.
-8. Emit waveform-click intent to the parent through a local listener or equivalent
-   local callback, keeping public callback members out of the design.
-9. Leave existing `WaveformDisplay` in place until `EditorView` replaces it.
+   window-wide cursor across all waveform rows; `EditorView` owns that overlay.
+8. Keep row responsibilities limited to waveform rendering, row-local hit testing,
+   and row-local asset refresh. Do not add live transport listeners, cursor timers,
+   or per-frame animation logic to the row.
+9. Treat the existing `EditorViewState.cursor_proportion` field as compatibility
+   snapshot state for later stages, not as a reason to put live cursor motion back
+   into each row.
+10. Emit waveform-click intent to the parent through a local listener or equivalent
+    local callback, keeping public callback members out of the design.
+11. Leave existing `WaveformDisplay` in place until `EditorView` replaces it.
 
 ## Tests
 
@@ -53,6 +63,7 @@ exist.
 - Thumbnail refresh is automatic from row state changes.
 - `TrackWaveformRow` owns its thumbnail.
 - `TrackWaveformRow` does not own, store, or draw playhead cursor state.
+- `TrackWaveformRow` does not become the owner of smooth cursor animation logic.
 - Existing editor UI still works through the old waveform path.
 
 ## Do Not Do

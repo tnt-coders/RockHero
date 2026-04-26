@@ -7,6 +7,7 @@ editor workflow policy.
 
 ## Expected Files
 
+- `libs/rock-hero-ui/include/rock_hero/ui/transport_controls_state.h`
 - `libs/rock-hero-ui/include/rock_hero/ui/transport_controls.h`
 - `libs/rock-hero-ui/src/transport_controls.cpp`
 - possible `libs/rock-hero-ui/tests/test_transport_controls.cpp`
@@ -15,6 +16,8 @@ editor workflow policy.
 
 1. Add `TransportControlsState` with the enabledness and playing values the widget
    needs.
+   Define it in its own public header, `rock_hero/ui/transport_controls_state.h`,
+   rather than nesting it into `transport_controls.h`.
 2. Replace public `std::function` callback members with a nested
    `TransportControls::Listener` interface.
 3. Require `Listener&` in the constructor.

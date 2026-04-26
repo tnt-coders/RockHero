@@ -19,3 +19,6 @@ target_link_libraries(
     rock_hero_ui
     PUBLIC rock_hero_audio rock_hero_juce_gui_basics
     PRIVATE rock_hero_ui_resources)
+
+# Keep the module's headless controller-contract tests adjacent to the UI library.
+add_subdirectory(tests)
