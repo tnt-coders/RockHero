@@ -6,7 +6,7 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/ui/editor/track_waveform_state.h>
+#include <rock_hero/ui/editor/track_view_state.h>
 #include <string>
 #include <vector>
 
@@ -34,7 +34,7 @@ struct EditorViewState
     bool play_pause_shows_pause_icon{false};
 
     /*! \brief Current waveform rows shown by the editor. */
-    std::vector<TrackWaveformState> tracks;
+    std::vector<TrackViewState> tracks;
 
     /*! \brief Most recent load error to display, if one should currently be shown. */
     std::optional<std::string> last_load_error;
