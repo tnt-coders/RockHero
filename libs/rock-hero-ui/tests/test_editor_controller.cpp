@@ -94,7 +94,6 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
-    CHECK(empty_state.cursor_proportion == 0.0);
     CHECK(empty_state.tracks.empty());
     CHECK_FALSE(empty_state.last_load_error.has_value());
 
@@ -103,7 +102,6 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
-        .cursor_proportion = 0.25,
         .tracks = {TrackWaveformState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
@@ -142,7 +140,6 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .play_pause_enabled = true,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .cursor_proportion = 0.5,
         .tracks = {track_state},
         .last_load_error = std::nullopt,
     };
@@ -153,7 +150,6 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = false,
-        .cursor_proportion = 0.5,
         .tracks = {track_state},
         .last_load_error = std::nullopt,
     };
@@ -172,7 +168,6 @@ TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
         .play_pause_enabled = false,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .cursor_proportion = 0.0,
         .tracks = {TrackWaveformState{
             .track_id = core::TrackId{3},
             .display_name = "Backing Track",
