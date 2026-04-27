@@ -8,6 +8,7 @@
 #include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_transport.h>
+#include <rock_hero/audio/scoped_listener.h>
 #include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
@@ -31,15 +32,13 @@ not the controller's responsibility; the editor view pulls position from ITransp
 at its own render cadence. The controller provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced session, transport, and edit ports must outlive the controller. The controller
-registers as an audio::ITransport::Listener for its full lifetime.
+The referenced session, transport, and edit ports must outlive the controller.
 */
 class EditorController final : public IEditorController, private audio::ITransport::Listener
 {
 public:
     /*!
-    \brief Builds the controller, captures an initial derived view state, and subscribes to
-    transport.
+    \brief Builds the controller, subscribes to transport, and captures initial view state.
 
     The controller does not push state during construction because no view is attached yet. The
     initial cached state becomes the first push delivered to a view passed to attachView().
@@ -50,7 +49,7 @@ public:
     */
     EditorController(core::Session& session, audio::ITransport& transport, audio::IEdit& edit);
 
-    /*! \brief Detaches the transport listener registration before owned references go away. */
+    /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
 
     /*! \brief Copying is disabled because the controller owns a transport listener registration. */
@@ -158,6 +157,9 @@ private:
     // Records that a transport callback arrived during an in-flight edit so the controller
     // produces exactly one final post-edit push instead of one stale and one final push.
     bool m_pending_refresh{false};
+
+    // Declared last so transport callbacks are detached before controller state is destroyed.
+    audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
 };
 
 } // namespace rock_hero::ui

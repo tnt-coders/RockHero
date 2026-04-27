@@ -10,8 +10,8 @@
 namespace rock_hero::ui
 {
 
-// Converts a timeline position to a bounded pixel coordinate for the cursor overlay.
-std::optional<int> cursorXForTimelinePosition(
+// Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
+std::optional<float> cursorXForTimelinePosition(
     core::TimePosition position, core::TimePosition visible_timeline_start,
     core::TimeDuration visible_timeline_duration, int width) noexcept
 {
@@ -24,7 +24,7 @@ std::optional<int> cursorXForTimelinePosition(
         (position.seconds - visible_timeline_start.seconds) / visible_timeline_duration.seconds;
     const double clamped_position = std::clamp(relative_position, 0.0, 1.0);
     const auto max_x = static_cast<double>(width - 1);
-    return static_cast<int>(std::lround(clamped_position * max_x));
+    return static_cast<float>(clamped_position * max_x);
 }
 
 // Handles editor-wide timeline interaction and draws the cursor from live transport position.
@@ -58,8 +58,8 @@ public:
             return;
         }
 
-        g.setColour(juce::Colours::white.withAlpha(0.9f));
-        g.drawVerticalLine(*m_cursor_x, 0.0f, static_cast<float>(getHeight()));
+        g.setColour(juce::Colours::white);
+        g.drawLine(*m_cursor_x, 0.0f, *m_cursor_x, static_cast<float>(getHeight()), 2.0f);
     }
 
     // Converts editor-wide timeline clicks into normalized seek intent.
@@ -89,21 +89,37 @@ private:
             return;
         }
 
-        repaintCursorStrip(m_cursor_x);
-        repaintCursorStrip(next_cursor_x);
+        repaintCursorMovement(m_cursor_x, next_cursor_x);
         m_cursor_x = next_cursor_x;
     }
 
-    // Invalidates a small horizontal region around one cursor x coordinate.
-    void repaintCursorStrip(std::optional<int> cursor_x)
+    // Invalidates the union of old/new subpixel cursor strips, including antialias padding.
+    void repaintCursorMovement(
+        std::optional<float> previous_cursor_x, std::optional<float> next_cursor_x)
     {
-        if (!cursor_x.has_value() || getWidth() <= 0 || getHeight() <= 0)
+        if ((!previous_cursor_x.has_value() && !next_cursor_x.has_value()) || getWidth() <= 0 ||
+            getHeight() <= 0)
         {
             return;
         }
 
-        const int left = std::max(0, *cursor_x - 1);
-        const int right = std::min(getWidth(), *cursor_x + 2);
+        float left_x = 0.0f;
+        float right_x = 0.0f;
+        if (previous_cursor_x.has_value() && next_cursor_x.has_value())
+        {
+            left_x = std::min(*previous_cursor_x, *next_cursor_x);
+            right_x = std::max(*previous_cursor_x, *next_cursor_x);
+        }
+        else
+        {
+            const float cursor_x =
+                previous_cursor_x.has_value() ? *previous_cursor_x : *next_cursor_x;
+            left_x = cursor_x;
+            right_x = cursor_x;
+        }
+        constexpr int padding = 3;
+        const int left = std::max(0, static_cast<int>(std::floor(left_x)) - padding);
+        const int right = std::min(getWidth(), static_cast<int>(std::ceil(right_x)) + padding + 1);
         repaint(left, 0, right - left, getHeight());
     }
 
@@ -122,8 +138,8 @@ private:
     // Duration of the visible timeline range last pushed by EditorView::setState().
     core::TimeDuration m_visible_timeline_duration{};
 
-    // Last cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
-    std::optional<int> m_cursor_x{};
+    // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
+    std::optional<float> m_cursor_x{};
 };
 
 // Creates child widgets, installs the row thumbnail, and keeps ThumbnailCreator construction-only.
@@ -138,6 +154,7 @@ EditorView::EditorView(
     m_load_button.setButtonText("Load File...");
     m_load_button.setEnabled(false);
     m_load_button.onClick = [this] { onLoadClicked(); };
+    setWantsKeyboardFocus(true);
 
     m_transport_controls.setComponentID("transport_controls");
     m_track_view.setComponentID("track_view");
@@ -203,6 +220,18 @@ void EditorView::resized()
     m_track_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
     m_cursor_overlay->toFront(false);
+}
+
+// Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
+bool EditorView::keyPressed(const juce::KeyPress& key)
+{
+    if (key == juce::KeyPress{juce::KeyPress::spaceKey})
+    {
+        m_controller.onPlayPausePressed();
+        return true;
+    }
+
+    return false;
 }
 
 // Opens an asynchronous file chooser and sends accepted assets to the controller.

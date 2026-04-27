@@ -12,3 +12,4 @@ ColumnLimit: 100
 IncludeBlocks: Regroup
 PackConstructorInitializers: Never
 PointerAlignment: Left
+ReflowComments: false

@@ -7,24 +7,20 @@
 namespace rock_hero::ui
 {
 
-// Captures an initial derived state and subscribes for coarse transport transitions; no view push
+// Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
     core::Session& session, audio::ITransport& transport, audio::IEdit& edit)
     : m_session(session)
     , m_transport(transport)
     , m_edit(edit)
+    , m_transport_listener(transport, *this)
 {
     m_last_state = deriveViewState();
-    m_transport.addListener(*this);
 }
 
-// Detaches the listener registration first so a callback firing during teardown cannot reach a
-// half-destroyed controller.
-EditorController::~EditorController()
-{
-    m_transport.removeListener(*this);
-}
+// Uses ScopedListener member teardown to detach before controller state is destroyed.
+EditorController::~EditorController() = default;
 
 // Stores the new view binding and immediately satisfies the "first push at attachment" contract
 // using whatever state the controller has cached up to this point.
