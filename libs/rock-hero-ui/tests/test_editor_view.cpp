@@ -273,8 +273,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 }
 
-// Verifies row click intent is forwarded to the controller instead of seeking in the view.
-TEST_CASE("EditorView forwards waveform clicks to the controller", "[ui][editor-view]")
+// Verifies editor-wide timeline clicks are forwarded without depending on a specific track row.
+TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -284,8 +284,10 @@ TEST_CASE("EditorView forwards waveform clicks to the controller", "[ui][editor-
                     }};
     view.setBounds(0, 0, 500, 200);
 
-    auto& track_view = findRequiredChild<TrackView>(view, "track_view");
-    track_view.mouseDown(makeMouseDownEvent(track_view, 125.0f, 20.0f));
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    REQUIRE(cursor_overlay.getWidth() > 0);
+    const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 20.0f));
 
     CHECK(controller.waveform_click_count == 1);
     REQUIRE(controller.last_normalized_x.has_value());
