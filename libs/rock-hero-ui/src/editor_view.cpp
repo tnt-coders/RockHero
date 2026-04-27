@@ -27,17 +27,18 @@ std::optional<int> cursorXForTimelinePosition(
     return static_cast<int>(std::lround(clamped_position * max_x));
 }
 
-// Draws one editor-wide playhead cursor from live transport position and stored view range.
+// Handles editor-wide timeline interaction and draws the cursor from live transport position.
 class EditorView::CursorOverlay final : public juce::Component
 {
 public:
     // Starts vblank-driven cursor refresh against the injected read-only transport.
-    explicit CursorOverlay(const audio::ITransport& transport)
-        : m_transport(transport)
+    CursorOverlay(IEditorController& controller, const audio::ITransport& transport)
+        : m_controller(controller)
+        , m_transport(transport)
         , m_vblank_attachment(this, [this] { advanceCursor(); })
     {
         setComponentID("cursor_overlay");
-        setInterceptsMouseClicks(false, false);
+        setInterceptsMouseClicks(true, false);
     }
 
     // Uses default destruction because JUCE owns the vblank registration member.
@@ -62,6 +63,18 @@ public:
 
         g.setColour(juce::Colours::white.withAlpha(0.9f));
         g.drawVerticalLine(*m_cursor_x, 0.0f, static_cast<float>(getHeight()));
+    }
+
+    // Converts editor-wide timeline clicks into normalized seek intent.
+    void mouseDown(const juce::MouseEvent& event) override
+    {
+        if (getWidth() <= 0)
+        {
+            return;
+        }
+
+        const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
+        m_controller.onWaveformClicked(std::clamp(ratio, 0.0, 1.0));
     }
 
 private:
@@ -97,6 +110,9 @@ private:
         repaint(left, 0, right - left, getHeight());
     }
 
+    // Controller receives editor-level timeline seek intent.
+    IEditorController& m_controller;
+
     // Read-only transport source sampled at vblank cadence for its live position method.
     const audio::ITransport& m_transport;
 
@@ -119,7 +135,7 @@ EditorView::EditorView(
     ThumbnailCreator create_thumbnail)
     : m_controller(controller)
     , m_transport_controls(*this)
-    , m_cursor_overlay(std::make_unique<CursorOverlay>(transport))
+    , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
 {
     m_load_button.setComponentID("load_button");
     m_load_button.setButtonText("Load File...");
@@ -128,7 +144,6 @@ EditorView::EditorView(
 
     m_transport_controls.setComponentID("transport_controls");
     m_track_view.setComponentID("track_view");
-    m_track_view.addListener(*this);
 
     if (create_thumbnail)
     {
@@ -143,11 +158,8 @@ EditorView::EditorView(
     setSize(800, 300);
 }
 
-// Detaches the row listener before child members begin destruction.
-EditorView::~EditorView()
-{
-    m_track_view.removeListener(*this);
-}
+// Uses default destruction because child ownership is represented by members.
+EditorView::~EditorView() = default;
 
 // Projects controller-derived state into child widgets and cursor mapping state.
 void EditorView::setState(const EditorViewState& state)
@@ -260,12 +272,6 @@ void EditorView::onPlayPausePressed()
 void EditorView::onStopPressed()
 {
     m_controller.onStopPressed();
-}
-
-// Forwards row-local click intent to the workflow controller.
-void EditorView::trackViewClicked(TrackView& /*view*/, double normalized_x)
-{
-    m_controller.onWaveformClicked(normalized_x);
 }
 
 } // namespace rock_hero::ui
