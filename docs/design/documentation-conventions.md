@@ -1,4 +1,4 @@
-\page design_documentation_style Documentation Style
+\page design_documentation_conventions Documentation Conventions
 
 # Scope
 
@@ -21,10 +21,52 @@ These rules do not apply to:
 
 - Keep the entire rendered comment line at 100 characters or fewer, including indentation and
   comment markers.
+- Do not rely on `clang-format` to wrap comments. The formatter preserves comment text so it does
+  not rewrite Doxygen blocks into a style that conflicts with this document. Authors and automated
+  agents must manually wrap new or edited comments before committing.
 - Wrap as late as reasonably possible; do not leave comments prematurely short when they fit
   cleanly on the current line.
 - Preserve intentional blank lines between comment paragraphs or sections.
 - Normal non-Doxygen comments follow the same 100-character limit.
+
+# CMake Comment Coverage
+
+Project-owned CMake files should be well commented.
+
+This applies to:
+
+- root `CMakeLists.txt`
+- module `CMakeLists.txt`
+- test `CMakeLists.txt`
+- project-owned `.cmake` helper files
+
+Comments in CMake should explain:
+
+- target purpose
+- why a dependency is public or private when that is not obvious
+- why a compile definition, wrapper target, generated file, or packaging step exists
+- any non-obvious build-system constraint, policy, or workaround
+
+Do not add mechanical comments that merely restate the command name. Prefer short comments that
+explain intent and architectural role.
+
+Examples:
+
+\code{.cmake}
+# Depend on project-owned wrapper targets rather than raw JUCE/Tracktion module targets.
+target_link_libraries(
+    rock_hero_audio
+    PUBLIC rock_hero_core
+    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+\endcode
+
+\code{.cmake}
+# Copy the canonical fixture into the build tree so the test target owns its runtime inputs.
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
+    "${CMAKE_CURRENT_BINARY_DIR}/test-data/drum_loop.wav"
+    COPYONLY)
+\endcode
 
 # Doxygen Scope
 
@@ -54,6 +96,11 @@ These rules do not apply to:
 - `.cpp` method comments should explain why the method exists, lifecycle timing, ownership or
   lifetime effects, framework callback role, threading or realtime constraints, user-visible
   behavior, failure behavior, or why a temporary implementation is acceptable.
+- Test `.cpp` files follow the same regular-comment rule. Each `TEST_CASE` should have a concise
+  comment immediately above it explaining the behavior, invariant, or regression it verifies.
+  Test helper classes, member functions, free functions, and member variables should be commented
+  to the same level as production `.cpp` code when they carry test behavior, captured state, fake
+  behavior, or non-obvious setup semantics. Keep these as regular comments, not Doxygen comments.
 - Avoid mechanical restatements. Prefer comments that add intent:
 
 \code{.cpp}
@@ -86,26 +133,29 @@ Example for a top-level declaration:
 
 \code{.cpp}
 /*!
-\brief Returns the current transport position in seconds.
+\brief Reads the current transport position for render-cadence cursor drawing.
 
-Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
-written by the 60 Hz UI timer shim (updateTransportPositionCache). It will be moved to an
-audio-thread callback once ASIO input is wired.
+Unlike state(), this method is a live position read rather than a listener-published snapshot.
+UI code that needs smooth cursor motion should call this at its own render cadence.
 
-\return The cached transport position in seconds.
+\return Current transport position.
 */
-[[nodiscard]] double getTransportPosition() const noexcept;
+[[nodiscard]] virtual core::TimePosition position() const noexcept = 0;
 \endcode
 
 Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-    \brief Creates the waveform display and starts the 60 Hz repaint timer.
+    \brief Creates the concrete editor view and installs the initial track thumbnail.
 
-    \param engine The audio engine whose transport state drives the cursor.
+    \param controller Controller that receives all user intents emitted by this view.
+    \param transport Read-only transport used by the cursor overlay for live position reads.
+    \param create_thumbnail Callback invoked immediately to create the initial row thumbnail.
     */
-    explicit WaveformDisplay(audio::Engine& engine);
+    EditorView(
+        IEditorController& controller, const audio::ITransport& transport,
+        const ThumbnailCreator& create_thumbnail);
 \endcode
 
 # Doxygen Commands
@@ -154,8 +204,8 @@ File-level Doxygen headers should include the file name explicitly:
 
 \code{.cpp}
 /*!
-\file waveform_display.h
-\brief Waveform rendering component with a scrolling playhead cursor.
+\file editor_view.h
+\brief Concrete JUCE editor view that renders editor state and emits editor intents.
 */
 \endcode
 

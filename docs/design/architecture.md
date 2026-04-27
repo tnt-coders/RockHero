@@ -65,11 +65,35 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 **Dependency rules:**
 
 - `libs/rock-hero-audio` depends on Tracktion and JUCE audio modules.
+- `libs/rock-hero-audio` may also depend on `libs/rock-hero-core` for project-owned value types
+  and interfaces that need to stay framework-free.
 - `libs/rock-hero-core` depends on standard C++ only; no JUCE, no Tracktion. May use
   format-specific Conan packages (e.g. `open-psarc`).
-- Neither library depends on the other.
+- `libs/rock-hero-core` must not depend on `libs/rock-hero-audio`.
 - App executables may depend on both libraries and on `rock-hero-ui`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
+
+## JUCE and Tracktion CMake linkage
+
+Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes
+(`rock_hero_juce_core`, `rock_hero_tracktion_engine`, and so on). Each wrapper links the raw
+module target privately, then forwards the module's compile definitions and include paths to
+consumers.
+
+For Rock Hero, that means:
+
+- Rock Hero libraries and apps link the project-owned wrapper targets, not raw `juce::juce_*` or
+  `tracktion::tracktion_*` module targets.
+- Raw JUCE and Tracktion module targets stay behind the wrapper layer rather than being re-exported
+  through the rest of the project graph.
+
+This departs from JUCE's default recommendation of target-local private module links, but it serves
+the modular structure of this repository better by compiling each third-party module through one
+project-owned static target instead of recompiling the same modules separately in multiple Rock Hero
+libraries and apps.
+
+This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
+interfaces may still mention JUCE types where that is the pragmatic design choice.
 
 ## Include-path convention
 
@@ -80,7 +104,7 @@ reference first-party headers through the full nested path:
 \code{.cpp}
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/core/song.h>
-#include <rock_hero/ui/waveform_display.h>
+#include <rock_hero/ui/editor.h>
 \endcode
 
 Each library *additionally* adds a **PRIVATE** include directory pointing at its own nested
@@ -159,8 +183,8 @@ Song
       part          (Lead | Rhythm | Bass)
       difficulty    (Easy | Medium | Hard | Expert)
       note_events[*]
-        time_seconds
-        duration_seconds
+      position.seconds
+      duration.seconds
         string_number (1–6)
         fret
 \endcode
