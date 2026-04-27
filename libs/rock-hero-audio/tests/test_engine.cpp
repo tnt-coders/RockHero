@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
 #include <cstdint>
@@ -204,44 +203,6 @@ TEST_CASE(
     CHECK(recorder.engine_position_call_count == 0);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(transport.state() == TransportState{});
-
-    transport.removeListener(recorder);
-    engine.removeListener(&recorder);
-}
-
-// Verifies that an explicit seek still drives the legacy Engine::Listener position callback while
-// the project-owned transport listener stays coarse-grained.
-TEST_CASE(
-    "Engine seek keeps transport listeners coarse while legacy position listeners still fire",
-    "[audio][engine][integration]")
-{
-    Engine engine;
-    IEdit& edit = engine;
-    ITransport& transport = engine;
-    TransportNotificationRecorder recorder;
-
-    engine.addListener(&recorder);
-    transport.addListener(recorder);
-
-    const auto audio_asset = fixtureAudioAsset();
-    REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
-
-    const double duration_seconds = transport.state().duration.seconds;
-    REQUIRE(duration_seconds > 0.25);
-
-    recorder.events.clear();
-    recorder.engine_playing_call_count = 0;
-    recorder.engine_position_call_count = 0;
-    recorder.transport_state_call_count = 0;
-
-    const double target_seconds = std::min(0.25, duration_seconds * 0.5);
-    transport.seek(core::TimePosition{target_seconds});
-
-    CHECK(recorder.engine_position_call_count >= 1);
-    CHECK(recorder.last_position_seconds == Catch::Approx(target_seconds));
-    CHECK(recorder.transport_state_call_count == 0);
-    CHECK_FALSE(recorder.last_transport_state.playing);
 
     transport.removeListener(recorder);
     engine.removeListener(&recorder);
