@@ -108,8 +108,8 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_core juce::juce_core)
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_events juce::juce_events PUBLIC_DEPS
                                            rock_hero_juce_core)
 
-# JUCE module declaration and docs:
-# https://github.com/juce-framework/JUCE/blob/master/modules/juce_data_structures/juce_data_structures.h
+# JUCE module declaration and docs: Source header:
+# external/tracktion_engine/modules/juce_data_structures/juce_data_structures.h
 # https://docs.juce.com/master/group__juce__data__structures.html Declared deps: juce_events.
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_data_structures juce::juce_data_structures PUBLIC_DEPS rock_hero_juce_events)
@@ -154,16 +154,16 @@ rock_hero_add_external_juce_module_wrapper(
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_formats juce::juce_audio_formats
                                            PUBLIC_DEPS rock_hero_juce_audio_basics)
 
-# JUCE module declaration and docs:
-# https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_processors_headless/juce_audio_processors_headless.h
+# JUCE module declaration and docs: Source header:
+# external/tracktion_engine/modules/juce_audio_processors_headless/ juce_audio_processors_headless.h
 # https://docs.juce.com/master/group__juce__audio__processors__headless.html Declared deps:
 # juce_audio_basics, juce_events.
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_audio_processors_headless juce::juce_audio_processors_headless PUBLIC_DEPS
     rock_hero_juce_audio_basics rock_hero_juce_events)
 
-# JUCE module declaration and docs:
-# https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_processors/juce_audio_processors.h
+# JUCE module declaration and docs: Source header:
+# external/tracktion_engine/modules/juce_audio_processors/juce_audio_processors.h
 # https://docs.juce.com/master/group__juce__audio__processors.html Declared deps: juce_gui_extra,
 # juce_audio_processors_headless.
 rock_hero_add_external_juce_module_wrapper(
@@ -190,26 +190,25 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_dsp juce::juce_dsp PUB
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_osc juce::juce_osc PUBLIC_DEPS
                                            rock_hero_juce_events)
 
-# Tracktion module declaration:
-# https://github.com/Tracktion/tracktion_engine/blob/master/modules/tracktion_core/tracktion_core.h
-# Tracktion docs do not appear to expose a dedicated per-module dependency page for tracktion_core
-# the way the module header does, so the source declaration is the authoritative dependency link.
-# Declared deps: juce_audio_formats.
+# Tracktion module declaration: Source header:
+# external/tracktion_engine/modules/tracktion_core/tracktion_core.h Tracktion docs do not appear to
+# expose a dedicated per-module dependency page for tracktion_core the way the module header does,
+# so the source declaration is the authoritative dependency link. Declared deps: juce_audio_formats.
 rock_hero_add_external_module_wrapper(rock_hero_tracktion_core tracktion::tracktion_core
                                       PUBLIC_DEPS rock_hero_juce_audio_formats)
 
-# Tracktion module declaration:
-# https://github.com/Tracktion/tracktion_engine/blob/master/modules/tracktion_graph/tracktion_graph.h
-# Tracktion docs search does not show a dedicated dependency-summary page for tracktion_graph, so
-# the module header remains the clearest dependency source. Declared deps: juce_audio_formats. The
-# wrapper also exports rock_hero_tracktion_core because tracktion_graph.h includes
-# ../tracktion_core/tracktion_core.h directly in its public surface.
+# Tracktion module declaration: Source header:
+# external/tracktion_engine/modules/tracktion_graph/tracktion_graph.h Tracktion docs search does not
+# show a dedicated dependency-summary page for tracktion_graph, so the module header remains the
+# clearest dependency source. Declared deps: juce_audio_formats. The wrapper also exports
+# rock_hero_tracktion_core because tracktion_graph.h includes ../tracktion_core/tracktion_core.h
+# directly in its public surface.
 rock_hero_add_external_module_wrapper(
     rock_hero_tracktion_graph tracktion::tracktion_graph PUBLIC_DEPS rock_hero_tracktion_core
     rock_hero_juce_audio_formats)
 
-# Tracktion module declaration and docs:
-# https://github.com/Tracktion/tracktion_engine/blob/master/modules/tracktion_engine/tracktion_engine.h
+# Tracktion module declaration and docs: Source header:
+# external/tracktion_engine/modules/tracktion_engine/tracktion_engine.h
 # https://tracktion.github.io/tracktion_engine/group__tracktion__engine.html Declared deps:
 # juce_audio_devices, juce_audio_utils, juce_dsp, juce_osc, juce_gui_extra, tracktion_graph. The
 # wrapper also exports rock_hero_tracktion_core because tracktion_engine.h includes

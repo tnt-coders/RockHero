@@ -21,6 +21,9 @@ These rules do not apply to:
 
 - Keep the entire rendered comment line at 100 characters or fewer, including indentation and
   comment markers.
+- Do not rely on `clang-format` to wrap comments. The formatter preserves comment text so it does
+  not rewrite Doxygen blocks into a style that conflicts with this document. Authors and automated
+  agents must manually wrap new or edited comments before committing.
 - Wrap as late as reasonably possible; do not leave comments prematurely short when they fit
   cleanly on the current line.
 - Preserve intentional blank lines between comment paragraphs or sections.
