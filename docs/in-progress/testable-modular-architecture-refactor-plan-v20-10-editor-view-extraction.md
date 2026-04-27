@@ -67,27 +67,31 @@ transport-state transitions, zoom, scroll, or layout changes.
 16. Add one editor-wide playhead cursor overlay component across the waveform row
     area. Individual rows draw only their own waveform content; they do not draw
     synchronized per-row cursors.
-17. The cursor overlay receives a non-owning `const audio::ITransport&` through
+17. Route timeline seek clicks through the same editor-wide overlay, not through
+    a particular `TrackView`. This keeps click-to-seek aligned with the shared
+    visible timeline and prepares the interaction to span multiple track rows.
+18. The cursor overlay receives a non-owning `const audio::ITransport&` through
     its constructor. `EditorView` wires the production transport in at composition
     time; tests construct the overlay against a fake transport.
-18. The cursor overlay stores the current visible timeline range supplied by
+19. The cursor overlay stores the current visible timeline range supplied by
     `EditorView::setState`. It does not poll duration every frame.
-19. The cursor overlay runs a `juce::VBlankAttachment` (preferred) or a 60 Hz
+20. The cursor overlay runs a `juce::VBlankAttachment` (preferred) or a 60 Hz
     `juce::Timer` whose callback reads only the current position from
     `ITransport::position()`, computes the cursor x from the stored visible range
     and component bounds, and triggers a repaint of only the narrow strip covering
     the previous and current cursor positions. The static waveform underneath
     stays in `TrackView` and is not invalidated by cursor motion.
-20. The cursor overlay is independent of `IEditorView::setState` for continuous
+21. The cursor overlay is independent of `IEditorView::setState` for continuous
     motion. `setState(...)` may update discrete cursor mapping inputs such as
     visible range, but it must not carry or drive current cursor position.
-21. The cursor overlay does not register with the controller and does not depend
-    on transport listeners. Cursor motion is sourced solely from the vsync pull
-    described above.
-22. Discrete cursor jumps after seek, stop, or load require no special handling in
+22. The cursor overlay may emit normalized timeline seek intent to the controller,
+    but it does not register with the controller and does not depend on transport
+    listeners. Cursor motion is sourced solely from the vsync pull described
+    above.
+23. Discrete cursor jumps after seek, stop, or load require no special handling in
     the overlay because the next vsync tick reads the new transport position
     naturally.
-23. Present `last_load_error` on an edge using
+24. Present `last_load_error` on an edge using
     `std::optional<std::string> m_last_presented_error`.
 
 ## Tests
@@ -105,6 +109,8 @@ fake `IEditorController`, fake `audio::ITransport`, and fake `audio::Thumbnail`.
 - created thumbnail is installed on the initial row before the constructor
   returns,
 - a single cursor overlay is owned by `EditorView`, not by individual rows,
+- timeline seek clicks are handled by the editor-wide overlay rather than by a
+  particular `TrackView`,
 - the cursor overlay reads only position from the injected const transport, not
   from `EditorViewState`,
 - `EditorViewState` carries visible timeline range or duration for cursor mapping

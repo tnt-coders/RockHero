@@ -43,8 +43,7 @@ not part of EditorViewState.
 */
 class EditorView final : public juce::Component,
                          public IEditorView,
-                         private TransportControls::Listener,
-                         private TrackView::Listener
+                         private TransportControls::Listener
 {
 public:
     /*!
@@ -84,7 +83,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out load controls, transport controls, waveform row, and cursor overlay. */
+    /*! \brief Lays out load controls, transport controls, waveform row, and timeline overlay. */
     void resized() override;
 
 private:
@@ -102,9 +101,6 @@ private:
     // TransportControls::Listener implementation.
     void onStopPressed() override;
 
-    // TrackView::Listener implementation.
-    void trackViewClicked(TrackView& view, double normalized_x) override;
-
     // Controller that owns editor workflow policy.
     IEditorController& m_controller;
 
@@ -120,7 +116,7 @@ private:
     // Initial single waveform row used until later multi-row composition lands.
     TrackView m_track_view;
 
-    // Editor-wide cursor overlay drawn above the waveform row.
+    // Editor-wide cursor and seek overlay drawn above the waveform row.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
