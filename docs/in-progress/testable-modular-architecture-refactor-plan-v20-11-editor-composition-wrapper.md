@@ -10,6 +10,8 @@ half-wired controller/view objects.
 - `libs/rock-hero-ui/include/rock_hero/ui/editor.h`
 - `libs/rock-hero-ui/src/editor.cpp`
 - `libs/rock-hero-ui/CMakeLists.txt`
+- `libs/rock-hero-ui/tests/test_editor.cpp`
+- `libs/rock-hero-ui/tests/CMakeLists.txt`
 
 ## Implementation Steps
 
@@ -19,9 +21,9 @@ half-wired controller/view objects.
    - `core::Session&`,
    - `audio::ITransport&`,
    - `audio::IEdit&`,
-   - `ThumbnailCreator`.
+   - `const ThumbnailCreator&`.
 4. Construct `m_controller(session, transport, edit)`.
-5. Construct `m_view(m_controller, transport, std::move(create_thumbnail))`.
+5. Construct `m_view(m_controller, transport, create_thumbnail)`.
 6. Call `m_controller.attachView(m_view)` after view construction finishes.
 7. Expose only `juce::Component& component() noexcept`.
 8. Do not retain the `ThumbnailCreator` after construction.
