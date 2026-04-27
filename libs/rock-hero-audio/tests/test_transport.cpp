@@ -61,6 +61,12 @@ public:
         return m_state;
     }
 
+    // Returns the fake's current position through the live-read transport method.
+    [[nodiscard]] rock_hero::core::TimePosition position() const noexcept override
+    {
+        return m_state.position;
+    }
+
     // Stores a non-owning listener pointer to mirror the production listener lifetime contract.
     void addListener(Listener& listener) override
     {
@@ -127,6 +133,7 @@ TEST_CASE("ITransport fake stores and returns transport state", "[audio][transpo
     const FakeTransport transport{expected};
 
     CHECK(transport.state() == expected);
+    CHECK(transport.position() == expected.position);
 }
 
 // Verifies reference-based listener registration delivers coarse transitions and stops after

@@ -147,6 +147,27 @@ TEST_CASE("Engine seek updates transport state synchronously", "[audio][engine][
     CHECK(transport.state().position == core::TimePosition{target_seconds});
 }
 
+// Verifies the live cursor-position read observes the concrete transport position directly.
+TEST_CASE("Engine live position follows transport seeks", "[audio][engine][integration]")
+{
+    Engine engine;
+    IEdit& edit = engine;
+    ITransport& transport = engine;
+    const ITransport& read_only_transport = engine;
+
+    const auto audio_asset = fixtureAudioAsset();
+    REQUIRE(std::filesystem::exists(audio_asset.path));
+    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+
+    const double duration_seconds = transport.state().duration.seconds;
+    REQUIRE(duration_seconds > 0.0);
+
+    const double target_seconds = std::min(0.3, duration_seconds * 0.5);
+    transport.seek(core::TimePosition{target_seconds});
+
+    CHECK(read_only_transport.position() == core::TimePosition{target_seconds});
+}
+
 // Verifies that a successful edit naturally notifies the project-owned transport listener before
 // the edit call returns. A load from the empty state changes duration but leaves position at zero,
 // so the legacy Engine::Listener position callback is not expected to fire here.

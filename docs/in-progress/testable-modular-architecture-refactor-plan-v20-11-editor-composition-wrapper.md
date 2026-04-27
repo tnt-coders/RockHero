@@ -21,10 +21,12 @@ half-wired controller/view objects.
    - `audio::IEdit&`,
    - `ThumbnailCreator`.
 4. Construct `m_controller(session, transport, edit)`.
-5. Construct `m_view(m_controller, std::move(create_thumbnail))`.
+5. Construct `m_view(m_controller, transport, std::move(create_thumbnail))`.
 6. Call `m_controller.attachView(m_view)` after view construction finishes.
 7. Expose only `juce::Component& component() noexcept`.
 8. Do not retain the `ThumbnailCreator` after construction.
+9. Pass the transport to `EditorView` as a const reference so the view can read
+   live cursor position but cannot issue playback-control commands.
 
 ## Tests
 
@@ -34,6 +36,8 @@ Add a lightweight construction test with fakes if the JUCE test harness can cons
 - `Editor` constructs with fakes,
 - `component()` returns the view component,
 - initial state is pushed during construction.
+- the fake transport is supplied to `EditorView` construction as the cursor
+  position source.
 
 If constructing the full JUCE view is not practical, add a smaller automated test for
 the composition invariant through a test-only lightweight view/controller pair or
@@ -49,6 +53,8 @@ or including `ui::Editor`.
 
 - `ui::Editor` is the only object the app needs for the editor UI feature.
 - Controller and view lifetimes are bound together.
+- The controller receives mutable `ITransport` and `IEdit`; the view receives the
+  same transport as a const live-position source for cursor rendering.
 - There is no public `setController`, `attachThumbnail`, or half-wired construction
   sequence exposed to the app.
 

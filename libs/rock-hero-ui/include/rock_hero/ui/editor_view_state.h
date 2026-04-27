@@ -6,6 +6,7 @@
 #pragma once
 
 #include <optional>
+#include <rock_hero/core/timeline.h>
 #include <rock_hero/ui/track_view_state.h>
 #include <string>
 #include <vector>
@@ -32,6 +33,12 @@ struct EditorViewState
 
     /*! \brief Selects whether the play/pause control should render a pause icon. */
     bool play_pause_shows_pause_icon{false};
+
+    /*! \brief Start of the visible timeline range used to map cursor position to pixels. */
+    core::TimePosition visible_timeline_start{};
+
+    /*! \brief Duration of the visible timeline range used to map cursor position to pixels. */
+    core::TimeDuration visible_timeline_duration{};
 
     /*! \brief Current waveform rows shown by the editor. */
     std::vector<TrackViewState> tracks;

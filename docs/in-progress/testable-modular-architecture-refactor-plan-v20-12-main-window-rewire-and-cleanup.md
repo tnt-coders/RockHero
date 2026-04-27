@@ -25,7 +25,9 @@ that are no longer needed.
    outlive view-owned thumbnails.
 3. Add the initial empty or default "Full Mix" track to the session before constructing
    `ui::Editor`.
-4. Pass the engine as both `audio::ITransport&` and `audio::IEdit&`.
+4. Pass the engine as `audio::ITransport&` and `audio::IEdit&`; `ui::Editor`
+   passes the same transport onward to `EditorView` as a const live-position
+   source.
 5. Pass a thumbnail creation lambda that calls `audio::Engine::createThumbnail(...)`.
 6. Install `m_editor->component()` as the window content.
 7. Preserve `clearContentComponent()` or equivalent teardown safety.
@@ -37,7 +39,9 @@ that are no longer needed.
     overloads, `enginePlayingStateChanged(...)`, `engineTransportPositionChanged(...)`,
     and tests whose only purpose is preserving legacy position-listener callbacks.
 11. Remove legacy `Engine` methods that are no longer part of the port surface and no
-    longer used.
+    longer used. Stage 10's live `ITransport::position()` replaces the legacy
+    cursor-position read path, so remove `Engine::getTransportPosition()` once
+    no project-owned UI code calls it.
 12. Remove obsolete `WaveformDisplay`.
 13. If any target, helper, or test still depends on `WaveformDisplay`, migrate that
     dependency in this stage to `ui::Editor`, `EditorView`, `TrackView`, or the shared
@@ -54,6 +58,10 @@ that are no longer needed.
     `EditorController`'s constructor and destructor with a `ScopedListener` member declared last
     so its destructor runs first during teardown. Remove the corresponding "manual subscription"
     note from `EditorController`'s class documentation in the same change.
+16. Keep the live-position path listener-free. After cleanup, cursor drawing
+    should depend on `ITransport::position()` plus pushed visible-range state,
+    not on `Engine::Listener`, `ITransport::Listener`, or legacy waveform polling
+    helpers.
 
 ## Tests
 
@@ -84,6 +92,8 @@ compile commands and record that full CMake/CTest still needs to be run elsewher
 - The editor app composes `audio::Engine`, `core::Session`, and `ui::Editor`.
 - No app code manually wires controller/view/thumbnail internals.
 - Old direct engine UI coupling is gone.
+- Smooth cursor motion reads current position through `ITransport::position()`;
+  duration or visible range comes from pushed view state.
 - `WaveformDisplay` no longer exists in project-owned code.
 - The final architecture still matches the v19 goal alignment checkpoint.
 
