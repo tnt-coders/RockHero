@@ -104,7 +104,7 @@ reference first-party headers through the full nested path:
 \code{.cpp}
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/core/song.h>
-#include <rock_hero/ui/waveform_display.h>
+#include <rock_hero/ui/editor.h>
 \endcode
 
 Each library *additionally* adds a **PRIVATE** include directory pointing at its own nested

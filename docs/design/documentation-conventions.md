@@ -130,26 +130,29 @@ Example for a top-level declaration:
 
 \code{.cpp}
 /*!
-\brief Returns the current transport position in seconds.
+\brief Reads the current transport position for render-cadence cursor drawing.
 
-Lock-free; safe to call from any thread. The value is backed by a std::atomic and currently
-written by the 60 Hz UI timer shim (updateTransportPositionCache). It will be moved to an
-audio-thread callback once ASIO input is wired.
+Unlike state(), this method is a live position read rather than a listener-published snapshot.
+UI code that needs smooth cursor motion should call this at its own render cadence.
 
-\return The cached transport position in seconds.
+\return Current transport position.
 */
-[[nodiscard]] double getTransportPosition() const noexcept;
+[[nodiscard]] virtual core::TimePosition position() const noexcept = 0;
 \endcode
 
 Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-    \brief Creates the waveform display and starts the 60 Hz repaint timer.
+    \brief Creates the concrete editor view and installs the initial track thumbnail.
 
-    \param engine The audio engine whose transport state drives the cursor.
+    \param controller Controller that receives all user intents emitted by this view.
+    \param transport Read-only transport used by the cursor overlay for live position reads.
+    \param create_thumbnail Callback invoked immediately to create the initial row thumbnail.
     */
-    explicit WaveformDisplay(audio::Engine& engine);
+    EditorView(
+        IEditorController& controller, const audio::ITransport& transport,
+        const ThumbnailCreator& create_thumbnail);
 \endcode
 
 # Doxygen Commands
@@ -198,8 +201,8 @@ File-level Doxygen headers should include the file name explicitly:
 
 \code{.cpp}
 /*!
-\file waveform_display.h
-\brief Waveform rendering component with a scrolling playhead cursor.
+\file editor_view.h
+\brief Concrete JUCE editor view that renders editor state and emits editor intents.
 */
 \endcode
 

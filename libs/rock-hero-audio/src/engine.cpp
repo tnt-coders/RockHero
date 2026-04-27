@@ -3,7 +3,6 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
-#include <atomic>
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::audio
@@ -21,17 +20,11 @@ private:
     // Single-track edit used for current early backing-track playback.
     std::unique_ptr<tracktion::Edit> m_edit;
 
-    // Lock-free cache of transport seconds for UI drawing and future realtime readers.
-    std::atomic<double> m_transport_position{0.0};
-
     // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
     // Message-thread snapshot exposed through ITransport::state().
     TransportState m_transport_state{};
-
-    // Message-thread listener list for the legacy Engine listener surface.
-    juce::ListenerList<Engine::Listener> m_engine_listeners;
 
     // Message-thread listener list for the project-owned ITransport listener surface.
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
@@ -47,32 +40,17 @@ private:
         };
     }
 
-    // Applies a fresh snapshot, keeps the lock-free cache in sync, and notifies listeners only
-    // for the fields that actually changed.
+    // Applies a fresh snapshot and notifies listeners only for coarse fields that changed.
     void applyTransportStateSnapshot(const TransportState& next_state, bool notify_listeners)
     {
         const bool playing_changed = m_transport_state.playing != next_state.playing;
-        const bool position_changed = m_transport_state.position != next_state.position;
         const bool duration_changed = m_transport_state.duration != next_state.duration;
 
         m_transport_state = next_state;
-        m_transport_position.store(next_state.position.seconds, std::memory_order_relaxed);
 
         if (!notify_listeners)
         {
             return;
-        }
-
-        if (playing_changed)
-        {
-            m_engine_listeners.call(
-                &Engine::Listener::enginePlayingStateChanged, next_state.playing);
-        }
-
-        if (position_changed)
-        {
-            m_engine_listeners.call(
-                &Engine::Listener::engineTransportPositionChanged, next_state.position.seconds);
         }
 
         // Project-owned transport listeners observe coarse transitions only. Position remains part
@@ -184,18 +162,6 @@ Engine::~Engine()
     m_impl->m_engine.reset();
 }
 
-// Registers a message-thread listener for filtered engine transport events.
-void Engine::addListener(Listener* listener)
-{
-    m_impl->m_engine_listeners.add(listener);
-}
-
-// Removes a previously registered engine transport listener.
-void Engine::removeListener(Listener* listener)
-{
-    m_impl->m_engine_listeners.remove(listener);
-}
-
 // Registers a project-owned transport listener that observes the message-thread snapshot.
 void Engine::addListener(ITransport::Listener& listener)
 {
@@ -269,7 +235,7 @@ void Engine::play()
     m_impl->refreshTransportState(true);
 }
 
-// Stops playback and resets both Tracktion and cached transport positions to the start.
+// Stops playback and resets Tracktion's transport position to the start.
 void Engine::stop()
 {
     m_impl->stopAndReturnToStart();
@@ -307,7 +273,7 @@ core::TimePosition Engine::position() const noexcept
     return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
-// Adapts the current framework-free edit port onto the legacy single-file load path.
+// Adapts the current framework-free edit port onto the single-file load helper.
 bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
 {
     static_cast<void>(track_id);
@@ -318,24 +284,6 @@ bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset&
     const auto path_text = audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
     return loadFile(file);
-}
-
-// Preserves the legacy double-seconds seek API while controller migration is still in progress.
-void Engine::seek(double seconds)
-{
-    seek(core::TimePosition{seconds});
-}
-
-// Reads Tracktion transport state for UI controls that need current playback status.
-bool Engine::isPlaying() const
-{
-    return m_impl->m_edit->getTransport().isPlaying();
-}
-
-// Returns the lock-free cached transport position for UI painting and future realtime readers.
-double Engine::getTransportPosition() const noexcept
-{
-    return m_impl->m_transport_position.load(std::memory_order_relaxed);
 }
 
 // Creates a thumbnail wrapper without exposing Tracktion types through public UI-facing headers.
