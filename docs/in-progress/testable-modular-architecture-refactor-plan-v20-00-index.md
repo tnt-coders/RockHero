@@ -9,18 +9,23 @@ implementation stages.
 Two v19 decisions are intentionally superseded here:
 
 - The audio-mutation boundary is now `audio::IEdit`, not
-  `audio::IPlaybackContent`. `ITransport` remains the live playback boundary.
+  `audio::IPlaybackContent`. `ITransport` remains the playback-control and
+  coarse transport-state boundary. Stage 10 adds a live `ITransport::position()`
+  read for smooth cursor rendering.
   Undo/redo implementation remains out of scope for v20, but the new `IEdit`
   stages should leave explicit TODO comments in the likely future integration
   points for project-owned history and broader Tracktion edit commands.
 - `EditorViewState` no longer carries `double cursor_proportion`. The editor's
   playhead cursor is sourced by an editor-wide overlay component (introduced in
-  stage 10) via a vsync-rate pull from `audio::ITransport`. The state channel
-  carries discrete transition-shaped data only; the controller subscribes only
-  to transition-shaped fields of `TransportState` (ignoring `position`), so
-  every push corresponds to a real change and no duplicate-suppression layer is
-  needed. See stage 06 for the Cursor Architecture rationale and stage 10 for
-  the overlay implementation.
+  stage 10) via a vsync-rate pull from `audio::ITransport::position()`. The
+  production `audio::Engine` implementation reads the live Tracktion transport
+  position at call time, not a listener-updated snapshot. The state channel
+  carries discrete transition-shaped data only, including cursor mapping inputs
+  such as visible timeline range or duration. The controller subscribes only to
+  transition-shaped fields of `TransportState` (ignoring `position`), so every
+  push corresponds to a real change and no duplicate-suppression layer is needed.
+  See stage 06 for the Cursor Architecture rationale and stage 10 for the
+  overlay implementation.
 
 Each stage should be implemented, reviewed, tested, and committed before moving
 to the next stage. Keep compatibility shims until the stage that explicitly

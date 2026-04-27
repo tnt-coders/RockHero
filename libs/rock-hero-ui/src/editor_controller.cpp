@@ -131,9 +131,8 @@ void EditorController::onTransportStateChanged(const audio::TransportState& /*st
     deriveAndPush();
 }
 
-// Builds the message-thread view state from the session and transport snapshot. Position is
-// intentionally excluded; cursor motion is rendered by the editor view through a vsync-rate pull
-// from audio::ITransport.
+// Builds the message-thread view state from the session and transport snapshot. Current cursor
+// position is intentionally excluded; the view receives only discrete mapping state here.
 EditorViewState EditorController::deriveViewState() const
 {
     const audio::TransportState transport_state = m_transport.state();
@@ -143,6 +142,8 @@ EditorViewState EditorController::deriveViewState() const
     state.play_pause_enabled = anyTrackHasAsset();
     state.stop_enabled = transport_state.playing;
     state.play_pause_shows_pause_icon = transport_state.playing;
+    state.visible_timeline_start = core::TimePosition{};
+    state.visible_timeline_duration = transport_state.duration;
 
     state.tracks.reserve(m_session.tracks().size());
     for (const core::Track& track : m_session.tracks())
