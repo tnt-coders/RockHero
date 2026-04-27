@@ -300,6 +300,13 @@ TransportState Engine::state() const
     return m_impl->m_transport_state;
 }
 
+// Reads Tracktion directly for smooth cursor rendering instead of returning the cached snapshot.
+core::TimePosition Engine::position() const noexcept
+{
+    const double raw_position_seconds = m_impl->m_edit->getTransport().getPosition().inSeconds();
+    return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
+}
+
 // Adapts the current framework-free edit port onto the legacy single-file load path.
 bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
 {

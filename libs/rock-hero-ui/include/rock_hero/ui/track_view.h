@@ -25,7 +25,7 @@ namespace rock_hero::ui
 The view owns one Tracktion-free audio::Thumbnail and refreshes it only when the incoming
 TrackViewState changes to a different present audio asset. It currently renders only track-local
 waveform content and emits normalized click intent upward. Cursor motion is intentionally
-excluded; the editor-wide cursor overlay arrives later in stage 10.
+excluded; EditorView owns the editor-wide cursor overlay.
 */
 class TrackView : public juce::Component
 {

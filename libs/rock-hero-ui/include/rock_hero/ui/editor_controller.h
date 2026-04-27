@@ -27,8 +27,9 @@ Translates editor user intents into transport, edit, and session updates without
 types. Subscribes to the transport listener surface for coarse transition-shaped updates and
 re-derives EditorViewState whenever a real change has occurred. The controller owns
 load-error policy, play/pause/stop gating, and seek normalization. Continuous playhead motion is
-not the controller's responsibility; the editor view pulls position from audio::ITransport at
-its own render cadence.
+not the controller's responsibility; the editor view pulls position from ITransport::position()
+at its own render cadence. The controller provides only discrete cursor mapping state, such as
+visible timeline range, through EditorViewState.
 
 The referenced session, transport, and edit ports must outlive the controller. The controller
 registers as an audio::ITransport::Listener for its full lifetime.
