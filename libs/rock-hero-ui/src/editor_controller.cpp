@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
 #include <utility>
 
 namespace rock_hero::ui
@@ -65,6 +66,9 @@ void EditorController::onLoadAudioAssetRequested(
     {
         // Session and audio backend are out of sync; preserve the existing session state and
         // surface the inconsistency rather than silently pretending the load succeeded.
+        // TODO: Replace std::clog with the project logging framework once one exists.
+        std::clog << "RockHero editor internal error: Session::replaceTrackAsset failed after "
+                     "IEdit::setTrackAudioSource\n";
         assert(false && "Session::replaceTrackAsset failed after IEdit::setTrackAudioSource");
         m_last_load_error = std::string{"Internal error: session out of sync after audio load"};
     }
