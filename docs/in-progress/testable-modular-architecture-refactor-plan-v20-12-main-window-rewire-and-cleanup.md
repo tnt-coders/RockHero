@@ -32,6 +32,10 @@ that are no longer needed.
 8. Remove direct `audio::Engine` usage from old UI widgets and views.
 9. Remove old nested `MainWindow::ContentComponent`.
 10. Remove old `Engine::Listener` UI coupling when no external UI implementers remain.
+    This is the official endpoint for the entire legacy listener pattern: delete
+    `audio::Engine::Listener`, its pointer-based `addListener` / `removeListener`
+    overloads, `enginePlayingStateChanged(...)`, `engineTransportPositionChanged(...)`,
+    and tests whose only purpose is preserving legacy position-listener callbacks.
 11. Remove legacy `Engine` methods that are no longer part of the port surface and no
     longer used.
 12. Remove obsolete `WaveformDisplay`.
