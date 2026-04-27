@@ -193,7 +193,7 @@ TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
-    FakeTransport transport;
+    const FakeTransport transport;
     FakeThumbnail* thumbnail_ptr = nullptr;
     juce::Component* thumbnail_owner = nullptr;
     int create_thumbnail_call_count = 0;
@@ -235,7 +235,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
-    FakeTransport transport;
+    const FakeTransport transport;
     EditorView view{controller, transport, [](juce::Component&) {
                         return std::make_unique<FakeThumbnail>();
                     }};
@@ -278,7 +278,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
-    FakeTransport transport;
+    const FakeTransport transport;
     EditorView view{controller, transport, [](juce::Component&) {
                         return std::make_unique<FakeThumbnail>();
                     }};
@@ -290,8 +290,9 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 20.0f));
 
     CHECK(controller.waveform_click_count == 1);
-    REQUIRE(controller.last_normalized_x.has_value());
-    CHECK(controller.last_normalized_x.value() == Catch::Approx(0.25));
+    const auto last_normalized_x = controller.last_normalized_x;
+    REQUIRE(last_normalized_x.has_value());
+    CHECK(*last_normalized_x == Catch::Approx(0.25));
 }
 
 // Verifies cursor geometry uses a pushed visible range plus a separately read position.
