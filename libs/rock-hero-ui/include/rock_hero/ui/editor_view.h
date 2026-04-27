@@ -50,11 +50,11 @@ public:
     \brief Creates the concrete editor view and installs the initial track thumbnail.
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param create_thumbnail Callback consumed immediately to create the initial row thumbnail.
+    \param create_thumbnail Callback invoked immediately to create the initial row thumbnail.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
-        ThumbnailCreator create_thumbnail);
+        const ThumbnailCreator& create_thumbnail);
 
     /*! \brief Releases child widgets, cursor overlay, and file chooser state. */
     ~EditorView() override;

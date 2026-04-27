@@ -41,9 +41,6 @@ public:
         setInterceptsMouseClicks(true, false);
     }
 
-    // Uses default destruction because JUCE owns the vblank registration member.
-    ~CursorOverlay() override = default;
-
     // Stores discrete timeline mapping data pushed by EditorView::setState().
     void setVisibleTimelineRange(
         core::TimePosition visible_timeline_start,
@@ -132,7 +129,7 @@ private:
 // Creates child widgets, installs the row thumbnail, and keeps ThumbnailCreator construction-only.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
-    ThumbnailCreator create_thumbnail)
+    const ThumbnailCreator& create_thumbnail)
     : m_controller(controller)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
