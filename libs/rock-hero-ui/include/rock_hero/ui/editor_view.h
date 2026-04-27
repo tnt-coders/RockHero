@@ -26,10 +26,10 @@ namespace rock_hero::ui
 \param position Current transport position.
 \param visible_timeline_start Start of the visible timeline range.
 \param visible_timeline_duration Duration of the visible timeline range.
-\param width Pixel width available for cursor drawing.
-\return Pixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
+\param width Drawing width in pixels.
+\return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
 */
-[[nodiscard]] std::optional<int> cursorXForTimelinePosition(
+[[nodiscard]] std::optional<float> cursorXForTimelinePosition(
     core::TimePosition position, core::TimePosition visible_timeline_start,
     core::TimeDuration visible_timeline_duration, int width) noexcept;
 
@@ -85,6 +85,13 @@ public:
 
     /*! \brief Lays out load controls, transport controls, waveform row, and timeline overlay. */
     void resized() override;
+
+    /*!
+    \brief Handles editor-level keyboard shortcuts.
+    \param key Key press delivered by JUCE.
+    \return True when the shortcut was handled.
+    */
+    bool keyPressed(const juce::KeyPress& key) override;
 
 private:
     class CursorOverlay;

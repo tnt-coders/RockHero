@@ -1,10 +1,8 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
-#include <cstdint>
 #include <filesystem>
 #include <rock_hero/audio/engine.h>
-#include <vector>
 
 namespace rock_hero::audio
 {
@@ -28,46 +26,17 @@ static_assert(std::derived_from<Engine, IEdit>);
     return core::AudioAsset{fixtureAudioPath()};
 }
 
-// Captures the latest notifications observed through both listener surfaces so transport/edit
-// contract tests can assert on externally visible behavior.
-enum class TransportNotificationEvent : std::uint8_t
-{
-    EnginePlaying,
-    EnginePosition,
-    TransportState,
-};
-
-// Records callback activity from both listener surfaces.
-class TransportNotificationRecorder final : public Engine::Listener, public ITransport::Listener
+// Records callback activity from the project-owned transport listener surface.
+class TransportNotificationRecorder final : public ITransport::Listener
 {
 public:
-    void enginePlayingStateChanged(bool playing) override
-    {
-        events.push_back(TransportNotificationEvent::EnginePlaying);
-        last_playing = playing;
-        ++engine_playing_call_count;
-    }
-
-    void engineTransportPositionChanged(double seconds) override
-    {
-        events.push_back(TransportNotificationEvent::EnginePosition);
-        last_position_seconds = seconds;
-        ++engine_position_call_count;
-    }
-
     void onTransportStateChanged(const TransportState& state) override
     {
-        events.push_back(TransportNotificationEvent::TransportState);
         last_transport_state = state;
         ++transport_state_call_count;
     }
 
-    std::vector<TransportNotificationEvent> events{};
     TransportState last_transport_state{};
-    bool last_playing{false};
-    double last_position_seconds{0.0};
-    int engine_playing_call_count{0};
-    int engine_position_call_count{0};
     int transport_state_call_count{0};
 };
 
@@ -169,8 +138,7 @@ TEST_CASE("Engine live position follows transport seeks", "[audio][engine][integ
 }
 
 // Verifies that a successful edit naturally notifies the project-owned transport listener before
-// the edit call returns. A load from the empty state changes duration but leaves position at zero,
-// so the legacy Engine::Listener position callback is not expected to fire here.
+// the edit call returns.
 TEST_CASE(
     "Engine edit notifies transport listeners when transport-visible state changes",
     "[audio][engine][integration]")
@@ -180,7 +148,6 @@ TEST_CASE(
     ITransport& transport = engine;
     TransportNotificationRecorder recorder;
 
-    engine.addListener(&recorder);
     transport.addListener(recorder);
 
     const auto audio_asset = fixtureAudioAsset();
@@ -193,11 +160,8 @@ TEST_CASE(
     CHECK(recorder.last_transport_state == transport.state());
     CHECK(recorder.last_transport_state.duration.seconds > 0.0);
     CHECK(recorder.last_transport_state.position == core::TimePosition{});
-    CHECK(recorder.engine_position_call_count == 0);
-    CHECK(recorder.engine_playing_call_count == 0);
 
     transport.removeListener(recorder);
-    engine.removeListener(&recorder);
 }
 
 // Verifies that a failed edit leaves listener counts unchanged when transport-visible state does
@@ -211,7 +175,6 @@ TEST_CASE(
     ITransport& transport = engine;
     TransportNotificationRecorder recorder;
 
-    engine.addListener(&recorder);
     transport.addListener(recorder);
 
     const auto missing_asset =
@@ -220,13 +183,10 @@ TEST_CASE(
     const auto applied = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
 
     CHECK_FALSE(applied);
-    CHECK(recorder.engine_playing_call_count == 0);
-    CHECK(recorder.engine_position_call_count == 0);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(transport.state() == TransportState{});
 
     transport.removeListener(recorder);
-    engine.removeListener(&recorder);
 }
 
 } // namespace rock_hero::audio
