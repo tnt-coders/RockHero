@@ -35,7 +35,7 @@ behavior. This gives later controller code a small project-owned interface to fa
 4. Listener should expose one state-oriented callback:
    `onTransportStateChanged(const TransportState&)`.
    This callback is for coarse transition-shaped updates, not for every
-   position tick. Continuous cursor motion should later pull `state().position`
+   position tick. Continuous cursor motion should later pull `position()`
    at the view's render cadence.
 5. Document that this public contract is message-thread owned for now.
 
@@ -51,7 +51,7 @@ Cover:
 - a listener can be registered by reference, notified on coarse transitions,
   and removed by reference,
 - `seek(core::TimePosition)` accepts the semantic wrapper type,
-- position-only seek changes remain visible through `state()` without requiring
+- position-only seek changes remain visible through `position()` without requiring
   listener delivery,
 - the test file includes only the public port headers, not Tracktion headers.
 

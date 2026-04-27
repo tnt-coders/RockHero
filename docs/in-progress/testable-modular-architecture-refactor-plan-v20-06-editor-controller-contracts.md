@@ -43,6 +43,11 @@ editor workflow testable without JUCE initialization.
 
    Keep `EditorViewState` in `editor_view_state.h` and include
    `track_view_state.h` there instead of redefining the track-view type.
+
+   Stage 10 may extend `EditorViewState` with discrete timeline mapping fields,
+   such as visible timeline start and duration, so the cursor overlay can convert
+   a separately polled position into pixels. That is distinct from cursor
+   position or cursor proportion and should not be updated every frame.
 3. Add `IEditorView` with `setState(const EditorViewState&)`.
 4. Add `IEditorController` with user-intent methods:
    - `onLoadAudioAssetRequested(core::TrackId, core::AudioAsset)`,
@@ -55,14 +60,16 @@ editor workflow testable without JUCE initialization.
 
 ## Cursor Architecture: Why The Snapshot Has No Cursor Field
 
-The editor playhead cursor is intentionally not part of `EditorViewState`. It is
-sourced by the view at vsync rate from `audio::ITransport` (see stage 10). The
+The editor playhead cursor position is intentionally not part of `EditorViewState`.
+It is sourced by the view at vsync rate from `audio::ITransport::position()`, introduced in stage
+10 as a live position read. The
 state channel carries discrete transition-shaped data only — button enables,
-track list, error events. This split lets each mechanism do what it is good at:
+track list, error events, and later cursor mapping inputs such as visible timeline
+range. This split lets each mechanism do what it is good at:
 
 - Push (`IEditorView::setState`) for transition-shaped state that changes
   rarely, where every push corresponds to a real change worth a repaint.
-- Pull (vsync timer reading transport position) for continuous-shaped state
+- Pull (vsync timer reading current transport position) for continuous-shaped state
   that changes constantly during playback, where the view's render rate, not
   the broadcaster's cadence, should drive cursor motion.
 

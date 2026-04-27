@@ -241,6 +241,14 @@ public:
     */
     [[nodiscard]] TransportState state() const override;
 
+    // clang-format off
+    /*!
+    \brief Reads the current Tracktion position.
+    \return Current position.
+    */
+    // clang-format on
+    [[nodiscard]] core::TimePosition position() const noexcept override;
+
     /*!
     \brief Registers a project-owned transport listener.
     \param listener The listener to notify until it is removed.

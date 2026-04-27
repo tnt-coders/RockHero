@@ -17,9 +17,9 @@ The current contract is owned by the message thread. Callers must invoke control
 state(), addListener(), and removeListener() from the message thread. Listener callbacks are also
 delivered on the message thread.
 
-Continuous transport position is available through state(). Listener callbacks are reserved for
+Continuous transport position is available through position(). Listener callbacks are reserved for
 coarse transition-shaped changes such as play/pause/stop or duration changes, so UI code that
-needs smooth cursor motion should poll state() at its own render cadence rather than waiting for
+needs smooth cursor motion should call position() at its own render cadence rather than waiting for
 listener delivery.
 */
 class ITransport
@@ -36,7 +36,7 @@ public:
         \brief Handles a changed transport state snapshot.
 
         This callback is intended for transition-shaped updates rather than for every position tick.
-        Callers that need smooth playback cursor motion should pull state().position at their own
+        Callers that need smooth playback cursor motion should call position() at their own
         render cadence instead.
 
         \param state The current message-thread transport snapshot after a coarse state transition.
@@ -89,6 +89,17 @@ public:
     \return The current message-thread transport snapshot.
     */
     [[nodiscard]] virtual TransportState state() const = 0;
+
+    /*!
+    \brief Reads the current transport position for render-cadence cursor drawing.
+
+    Unlike state(), this method is a live position read rather than a listener-published snapshot.
+    UI code that needs smooth cursor motion should call this at its own render cadence and use
+    EditorViewState or equivalent discrete state for duration and visible range mapping.
+
+    \return Current transport position.
+    */
+    [[nodiscard]] virtual core::TimePosition position() const noexcept = 0;
 
     /*!
     \brief Registers a non-owning transport listener.
