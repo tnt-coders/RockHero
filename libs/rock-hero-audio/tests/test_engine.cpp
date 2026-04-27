@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
 #include <filesystem>
+#include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/audio/engine.h>
 
 namespace rock_hero::audio
@@ -40,12 +41,24 @@ public:
     int transport_state_call_count{0};
 };
 
+// Owns the JUCE runtime guard before constructing the real Tracktion-backed engine.
+class EngineTestHarness final
+{
+public:
+    // Creates JUCE's message-manager lifetime needed by Tracktion timers and callbacks in tests.
+    juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // Real adapter under test; destroyed before scoped_gui because members tear down in reverse.
+    Engine engine;
+};
+
 } // namespace
 
 // Verifies the concrete engine starts with an empty transport snapshot through ITransport.
 TEST_CASE("Engine starts with an empty transport state", "[audio][engine][integration]")
 {
-    Engine const engine;
+    EngineTestHarness harness;
+    const Engine& engine = harness.engine;
     ITransport const& transport = engine;
 
     const auto current_state = transport.state();
@@ -58,7 +71,8 @@ TEST_CASE("Engine starts with an empty transport state", "[audio][engine][integr
 // Verifies edit-driven source replacement updates state synchronously.
 TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport const& transport = engine;
 
@@ -79,7 +93,8 @@ TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integratio
 TEST_CASE(
     "Failed engine edit preserves the existing loaded content", "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport const& transport = engine;
 
@@ -99,7 +114,8 @@ TEST_CASE(
 // Verifies direct ITransport commands refresh the concrete engine snapshot immediately.
 TEST_CASE("Engine seek updates transport state synchronously", "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
 
@@ -119,7 +135,8 @@ TEST_CASE("Engine seek updates transport state synchronously", "[audio][engine][
 // Verifies the cursor-position read reports the same post-seek position exposed by state().
 TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
@@ -144,7 +161,8 @@ TEST_CASE(
     "Engine edit notifies transport listeners when transport-visible state changes",
     "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
     TransportNotificationRecorder recorder;
@@ -171,7 +189,8 @@ TEST_CASE(
     "Failed engine edit does not emit transport callbacks when state is unchanged",
     "[audio][engine][integration]")
 {
-    Engine engine;
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport& transport = engine;
     TransportNotificationRecorder recorder;
