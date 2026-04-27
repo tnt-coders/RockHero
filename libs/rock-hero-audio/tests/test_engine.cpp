@@ -116,8 +116,8 @@ TEST_CASE("Engine seek updates transport state synchronously", "[audio][engine][
     CHECK(transport.state().position == core::TimePosition{target_seconds});
 }
 
-// Verifies the live cursor-position read observes the concrete transport position directly.
-TEST_CASE("Engine live position follows transport seeks", "[audio][engine][integration]")
+// Verifies the cursor-position read reports the same post-seek position exposed by state().
+TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][integration]")
 {
     Engine engine;
     IEdit& edit = engine;
@@ -135,6 +135,7 @@ TEST_CASE("Engine live position follows transport seeks", "[audio][engine][integ
     transport.seek(core::TimePosition{target_seconds});
 
     CHECK(read_only_transport.position() == core::TimePosition{target_seconds});
+    CHECK(read_only_transport.position() == transport.state().position);
 }
 
 // Verifies that a successful edit naturally notifies the project-owned transport listener before
