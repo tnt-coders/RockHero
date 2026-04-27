@@ -295,25 +295,48 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     CHECK(*last_normalized_x == Catch::Approx(0.25));
 }
 
+// Verifies keyboard play/pause uses the same editor intent as the transport button.
+TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    EditorView view{controller, transport, [](juce::Component&) {
+                        return std::make_unique<FakeThumbnail>();
+                    }};
+
+    CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
+    CHECK(controller.play_pause_press_count == 1);
+}
+
 // Verifies cursor geometry uses a pushed visible range plus a separately read position.
 TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
 {
-    CHECK(
-        cursorXForTimelinePosition(
-            core::TimePosition{5.0}, core::TimePosition{}, core::TimeDuration{10.0}, 201) ==
-        std::optional<int>{100});
-    CHECK(
-        cursorXForTimelinePosition(
-            core::TimePosition{12.0}, core::TimePosition{10.0}, core::TimeDuration{4.0}, 101) ==
-        std::optional<int>{50});
-    CHECK(
-        cursorXForTimelinePosition(
-            core::TimePosition{-1.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101) ==
-        std::optional<int>{0});
-    CHECK(
-        cursorXForTimelinePosition(
-            core::TimePosition{9.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101) ==
-        std::optional<int>{100});
+    const auto midpoint_cursor = cursorXForTimelinePosition(
+        core::TimePosition{5.0}, core::TimePosition{}, core::TimeDuration{10.0}, 201);
+    REQUIRE(midpoint_cursor.has_value());
+    CHECK(*midpoint_cursor == Catch::Approx(100.0f));
+
+    const auto offset_cursor = cursorXForTimelinePosition(
+        core::TimePosition{12.0}, core::TimePosition{10.0}, core::TimeDuration{4.0}, 101);
+    REQUIRE(offset_cursor.has_value());
+    CHECK(*offset_cursor == Catch::Approx(50.0f));
+
+    const auto fractional_cursor = cursorXForTimelinePosition(
+        core::TimePosition{1.25}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(fractional_cursor.has_value());
+    CHECK(*fractional_cursor == Catch::Approx(31.25f));
+
+    const auto before_start_cursor = cursorXForTimelinePosition(
+        core::TimePosition{-1.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(before_start_cursor.has_value());
+    CHECK(*before_start_cursor == Catch::Approx(0.0f));
+
+    const auto after_end_cursor = cursorXForTimelinePosition(
+        core::TimePosition{9.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(after_end_cursor.has_value());
+    CHECK(*after_end_cursor == Catch::Approx(100.0f));
+
     CHECK_FALSE(cursorXForTimelinePosition(
                     core::TimePosition{1.0}, core::TimePosition{}, core::TimeDuration{}, 101)
                     .has_value());
