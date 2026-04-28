@@ -14,13 +14,13 @@ namespace rock_hero::core
 /*!
 \brief Groups all playable Arrangements for a Song.
 
-A Chart contains one or more Arrangements, each covering a distinct part/difficulty
+A Chart contains one or more Arrangements, each covering a distinct part/difficulty-rating
 combination. The rock-hero-game selects one Arrangement per session, while the editor may
 display or edit any of them.
 */
 struct Chart
 {
-    /*! \brief Playable part/difficulty variants available for the song. */
+    /*! \brief Playable part/difficulty-rating variants available for the song. */
     std::vector<Arrangement> arrangements;
 };
 

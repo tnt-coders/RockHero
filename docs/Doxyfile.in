@@ -1036,7 +1036,9 @@ INPUT                  = libs/rock-hero-audio \
                          docs/design/architecture.md \
                          docs/design/architectural-principles.md \
                          docs/design/coding-conventions.md \
-                         docs/design/documentation-conventions.md
+                         docs/design/documentation-conventions.md \
+                         docs/user/index.md \
+                         docs/user/difficulty-ratings.md
 
 # This tag can be used to specify the character encoding of the source files
 # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
