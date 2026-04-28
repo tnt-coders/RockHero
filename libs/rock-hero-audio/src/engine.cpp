@@ -286,8 +286,8 @@ bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset&
     return loadFile(file);
 }
 
-// Creates a thumbnail wrapper without exposing Tracktion types through public UI-facing headers.
-std::unique_ptr<Thumbnail> Engine::createThumbnail(juce::Component& owner)
+// Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.
+std::unique_ptr<IThumbnail> Engine::createThumbnail(juce::Component& owner)
 {
     return std::make_unique<TracktionThumbnail>(*m_impl->m_engine, owner);
 }

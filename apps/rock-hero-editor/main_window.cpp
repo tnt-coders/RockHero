@@ -1,7 +1,6 @@
 #include "main_window.h"
 
 #include <rock_hero/audio/engine.h>
-#include <rock_hero/audio/thumbnail.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/editor.h>
 
@@ -19,10 +18,8 @@ MainWindow::MainWindow(const juce::String& title)
     , m_session(std::make_unique<core::Session>())
 {
     m_session->addTrack("Full Mix");
-    m_editor = std::make_unique<ui::Editor>(
-        *m_session, *m_audio_engine, *m_audio_engine, [this](juce::Component& owner) {
-            return m_audio_engine->createThumbnail(owner);
-        });
+    m_editor =
+        std::make_unique<ui::Editor>(*m_session, *m_audio_engine, *m_audio_engine, *m_audio_engine);
 
     setUsingNativeTitleBar(true);
     setContentNonOwned(&m_editor->component(), true);

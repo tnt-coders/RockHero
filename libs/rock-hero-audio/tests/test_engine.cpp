@@ -11,9 +11,10 @@ namespace rock_hero::audio
 namespace
 {
 
-// Verifies at compile time that the concrete adapter is usable through both new port surfaces.
+// Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IEdit>);
+static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
 [[nodiscard]] std::filesystem::path fixtureAudioPath()
@@ -57,7 +58,7 @@ public:
 // Verifies the concrete engine starts with an empty transport snapshot through ITransport.
 TEST_CASE("Engine starts with an empty transport state", "[audio][engine][integration]")
 {
-    EngineTestHarness harness;
+    const EngineTestHarness harness;
     const Engine& engine = harness.engine;
     ITransport const& transport = engine;
 
