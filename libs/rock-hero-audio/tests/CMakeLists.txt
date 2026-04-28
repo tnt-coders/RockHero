@@ -9,16 +9,18 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
 # Fast public-contract tests exercise audio ports without constructing Tracktion/JUCE adapters.
 add_executable(rock_hero_audio_tests test_edit.cpp test_thumbnail_source.cpp test_transport.cpp)
 
-# The fast target includes audio public headers directly and links only their core value types.
+# The fast target includes audio public headers directly and uses only core value types.
 target_include_directories(rock_hero_audio_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(rock_hero_audio_tests PRIVATE rock_hero_core Catch2::Catch2WithMain)
+target_link_libraries(rock_hero_audio_tests PRIVATE rock_hero_core rock_hero::build_policy
+                                                    Catch2::Catch2WithMain)
 
 # Real-engine adapter coverage lives in a separate binary because it constructs Tracktion/JUCE.
 add_executable(rock_hero_audio_integration_tests test_engine.cpp)
 
 # Link the concrete audio library plus JUCE's message-manager support used by EngineTestHarness.
-target_link_libraries(rock_hero_audio_integration_tests
-                      PRIVATE rock_hero_audio rock_hero_juce_gui_basics Catch2::Catch2WithMain)
+target_link_libraries(
+    rock_hero_audio_integration_tests PRIVATE rock_hero_audio rock_hero_juce_gui_basics
+                                              rock_hero::build_policy Catch2::Catch2WithMain)
 
 # Pass the copied fixture directory to integration tests without hard-coding source-tree paths.
 target_compile_definitions(rock_hero_audio_integration_tests

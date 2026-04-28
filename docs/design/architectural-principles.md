@@ -500,6 +500,23 @@ behind a project-owned wrapper layer:
 This keeps the dependency graph explicit while avoiding repeated third-party module compilation
 across the project's modular target structure.
 
+## Build Policy Exception
+
+The source-level rule for `rock-hero-core` is unchanged: core must remain framework-free and must
+not include JUCE or Tracktion in its public headers or implementation.
+
+The build graph has one narrow exception. First-party targets link `rock_hero::build_policy`, and
+that target currently delegates to JUCE's recommended warning, configuration, and Release LTO helper
+targets. This is a pragmatic build-policy choice, not permission for core code to depend on JUCE.
+It keeps one compiler policy across Rock Hero while using defaults that already match the
+JUCE/Tracktion toolchain surface.
+
+This exception must remain contained in `cmake/RockHeroBuildPolicy.cmake`. Core CMake files should
+only mention Rock Hero policy targets such as `rock_hero::build_policy`, never raw `juce::` or
+`tracktion::` targets. If a core-only build, package, or test workflow needs to remove the
+build-time JUCE dependency later, change the implementation of the build-policy targets in that one
+file and keep first-party target call sites intact.
+
 # Decision Rules for New Code
 
 When adding a new class, function, or subsystem, ask:

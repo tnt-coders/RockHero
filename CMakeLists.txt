@@ -58,6 +58,7 @@ foreach(third_party_target IN ITEMS tracktion_core tracktion_engine tracktion_gr
     endif()
 endforeach()
 
+include(RockHeroBuildPolicy)
 include(RockHeroJuceHelpers)
 include(RockHeroExternalModules)
 
