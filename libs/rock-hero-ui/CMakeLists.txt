@@ -4,6 +4,7 @@ rock_hero_juce_add_binary_data(rock_hero_ui_resources SOURCES resources/play_arr
 
 # JUCE-facing presentation library for editor views, track views, and transport controls.
 add_library(rock_hero_ui STATIC)
+add_library(rock_hero::ui ALIAS rock_hero_ui)
 
 # Keep the target surface small while the UI module remains focused on playback presentation.
 target_sources(rock_hero_ui PRIVATE src/track_view.cpp src/transport_controls.cpp
@@ -18,8 +19,8 @@ target_include_directories(
 # Export the UI library plus the JUCE wrapper needed by its public component headers.
 target_link_libraries(
     rock_hero_ui
-    PUBLIC rock_hero_audio rock_hero_juce_gui_basics
-    PRIVATE rock_hero::build_policy rock_hero_ui_resources)
+    PUBLIC rock_hero::audio rock_hero::juce_gui_basics
+    PRIVATE rock_hero::build_policy rock_hero::ui_resources)
 
 # Keep the module's headless controller-contract tests adjacent to the UI library.
 add_subdirectory(tests)

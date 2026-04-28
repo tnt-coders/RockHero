@@ -13,7 +13,7 @@ include(RockHeroBuildPolicy)
 # We deliberately convert the subset of JUCE and Tracktion modules used by this repository into
 # project-owned static wrapper targets. Each wrapper links the upstream module target privately and
 # forwards the usage requirements that consumers still need. The rest of the project then links the
-# wrapper targets instead of the raw third-party modules.
+# wrapper aliases instead of the raw third-party modules.
 #
 # Why we chose this approach: - Rock Hero is intentionally split into multiple static libraries and
 # app targets. - Recompiling JUCE/Tracktion module sources independently in each of those targets is
@@ -26,7 +26,7 @@ include(RockHeroBuildPolicy)
 # If upstream changes its module graph or target metadata, this file may need maintenance.
 #
 # We accept those tradeoffs because the resulting build graph behaves much more like a normal
-# modular C++ project: Rock Hero targets link stable first-party wrapper libraries, while the raw
+# modular C++ project: Rock Hero targets link stable first-party wrapper aliases, while the raw
 # third-party module graph stays contained in one place.
 
 # Place the wrapper anchor in the build tree so the repository does not need to carry a checked-in
@@ -52,6 +52,10 @@ function(rock_hero_add_external_module_wrapper target upstream_target)
     cmake_parse_arguments(ARG "" "" "${multi_value_args}" ${ARGN})
 
     add_library(${target} STATIC "${ROCK_HERO_EXTERNAL_MODULE_ANCHOR}")
+    if("${target}" MATCHES "^rock_hero_(.+)$")
+        # Consumers use the namespaced alias while the concrete target keeps the project prefix.
+        add_library(rock_hero::${CMAKE_MATCH_1} ALIAS ${target})
+    endif()
 
     # Link the upstream interface-style module privately so this wrapper target, not every consumer,
     # owns the third-party module source compilation. Apply only the non-strict build-policy pieces
@@ -103,53 +107,53 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_core juce::juce_core)
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_events/juce_events.h
 # https://docs.juce.com/master/group__juce__events.html Declared deps: juce_core.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_events juce::juce_events PUBLIC_DEPS
-                                           rock_hero_juce_core)
+                                           rock_hero::juce_core)
 
 # JUCE module declaration and docs: Source header:
 # external/tracktion_engine/modules/juce_data_structures/juce_data_structures.h
 # https://docs.juce.com/master/group__juce__data__structures.html Declared deps: juce_events.
 rock_hero_add_external_juce_module_wrapper(
-    rock_hero_juce_data_structures juce::juce_data_structures PUBLIC_DEPS rock_hero_juce_events)
+    rock_hero_juce_data_structures juce::juce_data_structures PUBLIC_DEPS rock_hero::juce_events)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_graphics/juce_graphics.h
 # https://docs.juce.com/master/group__juce__graphics.html Declared deps: juce_events.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_graphics juce::juce_graphics PUBLIC_DEPS
-                                           rock_hero_juce_events)
+                                           rock_hero::juce_events)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_gui_basics/juce_gui_basics.h
 # https://docs.juce.com/master/group__juce__gui__basics.html Declared deps: juce_graphics,
 # juce_data_structures.
 rock_hero_add_external_juce_module_wrapper(
-    rock_hero_juce_gui_basics juce::juce_gui_basics PUBLIC_DEPS rock_hero_juce_graphics
-    rock_hero_juce_data_structures)
+    rock_hero_juce_gui_basics juce::juce_gui_basics PUBLIC_DEPS rock_hero::juce_graphics
+    rock_hero::juce_data_structures)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_gui_extra/juce_gui_extra.h
 # https://docs.juce.com/master/group__juce__gui__extra.html Declared deps: juce_gui_basics.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_gui_extra juce::juce_gui_extra
-                                           PUBLIC_DEPS rock_hero_juce_gui_basics)
+                                           PUBLIC_DEPS rock_hero::juce_gui_basics)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_basics/juce_audio_basics.h
 # https://docs.juce.com/master/group__juce__audio__basics.html Declared deps: juce_core.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_basics juce::juce_audio_basics
-                                           PUBLIC_DEPS rock_hero_juce_core)
+                                           PUBLIC_DEPS rock_hero::juce_core)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_devices/juce_audio_devices.h
 # https://docs.juce.com/master/group__juce__audio__devices.html Declared deps: juce_audio_basics,
 # juce_events.
 rock_hero_add_external_juce_module_wrapper(
-    rock_hero_juce_audio_devices juce::juce_audio_devices PUBLIC_DEPS rock_hero_juce_audio_basics
-    rock_hero_juce_events)
+    rock_hero_juce_audio_devices juce::juce_audio_devices PUBLIC_DEPS rock_hero::juce_audio_basics
+    rock_hero::juce_events)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_formats/juce_audio_formats.h
 # https://docs.juce.com/master/group__juce__audio__formats.html Declared deps: juce_audio_basics.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_formats juce::juce_audio_formats
-                                           PUBLIC_DEPS rock_hero_juce_audio_basics)
+                                           PUBLIC_DEPS rock_hero::juce_audio_basics)
 
 # JUCE module declaration and docs: Source header:
 # external/tracktion_engine/modules/juce_audio_processors_headless/ juce_audio_processors_headless.h
@@ -157,7 +161,7 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_formats juce::ju
 # juce_audio_basics, juce_events.
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_audio_processors_headless juce::juce_audio_processors_headless PUBLIC_DEPS
-    rock_hero_juce_audio_basics rock_hero_juce_events)
+    rock_hero::juce_audio_basics rock_hero::juce_events)
 
 # JUCE module declaration and docs: Source header:
 # external/tracktion_engine/modules/juce_audio_processors/juce_audio_processors.h
@@ -165,60 +169,60 @@ rock_hero_add_external_juce_module_wrapper(
 # juce_audio_processors_headless.
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_audio_processors juce::juce_audio_processors PUBLIC_DEPS
-    rock_hero_juce_gui_extra rock_hero_juce_audio_processors_headless)
+    rock_hero::juce_gui_extra rock_hero::juce_audio_processors_headless)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_utils/juce_audio_utils.h
 # https://docs.juce.com/master/group__juce__audio__utils.html Declared deps: juce_audio_processors,
 # juce_audio_formats, juce_audio_devices.
 rock_hero_add_external_juce_module_wrapper(
-    rock_hero_juce_audio_utils juce::juce_audio_utils PUBLIC_DEPS rock_hero_juce_audio_processors
-    rock_hero_juce_audio_formats rock_hero_juce_audio_devices)
+    rock_hero_juce_audio_utils juce::juce_audio_utils PUBLIC_DEPS rock_hero::juce_audio_processors
+    rock_hero::juce_audio_formats rock_hero::juce_audio_devices)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_dsp/juce_dsp.h
 # https://docs.juce.com/master/group__juce__dsp.html Declared deps: juce_audio_formats.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_dsp juce::juce_dsp PUBLIC_DEPS
-                                           rock_hero_juce_audio_formats)
+                                           rock_hero::juce_audio_formats)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_osc/juce_osc.h
 # https://docs.juce.com/master/group__juce__osc.html Declared deps: juce_events.
 rock_hero_add_external_juce_module_wrapper(rock_hero_juce_osc juce::juce_osc PUBLIC_DEPS
-                                           rock_hero_juce_events)
+                                           rock_hero::juce_events)
 
 # Tracktion module declaration: Source header:
 # external/tracktion_engine/modules/tracktion_core/tracktion_core.h Tracktion docs do not appear to
 # expose a dedicated per-module dependency page for tracktion_core the way the module header does,
 # so the source declaration is the authoritative dependency link. Declared deps: juce_audio_formats.
 rock_hero_add_external_module_wrapper(rock_hero_tracktion_core tracktion::tracktion_core
-                                      PUBLIC_DEPS rock_hero_juce_audio_formats)
+                                      PUBLIC_DEPS rock_hero::juce_audio_formats)
 
 # Tracktion module declaration: Source header:
 # external/tracktion_engine/modules/tracktion_graph/tracktion_graph.h Tracktion docs search does not
 # show a dedicated dependency-summary page for tracktion_graph, so the module header remains the
 # clearest dependency source. Declared deps: juce_audio_formats. The wrapper also exports
-# rock_hero_tracktion_core because tracktion_graph.h includes ../tracktion_core/tracktion_core.h
+# rock_hero::tracktion_core because tracktion_graph.h includes ../tracktion_core/tracktion_core.h
 # directly in its public surface.
 rock_hero_add_external_module_wrapper(
-    rock_hero_tracktion_graph tracktion::tracktion_graph PUBLIC_DEPS rock_hero_tracktion_core
-    rock_hero_juce_audio_formats)
+    rock_hero_tracktion_graph tracktion::tracktion_graph PUBLIC_DEPS rock_hero::tracktion_core
+    rock_hero::juce_audio_formats)
 
 # Tracktion module declaration and docs: Source header:
 # external/tracktion_engine/modules/tracktion_engine/tracktion_engine.h
 # https://tracktion.github.io/tracktion_engine/group__tracktion__engine.html Declared deps:
 # juce_audio_devices, juce_audio_utils, juce_dsp, juce_osc, juce_gui_extra, tracktion_graph. The
-# wrapper also exports rock_hero_tracktion_core because tracktion_engine.h includes
+# wrapper also exports rock_hero::tracktion_core because tracktion_engine.h includes
 # ../tracktion_core/tracktion_core.h directly in its public surface, in addition to the
 # tracktion_graph dependency declared by the module metadata.
 rock_hero_add_external_module_wrapper(
     rock_hero_tracktion_engine
     tracktion::tracktion_engine
     PUBLIC_DEPS
-    rock_hero_tracktion_core
-    rock_hero_tracktion_graph
-    rock_hero_juce_audio_devices
-    rock_hero_juce_audio_utils
-    rock_hero_juce_dsp
-    rock_hero_juce_osc
-    rock_hero_juce_gui_extra)
+    rock_hero::tracktion_core
+    rock_hero::tracktion_graph
+    rock_hero::juce_audio_devices
+    rock_hero::juce_audio_utils
+    rock_hero::juce_dsp
+    rock_hero::juce_osc
+    rock_hero::juce_gui_extra)

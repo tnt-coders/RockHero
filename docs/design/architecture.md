@@ -75,14 +75,14 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 
 ## JUCE and Tracktion CMake linkage
 
-Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes
-(`rock_hero_juce_core`, `rock_hero_tracktion_engine`, and so on). Each wrapper links the raw
-module target privately, then forwards the module's compile definitions and include paths to
-consumers.
+Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes.
+Consumers link their `rock_hero::` aliases (`rock_hero::juce_core`,
+`rock_hero::tracktion_engine`, and so on). Each wrapper links the raw module target privately, then
+forwards the module's compile definitions and include paths to consumers.
 
 For Rock Hero, that means:
 
-- Rock Hero libraries and apps link the project-owned wrapper targets, not raw `juce::juce_*` or
+- Rock Hero libraries and apps link the project-owned wrapper aliases, not raw `juce::juce_*` or
   `tracktion::tracktion_*` module targets.
 - Raw JUCE and Tracktion module targets stay behind the wrapper layer rather than being re-exported
   through the rest of the project graph.
