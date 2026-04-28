@@ -1,19 +1,20 @@
+# Tracktion/JUCE adapter library that owns the concrete audio engine integration.
 add_library(rock_hero_audio STATIC)
 
+# Keep the target surface small while the module is still centered on transport + thumbnail work.
 target_sources(rock_hero_audio PRIVATE src/engine.cpp src/tracktion_thumbnail.cpp)
 
+# Expose namespaced public headers while preserving short includes inside the owning module.
 target_include_directories(
     rock_hero_audio
     PUBLIC include
     PRIVATE include/rock_hero/audio)
 
-# Disabled because RockHero does not use WebBrowserComponent or URL networking. JUCE only propagates
-# the required GTK/webkit/curl libraries to targets that explicitly opt in via NEEDS_WEB_BROWSER
-# TRUE or NEEDS_CURL TRUE.
-target_compile_definitions(rock_hero_audio PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
-
+# Depend on project-owned wrapper targets rather than raw JUCE/Tracktion module targets.
 target_link_libraries(
     rock_hero_audio
-    PUBLIC juce::juce_core
-    PRIVATE tracktion::tracktion_core tracktion::tracktion_engine tracktion::tracktion_graph
-            juce::juce_audio_devices juce::juce_audio_processors juce::juce_audio_utils)
+    PUBLIC rock_hero_core
+    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+
+# Keep the module's adapter tests adjacent to the library they validate.
+add_subdirectory(tests)

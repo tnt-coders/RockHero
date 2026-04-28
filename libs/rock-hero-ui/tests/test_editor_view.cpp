@@ -1,0 +1,362 @@
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_test_macros.hpp>
+#include <filesystem>
+#include <juce_gui_basics/juce_gui_basics.h>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
+#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/ui/editor_view.h>
+#include <stdexcept>
+#include <utility>
+
+namespace rock_hero::ui
+{
+
+namespace
+{
+
+// Returns NaN for empty optionals so Approx checks fail without unchecked optional access.
+template <typename Value>
+[[nodiscard]] Value optionalValueForApprox(const std::optional<Value>& value)
+{
+    return value.value_or(std::numeric_limits<Value>::quiet_NaN());
+}
+
+// Records editor intents emitted by EditorView child widgets.
+class FakeEditorController final : public IEditorController
+{
+public:
+    void onLoadAudioAssetRequested(core::TrackId track_id, core::AudioAsset audio_asset) override
+    {
+        last_track_id = track_id;
+        last_audio_asset = std::move(audio_asset);
+        load_request_count += 1;
+    }
+
+    void onPlayPausePressed() override
+    {
+        play_pause_press_count += 1;
+    }
+
+    void onStopPressed() override
+    {
+        stop_press_count += 1;
+    }
+
+    void onWaveformClicked(double normalized_x) override
+    {
+        last_normalized_x = normalized_x;
+        waveform_click_count += 1;
+    }
+
+    std::optional<core::TrackId> last_track_id{};
+    std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<double> last_normalized_x{};
+    int load_request_count{0};
+    int play_pause_press_count{0};
+    int stop_press_count{0};
+    int waveform_click_count{0};
+};
+
+// Fake transport gives the cursor path a position source without exposing Engine.
+class FakeTransport final : public audio::ITransport
+{
+public:
+    void play() override
+    {}
+    void pause() override
+    {}
+    void stop() override
+    {}
+    void seek(core::TimePosition position_value) override
+    {
+        current_state.position = position_value;
+    }
+
+    [[nodiscard]] audio::TransportState state() const override
+    {
+        return current_state;
+    }
+
+    [[nodiscard]] core::TimePosition position() const noexcept override
+    {
+        position_read_count += 1;
+        return current_state.position;
+    }
+
+    void addListener(Listener& /*listener*/) override
+    {}
+    void removeListener(Listener& /*listener*/) override
+    {}
+
+    audio::TransportState current_state{};
+    mutable int position_read_count{0};
+};
+
+// Records thumbnail source updates installed through the track view owned by EditorView.
+class FakeThumbnail final : public audio::IThumbnail
+{
+public:
+    void setSource(const core::AudioAsset& audio_asset) override
+    {
+        last_source = audio_asset;
+        set_source_call_count += 1;
+    }
+
+    [[nodiscard]] bool isGeneratingProxy() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] float getProxyProgress() const override
+    {
+        return 0.0f;
+    }
+
+    [[nodiscard]] double getLength() const override
+    {
+        return 1.0;
+    }
+
+    void drawChannels(
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, float /*vertical_zoom*/) override
+    {}
+
+    std::optional<core::AudioAsset> last_source{};
+    int set_source_call_count{0};
+};
+
+// Creates fake thumbnails while recording the owner component passed by EditorView.
+class FakeThumbnailFactory final : public audio::IThumbnailFactory
+{
+public:
+    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+        juce::Component& owner) override
+    {
+        last_owner = &owner;
+        create_call_count += 1;
+        auto thumbnail = std::make_unique<FakeThumbnail>();
+        last_thumbnail = thumbnail.get();
+        return thumbnail;
+    }
+
+    juce::Component* last_owner{nullptr};
+    FakeThumbnail* last_thumbnail{nullptr};
+    int create_call_count{0};
+};
+
+// Returns a required child component by id and type, failing the current test if missing.
+template <class ComponentType>
+[[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
+{
+    auto* child = parent.findChildWithID(id);
+    if (child == nullptr)
+    {
+        throw std::runtime_error{"Missing child component: " + id.toStdString()};
+    }
+
+    auto* typed_child = dynamic_cast<ComponentType*>(child);
+    if (typed_child == nullptr)
+    {
+        throw std::runtime_error{"Child component has unexpected type: " + id.toStdString()};
+    }
+
+    return *typed_child;
+}
+
+// Returns the play/pause button from the transport-controls child.
+[[nodiscard]] juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
+{
+    auto* button = dynamic_cast<juce::DrawableButton*>(controls.getChildComponent(0));
+    if (button == nullptr)
+    {
+        throw std::runtime_error{"TransportControls play/pause button missing"};
+    }
+    return *button;
+}
+
+// Returns the stop button from the transport-controls child.
+[[nodiscard]] juce::DrawableButton& getStopButton(TransportControls& controls)
+{
+    auto* button = dynamic_cast<juce::DrawableButton*>(controls.getChildComponent(1));
+    if (button == nullptr)
+    {
+        throw std::runtime_error{"TransportControls stop button missing"};
+    }
+    return *button;
+}
+
+// Synthesizes a simple left-button mouse-down event relative to one component.
+[[nodiscard]] juce::MouseEvent makeMouseDownEvent(juce::Component& component, float x, float y)
+{
+    const auto position = juce::Point<float>{x, y};
+    const auto event_time = juce::Time::getCurrentTime();
+
+    return {
+        juce::Desktop::getInstance().getMainMouseSource(),
+        position,
+        juce::ModifierKeys::leftButtonModifier,
+        1.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        0.0f,
+        &component,
+        &component,
+        event_time,
+        position,
+        event_time,
+        1,
+        false
+    };
+}
+
+} // namespace
+
+// Verifies construction asks the thumbnail factory once for the initial row.
+TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, transport, thumbnail_factory};
+
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+
+    view.setState(
+        EditorViewState{
+            .load_button_enabled = true,
+            .play_pause_enabled = true,
+            .stop_enabled = false,
+            .play_pause_shows_pause_icon = false,
+            .visible_timeline_start = core::TimePosition{},
+            .visible_timeline_duration = core::TimeDuration{4.0},
+            .tracks = {TrackViewState{
+                .track_id = core::TrackId{1},
+                .display_name = "Full Mix",
+                .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+            }},
+            .last_load_error = std::nullopt,
+        });
+
+    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
+}
+
+// Verifies setState projects transition-shaped state into child widgets without reading position.
+TEST_CASE("EditorView setState projects controls without polling position", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    auto& load_button = findRequiredChild<juce::TextButton>(view, "load_button");
+    auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+
+    view.setState(EditorViewState{});
+
+    CHECK_FALSE(load_button.isEnabled());
+    CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
+    CHECK_FALSE(getStopButton(controls).isEnabled());
+    CHECK(transport.position_read_count == 0);
+
+    view.setState(
+        EditorViewState{
+            .load_button_enabled = true,
+            .play_pause_enabled = true,
+            .stop_enabled = true,
+            .play_pause_shows_pause_icon = true,
+            .visible_timeline_start = core::TimePosition{},
+            .visible_timeline_duration = core::TimeDuration{8.0},
+            .tracks = {TrackViewState{
+                .track_id = core::TrackId{2},
+                .display_name = "Full Mix",
+                .audio_asset = core::AudioAsset{std::filesystem::path{"mix.wav"}},
+            }},
+            .last_load_error = std::nullopt,
+        });
+
+    CHECK(load_button.isEnabled());
+    CHECK(getPlayPauseButton(controls).isEnabled());
+    CHECK(getStopButton(controls).isEnabled());
+    CHECK(getPlayPauseButton(controls).getToggleState());
+    CHECK(transport.position_read_count == 0);
+}
+
+// Verifies editor-wide timeline clicks are forwarded without depending on a specific track row.
+TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+    view.setBounds(0, 0, 500, 200);
+
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    REQUIRE(cursor_overlay.getWidth() > 0);
+    const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 20.0f));
+
+    CHECK(controller.waveform_click_count == 1);
+    const auto last_normalized_x = controller.last_normalized_x;
+    REQUIRE(last_normalized_x.has_value());
+    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(0.25));
+}
+
+// Verifies keyboard play/pause uses the same editor intent as the transport button.
+TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
+    CHECK(controller.play_pause_press_count == 1);
+}
+
+// Verifies cursor geometry uses a pushed visible range plus a separately read position.
+TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
+{
+    const auto midpoint_cursor = cursorXForTimelinePosition(
+        core::TimePosition{5.0}, core::TimePosition{}, core::TimeDuration{10.0}, 201);
+    REQUIRE(midpoint_cursor.has_value());
+    CHECK(optionalValueForApprox(midpoint_cursor) == Catch::Approx(100.0f));
+
+    const auto offset_cursor = cursorXForTimelinePosition(
+        core::TimePosition{12.0}, core::TimePosition{10.0}, core::TimeDuration{4.0}, 101);
+    REQUIRE(offset_cursor.has_value());
+    CHECK(optionalValueForApprox(offset_cursor) == Catch::Approx(50.0f));
+
+    const auto fractional_cursor = cursorXForTimelinePosition(
+        core::TimePosition{1.25}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(fractional_cursor.has_value());
+    CHECK(optionalValueForApprox(fractional_cursor) == Catch::Approx(31.25f));
+
+    const auto before_start_cursor = cursorXForTimelinePosition(
+        core::TimePosition{-1.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(before_start_cursor.has_value());
+    CHECK(optionalValueForApprox(before_start_cursor) == Catch::Approx(0.0f));
+
+    const auto after_end_cursor = cursorXForTimelinePosition(
+        core::TimePosition{9.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+    REQUIRE(after_end_cursor.has_value());
+    CHECK(optionalValueForApprox(after_end_cursor) == Catch::Approx(100.0f));
+
+    CHECK_FALSE(cursorXForTimelinePosition(
+                    core::TimePosition{1.0}, core::TimePosition{}, core::TimeDuration{}, 101)
+                    .has_value());
+}
+
+} // namespace rock_hero::ui
