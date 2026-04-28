@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
-#include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/core/audio_asset.h>
 #include <utility>
 
@@ -142,10 +142,10 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
-// Creates child widgets, installs the row thumbnail, and keeps ThumbnailCreator construction-only.
+// Creates child widgets and installs the initial row thumbnail from the audio factory.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
-    const ThumbnailCreator& create_thumbnail)
+    audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(controller)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
@@ -159,10 +159,7 @@ EditorView::EditorView(
     m_transport_controls.setComponentID("transport_controls");
     m_track_view.setComponentID("track_view");
 
-    if (create_thumbnail)
-    {
-        m_track_view.setThumbnail(create_thumbnail(m_track_view));
-    }
+    m_track_view.setThumbnail(thumbnail_factory.createThumbnail(m_track_view));
 
     addAndMakeVisible(m_load_button);
     addAndMakeVisible(m_transport_controls);

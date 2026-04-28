@@ -151,11 +151,11 @@ Example for an indented member declaration:
 
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param create_thumbnail Callback invoked immediately to create the initial row thumbnail.
+    \param thumbnail_factory Factory used immediately to create the initial row thumbnail.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
-        const ThumbnailCreator& create_thumbnail);
+        audio::IThumbnailFactory& thumbnail_factory);
 \endcode
 
 # Doxygen Commands

@@ -12,8 +12,8 @@
 
 namespace rock_hero::audio
 {
-// Forward-declared thumbnail port keeps this header independent of Tracktion implementation types.
-class Thumbnail;
+// Forward-declared IThumbnail port keeps this header independent of Tracktion implementation types.
+class IThumbnail;
 } // namespace rock_hero::audio
 
 namespace rock_hero::ui
@@ -22,7 +22,7 @@ namespace rock_hero::ui
 /*!
 \brief Renders one track view from framework-free track state.
 
-The view owns one Tracktion-free audio::Thumbnail and refreshes it only when the incoming
+The view owns one Tracktion-free audio::IThumbnail and refreshes it only when the incoming
 TrackViewState changes to a different present audio asset. It currently renders only track-local
 waveform content and emits normalized click intent upward. Cursor motion is intentionally
 excluded; EditorView owns the editor-wide cursor overlay.
@@ -107,7 +107,7 @@ public:
 
     \param thumbnail Newly created thumbnail owned by this view.
     */
-    void setThumbnail(std::unique_ptr<audio::Thumbnail> thumbnail);
+    void setThumbnail(std::unique_ptr<audio::IThumbnail> thumbnail);
 
     /*!
     \brief Applies the current framework-free track-view state.
@@ -157,7 +157,7 @@ private:
     std::optional<core::AudioAsset> m_thumbnail_source_asset{};
 
     // Track-view-owned thumbnail used to render static waveform content.
-    std::unique_ptr<audio::Thumbnail> m_thumbnail;
+    std::unique_ptr<audio::IThumbnail> m_thumbnail;
 
     // Local listeners notified when the track view is clicked.
     juce::ListenerList<Listener> m_listeners;
