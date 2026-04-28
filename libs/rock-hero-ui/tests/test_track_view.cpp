@@ -4,7 +4,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/ui/track_view.h>
 
 namespace rock_hero::ui
@@ -39,7 +39,7 @@ namespace
 }
 
 // Records thumbnail source refreshes so tests can verify row-local asset diff behavior.
-class FakeThumbnail final : public audio::Thumbnail
+class FakeThumbnail final : public audio::IThumbnail
 {
 public:
     // Captures the new source each time the view asks the thumbnail to refresh itself.

@@ -8,12 +8,12 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
-#include <rock_hero/ui/thumbnail_creator.h>
 #include <rock_hero/ui/track_view.h>
 #include <rock_hero/ui/transport_controls.h>
 
@@ -50,11 +50,11 @@ public:
     \brief Creates the concrete editor view and installs the initial track thumbnail.
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param create_thumbnail Callback invoked immediately to create the initial row thumbnail.
+    \param thumbnail_factory Factory used immediately to create the initial row thumbnail.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
-        const ThumbnailCreator& create_thumbnail);
+        audio::IThumbnailFactory& thumbnail_factory);
 
     /*! \brief Releases child widgets, cursor overlay, and file chooser state. */
     ~EditorView() override;

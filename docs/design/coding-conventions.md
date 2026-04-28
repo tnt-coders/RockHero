@@ -56,6 +56,12 @@ Apply `const` to:
 - references and pointer pointees used for read-only access
 - range-loop bindings that should not mutate the iterated element
 
+Treat clang-tidy's const-correctness checks as required style, not optional cleanup. When editing
+code, declare touched locals `const` at the point of introduction whenever later code only observes
+them. Before finishing a change, scan new and modified functions for variables that
+`misc-const-correctness` would flag, including test fixtures and RAII harness objects that are
+constructed for setup/teardown but then accessed only through const operations.
+
 Do not add top-level `const` to by-value parameters in public declarations. It is not part of the
 function type and adds noise to the interface:
 

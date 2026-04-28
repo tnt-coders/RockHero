@@ -1,7 +1,7 @@
 #include "track_view.h"
 
 #include <algorithm>
-#include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/audio/i_thumbnail.h>
 #include <utility>
 
 namespace rock_hero::ui
@@ -14,7 +14,7 @@ TrackView::TrackView() = default;
 TrackView::~TrackView() = default;
 
 // Transfers thumbnail ownership into the view and points it at the current state asset when needed.
-void TrackView::setThumbnail(std::unique_ptr<audio::Thumbnail> thumbnail)
+void TrackView::setThumbnail(std::unique_ptr<audio::IThumbnail> thumbnail)
 {
     m_thumbnail = std::move(thumbnail);
     m_thumbnail_source_asset.reset();

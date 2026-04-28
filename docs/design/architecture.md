@@ -126,7 +126,7 @@ Example from `libs/rock-hero-audio/src/engine.cpp`:
 \code{.cpp}
 #include "engine.h"
 
-#include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/audio/i_thumbnail.h>
 
 #include <tracktion_engine/tracktion_engine.h>
 

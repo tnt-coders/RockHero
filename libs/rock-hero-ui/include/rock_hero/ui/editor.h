@@ -7,11 +7,11 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view.h>
-#include <rock_hero/ui/thumbnail_creator.h>
 
 namespace rock_hero::ui
 {
@@ -21,7 +21,7 @@ namespace rock_hero::ui
 
 Editor is the composition boundary for the editor UI. It prevents app code from constructing a
 controller, view, and thumbnail callback as separate half-wired objects. The referenced session,
-transport, edit, and thumbnail dependencies must outlive the editor.
+transport, edit, and thumbnail-factory dependencies must outlive the editor.
 */
 class Editor final
 {
@@ -31,11 +31,11 @@ public:
     \param session Session whose tracks are projected into the editor view.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param edit Edit port used by the controller for audio-source changes.
-    \param create_thumbnail Callback invoked during view construction for the initial track row.
+    \param thumbnail_factory Factory used during view construction for the initial track row.
     */
     Editor(
         core::Session& session, audio::ITransport& transport, audio::IEdit& edit,
-        const ThumbnailCreator& create_thumbnail);
+        audio::IThumbnailFactory& thumbnail_factory);
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();

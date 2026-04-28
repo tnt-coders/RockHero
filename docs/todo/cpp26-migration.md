@@ -22,15 +22,15 @@ purpose of pimpl.
 C++26 reflection provides the missing primitive. A sketch of what it could look like:
 
 ```cpp
-// thumbnail.h
+// tracktion_thumbnail.h
 namespace rock_hero::audio
 {
 
-class Thumbnail
+class TracktionThumbnail
 {
 public:
-    Thumbnail(tracktion::Engine& engine, juce::Component& owner);
-    ~Thumbnail();
+    TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner);
+    ~TracktionThumbnail();
 
     void setFile(const std::filesystem::path& file);
     bool isGeneratingProxy() const;
@@ -48,7 +48,7 @@ private:
 
 ```cpp
 // thumbnail.cpp
-struct Thumbnail::Impl
+struct TracktionThumbnail::Impl
 {
     // Members + methods written once, here.
     void setFile(const std::filesystem::path& file);
@@ -57,7 +57,7 @@ struct Thumbnail::Impl
 };
 
 // One line generates all forwarders:
-ROCK_HERO_PIMPL_FORWARD(Thumbnail, Impl);
+ROCK_HERO_PIMPL_FORWARD(TracktionThumbnail, Impl);
 ```
 
 The `ROCK_HERO_PIMPL_FORWARD` helper would be a consteval function using reflection to enumerate
@@ -101,7 +101,7 @@ Before bumping the project to C++26, all of the following should hold:
 2. **Bump CI compiler versions** in `project-config/` to the minimums validated above.
 3. **Update pre-commit and clang-tidy configuration** to the matching toolchain versions.
 4. **Introduce the `ROCK_HERO_PIMPL_FORWARD` helper** (or equivalent) in a shared utility header
-   inside `rock-hero-core`. Validate it on one class first (e.g. `audio::Thumbnail`).
+   inside `rock-hero-core`. Validate it on one class first (e.g. `audio::Engine`).
 5. **Migrate existing pimpl classes incrementally** — one per PR, verifying the generated
    signatures match the hand-written ones via compile-time checks and existing tests.
 6. **Update `docs/design/architectural-principles.md`** to document the reflection-based pimpl

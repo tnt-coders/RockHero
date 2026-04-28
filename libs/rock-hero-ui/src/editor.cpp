@@ -6,9 +6,9 @@ namespace rock_hero::ui
 // Wires controller and view together after both construction-only dependencies are available.
 Editor::Editor(
     core::Session& session, audio::ITransport& transport, audio::IEdit& edit,
-    const ThumbnailCreator& create_thumbnail)
+    audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(session, transport, edit)
-    , m_view(m_controller, transport, create_thumbnail)
+    , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);
 }
