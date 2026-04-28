@@ -5,8 +5,9 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/audio/thumbnail.h>
 #include <rock_hero/ui/editor_view.h>
 #include <stdexcept>
 #include <utility>
@@ -96,7 +97,7 @@ public:
 };
 
 // Records thumbnail source updates installed through the track view owned by EditorView.
-class FakeThumbnail final : public audio::Thumbnail
+class FakeThumbnail final : public audio::IThumbnail
 {
 public:
     void setSource(const core::AudioAsset& audio_asset) override
@@ -126,6 +127,25 @@ public:
 
     std::optional<core::AudioAsset> last_source{};
     int set_source_call_count{0};
+};
+
+// Creates fake thumbnails while recording the owner component passed by EditorView.
+class FakeThumbnailFactory final : public audio::IThumbnailFactory
+{
+public:
+    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+        juce::Component& owner) override
+    {
+        last_owner = &owner;
+        create_call_count += 1;
+        auto thumbnail = std::make_unique<FakeThumbnail>();
+        last_thumbnail = thumbnail.get();
+        return thumbnail;
+    }
+
+    juce::Component* last_owner{nullptr};
+    FakeThumbnail* last_thumbnail{nullptr};
+    int create_call_count{0};
 };
 
 // Returns a required child component by id and type, failing the current test if missing.
@@ -196,28 +216,20 @@ template <class ComponentType>
 
 } // namespace
 
-// Verifies construction consumes the thumbnail creator exactly once for the initial row.
+// Verifies construction asks the thumbnail factory once for the initial row.
 TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
-    FakeThumbnail* thumbnail_ptr = nullptr;
-    juce::Component* thumbnail_owner = nullptr;
-    int create_thumbnail_call_count = 0;
+    FakeThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, transport, [&](juce::Component& owner) {
-                        thumbnail_owner = &owner;
-                        create_thumbnail_call_count += 1;
-                        auto thumbnail = std::make_unique<FakeThumbnail>();
-                        thumbnail_ptr = thumbnail.get();
-                        return thumbnail;
-                    }};
+    EditorView view{controller, transport, thumbnail_factory};
 
-    CHECK(create_thumbnail_call_count == 1);
-    REQUIRE(thumbnail_owner != nullptr);
-    CHECK(thumbnail_owner->getComponentID() == "track_view");
-    REQUIRE(thumbnail_ptr != nullptr);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
 
     view.setState(
         EditorViewState{
@@ -235,7 +247,7 @@ TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
             .last_load_error = std::nullopt,
         });
 
-    CHECK(thumbnail_ptr->set_source_call_count == 1);
+    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
 }
 
 // Verifies setState projects transition-shaped state into child widgets without reading position.
@@ -244,9 +256,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
-    EditorView view{controller, transport, [](juce::Component&) {
-                        return std::make_unique<FakeThumbnail>();
-                    }};
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
 
     auto& load_button = findRequiredChild<juce::TextButton>(view, "load_button");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
@@ -287,9 +298,8 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
-    EditorView view{controller, transport, [](juce::Component&) {
-                        return std::make_unique<FakeThumbnail>();
-                    }};
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
     view.setBounds(0, 0, 500, 200);
 
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
@@ -309,9 +319,8 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
-    EditorView view{controller, transport, [](juce::Component&) {
-                        return std::make_unique<FakeThumbnail>();
-                    }};
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
 
     CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
     CHECK(controller.play_pause_press_count == 1);

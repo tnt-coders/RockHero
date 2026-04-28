@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
 
 namespace juce
@@ -22,21 +23,21 @@ namespace rock_hero::audio
 {
 
 // Forward declaration of the Tracktion-free thumbnail interface returned by Engine.
-class Thumbnail;
+class IThumbnail;
 
 /*!
 \brief Isolation layer between Tracktion Engine and the rest of the application.
 
-All other code depends on this interface rather than on Tracktion directly. This boundary enables
-a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files include Tracktion
-headers.
+All other code depends on the project-owned audio interfaces rather than on Tracktion directly.
+This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files
+include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
 must be called on the message thread.
 
 \see rock_hero::MainWindow
 */
-class Engine : public ITransport, public IEdit
+class Engine : public ITransport, public IEdit, public IThumbnailFactory
 {
 public:
     /*!
@@ -121,15 +122,15 @@ public:
     bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override;
 
     /*!
-    \brief Creates a Thumbnail bound to this engine.
+    \brief Creates an IThumbnail bound to this engine.
 
     Factory method that passes the internal Tracktion Engine to the thumbnail without exposing it
     through the public API.
 
     \param owner The component that should be repainted when the proxy finishes generating.
-    \return A new Thumbnail instance.
+    \return A new IThumbnail instance.
     */
-    [[nodiscard]] std::unique_ptr<Thumbnail> createThumbnail(juce::Component& owner);
+    [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override;
 
 private:
     // Loads an audio file onto track 0, replacing any existing clip.

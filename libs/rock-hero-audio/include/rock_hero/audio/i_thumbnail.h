@@ -1,5 +1,5 @@
 /*!
-\file thumbnail.h
+\file i_thumbnail.h
 \brief Tracktion-free audio thumbnail interface for use by UI components.
 */
 
@@ -27,15 +27,15 @@ namespace rock_hero::audio
 Exposes only JUCE-facing file and graphics types so that UI code can render audio thumbnails
 without including Tracktion headers or linking Tracktion libraries. Thumbnail source assignment
 uses the project-owned core::AudioAsset value so UI code stays framework-free at the loading
-boundary. Concrete instances are obtained from Engine::createThumbnail().
+boundary. Concrete instances are obtained through IThumbnailFactory::createThumbnail().
 
-\see Engine
+\see IThumbnailFactory
 */
-class Thumbnail
+class IThumbnail
 {
 public:
     /*! \brief Destroys the thumbnail and releases proxy resources. */
-    virtual ~Thumbnail() = default;
+    virtual ~IThumbnail() = default;
 
     /*!
     \brief Sets the audio asset whose thumbnail should be displayed.
@@ -79,25 +79,25 @@ public:
 
 protected:
     /*! \brief Allows only derived thumbnail adapters to construct the interface base. */
-    Thumbnail() = default;
+    IThumbnail() = default;
 
     /*! \brief Allows derived adapters to copy the interface base when needed. */
-    Thumbnail(const Thumbnail&) = default;
+    IThumbnail(const IThumbnail&) = default;
 
     /*!
     \brief Allows derived adapters to copy-assign the interface base when needed.
     \return Reference to this thumbnail base.
     */
-    Thumbnail& operator=(const Thumbnail&) = default;
+    IThumbnail& operator=(const IThumbnail&) = default;
 
     /*! \brief Allows derived adapters to move the interface base when needed. */
-    Thumbnail(Thumbnail&&) = default;
+    IThumbnail(IThumbnail&&) = default;
 
     /*!
     \brief Allows derived adapters to move-assign the interface base when needed.
     \return Reference to this thumbnail base.
     */
-    Thumbnail& operator=(Thumbnail&&) = default;
+    IThumbnail& operator=(IThumbnail&&) = default;
 };
 
 } // namespace rock_hero::audio

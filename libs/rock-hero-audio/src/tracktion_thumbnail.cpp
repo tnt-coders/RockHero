@@ -3,7 +3,7 @@
 namespace rock_hero::audio
 {
 
-// Creates the Tracktion SmartThumbnail behind the Tracktion-free Thumbnail interface.
+// Creates the Tracktion SmartThumbnail behind the Tracktion-free IThumbnail interface.
 TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner)
     : m_engine(engine)
     , m_thumbnail(engine, tracktion::AudioFile(engine), owner, nullptr)

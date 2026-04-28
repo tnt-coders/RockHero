@@ -5,8 +5,9 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/audio/thumbnail.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/editor.h>
 #include <stdexcept>
@@ -83,7 +84,7 @@ public:
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
-class FakeThumbnail final : public audio::Thumbnail
+class FakeThumbnail final : public audio::IThumbnail
 {
 public:
     void setSource(const core::AudioAsset& audio_asset) override
@@ -113,6 +114,25 @@ public:
 
     std::optional<core::AudioAsset> last_source{};
     int set_source_call_count{0};
+};
+
+// Creates fake thumbnails while recording the owner component passed by Editor.
+class FakeThumbnailFactory final : public audio::IThumbnailFactory
+{
+public:
+    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+        juce::Component& owner) override
+    {
+        last_owner = &owner;
+        create_call_count += 1;
+        auto thumbnail = std::make_unique<FakeThumbnail>();
+        last_thumbnail = thumbnail.get();
+        return thumbnail;
+    }
+
+    juce::Component* last_owner{nullptr};
+    FakeThumbnail* last_thumbnail{nullptr};
+    int create_call_count{0};
 };
 
 // Returns a required child component by id and type, failing the current test if missing.
@@ -146,29 +166,22 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     FakeTransport transport;
     transport.current_state.duration = core::TimeDuration{8.0};
     FakeEdit edit;
-    FakeThumbnail* thumbnail_ptr = nullptr;
-    juce::Component* thumbnail_owner = nullptr;
-    int create_thumbnail_call_count = 0;
-    const ThumbnailCreator create_thumbnail = [&](juce::Component& owner) {
-        thumbnail_owner = &owner;
-        create_thumbnail_call_count += 1;
-        auto thumbnail = std::make_unique<FakeThumbnail>();
-        thumbnail_ptr = thumbnail.get();
-        return thumbnail;
-    };
+    FakeThumbnailFactory thumbnail_factory;
 
-    Editor editor{session, transport, edit, create_thumbnail};
+    Editor editor{session, transport, edit, thumbnail_factory};
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
     auto& load_button = findRequiredChild<juce::TextButton>(component, "load_button");
     CHECK(load_button.isEnabled());
-    CHECK(create_thumbnail_call_count == 1);
-    REQUIRE(thumbnail_owner != nullptr);
-    CHECK(thumbnail_owner->getComponentID() == "track_view");
-    REQUIRE(thumbnail_ptr != nullptr);
-    CHECK(thumbnail_ptr->set_source_call_count == 1);
-    CHECK(thumbnail_ptr->last_source == std::optional<core::AudioAsset>{audio_asset});
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
+    CHECK(
+        thumbnail_factory.last_thumbnail->last_source ==
+        std::optional<core::AudioAsset>{audio_asset});
     CHECK(transport.listeners.size() == 1);
 }
 
