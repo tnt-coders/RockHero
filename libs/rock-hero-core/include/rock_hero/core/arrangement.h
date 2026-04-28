@@ -1,13 +1,13 @@
 /*!
 \file arrangement.h
-\brief Arrangement entity within a Chart: a part/difficulty variant with its note events.
+\brief Arrangement entity within a Chart: a part/rated-difficulty variant with its note events.
 */
 
 #pragma once
 
 #include <cstdint>
+#include <rock_hero/core/difficulty.h>
 #include <rock_hero/core/timeline.h>
-#include <string>
 #include <vector>
 
 namespace rock_hero::core
@@ -40,21 +40,8 @@ enum class Part : std::uint8_t
     Bass
 };
 
-/*! \brief Difficulty tier for an arrangement. */
-enum class Difficulty : std::uint8_t
-{
-    /*! \brief Simple arrangement aimed at beginners. */
-    Easy,
-    /*! \brief Intermediate arrangement between Easy and Hard. */
-    Medium,
-    /*! \brief Advanced arrangement demanding solid technique. */
-    Hard,
-    /*! \brief Expert arrangement requiring virtuoso-like ability. */
-    Expert
-};
-
 /*!
-\brief One playable variant of a Chart, identified by part and difficulty.
+\brief One playable variant of a Chart, identified by part and numeric difficulty.
 
 An Arrangement owns the full sequence of NoteEvents the player must execute. The song library
 treats these as plain data; scoring logic lives in rock-hero-game.
@@ -64,8 +51,8 @@ struct Arrangement
     /*! \brief Guitar part played by this arrangement. */
     Part part{Part::Lead};
 
-    /*! \brief Difficulty tier represented by this arrangement. */
-    Difficulty difficulty{Difficulty::Expert};
+    /*! \brief Numeric difficulty rating represented by this arrangement. */
+    DifficultyRating difficulty;
 
     /*! \brief Ordered note events the player must execute for this arrangement. */
     std::vector<NoteEvent> note_events;

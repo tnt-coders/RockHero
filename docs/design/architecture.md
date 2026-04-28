@@ -181,13 +181,18 @@ Song
   chart
     arrangements[*]
       part          (Lead | Rhythm | Bass)
-      difficulty    (Easy | Medium | Hard | Expert)
+      difficulty    (0 Unknown, 1-10 authored rating)
       note_events[*]
-      position.seconds
-      duration.seconds
+        position.seconds
+        duration.seconds
         string_number (1–6)
         fret
 \endcode
+
+Arrangement difficulty is stored as the numeric rating. The display tier is derived from that
+rating: Easy for 1-2, Medium for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value
+of 0 represents Unknown so draft/default arrangements do not imply a fake difficulty; validation
+for playable songs should reject Unknown.
 
 `Song` is the persistence and session root. When a session opens, the application loads a `Song`
 from disk, passes `audio_asset_ref` to `rock-hero-audio` for playback, and passes
