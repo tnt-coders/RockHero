@@ -1,27 +1,27 @@
 /*!
 \file tracktion_thumbnail.h
-\brief Tracktion-backed concrete implementation of the Thumbnail interface.
+\brief Tracktion-backed concrete implementation of the IThumbnail interface.
 */
 
 #pragma once
 
-#include <rock_hero/audio/thumbnail.h>
+#include <rock_hero/audio/i_thumbnail.h>
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::audio
 {
 
 /*!
-\brief Tracktion-backed adapter that satisfies the Thumbnail interface.
+\brief Tracktion-backed adapter that satisfies the IThumbnail interface.
 
-Wraps tracktion::SmartThumbnail so that consumers of the Thumbnail port do not see Tracktion
-types. Visible only inside rock-hero-audio; callers obtain instances through
-Engine::createThumbnail().
+Wraps tracktion::SmartThumbnail so that consumers of the IThumbnail port do not see Tracktion
+types. Visible only inside rock-hero-audio; callers obtain instances through the
+IThumbnailFactory port.
 
-\see Thumbnail
-\see Engine
+\see IThumbnail
+\see IThumbnailFactory
 */
-class TracktionThumbnail final : public Thumbnail
+class TracktionThumbnail final : public IThumbnail
 {
 public:
     /*!
@@ -32,19 +32,19 @@ public:
     */
     TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner);
 
-    /*! \copydoc Thumbnail::setFile */
-    void setFile(const juce::File& file) override;
+    /*! \copydoc IThumbnail::setSource */
+    void setSource(const core::AudioAsset& audio_asset) override;
 
-    /*! \copydoc Thumbnail::isGeneratingProxy */
+    /*! \copydoc IThumbnail::isGeneratingProxy */
     [[nodiscard]] bool isGeneratingProxy() const override;
 
-    /*! \copydoc Thumbnail::getProxyProgress */
+    /*! \copydoc IThumbnail::getProxyProgress */
     [[nodiscard]] float getProxyProgress() const override;
 
-    /*! \copydoc Thumbnail::getLength */
+    /*! \copydoc IThumbnail::getLength */
     [[nodiscard]] double getLength() const override;
 
-    /*! \copydoc Thumbnail::drawChannels */
+    /*! \copydoc IThumbnail::drawChannels */
     void drawChannels(juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) override;
 
 private:

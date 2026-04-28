@@ -483,6 +483,23 @@ Suggested shape:
 
 Register them with `ctest`, but keep most of them free from hardware and windowing requirements.
 
+## Third-Party Module Linkage
+
+Rock Hero does not link raw `juce::juce_*` or `tracktion::tracktion_*` module targets directly
+from its libraries and apps. Instead, the repository defines project-owned static wrapper targets
+for the JUCE and Tracktion modules it uses. Those wrappers privately link the raw third-party
+module targets, then forward the required compile definitions and include paths to consumers.
+
+This project therefore treats raw JUCE and Tracktion module linkage as an internal build concern
+behind a project-owned wrapper layer:
+
+- Rock Hero targets link wrapper targets such as `rock_hero_juce_gui_basics` and
+  `rock_hero_tracktion_engine` rather than raw third-party modules.
+- project-owned interfaces and adapters are exported, not raw JUCE or Tracktion module targets.
+
+This keeps the dependency graph explicit while avoiding repeated third-party module compilation
+across the project's modular target structure.
+
 # Decision Rules for New Code
 
 When adding a new class, function, or subsystem, ask:
