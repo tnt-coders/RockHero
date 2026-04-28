@@ -45,12 +45,12 @@ TEST_CASE("Arrangement holds note events", "[core][arrangement]")
     CHECK(arr.difficulty == DifficultyRating{8});
     CHECK(difficultyTier(arr.difficulty) == DifficultyTier::Expert);
     REQUIRE(arr.note_events.size() == 2);
-    CHECK(arr.note_events[0].position.seconds == 1.0);
-    CHECK(arr.note_events[0].duration.seconds == 0.5);
+    CHECK(arr.note_events[0].position == TimePosition{1.0});
+    CHECK(arr.note_events[0].duration == TimeDuration{0.5});
     CHECK(arr.note_events[0].string_number == 1);
     CHECK(arr.note_events[0].fret == 5);
-    CHECK(arr.note_events[1].position.seconds == 2.0);
-    CHECK(arr.note_events[1].duration.seconds == 0.0);
+    CHECK(arr.note_events[1].position == TimePosition{2.0});
+    CHECK(arr.note_events[1].duration == TimeDuration{});
     CHECK(arr.note_events[1].string_number == 6);
     CHECK(arr.note_events[1].fret == 0);
 }
@@ -61,8 +61,8 @@ TEST_CASE("Time value wrappers default to zero seconds", "[core][timeline]")
     const TimePosition position;
     const TimeDuration duration;
 
-    CHECK(position.seconds == 0.0);
-    CHECK(duration.seconds == 0.0);
+    CHECK(position == TimePosition{});
+    CHECK(duration == TimeDuration{});
 }
 
 // Verifies timeline value types preserve their underlying second values.
@@ -71,8 +71,8 @@ TEST_CASE("Time value wrappers store seconds", "[core][timeline]")
     const TimePosition position{12.5};
     const TimeDuration duration{48.0};
 
-    CHECK(position.seconds == 12.5);
-    CHECK(duration.seconds == 48.0);
+    CHECK(position == TimePosition{12.5});
+    CHECK(duration == TimeDuration{48.0});
 }
 
 // Verifies timeline equality compares the wrapped second value.

@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <compare>
+
 namespace rock_hero::core
 {
 
@@ -33,9 +35,14 @@ struct TimePosition
     */
     // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
     // named timing helpers at the algorithm call site, not operator==.
-    // NOLINTBEGIN(clang-diagnostic-float-equal)
-    friend bool operator==(const TimePosition& lhs, const TimePosition& rhs) = default;
-    // NOLINTEND(clang-diagnostic-float-equal)
+    // This is not defaulted because the generated comparison uses direct floating-point ==,
+    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
+    // std::is_eq(lhs.seconds <=> rhs.seconds) preserves exact equality semantics while avoiding
+    // that compiler diagnostic.
+    friend constexpr bool operator==(const TimePosition& lhs, const TimePosition& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds);
+    }
 };
 
 /*! \brief Duration on the song timeline, measured in seconds. */
@@ -63,9 +70,14 @@ struct TimeDuration
     */
     // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
     // named timing helpers at the algorithm call site, not operator==.
-    // NOLINTBEGIN(clang-diagnostic-float-equal)
-    friend bool operator==(const TimeDuration& lhs, const TimeDuration& rhs) = default;
-    // NOLINTEND(clang-diagnostic-float-equal)
+    // This is not defaulted because the generated comparison uses direct floating-point ==,
+    // which is promoted to a build error by -Wfloat-equal under the shared warning policy.
+    // std::is_eq(lhs.seconds <=> rhs.seconds) preserves exact equality semantics while avoiding
+    // that compiler diagnostic.
+    friend constexpr bool operator==(const TimeDuration& lhs, const TimeDuration& rhs) noexcept
+    {
+        return std::is_eq(lhs.seconds <=> rhs.seconds);
+    }
 };
 
 } // namespace rock_hero::core
