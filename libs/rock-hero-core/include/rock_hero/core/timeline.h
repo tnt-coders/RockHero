@@ -31,6 +31,9 @@ struct TimePosition
     \param rhs Right-hand timeline position.
     \return True when both positions store the same second value.
     */
+    // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
+    // named timing helpers at the algorithm call site, not operator==.
+    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
     friend bool operator==(const TimePosition& lhs, const TimePosition& rhs) = default;
 };
 
@@ -57,6 +60,9 @@ struct TimeDuration
     \param rhs Right-hand timeline duration.
     \return True when both durations store the same second value.
     */
+    // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
+    // named timing helpers at the algorithm call site, not operator==.
+    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
     friend bool operator==(const TimeDuration& lhs, const TimeDuration& rhs) = default;
 };
 
