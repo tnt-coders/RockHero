@@ -231,7 +231,7 @@ Examples:
 
 - score engine + transport snapshots + chart fixtures
 - editor command service + repository fake
-- waveform coordinate logic + transport state + presentation model
+- waveform coordinate logic + transport status/position + presentation model
 
 These should remain relatively small and intentional.
 

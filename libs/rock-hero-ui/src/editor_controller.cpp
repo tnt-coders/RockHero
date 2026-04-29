@@ -33,7 +33,7 @@ void EditorController::attachView(IEditorView& view)
 
 // Validates the track id, runs the edit through the IEdit port, then commits the asset to the
 // session. Reentrant transport callbacks during the edit window are coalesced into the single
-// post-edit push so the view never sees a stale intermediate state derived from pre-commit
+// post-edit push so the view never sees stale intermediate view state derived from pre-commit
 // session data.
 void EditorController::onLoadAudioAssetRequested(
     core::TrackId track_id, core::AudioAsset audio_asset)
@@ -80,7 +80,7 @@ void EditorController::onLoadAudioAssetRequested(
 }
 
 // Ignores the intent when no track has an asset, otherwise toggles between play and pause based
-// on the current transport snapshot.
+// on the current transport status.
 void EditorController::onPlayPausePressed()
 {
     if (!anyTrackHasAsset())
@@ -88,7 +88,7 @@ void EditorController::onPlayPausePressed()
         return;
     }
 
-    if (m_transport.state().playing)
+    if (m_transport.status().playing)
     {
         m_transport.pause();
     }
@@ -102,7 +102,7 @@ void EditorController::onPlayPausePressed()
 // transport the view considers stopped.
 void EditorController::onStopPressed()
 {
-    if (!m_transport.state().playing)
+    if (!m_transport.status().playing)
     {
         return;
     }
@@ -114,14 +114,13 @@ void EditorController::onStopPressed()
 void EditorController::onWaveformClicked(double normalized_x)
 {
     const double clamped = std::clamp(normalized_x, 0.0, 1.0);
-    const double duration_seconds = m_transport.state().duration.seconds;
+    const double duration_seconds = m_transport.status().duration.seconds;
     m_transport.seek(core::TimePosition{clamped * duration_seconds});
 }
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
-// derivation runs against the committed session and transport state instead of the pre-commit
-// snapshot.
-void EditorController::onTransportStateChanged(const audio::TransportState& /*state*/)
+// derivation runs against the committed session and transport status instead of pre-commit data.
+void EditorController::onTransportStatusChanged(const audio::TransportStatus& /*status*/)
 {
     if (m_edit_in_progress)
     {
@@ -131,19 +130,19 @@ void EditorController::onTransportStateChanged(const audio::TransportState& /*st
     deriveAndPush();
 }
 
-// Builds the message-thread view state from the session and transport snapshot. Current cursor
+// Builds the message-thread view state from the session and transport status. Current cursor
 // position is intentionally excluded; the view receives only discrete mapping state here.
 EditorViewState EditorController::deriveViewState() const
 {
-    const audio::TransportState transport_state = m_transport.state();
+    const audio::TransportStatus transport_status = m_transport.status();
 
     EditorViewState state;
     state.load_button_enabled = !m_session.tracks().empty();
     state.play_pause_enabled = anyTrackHasAsset();
-    state.stop_enabled = transport_state.playing;
-    state.play_pause_shows_pause_icon = transport_state.playing;
+    state.stop_enabled = transport_status.playing;
+    state.play_pause_shows_pause_icon = transport_status.playing;
     state.visible_timeline_start = core::TimePosition{};
-    state.visible_timeline_duration = transport_state.duration;
+    state.visible_timeline_duration = transport_status.duration;
 
     state.tracks.reserve(m_session.tracks().size());
     for (const core::Track& track : m_session.tracks())
