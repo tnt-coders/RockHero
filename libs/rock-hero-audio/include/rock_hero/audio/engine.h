@@ -89,7 +89,7 @@ public:
     \brief Returns the current coarse transport status snapshot.
     \return Current message-thread snapshot of playing state and duration.
     */
-    [[nodiscard]] TransportStatus status() const override;
+    [[nodiscard]] TransportStatus status() const noexcept override;
 
     /*!
     \brief Reads the current Tracktion position.

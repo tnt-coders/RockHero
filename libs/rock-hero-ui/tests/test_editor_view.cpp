@@ -76,7 +76,7 @@ public:
         current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportStatus status() const override
+    [[nodiscard]] audio::TransportStatus status() const noexcept override
     {
         return current_status;
     }
