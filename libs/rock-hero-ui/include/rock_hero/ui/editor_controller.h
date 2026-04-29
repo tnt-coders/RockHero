@@ -9,7 +9,6 @@
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
-#include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/track.h>
@@ -98,7 +97,7 @@ public:
     \brief Handles a play/pause button press from the editor UI.
 
     The intent is ignored when no session track has an audio asset. Otherwise, plays or pauses
-    based on the current transport snapshot.
+    based on the current transport status.
     */
     void onPlayPausePressed() override;
 
@@ -122,9 +121,9 @@ public:
 
 private:
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
-    void onTransportStateChanged(const audio::TransportState& state) override;
+    void onTransportStatusChanged(const audio::TransportStatus& status) override;
 
-    // Builds a fresh EditorViewState from the current session and transport snapshot.
+    // Builds a fresh EditorViewState from the current session and transport status.
     [[nodiscard]] EditorViewState deriveViewState() const;
 
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
