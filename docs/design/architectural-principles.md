@@ -493,8 +493,8 @@ module targets, then forward the required compile definitions and include paths 
 This project therefore treats raw JUCE and Tracktion module linkage as an internal build concern
 behind a project-owned wrapper layer:
 
-- Rock Hero targets link wrapper targets such as `rock_hero_juce_gui_basics` and
-  `rock_hero_tracktion_engine` rather than raw third-party modules.
+- Rock Hero targets link wrapper aliases such as `rock_hero::juce_gui_basics` and
+  `rock_hero::tracktion_engine` rather than raw third-party modules.
 - project-owned interfaces and adapters are exported, not raw JUCE or Tracktion module targets.
 
 This keeps the dependency graph explicit while avoiding repeated third-party module compilation

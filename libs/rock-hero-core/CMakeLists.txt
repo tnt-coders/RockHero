@@ -1,5 +1,6 @@
 # Framework-free domain library for session and song value types plus their rules.
 add_library(rock_hero_core STATIC)
+add_library(rock_hero::core ALIAS rock_hero_core)
 
 # Keep the target surface small while the core module remains centered on early song/session state.
 target_sources(rock_hero_core PRIVATE src/session.cpp src/song.cpp)

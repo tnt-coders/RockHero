@@ -53,11 +53,11 @@ explain intent and architectural role.
 Examples:
 
 \code{.cmake}
-# Depend on project-owned wrapper targets rather than raw JUCE/Tracktion module targets.
+# Depend on project-owned wrapper aliases rather than raw JUCE/Tracktion module targets.
 target_link_libraries(
     rock_hero_audio
-    PUBLIC rock_hero_core
-    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+    PUBLIC rock_hero::core
+    PRIVATE rock_hero::tracktion_core rock_hero::tracktion_engine rock_hero::tracktion_graph)
 \endcode
 
 \code{.cmake}
