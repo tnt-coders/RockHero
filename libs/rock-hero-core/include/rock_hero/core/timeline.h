@@ -33,8 +33,9 @@ struct TimePosition
     */
     // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
     // named timing helpers at the algorithm call site, not operator==.
-    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
+    // NOLINTBEGIN(clang-diagnostic-float-equal)
     friend bool operator==(const TimePosition& lhs, const TimePosition& rhs) = default;
+    // NOLINTEND(clang-diagnostic-float-equal)
 };
 
 /*! \brief Duration on the song timeline, measured in seconds. */
@@ -62,8 +63,9 @@ struct TimeDuration
     */
     // Timeline value equality is intentionally exact. Tolerance-based comparisons should use
     // named timing helpers at the algorithm call site, not operator==.
-    // NOLINTNEXTLINE(clang-diagnostic-float-equal)
+    // NOLINTBEGIN(clang-diagnostic-float-equal)
     friend bool operator==(const TimeDuration& lhs, const TimeDuration& rhs) = default;
+    // NOLINTEND(clang-diagnostic-float-equal)
 };
 
 } // namespace rock_hero::core
