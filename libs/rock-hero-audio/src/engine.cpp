@@ -23,20 +23,26 @@ private:
     // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
-    // Message-thread coarse status exposed through ITransport::status().
-    TransportStatus m_transport_status{};
+    // Last coarse status used to suppress duplicate listener notifications.
+    TransportStatus m_last_notified_transport_status{};
 
     // Message-thread listener list for the project-owned ITransport listener surface.
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
 
-    // Derives coarse transport status from Tracktion and notifies listeners when it changes.
-    void updateTransportStatus()
+    // Derives the current coarse transport status directly from Tracktion state.
+    [[nodiscard]] TransportStatus currentTransportStatus() const noexcept
     {
-        const TransportStatus next_status{
+        return TransportStatus{
             .playing = m_edit->getTransport().isPlaying(),
             .duration = core::TimeDuration{m_loaded_length_seconds},
         };
-        if (m_transport_status == next_status)
+    }
+
+    // Derives coarse transport status from Tracktion and notifies listeners when it changes.
+    void updateTransportStatus()
+    {
+        const TransportStatus current_status = currentTransportStatus();
+        if (m_last_notified_transport_status == current_status)
         {
             return;
         }
@@ -44,9 +50,9 @@ private:
         // Project-owned transport listeners observe only coarse transport status. Position is
         // intentionally excluded so view code polls it at render cadence without forcing callbacks
         // on every playhead tick.
-        m_transport_status = next_status;
+        m_last_notified_transport_status = current_status;
         m_transport_listeners.call(
-            &ITransport::Listener::onTransportStatusChanged, m_transport_status);
+            &ITransport::Listener::onTransportStatusChanged, m_last_notified_transport_status);
     }
 
     // Mirrors Tracktion transport change broadcasts into the project-owned status snapshot.
@@ -237,10 +243,10 @@ void Engine::seek(core::TimePosition position)
         tracktion::TimePosition::fromSeconds(clamped_seconds));
 }
 
-// Returns the project-owned message-thread status used by ITransport and edit call sites.
-TransportStatus Engine::status() const
+// Returns the current project-owned status directly from the Tracktion adapter state.
+TransportStatus Engine::status() const noexcept
 {
-    return m_impl->m_transport_status;
+    return m_impl->currentTransportStatus();
 }
 
 // Reads Tracktion directly for smooth cursor rendering instead of returning cached status.
