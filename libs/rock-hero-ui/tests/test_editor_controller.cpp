@@ -123,7 +123,7 @@ public:
         ++seek_call_count;
     }
 
-    [[nodiscard]] audio::TransportStatus status() const override
+    [[nodiscard]] audio::TransportStatus status() const noexcept override
     {
         return current_status;
     }

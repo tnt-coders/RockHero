@@ -48,7 +48,7 @@ public:
     }
 
     // Returns the fake's current coarse status so tests can verify status-based consumers.
-    [[nodiscard]] TransportStatus status() const override
+    [[nodiscard]] TransportStatus status() const noexcept override
     {
         return m_status;
     }
