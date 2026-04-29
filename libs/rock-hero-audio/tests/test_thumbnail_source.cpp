@@ -7,27 +7,12 @@
 namespace rock_hero::audio
 {
 
-namespace
-{
-
-// Exercises the UI-facing IThumbnail contract without constructing a concrete JUCE/Tracktion
-// adapter.
-void assignThumbnailSource(IThumbnail& thumbnail, const core::AudioAsset& audio_asset)
-{
-    thumbnail.setSource(audio_asset);
-}
-
-} // namespace
-
 // Verifies the public IThumbnail surface accepts the project-owned asset value directly.
 TEST_CASE("IThumbnail source assignment uses AudioAsset", "[audio][thumbnail]")
 {
     static_assert(std::is_same_v<
                   decltype(&IThumbnail::setSource),
                   void (IThumbnail::*)(const core::AudioAsset&)>);
-    static_assert(std::is_same_v<
-                  decltype(&assignThumbnailSource),
-                  void (*)(IThumbnail&, const core::AudioAsset&)>);
 
     SUCCEED();
 }
