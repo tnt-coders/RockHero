@@ -1,4 +1,5 @@
 include_guard()
+include(RockHeroBuildPolicy)
 
 # RockHeroExternalModules.cmake
 #
@@ -53,11 +54,14 @@ function(rock_hero_add_external_module_wrapper target upstream_target)
     add_library(${target} STATIC "${ROCK_HERO_EXTERNAL_MODULE_ANCHOR}")
 
     # Link the upstream interface-style module privately so this wrapper target, not every consumer,
-    # owns the third-party module source compilation. Re-export any first-party wrapper dependencies
-    # publicly so consumers see the wrapped module graph rather than the raw third-party targets.
+    # owns the third-party module source compilation. Apply only the non-strict build-policy pieces
+    # to external wrappers; rock_hero::build_policy is reserved for first-party code because it can
+    # enable warnings-as-errors. Re-export any first-party wrapper dependencies publicly so
+    # consumers see the wrapped module graph rather than the raw third-party targets.
     target_link_libraries(
         ${target}
-        PRIVATE ${upstream_target}
+        PRIVATE ${upstream_target} rock_hero::warning_flags rock_hero::config_flags
+                rock_hero::lto_flags
         PUBLIC ${ARG_PUBLIC_DEPS})
 
     # Re-export this target's compile definitions so consumers compile with the same
@@ -88,13 +92,6 @@ function(rock_hero_add_external_juce_module_wrapper target juce_target)
     # Export the JUCE feature toggles that must stay consistent anywhere these JUCE headers are
     # compiled. This keeps consumers aligned with the wrapper's JUCE feature configuration.
     target_compile_definitions(${target} PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
-
-    # Apply JUCE's recommended warnings, optimisation/debug settings, and Release LTO policy to all
-    # project-owned JUCE wrapper targets so every consumer of the wrapper layer inherits one
-    # consistent JUCE build policy.
-    target_link_libraries(
-        ${target} INTERFACE juce::juce_recommended_warning_flags
-                            juce::juce_recommended_config_flags juce::juce_recommended_lto_flags)
 endfunction()
 
 # JUCE module declaration and docs:
