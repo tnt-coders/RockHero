@@ -50,7 +50,7 @@ TEST_CASE("Arrangement holds note events", "[core][arrangement]")
     CHECK(arr.note_events[0].string_number == 1);
     CHECK(arr.note_events[0].fret == 5);
     CHECK(arr.note_events[1].position == TimePosition{2.0});
-    CHECK(arr.note_events[1].duration == TimeDuration{});
+    CHECK(arr.note_events[1].duration == TimeDuration{0.0});
     CHECK(arr.note_events[1].string_number == 6);
     CHECK(arr.note_events[1].fret == 0);
 }
