@@ -9,6 +9,10 @@
 # All arguments beyond <target> are forwarded verbatim to juce_add_binary_data().
 function(rock_hero_juce_add_binary_data target)
     juce_add_binary_data(${target} ${ARGN})
+    if("${target}" MATCHES "^rock_hero_(.+)$")
+        # Consumers link generated binary-data libraries through the Rock Hero namespace.
+        add_library(rock_hero::${CMAKE_MATCH_1} ALIAS ${target})
+    endif()
 
     foreach(tidy_target IN ITEMS clang-tidy clang-tidy-fix)
         if(TARGET ${tidy_target})
