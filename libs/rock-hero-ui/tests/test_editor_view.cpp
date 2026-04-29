@@ -73,18 +73,18 @@ public:
     {}
     void seek(core::TimePosition position_value) override
     {
-        current_state.position = position_value;
+        current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const override
+    [[nodiscard]] audio::TransportStatus status() const override
     {
-        return current_state;
+        return current_status;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
     {
         position_read_count += 1;
-        return current_state.position;
+        return current_position;
     }
 
     void addListener(Listener& /*listener*/) override
@@ -92,7 +92,8 @@ public:
     void removeListener(Listener& /*listener*/) override
     {}
 
-    audio::TransportState current_state{};
+    audio::TransportStatus current_status{};
+    core::TimePosition current_position{};
     mutable int position_read_count{0};
 };
 
