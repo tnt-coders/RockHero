@@ -45,6 +45,21 @@ data object.
 The underlying `readability-identifier-naming` checker uses the value name `camelBack` for
 function and method identifiers. In project documentation, refer to that style as `camelCase`.
 
+## Listener Naming
+
+Prefer the scoped name `Listener` for a type that exposes one clear notification surface. Existing
+names such as `ITransport::Listener`, `TrackView::Listener`, and `TransportControls::Listener` are
+acceptable because the owning type supplies the missing context.
+
+As listener APIs evolve, consider a more specific nested name such as `StatusListener`,
+`ClickListener`, or `InteractionListener` if an owning type grows multiple independent listener
+contracts or if the generic name starts to obscure cadence, threading, ownership, or event
+semantics.
+
+Do not rename listener interfaces only to make every callback name maximally specific. The point is
+to preserve clarity as contracts grow, not to preemptively rename scoped listener types that are
+already clear.
+
 # Const Correctness
 
 Use `const` wherever practical by default.
