@@ -95,6 +95,25 @@ libraries and apps.
 This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
 interfaces may still mention JUCE types where that is the pragmatic design choice.
 
+### Build-policy exception for `rock-hero-core`
+
+`rock-hero-core` remains a source-level and API-level framework-free module: its public headers and
+implementation must not include JUCE or Tracktion, and its domain behavior must not depend on
+framework runtime semantics.
+
+There is one deliberate build-system exception. First-party targets, including `rock_hero_core`,
+link `rock_hero::build_policy`. That target is defined only in `cmake/RockHeroBuildPolicy.cmake`
+and currently forwards JUCE's recommended warning, configuration, and Release LTO helper targets.
+This is accepted because Rock Hero's normal configure already brings in JUCE/Tracktion before
+first-party libraries are declared, and JUCE's defaults are a practical shared compiler policy for
+the current project.
+
+This exception must stay localized to `cmake/RockHeroBuildPolicy.cmake`. No `rock-hero-core`
+CMake file may link JUCE targets directly, and no core source or header may include JUCE or
+Tracktion. If the build-time dependency ever blocks a core-only package, faster core-only tests, or
+a future non-JUCE build, replace the implementation of `rock_hero::build_policy` in that one file
+with project-owned flags and leave `rock_hero_core` call sites unchanged.
+
 ## Include-path convention
 
 Each library exposes its public headers through a **PUBLIC** include directory at

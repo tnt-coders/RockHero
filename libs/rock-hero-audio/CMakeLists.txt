@@ -14,7 +14,8 @@ target_include_directories(
 target_link_libraries(
     rock_hero_audio
     PUBLIC rock_hero_core
-    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+    PRIVATE rock_hero::build_policy rock_hero_tracktion_core rock_hero_tracktion_engine
+            rock_hero_tracktion_graph)
 
 # Keep the module's adapter tests adjacent to the library they validate.
 add_subdirectory(tests)

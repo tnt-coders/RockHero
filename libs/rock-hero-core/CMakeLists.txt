@@ -10,7 +10,9 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/core)
 
-# rock_hero_core depends on standard C++ only — no JUCE, no Tracktion.
+# Apply the shared first-party build policy through the Rock Hero alias. This is the only allowed
+# build-time JUCE-helper coupling for core; core source still depends on standard C++ only.
+target_link_libraries(rock_hero_core PRIVATE rock_hero::build_policy)
 
 # Keep the module's pure-domain tests adjacent to the library they validate.
 add_subdirectory(tests)
