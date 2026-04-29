@@ -25,33 +25,33 @@ class FakeTransport final : public audio::ITransport
 public:
     void play() override
     {
-        current_state.playing = true;
+        current_status.playing = true;
     }
 
     void pause() override
     {
-        current_state.playing = false;
+        current_status.playing = false;
     }
 
     void stop() override
     {
-        current_state.playing = false;
-        current_state.position = core::TimePosition{};
+        current_status.playing = false;
+        current_position = core::TimePosition{};
     }
 
     void seek(core::TimePosition position_value) override
     {
-        current_state.position = position_value;
+        current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const override
+    [[nodiscard]] audio::TransportStatus status() const override
     {
-        return current_state;
+        return current_status;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
     {
-        return current_state.position;
+        return current_position;
     }
 
     void addListener(Listener& listener) override
@@ -64,7 +64,8 @@ public:
         std::erase(listeners, &listener);
     }
 
-    audio::TransportState current_state{};
+    audio::TransportStatus current_status{};
+    core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
 };
 
@@ -164,7 +165,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
     session.addTrack("Full Mix", audio_asset);
     FakeTransport transport;
-    transport.current_state.duration = core::TimeDuration{8.0};
+    transport.current_status.duration = core::TimeDuration{8.0};
     FakeEdit edit;
     FakeThumbnailFactory thumbnail_factory;
 
