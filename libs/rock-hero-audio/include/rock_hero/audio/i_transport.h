@@ -89,7 +89,7 @@ public:
     \brief Returns the current coarse transport status snapshot.
     \return The current message-thread transport status snapshot.
     */
-    [[nodiscard]] virtual TransportStatus status() const = 0;
+    [[nodiscard]] virtual TransportStatus status() const noexcept = 0;
 
     /*!
     \brief Reads the current transport position for render-cadence cursor drawing.
