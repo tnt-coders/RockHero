@@ -108,7 +108,7 @@ private:
     // Last state applied to the widget so repaint and debugging can reason about visible state.
     TransportControlsState m_state{};
 
-    // Button that toggles between Play and Pause icons based on m_state.
+    // Button that renders either Play or Pause based on m_state.
     std::unique_ptr<juce::DrawableButton> m_play_pause_button;
 
     // Button that sends Stop intent when playback or cursor state can be reset.

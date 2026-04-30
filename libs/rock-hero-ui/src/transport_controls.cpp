@@ -21,8 +21,7 @@ TransportControls::TransportControls(Listener& listener)
     m_stop_drawable =
         juce::Drawable::createFromImageData(BinaryData::stop_svg, BinaryData::stop_svgSize);
 
-    m_play_pause_button->setImages(
-        m_play_drawable.get(), nullptr, nullptr, nullptr, m_pause_drawable.get());
+    m_play_pause_button->setImages(m_play_drawable.get());
     m_play_pause_button->setClickingTogglesState(false);
     m_play_pause_button->setEnabled(false);
 
@@ -43,9 +42,12 @@ TransportControls::~TransportControls() = default;
 void TransportControls::setState(const TransportControlsState& state)
 {
     m_state = state;
+    const juce::Drawable* const play_pause_drawable =
+        m_state.play_pause_shows_pause_icon ? m_pause_drawable.get() : m_play_drawable.get();
+
     m_play_pause_button->setEnabled(m_state.play_pause_enabled);
-    m_play_pause_button->setToggleState(
-        m_state.play_pause_shows_pause_icon, juce::dontSendNotification);
+    m_play_pause_button->setImages(play_pause_drawable);
+    m_play_pause_button->setToggleState(false, juce::dontSendNotification);
     m_stop_button->setEnabled(m_state.stop_enabled);
 }
 
