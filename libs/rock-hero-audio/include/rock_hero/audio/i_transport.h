@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/audio/transport_status.h>
+#include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/timeline.h>
 
 namespace rock_hero::audio
@@ -15,7 +15,7 @@ namespace rock_hero::audio
 \brief Project-owned transport control boundary.
 
 The current contract is owned by the message thread. Callers must invoke control methods,
-status(), addListener(), and removeListener() from the message thread. Listener callbacks are also
+state(), addListener(), and removeListener() from the message thread. Listener callbacks are also
 delivered on the message thread.
 
 Continuous transport position is available through position(). Listener callbacks are reserved for
@@ -26,7 +26,7 @@ listener delivery.
 class ITransport
 {
 public:
-    /*! \brief Receives coarse transition-shaped transport status snapshots. */
+    /*! \brief Receives coarse transition-shaped transport state snapshots. */
     class Listener
     {
     public:
@@ -34,15 +34,15 @@ public:
         virtual ~Listener() = default;
 
         /*!
-        \brief Handles a changed transport status snapshot.
+        \brief Handles a changed transport state snapshot.
 
         This callback is intended for transition-shaped updates rather than for every position tick.
         Callers that need smooth playback cursor motion should call position() at their own
         render cadence instead.
 
-        \param status Current message-thread status after a coarse transport transition.
+        \param state Current message-thread state after a coarse transport transition.
         */
-        virtual void onTransportStatusChanged(const TransportStatus& status) = 0;
+        virtual void onTransportStateChanged(const TransportState& state) = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -86,15 +86,15 @@ public:
     virtual void seek(core::TimePosition position) = 0;
 
     /*!
-    \brief Returns the current coarse transport status snapshot.
-    \return The current message-thread transport status snapshot.
+    \brief Returns the current coarse transport state snapshot.
+    \return The current message-thread transport state snapshot.
     */
-    [[nodiscard]] virtual TransportStatus status() const noexcept = 0;
+    [[nodiscard]] virtual TransportState state() const noexcept = 0;
 
     /*!
     \brief Reads the current transport position for render-cadence cursor drawing.
 
-    Unlike status(), this method is a live position read rather than a listener-published snapshot.
+    Unlike state(), this method is a live position read rather than a listener-published snapshot.
     UI code that needs smooth cursor motion should call this at its own render cadence and use
     EditorViewState or equivalent discrete state for duration and visible range mapping.
 
