@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include <rock_hero/core/timeline.h>
-
 namespace rock_hero::audio
 {
 
@@ -15,9 +13,6 @@ struct TransportState
 {
     /*! \brief True when the transport is currently playing. */
     bool playing{false};
-
-    /*! \brief Duration of the currently playable content. */
-    core::TimeDuration duration{};
 
     /*!
     \brief Compares two transport state snapshots.

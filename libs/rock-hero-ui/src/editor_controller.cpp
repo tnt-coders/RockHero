@@ -44,9 +44,9 @@ void EditorController::onLoadAudioAssetRequested(
     }
 
     m_edit_in_progress = true;
-    const bool edit_ok = m_edit.setTrackAudioSource(track_id, audio_asset);
+    const auto timeline_range = m_edit.setTrackAudioSource(track_id, audio_asset);
 
-    if (!edit_ok)
+    if (!timeline_range.has_value())
     {
         m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
         m_edit_in_progress = false;
@@ -55,7 +55,8 @@ void EditorController::onLoadAudioAssetRequested(
         return;
     }
 
-    const bool session_ok = m_session.replaceTrackAsset(track_id, std::move(audio_asset));
+    const bool session_ok =
+        m_session.commitTrackAudioAsset(track_id, std::move(audio_asset), *timeline_range);
     m_edit_in_progress = false;
 
     if (session_ok)
@@ -67,9 +68,9 @@ void EditorController::onLoadAudioAssetRequested(
         // Session and audio backend are out of sync; preserve the existing session state and
         // surface the inconsistency rather than silently pretending the load succeeded.
         // TODO: Replace std::clog with the project logging framework once one exists.
-        std::clog << "RockHero editor internal error: Session::replaceTrackAsset failed after "
+        std::clog << "RockHero editor internal error: Session::commitTrackAudioAsset failed after "
                      "IEdit::setTrackAudioSource\n";
-        assert(false && "Session::replaceTrackAsset failed after IEdit::setTrackAudioSource");
+        assert(false && "Session::commitTrackAudioAsset failed after IEdit::setTrackAudioSource");
         m_last_load_error = std::string{"Internal error: session out of sync after audio load"};
     }
 
@@ -109,13 +110,15 @@ void EditorController::onStopPressed()
     m_transport.stop();
 }
 
-// Clamps the normalized input and converts it through the current transport duration so the seek
-// target stays inside the loaded content even when the view emits out-of-range values.
+// Clamps the normalized input and converts it through the session timeline so the seek target
+// stays inside the loaded content even when the view emits out-of-range values.
 void EditorController::onWaveformClicked(double normalized_x)
 {
     const double clamped = std::clamp(normalized_x, 0.0, 1.0);
-    const double duration_seconds = m_transport.state().duration.seconds;
-    m_transport.seek(core::TimePosition{clamped * duration_seconds});
+    const core::TimeRange timeline_range = m_session.timeline();
+    const double target_seconds =
+        timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
+    m_transport.seek(timeline_range.clamp(core::TimePosition{target_seconds}));
 }
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
@@ -135,14 +138,15 @@ void EditorController::onTransportStateChanged(const audio::TransportState& /*st
 EditorViewState EditorController::deriveViewState() const
 {
     const audio::TransportState transport_state = m_transport.state();
+    const core::TimeRange timeline_range = m_session.timeline();
 
     EditorViewState state;
     state.load_button_enabled = !m_session.tracks().empty();
     state.play_pause_enabled = anyTrackHasAsset();
     state.stop_enabled = transport_state.playing;
     state.play_pause_shows_pause_icon = transport_state.playing;
-    state.visible_timeline_start = core::TimePosition{};
-    state.visible_timeline_duration = transport_state.duration;
+    state.visible_timeline_start = timeline_range.start;
+    state.visible_timeline_duration = timeline_range.duration();
 
     state.tracks.reserve(m_session.tracks().size());
     for (const core::Track& track : m_session.tracks())

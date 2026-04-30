@@ -19,9 +19,8 @@ state(), addListener(), and removeListener() from the message thread. Listener c
 delivered on the message thread.
 
 Continuous transport position is available through position(). Listener callbacks are reserved for
-coarse transition-shaped changes such as play/pause/stop or duration changes, so UI code that
-needs smooth cursor motion should call position() at its own render cadence rather than waiting for
-listener delivery.
+coarse transition-shaped changes such as play/pause/stop, so UI code that needs smooth cursor
+motion should call position() at its own render cadence rather than waiting for listener delivery.
 */
 class ITransport
 {
@@ -96,7 +95,7 @@ public:
 
     Unlike state(), this method is a live position read rather than a listener-published snapshot.
     UI code that needs smooth cursor motion should call this at its own render cadence and use
-    EditorViewState or equivalent discrete state for duration and visible range mapping.
+    EditorViewState or equivalent discrete state for visible range mapping.
 
     \return Current transport position.
     */

@@ -34,7 +34,6 @@ private:
     {
         return TransportState{
             .playing = m_edit->getTransport().isPlaying(),
-            .duration = core::TimeDuration{m_loaded_length_seconds},
         };
     }
 
@@ -158,23 +157,23 @@ void Engine::removeListener(ITransport::Listener& listener)
 }
 
 // Replaces the single backing-track clip while keeping graph mutation on the message thread.
-bool Engine::loadFile(const juce::File& file)
+std::optional<core::TimeRange> Engine::loadFile(const juce::File& file)
 {
     if (!file.existsAsFile())
     {
-        return false;
+        return std::nullopt;
     }
 
     auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
     if (track == nullptr)
     {
-        return false;
+        return std::nullopt;
     }
 
     const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
     if (!audio_file.isValid())
     {
-        return false;
+        return std::nullopt;
     }
 
     // Candidate is valid; now safe to stop playback and mutate the edit.
@@ -192,7 +191,7 @@ bool Engine::loadFile(const juce::File& file)
     if (clip == nullptr)
     {
         m_impl->updateTransportState();
-        return false;
+        return std::nullopt;
     }
 
     m_impl->m_loaded_length_seconds = audio_file.getLength();
@@ -201,7 +200,10 @@ bool Engine::loadFile(const juce::File& file)
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return true;
+    return core::TimeRange{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{m_impl->m_loaded_length_seconds},
+    };
 }
 
 // Starts Tracktion transport playback from the current edit position.
@@ -257,7 +259,8 @@ core::TimePosition Engine::position() const noexcept
 }
 
 // Adapts the current framework-free edit port onto the single-file load helper.
-bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
+std::optional<core::TimeRange> Engine::setTrackAudioSource(
+    core::TrackId track_id, const core::AudioAsset& audio_asset)
 {
     static_cast<void>(track_id);
 
