@@ -12,6 +12,12 @@ const std::vector<Track>& Session::tracks() const noexcept
     return m_tracks;
 }
 
+// Exposes loaded-content timeline mapping without letting callers mutate it independently.
+TimeRange Session::timeline() const noexcept
+{
+    return m_timeline;
+}
+
 // Finds the mutable track so session commands can update one track without exposing the vector.
 Track* Session::findTrack(TrackId id) noexcept
 {
@@ -39,8 +45,8 @@ TrackId Session::addTrack(std::string name, std::optional<AudioAsset> audio_asse
     return track.id;
 }
 
-// Keeps missing-track replacement a recoverable failure for controllers and tests.
-bool Session::replaceTrackAsset(TrackId id, AudioAsset audio_asset)
+// Commits backend-accepted audio content and its timeline as one session-state update.
+bool Session::commitTrackAudioAsset(TrackId id, AudioAsset audio_asset, TimeRange timeline_range)
 {
     auto* track = findTrack(id);
     if (track == nullptr)
@@ -49,6 +55,7 @@ bool Session::replaceTrackAsset(TrackId id, AudioAsset audio_asset)
     }
 
     track->audio_asset = std::move(audio_asset);
+    m_timeline = timeline_range;
     return true;
 }
 

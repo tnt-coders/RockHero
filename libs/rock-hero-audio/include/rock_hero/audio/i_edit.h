@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
 
 namespace rock_hero::audio
@@ -16,7 +18,7 @@ namespace rock_hero::audio
 
 This interface represents undoable-style audio mutation, not transport control. Implementations may
 update their paired transport state while applying an edit, but callers must use ITransport for
-playback, position, duration, and listener behavior.
+playback, position, and listener behavior.
 
 The first concrete implementation is intentionally minimal and still single-track-applied. Only the
 most recently set track source is required to behave correctly. Setting audio on a second track id
@@ -31,16 +33,15 @@ public:
     /*!
     \brief Sets the audio source used for one session track in the playback backend.
 
-    Successful mutation may change transport-visible state such as duration or position as a
-    natural consequence of the edit. Those transport changes are reported through the normal
-    transport state and listener mechanisms rather than through a special edit result type.
+    Successful mutation returns the timeline range covered by the accepted playback content. The
+    caller can then commit that range together with the asset to core session state.
 
     \param track_id Track whose audio source should be updated.
     \param audio_asset Framework-free audio asset selected for the track.
-    \return True when the backend accepted and applied the edit; false otherwise.
-    \note Current duration semantics describe the most recently set track source only.
+    \return Timeline range when the backend accepted the edit; std::nullopt otherwise.
+    \note Current timeline semantics describe the most recently set track source only.
     */
-    virtual bool setTrackAudioSource(
+    [[nodiscard]] virtual std::optional<core::TimeRange> setTrackAudioSource(
         core::TrackId track_id, const core::AudioAsset& audio_asset) = 0;
 
     // TODO: Expand this surface with project-owned clip and track edit commands when the editor

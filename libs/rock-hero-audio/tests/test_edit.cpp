@@ -13,12 +13,13 @@ namespace
 struct FakeEdit final : IEdit
 {
     // Seeds the fake with the result returned by setTrackAudioSource().
-    explicit FakeEdit(bool set_result)
+    explicit FakeEdit(std::optional<core::TimeRange> set_result)
         : result{set_result}
     {}
 
     // Records the requested track and asset so controller tests can inspect the boundary call.
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    std::optional<core::TimeRange> setTrackAudioSource(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override
     {
         last_track_id = track_id;
         last_audio_asset = audio_asset;
@@ -27,7 +28,7 @@ struct FakeEdit final : IEdit
     }
 
     // Result returned from setTrackAudioSource() to simulate backend success or failure.
-    bool result{false};
+    std::optional<core::TimeRange> result{};
 
     // Last track id received through setTrackAudioSource(), if the fake has been called.
     std::optional<core::TrackId> last_track_id{};
@@ -44,12 +45,16 @@ struct FakeEdit final : IEdit
 // Verifies the audio-edit port receives the session track identity.
 TEST_CASE("IEdit fake receives a track id", "[audio][edit]")
 {
-    FakeEdit edit{true};
+    const core::TimeRange timeline_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{4.0},
+    };
+    FakeEdit edit{timeline_range};
 
     const auto applied = edit.setTrackAudioSource(
         core::TrackId{7}, core::AudioAsset{std::filesystem::path{"guitar.wav"}});
 
-    CHECK(applied);
+    CHECK(applied == timeline_range);
     REQUIRE(edit.last_track_id.has_value());
     CHECK(edit.last_track_id == core::TrackId{7});
 }
@@ -57,12 +62,16 @@ TEST_CASE("IEdit fake receives a track id", "[audio][edit]")
 // Verifies the audio-edit port receives the framework-free asset reference.
 TEST_CASE("IEdit fake receives an audio asset", "[audio][edit]")
 {
-    FakeEdit edit{true};
+    const core::TimeRange timeline_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{4.0},
+    };
+    FakeEdit edit{timeline_range};
     const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
 
     const auto applied = edit.setTrackAudioSource(core::TrackId{3}, asset);
 
-    CHECK(applied);
+    CHECK(applied == timeline_range);
     REQUIRE(edit.last_audio_asset.has_value());
     CHECK(edit.last_audio_asset == asset);
 }
@@ -70,12 +79,12 @@ TEST_CASE("IEdit fake receives an audio asset", "[audio][edit]")
 // Verifies the port return value can represent failed source changes.
 TEST_CASE("IEdit fake can report failed source changes", "[audio][edit]")
 {
-    FakeEdit edit{false};
+    FakeEdit edit{std::nullopt};
 
     const auto applied = edit.setTrackAudioSource(
         core::TrackId{1}, core::AudioAsset{std::filesystem::path{"missing.wav"}});
 
-    CHECK_FALSE(applied);
+    CHECK_FALSE(applied.has_value());
     CHECK(edit.call_count == 1);
 }
 

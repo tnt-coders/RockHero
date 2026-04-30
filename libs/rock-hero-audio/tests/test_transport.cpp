@@ -111,16 +111,14 @@ public:
 
 } // namespace
 
-// Verifies transport state carries semantic timeline value types rather than raw seconds.
-TEST_CASE("TransportState uses a timeline duration value type", "[audio][transport]")
+// Verifies transport state carries only coarse playback state, not timeline mapping data.
+TEST_CASE("TransportState stores coarse playback state only", "[audio][transport]")
 {
     const TransportState state{
         .playing = true,
-        .duration = rock_hero::core::TimeDuration{180.0},
     };
 
     CHECK(state.playing);
-    CHECK(state.duration == rock_hero::core::TimeDuration{180.0});
 }
 
 // Verifies future headless controller tests can treat ITransport as a state source.
@@ -128,7 +126,6 @@ TEST_CASE("ITransport fake stores state and position separately", "[audio][trans
 {
     const TransportState expected_state{
         .playing = true,
-        .duration = rock_hero::core::TimeDuration{90.0},
     };
     const auto expected_position = rock_hero::core::TimePosition{5.0};
 

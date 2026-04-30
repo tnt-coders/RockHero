@@ -6,6 +6,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
@@ -87,7 +88,7 @@ public:
 
     /*!
     \brief Returns the current coarse transport state snapshot.
-    \return Current message-thread snapshot of playing state and duration.
+    \return Current message-thread snapshot of coarse playback state.
     */
     [[nodiscard]] TransportState state() const noexcept override;
 
@@ -117,9 +118,10 @@ public:
 
     \param track_id Track whose source should be updated.
     \param audio_asset Framework-free asset reference selected for the track.
-    \return True when the playback backend accepted the requested source.
+    \return Timeline range when the playback backend accepted the requested source.
     */
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override;
+    [[nodiscard]] std::optional<core::TimeRange> setTrackAudioSource(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.
@@ -134,7 +136,7 @@ public:
 
 private:
     // Loads an audio file onto track 0, replacing any existing clip.
-    [[nodiscard]] bool loadFile(const juce::File& file);
+    [[nodiscard]] std::optional<core::TimeRange> loadFile(const juce::File& file);
 
     // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;

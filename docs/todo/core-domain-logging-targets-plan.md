@@ -104,7 +104,7 @@ RH_LOG_TRACE("Transport position {}", position.seconds);
 RH_LOG_DEBUG("Loaded edit {}", edit_name);
 RH_LOG_INFO("Loaded track {}", path);
 RH_LOG_WARN("Plugin scan skipped: {}", reason);
-RH_LOG_ERROR("Session replaceTrackAsset failed after audio load");
+RH_LOG_ERROR("Session commitTrackAudioAsset failed after audio load");
 ```
 
 Audio-thread diagnostics should use a separate API with explicit best-effort semantics:
