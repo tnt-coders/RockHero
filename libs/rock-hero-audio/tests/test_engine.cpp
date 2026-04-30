@@ -32,7 +32,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 class TransportNotificationRecorder final : public ITransport::Listener
 {
 public:
-    void onTransportStateChanged(const TransportState& state) override
+    void onTransportStateChanged(TransportState state) override
     {
         last_transport_state = state;
         ++transport_state_call_count;
