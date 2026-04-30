@@ -166,7 +166,7 @@ When a function stores or takes ownership of a value, pass it by value and move 
 
 \code{.cpp}
 TrackId addTrack(std::string name, std::optional<AudioAsset> audio_asset);
-bool replaceTrackAsset(TrackId id, AudioAsset audio_asset);
+bool commitTrackAudioAsset(TrackId id, AudioAsset audio_asset, TimeRange timeline_range);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:

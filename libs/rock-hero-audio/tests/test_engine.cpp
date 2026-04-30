@@ -65,12 +65,11 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
     const auto current_state = transport.state();
 
     CHECK_FALSE(current_state.playing);
-    CHECK(current_state.duration == core::TimeDuration{});
     CHECK(transport.position() == core::TimePosition{});
 }
 
-// Verifies edit-driven source replacement updates state synchronously.
-TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
+// Verifies edit-driven source replacement returns the accepted timeline synchronously.
+TEST_CASE("Engine edit returns accepted timeline synchronously", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
@@ -82,17 +81,17 @@ TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integratio
 
     const auto applied = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
 
-    CHECK(applied);
+    REQUIRE(applied.has_value());
+    CHECK(applied->start == core::TimePosition{});
+    CHECK(applied->duration().seconds > 0.0);
 
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
-    CHECK(current_state.duration.seconds > 0.0);
     CHECK(transport.position() == core::TimePosition{});
 }
 
-// Verifies a failed edit request leaves the previously loaded content visible through state().
-TEST_CASE(
-    "Failed engine edit preserves the existing loaded content", "[audio][engine][integration]")
+// Verifies a failed edit request leaves the previous transport state visible through state().
+TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
@@ -101,14 +100,14 @@ TEST_CASE(
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset).has_value());
 
     const auto loaded_state = transport.state();
     const core::AudioAsset missing_asset{audio_asset.path.parent_path() / "missing.wav"};
 
     const auto applied = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
 
-    CHECK_FALSE(applied);
+    CHECK_FALSE(applied.has_value());
     CHECK(transport.state() == loaded_state);
 }
 
@@ -122,10 +121,11 @@ TEST_CASE("Engine seek updates live transport position", "[audio][engine][integr
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+    const auto timeline_range = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
+    REQUIRE(timeline_range.has_value());
 
     const auto loaded_state = transport.state();
-    const double duration_seconds = loaded_state.duration.seconds;
+    const double duration_seconds = timeline_range->duration().seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.25, duration_seconds * 0.5);
@@ -146,9 +146,10 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+    const auto timeline_range = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
+    REQUIRE(timeline_range.has_value());
 
-    const double duration_seconds = transport.state().duration.seconds;
+    const double duration_seconds = timeline_range->duration().seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.3, duration_seconds * 0.5);
@@ -157,10 +158,10 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
     CHECK(read_only_transport.position() == core::TimePosition{target_seconds});
 }
 
-// Verifies that a successful edit naturally notifies the project-owned transport listener before
-// the edit call returns.
+// Verifies successful timeline-only edits do not emit coarse transport state callbacks.
 TEST_CASE(
-    "Engine edit notifies transport listeners when state changes", "[audio][engine][integration]")
+    "Engine edit does not notify listeners when playback state is unchanged",
+    "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
@@ -175,10 +176,10 @@ TEST_CASE(
 
     const auto applied = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
 
-    CHECK(applied);
-    CHECK(recorder.transport_state_call_count >= 1);
-    CHECK(recorder.last_transport_state == transport.state());
-    CHECK(recorder.last_transport_state.duration.seconds > 0.0);
+    REQUIRE(applied.has_value());
+    CHECK(applied->duration().seconds > 0.0);
+    CHECK(recorder.transport_state_call_count == 0);
+    CHECK(recorder.last_transport_state == TransportState{});
 
     transport.removeListener(recorder);
 }
@@ -193,9 +194,10 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    REQUIRE(edit.setTrackAudioSource(core::TrackId{1}, audio_asset));
+    const auto timeline_range = edit.setTrackAudioSource(core::TrackId{1}, audio_asset);
+    REQUIRE(timeline_range.has_value());
 
-    const double duration_seconds = transport.state().duration.seconds;
+    const double duration_seconds = timeline_range->duration().seconds;
     REQUIRE(duration_seconds > 0.0);
 
     TransportNotificationRecorder recorder;
@@ -229,7 +231,7 @@ TEST_CASE(
 
     const auto applied = edit.setTrackAudioSource(core::TrackId{1}, missing_asset);
 
-    CHECK_FALSE(applied);
+    CHECK_FALSE(applied.has_value());
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(transport.state() == TransportState{});
 

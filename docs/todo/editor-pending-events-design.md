@@ -96,7 +96,7 @@ When this design is adopted, the load workflow rules change as follows
 - **On successful load.** Push the derived state but do not modify
   `pending_events`. A successful load does not implicitly acknowledge a prior
   failure — events live until the view acknowledges them.
-- **On internal-consistency failure** (post-edit `Session::replaceTrackAsset`
+- **On internal-consistency failure** (post-edit `Session::commitTrackAudioAsset`
   returning `false`): append a `LoadFailed` event whose message identifies the
   internal-consistency case, distinct from user-facing load failures.
 - **On `onEditorEventAcknowledged(id)`.** Remove the event with the matching id

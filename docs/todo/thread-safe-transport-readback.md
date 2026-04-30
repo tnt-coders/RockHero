@@ -22,13 +22,12 @@ This TODO records the intended design before the first gameplay/render consumer 
 ```cpp
 TransportState{
     .playing = m_edit->getTransport().isPlaying(),
-    .duration = core::TimeDuration{m_loaded_length_seconds},
 }
 ```
 
 That is not thread-safe. Tracktion's `TransportControl::isPlaying()` reads
 `TransportControl::TransportState::playing`, which is a `juce::CachedValue<bool>` backed by
-Tracktion's transient `juce::ValueTree` state. `m_loaded_length_seconds` is also a plain `double`.
+Tracktion's transient `juce::ValueTree` state.
 
 `ITransport::position()` currently reads:
 
@@ -37,7 +36,7 @@ m_impl->m_edit->getTransport().getPosition().inSeconds()
 ```
 
 That is also not thread-safe. Tracktion's public `TransportControl::getPosition()` reads another
-`juce::CachedValue`. Rock Hero then clamps it against the same plain duration field.
+`juce::CachedValue`. Rock Hero then clamps it against the adapter's plain loaded-length field.
 
 This is acceptable as a temporary editor-only path because the editor view reads position on the
 JUCE message thread. It should not become the gameplay/scoring timing source.
@@ -86,9 +85,9 @@ the same playback-derived time source.
 Do not put duration in the high-frequency clock. Duration is loaded-content or timeline-range
 state, not realtime playback timing.
 
-Also revisit whether `duration` belongs in `TransportState` at all. `TransportState` should
-describe the coarse transport condition, such as whether playback is advancing. Duration probably
-belongs in a separate playback timeline/content state.
+Duration also does not belong in `TransportState`. That snapshot should describe only the coarse
+transport condition, such as whether playback is advancing. Loaded content duration now belongs in
+session timeline state.
 
 ## Long-Term Public Shape
 
@@ -142,7 +141,7 @@ Do not create one broad `ITimeline` just to expose `start()` and `end()`. A time
 value object, not a runtime boundary:
 
 ```cpp
-struct TimelineRange
+struct TimeRange
 {
     core::TimePosition start{};
     core::TimePosition end{};
@@ -192,8 +191,8 @@ Duration is edit/load state, not realtime playback timing. It changes when conte
 edited, not on every audio block. UI and game systems that need duration for coordinate mapping
 should receive it through timeline state, session data, or a separate message-thread snapshot.
 
-`TransportState` currently carries duration as a convenience for the editor. Treat that as
-temporary. When a playback timeline/content state exists, move duration out of `TransportState`.
+`TransportState` no longer carries duration. Continue keeping duration in loaded timeline or
+content state rather than in realtime playback snapshots.
 
 ## Recommended Storage
 
@@ -329,7 +328,7 @@ Add pure unit tests for `AtomicPlaybackClock`:
 
 Add unit tests for timeline values when they are introduced:
 
-- `TimelineRange` duration calculation
+- `TimeRange` duration calculation
 - clamping positions to a range
 - visible range mapping from time to normalized/pixel coordinates
 - tempo-map conversions in `rock-hero-core`
@@ -353,8 +352,8 @@ message loop.
 ## Migration Plan
 
 1. Keep `ITransport` documented as message-thread-only.
-2. Move duration out of `TransportState` once playback timeline/content state exists.
-3. Add `TimelineRange` and pure timeline/viewport mapping where editor zoom needs it.
+2. Keep duration out of `TransportState`; loaded content length belongs in timeline state.
+3. Extend `TimeRange` and pure timeline/viewport mapping where editor zoom needs it.
 4. Add `PlaybackClockSnapshot` and `IPlaybackClock` when gameplay/scoring timing needs it.
 5. Add the Engine-owned atomic mirror and implement `IPlaybackClock` on `Engine`.
 6. Publish boundary values from existing message-thread transport operations.

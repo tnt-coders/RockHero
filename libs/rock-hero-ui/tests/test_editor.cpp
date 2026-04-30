@@ -73,11 +73,15 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    std::optional<core::TimeRange> setTrackAudioSource(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override
     {
         last_track_id = track_id;
         last_audio_asset = audio_asset;
-        return true;
+        return core::TimeRange{
+            .start = core::TimePosition{},
+            .end = core::TimePosition{8.0},
+        };
     }
 
     std::optional<core::TrackId> last_track_id{};
@@ -165,7 +169,6 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
     session.addTrack("Full Mix", audio_asset);
     FakeTransport transport;
-    transport.current_state.duration = core::TimeDuration{8.0};
     FakeEdit edit;
     FakeThumbnailFactory thumbnail_factory;
 
