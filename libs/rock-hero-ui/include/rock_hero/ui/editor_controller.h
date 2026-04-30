@@ -112,8 +112,8 @@ public:
     /*!
     \brief Handles a click on a waveform at a normalized horizontal position.
 
-    The input is clamped to [0, 1] and converted to a timeline position by the current transport
-    duration. A duration of zero results in a seek to the start of the timeline.
+    The input is clamped to [0, 1] and converted through the session timeline range. A duration
+    of zero results in a seek to the start of the timeline.
 
     \param normalized_x Click position normalized to the interval [0, 1].
     */

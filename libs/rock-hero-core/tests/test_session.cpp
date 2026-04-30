@@ -55,6 +55,7 @@ TEST_CASE("Session default construction has no tracks", "[core][session]")
     const Session session;
 
     CHECK(session.tracks().empty());
+    CHECK(session.timeline() == TimeRange{});
 }
 
 // Verifies that new tracks receive stable nonzero identities.
@@ -161,51 +162,66 @@ TEST_CASE("mutable findTrack returns editable session storage", "[core][session]
     CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"edited.wav"}});
 }
 
-// Verifies replacing one track asset does not disturb neighboring track data.
-TEST_CASE("Replacing a track asset updates only that track", "[core][session]")
+// Verifies committing one track asset does not disturb neighboring track data.
+TEST_CASE("Committing a track asset updates only that track", "[core][session]")
 {
     Session session;
     const auto first_id =
         session.addTrack("Full Mix", AudioAsset{std::filesystem::path{"old.wav"}});
     session.addTrack("Solo", AudioAsset{std::filesystem::path{"solo.wav"}});
+    const TimeRange timeline_range{
+        .start = TimePosition{},
+        .end = TimePosition{12.0},
+    };
 
-    const auto replaced =
-        session.replaceTrackAsset(first_id, AudioAsset{std::filesystem::path{"new.wav"}});
+    const auto committed = session.commitTrackAudioAsset(
+        first_id, AudioAsset{std::filesystem::path{"new.wav"}}, timeline_range);
 
-    CHECK(replaced);
+    CHECK(committed);
     REQUIRE(session.tracks().size() == 2);
     CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"new.wav"}});
     CHECK(session.tracks()[1].audio_asset == AudioAsset{std::filesystem::path{"solo.wav"}});
+    CHECK(session.timeline() == timeline_range);
 }
 
-// Verifies the common editor flow where an empty row receives its first asset.
-TEST_CASE("Replacing an empty track asset stores the asset", "[core][session]")
+// Verifies the common editor flow where an empty row receives its first committed asset.
+TEST_CASE("Committing an empty track asset stores the asset", "[core][session]")
 {
     Session session;
     const auto track_id = session.addTrack("Full Mix");
     const AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
+    const TimeRange timeline_range{
+        .start = TimePosition{},
+        .end = TimePosition{8.0},
+    };
 
-    const auto replaced = session.replaceTrackAsset(track_id, audio_asset);
+    const auto committed = session.commitTrackAudioAsset(track_id, audio_asset, timeline_range);
 
-    CHECK(replaced);
+    CHECK(committed);
     REQUIRE(session.tracks().size() == 1);
     CHECK(session.tracks()[0].audio_asset == audio_asset);
+    CHECK(session.timeline() == timeline_range);
 }
 
-// Verifies missing-track replacement remains recoverable for controller error handling.
-TEST_CASE("Replacing a missing track asset fails cleanly", "[core][session]")
+// Verifies missing-track commits remain recoverable and do not change the project timeline.
+TEST_CASE("Committing a missing track asset fails cleanly", "[core][session]")
 {
     Session session;
     const auto existing_id =
         session.addTrack("Full Mix", AudioAsset{std::filesystem::path{"mix.wav"}});
+    const TimeRange timeline_range{
+        .start = TimePosition{},
+        .end = TimePosition{10.0},
+    };
 
-    const auto replaced =
-        session.replaceTrackAsset(TrackId{999}, AudioAsset{std::filesystem::path{"missing.wav"}});
+    const auto committed = session.commitTrackAudioAsset(
+        TrackId{999}, AudioAsset{std::filesystem::path{"missing.wav"}}, timeline_range);
 
-    CHECK_FALSE(replaced);
+    CHECK_FALSE(committed);
     REQUIRE(session.findTrack(existing_id) != nullptr);
     REQUIRE(session.tracks().size() == 1);
     CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"mix.wav"}});
+    CHECK(session.timeline() == TimeRange{});
 }
 
 } // namespace rock_hero::core
