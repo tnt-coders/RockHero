@@ -76,9 +76,9 @@ public:
         current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportStatus status() const noexcept override
+    [[nodiscard]] audio::TransportState state() const noexcept override
     {
-        return current_status;
+        return current_state;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
@@ -92,7 +92,7 @@ public:
     void removeListener(Listener& /*listener*/) override
     {}
 
-    audio::TransportStatus current_status{};
+    audio::TransportState current_state{};
     core::TimePosition current_position{};
     mutable int position_read_count{0};
 };

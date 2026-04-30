@@ -86,10 +86,10 @@ public:
     void seek(core::TimePosition position) override;
 
     /*!
-    \brief Returns the current coarse transport status snapshot.
+    \brief Returns the current coarse transport state snapshot.
     \return Current message-thread snapshot of playing state and duration.
     */
-    [[nodiscard]] TransportStatus status() const noexcept override;
+    [[nodiscard]] TransportState state() const noexcept override;
 
     /*!
     \brief Reads the current Tracktion position.
