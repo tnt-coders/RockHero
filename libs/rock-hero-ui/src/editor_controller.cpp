@@ -130,7 +130,7 @@ void EditorController::onWaveformClicked(double normalized_x)
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
 // derivation runs against the committed session and transport state instead of pre-commit data.
-void EditorController::onTransportStateChanged(const audio::TransportState& /*state*/)
+void EditorController::onTransportStateChanged(audio::TransportState /*state*/)
 {
     if (m_edit_in_progress)
     {
