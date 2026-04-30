@@ -97,7 +97,7 @@ public:
     \brief Handles a play/pause button press from the editor UI.
 
     The intent is ignored when no session track has an audio asset. Otherwise, plays or pauses
-    based on the current transport status.
+    based on the current transport state.
     */
     void onPlayPausePressed() override;
 
@@ -121,9 +121,9 @@ public:
 
 private:
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
-    void onTransportStatusChanged(const audio::TransportStatus& status) override;
+    void onTransportStateChanged(const audio::TransportState& state) override;
 
-    // Builds a fresh EditorViewState from the current session and transport status.
+    // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
 
     // Derives a fresh state, caches it, and pushes it to the attached view if any.

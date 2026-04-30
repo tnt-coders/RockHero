@@ -135,7 +135,7 @@ Example for a top-level declaration:
 /*!
 \brief Reads the current transport position for render-cadence cursor drawing.
 
-Unlike status(), this method is a live position read rather than a listener-published snapshot.
+Unlike state(), this method is a live position read rather than a listener-published snapshot.
 UI code that needs smooth cursor motion should call this at its own render cadence.
 
 \return Current transport position.
