@@ -8,49 +8,49 @@ namespace rock_hero::audio
 namespace
 {
 
-// Minimal fake transport that lets contract tests exercise status flow and listener registration.
+// Minimal fake transport that lets contract tests exercise state flow and listener registration.
 class FakeTransport final : public ITransport
 {
 public:
-    // Seeds the fake with known status and position without issuing commands.
+    // Seeds the fake with known state and position without issuing commands.
     explicit FakeTransport(
-        TransportStatus initial_status = {}, rock_hero::core::TimePosition initial_position = {})
-        : m_status{initial_status}
+        TransportState initial_state = {}, rock_hero::core::TimePosition initial_position = {})
+        : m_state{initial_state}
         , m_position{initial_position}
     {}
 
     // Simulates the transport starting playback and broadcasts the resulting coarse transition.
     void play() override
     {
-        m_status.playing = true;
+        m_state.playing = true;
         notifyListeners();
     }
 
     // Simulates pause semantics by clearing playback without changing the current position.
     void pause() override
     {
-        m_status.playing = false;
+        m_state.playing = false;
         notifyListeners();
     }
 
     // Simulates stop semantics by clearing playback and resetting the current position.
     void stop() override
     {
-        m_status.playing = false;
+        m_state.playing = false;
         m_position = rock_hero::core::TimePosition{};
         notifyListeners();
     }
 
-    // Records seek intent through the live position channel without broadcasting coarse status.
+    // Records seek intent through the live position channel without broadcasting coarse state.
     void seek(rock_hero::core::TimePosition position) override
     {
         m_position = position;
     }
 
-    // Returns the fake's current coarse status so tests can verify status-based consumers.
-    [[nodiscard]] TransportStatus status() const noexcept override
+    // Returns the fake's current coarse state so tests can verify state-based consumers.
+    [[nodiscard]] TransportState state() const noexcept override
     {
-        return m_status;
+        return m_state;
     }
 
     // Returns the fake's current position through the live-read transport method.
@@ -72,19 +72,19 @@ public:
     }
 
 private:
-    // Sends the current coarse status to every registered test listener.
+    // Sends the current coarse state to every registered test listener.
     void notifyListeners()
     {
         for (Listener* listener : m_listeners)
         {
-            listener->onTransportStatusChanged(m_status);
+            listener->onTransportStateChanged(m_state);
         }
     }
 
-    // Current coarse status returned by status() and sent through listener callbacks.
-    TransportStatus m_status{};
+    // Current coarse state returned by state() and sent through listener callbacks.
+    TransportState m_state{};
 
-    // Current live position returned by position(); intentionally excluded from status().
+    // Current live position returned by position(); intentionally excluded from TransportState.
     rock_hero::core::TimePosition m_position{};
 
     // Non-owning listeners registered by tests; each listener outlives its registration.
@@ -95,15 +95,15 @@ private:
 class CapturingTransportListener final : public ITransport::Listener
 {
 public:
-    // Records every callback so tests can inspect both delivery count and latest status.
-    void onTransportStatusChanged(const TransportStatus& status) override
+    // Records every callback so tests can inspect both delivery count and latest state.
+    void onTransportStateChanged(const TransportState& state) override
     {
-        last_status = status;
+        last_state = state;
         ++call_count;
     }
 
-    // Latest status observed through the listener callback.
-    TransportStatus last_status{};
+    // Latest state observed through the listener callback.
+    TransportState last_state{};
 
     // Number of callbacks received, used to verify removal stops later notifications.
     int call_count{0};
@@ -111,30 +111,30 @@ public:
 
 } // namespace
 
-// Verifies transport status carries semantic timeline value types rather than raw seconds.
-TEST_CASE("TransportStatus uses a timeline duration value type", "[audio][transport]")
+// Verifies transport state carries semantic timeline value types rather than raw seconds.
+TEST_CASE("TransportState uses a timeline duration value type", "[audio][transport]")
 {
-    const TransportStatus status{
+    const TransportState state{
         .playing = true,
         .duration = rock_hero::core::TimeDuration{180.0},
     };
 
-    CHECK(status.playing);
-    CHECK(status.duration == rock_hero::core::TimeDuration{180.0});
+    CHECK(state.playing);
+    CHECK(state.duration == rock_hero::core::TimeDuration{180.0});
 }
 
-// Verifies future headless controller tests can treat ITransport as a status source.
-TEST_CASE("ITransport fake stores status and position separately", "[audio][transport]")
+// Verifies future headless controller tests can treat ITransport as a state source.
+TEST_CASE("ITransport fake stores state and position separately", "[audio][transport]")
 {
-    const TransportStatus expected_status{
+    const TransportState expected_state{
         .playing = true,
         .duration = rock_hero::core::TimeDuration{90.0},
     };
     const auto expected_position = rock_hero::core::TimePosition{5.0};
 
-    const FakeTransport transport{expected_status, expected_position};
+    const FakeTransport transport{expected_state, expected_position};
 
-    CHECK(transport.status() == expected_status);
+    CHECK(transport.state() == expected_state);
     CHECK(transport.position() == expected_position);
 }
 
@@ -150,7 +150,7 @@ TEST_CASE(
     transport.play();
 
     CHECK(listener.call_count == 1);
-    CHECK(listener.last_status.playing);
+    CHECK(listener.last_state.playing);
 
     transport.removeListener(listener);
     transport.pause();
@@ -170,7 +170,7 @@ TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transpor
     transport.seek(rock_hero::core::TimePosition{42.0});
 
     CHECK(transport.position() == rock_hero::core::TimePosition{42.0});
-    CHECK(transport.status() == TransportStatus{});
+    CHECK(transport.state() == TransportState{});
     CHECK(listener.call_count == 0);
 }
 

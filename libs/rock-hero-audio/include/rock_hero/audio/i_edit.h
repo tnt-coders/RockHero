@@ -15,7 +15,7 @@ namespace rock_hero::audio
 \brief Project-owned facade over the concrete Tracktion edit model.
 
 This interface represents undoable-style audio mutation, not transport control. Implementations may
-update their paired transport status while applying an edit, but callers must use ITransport for
+update their paired transport state while applying an edit, but callers must use ITransport for
 playback, position, duration, and listener behavior.
 
 The first concrete implementation is intentionally minimal and still single-track-applied. Only the
@@ -33,7 +33,7 @@ public:
 
     Successful mutation may change transport-visible state such as duration or position as a
     natural consequence of the edit. Those transport changes are reported through the normal
-    transport status and listener mechanisms rather than through a special edit result type.
+    transport state and listener mechanisms rather than through a special edit result type.
 
     \param track_id Track whose audio source should be updated.
     \param audio_asset Framework-free audio asset selected for the track.

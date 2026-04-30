@@ -23,45 +23,45 @@ private:
     // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
-    // Last coarse status used to suppress duplicate listener notifications.
-    TransportStatus m_last_notified_transport_status{};
+    // Last coarse state used to suppress duplicate listener notifications.
+    TransportState m_last_notified_transport_state{};
 
     // Message-thread listener list for the project-owned ITransport listener surface.
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
 
-    // Derives the current coarse transport status directly from Tracktion state.
-    [[nodiscard]] TransportStatus currentTransportStatus() const noexcept
+    // Derives the current coarse transport state directly from Tracktion state.
+    [[nodiscard]] TransportState currentTransportState() const noexcept
     {
-        return TransportStatus{
+        return TransportState{
             .playing = m_edit->getTransport().isPlaying(),
             .duration = core::TimeDuration{m_loaded_length_seconds},
         };
     }
 
-    // Derives coarse transport status from Tracktion and notifies listeners when it changes.
-    void updateTransportStatus()
+    // Derives coarse transport state from Tracktion and notifies listeners when it changes.
+    void updateTransportState()
     {
-        const TransportStatus current_status = currentTransportStatus();
-        if (m_last_notified_transport_status == current_status)
+        const TransportState current_state = currentTransportState();
+        if (m_last_notified_transport_state == current_state)
         {
             return;
         }
 
-        // Project-owned transport listeners observe only coarse transport status. Position is
+        // Project-owned transport listeners observe only coarse transport state. Position is
         // intentionally excluded so view code polls it at render cadence without forcing callbacks
         // on every playhead tick.
-        m_last_notified_transport_status = current_status;
+        m_last_notified_transport_state = current_state;
         m_transport_listeners.call(
-            &ITransport::Listener::onTransportStatusChanged, m_last_notified_transport_status);
+            &ITransport::Listener::onTransportStateChanged, m_last_notified_transport_state);
     }
 
-    // Mirrors Tracktion transport change broadcasts into the project-owned status snapshot.
+    // Mirrors Tracktion transport change broadcasts into the project-owned state snapshot.
     void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
     {
-        updateTransportStatus();
+        updateTransportState();
     }
 
-    // Tracktion publishes playhead movement through the transport ValueTree. The coarse status
+    // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
     // surface ignores ordinary movement, but this hook still detects automatic end-of-file stops.
     void valueTreePropertyChanged(
         juce::ValueTree& /*tree*/, const juce::Identifier& property) override
@@ -127,8 +127,8 @@ Engine::Engine()
     // transport loop. Listening here keeps the adapter event-driven from the UI perspective.
     m_impl->m_edit->getTransport().state.addListener(m_impl.get());
 
-    // Seeds the project-owned status from the freshly created empty edit.
-    m_impl->updateTransportStatus();
+    // Seeds the project-owned state from the freshly created empty edit.
+    m_impl->updateTransportState();
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
@@ -191,7 +191,7 @@ bool Engine::loadFile(const juce::File& file)
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
     if (clip == nullptr)
     {
-        m_impl->updateTransportStatus();
+        m_impl->updateTransportState();
         return false;
     }
 
@@ -200,7 +200,7 @@ bool Engine::loadFile(const juce::File& file)
     auto& transport = m_impl->m_edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
-    m_impl->updateTransportStatus();
+    m_impl->updateTransportState();
     return true;
 }
 
@@ -215,14 +215,14 @@ void Engine::play()
     }
 
     transport.play(false);
-    m_impl->updateTransportStatus();
+    m_impl->updateTransportState();
 }
 
 // Stops playback and resets Tracktion's transport position to the start.
 void Engine::stop()
 {
     m_impl->stopAndReturnToStart();
-    m_impl->updateTransportStatus();
+    m_impl->updateTransportState();
 }
 
 // Pauses playback without resetting position so the user can resume from the same point.
@@ -231,11 +231,11 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->updateTransportStatus();
+    m_impl->updateTransportState();
 }
 
 // Moves Tracktion transport to the requested timeline position. Position-only motion is observed
-// through position(), not through the coarse status listener surface.
+// through position(), not through the coarse state listener surface.
 void Engine::seek(core::TimePosition position)
 {
     const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
@@ -243,13 +243,13 @@ void Engine::seek(core::TimePosition position)
         tracktion::TimePosition::fromSeconds(clamped_seconds));
 }
 
-// Returns the current project-owned status directly from the Tracktion adapter state.
-TransportStatus Engine::status() const noexcept
+// Returns the current project-owned state directly from the Tracktion adapter state.
+TransportState Engine::state() const noexcept
 {
-    return m_impl->currentTransportStatus();
+    return m_impl->currentTransportState();
 }
 
-// Reads Tracktion directly for smooth cursor rendering instead of returning cached status.
+// Reads Tracktion directly for smooth cursor rendering instead of returning cached state.
 core::TimePosition Engine::position() const noexcept
 {
     const double raw_position_seconds = m_impl->m_edit->getTransport().getPosition().inSeconds();

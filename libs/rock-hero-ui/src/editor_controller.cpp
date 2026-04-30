@@ -80,7 +80,7 @@ void EditorController::onLoadAudioAssetRequested(
 }
 
 // Ignores the intent when no track has an asset, otherwise toggles between play and pause based
-// on the current transport status.
+// on the current transport state.
 void EditorController::onPlayPausePressed()
 {
     if (!anyTrackHasAsset())
@@ -88,7 +88,7 @@ void EditorController::onPlayPausePressed()
         return;
     }
 
-    if (m_transport.status().playing)
+    if (m_transport.state().playing)
     {
         m_transport.pause();
     }
@@ -102,7 +102,7 @@ void EditorController::onPlayPausePressed()
 // transport the view considers stopped.
 void EditorController::onStopPressed()
 {
-    if (!m_transport.status().playing)
+    if (!m_transport.state().playing)
     {
         return;
     }
@@ -114,13 +114,13 @@ void EditorController::onStopPressed()
 void EditorController::onWaveformClicked(double normalized_x)
 {
     const double clamped = std::clamp(normalized_x, 0.0, 1.0);
-    const double duration_seconds = m_transport.status().duration.seconds;
+    const double duration_seconds = m_transport.state().duration.seconds;
     m_transport.seek(core::TimePosition{clamped * duration_seconds});
 }
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
-// derivation runs against the committed session and transport status instead of pre-commit data.
-void EditorController::onTransportStatusChanged(const audio::TransportStatus& /*status*/)
+// derivation runs against the committed session and transport state instead of pre-commit data.
+void EditorController::onTransportStateChanged(const audio::TransportState& /*state*/)
 {
     if (m_edit_in_progress)
     {
@@ -130,19 +130,19 @@ void EditorController::onTransportStatusChanged(const audio::TransportStatus& /*
     deriveAndPush();
 }
 
-// Builds the message-thread view state from the session and transport status. Current cursor
+// Builds the message-thread view state from the session and transport state. Current cursor
 // position is intentionally excluded; the view receives only discrete mapping state here.
 EditorViewState EditorController::deriveViewState() const
 {
-    const audio::TransportStatus transport_status = m_transport.status();
+    const audio::TransportState transport_state = m_transport.state();
 
     EditorViewState state;
     state.load_button_enabled = !m_session.tracks().empty();
     state.play_pause_enabled = anyTrackHasAsset();
-    state.stop_enabled = transport_status.playing;
-    state.play_pause_shows_pause_icon = transport_status.playing;
+    state.stop_enabled = transport_state.playing;
+    state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline_start = core::TimePosition{};
-    state.visible_timeline_duration = transport_status.duration;
+    state.visible_timeline_duration = transport_state.duration;
 
     state.tracks.reserve(m_session.tracks().size());
     for (const core::Track& track : m_session.tracks())

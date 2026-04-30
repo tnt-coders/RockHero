@@ -4,7 +4,7 @@
 #include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/audio/transport_status.h>
+#include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/timeline.h>
@@ -123,9 +123,9 @@ public:
         ++seek_call_count;
     }
 
-    [[nodiscard]] audio::TransportStatus status() const noexcept override
+    [[nodiscard]] audio::TransportState state() const noexcept override
     {
-        return current_status;
+        return current_state;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
@@ -143,17 +143,17 @@ public:
         std::erase(listeners, &listener);
     }
 
-    // Updates the status and fires a coarse listener callback to mimic a real transition.
-    void setStatusAndNotify(const audio::TransportStatus& new_status)
+    // Updates the state and fires a coarse listener callback to mimic a real transition.
+    void setStateAndNotify(const audio::TransportState& new_state)
     {
-        current_status = new_status;
+        current_state = new_state;
         for (Listener* listener : listeners)
         {
-            listener->onTransportStatusChanged(current_status);
+            listener->onTransportStateChanged(current_state);
         }
     }
 
-    audio::TransportStatus current_status{};
+    audio::TransportState current_state{};
     core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
     std::optional<core::TimePosition> last_seek_position{};
@@ -385,7 +385,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
     }
 }
 
-// Verifies the controller does not poll transport status independently; only listener callbacks
+// Verifies the controller does not poll transport state independently; only listener callbacks
 // drive view pushes, so position-only changes never reach the view.
 TEST_CASE("EditorController does not push without a transport callback", "[ui][editor-controller]")
 {
@@ -409,7 +409,7 @@ TEST_CASE(
     core::Session session;
     session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
-    transport.current_status.duration = core::TimeDuration{8.0};
+    transport.current_state.duration = core::TimeDuration{8.0};
     FakeEdit edit;
     EditorController controller{session, transport, edit};
     FakeEditorView view;
@@ -435,8 +435,8 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     FakeEditorView view;
     controller.attachView(view);
 
-    transport.setStatusAndNotify(
-        audio::TransportStatus{
+    transport.setStateAndNotify(
+        audio::TransportState{
             .playing = true,
             .duration = core::TimeDuration{4.0},
         });
@@ -450,8 +450,8 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
         CHECK(view.last_state->visible_timeline_duration == core::TimeDuration{4.0});
     }
 
-    transport.setStatusAndNotify(
-        audio::TransportStatus{
+    transport.setStateAndNotify(
+        audio::TransportState{
             .playing = false,
             .duration = core::TimeDuration{4.0},
         });
@@ -481,7 +481,7 @@ TEST_CASE(
     CHECK(transport.play_call_count == 1);
     CHECK(transport.pause_call_count == 0);
 
-    transport.current_status.playing = true;
+    transport.current_state.playing = true;
     controller.onPlayPausePressed();
     CHECK(transport.play_call_count == 1);
     CHECK(transport.pause_call_count == 1);
@@ -518,7 +518,7 @@ TEST_CASE(
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 0);
 
-    transport.current_status.playing = true;
+    transport.current_state.playing = true;
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 1);
 }
@@ -530,7 +530,7 @@ TEST_CASE(
 {
     core::Session session;
     FakeTransport transport;
-    transport.current_status.duration = core::TimeDuration{4.0};
+    transport.current_state.duration = core::TimeDuration{4.0};
     FakeEdit edit;
     EditorController controller{session, transport, edit};
 
@@ -653,8 +653,8 @@ TEST_CASE(
     const int pushes_before_load = view.set_state_call_count;
 
     edit.during_edit_action = [&] {
-        transport.setStatusAndNotify(
-            audio::TransportStatus{
+        transport.setStateAndNotify(
+            audio::TransportState{
                 .playing = true,
                 .duration = core::TimeDuration{4.0},
             });
@@ -700,8 +700,8 @@ TEST_CASE(
         original_error = view.last_state->last_load_error;
     }
 
-    transport.setStatusAndNotify(
-        audio::TransportStatus{
+    transport.setStateAndNotify(
+        audio::TransportState{
             .playing = true,
             .duration = core::TimeDuration{4.0},
         });
