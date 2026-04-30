@@ -28,7 +28,8 @@ types. Subscribes to the transport listener surface for coarse transition-shaped
 re-derives EditorViewState whenever a real change has occurred. The controller owns
 load-error policy, play/pause/stop gating, and seek normalization. Continuous playhead motion is
 not the controller's responsibility; the editor view pulls position from ITransport::position()
-at its own render cadence. The controller provides only discrete cursor mapping state, such as
+at its own render cadence. The controller samples position only for discrete workflow gates such
+as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
 The referenced session, transport, and edit ports must outlive the controller.
@@ -104,8 +105,8 @@ public:
     /*!
     \brief Handles a stop button press from the editor UI.
 
-    The intent is ignored when the transport is not currently playing, mirroring the published
-    EditorViewState.stop_enabled value.
+    The intent is ignored when the transport is not currently playing and is already at the start
+    of the loaded timeline, mirroring the published EditorViewState.stop_enabled value.
     */
     void onStopPressed() override;
 
@@ -131,6 +132,9 @@ private:
 
     // Reports whether at least one session track currently has an audio asset assigned.
     [[nodiscard]] bool anyTrackHasAsset() const;
+
+    // Reports whether Stop would either stop playback or reset a non-start cursor position.
+    [[nodiscard]] bool canStopTransport(const audio::TransportState& transport_state) const;
 
     // Session whose tracks drive view projection and load validation.
     core::Session& m_session;
