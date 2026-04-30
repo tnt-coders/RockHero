@@ -100,14 +100,20 @@ void EditorController::onPlayPausePressed()
 }
 
 // Mirrors the published stop_enabled gate so the keyboard or alternate input paths cannot stop a
-// transport the view considers stopped.
+// transport the view considers already reset.
 void EditorController::onStopPressed()
 {
-    if (!m_transport.state().playing)
+    const audio::TransportState transport_state = m_transport.state();
+    if (!canStopTransport(transport_state))
     {
         return;
     }
     m_transport.stop();
+
+    if (!transport_state.playing)
+    {
+        deriveAndPush();
+    }
 }
 
 // Clamps the normalized input and converts it through the session timeline so the seek target
@@ -119,6 +125,7 @@ void EditorController::onWaveformClicked(double normalized_x)
     const double target_seconds =
         timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
     m_transport.seek(timeline_range.clamp(core::TimePosition{target_seconds}));
+    deriveAndPush();
 }
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
@@ -134,7 +141,8 @@ void EditorController::onTransportStateChanged(const audio::TransportState& /*st
 }
 
 // Builds the message-thread view state from the session and transport state. Current cursor
-// position is intentionally excluded; the view receives only discrete mapping state here.
+// position is only sampled to derive stop enabledness; the view receives discrete mapping state
+// rather than a continuously pushed playhead position.
 EditorViewState EditorController::deriveViewState() const
 {
     const audio::TransportState transport_state = m_transport.state();
@@ -143,7 +151,7 @@ EditorViewState EditorController::deriveViewState() const
     EditorViewState state;
     state.load_button_enabled = !m_session.tracks().empty();
     state.play_pause_enabled = anyTrackHasAsset();
-    state.stop_enabled = transport_state.playing;
+    state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline_start = timeline_range.start;
     state.visible_timeline_duration = timeline_range.duration();
@@ -179,6 +187,13 @@ bool EditorController::anyTrackHasAsset() const
 {
     return std::ranges::any_of(
         m_session.tracks(), [](const core::Track& track) { return track.audio_asset.has_value(); });
+}
+
+// Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
+// the start of the loaded timeline.
+bool EditorController::canStopTransport(const audio::TransportState& transport_state) const
+{
+    return transport_state.playing || m_transport.position() != m_session.timeline().start;
 }
 
 } // namespace rock_hero::ui

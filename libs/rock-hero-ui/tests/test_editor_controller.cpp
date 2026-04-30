@@ -114,6 +114,8 @@ public:
 
     void stop() override
     {
+        current_state.playing = false;
+        current_position = core::TimePosition{};
         ++stop_call_count;
     }
 
@@ -489,6 +491,36 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     }
 }
 
+// A paused cursor away from the loaded timeline start can still be reset, so Stop remains active
+// even though the play/pause button has returned to its Play icon.
+TEST_CASE(
+    "EditorController keeps stop enabled when paused away from the timeline start",
+    "[ui][editor-controller]")
+{
+    core::Session session;
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.current_position = core::TimePosition{1.5};
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = false,
+        });
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == 2);
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->play_pause_shows_pause_icon == false);
+        CHECK(view.last_state->stop_enabled == true);
+    }
+}
+
 // Play intent issues play() when stopped and pause() when playing, mirroring the toggle the view
 // would render through play_pause_shows_pause_icon.
 TEST_CASE(
@@ -528,13 +560,15 @@ TEST_CASE(
     CHECK(transport.pause_call_count == 0);
 }
 
-// The stop intent must respect the same gate the view publishes, so a stopped transport stays
-// stopped even when an alternate input path tries to fire a stop.
+// The stop intent must respect the same gate the view publishes, so it is ignored only after the
+// transport is paused or stopped at the timeline start.
 TEST_CASE(
-    "EditorController stop intent fires only while transport is playing", "[ui][editor-controller]")
+    "EditorController stop intent fires while playing or away from the timeline start",
+    "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -542,9 +576,44 @@ TEST_CASE(
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 0);
 
-    transport.current_state.playing = true;
+    transport.current_position = core::TimePosition{1.5};
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 1);
+    CHECK(transport.current_position == core::TimePosition{});
+
+    transport.current_state.playing = true;
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 2);
+}
+
+// Stopping from a paused non-start cursor does not necessarily produce a coarse transport state
+// callback, so the controller refreshes the view directly after issuing stop().
+TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][editor-controller]")
+{
+    core::Session session;
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.current_position = core::TimePosition{1.5};
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = false,
+        });
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->stop_enabled == true);
+    const int pushes_before_stop = view.set_state_call_count;
+
+    controller.onStopPressed();
+
+    CHECK(transport.stop_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == pushes_before_stop + 1);
+    CHECK(view.last_state->stop_enabled == false);
 }
 
 // Waveform clicks clamp out-of-range input and convert normalized positions through the current
@@ -570,6 +639,36 @@ TEST_CASE(
     controller.onWaveformClicked(1.5);
     CHECK(
         transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{4.0}});
+}
+
+// A seek issued by the controller changes whether Stop can reset the cursor, so the controller
+// refreshes the discrete view state immediately after the seek intent.
+TEST_CASE("EditorController waveform click refreshes stop enabledness", "[ui][editor-controller]")
+{
+    core::Session session;
+    [[maybe_unused]] const core::TrackId track_id = addLoadedTrack(
+        session, "Full Mix", std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
+    FakeTransport transport;
+    FakeEdit edit;
+    EditorController controller{session, transport, edit};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->stop_enabled == false);
+
+    controller.onWaveformClicked(0.5);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(
+        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
+    CHECK(view.last_state->stop_enabled == true);
+
+    controller.onWaveformClicked(0.0);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{}});
+    CHECK(view.last_state->stop_enabled == false);
 }
 
 // Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback

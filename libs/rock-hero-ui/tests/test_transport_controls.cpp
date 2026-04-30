@@ -119,8 +119,8 @@ TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-cont
     CHECK(getStopButton(controls).isEnabled());
 }
 
-// Verifies setState flips the primary button between its play and pause icon variants.
-TEST_CASE("TransportControls setState switches play and pause icon", "[ui][transport-controls]")
+// Verifies pause-icon state does not use JUCE toggle state, which paints a button background.
+TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][transport-controls]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransportControlsListener listener;
@@ -134,7 +134,7 @@ TEST_CASE("TransportControls setState switches play and pause icon", "[ui][trans
             .play_pause_shows_pause_icon = false,
         });
     auto& play_pause_button = getPlayPauseButton(controls);
-    auto* play_image = play_pause_button.getCurrentImage();
+    REQUIRE(play_pause_button.getCurrentImage() != nullptr);
     CHECK_FALSE(play_pause_button.getToggleState());
 
     controls.setState(
@@ -143,12 +143,9 @@ TEST_CASE("TransportControls setState switches play and pause icon", "[ui][trans
             .stop_enabled = false,
             .play_pause_shows_pause_icon = true,
         });
-    auto* pause_image = play_pause_button.getCurrentImage();
 
-    CHECK(play_pause_button.getToggleState());
-    REQUIRE(play_image != nullptr);
-    REQUIRE(pause_image != nullptr);
-    CHECK(play_image != pause_image);
+    REQUIRE(play_pause_button.getCurrentImage() != nullptr);
+    CHECK_FALSE(play_pause_button.getToggleState());
 }
 
 // Verifies the primary button emits the listener's play/pause intent when clicked.
