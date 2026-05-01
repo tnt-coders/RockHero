@@ -2,9 +2,27 @@
 #include <filesystem>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
+#include <string>
+#include <utility>
 
 namespace rock_hero::core
 {
+
+namespace
+{
+
+// Creates a track through Session and commits the asset through the backend-accepted commit path.
+TrackId addCommittedTrack(
+    Session& session, std::string name, std::filesystem::path path, TimeRange timeline_range = {})
+{
+    const TrackId track_id = session.addTrack(std::move(name));
+    const bool committed =
+        session.commitTrackAudioAsset(track_id, AudioAsset{std::move(path)}, timeline_range);
+    REQUIRE(committed);
+    return track_id;
+}
+
+} // namespace
 
 // Verifies TrackId's invalid default and explicit valid value contract.
 TEST_CASE("TrackId default and explicit construction", "[core][track]")
@@ -73,20 +91,19 @@ TEST_CASE("Adding a track creates a stable nonzero TrackId", "[core][session]")
     CHECK(session.findTrack(second_id) != nullptr);
 }
 
-// Verifies that addTrack stores the complete initial track payload.
-TEST_CASE("Adding a populated track stores all fields", "[core][session]")
+// Verifies that addTrack stores identity and name while leaving audio uncommitted.
+TEST_CASE("Adding a named track stores identity and name", "[core][session]")
 {
     Session session;
-    const AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
 
-    const auto track_id = session.addTrack("Full Mix", audio_asset);
+    const auto track_id = session.addTrack("Full Mix");
 
     REQUIRE(session.tracks().size() == 1);
     const auto& track = session.tracks()[0];
     CHECK(track_id.isValid());
     CHECK(track.id == track_id);
     CHECK(track.name == "Full Mix");
-    CHECK(track.audio_asset == audio_asset);
+    CHECK_FALSE(track.audio_asset.has_value());
 }
 
 // Verifies that a row can exist before the user has assigned any audio file.
@@ -128,47 +145,58 @@ TEST_CASE("findTrack returns nullptr for missing tracks", "[core][session]")
     CHECK(session.findTrack(TrackId{999}) == nullptr);
 }
 
-// Verifies read-only session projections can use the const lookup overload.
-TEST_CASE("const findTrack returns existing and missing tracks", "[core][session]")
+// Verifies session projections can look up tracks without receiving mutable storage.
+TEST_CASE("findTrack returns existing and missing tracks", "[core][session]")
 {
     Session session;
-    const auto track_id =
-        session.addTrack("Full Mix", AudioAsset{std::filesystem::path{"mix.wav"}});
-    const Session& const_session = session;
+    const auto track_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
 
-    const auto* found_track = const_session.findTrack(track_id);
+    const auto* found_track = session.findTrack(track_id);
 
     REQUIRE(found_track != nullptr);
     CHECK(found_track->id == track_id);
     CHECK(found_track->name == "Full Mix");
     CHECK(found_track->audio_asset == AudioAsset{std::filesystem::path{"mix.wav"}});
-    CHECK(const_session.findTrack(TrackId{999}) == nullptr);
+    CHECK(session.findTrack(TrackId{999}) == nullptr);
 }
 
-// Verifies the mutable lookup overload returns the stored track object.
-TEST_CASE("mutable findTrack returns editable session storage", "[core][session]")
+// Verifies user-visible names are updated through the explicit Session mutation boundary.
+TEST_CASE("Renaming a track updates only that track", "[core][session]")
 {
     Session session;
-    const auto track_id = session.addTrack("Full Mix");
+    const auto first_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
+    addCommittedTrack(session, "Solo", std::filesystem::path{"solo.wav"});
 
-    auto* track = session.findTrack(track_id);
+    const auto renamed = session.renameTrack(first_id, "Edited Mix");
 
-    REQUIRE(track != nullptr);
-    track->name = "Edited Mix";
-    track->audio_asset = AudioAsset{std::filesystem::path{"edited.wav"}};
-
-    REQUIRE(session.tracks().size() == 1);
+    CHECK(renamed);
+    REQUIRE(session.tracks().size() == 2);
     CHECK(session.tracks()[0].name == "Edited Mix");
-    CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"edited.wav"}});
+    CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"mix.wav"}});
+    CHECK(session.tracks()[1].name == "Solo");
+    CHECK(session.tracks()[1].audio_asset == AudioAsset{std::filesystem::path{"solo.wav"}});
+}
+
+// Verifies failed rename commands leave existing track data untouched.
+TEST_CASE("Renaming a missing track fails cleanly", "[core][session]")
+{
+    Session session;
+    addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
+
+    const auto renamed = session.renameTrack(TrackId{999}, "Edited Mix");
+
+    CHECK_FALSE(renamed);
+    REQUIRE(session.tracks().size() == 1);
+    CHECK(session.tracks()[0].name == "Full Mix");
+    CHECK(session.tracks()[0].audio_asset == AudioAsset{std::filesystem::path{"mix.wav"}});
 }
 
 // Verifies committing one track asset does not disturb neighboring track data.
 TEST_CASE("Committing a track asset updates only that track", "[core][session]")
 {
     Session session;
-    const auto first_id =
-        session.addTrack("Full Mix", AudioAsset{std::filesystem::path{"old.wav"}});
-    session.addTrack("Solo", AudioAsset{std::filesystem::path{"solo.wav"}});
+    const auto first_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"old.wav"});
+    addCommittedTrack(session, "Solo", std::filesystem::path{"solo.wav"});
     const TimeRange timeline_range{
         .start = TimePosition{},
         .end = TimePosition{12.0},
@@ -208,7 +236,7 @@ TEST_CASE("Committing a missing track asset fails cleanly", "[core][session]")
 {
     Session session;
     const auto existing_id =
-        session.addTrack("Full Mix", AudioAsset{std::filesystem::path{"mix.wav"}});
+        addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
     const TimeRange timeline_range{
         .start = TimePosition{},
         .end = TimePosition{10.0},
