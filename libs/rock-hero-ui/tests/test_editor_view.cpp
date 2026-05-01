@@ -289,7 +289,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(load_button.isEnabled());
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
-    CHECK(getPlayPauseButton(controls).getToggleState());
+    CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 0);
 }
 
