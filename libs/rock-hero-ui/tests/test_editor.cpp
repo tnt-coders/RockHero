@@ -73,19 +73,23 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    std::optional<core::TimeRange> setTrackAudioSource(
-        core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    std::optional<core::TimeDuration> readAudioAssetDuration(
+        const core::AudioAsset& audio_asset) const override
+    {
+        last_audio_asset = audio_asset;
+        return core::TimeDuration{8.0};
+    }
+
+    bool setTrackAudioClip(core::TrackId track_id, const core::AudioClip& audio_clip) override
     {
         last_track_id = track_id;
-        last_audio_asset = audio_asset;
-        return core::TimeRange{
-            .start = core::TimePosition{},
-            .end = core::TimePosition{8.0},
-        };
+        last_audio_clip = audio_clip;
+        return true;
     }
 
     std::optional<core::TrackId> last_track_id{};
-    std::optional<core::AudioAsset> last_audio_asset{};
+    mutable std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<core::AudioClip> last_audio_clip{};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -168,12 +172,18 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     core::Session session;
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
     const core::TrackId track_id = session.addTrack("Full Mix");
-    const bool committed = session.commitTrackAudioAsset(
+    const bool committed = session.commitTrackAudioClip(
         track_id,
-        audio_asset,
-        core::TimeRange{
-            .start = core::TimePosition{},
-            .end = core::TimePosition{4.0},
+        core::AudioClip{
+            .id = core::AudioClipId{},
+            .asset = audio_asset,
+            .asset_duration = core::TimeDuration{4.0},
+            .source_range =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{4.0},
+                },
+            .position = core::TimePosition{},
         });
     REQUIRE(committed);
     FakeTransport transport;

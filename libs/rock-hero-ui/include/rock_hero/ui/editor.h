@@ -30,7 +30,7 @@ public:
     \brief Creates the editor feature and immediately pushes initial state to the view.
     \param session Session whose tracks are projected into the editor view.
     \param transport Transport used by the controller and read by the view cursor overlay.
-    \param edit Edit port used by the controller for audio-source changes.
+    \param edit Edit port used by the controller for audio-clip changes.
     \param thumbnail_factory Factory used during view construction for the initial track row.
     */
     Editor(
