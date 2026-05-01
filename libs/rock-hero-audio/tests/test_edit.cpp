@@ -9,82 +9,136 @@ namespace rock_hero::audio
 namespace
 {
 
-// Minimal fake audio-edit port that records the latest source-setting request.
+// Minimal fake audio-edit port that records the latest clip-setting request.
 struct FakeEdit final : IEdit
 {
-    // Seeds the fake with the result returned by setTrackAudioSource().
-    explicit FakeEdit(std::optional<core::TimeRange> set_result)
-        : result{set_result}
+    // Seeds the fake with results returned by the edit probe and clip-setting methods.
+    FakeEdit(std::optional<core::TimeDuration> duration_result, bool set_result)
+        : duration{duration_result}
+        , result{set_result}
     {}
 
-    // Records the requested track and asset so controller tests can inspect the boundary call.
-    std::optional<core::TimeRange> setTrackAudioSource(
-        core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    // Records the asset duration probe so controller tests can inspect the boundary call.
+    std::optional<core::TimeDuration> readAudioAssetDuration(
+        const core::AudioAsset& audio_asset) const override
+    {
+        last_duration_probe_asset = audio_asset;
+        ++duration_call_count;
+        return duration;
+    }
+
+    // Records the requested track and clip so controller tests can inspect the boundary call.
+    bool setTrackAudioClip(core::TrackId track_id, const core::AudioClip& audio_clip) override
     {
         last_track_id = track_id;
-        last_audio_asset = audio_asset;
+        last_audio_clip = audio_clip;
         ++call_count;
         return result;
     }
 
-    // Result returned from setTrackAudioSource() to simulate backend success or failure.
-    std::optional<core::TimeRange> result{};
+    // Result returned from readAudioAssetDuration() to simulate probe success or failure.
+    std::optional<core::TimeDuration> duration{};
 
-    // Last track id received through setTrackAudioSource(), if the fake has been called.
+    // Result returned from setTrackAudioClip() to simulate backend success or failure.
+    bool result{true};
+
+    // Last track id received through setTrackAudioClip(), if the fake has been called.
     std::optional<core::TrackId> last_track_id{};
 
-    // Last audio asset received through setTrackAudioSource(), if the fake has been called.
-    std::optional<core::AudioAsset> last_audio_asset{};
+    // Last audio asset received through readAudioAssetDuration(), if the fake has been called.
+    mutable std::optional<core::AudioAsset> last_duration_probe_asset{};
 
-    // Number of source-setting attempts observed by the fake.
+    // Last audio clip received through setTrackAudioClip(), if the fake has been called.
+    std::optional<core::AudioClip> last_audio_clip{};
+
+    // Number of duration-probe attempts observed by the fake.
+    mutable int duration_call_count{0};
+
+    // Number of clip-setting attempts observed by the fake.
     int call_count{0};
 };
 
 } // namespace
 
+// Verifies the audio-edit port can probe audio asset duration separately from mutation.
+TEST_CASE("IEdit fake probes audio asset duration", "[audio][edit]")
+{
+    FakeEdit edit{core::TimeDuration{4.0}, true};
+    const core::AudioAsset asset{std::filesystem::path{"guitar.wav"}};
+
+    const auto duration = edit.readAudioAssetDuration(asset);
+
+    REQUIRE(duration.has_value());
+    CHECK(*duration == core::TimeDuration{4.0});
+    CHECK(edit.last_duration_probe_asset == std::optional<core::AudioAsset>{asset});
+    CHECK(edit.duration_call_count == 1);
+}
+
 // Verifies the audio-edit port receives the session track identity.
 TEST_CASE("IEdit fake receives a track id", "[audio][edit]")
 {
-    const core::TimeRange timeline_range{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{4.0},
+    FakeEdit edit{core::TimeDuration{4.0}, true};
+    const core::AudioClip clip{
+        .id = core::AudioClipId{},
+        .asset = core::AudioAsset{std::filesystem::path{"guitar.wav"}},
+        .asset_duration = core::TimeDuration{4.0},
+        .source_range =
+            core::TimeRange{
+                .start = core::TimePosition{},
+                .end = core::TimePosition{4.0},
+            },
+        .position = core::TimePosition{},
     };
-    FakeEdit edit{timeline_range};
 
-    const auto applied = edit.setTrackAudioSource(
-        core::TrackId{7}, core::AudioAsset{std::filesystem::path{"guitar.wav"}});
+    const bool applied = edit.setTrackAudioClip(core::TrackId{7}, clip);
 
-    CHECK(applied == timeline_range);
+    CHECK(applied);
     REQUIRE(edit.last_track_id.has_value());
     CHECK(edit.last_track_id == core::TrackId{7});
 }
 
-// Verifies the audio-edit port receives the framework-free asset reference.
-TEST_CASE("IEdit fake receives an audio asset", "[audio][edit]")
+// Verifies the audio-edit port receives the framework-free clip.
+TEST_CASE("IEdit fake receives an audio clip", "[audio][edit]")
 {
-    const core::TimeRange timeline_range{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{4.0},
+    FakeEdit edit{core::TimeDuration{4.0}, true};
+    const core::AudioClip clip{
+        .id = core::AudioClipId{},
+        .asset = core::AudioAsset{std::filesystem::path{"drums.wav"}},
+        .asset_duration = core::TimeDuration{4.0},
+        .source_range =
+            core::TimeRange{
+                .start = core::TimePosition{},
+                .end = core::TimePosition{4.0},
+            },
+        .position = core::TimePosition{},
     };
-    FakeEdit edit{timeline_range};
-    const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
 
-    const auto applied = edit.setTrackAudioSource(core::TrackId{3}, asset);
+    const bool applied = edit.setTrackAudioClip(core::TrackId{3}, clip);
 
-    CHECK(applied == timeline_range);
-    REQUIRE(edit.last_audio_asset.has_value());
-    CHECK(edit.last_audio_asset == asset);
+    CHECK(applied);
+    REQUIRE(edit.last_audio_clip.has_value());
+    CHECK(edit.last_audio_clip == std::optional<core::AudioClip>{clip});
 }
 
-// Verifies the port return value can represent failed source changes.
-TEST_CASE("IEdit fake can report failed source changes", "[audio][edit]")
+// Verifies the port return value can represent failed clip changes.
+TEST_CASE("IEdit fake can report failed clip changes", "[audio][edit]")
 {
-    FakeEdit edit{std::nullopt};
+    FakeEdit edit{core::TimeDuration{4.0}, false};
+    const core::AudioClip clip{
+        .id = core::AudioClipId{},
+        .asset = core::AudioAsset{std::filesystem::path{"missing.wav"}},
+        .asset_duration = core::TimeDuration{4.0},
+        .source_range =
+            core::TimeRange{
+                .start = core::TimePosition{},
+                .end = core::TimePosition{4.0},
+            },
+        .position = core::TimePosition{},
+    };
 
-    const auto applied = edit.setTrackAudioSource(
-        core::TrackId{1}, core::AudioAsset{std::filesystem::path{"missing.wav"}});
+    const bool applied = edit.setTrackAudioClip(core::TrackId{1}, clip);
 
-    CHECK_FALSE(applied.has_value());
+    CHECK_FALSE(applied);
     CHECK(edit.call_count == 1);
 }
 
