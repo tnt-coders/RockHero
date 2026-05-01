@@ -156,16 +156,13 @@ void Engine::removeListener(ITransport::Listener& listener)
     m_impl->m_transport_listeners.remove(&listener);
 }
 
-// Replaces the single backing-track clip while keeping graph mutation on the message thread.
-std::optional<core::TimeRange> Engine::loadFile(const juce::File& file)
+// Reads duration through Tracktion without mutating the active edit.
+std::optional<core::TimeDuration> Engine::readAudioAssetDuration(
+    const core::AudioAsset& audio_asset) const
 {
+    const auto path_text = audio_asset.path.wstring();
+    const juce::File file{juce::String{path_text.c_str()}};
     if (!file.existsAsFile())
-    {
-        return std::nullopt;
-    }
-
-    auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
-    if (track == nullptr)
     {
         return std::nullopt;
     }
@@ -176,13 +173,54 @@ std::optional<core::TimeRange> Engine::loadFile(const juce::File& file)
         return std::nullopt;
     }
 
+    return core::TimeDuration{audio_file.getLength()};
+}
+
+// Replaces the single backing-track clip while keeping graph mutation on the message thread.
+bool Engine::loadFile(const juce::File& file, const core::AudioClip& audio_clip)
+{
+    if (!file.existsAsFile())
+    {
+        return false;
+    }
+
+    auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
+    if (track == nullptr)
+    {
+        return false;
+    }
+
+    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
+    if (!audio_file.isValid())
+    {
+        return false;
+    }
+
+    // The current single-file transport path still assumes the loaded clip begins at zero.
+    // Nonzero placement needs a wider transport timeline model before it is safe to accept.
+    if (audio_clip.position != core::TimePosition{})
+    {
+        return false;
+    }
+
+    const double source_start_seconds = audio_clip.source_range.start.seconds;
+    const double source_duration_seconds = audio_clip.source_range.duration().seconds;
+    if (audio_clip.asset_duration.seconds <= 0.0 || source_start_seconds < 0.0 ||
+        source_duration_seconds <= 0.0 ||
+        audio_clip.source_range.end.seconds > audio_clip.asset_duration.seconds ||
+        audio_clip.source_range.end.seconds > audio_file.getLength())
+    {
+        return false;
+    }
+
     // Candidate is valid; now safe to stop playback and mutate the edit.
     m_impl->m_edit->getTransport().stop(false, false);
 
-    const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
-    const auto start = tracktion::TimePosition{};
+    const auto start = tracktion::TimePosition::fromSeconds(audio_clip.position.seconds);
+    const auto length = tracktion::TimeDuration::fromSeconds(source_duration_seconds);
     const tracktion::ClipPosition position{
-        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
+        .time = {start, start + length},
+        .offset = tracktion::TimeDuration::fromSeconds(source_start_seconds)
     };
 
     // Final trailing argument asks Tracktion to replace any existing clips on the track.
@@ -191,19 +229,16 @@ std::optional<core::TimeRange> Engine::loadFile(const juce::File& file)
     if (clip == nullptr)
     {
         m_impl->updateTransportState();
-        return std::nullopt;
+        return false;
     }
 
-    m_impl->m_loaded_length_seconds = audio_file.getLength();
+    m_impl->m_loaded_length_seconds = audio_clip.timelineRange().end.seconds;
 
     auto& transport = m_impl->m_edit->getTransport();
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return core::TimeRange{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{m_impl->m_loaded_length_seconds},
-    };
+    return true;
 }
 
 // Starts Tracktion transport playback from the current edit position.
@@ -259,17 +294,16 @@ core::TimePosition Engine::position() const noexcept
 }
 
 // Adapts the current framework-free edit port onto the single-file load helper.
-std::optional<core::TimeRange> Engine::setTrackAudioSource(
-    core::TrackId track_id, const core::AudioAsset& audio_asset)
+bool Engine::setTrackAudioClip(core::TrackId track_id, const core::AudioClip& audio_clip)
 {
     static_cast<void>(track_id);
 
     // TODO: Route this through a project-owned edit-history boundary once undo/redo lands.
     // The history surface should own transaction semantics instead of exposing Tracktion or JUCE
     // undo primitives through Rock Hero interfaces.
-    const auto path_text = audio_asset.path.wstring();
+    const auto path_text = audio_clip.asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
-    return loadFile(file);
+    return loadFile(file, audio_clip);
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

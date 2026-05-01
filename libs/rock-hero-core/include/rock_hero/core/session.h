@@ -59,20 +59,22 @@ public:
     bool renameTrack(TrackId id, std::string name);
 
     /*!
-    \brief Commits an audio asset already accepted by the playback backend.
+    \brief Commits an audio clip already accepted by the playback backend.
 
     This is intentionally named as a commit operation because it must not be used to ask whether
-    an arbitrary file can be loaded. The audio backend owns that decision and returns the timeline
-    range that should be committed with the asset.
+    an arbitrary file can be loaded. The audio backend owns that decision and accepts or rejects
+    the requested clip before it is committed to session state.
 
-    \param id Track id whose asset should be committed.
-    \param audio_asset Accepted asset to store on the track.
-    \param timeline_range Project timeline range reported by the playback backend.
+    \param id Track id whose clip should be committed.
+    \param audio_clip Accepted clip to store on the track.
     \return True when the track existed and was updated; false when no track matched the id.
     */
-    bool commitTrackAudioAsset(TrackId id, AudioAsset audio_asset, TimeRange timeline_range);
+    bool commitTrackAudioClip(TrackId id, AudioClip audio_clip);
 
 private:
+    // TODO: Replace single-clip replacement with add/remove/move clip commands when tracks can
+    // contain multiple clips and clips need stable command-level editing.
+
     // Tracks stay in insertion order so UI projections can preserve row ordering.
     std::vector<Track> m_tracks;
 
@@ -81,6 +83,9 @@ private:
 
     // Zero is reserved for invalid ids, so generated ids start at one.
     TrackId m_next_track_id{1};
+
+    // Zero is reserved for invalid ids, so generated clip ids start at one.
+    AudioClipId m_next_audio_clip_id{1};
 };
 
 } // namespace rock_hero::core

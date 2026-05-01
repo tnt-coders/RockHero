@@ -17,6 +17,34 @@ template <typename Tracks> [[nodiscard]] auto findTrackById(Tracks& tracks, Trac
     return position == tracks.end() ? nullptr : std::to_address(position);
 }
 
+// Derives the project timeline from committed clips instead of from backend internals.
+[[nodiscard]] TimeRange calculateTimeline(const std::vector<Track>& tracks) noexcept
+{
+    TimeRange timeline{};
+    bool found_clip = false;
+
+    for (const Track& track : tracks)
+    {
+        if (!track.audio_clip.has_value())
+        {
+            continue;
+        }
+
+        const TimeRange clip_range = track.audio_clip->timelineRange();
+        if (!found_clip)
+        {
+            timeline = clip_range;
+            found_clip = true;
+            continue;
+        }
+
+        timeline.start.seconds = std::min(timeline.start.seconds, clip_range.start.seconds);
+        timeline.end.seconds = std::max(timeline.end.seconds, clip_range.end.seconds);
+    }
+
+    return timeline;
+}
+
 } // namespace
 
 // Exposes ordered track storage without letting callers mutate the vector shape directly.
@@ -60,8 +88,8 @@ bool Session::renameTrack(TrackId id, std::string name)
     return true;
 }
 
-// Commits backend-accepted audio content and its timeline as one session-state update.
-bool Session::commitTrackAudioAsset(TrackId id, AudioAsset audio_asset, TimeRange timeline_range)
+// Commits backend-accepted audio content and refreshes the aggregate session timeline.
+bool Session::commitTrackAudioClip(TrackId id, AudioClip audio_clip)
 {
     auto* track = findTrackById(m_tracks, id);
     if (track == nullptr)
@@ -69,8 +97,10 @@ bool Session::commitTrackAudioAsset(TrackId id, AudioAsset audio_asset, TimeRang
         return false;
     }
 
-    track->audio_asset = std::move(audio_asset);
-    m_timeline = timeline_range;
+    audio_clip.id = m_next_audio_clip_id;
+    ++m_next_audio_clip_id.value;
+    track->audio_clip = std::move(audio_clip);
+    m_timeline = calculateTimeline(m_tracks);
     return true;
 }
 
