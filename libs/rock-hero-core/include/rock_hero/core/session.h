@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <optional>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
 #include <string>
@@ -19,6 +18,8 @@ namespace rock_hero::core
 
 Session owns the ordered collection of tracks used by the editor workflow. It is deliberately
 framework-free so controllers and tests can exercise session behavior without JUCE or Tracktion.
+Track reads are exposed as const views; all track mutations must go through explicit Session
+methods so callers cannot bypass backend-accepted commit paths.
 */
 class Session
 {
@@ -36,14 +37,7 @@ public:
     [[nodiscard]] TimeRange timeline() const noexcept;
 
     /*!
-    \brief Finds a mutable track by id.
-    \param id Track id to search for.
-    \return Pointer to the matching track, or nullptr when no track has the id.
-    */
-    [[nodiscard]] Track* findTrack(TrackId id) noexcept;
-
-    /*!
-    \brief Finds a read-only track by id.
+    \brief Finds a track by id.
     \param id Track id to search for.
     \return Pointer to the matching track, or nullptr when no track has the id.
     */
@@ -52,10 +46,17 @@ public:
     /*!
     \brief Adds a role-free track to the end of the session.
     \param name User-visible track name.
-    \param audio_asset Optional audio asset assigned to the track.
     \return Stable id assigned to the newly added track.
     */
-    TrackId addTrack(std::string name = {}, std::optional<AudioAsset> audio_asset = std::nullopt);
+    TrackId addTrack(std::string name = {});
+
+    /*!
+    \brief Renames an existing track.
+    \param id Track id whose name should be updated.
+    \param name New user-visible track name.
+    \return True when the track existed and was updated; false when no track matched the id.
+    */
+    bool renameTrack(TrackId id, std::string name);
 
     /*!
     \brief Commits an audio asset already accepted by the playback backend.
