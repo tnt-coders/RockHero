@@ -35,17 +35,17 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
     const auto duration = edit.readAudioAssetDuration(audio_asset);
-    REQUIRE(duration.has_value());
-    REQUIRE(duration->seconds > 0.0);
+    const core::TimeDuration asset_duration = duration.value_or(core::TimeDuration{});
+    REQUIRE(asset_duration.seconds > 0.0);
 
     return core::AudioClip{
         .id = core::AudioClipId{},
         .asset = audio_asset,
-        .asset_duration = *duration,
+        .asset_duration = asset_duration,
         .source_range =
             core::TimeRange{
                 .start = core::TimePosition{},
-                .end = core::TimePosition{duration->seconds},
+                .end = core::TimePosition{asset_duration.seconds},
             },
         .position = core::TimePosition{},
     };
@@ -94,18 +94,19 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
 // Verifies duration probing reads metadata without mutating transport state.
 TEST_CASE("Engine edit probes audio duration synchronously", "[audio][engine][integration]")
 {
-    EngineTestHarness harness;
-    Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    const EngineTestHarness harness;
+    const Engine& engine = harness.engine;
+    const IEdit& edit = engine;
     ITransport const& transport = engine;
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
     const auto duration = edit.readAudioAssetDuration(audio_asset);
+    const core::TimeDuration asset_duration = duration.value_or(core::TimeDuration{});
 
     REQUIRE(duration.has_value());
-    CHECK(duration->seconds > 0.0);
+    CHECK(asset_duration.seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});
