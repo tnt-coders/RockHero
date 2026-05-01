@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <iostream>
+#include <optional>
 #include <utility>
 
 namespace rock_hero::ui
@@ -44,9 +45,9 @@ void EditorController::onLoadAudioAssetRequested(
     }
 
     m_edit_in_progress = true;
-    const auto timeline_range = m_edit.setTrackAudioSource(track_id, audio_asset);
+    const auto duration = m_edit.readAudioAssetDuration(audio_asset);
 
-    if (!timeline_range.has_value())
+    if (!duration.has_value())
     {
         m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
         m_edit_in_progress = false;
@@ -55,8 +56,28 @@ void EditorController::onLoadAudioAssetRequested(
         return;
     }
 
-    const bool session_ok =
-        m_session.commitTrackAudioAsset(track_id, std::move(audio_asset), *timeline_range);
+    const core::TimeRange source_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{duration->seconds},
+    };
+    core::AudioClip audio_clip{
+        .id = core::AudioClipId{},
+        .asset = std::move(audio_asset),
+        .asset_duration = *duration,
+        .source_range = source_range,
+        .position = core::TimePosition{},
+    };
+
+    if (!m_edit.setTrackAudioClip(track_id, audio_clip))
+    {
+        m_last_load_error = std::string{"Could not load file: "} + audio_clip.asset.path.string();
+        m_edit_in_progress = false;
+        m_pending_refresh = false;
+        deriveAndPush();
+        return;
+    }
+
+    const bool session_ok = m_session.commitTrackAudioClip(track_id, std::move(audio_clip));
     m_edit_in_progress = false;
 
     if (session_ok)
@@ -68,9 +89,9 @@ void EditorController::onLoadAudioAssetRequested(
         // Session and audio backend are out of sync; preserve the existing session state and
         // surface the inconsistency rather than silently pretending the load succeeded.
         // TODO: Replace std::clog with the project logging framework once one exists.
-        std::clog << "RockHero editor internal error: Session::commitTrackAudioAsset failed after "
-                     "IEdit::setTrackAudioSource\n";
-        assert(false && "Session::commitTrackAudioAsset failed after IEdit::setTrackAudioSource");
+        std::clog << "RockHero editor internal error: Session::commitTrackAudioClip failed after "
+                     "IEdit::setTrackAudioClip\n";
+        assert(false && "Session::commitTrackAudioClip failed after IEdit::setTrackAudioClip");
         m_last_load_error = std::string{"Internal error: session out of sync after audio load"};
     }
 
@@ -84,7 +105,7 @@ void EditorController::onLoadAudioAssetRequested(
 // on the current transport state.
 void EditorController::onPlayPausePressed()
 {
-    if (!anyTrackHasAsset())
+    if (!anyTrackHasClip())
     {
         return;
     }
@@ -150,7 +171,7 @@ EditorViewState EditorController::deriveViewState() const
 
     EditorViewState state;
     state.load_button_enabled = !m_session.tracks().empty();
-    state.play_pause_enabled = anyTrackHasAsset();
+    state.play_pause_enabled = anyTrackHasClip();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline_start = timeline_range.start;
@@ -163,7 +184,9 @@ EditorViewState EditorController::deriveViewState() const
             TrackViewState{
                 .track_id = track.id,
                 .display_name = track.name,
-                .audio_asset = track.audio_asset,
+                .audio_asset = track.audio_clip.has_value()
+                                   ? std::optional<core::AudioAsset>{track.audio_clip->asset}
+                                   : std::nullopt,
             });
     }
     state.last_load_error = m_last_load_error;
@@ -183,10 +206,10 @@ void EditorController::deriveAndPush()
 
 // Walks the session tracks once to answer the "is anything playable" question used by both
 // state derivation and play/pause gating.
-bool EditorController::anyTrackHasAsset() const
+bool EditorController::anyTrackHasClip() const
 {
     return std::ranges::any_of(
-        m_session.tracks(), [](const core::Track& track) { return track.audio_asset.has_value(); });
+        m_session.tracks(), [](const core::Track& track) { return track.audio_clip.has_value(); });
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to

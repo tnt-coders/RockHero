@@ -25,7 +25,7 @@ public:
 
     /*!
     \brief Handles a request to assign an audio asset to one track.
-    \param track_id Track whose audio source should change.
+    \param track_id Track whose audio clip should change.
     \param audio_asset Framework-free audio asset selected by the user.
     */
     virtual void onLoadAudioAssetRequested(
