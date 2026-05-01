@@ -214,6 +214,19 @@ public:
     };
 }
 
+// Builds a clip value for optional comparisons without unchecked optional dereferences.
+[[nodiscard]] core::AudioClip makeAudioClip(
+    core::AudioClipId id, std::filesystem::path path, core::TimeRange timeline_range)
+{
+    return core::AudioClip{
+        .id = id,
+        .asset = core::AudioAsset{std::move(path)},
+        .asset_duration = timeline_range.duration(),
+        .source_range = timeline_range,
+        .position = core::TimePosition{},
+    };
+}
+
 // Adds one session track and commits backend-accepted content so timeline invariants are explicit.
 core::TrackId addLoadedTrack(
     core::Session& session, std::string name, std::filesystem::path path,
@@ -221,16 +234,33 @@ core::TrackId addLoadedTrack(
 {
     const core::TrackId track_id = session.addTrack(std::move(name));
     const bool committed = session.commitTrackAudioClip(
-        track_id,
-        core::AudioClip{
-            .id = core::AudioClipId{},
-            .asset = core::AudioAsset{std::move(path)},
-            .asset_duration = timeline_range.duration(),
-            .source_range = timeline_range,
-            .position = core::TimePosition{},
-        });
+        track_id, makeAudioClip(core::AudioClipId{}, std::move(path), timeline_range));
     REQUIRE(committed);
     return track_id;
+}
+
+// Reads a track clip by value so tests do not chain through nullable lookup results.
+[[nodiscard]] std::optional<core::AudioClip> findTrackAudioClip(
+    const core::Session& session, core::TrackId track_id)
+{
+    const core::Track* const track = session.findTrack(track_id);
+    if (track == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return track->audio_clip;
+}
+
+// Exposes stop enabledness as an optional value so tests can assert presence and value together.
+[[nodiscard]] std::optional<bool> lastStopEnabled(const FakeEditorView& view)
+{
+    if (!view.last_state.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return view.last_state->stop_enabled;
 }
 
 } // namespace
@@ -619,16 +649,14 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
         audio::TransportState{
             .playing = false,
         });
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->stop_enabled == true);
+    CHECK(lastStopEnabled(view) == std::optional<bool>{true});
     const int pushes_before_stop = view.set_state_call_count;
 
     controller.onStopPressed();
 
     CHECK(transport.stop_call_count == 1);
-    REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == pushes_before_stop + 1);
-    CHECK(view.last_state->stop_enabled == false);
+    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
 }
 
 // Waveform clicks clamp out-of-range input and convert normalized positions through the current
@@ -669,21 +697,18 @@ TEST_CASE("EditorController waveform click refreshes stop enabledness", "[ui][ed
     FakeEditorView view;
     controller.attachView(view);
 
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->stop_enabled == false);
+    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
 
     controller.onWaveformClicked(0.5);
 
-    REQUIRE(view.last_state.has_value());
     CHECK(
         transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
-    CHECK(view.last_state->stop_enabled == true);
+    CHECK(lastStopEnabled(view) == std::optional<bool>{true});
 
     controller.onWaveformClicked(0.0);
 
-    REQUIRE(view.last_state.has_value());
     CHECK(transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{}});
-    CHECK(view.last_state->stop_enabled == false);
+    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
 }
 
 // Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback
@@ -726,11 +751,10 @@ TEST_CASE(
     const core::AudioAsset replacement{std::filesystem::path{"new.wav"}};
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
-    REQUIRE(session.findTrack(track_id) != nullptr);
-    REQUIRE(session.findTrack(track_id)->audio_clip.has_value());
     CHECK(
-        session.findTrack(track_id)->audio_clip->asset ==
-        core::AudioAsset{std::filesystem::path{"old.wav"}});
+        findTrackAudioClip(session, track_id) ==
+        std::optional<core::AudioClip>{makeAudioClip(
+            core::AudioClipId{1}, std::filesystem::path{"old.wav"}, original_range)});
     CHECK(session.timeline() == original_range);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -773,17 +797,14 @@ TEST_CASE("EditorController successful load commits asset and timeline", "[ui][e
     CHECK(edit.read_audio_asset_duration_call_count == 2);
     CHECK(edit.set_track_audio_clip_call_count == 1);
     CHECK(edit.last_duration_probe_asset == std::optional<core::AudioAsset>{replacement});
-    REQUIRE(edit.last_audio_clip.has_value());
-    CHECK(edit.last_audio_clip->asset == replacement);
-    CHECK(edit.last_audio_clip->asset_duration == core::TimeDuration{4.0});
-    CHECK(edit.last_audio_clip->source_range == loadedTimelineRange(4.0));
-    CHECK(edit.last_audio_clip->position == core::TimePosition{});
-    REQUIRE(session.findTrack(track_id) != nullptr);
-    REQUIRE(session.findTrack(track_id)->audio_clip.has_value());
-    CHECK(session.findTrack(track_id)->audio_clip->asset == replacement);
-    CHECK(session.findTrack(track_id)->audio_clip->asset_duration == core::TimeDuration{4.0});
-    CHECK(session.findTrack(track_id)->audio_clip->source_range == loadedTimelineRange(4.0));
-    CHECK(session.findTrack(track_id)->audio_clip->position == core::TimePosition{});
+    CHECK(
+        edit.last_audio_clip ==
+        std::optional<core::AudioClip>{makeAudioClip(
+            core::AudioClipId{}, replacement.path, loadedTimelineRange(4.0))});
+    CHECK(
+        findTrackAudioClip(session, track_id) ==
+        std::optional<core::AudioClip>{makeAudioClip(
+            core::AudioClipId{1}, replacement.path, loadedTimelineRange(4.0))});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
