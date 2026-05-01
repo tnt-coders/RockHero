@@ -207,11 +207,11 @@ public:
 }
 
 // Adds one session track and commits backend-accepted content so timeline invariants are explicit.
-[[nodiscard]] core::TrackId addLoadedTrack(
+core::TrackId addLoadedTrack(
     core::Session& session, std::string name, std::filesystem::path path,
     core::TimeRange timeline_range = loadedTimelineRange())
 {
-    const core::TrackId track_id = session.addTrack(std::move(name), std::nullopt);
+    const core::TrackId track_id = session.addTrack(std::move(name));
     const bool committed =
         session.commitTrackAudioAsset(track_id, core::AudioAsset{std::move(path)}, timeline_range);
     REQUIRE(committed);
@@ -390,7 +390,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
 TEST_CASE("EditorController pushes derived state on view attachment", "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", std::nullopt);
+    session.addTrack("Full Mix");
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -419,7 +419,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
 TEST_CASE("EditorController does not push without a transport callback", "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -456,7 +456,7 @@ TEST_CASE("EditorController derives visible range from session timeline", "[ui][
 TEST_CASE("EditorController pushes one state per coarse transition", "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -474,7 +474,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     {
         CHECK(view.last_state->play_pause_shows_pause_icon == true);
         CHECK(view.last_state->stop_enabled == true);
-        CHECK(view.last_state->visible_timeline_duration == core::TimeDuration{});
+        CHECK(view.last_state->visible_timeline_duration == loadedTimelineRange().duration());
     }
 
     transport.setStateAndNotify(
@@ -528,7 +528,7 @@ TEST_CASE(
     "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
+    addLoadedTrack(session, "Full Mix", std::filesystem::path{"a.wav"});
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -549,7 +549,7 @@ TEST_CASE(
     "EditorController play intent is ignored when no track has an asset", "[ui][editor-controller]")
 {
     core::Session session;
-    session.addTrack("Full Mix", std::nullopt);
+    session.addTrack("Full Mix");
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -676,7 +676,7 @@ TEST_CASE("EditorController waveform click refreshes stop enabledness", "[ui][ed
 TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][editor-controller]")
 {
     core::Session session;
-    const core::TrackId valid_id = session.addTrack("Full Mix", std::nullopt);
+    const core::TrackId valid_id = session.addTrack("Full Mix");
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -697,8 +697,9 @@ TEST_CASE(
     "EditorController failed load preserves session and reports error", "[ui][editor-controller]")
 {
     core::Session session;
+    const core::TimeRange original_range = loadedTimelineRange(6.0);
     const core::TrackId track_id =
-        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
+        addLoadedTrack(session, "Full Mix", std::filesystem::path{"old.wav"}, original_range);
     FakeTransport transport;
     FakeEdit edit;
     edit.next_timeline_range = std::nullopt;
@@ -713,7 +714,7 @@ TEST_CASE(
     CHECK(
         session.findTrack(track_id)->audio_asset ==
         std::optional<core::AudioAsset>{core::AudioAsset{std::filesystem::path{"old.wav"}}});
-    CHECK(session.timeline() == core::TimeRange{});
+    CHECK(session.timeline() == original_range);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -730,7 +731,7 @@ TEST_CASE(
 TEST_CASE("EditorController successful load commits asset and timeline", "[ui][editor-controller]")
 {
     core::Session session;
-    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
+    const core::TrackId track_id = session.addTrack("Full Mix");
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -769,7 +770,7 @@ TEST_CASE(
     "EditorController coalesces reentrant edit callbacks into one push", "[ui][editor-controller]")
 {
     core::Session session;
-    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
+    const core::TrackId track_id = session.addTrack("Full Mix");
     FakeTransport transport;
     FakeEdit edit;
     EditorController controller{session, transport, edit};
@@ -806,7 +807,7 @@ TEST_CASE(
 {
     core::Session session;
     const core::TrackId track_id =
-        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
+        addLoadedTrack(session, "Full Mix", std::filesystem::path{"old.wav"});
     FakeTransport transport;
     FakeEdit edit;
     edit.next_timeline_range = std::nullopt;
