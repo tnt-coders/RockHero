@@ -68,8 +68,7 @@ TEST_CASE("IEdit fake probes audio asset duration", "[audio][edit]")
 
     const auto duration = edit.readAudioAssetDuration(asset);
 
-    REQUIRE(duration.has_value());
-    CHECK(*duration == core::TimeDuration{4.0});
+    CHECK(duration == std::optional<core::TimeDuration>{core::TimeDuration{4.0}});
     CHECK(edit.last_duration_probe_asset == std::optional<core::AudioAsset>{asset});
     CHECK(edit.duration_call_count == 1);
 }
