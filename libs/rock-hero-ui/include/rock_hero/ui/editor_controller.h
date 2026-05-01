@@ -122,7 +122,7 @@ public:
 
 private:
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
-    void onTransportStateChanged(const audio::TransportState& state) override;
+    void onTransportStateChanged(audio::TransportState state) override;
 
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;

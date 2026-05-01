@@ -87,8 +87,8 @@ public:
     void seek(core::TimePosition position) override;
 
     /*!
-    \brief Returns the current coarse transport state snapshot.
-    \return Current message-thread snapshot of coarse playback state.
+    \brief Reads the current coarse transport state.
+    \return Current message-thread coarse playback state.
     */
     [[nodiscard]] TransportState state() const noexcept override;
 

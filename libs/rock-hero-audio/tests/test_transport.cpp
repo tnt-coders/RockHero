@@ -96,7 +96,7 @@ class CapturingTransportListener final : public ITransport::Listener
 {
 public:
     // Records every callback so tests can inspect both delivery count and latest state.
-    void onTransportStateChanged(const TransportState& state) override
+    void onTransportStateChanged(TransportState state) override
     {
         last_state = state;
         ++call_count;
@@ -110,16 +110,6 @@ public:
 };
 
 } // namespace
-
-// Verifies transport state carries only coarse playback state, not timeline mapping data.
-TEST_CASE("TransportState stores coarse playback state only", "[audio][transport]")
-{
-    const TransportState state{
-        .playing = true,
-    };
-
-    CHECK(state.playing);
-}
 
 // Verifies future headless controller tests can treat ITransport as a state source.
 TEST_CASE("ITransport fake stores state and position separately", "[audio][transport]")

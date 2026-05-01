@@ -17,7 +17,7 @@ This TODO records the intended design before the first gameplay/render consumer 
 
 ## Current State
 
-`ITransport::state()` currently returns a coarse message-thread snapshot:
+`ITransport::state()` currently performs a live message-thread read of coarse transport state:
 
 ```cpp
 TransportState{
