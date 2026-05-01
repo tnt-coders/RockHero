@@ -167,7 +167,15 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::Session session;
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
-    session.addTrack("Full Mix", audio_asset);
+    const core::TrackId track_id = session.addTrack("Full Mix");
+    const bool committed = session.commitTrackAudioAsset(
+        track_id,
+        audio_asset,
+        core::TimeRange{
+            .start = core::TimePosition{},
+            .end = core::TimePosition{4.0},
+        });
+    REQUIRE(committed);
     FakeTransport transport;
     FakeEdit edit;
     FakeThumbnailFactory thumbnail_factory;
