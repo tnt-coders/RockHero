@@ -32,7 +32,7 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Validates the track id, runs the edit through the IEdit port, then commits the asset to the
+// Validates the track id, asks IEdit to load the asset, then commits the accepted clip to the
 // session. Reentrant transport callbacks during the edit window are coalesced into the single
 // post-edit push so the view never sees stale intermediate view state derived from pre-commit
 // session data.
@@ -45,9 +45,9 @@ void EditorController::onLoadAudioAssetRequested(
     }
 
     m_edit_in_progress = true;
-    const auto duration = m_edit.readAudioAssetDuration(audio_asset);
+    auto audio_clip = m_edit.loadAudioAsset(track_id, audio_asset, core::TimePosition{});
 
-    if (!duration.has_value())
+    if (!audio_clip.has_value())
     {
         m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
         m_edit_in_progress = false;
@@ -56,28 +56,8 @@ void EditorController::onLoadAudioAssetRequested(
         return;
     }
 
-    const core::TimeRange source_range{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{duration->seconds},
-    };
-    core::AudioClip audio_clip{
-        .id = core::AudioClipId{},
-        .asset = std::move(audio_asset),
-        .asset_duration = *duration,
-        .source_range = source_range,
-        .position = core::TimePosition{},
-    };
-
-    if (!m_edit.setTrackAudioClip(track_id, audio_clip))
-    {
-        m_last_load_error = std::string{"Could not load file: "} + audio_clip.asset.path.string();
-        m_edit_in_progress = false;
-        m_pending_refresh = false;
-        deriveAndPush();
-        return;
-    }
-
-    const bool session_ok = m_session.commitTrackAudioClip(track_id, std::move(audio_clip));
+    core::AudioClip accepted_clip = std::move(audio_clip).value_or(core::AudioClip{});
+    const bool session_ok = m_session.commitTrackAudioClip(track_id, std::move(accepted_clip));
     m_edit_in_progress = false;
 
     if (session_ok)
@@ -90,8 +70,8 @@ void EditorController::onLoadAudioAssetRequested(
         // surface the inconsistency rather than silently pretending the load succeeded.
         // TODO: Replace std::clog with the project logging framework once one exists.
         std::clog << "RockHero editor internal error: Session::commitTrackAudioClip failed after "
-                     "IEdit::setTrackAudioClip\n";
-        assert(false && "Session::commitTrackAudioClip failed after IEdit::setTrackAudioClip");
+                     "IEdit::loadAudioAsset\n";
+        assert(false && "Session::commitTrackAudioClip failed after IEdit::loadAudioAsset");
         m_last_load_error = std::string{"Internal error: session out of sync after audio load"};
     }
 

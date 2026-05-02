@@ -172,36 +172,46 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    // Returns the configured duration so controller tests can build requested placements.
-    std::optional<core::TimeDuration> readAudioAssetDuration(
-        const core::AudioAsset& audio_asset) const override
-    {
-        last_duration_probe_asset = audio_asset;
-        ++read_audio_asset_duration_call_count;
-        return next_audio_asset_duration;
-    }
-
-    // Records the requested clip and optionally fires an injected reentrant action before
+    // Records the requested load and optionally fires an injected reentrant action before
     // returning so reentrancy paths can be exercised deterministically.
-    bool setTrackAudioClip(core::TrackId track_id, const core::AudioClip& audio_clip) override
+    std::optional<core::AudioClip> loadAudioAsset(
+        core::TrackId track_id, const core::AudioAsset& audio_asset,
+        core::TimePosition position) override
     {
         last_track_id = track_id;
-        last_audio_clip = audio_clip;
-        ++set_track_audio_clip_call_count;
+        last_audio_asset = audio_asset;
+        last_position = position;
+        ++load_audio_asset_call_count;
         if (during_edit_action)
         {
             during_edit_action();
         }
-        return next_set_track_audio_clip_result;
+        if (!next_load_audio_asset_result || !next_audio_asset_duration.has_value())
+        {
+            return std::nullopt;
+        }
+
+        const core::TimeDuration asset_duration =
+            next_audio_asset_duration.value_or(core::TimeDuration{});
+        return core::AudioClip{
+            .id = core::AudioClipId{},
+            .asset = audio_asset,
+            .asset_duration = asset_duration,
+            .source_range =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{asset_duration.seconds},
+                },
+            .position = position,
+        };
     }
 
     std::optional<core::TimeDuration> next_audio_asset_duration{core::TimeDuration{4.0}};
-    bool next_set_track_audio_clip_result{true};
-    mutable int read_audio_asset_duration_call_count{0};
-    int set_track_audio_clip_call_count{0};
+    bool next_load_audio_asset_result{true};
+    int load_audio_asset_call_count{0};
     std::optional<core::TrackId> last_track_id{};
-    mutable std::optional<core::AudioAsset> last_duration_probe_asset{};
-    std::optional<core::AudioClip> last_audio_clip{};
+    std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<core::TimePosition> last_position{};
     std::function<void()> during_edit_action{};
 };
 
@@ -727,12 +737,11 @@ TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][
     controller.onLoadAudioAssetRequested(
         unknown_id, core::AudioAsset{std::filesystem::path{"b.wav"}});
 
-    CHECK(edit.read_audio_asset_duration_call_count == 0);
-    CHECK(edit.set_track_audio_clip_call_count == 0);
+    CHECK(edit.load_audio_asset_call_count == 0);
     CHECK(view.set_state_call_count == 1);
 }
 
-// A failed IEdit call must leave the session unchanged and surface a controller-composed error
+// A failed audio load must leave the session unchanged and surface a controller-composed error
 // message that includes the rejected file path.
 TEST_CASE(
     "EditorController failed load preserves session and reports error", "[ui][editor-controller]")
@@ -743,7 +752,7 @@ TEST_CASE(
         addLoadedTrack(session, "Full Mix", std::filesystem::path{"old.wav"}, original_range);
     FakeTransport transport;
     FakeEdit edit;
-    edit.next_set_track_audio_clip_result = false;
+    edit.next_load_audio_asset_result = false;
     EditorController controller{session, transport, edit};
     FakeEditorView view;
     controller.attachView(view);
@@ -767,7 +776,7 @@ TEST_CASE(
     }
 }
 
-// A successful IEdit call commits the asset and timeline, clears any prior error, and emits one
+// A successful audio load commits the asset and timeline, clears any prior error, and emits one
 // post-load push.
 TEST_CASE("EditorController successful load commits asset and timeline", "[ui][editor-controller]")
 {
@@ -794,13 +803,10 @@ TEST_CASE("EditorController successful load commits asset and timeline", "[ui][e
     const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
-    CHECK(edit.read_audio_asset_duration_call_count == 2);
-    CHECK(edit.set_track_audio_clip_call_count == 1);
-    CHECK(edit.last_duration_probe_asset == std::optional<core::AudioAsset>{replacement});
-    CHECK(
-        edit.last_audio_clip ==
-        std::optional<core::AudioClip>{makeAudioClip(
-            core::AudioClipId{}, replacement.path, loadedTimelineRange(4.0))});
+    CHECK(edit.load_audio_asset_call_count == 2);
+    CHECK(edit.last_track_id == std::optional<core::TrackId>{track_id});
+    CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{replacement});
+    CHECK(edit.last_position == std::optional<core::TimePosition>{core::TimePosition{}});
     CHECK(
         findTrackAudioClip(session, track_id) ==
         std::optional<core::AudioClip>{makeAudioClip(
@@ -860,7 +866,7 @@ TEST_CASE(
         addLoadedTrack(session, "Full Mix", std::filesystem::path{"old.wav"});
     FakeTransport transport;
     FakeEdit edit;
-    edit.next_set_track_audio_clip_result = false;
+    edit.next_load_audio_asset_result = false;
     EditorController controller{session, transport, edit};
     FakeEditorView view;
     controller.attachView(view);

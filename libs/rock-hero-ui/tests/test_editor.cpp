@@ -73,23 +73,29 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    std::optional<core::TimeDuration> readAudioAssetDuration(
-        const core::AudioAsset& audio_asset) const override
-    {
-        last_audio_asset = audio_asset;
-        return core::TimeDuration{8.0};
-    }
-
-    bool setTrackAudioClip(core::TrackId track_id, const core::AudioClip& audio_clip) override
+    std::optional<core::AudioClip> loadAudioAsset(
+        core::TrackId track_id, const core::AudioAsset& audio_asset,
+        core::TimePosition position) override
     {
         last_track_id = track_id;
-        last_audio_clip = audio_clip;
-        return true;
+        last_audio_asset = audio_asset;
+        last_position = position;
+        return core::AudioClip{
+            .id = core::AudioClipId{},
+            .asset = audio_asset,
+            .asset_duration = core::TimeDuration{8.0},
+            .source_range =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{8.0},
+                },
+            .position = position,
+        };
     }
 
     std::optional<core::TrackId> last_track_id{};
-    mutable std::optional<core::AudioAsset> last_audio_asset{};
-    std::optional<core::AudioClip> last_audio_clip{};
+    std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<core::TimePosition> last_position{};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.

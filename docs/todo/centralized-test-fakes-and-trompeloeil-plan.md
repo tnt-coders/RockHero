@@ -422,14 +422,16 @@ Extract the edit fake from:
 
 The shared fake should support:
 
-- configured `next_timeline_range`
+- configured `next_audio_asset_duration`
+- configured `next_load_audio_asset_result`
 - recorded `last_track_id`
 - recorded `last_audio_asset`
-- `set_track_audio_source_call_count`
+- recorded `last_position`
+- `load_audio_asset_call_count`
 - optional `during_edit_action` callback for reentrant transport notification tests
 
 This fake is stateful and useful. It should remain a fake, not a Trompeloeil mock, for tests that
-need to simulate accepted/rejected backend edits.
+need to simulate accepted/rejected backend loads.
 
 ### `FakeThumbnail` and `FakeThumbnailFactory`
 
@@ -569,7 +571,7 @@ Do not use Trompeloeil for tests that are better expressed as state/output check
 
 Do not force these conversions, but these are plausible first candidates:
 
-- Verify an invalid editor load request never calls `IEdit::setTrackAudioSource()`.
+- Verify an invalid editor load request never calls `IEdit::loadAudioAsset()`.
 - Verify a failed backend edit does not commit session state and does not issue unrelated
   transport commands.
 - Verify listener registration lifetimes if a future class must add/remove an exact listener
