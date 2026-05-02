@@ -16,13 +16,13 @@ namespace rock_hero::audio
 /*!
 \brief Project-owned facade over the concrete Tracktion edit model.
 
-This interface represents undoable-style audio mutation, not transport control. Implementations may
+This interface represents audio edit-model mutation, not transport control. Implementations may
 update their paired transport state while applying an edit, but callers must use ITransport for
 playback, position, and listener behavior.
 
 The first concrete implementation is intentionally minimal and still single-track-applied. Only the
-most recently set track clip is required to behave correctly. Setting audio on a second track id is
-unspecified until stem playback semantics are implemented.
+most recently loaded track clip is required to behave correctly. Loading audio on a second track id
+may be rejected until stem playback semantics are implemented.
 */
 class IEdit
 {
@@ -31,31 +31,22 @@ public:
     virtual ~IEdit() = default;
 
     /*!
-    \brief Reads the natural duration of an audio asset.
+    \brief Loads an audio asset and returns the backend-accepted clip.
 
-    This probe lets core/editor code create the requested clip before asking the
-    playback backend to apply it.
-
-    \param audio_asset Framework-free audio asset to inspect.
-    \return Natural duration of the asset when it can be read; std::nullopt otherwise.
-    */
-    [[nodiscard]] virtual std::optional<core::TimeDuration> readAudioAssetDuration(
-        const core::AudioAsset& audio_asset) const = 0;
-
-    /*!
-    \brief Sets one session track to the requested audio clip in the playback backend.
-
-    The requested clip already contains the source range and timeline placement owned by core
-    session/editor state. Implementations should either apply that clip or reject it without
-    mutating the durable Session model.
+    Implementations inspect the asset, build the default full-source clip at the requested timeline
+    position, apply it to the playback backend, and return the accepted framework-free clip value.
+    The returned clip keeps an invalid AudioClipId because Session assigns durable clip identity
+    when it commits the accepted edit.
 
     \param track_id Track whose audio clip should be updated.
-    \param audio_clip Framework-free clip with requested source range and session placement.
-    \return True when the backend accepted the requested clip; false otherwise.
-    \note Current playback semantics still apply the most recently set track clip only.
+    \param audio_asset Framework-free audio asset to load.
+    \param position Requested start position on the session timeline.
+    \return Accepted clip when the backend loaded the asset; std::nullopt otherwise.
+    \note Current playback semantics still apply the most recently loaded track clip only.
     */
-    [[nodiscard]] virtual bool setTrackAudioClip(
-        core::TrackId track_id, const core::AudioClip& audio_clip) = 0;
+    [[nodiscard]] virtual std::optional<core::AudioClip> loadAudioAsset(
+        core::TrackId track_id, const core::AudioAsset& audio_asset,
+        core::TimePosition position) = 0;
 
     // TODO: Expand this surface with project-owned clip and track edit commands when the editor
     // gains real timeline authoring behavior instead of the current single-file workflow.
