@@ -111,26 +111,21 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Reads the natural duration of a framework-free audio asset.
-
-    \param audio_asset Framework-free asset reference to inspect.
-    \return Natural duration when the asset can be read; std::nullopt otherwise.
-    */
-    [[nodiscard]] std::optional<core::TimeDuration> readAudioAssetDuration(
-        const core::AudioAsset& audio_asset) const override;
-
-    /*!
-    \brief Applies a framework-free audio clip to the current single-track playback edit.
+    \brief Loads a framework-free audio asset into the current single-track playback edit.
 
     This is the first concrete implementation of audio::IEdit. It adapts the existing single-file
-    playback path and therefore still applies only one backing-track clip at a time.
+    playback path and therefore binds the single Tracktion audio track to the first successfully
+    loaded track id. Later loads for a different track id are rejected until multi-track playback
+    exists.
 
     \param track_id Track whose clip should be updated.
-    \param audio_clip Framework-free clip with requested source range and session placement.
-    \return True when the playback backend accepted the requested clip.
+    \param audio_asset Framework-free asset reference to load.
+    \param position Requested start position on the session timeline.
+    \return Accepted clip when the playback backend loaded the asset.
     */
-    [[nodiscard]] bool setTrackAudioClip(
-        core::TrackId track_id, const core::AudioClip& audio_clip) override;
+    [[nodiscard]] std::optional<core::AudioClip> loadAudioAsset(
+        core::TrackId track_id, const core::AudioAsset& audio_asset,
+        core::TimePosition position) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.
@@ -144,9 +139,6 @@ public:
     [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override;
 
 private:
-    // Loads an audio file onto track 0 using the requested source and timeline ranges.
-    [[nodiscard]] bool loadFile(const juce::File& file, const core::AudioClip& audio_clip);
-
     // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;
 
