@@ -150,6 +150,22 @@ TEST_CASE("Engine edit rejects invalid track ids", "[audio][engine][integration]
     CHECK_FALSE(audio_clip.has_value());
 }
 
+// Verifies the single Tracktion track binds to whichever valid project track loads first.
+// TODO: Remove this test when Engine supports loading multiple project tracks independently.
+TEST_CASE("Engine edit binds whichever valid track id loads first", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IEdit& edit = engine;
+
+    const auto first_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{2});
+    REQUIRE(first_clip.has_value());
+
+    const auto other_track_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{1});
+
+    CHECK_FALSE(other_track_clip.has_value());
+}
+
 // Verifies the single Tracktion track can replace audio for its bound project track id.
 TEST_CASE("Engine edit replaces audio for the bound track id", "[audio][engine][integration]")
 {
@@ -165,6 +181,7 @@ TEST_CASE("Engine edit replaces audio for the bound track id", "[audio][engine][
 }
 
 // Verifies the one-track adapter does not pretend to support independent session tracks.
+// TODO: Remove this test when Engine supports loading multiple project tracks independently.
 TEST_CASE("Engine edit rejects a different track id after binding", "[audio][engine][integration]")
 {
     EngineTestHarness harness;

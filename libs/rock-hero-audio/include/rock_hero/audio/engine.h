@@ -33,8 +33,9 @@ All other code depends on the project-owned audio interfaces rather than on Trac
 This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files
 include Tracktion headers.
 
-Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
-must be called on the message thread.
+Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
+intentionally exposes only one loadable Tracktion audio track even though core::Session can model
+multiple tracks. All public methods must be called on the message thread.
 
 \see rock_hero::MainWindow
 */
@@ -114,8 +115,8 @@ public:
     \brief Loads a framework-free audio asset into the current single-track playback edit.
 
     This is the first concrete implementation of audio::IEdit. It adapts the existing single-file
-    playback path and therefore binds the single Tracktion audio track to the first successfully
-    loaded track id. Later loads for a different track id are rejected until multi-track playback
+    playback path and therefore binds the single Tracktion audio track to whichever valid track id
+    loads first. Later loads for a different track id are rejected until multi-track playback
     exists.
 
     \param track_id Track whose clip should be updated.

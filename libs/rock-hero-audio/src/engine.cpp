@@ -92,7 +92,8 @@ private:
         return std::clamp(seconds, 0.0, m_loaded_length_seconds);
     }
 
-    // The current adapter can only represent one project track in Tracktion.
+    // The current adapter can represent exactly one project track in Tracktion. The first valid
+    // successful load chooses that project track; later loads must use the same TrackId.
     [[nodiscard]] bool canLoadTrack(core::TrackId track_id) const noexcept
     {
         if (!track_id.isValid())
