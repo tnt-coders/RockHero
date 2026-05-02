@@ -19,9 +19,9 @@ The project currently has the right transitional shape:
 
 - `Track` stores `std::optional<AudioClip> audio_clip`.
 - `AudioClip` has a stable `AudioClipId`, but callers construct clips with an invalid id.
-- `Session::commitTrackAudioClip` assigns the id and stores the backend-accepted clip.
-- There is an explicit TODO near the session storage saying single-clip replacement should become
-  add/remove/move commands later.
+- `Session::setAudioClip` assigns the id and stores the backend-accepted clip.
+- There is an explicit TODO near `setAudioClip` saying it should become `addAudioClip` and
+  `removeAudioClip` once the project supports more than one clip per track.
 
 That is intentionally honest while the editor supports only one clip per track. Moving directly to
 `std::vector<AudioClip>` without the command API would make the data model imply multi-clip support
@@ -54,10 +54,10 @@ The ordering rule should be:
 Prefer command-shaped `Session` methods that make identity and failure visible:
 
 ```cpp
-std::optional<AudioClipId> commitTrackAudioClip(TrackId track_id, AudioClip audio_clip);
-bool removeTrackAudioClip(TrackId track_id, AudioClipId clip_id);
-bool moveTrackAudioClip(TrackId track_id, AudioClipId clip_id, TimePosition new_position);
-bool trimTrackAudioClip(TrackId track_id, AudioClipId clip_id, TimeRange new_source_range);
+std::optional<AudioClipId> addAudioClip(TrackId track_id, AudioClip audio_clip);
+bool removeAudioClip(TrackId track_id, AudioClipId clip_id);
+bool moveAudioClip(TrackId track_id, AudioClipId clip_id, TimePosition new_position);
+bool trimAudioClip(TrackId track_id, AudioClipId clip_id, TimeRange new_source_range);
 ```
 
 The add operation should return the session-assigned `AudioClipId`. Remove/move/trim can return
@@ -117,7 +117,8 @@ inside `rock-hero-audio`, but the public coordination layer should still expose 
    - Keep one loaded clip in the UI until the editor grows multi-clip controls.
 
 3. Update `Session` commands.
-   - Change `commitTrackAudioClip` to append and return `std::optional<AudioClipId>`.
+   - Replace `setAudioClip` with `addAudioClip` returning `std::optional<AudioClipId>`.
+   - Add `removeAudioClip` for deleting clips by id.
    - Add internal helpers for finding clips by id.
    - Recalculate the project timeline from all clips.
    - Keep `tracks()` read-only.
@@ -132,7 +133,7 @@ inside `rock-hero-audio`, but the public coordination layer should still expose 
    - Verify a load command receives the assigned clip id.
    - Verify failed backend edits do not mutate session state.
    - Verify play/stop enabledness works when any track has at least one clip.
-   - Verify visible timeline duration comes from all committed clips.
+   - Verify visible timeline duration comes from all stored clips.
 
 ## Open Design Decisions
 
@@ -155,8 +156,8 @@ model, mutation API, and invariants aligned.
 The safest first feature slice is:
 
 - `Track::audio_clips` as `std::vector<AudioClip>`.
-- `Session::commitTrackAudioClip` appends one backend-accepted clip and returns its id.
-- `Session::removeTrackAudioClip` removes by id.
+- `Session::addAudioClip` appends one backend-accepted clip and returns its id.
+- `Session::removeAudioClip` removes by id.
 - Timeline calculation covers all clips.
 - UI still behaves as a single loaded backing-track workflow by using the first or only clip until
   dedicated multi-clip editor controls exist.

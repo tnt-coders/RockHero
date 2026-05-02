@@ -35,10 +35,12 @@ Key conclusions:
 - `TimeRange` is the right shared value concept for simple start/end ranges. A broad `ITimeline`
   interface is not justified yet just to expose start and end values.
 - `Session` is now the correct owner for editable track state and project timeline state.
-- `Track` reads are exposed as const views. All mutation goes through `Session` methods so callers
-  cannot directly put durable session state out of sync with the playback backend.
-- `Session::commitTrackAudioClip` is intentionally named as a commit operation because it should
-  only store a clip after the backend has accepted the corresponding audio edit.
+- `Track` reads are exposed as const views. All mutation goes through `Session` methods, which
+  centralizes model updates but does not yet fully enforce backend/session synchronization.
+- `Session::setAudioClip` is the current temporary single-clip setter. Editor orchestration should
+  call it only after the backend has accepted the corresponding audio edit.
+- `setAudioClip` has an explicit TODO to replace it with `addAudioClip` and `removeAudioClip` once
+  the project supports more than one clip per track.
 - `AudioClip` now models the long-term direction better than the older asset-only shape:
   - `id`
   - `asset`
@@ -149,7 +151,7 @@ boundary problems:
 - Session track mutation was too easy to bypass.
 - Updating session state and updating the backend were not clearly enforced as one coordinated
   workflow.
-- The controller could risk committing core state independently from backend acceptance.
+- The controller could risk updating core state independently from backend acceptance.
 - Track audio source modeling was too asset-centric for the eventual clip/timeline design.
 
 Short-term mitigation now in code:
@@ -157,18 +159,18 @@ Short-term mitigation now in code:
 - `Session::tracks()` returns a const vector reference.
 - `Session::findTrack()` returns a const pointer.
 - Mutable track lookup is internal to `Session`.
-- `Session::commitTrackAudioClip()` assigns clip ids and recomputes the session timeline.
+- `Session::setAudioClip()` assigns clip ids and recomputes the session timeline.
 - `IEdit::loadAudioAsset()` asks the playback backend to inspect and load an asset, then return the
   accepted `AudioClip`.
-- The durable session model is committed only after backend acceptance.
+- The durable session model is updated only after backend acceptance.
 
 Long-term requirement:
 
-- A clearer commit-style API alone is not enough. The eventual design should provide a
+- A clearer setter alone is not enough. The eventual design should provide a
   compiler-enforced boundary that prevents code from accidentally placing the session model and
   playback backend out of sync.
 - A future editor command/use-case layer should likely coordinate validation, backend mutation, and
-  session commit as one operation.
+  session update as one operation.
 
 Relevant follow-up doc:
 
@@ -195,9 +197,9 @@ When resuming:
 Suggested expert-level quiz questions for `IEdit`:
 
 - Why is `loadAudioAsset()` on the audio edit port instead of on `Session` or `Track`?
-- Why does `loadAudioAsset()` return a framework-free clip instead of committing directly to
+- Why does `loadAudioAsset()` return a framework-free clip instead of writing directly to
   `Session`?
-- What invariant is protected by committing the clip to `Session` only after the backend accepts it?
+- What invariant is protected by updating the clip in `Session` only after the backend accepts it?
 - Why is `std::optional<core::AudioClip>` acceptable for the current backend mutation result, and
   what concrete requirement would push this toward `std::expected<..., Error>`?
 - Why is the current single-track-applied note important for callers and tests?

@@ -84,7 +84,7 @@ public:
     \brief Handles a request to assign an audio asset to one track.
 
     The request is ignored when the track id does not exist in the session. On a successful edit,
-    the controller commits the accepted clip to the session and clears any active load error. On a
+    the controller stores the accepted clip in the session and clears any active load error. On a
     failed edit, the session is preserved and a controller-composed error is published. Reentrant
     transport notifications received during the edit are coalesced into a single final post-load
     push.
@@ -142,7 +142,7 @@ private:
     // Transport port used for control intents and coarse listener delivery.
     audio::ITransport& m_transport;
 
-    // Edit port used to load audio assets before committing accepted clips to the session.
+    // Edit port used to load audio assets before storing accepted clips in the session.
     audio::IEdit& m_edit;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.

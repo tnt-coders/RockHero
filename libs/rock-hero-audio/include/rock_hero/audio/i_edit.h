@@ -36,7 +36,7 @@ public:
     Implementations inspect the asset, build the default full-source clip at the requested timeline
     position, apply it to the playback backend, and return the accepted framework-free clip value.
     The returned clip keeps an invalid AudioClipId because Session assigns durable clip identity
-    when it commits the accepted edit.
+    when it stores the accepted clip.
 
     \param track_id Track whose audio clip should be updated.
     \param audio_asset Framework-free audio asset to load.
