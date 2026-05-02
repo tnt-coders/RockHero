@@ -3,6 +3,7 @@
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/audio/engine.h>
 
 namespace rock_hero::audio
@@ -28,27 +29,30 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     return core::AudioAsset{fixtureAudioPath()};
 }
 
-// Builds the audio clip that current single-file playback accepts for a fixture asset.
-[[nodiscard]] core::AudioClip fixtureAudioClip(IEdit& edit)
+// Loads the fixture for a specific project track through the public edit port.
+[[nodiscard]] std::optional<core::AudioClip> loadFixtureAudioClipForTrack(
+    IEdit& edit, core::TrackId track_id, core::TimePosition position = core::TimePosition{})
 {
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    const auto duration = edit.readAudioAssetDuration(audio_asset);
-    const core::TimeDuration asset_duration = duration.value_or(core::TimeDuration{});
-    REQUIRE(asset_duration.seconds > 0.0);
+    return edit.loadAudioAsset(track_id, audio_asset, position);
+}
 
-    return core::AudioClip{
-        .id = core::AudioClipId{},
-        .asset = audio_asset,
-        .asset_duration = asset_duration,
-        .source_range =
-            core::TimeRange{
-                .start = core::TimePosition{},
-                .end = core::TimePosition{asset_duration.seconds},
-            },
-        .position = core::TimePosition{},
-    };
+// Loads the fixture through the public edit port and returns the accepted clip.
+[[nodiscard]] std::optional<core::AudioClip> loadFixtureAudioClip(
+    IEdit& edit, core::TimePosition position = core::TimePosition{})
+{
+    return loadFixtureAudioClipForTrack(edit, core::TrackId{1}, position);
+}
+
+// Loads the fixture and fails the current test if the concrete backend rejects it.
+[[nodiscard]] core::AudioClip requireLoadedFixtureAudioClip(
+    IEdit& edit, core::TimePosition position = core::TimePosition{})
+{
+    auto audio_clip = loadFixtureAudioClip(edit, position);
+    REQUIRE(audio_clip.has_value());
+    return audio_clip.value_or(core::AudioClip{});
 }
 
 // Records callback activity from the project-owned transport listener surface.
@@ -91,44 +95,88 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
     CHECK(transport.position() == core::TimePosition{});
 }
 
-// Verifies duration probing reads metadata without mutating transport state.
-TEST_CASE("Engine edit probes audio duration synchronously", "[audio][engine][integration]")
-{
-    const EngineTestHarness harness;
-    const Engine& engine = harness.engine;
-    const IEdit& edit = engine;
-    ITransport const& transport = engine;
-
-    const auto audio_asset = fixtureAudioAsset();
-    REQUIRE(std::filesystem::exists(audio_asset.path));
-
-    const auto duration = edit.readAudioAssetDuration(audio_asset);
-    const core::TimeDuration asset_duration = duration.value_or(core::TimeDuration{});
-
-    REQUIRE(duration.has_value());
-    CHECK(asset_duration.seconds > 0.0);
-    const auto current_state = transport.state();
-    CHECK_FALSE(current_state.playing);
-    CHECK(transport.position() == core::TimePosition{});
-}
-
-// Verifies edit-driven clip replacement accepts the requested source range and placement.
-TEST_CASE("Engine edit accepts requested clip synchronously", "[audio][engine][integration]")
+// Verifies asset loading returns a framework-free clip while leaving transport stopped.
+TEST_CASE("Engine edit loads audio asset synchronously", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
     IEdit& edit = engine;
     ITransport const& transport = engine;
 
-    const auto audio_clip = fixtureAudioClip(edit);
+    const auto audio_asset = fixtureAudioAsset();
+    REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    const bool applied = edit.setTrackAudioClip(core::TrackId{1}, audio_clip);
+    const auto audio_clip =
+        edit.loadAudioAsset(core::TrackId{1}, audio_asset, core::TimePosition{});
 
-    CHECK(applied);
+    const core::AudioClip accepted_clip = audio_clip.value_or(core::AudioClip{});
+    REQUIRE(audio_clip.has_value());
+    CHECK(accepted_clip.id == core::AudioClipId{});
+    CHECK(accepted_clip.asset == audio_asset);
+    CHECK(accepted_clip.asset_duration.seconds > 0.0);
+    CHECK(accepted_clip.source_range.duration() == accepted_clip.asset_duration);
+    CHECK(accepted_clip.position == core::TimePosition{});
+    const auto current_state = transport.state();
+    CHECK_FALSE(current_state.playing);
+    CHECK(transport.position() == core::TimePosition{});
+}
+
+// Verifies unsupported nonzero placement is rejected by the current single-file backend.
+TEST_CASE("Engine edit rejects nonzero clip placement", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IEdit& edit = engine;
+    ITransport const& transport = engine;
+
+    const auto audio_clip = loadFixtureAudioClip(edit, core::TimePosition{1.0});
+
+    CHECK_FALSE(audio_clip.has_value());
 
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});
+}
+
+// Verifies the single-track adapter rejects invalid project track identities.
+TEST_CASE("Engine edit rejects invalid track ids", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IEdit& edit = engine;
+
+    const auto audio_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{});
+
+    CHECK_FALSE(audio_clip.has_value());
+}
+
+// Verifies the single Tracktion track can replace audio for its bound project track id.
+TEST_CASE("Engine edit replaces audio for the bound track id", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IEdit& edit = engine;
+
+    const auto first_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{1});
+    const auto replacement_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{1});
+
+    CHECK(first_clip.has_value());
+    CHECK(replacement_clip.has_value());
+}
+
+// Verifies the one-track adapter does not pretend to support independent session tracks.
+TEST_CASE("Engine edit rejects a different track id after binding", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IEdit& edit = engine;
+
+    const auto first_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{1});
+    REQUIRE(first_clip.has_value());
+
+    const auto second_track_clip = loadFixtureAudioClipForTrack(edit, core::TrackId{2});
+
+    CHECK_FALSE(second_track_clip.has_value());
 }
 
 // Verifies a failed edit request leaves the previous transport state visible through state().
@@ -139,21 +187,17 @@ TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engi
     IEdit& edit = engine;
     ITransport const& transport = engine;
 
-    const auto audio_clip = fixtureAudioClip(edit);
-    REQUIRE(edit.setTrackAudioClip(core::TrackId{1}, audio_clip));
+    [[maybe_unused]] const auto audio_clip = requireLoadedFixtureAudioClip(edit);
 
     const auto loaded_state = transport.state();
-    const core::AudioClip missing_clip{
-        .id = core::AudioClipId{},
-        .asset = core::AudioAsset{audio_clip.asset.path.parent_path() / "missing.wav"},
-        .asset_duration = audio_clip.asset_duration,
-        .source_range = audio_clip.source_range,
-        .position = audio_clip.position,
+    const core::AudioAsset missing_asset{
+        fixtureAudioPath().parent_path() / "missing.wav",
     };
 
-    const bool applied = edit.setTrackAudioClip(core::TrackId{1}, missing_clip);
+    const auto loaded_clip =
+        edit.loadAudioAsset(core::TrackId{1}, missing_asset, core::TimePosition{});
 
-    CHECK_FALSE(applied);
+    CHECK_FALSE(loaded_clip.has_value());
     CHECK(transport.state() == loaded_state);
 }
 
@@ -165,8 +209,7 @@ TEST_CASE("Engine seek updates live transport position", "[audio][engine][integr
     IEdit& edit = engine;
     ITransport& transport = engine;
 
-    const auto audio_clip = fixtureAudioClip(edit);
-    REQUIRE(edit.setTrackAudioClip(core::TrackId{1}, audio_clip));
+    const auto audio_clip = requireLoadedFixtureAudioClip(edit);
 
     const auto loaded_state = transport.state();
     const double duration_seconds = audio_clip.timelineRange().duration().seconds;
@@ -188,8 +231,7 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
 
-    const auto audio_clip = fixtureAudioClip(edit);
-    REQUIRE(edit.setTrackAudioClip(core::TrackId{1}, audio_clip));
+    const auto audio_clip = requireLoadedFixtureAudioClip(edit);
 
     const double duration_seconds = audio_clip.timelineRange().duration().seconds;
     REQUIRE(duration_seconds > 0.0);
@@ -213,12 +255,11 @@ TEST_CASE(
 
     transport.addListener(recorder);
 
-    const auto audio_clip = fixtureAudioClip(edit);
+    const auto audio_clip = loadFixtureAudioClip(edit);
 
-    const bool applied = edit.setTrackAudioClip(core::TrackId{1}, audio_clip);
-
-    REQUIRE(applied);
-    CHECK(audio_clip.timelineRange().duration().seconds > 0.0);
+    const core::AudioClip accepted_clip = audio_clip.value_or(core::AudioClip{});
+    REQUIRE(audio_clip.has_value());
+    CHECK(accepted_clip.timelineRange().duration().seconds > 0.0);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(recorder.last_transport_state == TransportState{});
 
@@ -233,8 +274,7 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     IEdit& edit = engine;
     ITransport& transport = engine;
 
-    const auto audio_clip = fixtureAudioClip(edit);
-    REQUIRE(edit.setTrackAudioClip(core::TrackId{1}, audio_clip));
+    const auto audio_clip = requireLoadedFixtureAudioClip(edit);
 
     const double duration_seconds = audio_clip.timelineRange().duration().seconds;
     REQUIRE(duration_seconds > 0.0);
@@ -267,21 +307,11 @@ TEST_CASE(
 
     const auto missing_asset =
         core::AudioAsset{fixtureAudioPath().parent_path() / "definitely-missing.wav"};
-    const core::AudioClip missing_clip{
-        .id = core::AudioClipId{},
-        .asset = missing_asset,
-        .asset_duration = core::TimeDuration{4.0},
-        .source_range =
-            core::TimeRange{
-                .start = core::TimePosition{},
-                .end = core::TimePosition{4.0},
-            },
-        .position = core::TimePosition{},
-    };
 
-    const bool applied = edit.setTrackAudioClip(core::TrackId{1}, missing_clip);
+    const auto loaded_clip =
+        edit.loadAudioAsset(core::TrackId{1}, missing_asset, core::TimePosition{});
 
-    CHECK_FALSE(applied);
+    CHECK_FALSE(loaded_clip.has_value());
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(transport.state() == TransportState{});
 
