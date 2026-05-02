@@ -13,6 +13,9 @@ clips without letting callers put the session and audio backend out of sync.
 The main design constraint is that `rock-hero-core` remains framework-free. Tracktion and JUCE
 details stay in `rock-hero-audio`; core owns only the project model and pure rules.
 
+This plan is about multiple clips on one project track. Independent Tracktion playback for
+multiple project tracks is tracked separately in `docs/todo/audio-engine-multi-track-support.md`.
+
 ## Current State
 
 The project currently has the right transitional shape:

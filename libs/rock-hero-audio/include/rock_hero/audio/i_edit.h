@@ -20,9 +20,10 @@ This interface represents audio edit-model mutation, not transport control. Impl
 update their paired transport state while applying an edit, but callers must use ITransport for
 playback, position, and listener behavior.
 
-The first concrete implementation is intentionally minimal and still single-track-applied. Only the
-most recently loaded track clip is required to behave correctly. Loading audio on a second track id
-may be rejected until stem playback semantics are implemented.
+Concrete adapters may support fewer playback tracks than core::Session can model. The current
+Tracktion-backed implementation is intentionally minimal and accepts only one bound project track.
+Unsupported track loads are reported as std::nullopt rather than pretending that independent
+backend playback exists.
 */
 class IEdit
 {
