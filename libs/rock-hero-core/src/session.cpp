@@ -17,7 +17,7 @@ template <typename Tracks> [[nodiscard]] auto findTrackById(Tracks& tracks, Trac
     return position == tracks.end() ? nullptr : std::to_address(position);
 }
 
-// Derives the project timeline from committed clips instead of from backend internals.
+// Derives the project timeline from stored clips instead of from backend internals.
 [[nodiscard]] TimeRange calculateTimeline(const std::vector<Track>& tracks) noexcept
 {
     TimeRange timeline{};
@@ -88,8 +88,8 @@ bool Session::renameTrack(TrackId id, std::string name)
     return true;
 }
 
-// Commits backend-accepted audio content and refreshes the aggregate session timeline.
-bool Session::commitTrackAudioClip(TrackId id, AudioClip audio_clip)
+// Stores the current single clip for a track and refreshes the aggregate session timeline.
+bool Session::setAudioClip(TrackId id, AudioClip audio_clip)
 {
     auto* track = findTrackById(m_tracks, id);
     if (track == nullptr)

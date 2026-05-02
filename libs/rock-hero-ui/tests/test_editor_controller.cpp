@@ -237,15 +237,15 @@ public:
     };
 }
 
-// Adds one session track and commits backend-accepted content so timeline invariants are explicit.
+// Adds one session track and stores backend-accepted content so timeline invariants are explicit.
 core::TrackId addLoadedTrack(
     core::Session& session, std::string name, std::filesystem::path path,
     core::TimeRange timeline_range = loadedTimelineRange())
 {
     const core::TrackId track_id = session.addTrack(std::move(name));
-    const bool committed = session.commitTrackAudioClip(
+    const bool clip_set = session.setAudioClip(
         track_id, makeAudioClip(core::AudioClipId{}, std::move(path), timeline_range));
-    REQUIRE(committed);
+    REQUIRE(clip_set);
     return track_id;
 }
 
@@ -776,9 +776,9 @@ TEST_CASE(
     }
 }
 
-// A successful audio load commits the asset and timeline, clears any prior error, and emits one
+// A successful audio load stores the asset and timeline, clears any prior error, and emits one
 // post-load push.
-TEST_CASE("EditorController successful load commits asset and timeline", "[ui][editor-controller]")
+TEST_CASE("EditorController successful load stores asset and timeline", "[ui][editor-controller]")
 {
     core::Session session;
     const core::TrackId track_id = session.addTrack("Full Mix");
@@ -821,7 +821,7 @@ TEST_CASE("EditorController successful load commits asset and timeline", "[ui][e
 }
 
 // Reentrant transport notifications during an in-flight edit must be coalesced into a single
-// final push so the view never observes a view state derived from pre-commit session data.
+// final push so the view never observes a view state derived from stale session data.
 TEST_CASE(
     "EditorController coalesces reentrant edit callbacks into one push", "[ui][editor-controller]")
 {
