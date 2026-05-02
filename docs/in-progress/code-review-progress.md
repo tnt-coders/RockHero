@@ -29,9 +29,9 @@ Key conclusions:
   accidentally passing a duration where an absolute position is expected, and vice versa.
 - Timeline equality is intentionally exact. Tolerance-based comparisons should be explicit at the
   algorithm call site instead of hidden inside `operator==`.
-- `TimePosition` and `TimeDuration` use manual equality with `std::is_eq(lhs.seconds <=> rhs.seconds)`
-  to preserve exact floating-point equality semantics while avoiding `-Wfloat-equal` under the
-  shared warnings-as-errors policy.
+- `TimePosition` and `TimeDuration` use manual equality with
+  `std::is_eq(lhs.seconds <=> rhs.seconds)` to preserve exact floating-point equality semantics
+  while avoiding `-Wfloat-equal` under the shared warnings-as-errors policy.
 - `TimeRange` is the right shared value concept for simple start/end ranges. A broad `ITimeline`
   interface is not justified yet just to expose start and end values.
 - `Session` is now the correct owner for editable track state and project timeline state.
@@ -41,6 +41,9 @@ Key conclusions:
   call it only after the backend has accepted the corresponding audio edit.
 - `setAudioClip` has an explicit TODO to replace it with `addAudioClip` and `removeAudioClip` once
   the project supports more than one clip per track.
+- `Session` may contain multiple tracks even though the current `audio::Engine` adapter supports
+  only one loadable playback track. This is a temporary adapter limitation, not a core model
+  limitation.
 - `AudioClip` now models the long-term direction better than the older asset-only shape:
   - `id`
   - `asset`
@@ -53,6 +56,7 @@ Key conclusions:
 Relevant follow-up docs:
 
 - `docs/todo/multiple-audio-clips-plan.md`
+- `docs/todo/audio-engine-multi-track-support.md`
 - `docs/todo/thread-safe-transport-readback.md`
 
 ### Test Framework Direction
@@ -162,6 +166,8 @@ Short-term mitigation now in code:
 - `Session::setAudioClip()` assigns clip ids and recomputes the session timeline.
 - `IEdit::loadAudioAsset()` asks the playback backend to inspect and load an asset, then return the
   accepted `AudioClip`.
+- The current `Engine` implementation binds whichever valid `TrackId` loads first and rejects
+  loads for different track ids until real multi-track playback support exists.
 - The durable session model is updated only after backend acceptance.
 
 Long-term requirement:
@@ -175,6 +181,7 @@ Long-term requirement:
 Relevant follow-up doc:
 
 - `docs/todo/multiple-audio-clips-plan.md`
+- `docs/todo/audio-engine-multi-track-support.md`
 
 ## Current Position In The Walkthrough
 
