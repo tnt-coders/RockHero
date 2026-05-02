@@ -12,7 +12,7 @@ namespace rock_hero::core
 namespace
 {
 
-// Bundles a fixture path with the source range and timeline position Session commits as one clip.
+// Bundles a fixture path with the source range and timeline position Session stores as one clip.
 AudioClip makeAudioClip(
     std::filesystem::path path, TimeRange source_range = {}, TimePosition position = {})
 {
@@ -25,22 +25,22 @@ AudioClip makeAudioClip(
     };
 }
 
-// Returns a copy with the session-assigned id expected after commit.
+// Returns a copy with the session-assigned id expected after storage.
 [[nodiscard]] AudioClip withClipId(AudioClip audio_clip, AudioClipId id)
 {
     audio_clip.id = id;
     return audio_clip;
 }
 
-// Creates a track through Session and commits the clip through the backend-accepted commit path.
-TrackId addCommittedTrack(
+// Creates a track through Session and stores one backend-accepted clip on it.
+TrackId addTrackWithAudioClip(
     Session& session, std::string name, std::filesystem::path path, TimeRange source_range = {},
     TimePosition position = {})
 {
     const TrackId track_id = session.addTrack(std::move(name));
-    const bool committed = session.commitTrackAudioClip(
-        track_id, makeAudioClip(std::move(path), source_range, position));
-    REQUIRE(committed);
+    const bool clip_set =
+        session.setAudioClip(track_id, makeAudioClip(std::move(path), source_range, position));
+    REQUIRE(clip_set);
     return track_id;
 }
 
@@ -161,7 +161,7 @@ TEST_CASE("Adding a track creates a stable nonzero TrackId", "[core][session]")
     CHECK(session.findTrack(second_id) != nullptr);
 }
 
-// Verifies that addTrack stores identity and name while leaving audio uncommitted.
+// Verifies that addTrack stores identity and name while leaving audio unset.
 TEST_CASE("Adding a named track stores identity and name", "[core][session]")
 {
     Session session;
@@ -219,7 +219,8 @@ TEST_CASE("findTrack returns nullptr for missing tracks", "[core][session]")
 TEST_CASE("findTrack returns existing and missing tracks", "[core][session]")
 {
     Session session;
-    const auto track_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
+    const auto track_id =
+        addTrackWithAudioClip(session, "Full Mix", std::filesystem::path{"mix.wav"});
 
     const auto* found_track = session.findTrack(track_id);
 
@@ -237,8 +238,9 @@ TEST_CASE("findTrack returns existing and missing tracks", "[core][session]")
 TEST_CASE("Renaming a track updates only that track", "[core][session]")
 {
     Session session;
-    const auto first_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
-    addCommittedTrack(session, "Solo", std::filesystem::path{"solo.wav"});
+    const auto first_id =
+        addTrackWithAudioClip(session, "Full Mix", std::filesystem::path{"mix.wav"});
+    addTrackWithAudioClip(session, "Solo", std::filesystem::path{"solo.wav"});
 
     const auto renamed = session.renameTrack(first_id, "Edited Mix");
 
@@ -260,7 +262,7 @@ TEST_CASE("Renaming a track updates only that track", "[core][session]")
 TEST_CASE("Renaming a missing track fails cleanly", "[core][session]")
 {
     Session session;
-    addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
+    addTrackWithAudioClip(session, "Full Mix", std::filesystem::path{"mix.wav"});
 
     const auto renamed = session.renameTrack(TrackId{999}, "Edited Mix");
 
@@ -273,21 +275,22 @@ TEST_CASE("Renaming a missing track fails cleanly", "[core][session]")
             makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
 }
 
-// Verifies committing one track clip does not disturb neighboring track data.
-TEST_CASE("Committing a track clip updates only that track", "[core][session]")
+// Verifies setting one track clip does not disturb neighboring track data.
+TEST_CASE("Setting a track clip updates only that track", "[core][session]")
 {
     Session session;
-    const auto first_id = addCommittedTrack(session, "Full Mix", std::filesystem::path{"old.wav"});
-    addCommittedTrack(session, "Solo", std::filesystem::path{"solo.wav"});
+    const auto first_id =
+        addTrackWithAudioClip(session, "Full Mix", std::filesystem::path{"old.wav"});
+    addTrackWithAudioClip(session, "Solo", std::filesystem::path{"solo.wav"});
     const TimeRange timeline_range{
         .start = TimePosition{},
         .end = TimePosition{12.0},
     };
 
-    const auto committed = session.commitTrackAudioClip(
+    const auto clip_set = session.setAudioClip(
         first_id, makeAudioClip(std::filesystem::path{"new.wav"}, timeline_range));
 
-    CHECK(committed);
+    CHECK(clip_set);
     REQUIRE(session.tracks().size() == 2);
     CHECK(
         session.tracks()[0].audio_clip ==
@@ -300,8 +303,8 @@ TEST_CASE("Committing a track clip updates only that track", "[core][session]")
     CHECK(session.timeline() == timeline_range);
 }
 
-// Verifies Session assigns clip ids at commit time instead of trusting caller-supplied ids.
-TEST_CASE("Committing track clips assigns session-owned clip ids", "[core][session]")
+// Verifies Session assigns clip ids when storing instead of trusting caller-supplied ids.
+TEST_CASE("Setting track clips assigns session-owned clip ids", "[core][session]")
 {
     Session session;
     const auto track_id = session.addTrack("Full Mix");
@@ -319,19 +322,19 @@ TEST_CASE("Committing track clips assigns session-owned clip ids", "[core][sessi
             .end = TimePosition{5.0},
         });
 
-    REQUIRE(session.commitTrackAudioClip(track_id, first_clip));
+    REQUIRE(session.setAudioClip(track_id, first_clip));
     CHECK(
         findTrackAudioClip(session, track_id) ==
         std::optional<AudioClip>{withClipId(first_clip, AudioClipId{1})});
 
-    REQUIRE(session.commitTrackAudioClip(track_id, second_clip));
+    REQUIRE(session.setAudioClip(track_id, second_clip));
     CHECK(
         findTrackAudioClip(session, track_id) ==
         std::optional<AudioClip>{withClipId(second_clip, AudioClipId{2})});
 }
 
-// Verifies the common editor flow where an empty row receives its first committed clip.
-TEST_CASE("Committing an empty track clip stores the clip", "[core][session]")
+// Verifies the common editor flow where an empty row receives its first accepted clip.
+TEST_CASE("Setting an empty track clip stores the clip", "[core][session]")
 {
     Session session;
     const auto track_id = session.addTrack("Full Mix");
@@ -341,9 +344,9 @@ TEST_CASE("Committing an empty track clip stores the clip", "[core][session]")
     };
     const AudioClip audio_clip = makeAudioClip(std::filesystem::path{"mix.wav"}, timeline_range);
 
-    const auto committed = session.commitTrackAudioClip(track_id, audio_clip);
+    const auto clip_set = session.setAudioClip(track_id, audio_clip);
 
-    CHECK(committed);
+    CHECK(clip_set);
     REQUIRE(session.tracks().size() == 1);
     CHECK(
         session.tracks()[0].audio_clip ==
@@ -351,11 +354,11 @@ TEST_CASE("Committing an empty track clip stores the clip", "[core][session]")
     CHECK(session.timeline() == timeline_range);
 }
 
-// Verifies committed clip placements define the aggregate project timeline.
-TEST_CASE("Committing track clips expands the session timeline", "[core][session]")
+// Verifies stored clip placements define the aggregate project timeline.
+TEST_CASE("Setting track clips expands the session timeline", "[core][session]")
 {
     Session session;
-    addCommittedTrack(
+    addTrackWithAudioClip(
         session,
         "Intro",
         std::filesystem::path{"intro.wav"},
@@ -364,7 +367,7 @@ TEST_CASE("Committing track clips expands the session timeline", "[core][session
             .end = TimePosition{3.0},
         },
         TimePosition{1.0});
-    addCommittedTrack(
+    addTrackWithAudioClip(
         session,
         "Outro",
         std::filesystem::path{"outro.wav"},
@@ -381,21 +384,21 @@ TEST_CASE("Committing track clips expands the session timeline", "[core][session
                               });
 }
 
-// Verifies missing-track commits remain recoverable and do not change the project timeline.
-TEST_CASE("Committing a missing track clip fails cleanly", "[core][session]")
+// Verifies missing-track updates remain recoverable and do not change the project timeline.
+TEST_CASE("Setting a missing track clip fails cleanly", "[core][session]")
 {
     Session session;
     const auto existing_id =
-        addCommittedTrack(session, "Full Mix", std::filesystem::path{"mix.wav"});
+        addTrackWithAudioClip(session, "Full Mix", std::filesystem::path{"mix.wav"});
     const TimeRange timeline_range{
         .start = TimePosition{},
         .end = TimePosition{10.0},
     };
 
-    const auto committed = session.commitTrackAudioClip(
+    const auto clip_set = session.setAudioClip(
         TrackId{999}, makeAudioClip(std::filesystem::path{"missing.wav"}, timeline_range));
 
-    CHECK_FALSE(committed);
+    CHECK_FALSE(clip_set);
     REQUIRE(session.findTrack(existing_id) != nullptr);
     REQUIRE(session.tracks().size() == 1);
     CHECK(

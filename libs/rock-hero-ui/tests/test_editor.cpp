@@ -178,7 +178,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     core::Session session;
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
     const core::TrackId track_id = session.addTrack("Full Mix");
-    const bool committed = session.commitTrackAudioClip(
+    const bool clip_set = session.setAudioClip(
         track_id,
         core::AudioClip{
             .id = core::AudioClipId{},
@@ -191,7 +191,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
                 },
             .position = core::TimePosition{},
         });
-    REQUIRE(committed);
+    REQUIRE(clip_set);
     FakeTransport transport;
     FakeEdit edit;
     FakeThumbnailFactory thumbnail_factory;

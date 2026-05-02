@@ -32,9 +32,9 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Validates the track id, asks IEdit to load the asset, then commits the accepted clip to the
+// Validates the track id, asks IEdit to load the asset, then stores the accepted clip in the
 // session. Reentrant transport callbacks during the edit window are coalesced into the single
-// post-edit push so the view never sees stale intermediate view state derived from pre-commit
+// post-edit push so the view never sees stale intermediate view state derived from pre-update
 // session data.
 void EditorController::onLoadAudioAssetRequested(
     core::TrackId track_id, core::AudioAsset audio_asset)
@@ -57,7 +57,7 @@ void EditorController::onLoadAudioAssetRequested(
     }
 
     core::AudioClip accepted_clip = std::move(audio_clip).value_or(core::AudioClip{});
-    const bool session_ok = m_session.commitTrackAudioClip(track_id, std::move(accepted_clip));
+    const bool session_ok = m_session.setAudioClip(track_id, std::move(accepted_clip));
     m_edit_in_progress = false;
 
     if (session_ok)
@@ -69,9 +69,9 @@ void EditorController::onLoadAudioAssetRequested(
         // Session and audio backend are out of sync; preserve the existing session state and
         // surface the inconsistency rather than silently pretending the load succeeded.
         // TODO: Replace std::clog with the project logging framework once one exists.
-        std::clog << "RockHero editor internal error: Session::commitTrackAudioClip failed after "
+        std::clog << "RockHero editor internal error: Session::setAudioClip failed after "
                      "IEdit::loadAudioAsset\n";
-        assert(false && "Session::commitTrackAudioClip failed after IEdit::loadAudioAsset");
+        assert(false && "Session::setAudioClip failed after IEdit::loadAudioAsset");
         m_last_load_error = std::string{"Internal error: session out of sync after audio load"};
     }
 
@@ -130,7 +130,7 @@ void EditorController::onWaveformClicked(double normalized_x)
 }
 
 // Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
-// derivation runs against the committed session and transport state instead of pre-commit data.
+// derivation runs against the updated session and transport state instead of stale data.
 void EditorController::onTransportStateChanged(audio::TransportState /*state*/)
 {
     if (m_edit_in_progress)

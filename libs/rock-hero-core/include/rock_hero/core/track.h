@@ -87,7 +87,7 @@ struct AudioClipId
 /*! \brief One placed audio region on a track. */
 struct AudioClip
 {
-    /*! \brief Stable id assigned by the owning Session; zero before the clip is committed. */
+    /*! \brief Stable id assigned by the owning Session; zero before Session stores the clip. */
     AudioClipId id;
 
     /*! \brief Audio asset referenced by the clip. */
