@@ -25,21 +25,63 @@ AudioClip makeAudioClip(
     };
 }
 
-// Returns a copy with the session-assigned id expected after storage.
+// Builds the identity-free track payload that Session commits with an allocated id.
+[[nodiscard]] TrackData makeTrackData(std::string name = {})
+{
+    return TrackData{
+        .name = std::move(name),
+    };
+}
+
+// Drops Session identity from a stored clip so tests can exercise the payload commit path.
+[[nodiscard]] AudioClipData makeAudioClipData(const AudioClip& audio_clip)
+{
+    return AudioClipData{
+        .asset = audio_clip.asset,
+        .asset_duration = audio_clip.asset_duration,
+        .source_range = audio_clip.source_range,
+        .position = audio_clip.position,
+    };
+}
+
+// Returns a copy with an explicit id so tests can compare stored clips.
 [[nodiscard]] AudioClip withClipId(AudioClip audio_clip, AudioClipId id)
 {
     audio_clip.id = id;
     return audio_clip;
 }
 
-// Creates a track through Session and stores one backend-accepted clip on it.
+// Allocates the next session-owned clip id and attaches it to a clip fixture.
+[[nodiscard]] AudioClip withAllocatedClipId(Session& session, AudioClip audio_clip)
+{
+    audio_clip.id = session.allocateAudioClipId();
+    return audio_clip;
+}
+
+// Commits a stored clip fixture through Session's identity-attaching API.
+bool setTestAudioClip(Session& session, TrackId track_id, const AudioClip& audio_clip)
+{
+    return session.setAudioClip(track_id, audio_clip.id, makeAudioClipData(audio_clip));
+}
+
+// Creates a session-only track for focused core tests without involving the audio adapter.
+TrackId addTestTrack(Session& session, std::string name = {})
+{
+    const TrackId track_id = session.allocateTrackId();
+    const bool track_added = session.addTrack(track_id, makeTrackData(std::move(name)));
+    REQUIRE(track_added);
+    return track_id;
+}
+
+// Creates a track through Session and stores one clip on it.
 TrackId addTrackWithAudioClip(
     Session& session, std::string name, std::filesystem::path path, TimeRange source_range = {},
     TimePosition position = {})
 {
-    const TrackId track_id = session.addTrack(std::move(name));
-    const bool clip_set =
-        session.setAudioClip(track_id, makeAudioClip(std::move(path), source_range, position));
+    const TrackId track_id = addTestTrack(session, std::move(name));
+    const AudioClip audio_clip =
+        withAllocatedClipId(session, makeAudioClip(std::move(path), source_range, position));
+    const bool clip_set = setTestAudioClip(session, track_id, audio_clip);
     REQUIRE(clip_set);
     return track_id;
 }
@@ -127,6 +169,27 @@ TEST_CASE("AudioClip timelineRange uses position and source duration", "[core][t
                                 });
 }
 
+// Verifies identity-free clip data can describe timeline placement before identity exists.
+TEST_CASE("AudioClipData timelineRange uses position and source duration", "[core][track]")
+{
+    const AudioClipData clip{
+        .asset = AudioAsset{std::filesystem::path{"mix.wav"}},
+        .asset_duration = TimeDuration{12.0},
+        .source_range =
+            TimeRange{
+                .start = TimePosition{2.0},
+                .end = TimePosition{5.0},
+            },
+        .position = TimePosition{7.0},
+    };
+
+    CHECK(
+        clip.timelineRange() == TimeRange{
+                                    .start = TimePosition{7.0},
+                                    .end = TimePosition{10.0},
+                                });
+}
+
 // Verifies the role-free track aggregate has an empty default state.
 TEST_CASE("Track default construction is empty", "[core][track]")
 {
@@ -146,13 +209,13 @@ TEST_CASE("Session default construction has no tracks", "[core][session]")
     CHECK(session.timeline() == TimeRange{});
 }
 
-// Verifies that new tracks receive stable nonzero identities.
-TEST_CASE("Adding a track creates a stable nonzero TrackId", "[core][session]")
+// Verifies allocated ids can be committed as stable track identities.
+TEST_CASE("Adding allocated tracks stores stable nonzero TrackIds", "[core][session]")
 {
     Session session;
 
-    const auto first_id = session.addTrack("Full Mix");
-    const auto second_id = session.addTrack("Stem");
+    const auto first_id = addTestTrack(session, "Full Mix");
+    const auto second_id = addTestTrack(session, "Stem");
 
     CHECK(first_id.isValid());
     CHECK(second_id.isValid());
@@ -161,12 +224,25 @@ TEST_CASE("Adding a track creates a stable nonzero TrackId", "[core][session]")
     CHECK(session.findTrack(second_id) != nullptr);
 }
 
-// Verifies that addTrack stores identity and name while leaving audio unset.
-TEST_CASE("Adding a named track stores identity and name", "[core][session]")
+// Verifies track ids can be allocated before a cross-boundary backend create.
+TEST_CASE("Session allocates stable nonzero TrackIds", "[core][session]")
 {
     Session session;
 
-    const auto track_id = session.addTrack("Full Mix");
+    const auto first_id = session.allocateTrackId();
+    const auto second_id = session.allocateTrackId();
+
+    CHECK(first_id.isValid());
+    CHECK(second_id.isValid());
+    CHECK(first_id != second_id);
+}
+
+// Verifies that addTrack stores an allocated identity and name while leaving audio unset.
+TEST_CASE("Adding a named allocated track stores identity and name", "[core][session]")
+{
+    Session session;
+
+    const auto track_id = addTestTrack(session, "Full Mix");
 
     REQUIRE(session.tracks().size() == 1);
     const auto& track = session.tracks()[0];
@@ -176,12 +252,65 @@ TEST_CASE("Adding a named track stores identity and name", "[core][session]")
     CHECK_FALSE(track.audio_clip.has_value());
 }
 
+// Verifies an allocated track id can be committed after allocation.
+TEST_CASE("Adding an allocated track stores the supplied id", "[core][session]")
+{
+    Session session;
+    const auto track_id = session.allocateTrackId();
+
+    const bool track_added = session.addTrack(track_id, makeTrackData("Full Mix"));
+
+    CHECK(track_added);
+    REQUIRE(session.tracks().size() == 1);
+    CHECK(session.tracks()[0].id == track_id);
+    CHECK(session.tracks()[0].name == "Full Mix");
+}
+
+// Verifies addTrack is a commit operation only; allocateTrackId owns id generation.
+TEST_CASE("Adding a supplied track id does not advance allocation", "[core][session]")
+{
+    Session session;
+
+    const bool track_added = session.addTrack(TrackId{7}, makeTrackData("Imported"));
+    const TrackId allocated_id = session.allocateTrackId();
+
+    CHECK(track_added);
+    CHECK(allocated_id == TrackId{1});
+}
+
+// Verifies explicit track commits reject invalid and duplicate ids.
+TEST_CASE("Adding an allocated track rejects invalid or duplicate ids", "[core][session]")
+{
+    Session session;
+    const auto track_id = session.allocateTrackId();
+
+    REQUIRE(session.addTrack(track_id, makeTrackData("Full Mix")));
+
+    CHECK_FALSE(session.addTrack(TrackId{}, makeTrackData("Invalid")));
+    CHECK_FALSE(session.addTrack(track_id, makeTrackData("Duplicate")));
+    REQUIRE(session.tracks().size() == 1);
+    CHECK(session.tracks()[0].name == "Full Mix");
+}
+
+// Verifies clip ids are allocated explicitly before backend/session commit.
+TEST_CASE("Session allocates stable nonzero AudioClipIds", "[core][session]")
+{
+    Session session;
+
+    const auto first_id = session.allocateAudioClipId();
+    const auto second_id = session.allocateAudioClipId();
+
+    CHECK(first_id.isValid());
+    CHECK(second_id.isValid());
+    CHECK(first_id != second_id);
+}
+
 // Verifies that a row can exist before the user has assigned any audio file.
 TEST_CASE("Adding an empty track is valid", "[core][session]")
 {
     Session session;
 
-    const auto track_id = session.addTrack();
+    const auto track_id = addTestTrack(session);
     const auto* track = session.findTrack(track_id);
 
     CHECK(track_id.isValid());
@@ -196,9 +325,9 @@ TEST_CASE("Tracks preserve insertion order", "[core][session]")
 {
     Session session;
 
-    session.addTrack("Drums");
-    session.addTrack("Bass");
-    session.addTrack("Guitar");
+    addTestTrack(session, "Drums");
+    addTestTrack(session, "Bass");
+    addTestTrack(session, "Guitar");
 
     REQUIRE(session.tracks().size() == 3);
     CHECK(session.tracks()[0].name == "Drums");
@@ -210,7 +339,7 @@ TEST_CASE("Tracks preserve insertion order", "[core][session]")
 TEST_CASE("findTrack returns nullptr for missing tracks", "[core][session]")
 {
     Session session;
-    session.addTrack("Full Mix");
+    addTestTrack(session, "Full Mix");
 
     CHECK(session.findTrack(TrackId{999}) == nullptr);
 }
@@ -286,16 +415,14 @@ TEST_CASE("Setting a track clip updates only that track", "[core][session]")
         .start = TimePosition{},
         .end = TimePosition{12.0},
     };
+    const AudioClip replacement_clip = withAllocatedClipId(
+        session, makeAudioClip(std::filesystem::path{"new.wav"}, timeline_range));
 
-    const auto clip_set = session.setAudioClip(
-        first_id, makeAudioClip(std::filesystem::path{"new.wav"}, timeline_range));
+    const auto clip_set = setTestAudioClip(session, first_id, replacement_clip);
 
     CHECK(clip_set);
     REQUIRE(session.tracks().size() == 2);
-    CHECK(
-        session.tracks()[0].audio_clip ==
-        std::optional<AudioClip>{withClipId(
-            makeAudioClip(std::filesystem::path{"new.wav"}, timeline_range), AudioClipId{3})});
+    CHECK(session.tracks()[0].audio_clip == std::optional<AudioClip>{replacement_clip});
     CHECK(
         session.tracks()[1].audio_clip ==
         std::optional<AudioClip>{withClipId(
@@ -303,54 +430,84 @@ TEST_CASE("Setting a track clip updates only that track", "[core][session]")
     CHECK(session.timeline() == timeline_range);
 }
 
-// Verifies Session assigns clip ids when storing instead of trusting caller-supplied ids.
-TEST_CASE("Setting track clips assigns session-owned clip ids", "[core][session]")
+// Verifies Session stores the clip id allocated by the caller for the edit transaction.
+TEST_CASE("Setting track clips stores allocated clip ids", "[core][session]")
 {
     Session session;
-    const auto track_id = session.addTrack("Full Mix");
-    auto first_clip = makeAudioClip(
-        std::filesystem::path{"first.wav"},
-        TimeRange{
-            .start = TimePosition{},
-            .end = TimePosition{4.0},
-        });
-    first_clip.id = AudioClipId{999};
-    const auto second_clip = makeAudioClip(
-        std::filesystem::path{"second.wav"},
-        TimeRange{
-            .start = TimePosition{},
-            .end = TimePosition{5.0},
-        });
+    const auto track_id = addTestTrack(session, "Full Mix");
+    const auto first_clip = withAllocatedClipId(
+        session,
+        makeAudioClip(
+            std::filesystem::path{"first.wav"},
+            TimeRange{
+                .start = TimePosition{},
+                .end = TimePosition{4.0},
+            }));
+    const auto second_clip = withAllocatedClipId(
+        session,
+        makeAudioClip(
+            std::filesystem::path{"second.wav"},
+            TimeRange{
+                .start = TimePosition{},
+                .end = TimePosition{5.0},
+            }));
 
-    REQUIRE(session.setAudioClip(track_id, first_clip));
-    CHECK(
-        findTrackAudioClip(session, track_id) ==
-        std::optional<AudioClip>{withClipId(first_clip, AudioClipId{1})});
+    REQUIRE(setTestAudioClip(session, track_id, first_clip));
+    CHECK(findTrackAudioClip(session, track_id) == std::optional<AudioClip>{first_clip});
 
-    REQUIRE(session.setAudioClip(track_id, second_clip));
-    CHECK(
-        findTrackAudioClip(session, track_id) ==
-        std::optional<AudioClip>{withClipId(second_clip, AudioClipId{2})});
+    REQUIRE(setTestAudioClip(session, track_id, second_clip));
+    CHECK(findTrackAudioClip(session, track_id) == std::optional<AudioClip>{second_clip});
 }
 
-// Verifies the common editor flow where an empty row receives its first accepted clip.
+// Verifies clips without allocated identities are rejected instead of silently assigned ids.
+TEST_CASE("Setting a track clip rejects an invalid clip id", "[core][session]")
+{
+    Session session;
+    const auto track_id = addTestTrack(session, "Full Mix");
+    const AudioClip audio_clip = makeAudioClip(std::filesystem::path{"mix.wav"});
+
+    const auto clip_set = setTestAudioClip(session, track_id, audio_clip);
+
+    CHECK_FALSE(clip_set);
+    CHECK(findTrackAudioClip(session, track_id) == std::nullopt);
+    CHECK(session.timeline() == TimeRange{});
+}
+
+// Verifies one durable clip id cannot be attached to two different tracks.
+TEST_CASE("Setting a duplicate audio clip id on another track fails", "[core][session]")
+{
+    Session session;
+    const auto first_track_id = addTestTrack(session, "Full Mix");
+    const auto second_track_id = addTestTrack(session, "Solo");
+    const AudioClip first_clip =
+        withAllocatedClipId(session, makeAudioClip(std::filesystem::path{"mix.wav"}));
+    const AudioClip duplicate_clip =
+        withClipId(makeAudioClip(std::filesystem::path{"solo.wav"}), first_clip.id);
+
+    REQUIRE(setTestAudioClip(session, first_track_id, first_clip));
+    const auto clip_set = setTestAudioClip(session, second_track_id, duplicate_clip);
+
+    CHECK_FALSE(clip_set);
+    CHECK(findTrackAudioClip(session, second_track_id) == std::nullopt);
+}
+
+// Verifies the common editor flow where an empty row receives its first clip.
 TEST_CASE("Setting an empty track clip stores the clip", "[core][session]")
 {
     Session session;
-    const auto track_id = session.addTrack("Full Mix");
+    const auto track_id = addTestTrack(session, "Full Mix");
     const TimeRange timeline_range{
         .start = TimePosition{},
         .end = TimePosition{8.0},
     };
-    const AudioClip audio_clip = makeAudioClip(std::filesystem::path{"mix.wav"}, timeline_range);
+    const AudioClip audio_clip = withAllocatedClipId(
+        session, makeAudioClip(std::filesystem::path{"mix.wav"}, timeline_range));
 
-    const auto clip_set = session.setAudioClip(track_id, audio_clip);
+    const auto clip_set = setTestAudioClip(session, track_id, audio_clip);
 
     CHECK(clip_set);
     REQUIRE(session.tracks().size() == 1);
-    CHECK(
-        session.tracks()[0].audio_clip ==
-        std::optional<AudioClip>{withClipId(audio_clip, AudioClipId{1})});
+    CHECK(session.tracks()[0].audio_clip == std::optional<AudioClip>{audio_clip});
     CHECK(session.timeline() == timeline_range);
 }
 
@@ -394,9 +551,10 @@ TEST_CASE("Setting a missing track clip fails cleanly", "[core][session]")
         .start = TimePosition{},
         .end = TimePosition{10.0},
     };
+    const AudioClip missing_clip = withAllocatedClipId(
+        session, makeAudioClip(std::filesystem::path{"missing.wav"}, timeline_range));
 
-    const auto clip_set = session.setAudioClip(
-        TrackId{999}, makeAudioClip(std::filesystem::path{"missing.wav"}, timeline_range));
+    const auto clip_set = setTestAudioClip(session, TrackId{999}, missing_clip);
 
     CHECK_FALSE(clip_set);
     REQUIRE(session.findTrack(existing_id) != nullptr);

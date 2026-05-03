@@ -1,7 +1,6 @@
 #include "main_window.h"
 
 #include <rock_hero/audio/engine.h>
-#include <rock_hero/core/session.h>
 #include <rock_hero/ui/editor.h>
 
 namespace rock_hero
@@ -15,11 +14,11 @@ MainWindow::MainWindow(const juce::String& title)
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons)
     , m_audio_engine(std::make_unique<audio::Engine>())
-    , m_session(std::make_unique<core::Session>())
 {
-    m_session->addTrack("Full Mix");
-    m_editor =
-        std::make_unique<ui::Editor>(*m_session, *m_audio_engine, *m_audio_engine, *m_audio_engine);
+    // Engine currently implements each editor-facing audio port. Passing it for each role keeps
+    // Editor dependent on narrow interfaces rather than on the concrete Tracktion adapter. The
+    // editor owns its Session internally through EditCoordinator so app code cannot bypass edits.
+    m_editor = std::make_unique<ui::Editor>(*m_audio_engine, *m_audio_engine, *m_audio_engine);
 
     setUsingNativeTitleBar(true);
     setContentNonOwned(&m_editor->component(), true);

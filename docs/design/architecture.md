@@ -162,6 +162,9 @@ defined in `.clang-format`.
 - Treat `rock-hero-audio` as an adapter around Tracktion/JUCE, not as a home for general
   business logic.
 - Keep `rock-hero-ui` focused on presentation and intent emission rather than policy.
+- Permit small JUCE-free editor workflow helpers in `rock-hero-ui` only while they directly
+  support the current editor feature; extract them once they become a broader editor workflow
+  subsystem.
 - Keep time, threading, hardware, and IO concerns at the boundary where they can be simulated or
   replaced in tests.
 - Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.

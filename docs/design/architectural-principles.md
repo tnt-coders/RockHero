@@ -121,6 +121,14 @@ It should contain:
 - intent emission to non-UI logic
 - local presentation concerns
 
+Small headless editor workflow helpers may remain in `rock-hero-ui` while they exist only to
+support the current editor feature and are not yet a real subsystem. These helpers must stay free
+of JUCE widget types and Tracktion implementation details, must depend only on project-owned
+interfaces, and must not become a miscellaneous home for editor app code. If they grow into
+undo/redo, persistence, project open/close, broader command history, or richer edit policy, extract
+that cluster into a dedicated editor workflow library instead of letting `rock-hero-ui` absorb
+business logic.
+
 It should **not** own:
 
 - scoring rules

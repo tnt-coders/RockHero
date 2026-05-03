@@ -10,6 +10,7 @@
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
+#include <string>
 
 namespace juce
 {
@@ -34,8 +35,9 @@ This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio impl
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
-intentionally exposes only one loadable Tracktion audio track even though core::Session can model
-multiple tracks. All public methods must be called on the message thread.
+intentionally maps only one core::TrackId to one Tracktion audio track even though core::Session
+can model multiple tracks. Project-owned track and clip ids are translated to Tracktion
+EditItemIDs inside the implementation. All public methods must be called on the message thread.
 
 \see rock_hero::MainWindow
 */
@@ -112,21 +114,37 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Loads a framework-free audio asset into the current single-track playback edit.
+    \brief Creates a backend audio track mapped to a core::TrackId.
 
-    This is the first concrete implementation of audio::IEdit. It adapts the existing single-file
-    playback path and therefore binds the single Tracktion audio track to whichever valid track id
-    loads first. Later loads for a different track id are rejected until multi-track playback
-    exists.
+    This is the first concrete implementation of audio::IEdit. It adapts Tracktion's initial
+    single-track edit by binding the one available Tracktion audio track to the supplied project
+    track id and storing the Tracktion EditItemID behind the adapter boundary. Later track creates
+    fail until multi-track playback exists.
+
+    \param track_id Session-allocated track id to bind to the Tracktion track.
+    \param name User-visible track name to apply to the Tracktion track.
+    \return Accepted track data when the Tracktion track was mapped; std::nullopt otherwise.
+    */
+    [[nodiscard]] std::optional<core::TrackData> createTrack(
+        core::TrackId track_id, const std::string& name) override;
+
+    /*!
+    \brief Creates a framework-free audio clip on a mapped backend track.
+
+    The current adapter supports one mapped Tracktion audio track. Clip creates for unmapped track
+    ids fail so callers cannot accidentally mutate playback for a Session track the engine cannot
+    find later. Successful creates map the project clip id to Tracktion's accepted EditItemID
+    while returning identity-free clip data for Session to commit.
 
     \param track_id Track whose clip should be updated.
-    \param audio_asset Framework-free asset reference to load.
+    \param audio_clip_id Session-allocated id to map to the Tracktion clip.
+    \param audio_asset Framework-free asset reference used as the clip source.
     \param position Requested start position on the session timeline.
-    \return Accepted clip when the playback backend loaded the asset.
+    \return Accepted clip data when the playback backend created it.
     */
-    [[nodiscard]] std::optional<core::AudioClip> loadAudioAsset(
-        core::TrackId track_id, const core::AudioAsset& audio_asset,
-        core::TimePosition position) override;
+    [[nodiscard]] std::optional<core::AudioClipData> createAudioClip(
+        core::TrackId track_id, core::AudioClipId audio_clip_id,
+        const core::AudioAsset& audio_asset, core::TimePosition position) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

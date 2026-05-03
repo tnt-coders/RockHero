@@ -103,7 +103,8 @@ using namespace rock_hero;
 using namespace rock_hero::core;
 \endcode
 
-Production `.cpp` files should usually define code inside the namespace that owns the implementation.
+Production `.cpp` files should usually define code inside the namespace that owns the
+implementation.
 Module-local test `.cpp` files should also wrap their tests in the namespace of the module under
 test. This keeps tests close to the code they verify and avoids treating same-module tests like
 external consumers.
@@ -165,15 +166,16 @@ bool containsTrack(const Track& track) const;
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-TrackId addTrack(std::string name, std::optional<AudioAsset> audio_asset);
-bool setAudioClip(TrackId id, AudioClip audio_clip);
+bool addTrack(TrackId id, TrackData track_data);
+bool setAudioClip(
+    TrackId id, AudioClipId audio_clip_id, AudioClipData audio_clip_data);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
-track.name = std::move(name);
-track.audio_asset = std::move(audio_asset);
+track.name = std::move(track_data.name);
+track.audio_clip = AudioClip{.asset = std::move(audio_clip_data.asset)};
 \endcode
 
 # Value Type Guardrails
