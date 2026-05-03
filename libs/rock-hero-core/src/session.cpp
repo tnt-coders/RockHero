@@ -45,6 +45,16 @@ template <typename Tracks> [[nodiscard]] auto findTrackById(Tracks& tracks, Trac
     return timeline;
 }
 
+// Prevents one durable AudioClipId from being attached to multiple different tracks.
+[[nodiscard]] bool clipIdBelongsToAnotherTrack(
+    const std::vector<Track>& tracks, TrackId track_id, AudioClipId audio_clip_id) noexcept
+{
+    return std::ranges::any_of(tracks, [track_id, audio_clip_id](const Track& track) {
+        return track.id != track_id && track.audio_clip.has_value() &&
+               track.audio_clip->id == audio_clip_id;
+    });
+}
+
 } // namespace
 
 // Exposes ordered track storage without letting callers mutate the vector shape directly.
@@ -65,14 +75,27 @@ const Track* Session::findTrack(TrackId id) const noexcept
     return findTrackById(m_tracks, id);
 }
 
-// Assigns ids centrally so tracks keep stable identities even when their contents change.
-TrackId Session::addTrack(std::string name)
+// Allocates durable ids centrally; failed backend edits may leave intentional gaps.
+TrackId Session::allocateTrackId() noexcept
 {
-    auto& track = m_tracks.emplace_back();
-    track.id = m_next_track_id;
+    const TrackId track_id = m_next_track_id;
     ++m_next_track_id.value;
-    track.name = std::move(name);
-    return track.id;
+    return track_id;
+}
+
+// Stores an already allocated track id without advancing the allocator.
+bool Session::addTrack(TrackId id, TrackData track_data)
+{
+    if (!id.isValid() || findTrackById(m_tracks, id) != nullptr)
+    {
+        return false;
+    }
+
+    auto& track = m_tracks.emplace_back();
+    track.id = id;
+    track.name = std::move(track_data.name);
+
+    return true;
 }
 
 // Updates only the user-visible name field through the Session mutation boundary.
@@ -88,18 +111,35 @@ bool Session::renameTrack(TrackId id, std::string name)
     return true;
 }
 
-// Stores the current single clip for a track and refreshes the aggregate session timeline.
-bool Session::setAudioClip(TrackId id, AudioClip audio_clip)
+// Allocates durable identity before an edit reaches the backend; failed edits leave gaps.
+AudioClipId Session::allocateAudioClipId() noexcept
 {
+    const AudioClipId audio_clip_id = m_next_audio_clip_id;
+    ++m_next_audio_clip_id.value;
+    return audio_clip_id;
+}
+
+// Stores the current single clip payload for a track and refreshes the aggregate timeline.
+bool Session::setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipData audio_clip_data)
+{
+    if (!audio_clip_id.isValid() || clipIdBelongsToAnotherTrack(m_tracks, id, audio_clip_id))
+    {
+        return false;
+    }
+
     auto* track = findTrackById(m_tracks, id);
     if (track == nullptr)
     {
         return false;
     }
 
-    audio_clip.id = m_next_audio_clip_id;
-    ++m_next_audio_clip_id.value;
-    track->audio_clip = std::move(audio_clip);
+    track->audio_clip = AudioClip{
+        .id = audio_clip_id,
+        .asset = std::move(audio_clip_data.asset),
+        .asset_duration = audio_clip_data.asset_duration,
+        .source_range = audio_clip_data.source_range,
+        .position = audio_clip_data.position,
+    };
     m_timeline = calculateTimeline(m_tracks);
     return true;
 }

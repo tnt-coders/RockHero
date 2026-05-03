@@ -14,12 +14,6 @@ namespace rock_hero::audio
 class Engine;
 } // namespace rock_hero::audio
 
-namespace rock_hero::core
-{
-// Forward-declared so the app composition root can own the session without exposing its header.
-class Session;
-} // namespace rock_hero::core
-
 namespace rock_hero::ui
 {
 // Forward-declared so the window can install the composed editor without exposing UI internals.
@@ -32,20 +26,19 @@ namespace rock_hero
 /*!
 \brief Main application window.
 
-Owns the concrete audio engine, editable session, and composed editor UI feature.
+Owns the concrete audio engine and composed editor UI feature.
 
 The destructor clears the DocumentWindow's non-owning content pointer before member destruction
 to avoid dangling-pointer issues during teardown.
 
 \see rock_hero::audio::Engine
-\see rock_hero::core::Session
 \see rock_hero::ui::Editor
 */
 class MainWindow : public juce::DocumentWindow
 {
 public:
     /*!
-    \brief Creates the window, its audio::Engine, session, and editor component.
+    \brief Creates the window, its audio::Engine, and editor component.
     \param title Text shown in the title bar, typically the app name.
     */
     explicit MainWindow(const juce::String& title);
@@ -53,7 +46,7 @@ public:
     /*! \brief Clears the content component pointer before destroying owned members. */
     ~MainWindow() override;
 
-    /*! \brief Copying is disabled because JUCE windows and owned runtime state are not copyable. */
+    /*! \brief Copying is disabled because JUCE windows and owned runtime state are fixed. */
     MainWindow(const MainWindow&) = delete;
 
     /*! \brief Copy assignment is disabled because JUCE windows and owned runtime state are not
@@ -73,9 +66,6 @@ public:
 private:
     // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<audio::Engine> m_audio_engine;
-
-    // Owns the framework-free editor session state projected by the controller.
-    std::unique_ptr<core::Session> m_session;
 
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<ui::Editor> m_editor;

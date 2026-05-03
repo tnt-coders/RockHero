@@ -84,10 +84,61 @@ struct AudioClipId
     friend bool operator==(const AudioClipId& lhs, const AudioClipId& rhs) = default;
 };
 
+/*! \brief Identity-free track payload before Session identity is attached. */
+struct TrackData
+{
+    /*! \brief User-visible track name. */
+    std::string name;
+
+    /*!
+    \brief Compares two track payloads by their stored fields.
+    \param lhs Left-hand track payload.
+    \param rhs Right-hand track payload.
+    \return True when both track payloads store equal values.
+    */
+    friend bool operator==(const TrackData& lhs, const TrackData& rhs) = default;
+};
+
+/*! \brief Identity-free audio clip payload before Session identity is attached. */
+struct AudioClipData
+{
+    /*! \brief Audio asset referenced by the clip payload. */
+    AudioAsset asset;
+
+    /*! \brief Full natural duration of the referenced asset. */
+    TimeDuration asset_duration;
+
+    /*! \brief Range inside the asset that this clip payload plays. */
+    TimeRange source_range;
+
+    /*! \brief Start position of the clip payload on the session timeline. */
+    TimePosition position;
+
+    /*!
+    \brief Calculates the range occupied by this clip payload on the session timeline.
+    \return Timeline range from position through the source range duration.
+    */
+    [[nodiscard]] constexpr TimeRange timelineRange() const noexcept
+    {
+        return TimeRange{
+            .start = position,
+            .end = TimePosition{position.seconds + source_range.duration().seconds},
+        };
+    }
+
+    /*!
+    \brief Compares two clip payloads by asset, source range, and timeline placement.
+    \param lhs Left-hand clip payload.
+    \param rhs Right-hand clip payload.
+    \return True when both clip payloads store equal values.
+    */
+    friend bool operator==(const AudioClipData& lhs, const AudioClipData& rhs) = default;
+};
+
 /*! \brief One placed audio region on a track. */
 struct AudioClip
 {
-    /*! \brief Stable id assigned by the owning Session; zero before Session stores the clip. */
+    /*! \brief Stable id allocated by the owning Session; zero means the clip is only a draft. */
     AudioClipId id;
 
     /*! \brief Audio asset referenced by the clip. */
@@ -126,7 +177,7 @@ struct AudioClip
 /*! \brief Role-free audio track stored by a Session. */
 struct Track
 {
-    /*! \brief Stable id assigned by the owning Session. */
+    /*! \brief Stable id allocated by the owning Session. */
     TrackId id;
 
     /*! \brief User-visible track name. */
