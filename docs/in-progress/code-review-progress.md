@@ -36,9 +36,10 @@ Key conclusions:
   interface is not justified yet just to expose start and end values.
 - `Session` is now the correct owner for editable track state and project timeline state.
 - `Track` reads are exposed as const views. All mutation goes through `Session` methods, which
-  centralizes model updates but does not yet fully enforce backend/session synchronization.
-- `Session::setAudioClip` is the current temporary single-clip setter. Editor orchestration should
-  call it only after the backend has accepted the corresponding audio edit.
+  centralizes model updates while keeping core framework-free.
+- `Session::setAudioClip` is the current temporary single-clip setter. It attaches a
+  Session-allocated `AudioClipId` to identity-free `AudioClipData` after the backend has
+  accepted the corresponding audio edit.
 - `setAudioClip` has an explicit TODO to replace it with `addAudioClip` and `removeAudioClip` once
   the project supports more than one clip per track.
 - `Session` may contain multiple tracks even though the current `audio::Engine` adapter supports
@@ -50,8 +51,11 @@ Key conclusions:
   - `asset_duration`
   - `source_range`
   - `position`
-- `AudioClipId` exists now and is assigned by `Session`, but each `Track` still stores only one
-  optional clip for the current single-file workflow.
+- `AudioClipId` exists now and is allocated by `Session` before backend mutation, but each `Track`
+  still stores only one optional clip for the current single-file workflow.
+- `TrackData` and `AudioClipData` represent identity-free payloads that can be returned by
+  backend-facing edit commands after success. `Track` and `AudioClip` are the stored Session
+  entities that combine that data with durable Session ids.
 
 Relevant follow-up docs:
 
@@ -163,20 +167,42 @@ Short-term mitigation now in code:
 - `Session::tracks()` returns a const vector reference.
 - `Session::findTrack()` returns a const pointer.
 - Mutable track lookup is internal to `Session`.
-- `Session::setAudioClip()` assigns clip ids and recomputes the session timeline.
-- `IEdit::loadAudioAsset()` asks the playback backend to inspect and load an asset, then return the
-  accepted `AudioClip`.
-- The current `Engine` implementation binds whichever valid `TrackId` loads first and rejects
-  loads for different track ids until real multi-track playback support exists.
+- `Session::allocateAudioClipId()` allocates durable clip identity before backend mutation.
+- `Session::setAudioClip()` attaches an allocated clip id to `AudioClipData` and
+  recomputes the session timeline.
+- `IEdit::createTrack()` maps a Session-allocated `TrackId` to a backend track and returns
+  `TrackData` before Session stores the track.
+- `IEdit::createAudioClip()` asks the playback backend to inspect an asset, create a clip on an
+  already mapped track, map the allocated clip id internally, and return identity-free
+  `AudioClipData`.
+- `Editor` owns `EditCoordinator`, keeping the app composition root from wiring editor-specific
+  workflow internals.
+- `EditCoordinator` owns the editor-facing `Session` and exposes it only as a const reference, so
+  production editor code cannot bypass coordinated backend/session edits.
+- `EditorController` owns the initial editor-track policy and routes it through
+  `EditCoordinator`.
+- `EditCoordinator` owns editor-facing track and clip transactions: allocate the id, call the
+  backend, then commit the returned framework-free data to `Session`.
+- The current `Engine` implementation maps the first valid `TrackId` created through `IEdit` to
+  the single Tracktion audio track's `EditItemID` and rejects later track creates for different
+  ids until real multi-track playback support exists.
+- `Engine` also maps allocated `AudioClipId` values to Tracktion clip `EditItemID` values. The
+  current single-clip adapter clears stale clip mappings after a successful replacement because
+  Tracktion has replaced the one live backend clip.
 - The durable session model is updated only after backend acceptance.
 
-Long-term requirement:
+Settled placement decision:
 
-- A clearer setter alone is not enough. The eventual design should provide a
-  compiler-enforced boundary that prevents code from accidentally placing the session model and
-  playback backend out of sync.
-- A future editor command/use-case layer should likely coordinate validation, backend mutation, and
-  session update as one operation.
+- This is a production editor wiring boundary, not a global ban on direct `core::Session`
+  mutation. Core tests and non-backend model code can still construct and mutate sessions
+  directly.
+- Keeping the current headless `EditCoordinator` in `rock-hero-ui` is acceptable while it remains
+  a small helper for the editor feature and stays free of JUCE widget types and Tracktion
+  implementation details.
+- If the coordinator grows into undo/redo, persistence, project loading, or richer command policy,
+  the design docs now require extracting that cluster into a dedicated editor workflow library.
+- Project/session replacement still needs a coordinated backend reset/remap story when that feature
+  exists.
 
 Relevant follow-up doc:
 
@@ -194,21 +220,26 @@ received the same full class-by-class walkthrough and quiz treatment that `Trans
 When resuming:
 
 1. Re-walk `IEdit` from the current code, not from the earlier `setTrackAudioSource` design.
-2. Explain why `loadAudioAsset()` lives behind the audio edit port.
-3. Explain why it returns an accepted `core::AudioClip` with an invalid id.
-4. Explain why it currently returns `std::optional` and when `std::expected` would be justified.
-5. Explain the current limitation that only the most recently loaded track clip must behave
+2. Explain why `createTrack()` and `createAudioClip()` live behind the audio edit port.
+3. Explain why track ids are mapped before clip creation reaches the backend.
+4. Explain why `createAudioClip()` receives a Session-allocated clip id for backend mapping but
+   returns identity-free `core::AudioClipData`.
+5. Explain why it currently returns `std::optional` and when `std::expected` would be justified.
+6. Explain the current limitation that only the most recently created track clip must behave
    correctly until stem/multi-track playback semantics are implemented.
-6. Quiz after the class before moving on.
+7. Quiz after the class before moving on.
 
 Suggested expert-level quiz questions for `IEdit`:
 
-- Why is `loadAudioAsset()` on the audio edit port instead of on `Session` or `Track`?
-- Why does `loadAudioAsset()` return a framework-free clip instead of writing directly to
-  `Session`?
+- Why are `createTrack()` and `createAudioClip()` on the audio edit port instead of on `Session`
+  or `Track`?
+- Why should `createAudioClip()` require an already mapped `TrackId` instead of creating backend
+  tracks implicitly?
+- Why does `createAudioClip()` return framework-free clip data instead of writing
+  directly to `Session`?
 - What invariant is protected by updating the clip in `Session` only after the backend accepts it?
-- Why is `std::optional<core::AudioClip>` acceptable for the current backend mutation result, and
-  what concrete requirement would push this toward `std::expected<..., Error>`?
+- Why is `std::optional<core::AudioClipData>` acceptable for the current backend mutation
+  result, and what concrete requirement would push this toward `std::expected<..., Error>`?
 - Why is the current single-track-applied note important for callers and tests?
 
 ## Remaining Audio Classes To Review
