@@ -21,8 +21,12 @@ multiple project tracks is tracked separately in `docs/todo/audio-engine-multi-t
 The project currently has the right transitional shape:
 
 - `Track` stores `std::optional<AudioClip> audio_clip`.
-- `AudioClip` has a stable `AudioClipId`, but callers construct clips with an invalid id.
-- `Session::setAudioClip` assigns the id and stores the backend-accepted clip.
+- `AudioClip` has a stable `AudioClipId`; draft clips use an invalid id until an edit allocates
+  one through `Session`.
+- `Session::allocateAudioClipId` allocates durable clip identity before backend mutation.
+- `Session::setAudioClip` attaches an allocated id to identity-free `AudioClipData` after
+  backend acceptance.
+- `EditCoordinator` owns the current id allocation, backend-create, and session-commit sequence.
 - There is an explicit TODO near `setAudioClip` saying it should become `addAudioClip` and
   `removeAudioClip` once the project supports more than one clip per track.
 
@@ -57,15 +61,18 @@ The ordering rule should be:
 Prefer command-shaped `Session` methods that make identity and failure visible:
 
 ```cpp
-std::optional<AudioClipId> addAudioClip(TrackId track_id, AudioClip audio_clip);
+AudioClipId allocateAudioClipId();
+bool addAudioClip(
+    TrackId track_id, AudioClipId audio_clip_id, AudioClipData audio_clip_data);
 bool removeAudioClip(TrackId track_id, AudioClipId clip_id);
 bool moveAudioClip(TrackId track_id, AudioClipId clip_id, TimePosition new_position);
 bool trimAudioClip(TrackId track_id, AudioClipId clip_id, TimeRange new_source_range);
 ```
 
-The add operation should return the session-assigned `AudioClipId`. Remove/move/trim can return
-`bool` until the editor needs richer error reporting. If richer failure reporting becomes useful,
-prefer `std::expected` with a small project-owned error enum rather than exceptions or strings.
+The coordinator should allocate identity before calling the backend, then pass the accepted clip to
+`addAudioClip`. Remove/move/trim can return `bool` until the editor needs richer error reporting.
+If richer failure reporting becomes useful, prefer `std::expected` with a small project-owned
+error enum rather than exceptions or strings.
 
 Do not expose mutable track or clip handles. The compiler should make bypassing the session
 mutation boundary inconvenient or impossible.
@@ -76,16 +83,16 @@ The long-term design should not let a controller independently mutate both `Sess
 with no compiler-enforced ordering. Multi-clip editing makes that risk larger because each clip has
 stable identity and multiple possible mutation commands.
 
-Before or during this work, introduce a clearer coordination boundary for editor clip commands. A
-reasonable direction is a project-owned use-case/service object that owns the command sequence:
+The current editor workflow boundary is `ui::EditCoordinator`: it owns the editor session, exposes
+only const session reads to production editor code, and owns the command sequence:
 
 1. Validate the requested clip command against `Session`.
 2. Ask `IEdit` or a future audio edit port to apply the corresponding backend change.
 3. Commit the accepted change into `Session`.
-4. Return the assigned `AudioClipId` or a typed failure.
+4. Return the allocated `AudioClipId` or a typed failure.
 
-`EditorController` should eventually depend on that command boundary instead of directly holding
-both a mutable `Session` and an audio edit port for clip mutations.
+Multi-clip work should extend that boundary instead of giving `EditorController` or app code a
+mutable session reference.
 
 ## Audio Edit Port Changes
 
@@ -107,8 +114,8 @@ inside `rock-hero-audio`, but the public coordination layer should still expose 
 
 1. Add pure core tests first.
    - Default `Track` has an empty `audio_clips` vector.
-   - Adding clips assigns monotonically increasing ids.
-   - Caller-supplied clip ids are ignored.
+   - Allocating clip ids returns monotonically increasing ids.
+   - Adding clips rejects invalid or duplicate clip ids.
    - Clips remain sorted after add and move.
    - Removing a missing clip fails without changing state.
    - Timeline calculation uses every clip on every track.
@@ -120,7 +127,8 @@ inside `rock-hero-audio`, but the public coordination layer should still expose 
    - Keep one loaded clip in the UI until the editor grows multi-clip controls.
 
 3. Update `Session` commands.
-   - Replace `setAudioClip` with `addAudioClip` returning `std::optional<AudioClipId>`.
+   - Replace `setAudioClip` with `addAudioClip` for identity-free clip data plus
+     allocated ids.
    - Add `removeAudioClip` for deleting clips by id.
    - Add internal helpers for finding clips by id.
    - Recalculate the project timeline from all clips.
@@ -133,7 +141,7 @@ inside `rock-hero-audio`, but the public coordination layer should still expose 
    - Preserve current validation rules for asset duration, source range, and timeline placement.
 
 5. Update controller and UI tests.
-   - Verify a load command receives the assigned clip id.
+   - Verify a clip-create command receives the allocated clip id.
    - Verify failed backend edits do not mutate session state.
    - Verify play/stop enabledness works when any track has at least one clip.
    - Verify visible timeline duration comes from all stored clips.
@@ -159,7 +167,7 @@ model, mutation API, and invariants aligned.
 The safest first feature slice is:
 
 - `Track::audio_clips` as `std::vector<AudioClip>`.
-- `Session::addAudioClip` appends one backend-accepted clip and returns its id.
+- `Session::addAudioClip` appends one backend-created clip using the allocated id.
 - `Session::removeAudioClip` removes by id.
 - Timeline calculation covers all clips.
 - UI still behaves as a single loaded backing-track workflow by using the first or only clip until

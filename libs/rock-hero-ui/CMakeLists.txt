@@ -2,13 +2,14 @@
 rock_hero_juce_add_binary_data(rock_hero_ui_resources SOURCES resources/play_arrow.svg
                                resources/pause.svg resources/stop.svg)
 
-# JUCE-facing presentation library for editor views, track views, and transport controls.
+# JUCE-facing editor library for views, controllers, and headless edit workflow coordination.
 add_library(rock_hero_ui STATIC)
 add_library(rock_hero::ui ALIAS rock_hero_ui)
 
-# Keep the target surface small while the UI module remains focused on playback presentation.
-target_sources(rock_hero_ui PRIVATE src/track_view.cpp src/transport_controls.cpp
-                                    src/editor_controller.cpp src/editor_view.cpp src/editor.cpp)
+# Keep the target surface small while the UI module remains focused on editor workflow and views.
+target_sources(
+    rock_hero_ui PRIVATE src/track_view.cpp src/transport_controls.cpp src/edit_coordinator.cpp
+                         src/editor_controller.cpp src/editor_view.cpp src/editor.cpp)
 
 # Expose namespaced public headers while preserving short includes inside the owning module.
 target_include_directories(
