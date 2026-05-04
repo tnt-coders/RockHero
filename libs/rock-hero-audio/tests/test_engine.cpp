@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -123,7 +124,7 @@ TEST_CASE("Engine thumbnail factory creates an adapter", "[audio][engine][integr
     const auto thumbnail = engine.createThumbnail(owner);
 
     REQUIRE(thumbnail != nullptr);
-    CHECK(thumbnail->getLength() == 0.0);
+    CHECK(std::fpclassify(thumbnail->getLength()) == FP_ZERO); // Exact zero without float ==.
 }
 
 // Verifies a real thumbnail adapter can load fixture metadata and render into JUCE graphics.
@@ -166,7 +167,7 @@ TEST_CASE("Engine thumbnail clears length for missing assets", "[audio][engine][
     };
     thumbnail->setSource(missing_asset);
 
-    CHECK(thumbnail->getLength() == 0.0);
+    CHECK(std::fpclassify(thumbnail->getLength()) == FP_ZERO); // Exact zero without float ==.
     CHECK(thumbnail->getProxyProgress() >= 0.0f);
     CHECK(thumbnail->getProxyProgress() <= 1.0f);
 }
