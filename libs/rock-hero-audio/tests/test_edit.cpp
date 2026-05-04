@@ -97,81 +97,48 @@ struct FakeEdit final : IEdit
 
 } // namespace
 
-// Verifies the audio-edit port receives the session-allocated track identity.
-TEST_CASE("IEdit fake receives provisioned track id", "[audio][edit]")
+// Verifies the audio-edit port receives the full backend track-provision request.
+TEST_CASE("IEdit fake receives a track provision request", "[audio][edit]")
 {
     FakeEdit edit{std::nullopt};
 
     const auto provisioned = edit.provisionTrack(core::TrackId{7}, "Full Mix");
 
     CHECK(provisioned == std::optional<core::TrackSpec>{core::TrackSpec{.name = "Full Mix"}});
+    CHECK(edit.provision_track_call_count == 1);
     CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{7}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
 }
 
-// Verifies the audio-edit port receives the user-visible track name.
-TEST_CASE("IEdit fake receives provisioned track name", "[audio][edit]")
+// Verifies the port return value can represent failed track provisioning.
+TEST_CASE("IEdit fake can report failed track provisioning", "[audio][edit]")
 {
     FakeEdit edit{std::nullopt};
+    edit.next_provision_track_result = false;
 
-    const auto provisioned = edit.provisionTrack(core::TrackId{8}, "Guitar");
+    const auto provisioned = edit.provisionTrack(core::TrackId{9}, "Rejected");
 
-    CHECK(provisioned == std::optional<core::TrackSpec>{core::TrackSpec{.name = "Guitar"}});
-    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Guitar"});
+    CHECK_FALSE(provisioned.has_value());
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{9}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Rejected"});
 }
 
-// Verifies the audio-edit port receives the session track identity.
-TEST_CASE("IEdit fake receives a track id", "[audio][edit]")
-{
-    const core::AudioClipSpec clip = makeAudioClipSpec(std::filesystem::path{"guitar.wav"});
-    FakeEdit edit{clip};
-    const core::AudioAsset asset{std::filesystem::path{"guitar.wav"}};
-
-    const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{7}, core::AudioClipId{11}, asset, core::TimePosition{});
-
-    CHECK(provisioned_clip == std::optional<core::AudioClipSpec>{clip});
-    CHECK(edit.last_track_id == std::optional<core::TrackId>{core::TrackId{7}});
-}
-
-// Verifies the audio-edit port receives the session-allocated audio clip identity.
-TEST_CASE("IEdit fake receives an audio clip id", "[audio][edit]")
+// Verifies the audio-edit port receives the full clip-provision request.
+TEST_CASE("IEdit fake receives an audio clip provision request", "[audio][edit]")
 {
     const core::AudioClipSpec clip = makeAudioClipSpec(std::filesystem::path{"drums.wav"});
     FakeEdit edit{clip};
     const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
 
     const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{3}, core::AudioClipId{12}, asset, core::TimePosition{});
+        core::TrackId{3}, core::AudioClipId{12}, asset, core::TimePosition{2.0});
 
     CHECK(provisioned_clip == std::optional<core::AudioClipSpec>{clip});
+    CHECK(edit.call_count == 1);
+    CHECK(edit.last_track_id == std::optional<core::TrackId>{core::TrackId{3}});
     CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{12}});
-}
-
-// Verifies the audio-edit port receives the framework-free asset reference.
-TEST_CASE("IEdit fake receives an audio asset", "[audio][edit]")
-{
-    const core::AudioClipSpec clip = makeAudioClipSpec(std::filesystem::path{"drums.wav"});
-    FakeEdit edit{clip};
-    const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
-
-    const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{3}, core::AudioClipId{13}, asset, core::TimePosition{});
-
-    CHECK(provisioned_clip == std::optional<core::AudioClipSpec>{clip});
     CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{asset});
-}
-
-// Verifies the audio-edit port receives the requested timeline position.
-TEST_CASE("IEdit fake receives a timeline position", "[audio][edit]")
-{
-    const core::AudioClipSpec clip = makeAudioClipSpec(std::filesystem::path{"loop.wav"});
-    FakeEdit edit{clip};
-    const core::AudioAsset asset{std::filesystem::path{"loop.wav"}};
-
-    const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{1}, core::AudioClipId{14}, asset, core::TimePosition{2.0});
-
-    CHECK(provisioned_clip == std::optional<core::AudioClipSpec>{clip});
     CHECK(edit.last_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
 }
 
