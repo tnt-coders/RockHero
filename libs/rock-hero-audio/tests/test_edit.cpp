@@ -104,9 +104,9 @@ TEST_CASE("IEdit fake receives a track provision request", "[audio][edit]")
 
     const auto provisioned = edit.provisionTrack(core::TrackId{7}, "Full Mix");
 
-    CHECK(provisioned == std::optional<core::TrackSpec>{core::TrackSpec{.name = "Full Mix"}});
+    CHECK(provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
     CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{7}});
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{7}});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
 }
 
@@ -120,7 +120,7 @@ TEST_CASE("IEdit fake can report failed track provisioning", "[audio][edit]")
 
     CHECK_FALSE(provisioned.has_value());
     CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{9}});
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{9}});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Rejected"});
 }
 
@@ -134,12 +134,12 @@ TEST_CASE("IEdit fake receives an audio clip provision request", "[audio][edit]"
     const auto provisioned_clip = edit.provisionAudioClip(
         core::TrackId{3}, core::AudioClipId{12}, asset, core::TimePosition{2.0});
 
-    CHECK(provisioned_clip == std::optional<core::AudioClipSpec>{clip});
+    CHECK(provisioned_clip == std::optional{clip});
     CHECK(edit.call_count == 1);
-    CHECK(edit.last_track_id == std::optional<core::TrackId>{core::TrackId{3}});
-    CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{12}});
-    CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{asset});
-    CHECK(edit.last_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
+    CHECK(edit.last_track_id == std::optional{core::TrackId{3}});
+    CHECK(edit.last_audio_clip_id == std::optional{core::AudioClipId{12}});
+    CHECK(edit.last_audio_asset == std::optional{asset});
+    CHECK(edit.last_position == std::optional{core::TimePosition{2.0}});
 }
 
 // Verifies the port return value can represent failed clip provisioning.

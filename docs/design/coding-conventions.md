@@ -211,6 +211,32 @@ CHECK(session.tracks()[1].name == "Guitar Stem");
 Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
 `CHECK_FALSE` for independent observations.
 
+# Test CTAD
+
+In test code, prefer class template argument deduction for short-lived expected values when the
+initializer already states the semantic type and deduction is unambiguous and correct. This keeps
+assertions focused on behavior instead of repeating template arguments that are already visible in
+the wrapped value.
+
+Examples:
+
+\code{.cpp}
+CHECK(edit.last_track_id == std::optional{core::TrackId{3}});
+CHECK(provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
+\endcode
+
+Keep explicit template arguments when CTAD would deduce the wrong type, when constructing an empty
+wrapper, or when the wrapper type itself is the contract under test.
+
+Example:
+
+\code{.cpp}
+CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+\endcode
+
+Do not rely on CTAD for string-literal optionals unless the intended stored type really is a
+pointer.
+
 # Test File Organization
 
 Split test files by the first meaningful subject under test rather than by arbitrary size or by
