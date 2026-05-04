@@ -75,14 +75,14 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 
 ## JUCE and Tracktion CMake linkage
 
-Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes
-(`rock_hero_juce_core`, `rock_hero_tracktion_engine`, and so on). Each wrapper links the raw
-module target privately, then forwards the module's compile definitions and include paths to
-consumers.
+Rock Hero uses project-owned static wrapper targets for the JUCE and Tracktion modules it consumes.
+Consumers link their `rock_hero::` aliases (`rock_hero::juce_core`,
+`rock_hero::tracktion_engine`, and so on). Each wrapper links the raw module target privately, then
+forwards the module's compile definitions and include paths to consumers.
 
 For Rock Hero, that means:
 
-- Rock Hero libraries and apps link the project-owned wrapper targets, not raw `juce::juce_*` or
+- Rock Hero libraries and apps link the project-owned wrapper aliases, not raw `juce::juce_*` or
   `tracktion::tracktion_*` module targets.
 - Raw JUCE and Tracktion module targets stay behind the wrapper layer rather than being re-exported
   through the rest of the project graph.
@@ -94,6 +94,25 @@ libraries and apps.
 
 This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
 interfaces may still mention JUCE types where that is the pragmatic design choice.
+
+### Build-policy exception for `rock-hero-core`
+
+`rock-hero-core` remains a source-level and API-level framework-free module: its public headers and
+implementation must not include JUCE or Tracktion, and its domain behavior must not depend on
+framework runtime semantics.
+
+There is one deliberate build-system exception. First-party targets, including `rock_hero_core`,
+link `rock_hero::build_policy`. That target is defined only in `cmake/RockHeroBuildPolicy.cmake`
+and currently forwards JUCE's recommended warning, configuration, and Release LTO helper targets.
+This is accepted because Rock Hero's normal configure already brings in JUCE/Tracktion before
+first-party libraries are declared, and JUCE's defaults are a practical shared compiler policy for
+the current project.
+
+This exception must stay localized to `cmake/RockHeroBuildPolicy.cmake`. No `rock-hero-core`
+CMake file may link JUCE targets directly, and no core source or header may include JUCE or
+Tracktion. If the build-time dependency ever blocks a core-only package, faster core-only tests, or
+a future non-JUCE build, replace the implementation of `rock_hero::build_policy` in that one file
+with project-owned flags and leave `rock_hero_core` call sites unchanged.
 
 ## Include-path convention
 
@@ -143,6 +162,9 @@ defined in `.clang-format`.
 - Treat `rock-hero-audio` as an adapter around Tracktion/JUCE, not as a home for general
   business logic.
 - Keep `rock-hero-ui` focused on presentation and intent emission rather than policy.
+- Permit small JUCE-free editor workflow helpers in `rock-hero-ui` only while they directly
+  support the current editor feature; extract them once they become a broader editor workflow
+  subsystem.
 - Keep time, threading, hardware, and IO concerns at the boundary where they can be simulated or
   replaced in tests.
 - Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.
@@ -181,13 +203,18 @@ Song
   chart
     arrangements[*]
       part          (Lead | Rhythm | Bass)
-      difficulty    (Easy | Medium | Hard | Expert)
+      difficulty    (0 Unknown, 1-10 authored rating)
       note_events[*]
-      position.seconds
-      duration.seconds
+        position.seconds
+        duration.seconds
         string_number (1–6)
         fret
 \endcode
+
+Arrangement difficulty is stored as the numeric rating. The display tier is derived from that
+rating: Easy for 1-2, Medium for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value
+of 0 represents Unknown so draft/default arrangements do not imply a fake difficulty; validation
+for playable songs should reject Unknown.
 
 `Song` is the persistence and session root. When a session opens, the application loads a `Song`
 from disk, passes `audio_asset_ref` to `rock-hero-audio` for playback, and passes

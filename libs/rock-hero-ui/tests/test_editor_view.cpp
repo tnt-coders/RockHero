@@ -73,10 +73,10 @@ public:
     {}
     void seek(core::TimePosition position_value) override
     {
-        current_state.position = position_value;
+        current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const override
+    [[nodiscard]] audio::TransportState state() const noexcept override
     {
         return current_state;
     }
@@ -84,7 +84,7 @@ public:
     [[nodiscard]] core::TimePosition position() const noexcept override
     {
         position_read_count += 1;
-        return current_state.position;
+        return current_position;
     }
 
     void addListener(Listener& /*listener*/) override
@@ -93,6 +93,7 @@ public:
     {}
 
     audio::TransportState current_state{};
+    core::TimePosition current_position{};
     mutable int position_read_count{0};
 };
 
@@ -103,7 +104,13 @@ public:
     void setSource(const core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
+        has_source = true;
         set_source_call_count += 1;
+    }
+
+    [[nodiscard]] bool hasSource() const override
+    {
+        return has_source;
     }
 
     [[nodiscard]] bool isGeneratingProxy() const override
@@ -116,17 +123,16 @@ public:
         return 0.0f;
     }
 
-    [[nodiscard]] double getLength() const override
+    [[nodiscard]] bool drawChannels(
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        float /*vertical_zoom*/) override
     {
-        return 1.0;
+        return true;
     }
-
-    void drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, float /*vertical_zoom*/) override
-    {}
 
     std::optional<core::AudioAsset> last_source{};
     int set_source_call_count{0};
+    bool has_source{false};
 };
 
 // Creates fake thumbnails while recording the owner component passed by EditorView.
@@ -214,10 +220,26 @@ template <class ComponentType>
     };
 }
 
+// Builds one clip state for editor-view tests that only need state propagation to thumbnails.
+[[nodiscard]] AudioClipViewState makeAudioClipViewState(std::filesystem::path path)
+{
+    const core::TimeRange clip_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{4.0},
+    };
+
+    return AudioClipViewState{
+        .audio_clip_id = core::AudioClipId{1},
+        .asset = core::AudioAsset{std::move(path)},
+        .source_range = clip_range,
+        .timeline_range = clip_range,
+    };
+}
+
 } // namespace
 
-// Verifies construction asks the thumbnail factory once for the initial row.
-TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
+// Verifies clip thumbnails are created only when pushed state contains renderable clip state.
+TEST_CASE("EditorView creates clip thumbnails from clip state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -226,10 +248,9 @@ TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
 
     EditorView view{controller, transport, thumbnail_factory};
 
-    CHECK(thumbnail_factory.create_call_count == 1);
-    REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
-    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+    CHECK(thumbnail_factory.create_call_count == 0);
+    CHECK(thumbnail_factory.last_owner == nullptr);
+    CHECK(thumbnail_factory.last_thumbnail == nullptr);
 
     view.setState(
         EditorViewState{
@@ -237,16 +258,23 @@ TEST_CASE("EditorView creates the initial track thumbnail", "[ui][editor-view]")
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
-            .visible_timeline_start = core::TimePosition{},
-            .visible_timeline_duration = core::TimeDuration{4.0},
+            .visible_timeline =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{4.0},
+                },
             .tracks = {TrackViewState{
                 .track_id = core::TrackId{1},
                 .display_name = "Full Mix",
-                .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+                .audio_clips = {makeAudioClipViewState(std::filesystem::path{"full_mix.wav"})},
             }},
             .last_load_error = std::nullopt,
         });
 
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "audio_clip_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
 }
 
@@ -275,12 +303,15 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
-            .visible_timeline_start = core::TimePosition{},
-            .visible_timeline_duration = core::TimeDuration{8.0},
+            .visible_timeline =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{8.0},
+                },
             .tracks = {TrackViewState{
                 .track_id = core::TrackId{2},
                 .display_name = "Full Mix",
-                .audio_asset = core::AudioAsset{std::filesystem::path{"mix.wav"}},
+                .audio_clips = {makeAudioClipViewState(std::filesystem::path{"mix.wav"})},
             }},
             .last_load_error = std::nullopt,
         });
@@ -288,7 +319,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(load_button.isEnabled());
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
-    CHECK(getPlayPauseButton(controls).getToggleState());
+    CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 0);
 }
 
@@ -330,32 +361,44 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
 TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
 {
     const auto midpoint_cursor = cursorXForTimelinePosition(
-        core::TimePosition{5.0}, core::TimePosition{}, core::TimeDuration{10.0}, 201);
+        core::TimePosition{5.0},
+        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{10.0}},
+        201);
     REQUIRE(midpoint_cursor.has_value());
     CHECK(optionalValueForApprox(midpoint_cursor) == Catch::Approx(100.0f));
 
     const auto offset_cursor = cursorXForTimelinePosition(
-        core::TimePosition{12.0}, core::TimePosition{10.0}, core::TimeDuration{4.0}, 101);
+        core::TimePosition{12.0},
+        core::TimeRange{.start = core::TimePosition{10.0}, .end = core::TimePosition{14.0}},
+        101);
     REQUIRE(offset_cursor.has_value());
     CHECK(optionalValueForApprox(offset_cursor) == Catch::Approx(50.0f));
 
     const auto fractional_cursor = cursorXForTimelinePosition(
-        core::TimePosition{1.25}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+        core::TimePosition{1.25},
+        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        101);
     REQUIRE(fractional_cursor.has_value());
     CHECK(optionalValueForApprox(fractional_cursor) == Catch::Approx(31.25f));
 
     const auto before_start_cursor = cursorXForTimelinePosition(
-        core::TimePosition{-1.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+        core::TimePosition{-1.0},
+        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        101);
     REQUIRE(before_start_cursor.has_value());
     CHECK(optionalValueForApprox(before_start_cursor) == Catch::Approx(0.0f));
 
     const auto after_end_cursor = cursorXForTimelinePosition(
-        core::TimePosition{9.0}, core::TimePosition{}, core::TimeDuration{4.0}, 101);
+        core::TimePosition{9.0},
+        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        101);
     REQUIRE(after_end_cursor.has_value());
     CHECK(optionalValueForApprox(after_end_cursor) == Catch::Approx(100.0f));
 
     CHECK_FALSE(cursorXForTimelinePosition(
-                    core::TimePosition{1.0}, core::TimePosition{}, core::TimeDuration{}, 101)
+                    core::TimePosition{1.0},
+                    core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{}},
+                    101)
                     .has_value());
 }
 

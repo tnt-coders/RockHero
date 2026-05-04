@@ -20,9 +20,8 @@ target_sources(rock_hero PRIVATE main.cpp)
 rock_hero_juce_generate_juce_header(rock_hero)
 
 # Compose the game from project libraries plus the JUCE GUI wrapper needed by public headers.
-target_link_libraries(
-    rock_hero PRIVATE rock_hero_ui rock_hero_audio rock_hero_core rock_hero_juce_gui_basics
-                      juce::juce_recommended_warning_flags)
+target_link_libraries(rock_hero PRIVATE rock_hero::ui rock_hero::audio rock_hero::core
+                                        rock_hero::juce_gui_basics rock_hero::build_policy)
 
 # Register the packaged desktop app metadata and icons.
 package_register_target(

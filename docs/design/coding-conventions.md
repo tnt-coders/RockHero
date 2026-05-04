@@ -45,6 +45,21 @@ data object.
 The underlying `readability-identifier-naming` checker uses the value name `camelBack` for
 function and method identifiers. In project documentation, refer to that style as `camelCase`.
 
+## Listener Naming
+
+Prefer the scoped name `Listener` for a type that exposes one clear notification surface. Existing
+names such as `ITransport::Listener`, `TrackView::Listener`, and `TransportControls::Listener` are
+acceptable because the owning type supplies the missing context.
+
+As listener APIs evolve, consider a more specific nested name such as `StatusListener`,
+`ClickListener`, or `InteractionListener` if an owning type grows multiple independent listener
+contracts or if the generic name starts to obscure cadence, threading, ownership, or event
+semantics.
+
+Do not rename listener interfaces only to make every callback name maximally specific. The point is
+to preserve clarity as contracts grow, not to preemptively rename scoped listener types that are
+already clear.
+
 # Const Correctness
 
 Use `const` wherever practical by default.
@@ -88,7 +103,8 @@ using namespace rock_hero;
 using namespace rock_hero::core;
 \endcode
 
-Production `.cpp` files should usually define code inside the namespace that owns the implementation.
+Production `.cpp` files should usually define code inside the namespace that owns the
+implementation.
 Module-local test `.cpp` files should also wrap their tests in the namespace of the module under
 test. This keeps tests close to the code they verify and avoids treating same-module tests like
 external consumers.
@@ -150,15 +166,16 @@ bool containsTrack(const Track& track) const;
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-TrackId addTrack(std::string name, std::optional<AudioAsset> audio_asset);
-bool replaceTrackAsset(TrackId id, AudioAsset audio_asset);
+bool addTrack(TrackId id, TrackSpec track_spec);
+bool setAudioClip(
+    TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
-track.name = std::move(name);
-track.audio_asset = std::move(audio_asset);
+track.name = std::move(track_spec.name);
+track.audio_clip = AudioClip{.asset = std::move(audio_clip_spec.asset)};
 \endcode
 
 # Value Type Guardrails
@@ -193,6 +210,32 @@ CHECK(session.tracks()[1].name == "Guitar Stem");
 
 Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
 `CHECK_FALSE` for independent observations.
+
+# Test CTAD
+
+In test code, prefer class template argument deduction for short-lived expected values when the
+initializer already states the semantic type and deduction is unambiguous and correct. This keeps
+assertions focused on behavior instead of repeating template arguments that are already visible in
+the wrapped value.
+
+Examples:
+
+\code{.cpp}
+CHECK(edit.last_track_id == std::optional{core::TrackId{3}});
+CHECK(provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
+\endcode
+
+Keep explicit template arguments when CTAD would deduce the wrong type, when constructing an empty
+wrapper, or when the wrapper type itself is the contract under test.
+
+Example:
+
+\code{.cpp}
+CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+\endcode
+
+Do not rely on CTAD for string-literal optionals unless the intended stored type really is a
+pointer.
 
 # Test File Organization
 

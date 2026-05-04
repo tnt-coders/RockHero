@@ -15,8 +15,8 @@ rock_hero_juce_generate_juce_header(rock_hero_editor)
 
 # Compose the editor from UI/audio libraries plus the JUCE wrappers exposed by their headers.
 target_link_libraries(
-    rock_hero_editor PRIVATE rock_hero_ui rock_hero_audio rock_hero_juce_gui_basics
-                             rock_hero_juce_audio_utils juce::juce_recommended_warning_flags)
+    rock_hero_editor PRIVATE rock_hero::ui rock_hero::audio rock_hero::juce_gui_basics
+                             rock_hero::juce_audio_utils rock_hero::build_policy)
 
 # Register the editor as a developer-facing desktop target in the package metadata.
 package_register_target(rock_hero_editor DISPLAY_NAME "Rock Hero Editor")

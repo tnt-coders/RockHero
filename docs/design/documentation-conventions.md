@@ -53,11 +53,11 @@ explain intent and architectural role.
 Examples:
 
 \code{.cmake}
-# Depend on project-owned wrapper targets rather than raw JUCE/Tracktion module targets.
+# Depend on project-owned wrapper aliases rather than raw JUCE/Tracktion module targets.
 target_link_libraries(
     rock_hero_audio
-    PUBLIC rock_hero_core
-    PRIVATE rock_hero_tracktion_core rock_hero_tracktion_engine rock_hero_tracktion_graph)
+    PUBLIC rock_hero::core
+    PRIVATE rock_hero::tracktion_core rock_hero::tracktion_engine rock_hero::tracktion_graph)
 \endcode
 
 \code{.cmake}
@@ -135,8 +135,9 @@ Example for a top-level declaration:
 /*!
 \brief Reads the current transport position for render-cadence cursor drawing.
 
-Unlike state(), this method is a live position read rather than a listener-published snapshot.
-UI code that needs smooth cursor motion should call this at its own render cadence.
+Like state(), this method is a live message-thread-only read and is not thread-safe. Listener
+callbacks report only TransportState changes and do not carry position. UI code that needs smooth
+cursor motion should call position() at its own render cadence.
 
 \return Current transport position.
 */

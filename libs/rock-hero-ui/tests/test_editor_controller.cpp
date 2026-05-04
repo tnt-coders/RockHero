@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <rock_hero/audio/i_edit.h>
@@ -9,12 +10,14 @@
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
+#include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
 #include <rock_hero/ui/track_view_state.h>
 #include <rock_hero/ui/transport_controls_state.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -112,24 +115,27 @@ public:
 
     void stop() override
     {
+        current_state.playing = false;
+        current_position = core::TimePosition{};
         ++stop_call_count;
     }
 
-    // Records the requested seek so tests can verify clamping and duration scaling.
+    // Records the requested seek so tests can verify clamping and timeline scaling.
     void seek(core::TimePosition position) override
     {
         last_seek_position = position;
+        current_position = position;
         ++seek_call_count;
     }
 
-    [[nodiscard]] audio::TransportState state() const override
+    [[nodiscard]] audio::TransportState state() const noexcept override
     {
         return current_state;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
     {
-        return current_state.position;
+        return current_position;
     }
 
     void addListener(Listener& listener) override
@@ -142,7 +148,7 @@ public:
         std::erase(listeners, &listener);
     }
 
-    // Updates the snapshot and fires a coarse listener callback to mimic a real coarse transition.
+    // Updates the state and fires a coarse listener callback to mimic a real transition.
     void setStateAndNotify(const audio::TransportState& new_state)
     {
         current_state = new_state;
@@ -152,13 +158,8 @@ public:
         }
     }
 
-    // Updates the snapshot without notifying so tests can assert the controller does not poll.
-    void setStateSilently(const audio::TransportState& new_state)
-    {
-        current_state = new_state;
-    }
-
     audio::TransportState current_state{};
+    core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
     std::optional<core::TimePosition> last_seek_position{};
     int play_call_count{0};
@@ -172,26 +173,154 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    // Returns the configured next_result and optionally fires an injected reentrant action
+    // Records backend track provisioning requested by the edit coordinator.
+    std::optional<core::TrackSpec> provisionTrack(
+        core::TrackId track_id, const std::string& name) override
+    {
+        last_provisioned_track_id = track_id;
+        last_provisioned_track_name = name;
+        ++provision_track_call_count;
+        if (!next_provision_track_result)
+        {
+            return std::nullopt;
+        }
+
+        return core::TrackSpec{
+            .name = name,
+        };
+    }
+
+    // Records the requested clip provision and optionally fires an injected reentrant action
     // before returning so reentrancy paths can be exercised deterministically.
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    std::optional<core::AudioClipSpec> provisionAudioClip(
+        core::TrackId track_id, core::AudioClipId audio_clip_id,
+        const core::AudioAsset& audio_asset, core::TimePosition position) override
     {
         last_track_id = track_id;
+        last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
-        ++set_track_audio_source_call_count;
+        last_position = position;
+        ++provision_audio_clip_call_count;
         if (during_edit_action)
         {
             during_edit_action();
         }
-        return next_result;
+        if (!next_provision_audio_clip_result || !next_audio_asset_duration.has_value())
+        {
+            return std::nullopt;
+        }
+
+        const core::TimeDuration asset_duration =
+            next_audio_asset_duration.value_or(core::TimeDuration{});
+        return core::AudioClipSpec{
+            .asset = audio_asset,
+            .asset_duration = asset_duration,
+            .source_range =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{asset_duration.seconds},
+                },
+            .position = position,
+        };
     }
 
-    bool next_result{true};
-    int set_track_audio_source_call_count{0};
+    std::optional<core::TimeDuration> next_audio_asset_duration{core::TimeDuration{4.0}};
+    bool next_provision_track_result{true};
+    bool next_provision_audio_clip_result{true};
+    int provision_track_call_count{0};
+    int provision_audio_clip_call_count{0};
+    std::optional<core::TrackId> last_provisioned_track_id{};
+    std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
+    std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<core::TimePosition> last_position{};
     std::function<void()> during_edit_action{};
 };
+
+// Provides a standard loaded-content range for controller tests.
+[[nodiscard]] core::TimeRange loadedTimelineRange(double end_seconds = 4.0) noexcept
+{
+    return core::TimeRange{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{end_seconds},
+    };
+}
+
+// Builds a clip value for optional comparisons without unchecked optional dereferences.
+[[nodiscard]] core::AudioClip makeAudioClip(
+    core::AudioClipId id, std::filesystem::path path, core::TimeRange timeline_range)
+{
+    return core::AudioClip{
+        .id = id,
+        .asset = core::AudioAsset{std::move(path)},
+        .asset_duration = timeline_range.duration(),
+        .source_range = timeline_range,
+        .position = core::TimePosition{},
+    };
+}
+
+// Builds expected clip-view state without reaching through nullable session fields in assertions.
+[[nodiscard]] AudioClipViewState makeAudioClipViewState(
+    core::AudioClipId id, std::filesystem::path path, core::TimeRange timeline_range)
+{
+    const core::TimeRange source_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{timeline_range.duration().seconds},
+    };
+
+    return AudioClipViewState{
+        .audio_clip_id = id,
+        .asset = core::AudioAsset{std::move(path)},
+        .source_range = source_range,
+        .timeline_range = timeline_range,
+    };
+}
+
+// Creates synthetic editor tracks through the same coordinator path used by production code.
+core::TrackId addTestTrack(EditCoordinator& edit_coordinator, const std::string& name = {})
+{
+    const core::TrackId track_id = edit_coordinator.createTrack(name);
+    REQUIRE(track_id.isValid());
+    return track_id;
+}
+
+// Adds one loaded track through the coordinator so tests do not bypass backend/session coupling.
+core::TrackId addLoadedTrack(
+    EditCoordinator& edit_coordinator, FakeEdit& edit, const std::string& name,
+    std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
+{
+    const core::TrackId track_id = addTestTrack(edit_coordinator, name);
+    edit.next_audio_asset_duration = timeline_range.duration();
+    const auto audio_clip_id = edit_coordinator.createAudioClip(
+        track_id, core::AudioAsset{std::move(path)}, timeline_range.start);
+    REQUIRE(audio_clip_id.has_value());
+    return track_id;
+}
+
+// Reads a track clip by value so tests do not chain through nullable lookup results.
+[[nodiscard]] std::optional<core::AudioClip> findTrackAudioClip(
+    const core::Session& session, core::TrackId track_id)
+{
+    const core::Track* const track = session.findTrack(track_id);
+    if (track == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return track->audio_clip;
+}
+
+// Exposes stop enabledness as an optional value so tests can assert presence and value together.
+[[nodiscard]] std::optional<bool> lastStopEnabled(const FakeEditorView& view)
+{
+    if (!view.last_state.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return view.last_state->stop_enabled;
+}
 
 } // namespace
 
@@ -204,8 +333,7 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
-    CHECK(empty_state.visible_timeline_start == core::TimePosition{});
-    CHECK(empty_state.visible_timeline_duration == core::TimeDuration{});
+    CHECK(empty_state.visible_timeline == core::TimeRange{});
     CHECK(empty_state.tracks.empty());
     CHECK_FALSE(empty_state.last_load_error.has_value());
 
@@ -214,31 +342,27 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
-        .visible_timeline_start = core::TimePosition{},
-        .visible_timeline_duration = core::TimeDuration{180.0},
+        .visible_timeline = loadedTimelineRange(180.0),
         .tracks = {TrackViewState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
-            .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+            .audio_clips = {makeAudioClipViewState(
+                core::AudioClipId{7},
+                std::filesystem::path{"full_mix.wav"},
+                loadedTimelineRange(180.0))},
         }},
         .last_load_error = std::string{"Could not load file"},
     };
 
     REQUIRE(single_track_state.tracks.size() == 1);
     CHECK(single_track_state.tracks.front().track_id == core::TrackId{1});
-    CHECK(single_track_state.visible_timeline_start == core::TimePosition{});
-    CHECK(single_track_state.visible_timeline_duration == core::TimeDuration{180.0});
+    CHECK(single_track_state.visible_timeline == loadedTimelineRange(180.0));
     CHECK(single_track_state.tracks.front().display_name == "Full Mix");
-    const auto& audio_asset = single_track_state.tracks.front().audio_asset;
-    std::optional<std::filesystem::path> loaded_audio_path{};
-    if (audio_asset.has_value())
-    {
-        loaded_audio_path = audio_asset->path;
-    }
-    REQUIRE(loaded_audio_path.has_value());
-    CHECK(
-        loaded_audio_path ==
-        std::optional<std::filesystem::path>{std::filesystem::path{"full_mix.wav"}});
+    REQUIRE(single_track_state.tracks.front().audio_clips.size() == 1);
+    const AudioClipViewState& audio_clip = single_track_state.tracks.front().audio_clips.front();
+    CHECK(audio_clip.audio_clip_id == core::AudioClipId{7});
+    CHECK(audio_clip.asset.path == std::filesystem::path{"full_mix.wav"});
+    CHECK(audio_clip.timeline_range == loadedTimelineRange(180.0));
     CHECK(single_track_state.last_load_error == std::optional<std::string>{"Could not load file"});
 }
 
@@ -248,12 +372,14 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
     const TrackViewState track_state{
         .track_id = core::TrackId{7},
         .display_name = "Guitar",
-        .audio_asset = core::AudioAsset{std::filesystem::path{"guitar.wav"}},
+        .audio_clips = {makeAudioClipViewState(
+            core::AudioClipId{1}, std::filesystem::path{"guitar.wav"}, loadedTimelineRange())},
     };
     const TrackViewState same_track_state{
         .track_id = core::TrackId{7},
         .display_name = "Guitar",
-        .audio_asset = core::AudioAsset{std::filesystem::path{"guitar.wav"}},
+        .audio_clips = {makeAudioClipViewState(
+            core::AudioClipId{1}, std::filesystem::path{"guitar.wav"}, loadedTimelineRange())},
     };
 
     const EditorViewState first_state{
@@ -261,8 +387,7 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .play_pause_enabled = true,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .visible_timeline_start = core::TimePosition{},
-        .visible_timeline_duration = core::TimeDuration{4.0},
+        .visible_timeline = loadedTimelineRange(),
         .tracks = {track_state},
         .last_load_error = std::nullopt,
     };
@@ -272,8 +397,7 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .play_pause_enabled = true,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .visible_timeline_start = core::TimePosition{},
-        .visible_timeline_duration = core::TimeDuration{4.0},
+        .visible_timeline = loadedTimelineRange(),
         .tracks = {same_track_state},
         .last_load_error = std::nullopt,
     };
@@ -282,8 +406,7 @@ TEST_CASE("Editor view-state types support value comparison", "[ui][editor-contr
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = false,
-        .visible_timeline_start = core::TimePosition{},
-        .visible_timeline_duration = core::TimeDuration{4.0},
+        .visible_timeline = loadedTimelineRange(),
         .tracks = {track_state},
         .last_load_error = std::nullopt,
     };
@@ -318,17 +441,18 @@ TEST_CASE("TransportControlsState stores simple transport UI flags", "[ui][edito
 TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
 {
     FakeEditorView view;
+    const AudioClipViewState backing_clip_state = makeAudioClipViewState(
+        core::AudioClipId{1}, std::filesystem::path{"backing.wav"}, loadedTimelineRange());
     const EditorViewState state{
         .load_button_enabled = true,
         .play_pause_enabled = false,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .visible_timeline_start = core::TimePosition{},
-        .visible_timeline_duration = core::TimeDuration{},
+        .visible_timeline = core::TimeRange{},
         .tracks = {TrackViewState{
             .track_id = core::TrackId{3},
             .display_name = "Backing Track",
-            .audio_asset = core::AudioAsset{std::filesystem::path{"backing.wav"}},
+            .audio_clips = {backing_clip_state},
         }},
         .last_load_error = std::nullopt,
     };
@@ -336,7 +460,7 @@ TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
     view.setState(state);
 
     CHECK(view.set_state_call_count == 1);
-    CHECK(view.last_state == std::optional<EditorViewState>{state});
+    CHECK(view.last_state == std::optional{state});
 }
 
 // Verifies a fake controller can receive the current editor intents without JUCE callback types.
@@ -352,23 +476,23 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     controller.onWaveformClicked(0.75);
 
     CHECK(controller.load_request_count == 1);
-    CHECK(controller.last_track_id == std::optional<core::TrackId>{track_id});
-    CHECK(controller.last_audio_asset == std::optional<core::AudioAsset>{audio_asset});
+    CHECK(controller.last_track_id == std::optional{track_id});
+    CHECK(controller.last_audio_asset == std::optional{audio_asset});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
-    CHECK(controller.last_normalized_x == std::optional<double>{0.75});
+    CHECK(controller.last_normalized_x == std::optional{0.75});
 }
 
 // Confirms attachView immediately delivers the controller's cached state so the view never
 // renders against a stale or default snapshot before the first transition arrives.
 TEST_CASE("EditorController pushes derived state on view attachment", "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", std::nullopt);
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    addTestTrack(edit_coordinator, "Full Mix");
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
 
     controller.attachView(view);
@@ -381,54 +505,71 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
         CHECK(view.last_state->play_pause_enabled == false);
         CHECK(view.last_state->stop_enabled == false);
         CHECK(view.last_state->play_pause_shows_pause_icon == false);
-        CHECK(view.last_state->visible_timeline_start == core::TimePosition{});
-        CHECK(view.last_state->visible_timeline_duration == core::TimeDuration{});
+        CHECK(view.last_state->visible_timeline == core::TimeRange{});
         REQUIRE(view.last_state->tracks.size() == 1);
         CHECK(view.last_state->tracks.front().display_name == "Full Mix");
         CHECK_FALSE(view.last_state->last_load_error.has_value());
     }
 }
 
+// Verifies the editor workflow owns the default track policy instead of the app composition root.
+TEST_CASE(
+    "EditorController creates a default track for an empty session", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+
+    const EditorController controller{transport, edit_coordinator};
+    const core::Session& session = edit_coordinator.session();
+
+    REQUIRE(session.tracks().size() == 1);
+    CHECK(session.tracks()[0].id == core::TrackId{1});
+    CHECK(session.tracks()[0].name == "Full Mix");
+    CHECK_FALSE(session.tracks()[0].audio_clip.has_value());
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+    CHECK(edit.provision_audio_clip_call_count == 0);
+}
+
 // Verifies the controller does not poll transport state independently; only listener callbacks
 // drive view pushes, so position-only changes never reach the view.
 TEST_CASE("EditorController does not push without a transport callback", "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
 
-    transport.setStateSilently(
-        audio::TransportState{
-            .playing = false,
-            .position = core::TimePosition{1.5},
-            .duration = core::TimeDuration{4.0},
-        });
+    transport.current_position = core::TimePosition{1.5};
 
     CHECK(view.set_state_call_count == 1);
 }
 
-// Verifies the controller pushes timeline mapping data without adding current cursor position.
-TEST_CASE(
-    "EditorController derives visible range from transport duration", "[ui][editor-controller]")
+// Verifies the controller pushes session timeline mapping without adding current cursor position.
+TEST_CASE("EditorController derives visible timeline range", "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
-    transport.current_state.duration = core::TimeDuration{8.0};
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id = addLoadedTrack(
+        edit_coordinator,
+        edit,
+        "Full Mix",
+        std::filesystem::path{"a.wav"},
+        loadedTimelineRange(8.0));
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
 
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
-        CHECK(view.last_state->visible_timeline_start == core::TimePosition{});
-        CHECK(view.last_state->visible_timeline_duration == core::TimeDuration{8.0});
+        CHECK(view.last_state->visible_timeline == loadedTimelineRange(8.0));
     }
 }
 
@@ -436,19 +577,17 @@ TEST_CASE(
 // without an extra duplicate-suppression layer in the controller.
 TEST_CASE("EditorController pushes one state per coarse transition", "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
 
     transport.setStateAndNotify(
         audio::TransportState{
             .playing = true,
-            .position = core::TimePosition{0.0},
-            .duration = core::TimeDuration{4.0},
         });
 
     REQUIRE(view.last_state.has_value());
@@ -457,14 +596,12 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     {
         CHECK(view.last_state->play_pause_shows_pause_icon == true);
         CHECK(view.last_state->stop_enabled == true);
-        CHECK(view.last_state->visible_timeline_duration == core::TimeDuration{4.0});
+        CHECK(view.last_state->visible_timeline == loadedTimelineRange());
     }
 
     transport.setStateAndNotify(
         audio::TransportState{
             .playing = false,
-            .position = core::TimePosition{2.0},
-            .duration = core::TimeDuration{4.0},
         });
 
     REQUIRE(view.last_state.has_value());
@@ -476,17 +613,47 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     }
 }
 
+// A paused cursor away from the loaded timeline start can still be reset, so Stop remains active
+// even though the play/pause button has returned to its Play icon.
+TEST_CASE(
+    "EditorController keeps stop enabled when paused away from the timeline start",
+    "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.current_position = core::TimePosition{1.5};
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = false,
+        });
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.set_state_call_count == 2);
+    if (view.last_state.has_value())
+    {
+        CHECK(view.last_state->play_pause_shows_pause_icon == false);
+        CHECK(view.last_state->stop_enabled == true);
+    }
+}
+
 // Play intent issues play() when stopped and pause() when playing, mirroring the toggle the view
 // would render through play_pause_shows_pause_icon.
 TEST_CASE(
     "EditorController play intent toggles transport when a track has audio",
     "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
 
     controller.onPlayPausePressed();
     CHECK(transport.play_call_count == 1);
@@ -500,14 +667,13 @@ TEST_CASE(
 
 // Without a track that owns an audio asset there is nothing to play, so the intent must be a
 // no-op rather than start a silent transport.
-TEST_CASE(
-    "EditorController play intent is ignored when no track has an asset", "[ui][editor-controller]")
+TEST_CASE("EditorController ignores play intent without audio", "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", std::nullopt);
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    addTestTrack(edit_coordinator, "Full Mix");
+    EditorController controller{transport, edit_coordinator};
 
     controller.onPlayPausePressed();
 
@@ -515,58 +681,125 @@ TEST_CASE(
     CHECK(transport.pause_call_count == 0);
 }
 
-// The stop intent must respect the same gate the view publishes, so a stopped transport stays
-// stopped even when an alternate input path tries to fire a stop.
+// The stop intent must respect the same gate the view publishes, so it is ignored only after the
+// transport is paused or stopped at the timeline start.
 TEST_CASE(
-    "EditorController stop intent fires only while transport is playing", "[ui][editor-controller]")
+    "EditorController stop intent fires while playing or away from the timeline start",
+    "[ui][editor-controller]")
 {
-    core::Session session;
-    session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"a.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
 
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 0);
 
-    transport.current_state.playing = true;
+    transport.current_position = core::TimePosition{1.5};
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 1);
+    CHECK(transport.current_position == core::TimePosition{});
+
+    transport.current_state.playing = true;
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 2);
+}
+
+// Stopping from a paused non-start cursor does not necessarily produce a coarse transport state
+// callback, so the controller refreshes the view directly after issuing stop().
+TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id =
+        addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"a.wav"});
+    EditorController controller{transport, edit_coordinator};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.current_position = core::TimePosition{1.5};
+    transport.setStateAndNotify(
+        audio::TransportState{
+            .playing = false,
+        });
+    CHECK(lastStopEnabled(view) == std::optional{true});
+    const int pushes_before_stop = view.set_state_call_count;
+
+    controller.onStopPressed();
+
+    CHECK(transport.stop_call_count == 1);
+    CHECK(view.set_state_call_count == pushes_before_stop + 1);
+    CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
 // Waveform clicks clamp out-of-range input and convert normalized positions through the current
-// transport duration so the seek target stays inside loaded content.
+// session timeline so the seek target stays inside loaded content.
 TEST_CASE(
-    "EditorController waveform click clamps and scales by duration", "[ui][editor-controller]")
+    "EditorController waveform click clamps and scales by timeline", "[ui][editor-controller]")
 {
-    core::Session session;
     FakeTransport transport;
-    transport.current_state.duration = core::TimeDuration{4.0};
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id = addLoadedTrack(
+        edit_coordinator,
+        edit,
+        "Full Mix",
+        std::filesystem::path{"a.wav"},
+        loadedTimelineRange(4.0));
+    EditorController controller{transport, edit_coordinator};
 
     controller.onWaveformClicked(0.5);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
 
     controller.onWaveformClicked(-0.25);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{0.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{0.0}});
 
     controller.onWaveformClicked(1.5);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{4.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{4.0}});
+}
+
+// A seek issued by the controller changes whether Stop can reset the cursor, so the controller
+// refreshes the discrete view state immediately after the seek intent.
+TEST_CASE("EditorController waveform click refreshes stop enabledness", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    [[maybe_unused]] const core::TrackId track_id = addLoadedTrack(
+        edit_coordinator,
+        edit,
+        "Full Mix",
+        std::filesystem::path{"a.wav"},
+        loadedTimelineRange(4.0));
+    EditorController controller{transport, edit_coordinator};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    CHECK(lastStopEnabled(view) == std::optional{false});
+
+    controller.onWaveformClicked(0.5);
+
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
+    CHECK(lastStopEnabled(view) == std::optional{true});
+
+    controller.onWaveformClicked(0.0);
+
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{}});
+    CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
 // Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback
 // for content the session has no record of.
-TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][editor-controller]")
+TEST_CASE("EditorController ignores loads for unknown tracks", "[ui][editor-controller]")
 {
-    core::Session session;
-    const core::TrackId valid_id = session.addTrack("Full Mix", std::nullopt);
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    const core::TrackId valid_id = addTestTrack(edit_coordinator, "Full Mix");
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -574,32 +807,35 @@ TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][
     controller.onLoadAudioAssetRequested(
         unknown_id, core::AudioAsset{std::filesystem::path{"b.wav"}});
 
-    CHECK(edit.set_track_audio_source_call_count == 0);
+    CHECK(edit.provision_audio_clip_call_count == 0);
     CHECK(view.set_state_call_count == 1);
 }
 
-// A failed IEdit call must leave the session unchanged and surface a controller-composed error
+// A failed audio load must leave the session unchanged and surface a controller-composed error
 // message that includes the rejected file path.
 TEST_CASE(
     "EditorController failed load preserves session and reports error", "[ui][editor-controller]")
 {
-    core::Session session;
-    const core::TrackId track_id =
-        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    edit.next_result = false;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    const core::TimeRange original_range = loadedTimelineRange(6.0);
+    const core::TrackId track_id = addLoadedTrack(
+        edit_coordinator, edit, "Full Mix", std::filesystem::path{"old.wav"}, original_range);
+    edit.next_provision_audio_clip_result = false;
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
+    const core::Session& session = edit_coordinator.session();
 
     const core::AudioAsset replacement{std::filesystem::path{"new.wav"}};
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
-    REQUIRE(session.findTrack(track_id) != nullptr);
     CHECK(
-        session.findTrack(track_id)->audio_asset ==
-        std::optional<core::AudioAsset>{core::AudioAsset{std::filesystem::path{"old.wav"}}});
+        findTrackAudioClip(session, track_id) ==
+        std::optional{makeAudioClip(
+            core::AudioClipId{1}, std::filesystem::path{"old.wav"}, original_range)});
+    CHECK(session.timeline() == original_range);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -611,21 +847,21 @@ TEST_CASE(
     }
 }
 
-// A successful IEdit call commits the asset to the session, clears any prior error, and emits
-// a single post-load push.
-TEST_CASE(
-    "EditorController successful load commits asset and clears error", "[ui][editor-controller]")
+// A successful audio load stores the asset and timeline, clears any prior error, and emits one
+// post-load push.
+TEST_CASE("EditorController successful load stores asset and timeline", "[ui][editor-controller]")
 {
-    core::Session session;
-    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    const core::TrackId track_id = addTestTrack(edit_coordinator, "Full Mix");
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
+    const core::Session& session = edit_coordinator.session();
 
     // Force an initial error so the success path has something to clear.
-    edit.next_result = false;
+    edit.next_audio_asset_duration = std::nullopt;
     controller.onLoadAudioAssetRequested(
         track_id, core::AudioAsset{std::filesystem::path{"first.wav"}});
     REQUIRE(view.last_state.has_value());
@@ -635,12 +871,20 @@ TEST_CASE(
     }
     const int pushes_before_success = view.set_state_call_count;
 
-    edit.next_result = true;
+    edit.next_audio_asset_duration = core::TimeDuration{4.0};
     const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
-    REQUIRE(session.findTrack(track_id) != nullptr);
-    CHECK(session.findTrack(track_id)->audio_asset == std::optional<core::AudioAsset>{replacement});
+    CHECK(edit.provision_audio_clip_call_count == 2);
+    CHECK(edit.last_track_id == std::optional{track_id});
+    CHECK(edit.last_audio_clip_id == std::optional{core::AudioClipId{2}});
+    CHECK(edit.last_audio_asset == std::optional{replacement});
+    CHECK(edit.last_position == std::optional{core::TimePosition{}});
+    CHECK(
+        findTrackAudioClip(session, track_id) ==
+        std::optional{makeAudioClip(
+            core::AudioClipId{2}, replacement.path, loadedTimelineRange(4.0))});
+    CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -650,15 +894,15 @@ TEST_CASE(
 }
 
 // Reentrant transport notifications during an in-flight edit must be coalesced into a single
-// final push so the view never observes a state derived from pre-commit session data.
+// final push so the view never observes a view state derived from stale session data.
 TEST_CASE(
     "EditorController coalesces reentrant edit callbacks into one push", "[ui][editor-controller]")
 {
-    core::Session session;
-    const core::TrackId track_id = session.addTrack("Full Mix", std::nullopt);
     FakeTransport transport;
     FakeEdit edit;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    const core::TrackId track_id = addTestTrack(edit_coordinator, "Full Mix");
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
     const int pushes_before_load = view.set_state_call_count;
@@ -667,8 +911,6 @@ TEST_CASE(
         transport.setStateAndNotify(
             audio::TransportState{
                 .playing = true,
-                .position = core::TimePosition{0.0},
-                .duration = core::TimeDuration{4.0},
             });
     };
 
@@ -680,9 +922,8 @@ TEST_CASE(
     if (view.last_state.has_value())
     {
         REQUIRE(view.last_state->tracks.size() == 1);
-        CHECK(
-            view.last_state->tracks.front().audio_asset ==
-            std::optional<core::AudioAsset>{replacement});
+        REQUIRE(view.last_state->tracks.front().audio_clips.size() == 1);
+        CHECK(view.last_state->tracks.front().audio_clips.front().asset == replacement);
         CHECK(view.last_state->play_pause_shows_pause_icon == true);
     }
 }
@@ -692,13 +933,13 @@ TEST_CASE(
 TEST_CASE(
     "EditorController preserves load error across later transitions", "[ui][editor-controller]")
 {
-    core::Session session;
-    const core::TrackId track_id =
-        session.addTrack("Full Mix", core::AudioAsset{std::filesystem::path{"old.wav"}});
     FakeTransport transport;
     FakeEdit edit;
-    edit.next_result = false;
-    EditorController controller{session, transport, edit};
+    EditCoordinator edit_coordinator{edit};
+    const core::TrackId track_id =
+        addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"old.wav"});
+    edit.next_provision_audio_clip_result = false;
+    EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
     controller.onLoadAudioAssetRequested(
@@ -715,8 +956,6 @@ TEST_CASE(
     transport.setStateAndNotify(
         audio::TransportState{
             .playing = true,
-            .position = core::TimePosition{0.0},
-            .duration = core::TimeDuration{4.0},
         });
 
     REQUIRE(view.last_state.has_value());

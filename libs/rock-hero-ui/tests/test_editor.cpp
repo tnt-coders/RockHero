@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
-#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -8,9 +7,9 @@
 #include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/core/session.h>
 #include <rock_hero/ui/editor.h>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace rock_hero::ui
@@ -36,22 +35,22 @@ public:
     void stop() override
     {
         current_state.playing = false;
-        current_state.position = core::TimePosition{};
+        current_position = core::TimePosition{};
     }
 
     void seek(core::TimePosition position_value) override
     {
-        current_state.position = position_value;
+        current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const override
+    [[nodiscard]] audio::TransportState state() const noexcept override
     {
         return current_state;
     }
 
     [[nodiscard]] core::TimePosition position() const noexcept override
     {
-        return current_state.position;
+        return current_position;
     }
 
     void addListener(Listener& listener) override
@@ -65,22 +64,54 @@ public:
     }
 
     audio::TransportState current_state{};
+    core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
 };
 
-// Minimal edit port fake; Step 11 only needs construction and initial state projection.
+// Minimal edit port fake used by Editor construction and initial state projection.
 class FakeEdit final : public audio::IEdit
 {
 public:
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override
+    std::optional<core::TrackSpec> provisionTrack(
+        core::TrackId track_id, const std::string& name) override
     {
-        last_track_id = track_id;
-        last_audio_asset = audio_asset;
-        return true;
+        last_provisioned_track_id = track_id;
+        last_provisioned_track_name = name;
+        ++provision_track_call_count;
+        return core::TrackSpec{
+            .name = name,
+        };
     }
 
+    std::optional<core::AudioClipSpec> provisionAudioClip(
+        core::TrackId track_id, core::AudioClipId audio_clip_id,
+        const core::AudioAsset& audio_asset, core::TimePosition position) override
+    {
+        last_track_id = track_id;
+        last_audio_clip_id = audio_clip_id;
+        last_audio_asset = audio_asset;
+        last_position = position;
+        ++provision_audio_clip_call_count;
+        return core::AudioClipSpec{
+            .asset = audio_asset,
+            .asset_duration = core::TimeDuration{8.0},
+            .source_range =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{8.0},
+                },
+            .position = position,
+        };
+    }
+
+    std::optional<core::TrackId> last_provisioned_track_id{};
+    std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
+    std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<core::TimePosition> last_position{};
+    int provision_track_call_count{0};
+    int provision_audio_clip_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -90,7 +121,13 @@ public:
     void setSource(const core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
+        has_source = true;
         set_source_call_count += 1;
+    }
+
+    [[nodiscard]] bool hasSource() const override
+    {
+        return has_source;
     }
 
     [[nodiscard]] bool isGeneratingProxy() const override
@@ -103,17 +140,16 @@ public:
         return 0.0f;
     }
 
-    [[nodiscard]] double getLength() const override
+    [[nodiscard]] bool drawChannels(
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        float /*vertical_zoom*/) override
     {
-        return 1.0;
+        return true;
     }
-
-    void drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, float /*vertical_zoom*/) override
-    {}
 
     std::optional<core::AudioAsset> last_source{};
     int set_source_call_count{0};
+    bool has_source{false};
 };
 
 // Creates fake thumbnails while recording the owner component passed by Editor.
@@ -160,28 +196,23 @@ template <class ComponentType>
 TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::Session session;
-    const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
-    session.addTrack("Full Mix", audio_asset);
     FakeTransport transport;
-    transport.current_state.duration = core::TimeDuration{8.0};
     FakeEdit edit;
     FakeThumbnailFactory thumbnail_factory;
 
-    Editor editor{session, transport, edit, thumbnail_factory};
+    Editor editor{transport, edit, thumbnail_factory};
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
     auto& load_button = findRequiredChild<juce::TextButton>(component, "load_button");
     CHECK(load_button.isEnabled());
-    CHECK(thumbnail_factory.create_call_count == 1);
-    REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
-    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
-    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
-    CHECK(
-        thumbnail_factory.last_thumbnail->last_source ==
-        std::optional<core::AudioAsset>{audio_asset});
+    CHECK(thumbnail_factory.create_call_count == 0);
+    CHECK(thumbnail_factory.last_owner == nullptr);
+    CHECK(thumbnail_factory.last_thumbnail == nullptr);
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.provision_audio_clip_call_count == 0);
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     CHECK(transport.listeners.size() == 1);
 }
 

@@ -3,7 +3,13 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <optional>
+#include <string>
 #include <tracktion_engine/tracktion_engine.h>
+#include <unordered_map>
 
 namespace rock_hero::audio
 {
@@ -14,69 +20,72 @@ struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Liste
 private:
     friend class Engine;
 
+    // Lets project-owned id wrappers act as hash keys without adding hashing policy to core.
+    struct IdHash
+    {
+        template <typename Id> [[nodiscard]] std::size_t operator()(Id id) const noexcept
+        {
+            return std::hash<std::uint64_t>{}(id.value);
+        }
+    };
+
+    using TrackIdMap = std::unordered_map<core::TrackId, tracktion::EditItemID, IdHash>;
+    using AudioClipIdMap = std::unordered_map<core::AudioClipId, tracktion::EditItemID, IdHash>;
+
     // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
 
     // Single-track edit used for current early backing-track playback.
     std::unique_ptr<tracktion::Edit> m_edit;
 
+    // Project-to-Tracktion track identity mapping. Currently limited to one entry.
+    TrackIdMap m_tracktion_track_ids;
+
+    // Project-to-Tracktion clip identity mapping. Currently limited to one live clip.
+    AudioClipIdMap m_tracktion_clip_ids;
+
     // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
-    // Message-thread snapshot exposed through ITransport::state().
-    TransportState m_transport_state{};
+    // Last coarse state used to suppress duplicate listener notifications.
+    TransportState m_last_notified_transport_state{};
 
     // Message-thread listener list for the project-owned ITransport listener surface.
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
 
-    // Builds the current message-thread transport snapshot from Tracktion state and cached length.
-    [[nodiscard]] TransportState makeTransportStateSnapshot() const
+    // Derives the current coarse transport state directly from Tracktion state.
+    [[nodiscard]] TransportState currentTransportState() const noexcept
     {
         return TransportState{
             .playing = m_edit->getTransport().isPlaying(),
-            .position = core::TimePosition{clampToLoadedRange(
-                m_edit->getTransport().getPosition().inSeconds())},
-            .duration = core::TimeDuration{m_loaded_length_seconds},
         };
     }
 
-    // Applies a fresh snapshot and notifies listeners only for coarse fields that changed.
-    void applyTransportStateSnapshot(const TransportState& next_state, bool notify_listeners)
+    // Derives coarse transport state from Tracktion and notifies listeners when it changes.
+    void updateTransportState()
     {
-        const bool playing_changed = m_transport_state.playing != next_state.playing;
-        const bool duration_changed = m_transport_state.duration != next_state.duration;
-
-        m_transport_state = next_state;
-
-        if (!notify_listeners)
+        const TransportState current_state = currentTransportState();
+        if (m_last_notified_transport_state == current_state)
         {
             return;
         }
 
-        // Project-owned transport listeners observe coarse transitions only. Position remains part
-        // of state() so view code can poll it at render cadence without forcing callbacks on every
-        // playhead tick.
-        if (playing_changed || duration_changed)
-        {
-            m_transport_listeners.call(
-                &ITransport::Listener::onTransportStateChanged, m_transport_state);
-        }
-    }
-
-    // Rebuilds the current transport snapshot from Tracktion state and publishes it.
-    void refreshTransportState(bool notify_listeners)
-    {
-        applyTransportStateSnapshot(makeTransportStateSnapshot(), notify_listeners);
+        // Project-owned transport listeners observe only coarse transport state. Position is
+        // intentionally excluded so view code polls it at render cadence without forcing callbacks
+        // on every playhead tick.
+        m_last_notified_transport_state = current_state;
+        m_transport_listeners.call(
+            &ITransport::Listener::onTransportStateChanged, m_last_notified_transport_state);
     }
 
     // Mirrors Tracktion transport change broadcasts into the project-owned state snapshot.
     void changeListenerCallback(juce::ChangeBroadcaster* /*source*/) override
     {
-        refreshTransportState(true);
+        updateTransportState();
     }
 
-    // Tracktion publishes playhead movement through the transport ValueTree. React to that
-    // event stream so UI state follows playback without owning a polling timer.
+    // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
+    // surface ignores ordinary movement, but this hook still detects automatic end-of-file stops.
     void valueTreePropertyChanged(
         juce::ValueTree& /*tree*/, const juce::Identifier& property) override
     {
@@ -89,10 +98,7 @@ private:
         if (shouldStopAtLoadedEnd(raw_position_seconds))
         {
             stopAndReturnToStart();
-            return;
         }
-
-        refreshTransportState(true);
     }
 
     // Keeps externally requested positions inside the current loaded file duration.
@@ -104,6 +110,48 @@ private:
         }
 
         return std::clamp(seconds, 0.0, m_loaded_length_seconds);
+    }
+
+    // Finds the Tracktion track previously mapped to the project-owned track id.
+    [[nodiscard]] tracktion::AudioTrack* findMappedTrack(core::TrackId track_id) const
+    {
+        const auto position = m_tracktion_track_ids.find(track_id);
+        if (position == m_tracktion_track_ids.end())
+        {
+            return nullptr;
+        }
+
+        return tracktion::findAudioTrackForID(*m_edit, position->second);
+    }
+
+    // Binds the single Tracktion audio track id to a project-owned track id.
+    [[nodiscard]] bool mapSingleAudioTrack(core::TrackId track_id, const std::string& name)
+    {
+        if (!track_id.isValid() || findMappedTrack(track_id) != nullptr ||
+            !m_tracktion_track_ids.empty())
+        {
+            return false;
+        }
+
+        auto audio_tracks = tracktion::getAudioTracks(*m_edit);
+        auto* track = audio_tracks.getFirst();
+        if (track == nullptr)
+        {
+            return false;
+        }
+
+        track->setName(juce::String{name.c_str()});
+        m_tracktion_track_ids.emplace(track_id, track->itemID);
+        return true;
+    }
+
+    // Records the Tracktion clip id after Tracktion has accepted and created the clip.
+    void mapSingleAudioClip(core::AudioClipId audio_clip_id, tracktion::EditItemID clip_id)
+    {
+        // The current adapter asks Tracktion to replace the only clip on the mapped track, so all
+        // previous project-to-Tracktion clip identities are stale after a successful insertion.
+        m_tracktion_clip_ids.clear();
+        m_tracktion_clip_ids.emplace(audio_clip_id, clip_id);
     }
 
     // Detects the moment Tracktion playback has reached or passed the loaded clip duration.
@@ -144,8 +192,8 @@ Engine::Engine()
     // transport loop. Listening here keeps the adapter event-driven from the UI perspective.
     m_impl->m_edit->getTransport().state.addListener(m_impl.get());
 
-    // Seeds the project-owned snapshot from the freshly created empty edit.
-    m_impl->refreshTransportState(false);
+    // Seeds the project-owned state from the freshly created empty edit.
+    m_impl->updateTransportState();
 }
 
 // Stops transport activity before destroying Tracktion objects in dependency order.
@@ -174,53 +222,6 @@ void Engine::removeListener(ITransport::Listener& listener)
     m_impl->m_transport_listeners.remove(&listener);
 }
 
-// Replaces the single backing-track clip while keeping graph mutation on the message thread.
-bool Engine::loadFile(const juce::File& file)
-{
-    if (!file.existsAsFile())
-    {
-        return false;
-    }
-
-    auto* track = tracktion::getAudioTracks(*m_impl->m_edit)[0];
-    if (track == nullptr)
-    {
-        return false;
-    }
-
-    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
-    if (!audio_file.isValid())
-    {
-        return false;
-    }
-
-    // Candidate is valid; now safe to stop playback and mutate the edit.
-    m_impl->m_edit->getTransport().stop(false, false);
-
-    const auto length = tracktion::TimeDuration::fromSeconds(audio_file.getLength());
-    const auto start = tracktion::TimePosition{};
-    const tracktion::ClipPosition position{
-        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
-    };
-
-    // Final trailing argument asks Tracktion to replace any existing clips on the track.
-    const auto clip =
-        track->insertWaveClip(file.getFileNameWithoutExtension(), file, position, true);
-    if (clip == nullptr)
-    {
-        m_impl->refreshTransportState(true);
-        return false;
-    }
-
-    m_impl->m_loaded_length_seconds = audio_file.getLength();
-
-    auto& transport = m_impl->m_edit->getTransport();
-    transport.looping = false;
-    transport.setPosition(tracktion::TimePosition{});
-    m_impl->refreshTransportState(true);
-    return true;
-}
-
 // Starts Tracktion transport playback from the current edit position.
 void Engine::play()
 {
@@ -232,14 +233,14 @@ void Engine::play()
     }
 
     transport.play(false);
-    m_impl->refreshTransportState(true);
+    m_impl->updateTransportState();
 }
 
 // Stops playback and resets Tracktion's transport position to the start.
 void Engine::stop()
 {
     m_impl->stopAndReturnToStart();
-    m_impl->refreshTransportState(true);
+    m_impl->updateTransportState();
 }
 
 // Pauses playback without resetting position so the user can resume from the same point.
@@ -248,42 +249,121 @@ void Engine::pause()
     // stop(false, false): do not discard recording, do not clear recordings.
     // Does not reset transport position; that is the semantic difference from stop().
     m_impl->m_edit->getTransport().stop(false, false);
-    m_impl->refreshTransportState(true);
+    m_impl->updateTransportState();
 }
 
-// Moves Tracktion transport to the requested timeline position and publishes the new snapshot.
+// Moves Tracktion transport to the requested timeline position. Position-only motion is observed
+// through position(), not through the coarse state listener surface.
 void Engine::seek(core::TimePosition position)
 {
     const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
     m_impl->m_edit->getTransport().setPosition(
         tracktion::TimePosition::fromSeconds(clamped_seconds));
-    m_impl->refreshTransportState(true);
 }
 
-// Returns the project-owned message-thread snapshot used by ITransport and edit call sites.
-TransportState Engine::state() const
+// Returns the current project-owned state directly from the Tracktion adapter state.
+TransportState Engine::state() const noexcept
 {
-    return m_impl->m_transport_state;
+    return m_impl->currentTransportState();
 }
 
-// Reads Tracktion directly for smooth cursor rendering instead of returning the cached snapshot.
+// Reads Tracktion directly for smooth cursor rendering instead of returning cached state.
 core::TimePosition Engine::position() const noexcept
 {
     const double raw_position_seconds = m_impl->m_edit->getTransport().getPosition().inSeconds();
     return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
-// Adapts the current framework-free edit port onto the single-file load helper.
-bool Engine::setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset)
+// Binds the current single Tracktion audio track to one project-owned track id.
+std::optional<core::TrackSpec> Engine::provisionTrack(
+    core::TrackId track_id, const std::string& name)
 {
-    static_cast<void>(track_id);
+    if (!m_impl->mapSingleAudioTrack(track_id, name))
+    {
+        return std::nullopt;
+    }
+
+    return core::TrackSpec{
+        .name = name,
+    };
+}
+
+// Adapts the framework-free edit port onto the mapped Tracktion audio track.
+std::optional<core::AudioClipSpec> Engine::provisionAudioClip(
+    core::TrackId track_id, core::AudioClipId audio_clip_id, const core::AudioAsset& audio_asset,
+    core::TimePosition position)
+{
+    auto* track = m_impl->findMappedTrack(track_id);
+    if (track == nullptr || !audio_clip_id.isValid())
+    {
+        return std::nullopt;
+    }
 
     // TODO: Route this through a project-owned edit-history boundary once undo/redo lands.
     // The history surface should own transaction semantics instead of exposing Tracktion or JUCE
     // undo primitives through Rock Hero interfaces.
     const auto path_text = audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
-    return loadFile(file);
+    if (!file.existsAsFile())
+    {
+        return std::nullopt;
+    }
+
+    // The current single-file transport path still assumes the loaded clip begins at zero.
+    // Nonzero placement needs a wider transport timeline model before it is safe to accept.
+    if (position != core::TimePosition{})
+    {
+        return std::nullopt;
+    }
+
+    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
+    if (!audio_file.isValid())
+    {
+        return std::nullopt;
+    }
+
+    const core::TimeDuration asset_duration{audio_file.getLength()};
+    if (asset_duration.seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    core::AudioClipSpec audio_clip_spec{
+        .asset = audio_asset,
+        .asset_duration = asset_duration,
+        .source_range =
+            core::TimeRange{
+                .start = core::TimePosition{},
+                .end = core::TimePosition{asset_duration.seconds},
+            },
+        .position = position,
+    };
+
+    // Candidate is valid; stop playback before replacing clips in Tracktion's edit graph.
+    auto& transport = m_impl->m_edit->getTransport();
+    transport.stop(false, false);
+
+    const auto start = tracktion::TimePosition::fromSeconds(position.seconds);
+    const auto length = tracktion::TimeDuration::fromSeconds(asset_duration.seconds);
+    const tracktion::ClipPosition clip_position{
+        .time = {start, start + length}, .offset = tracktion::TimeDuration{}
+    };
+
+    // Final trailing argument asks Tracktion to replace any existing clips on the track.
+    const auto clip =
+        track->insertWaveClip(file.getFileNameWithoutExtension(), file, clip_position, true);
+    if (clip == nullptr)
+    {
+        m_impl->updateTransportState();
+        return std::nullopt;
+    }
+
+    m_impl->mapSingleAudioClip(audio_clip_id, clip->itemID);
+    m_impl->m_loaded_length_seconds = audio_clip_spec.timelineRange().end.seconds;
+    transport.looping = false;
+    transport.setPosition(tracktion::TimePosition{});
+    m_impl->updateTransportState();
+    return audio_clip_spec;
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

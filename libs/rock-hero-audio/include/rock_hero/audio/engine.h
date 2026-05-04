@@ -6,9 +6,11 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
+#include <string>
 
 namespace juce
 {
@@ -32,8 +34,10 @@ All other code depends on the project-owned audio interfaces rather than on Trac
 This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files
 include Tracktion headers.
 
-Owns the tracktion::Engine and the single tracktion::Edit used for playback. All public methods
-must be called on the message thread.
+Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
+intentionally maps only one core::TrackId to one Tracktion audio track even though core::Session
+can model multiple tracks. Project-owned track and clip ids are translated to Tracktion
+EditItemIDs inside the implementation. All public methods must be called on the message thread.
 
 \see rock_hero::MainWindow
 */
@@ -86,10 +90,10 @@ public:
     void seek(core::TimePosition position) override;
 
     /*!
-    \brief Returns the current transport snapshot.
-    \return Current message-thread snapshot of playing state, position, and duration.
+    \brief Reads the current coarse transport state.
+    \return Current message-thread coarse playback state.
     */
-    [[nodiscard]] TransportState state() const override;
+    [[nodiscard]] TransportState state() const noexcept override;
 
     /*!
     \brief Reads the current Tracktion position.
@@ -110,16 +114,37 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Applies a framework-free audio asset to the current single-track playback edit.
+    \brief Provisions a backend audio track mapped to a core::TrackId.
 
-    This is the first concrete implementation of audio::IEdit. It adapts the existing single-file
-    playback path and therefore still applies only one backing-track source at a time.
+    This is the first concrete implementation of audio::IEdit. It adapts Tracktion's initial
+    single-track edit by binding the one available Tracktion audio track to the supplied project
+    track id and storing the Tracktion EditItemID behind the adapter boundary. Later track
+    provisioning attempts fail until multi-track playback exists.
 
-    \param track_id Track whose source should be updated.
-    \param audio_asset Framework-free asset reference selected for the track.
-    \return True when the playback backend accepted the requested source.
+    \param track_id Session-allocated track id to bind to the Tracktion track.
+    \param name User-visible track name to apply to the Tracktion track.
+    \return Accepted track spec when the Tracktion track was mapped; std::nullopt otherwise.
     */
-    bool setTrackAudioSource(core::TrackId track_id, const core::AudioAsset& audio_asset) override;
+    [[nodiscard]] std::optional<core::TrackSpec> provisionTrack(
+        core::TrackId track_id, const std::string& name) override;
+
+    /*!
+    \brief Provisions a framework-free audio clip spec on a mapped backend track.
+
+    The current adapter supports one mapped Tracktion audio track. Clip provisions for unmapped
+    track ids fail so callers cannot accidentally mutate playback for a Session track the engine
+    cannot find later. Successful provisions map the project clip id to Tracktion's accepted
+    EditItemID while returning an identity-free clip spec for Session to commit.
+
+    \param track_id Track whose clip should be updated.
+    \param audio_clip_id Session-allocated id to map to the Tracktion clip.
+    \param audio_asset Framework-free asset reference used as the clip source.
+    \param position Requested start position on the session timeline.
+    \return Accepted clip spec when the playback backend provisioned it.
+    */
+    [[nodiscard]] std::optional<core::AudioClipSpec> provisionAudioClip(
+        core::TrackId track_id, core::AudioClipId audio_clip_id,
+        const core::AudioAsset& audio_asset, core::TimePosition position) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.
@@ -129,13 +154,11 @@ public:
 
     \param owner The component that should be repainted when the proxy finishes generating.
     \return A new IThumbnail instance.
+    \note The returned thumbnail must be destroyed before the owner component and this Engine.
     */
     [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override;
 
 private:
-    // Loads an audio file onto track 0, replacing any existing clip.
-    [[nodiscard]] bool loadFile(const juce::File& file);
-
     // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;
 
