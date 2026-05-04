@@ -35,17 +35,19 @@ public:
     /*! \copydoc IThumbnail::setSource */
     void setSource(const core::AudioAsset& audio_asset) override;
 
+    /*! \copydoc IThumbnail::hasSource */
+    [[nodiscard]] bool hasSource() const override;
+
     /*! \copydoc IThumbnail::isGeneratingProxy */
     [[nodiscard]] bool isGeneratingProxy() const override;
 
     /*! \copydoc IThumbnail::getProxyProgress */
     [[nodiscard]] float getProxyProgress() const override;
 
-    /*! \copydoc IThumbnail::getLength */
-    [[nodiscard]] double getLength() const override;
-
     /*! \copydoc IThumbnail::drawChannels */
-    void drawChannels(juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) override;
+    [[nodiscard]] bool drawChannels(
+        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange source_range,
+        float vertical_zoom) override;
 
 private:
     // Tracktion Engine instance used to resolve AudioFile metadata and proxy generation.
@@ -55,8 +57,11 @@ private:
     // audio data during drawChannels().
     tracktion::SmartThumbnail m_thumbnail;
 
-    // Cached duration used by UI coordinate mapping without exposing Tracktion types.
-    double m_total_length_seconds{0.0};
+    // Tracks whether the last source assignment resolved to drawable source data.
+    bool m_has_source{false};
+
+    // Cached source duration used to reject invalid draw ranges before calling Tracktion.
+    double m_source_length_seconds{0.0};
 };
 
 } // namespace rock_hero::audio
