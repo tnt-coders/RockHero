@@ -20,16 +20,16 @@ const core::Session& EditCoordinator::session() const noexcept
 }
 
 // Allocates identity, binds the backend track, and commits the Session row only after success.
-core::TrackId EditCoordinator::createTrack(std::string name)
+core::TrackId EditCoordinator::createTrack(const std::string& name)
 {
     const core::TrackId track_id = m_session.allocateTrackId();
-    auto track_data = m_edit.get().createTrack(track_id, name);
-    if (!track_data.has_value())
+    auto track_spec = m_edit.get().provisionTrack(track_id, name);
+    if (!track_spec.has_value())
     {
         return core::TrackId{};
     }
 
-    const bool track_added = m_session.addTrack(track_id, std::move(track_data).value());
+    const bool track_added = m_session.addTrack(track_id, std::move(track_spec).value());
     assert(track_added && "Session rejected a backend-accepted track id");
     if (!track_added)
     {
@@ -39,8 +39,8 @@ core::TrackId EditCoordinator::createTrack(std::string name)
     return track_id;
 }
 
-// Allocates durable identity, lets the backend create the clip, then commits the accepted value.
-// Failed backend creates intentionally leave the allocated id unused.
+// Allocates durable identity, lets the backend provision the clip, then commits the accepted value.
+// Failed backend provisions intentionally leave the allocated id unused.
 std::optional<core::AudioClipId> EditCoordinator::createAudioClip(
     core::TrackId track_id, const core::AudioAsset& audio_asset, core::TimePosition position)
 {
@@ -50,15 +50,15 @@ std::optional<core::AudioClipId> EditCoordinator::createAudioClip(
     }
 
     const core::AudioClipId audio_clip_id = m_session.allocateAudioClipId();
-    auto audio_clip_data =
-        m_edit.get().createAudioClip(track_id, audio_clip_id, audio_asset, position);
-    if (!audio_clip_data.has_value())
+    auto audio_clip_spec =
+        m_edit.get().provisionAudioClip(track_id, audio_clip_id, audio_asset, position);
+    if (!audio_clip_spec.has_value())
     {
         return std::nullopt;
     }
 
     const bool committed =
-        m_session.setAudioClip(track_id, audio_clip_id, std::move(audio_clip_data).value());
+        m_session.setAudioClip(track_id, audio_clip_id, std::move(audio_clip_spec).value());
     assert(committed && "Session rejected a backend-accepted audio clip");
     if (!committed)
     {

@@ -13,6 +13,16 @@
 - `.claude/agents/doxygen-audio-docs.md` for Doxygen comment authoring/review in audio and engine-facing C++ code.
 - These playbooks are guidance artifacts, not executable agent definitions in Codex.
 
+## Documentation Maintenance Rules
+Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design
+changes. Treat them as deferred implementation plans that may be stale until the user chooses to
+implement that specific plan; at that point, re-read the current code and design docs and revise the
+plan as needed before using it.
+
+Keep `docs/design/` documents aligned with implemented architecture and durable project decisions.
+Before making any significant rule or architecture change in `docs/design/`, confirm with the user
+that they intend to change the design rather than merely make a local implementation adjustment.
+
 ## Project Structure & Module Organization
 `apps/` contains executables (`apps/rock-hero-editor`, `apps/rock-hero`). `libs/` contains
 shared static libraries, one per module (`libs/rock-hero-audio`, `libs/rock-hero-core`,

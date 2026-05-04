@@ -166,16 +166,16 @@ bool containsTrack(const Track& track) const;
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-bool addTrack(TrackId id, TrackData track_data);
+bool addTrack(TrackId id, TrackSpec track_spec);
 bool setAudioClip(
-    TrackId id, AudioClipId audio_clip_id, AudioClipData audio_clip_data);
+    TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
-track.name = std::move(track_data.name);
-track.audio_clip = AudioClip{.asset = std::move(audio_clip_data.asset)};
+track.name = std::move(track_spec.name);
+track.audio_clip = AudioClip{.asset = std::move(audio_clip_spec.asset)};
 \endcode
 
 # Value Type Guardrails
