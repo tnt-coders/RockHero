@@ -173,26 +173,26 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    // Records backend track creation requested by the edit coordinator.
-    std::optional<core::TrackData> createTrack(
+    // Records backend track provisioning requested by the edit coordinator.
+    std::optional<core::TrackSpec> provisionTrack(
         core::TrackId track_id, const std::string& name) override
     {
-        last_created_track_id = track_id;
-        last_created_track_name = name;
-        ++create_track_call_count;
-        if (!next_create_track_result)
+        last_provisioned_track_id = track_id;
+        last_provisioned_track_name = name;
+        ++provision_track_call_count;
+        if (!next_provision_track_result)
         {
             return std::nullopt;
         }
 
-        return core::TrackData{
+        return core::TrackSpec{
             .name = name,
         };
     }
 
-    // Records the requested clip create and optionally fires an injected reentrant action before
+    // Records the requested clip provision and optionally fires an injected reentrant action before
     // returning so reentrancy paths can be exercised deterministically.
-    std::optional<core::AudioClipData> createAudioClip(
+    std::optional<core::AudioClipSpec> provisionAudioClip(
         core::TrackId track_id, core::AudioClipId audio_clip_id,
         const core::AudioAsset& audio_asset, core::TimePosition position) override
     {
@@ -200,19 +200,19 @@ public:
         last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
         last_position = position;
-        ++create_audio_clip_call_count;
+        ++provision_audio_clip_call_count;
         if (during_edit_action)
         {
             during_edit_action();
         }
-        if (!next_create_audio_clip_result || !next_audio_asset_duration.has_value())
+        if (!next_provision_audio_clip_result || !next_audio_asset_duration.has_value())
         {
             return std::nullopt;
         }
 
         const core::TimeDuration asset_duration =
             next_audio_asset_duration.value_or(core::TimeDuration{});
-        return core::AudioClipData{
+        return core::AudioClipSpec{
             .asset = audio_asset,
             .asset_duration = asset_duration,
             .source_range =
@@ -225,12 +225,12 @@ public:
     }
 
     std::optional<core::TimeDuration> next_audio_asset_duration{core::TimeDuration{4.0}};
-    bool next_create_track_result{true};
-    bool next_create_audio_clip_result{true};
-    int create_track_call_count{0};
-    int create_audio_clip_call_count{0};
-    std::optional<core::TrackId> last_created_track_id{};
-    std::optional<std::string> last_created_track_name{};
+    bool next_provision_track_result{true};
+    bool next_provision_audio_clip_result{true};
+    int provision_track_call_count{0};
+    int provision_audio_clip_call_count{0};
+    std::optional<core::TrackId> last_provisioned_track_id{};
+    std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
     std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
@@ -261,19 +261,19 @@ public:
 }
 
 // Creates synthetic editor tracks through the same coordinator path used by production code.
-core::TrackId addTestTrack(EditCoordinator& edit_coordinator, std::string name = {})
+core::TrackId addTestTrack(EditCoordinator& edit_coordinator, const std::string& name = {})
 {
-    const core::TrackId track_id = edit_coordinator.createTrack(std::move(name));
+    const core::TrackId track_id = edit_coordinator.createTrack(name);
     REQUIRE(track_id.isValid());
     return track_id;
 }
 
 // Adds one loaded track through the coordinator so tests do not bypass backend/session coupling.
 core::TrackId addLoadedTrack(
-    EditCoordinator& edit_coordinator, FakeEdit& edit, std::string name, std::filesystem::path path,
-    core::TimeRange timeline_range = loadedTimelineRange())
+    EditCoordinator& edit_coordinator, FakeEdit& edit, const std::string& name,
+    std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
 {
-    const core::TrackId track_id = addTestTrack(edit_coordinator, std::move(name));
+    const core::TrackId track_id = addTestTrack(edit_coordinator, name);
     edit.next_audio_asset_duration = timeline_range.duration();
     const auto audio_clip_id = edit_coordinator.createAudioClip(
         track_id, core::AudioAsset{std::move(path)}, timeline_range.start);
@@ -516,10 +516,10 @@ TEST_CASE(
     CHECK(session.tracks()[0].id == core::TrackId{1});
     CHECK(session.tracks()[0].name == "Full Mix");
     CHECK_FALSE(session.tracks()[0].audio_clip.has_value());
-    CHECK(edit.create_track_call_count == 1);
-    CHECK(edit.last_created_track_id == std::optional<core::TrackId>{core::TrackId{1}});
-    CHECK(edit.last_created_track_name == std::optional<std::string>{"Full Mix"});
-    CHECK(edit.create_audio_clip_call_count == 0);
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+    CHECK(edit.provision_audio_clip_call_count == 0);
 }
 
 // Verifies the controller does not poll transport state independently; only listener callbacks
@@ -802,7 +802,7 @@ TEST_CASE("EditorController ignores load requests for unknown track ids", "[ui][
     controller.onLoadAudioAssetRequested(
         unknown_id, core::AudioAsset{std::filesystem::path{"b.wav"}});
 
-    CHECK(edit.create_audio_clip_call_count == 0);
+    CHECK(edit.provision_audio_clip_call_count == 0);
     CHECK(view.set_state_call_count == 1);
 }
 
@@ -817,7 +817,7 @@ TEST_CASE(
     const core::TimeRange original_range = loadedTimelineRange(6.0);
     const core::TrackId track_id = addLoadedTrack(
         edit_coordinator, edit, "Full Mix", std::filesystem::path{"old.wav"}, original_range);
-    edit.next_create_audio_clip_result = false;
+    edit.next_provision_audio_clip_result = false;
     EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);
@@ -870,7 +870,7 @@ TEST_CASE("EditorController successful load stores asset and timeline", "[ui][ed
     const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
-    CHECK(edit.create_audio_clip_call_count == 2);
+    CHECK(edit.provision_audio_clip_call_count == 2);
     CHECK(edit.last_track_id == std::optional<core::TrackId>{track_id});
     CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{2}});
     CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{replacement});
@@ -934,7 +934,7 @@ TEST_CASE(
     EditCoordinator edit_coordinator{edit};
     const core::TrackId track_id =
         addLoadedTrack(edit_coordinator, edit, "Full Mix", std::filesystem::path{"old.wav"});
-    edit.next_create_audio_clip_result = false;
+    edit.next_provision_audio_clip_result = false;
     EditorController controller{transport, edit_coordinator};
     FakeEditorView view;
     controller.attachView(view);

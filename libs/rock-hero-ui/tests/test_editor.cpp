@@ -72,18 +72,18 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    std::optional<core::TrackData> createTrack(
+    std::optional<core::TrackSpec> provisionTrack(
         core::TrackId track_id, const std::string& name) override
     {
-        last_created_track_id = track_id;
-        last_created_track_name = name;
-        ++create_track_call_count;
-        return core::TrackData{
+        last_provisioned_track_id = track_id;
+        last_provisioned_track_name = name;
+        ++provision_track_call_count;
+        return core::TrackSpec{
             .name = name,
         };
     }
 
-    std::optional<core::AudioClipData> createAudioClip(
+    std::optional<core::AudioClipSpec> provisionAudioClip(
         core::TrackId track_id, core::AudioClipId audio_clip_id,
         const core::AudioAsset& audio_asset, core::TimePosition position) override
     {
@@ -91,8 +91,8 @@ public:
         last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
         last_position = position;
-        ++create_audio_clip_call_count;
-        return core::AudioClipData{
+        ++provision_audio_clip_call_count;
+        return core::AudioClipSpec{
             .asset = audio_asset,
             .asset_duration = core::TimeDuration{8.0},
             .source_range =
@@ -104,14 +104,14 @@ public:
         };
     }
 
-    std::optional<core::TrackId> last_created_track_id{};
-    std::optional<std::string> last_created_track_name{};
+    std::optional<core::TrackId> last_provisioned_track_id{};
+    std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
     std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
     std::optional<core::TimePosition> last_position{};
-    int create_track_call_count{0};
-    int create_audio_clip_call_count{0};
+    int provision_track_call_count{0};
+    int provision_audio_clip_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -207,10 +207,10 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
     CHECK_FALSE(thumbnail_factory.last_thumbnail->last_source.has_value());
-    CHECK(edit.create_track_call_count == 1);
-    CHECK(edit.create_audio_clip_call_count == 0);
-    CHECK(edit.last_created_track_id == std::optional<core::TrackId>{core::TrackId{1}});
-    CHECK(edit.last_created_track_name == std::optional<std::string>{"Full Mix"});
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.provision_audio_clip_call_count == 0);
+    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     CHECK(transport.listeners.size() == 1);
 }
 
