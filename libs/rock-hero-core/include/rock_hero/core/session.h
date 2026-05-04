@@ -46,7 +46,7 @@ public:
     /*!
     \brief Allocates the next stable track id for an edit transaction.
 
-    Track ids are allocated before the audio backend is asked to create a track so the backend
+    Track ids are allocated before the audio backend is asked to provision a track so the backend
     mapping and the framework-free Session state can agree on the same durable identity. Allocated
     ids are intentionally not reused if the backend rejects the edit, so gaps are expected.
 
@@ -55,17 +55,17 @@ public:
     [[nodiscard]] TrackId allocateTrackId() noexcept;
 
     /*!
-    \brief Adds track data with an already allocated id.
+    \brief Adds a track spec with an already allocated id.
 
     This supports cross-boundary edit orchestration: callers allocate the id before a backend
-    mutation, then commit the resulting framework-free track data using the same id. This method
+    mutation, then commit the resulting framework-free track spec using the same id. This method
     never allocates ids or advances the allocator.
 
     \param id Allocated track id to store.
-    \param track_data Track data to attach to the id.
+    \param track_spec Track spec to attach to the id.
     \return True when the id is valid, unused, and the track was added.
     */
-    bool addTrack(TrackId id, TrackData track_data);
+    bool addTrack(TrackId id, TrackSpec track_spec);
 
     /*!
     \brief Renames an existing track.
@@ -78,8 +78,8 @@ public:
     /*!
     \brief Allocates the next stable audio clip id for an edit transaction.
 
-    Clip ids are allocated before the audio backend is asked to create a clip so backend state and
-    the framework-free Session state can agree on the same durable identity. Allocated ids are
+    Clip ids are allocated before the audio backend is asked to provision a clip so backend state
+    and the framework-free Session state can agree on the same durable identity. Allocated ids are
     intentionally not reused if the backend rejects the edit, so gaps are expected.
 
     \return Newly allocated nonzero audio clip id.
@@ -89,18 +89,18 @@ public:
     // TODO: Replace setAudioClip with addAudioClip and removeAudioClip once the project expands
     // to support more than one clip per track.
     /*!
-    \brief Sets the current audio clip data for an existing track.
+    \brief Sets the current audio clip spec for an existing track.
 
     This is the current single-clip track mutation. Editor orchestration should ask the playback
-    backend to accept the candidate clip before storing it in Session, but Session deliberately
-    stays framework-free and only attaches the already allocated id to framework-free clip data.
+    backend to provision the candidate clip before storing it in Session, but Session deliberately
+    stays framework-free and only attaches the already allocated id to a framework-free clip spec.
 
     \param id Track id whose clip should be set.
-    \param audio_clip_id Allocated clip id to attach to the clip data.
-    \param audio_clip_data Clip data to store on the track.
+    \param audio_clip_id Allocated clip id to attach to the clip spec.
+    \param audio_clip_spec Clip spec to store on the track.
     \return True when the track existed and was updated; false when the track or clip id is invalid.
     */
-    bool setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipData audio_clip_data);
+    bool setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec);
 
 private:
     // Tracks stay in insertion order so UI projections can preserve row ordering.

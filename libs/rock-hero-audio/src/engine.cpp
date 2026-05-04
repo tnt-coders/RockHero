@@ -275,20 +275,21 @@ core::TimePosition Engine::position() const noexcept
 }
 
 // Binds the current single Tracktion audio track to one project-owned track id.
-std::optional<core::TrackData> Engine::createTrack(core::TrackId track_id, const std::string& name)
+std::optional<core::TrackSpec> Engine::provisionTrack(
+    core::TrackId track_id, const std::string& name)
 {
     if (!m_impl->mapSingleAudioTrack(track_id, name))
     {
         return std::nullopt;
     }
 
-    return core::TrackData{
+    return core::TrackSpec{
         .name = name,
     };
 }
 
 // Adapts the framework-free edit port onto the mapped Tracktion audio track.
-std::optional<core::AudioClipData> Engine::createAudioClip(
+std::optional<core::AudioClipSpec> Engine::provisionAudioClip(
     core::TrackId track_id, core::AudioClipId audio_clip_id, const core::AudioAsset& audio_asset,
     core::TimePosition position)
 {
@@ -327,7 +328,7 @@ std::optional<core::AudioClipData> Engine::createAudioClip(
         return std::nullopt;
     }
 
-    const core::AudioClipData audio_clip_data{
+    core::AudioClipSpec audio_clip_spec{
         .asset = audio_asset,
         .asset_duration = asset_duration,
         .source_range =
@@ -358,11 +359,11 @@ std::optional<core::AudioClipData> Engine::createAudioClip(
     }
 
     m_impl->mapSingleAudioClip(audio_clip_id, clip->itemID);
-    m_impl->m_loaded_length_seconds = audio_clip_data.timelineRange().end.seconds;
+    m_impl->m_loaded_length_seconds = audio_clip_spec.timelineRange().end.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return audio_clip_data;
+    return audio_clip_spec;
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

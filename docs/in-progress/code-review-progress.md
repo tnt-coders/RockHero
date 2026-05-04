@@ -38,7 +38,7 @@ Key conclusions:
 - `Track` reads are exposed as const views. All mutation goes through `Session` methods, which
   centralizes model updates while keeping core framework-free.
 - `Session::setAudioClip` is the current temporary single-clip setter. It attaches a
-  Session-allocated `AudioClipId` to identity-free `AudioClipData` after the backend has
+  Session-allocated `AudioClipId` to identity-free `AudioClipSpec` after the backend has
   accepted the corresponding audio edit.
 - `setAudioClip` has an explicit TODO to replace it with `addAudioClip` and `removeAudioClip` once
   the project supports more than one clip per track.
@@ -53,9 +53,9 @@ Key conclusions:
   - `position`
 - `AudioClipId` exists now and is allocated by `Session` before backend mutation, but each `Track`
   still stores only one optional clip for the current single-file workflow.
-- `TrackData` and `AudioClipData` represent identity-free payloads that can be returned by
+- `TrackSpec` and `AudioClipSpec` represent identity-free specs that can be returned by
   backend-facing edit commands after success. `Track` and `AudioClip` are the stored Session
-  entities that combine that data with durable Session ids.
+  entities that combine those specs with durable Session ids.
 
 Relevant follow-up docs:
 
@@ -168,13 +168,13 @@ Short-term mitigation now in code:
 - `Session::findTrack()` returns a const pointer.
 - Mutable track lookup is internal to `Session`.
 - `Session::allocateAudioClipId()` allocates durable clip identity before backend mutation.
-- `Session::setAudioClip()` attaches an allocated clip id to `AudioClipData` and
+- `Session::setAudioClip()` attaches an allocated clip id to `AudioClipSpec` and
   recomputes the session timeline.
-- `IEdit::createTrack()` maps a Session-allocated `TrackId` to a backend track and returns
-  `TrackData` before Session stores the track.
-- `IEdit::createAudioClip()` asks the playback backend to inspect an asset, create a clip on an
-  already mapped track, map the allocated clip id internally, and return identity-free
-  `AudioClipData`.
+- `IEdit::provisionTrack()` maps a Session-allocated `TrackId` to a backend track and returns
+  `TrackSpec` before Session stores the track.
+- `IEdit::provisionAudioClip()` asks the playback backend to inspect an asset, provision a clip on
+  an already mapped track, map the allocated clip id internally, and return identity-free
+  `AudioClipSpec`.
 - `Editor` owns `EditCoordinator`, keeping the app composition root from wiring editor-specific
   workflow internals.
 - `EditCoordinator` owns the editor-facing `Session` and exposes it only as a const reference, so
@@ -182,10 +182,10 @@ Short-term mitigation now in code:
 - `EditorController` owns the initial editor-track policy and routes it through
   `EditCoordinator`.
 - `EditCoordinator` owns editor-facing track and clip transactions: allocate the id, call the
-  backend, then commit the returned framework-free data to `Session`.
-- The current `Engine` implementation maps the first valid `TrackId` created through `IEdit` to
-  the single Tracktion audio track's `EditItemID` and rejects later track creates for different
-  ids until real multi-track playback support exists.
+  backend, then commit the returned framework-free spec to `Session`.
+- The current `Engine` implementation maps the first valid `TrackId` provisioned through `IEdit`
+  to the single Tracktion audio track's `EditItemID` and rejects later track provisioning attempts
+  for different ids until real multi-track playback support exists.
 - `Engine` also maps allocated `AudioClipId` values to Tracktion clip `EditItemID` values. The
   current single-clip adapter clears stale clip mappings after a successful replacement because
   Tracktion has replaced the one live backend clip.
@@ -220,25 +220,25 @@ received the same full class-by-class walkthrough and quiz treatment that `Trans
 When resuming:
 
 1. Re-walk `IEdit` from the current code, not from the earlier `setTrackAudioSource` design.
-2. Explain why `createTrack()` and `createAudioClip()` live behind the audio edit port.
+2. Explain why `provisionTrack()` and `provisionAudioClip()` live behind the audio edit port.
 3. Explain why track ids are mapped before clip creation reaches the backend.
-4. Explain why `createAudioClip()` receives a Session-allocated clip id for backend mapping but
-   returns identity-free `core::AudioClipData`.
+4. Explain why `provisionAudioClip()` receives a Session-allocated clip id for backend mapping but
+   returns identity-free `core::AudioClipSpec`.
 5. Explain why it currently returns `std::optional` and when `std::expected` would be justified.
-6. Explain the current limitation that only the most recently created track clip must behave
+6. Explain the current limitation that only the most recently provisioned track clip must behave
    correctly until stem/multi-track playback semantics are implemented.
 7. Quiz after the class before moving on.
 
 Suggested expert-level quiz questions for `IEdit`:
 
-- Why are `createTrack()` and `createAudioClip()` on the audio edit port instead of on `Session`
+- Why are `provisionTrack()` and `provisionAudioClip()` on the audio edit port instead of on `Session`
   or `Track`?
-- Why should `createAudioClip()` require an already mapped `TrackId` instead of creating backend
+- Why should `provisionAudioClip()` require an already mapped `TrackId` instead of creating backend
   tracks implicitly?
-- Why does `createAudioClip()` return framework-free clip data instead of writing
+- Why does `provisionAudioClip()` return a framework-free clip spec instead of writing
   directly to `Session`?
 - What invariant is protected by updating the clip in `Session` only after the backend accepts it?
-- Why is `std::optional<core::AudioClipData>` acceptable for the current backend mutation
+- Why is `std::optional<core::AudioClipSpec>` acceptable for the current backend mutation
   result, and what concrete requirement would push this toward `std::expected<..., Error>`?
 - Why is the current single-track-applied note important for callers and tests?
 

@@ -17,23 +17,23 @@ namespace
 class FakeEdit final : public audio::IEdit
 {
 public:
-    std::optional<core::TrackData> createTrack(
+    std::optional<core::TrackSpec> provisionTrack(
         core::TrackId track_id, const std::string& name) override
     {
-        last_created_track_id = track_id;
-        last_created_track_name = name;
-        ++create_track_call_count;
-        if (!next_create_track_result)
+        last_provisioned_track_id = track_id;
+        last_provisioned_track_name = name;
+        ++provision_track_call_count;
+        if (!next_provision_track_result)
         {
             return std::nullopt;
         }
 
-        return core::TrackData{
+        return core::TrackSpec{
             .name = name,
         };
     }
 
-    std::optional<core::AudioClipData> createAudioClip(
+    std::optional<core::AudioClipSpec> provisionAudioClip(
         core::TrackId track_id, core::AudioClipId audio_clip_id,
         const core::AudioAsset& audio_asset, core::TimePosition position) override
     {
@@ -41,14 +41,14 @@ public:
         last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
         last_position = position;
-        ++create_audio_clip_call_count;
+        ++provision_audio_clip_call_count;
 
-        if (!next_create_audio_clip_result)
+        if (!next_provision_audio_clip_result)
         {
             return std::nullopt;
         }
 
-        return core::AudioClipData{
+        return core::AudioClipSpec{
             .asset = audio_asset,
             .asset_duration = core::TimeDuration{4.0},
             .source_range =
@@ -60,12 +60,12 @@ public:
         };
     }
 
-    bool next_create_track_result{true};
-    bool next_create_audio_clip_result{true};
-    int create_track_call_count{0};
-    int create_audio_clip_call_count{0};
-    std::optional<core::TrackId> last_created_track_id{};
-    std::optional<std::string> last_created_track_name{};
+    bool next_provision_track_result{true};
+    bool next_provision_audio_clip_result{true};
+    int provision_track_call_count{0};
+    int provision_audio_clip_call_count{0};
+    std::optional<core::TrackId> last_provisioned_track_id{};
+    std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
     std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
@@ -114,28 +114,28 @@ TEST_CASE("EditCoordinator creates a session track", "[ui][edit-coordinator]")
     const core::Session& session = coordinator.session();
 
     CHECK(track_id == core::TrackId{1});
-    CHECK(edit.create_track_call_count == 1);
-    CHECK(edit.last_created_track_id == std::optional<core::TrackId>{track_id});
-    CHECK(edit.last_created_track_name == std::optional<std::string>{"Full Mix"});
+    CHECK(edit.provision_track_call_count == 1);
+    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{track_id});
+    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     REQUIRE(session.tracks().size() == 1);
     CHECK(session.tracks()[0].id == track_id);
     CHECK(session.tracks()[0].name == "Full Mix");
     CHECK_FALSE(session.tracks()[0].audio_clip.has_value());
-    CHECK(edit.create_audio_clip_call_count == 0);
+    CHECK(edit.provision_audio_clip_call_count == 0);
 }
 
-// Verifies backend track-create rejection leaves Session unchanged.
+// Verifies backend track-provision rejection leaves Session unchanged.
 TEST_CASE("EditCoordinator preserves session on track failure", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
-    edit.next_create_track_result = false;
+    edit.next_provision_track_result = false;
     EditCoordinator coordinator{edit};
 
     const core::TrackId track_id = coordinator.createTrack("Full Mix");
 
     CHECK_FALSE(track_id.isValid());
     CHECK(coordinator.session().tracks().empty());
-    CHECK(edit.create_track_call_count == 1);
+    CHECK(edit.provision_track_call_count == 1);
 }
 
 // Verifies the coordinator allocates identity, asks the backend, and commits the accepted clip.
@@ -150,7 +150,7 @@ TEST_CASE("EditCoordinator creates and stores an audio clip", "[ui][edit-coordin
         coordinator.createAudioClip(track_id, audio_asset, core::TimePosition{});
 
     CHECK(audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{1}});
-    CHECK(edit.create_audio_clip_call_count == 1);
+    CHECK(edit.provision_audio_clip_call_count == 1);
     CHECK(edit.last_track_id == std::optional<core::TrackId>{track_id});
     CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{1}});
     CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{audio_asset});
@@ -165,7 +165,7 @@ TEST_CASE("EditCoordinator creates and stores an audio clip", "[ui][edit-coordin
 TEST_CASE("EditCoordinator preserves session on backend failure", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
-    edit.next_create_audio_clip_result = false;
+    edit.next_provision_audio_clip_result = false;
     EditCoordinator coordinator{edit};
     const core::TrackId track_id = coordinator.createTrack("Full Mix");
     const core::AudioAsset failed_asset{std::filesystem::path{"missing.wav"}};
@@ -176,7 +176,7 @@ TEST_CASE("EditCoordinator preserves session on backend failure", "[ui][edit-coo
     CHECK_FALSE(failed_clip_id.has_value());
     CHECK(findTrackAudioClip(coordinator.session(), track_id) == std::nullopt);
 
-    edit.next_create_audio_clip_result = true;
+    edit.next_provision_audio_clip_result = true;
     const core::AudioAsset accepted_asset{std::filesystem::path{"mix.wav"}};
     const auto accepted_clip_id =
         coordinator.createAudioClip(track_id, accepted_asset, core::TimePosition{});
@@ -199,7 +199,7 @@ TEST_CASE("EditCoordinator ignores missing tracks", "[ui][edit-coordinator]")
         coordinator.createAudioClip(core::TrackId{9}, audio_asset, core::TimePosition{});
 
     CHECK_FALSE(audio_clip_id.has_value());
-    CHECK(edit.create_audio_clip_call_count == 0);
+    CHECK(edit.provision_audio_clip_call_count == 0);
 }
 
 } // namespace rock_hero::ui

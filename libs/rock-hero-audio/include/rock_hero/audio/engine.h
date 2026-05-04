@@ -114,35 +114,35 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Creates a backend audio track mapped to a core::TrackId.
+    \brief Provisions a backend audio track mapped to a core::TrackId.
 
     This is the first concrete implementation of audio::IEdit. It adapts Tracktion's initial
     single-track edit by binding the one available Tracktion audio track to the supplied project
-    track id and storing the Tracktion EditItemID behind the adapter boundary. Later track creates
-    fail until multi-track playback exists.
+    track id and storing the Tracktion EditItemID behind the adapter boundary. Later track
+    provisioning attempts fail until multi-track playback exists.
 
     \param track_id Session-allocated track id to bind to the Tracktion track.
     \param name User-visible track name to apply to the Tracktion track.
-    \return Accepted track data when the Tracktion track was mapped; std::nullopt otherwise.
+    \return Accepted track spec when the Tracktion track was mapped; std::nullopt otherwise.
     */
-    [[nodiscard]] std::optional<core::TrackData> createTrack(
+    [[nodiscard]] std::optional<core::TrackSpec> provisionTrack(
         core::TrackId track_id, const std::string& name) override;
 
     /*!
-    \brief Creates a framework-free audio clip on a mapped backend track.
+    \brief Provisions a framework-free audio clip spec on a mapped backend track.
 
-    The current adapter supports one mapped Tracktion audio track. Clip creates for unmapped track
+    The current adapter supports one mapped Tracktion audio track. Clip provisions for unmapped track
     ids fail so callers cannot accidentally mutate playback for a Session track the engine cannot
-    find later. Successful creates map the project clip id to Tracktion's accepted EditItemID
-    while returning identity-free clip data for Session to commit.
+    find later. Successful provisions map the project clip id to Tracktion's accepted EditItemID
+    while returning an identity-free clip spec for Session to commit.
 
     \param track_id Track whose clip should be updated.
     \param audio_clip_id Session-allocated id to map to the Tracktion clip.
     \param audio_asset Framework-free asset reference used as the clip source.
     \param position Requested start position on the session timeline.
-    \return Accepted clip data when the playback backend created it.
+    \return Accepted clip spec when the playback backend provisioned it.
     */
-    [[nodiscard]] std::optional<core::AudioClipData> createAudioClip(
+    [[nodiscard]] std::optional<core::AudioClipSpec> provisionAudioClip(
         core::TrackId track_id, core::AudioClipId audio_clip_id,
         const core::AudioAsset& audio_asset, core::TimePosition position) override;
 
