@@ -209,7 +209,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK_FALSE(thumbnail_factory.last_thumbnail->last_source.has_value());
     CHECK(edit.provision_track_call_count == 1);
     CHECK(edit.provision_audio_clip_call_count == 0);
-    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     CHECK(transport.listeners.size() == 1);
 }

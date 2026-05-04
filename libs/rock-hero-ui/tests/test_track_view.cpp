@@ -131,7 +131,7 @@ TEST_CASE("TrackView refreshes thumbnail when a present asset arrives", "[ui][tr
     CHECK(thumbnail_ptr->set_source_call_count == 1);
     CHECK(
         thumbnail_ptr->last_source ==
-        std::optional<core::AudioAsset>{core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
+        std::optional{core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
 }
 
 // Verifies reapplying the same present asset does not trigger another thumbnail refresh.
@@ -179,9 +179,8 @@ TEST_CASE("TrackView refreshes thumbnail again when the asset changes", "[ui][tr
 
     CHECK(thumbnail_ptr->set_source_call_count == 2);
     CHECK(
-        thumbnail_ptr->last_source == std::optional<core::AudioAsset>{
-                                          core::AudioAsset{std::filesystem::path{"guitar_stem.wav"}}
-                                      });
+        thumbnail_ptr->last_source ==
+        std::optional{core::AudioAsset{std::filesystem::path{"guitar_stem.wav"}}});
 }
 
 // Verifies track-local hit testing emits a normalized horizontal click position.
