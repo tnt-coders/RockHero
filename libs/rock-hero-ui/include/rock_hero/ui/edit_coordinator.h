@@ -22,8 +22,8 @@ namespace rock_hero::ui
 
 EditCoordinator is the narrow workflow layer for edits that must touch both the framework-free
 core::Session and the audio::IEdit backend. It owns the editor session, allocates durable
-session identities first, asks the backend to create or accept identity-free state, and commits
-the accepted state only after the backend succeeds.
+session identities first, asks the backend to provision identity-free state, and commits the
+accepted state only after the backend succeeds.
 
 Production editor code receives only read-only session access through this coordinator. That keeps
 controller and app code from manually performing half of a cross-boundary transaction while still
@@ -63,20 +63,21 @@ public:
     /*!
     \brief Creates an editor track in the backend and editable session.
 
-    The coordinator allocates the track id, asks the backend to create a matching track mapping,
-    and then stores the accepted track data in Session. If the backend rejects the track create,
+    The coordinator allocates the track id, asks the backend to provision a matching track mapping,
+    and then stores the accepted track spec in Session. If the backend rejects the track provision,
     Session remains unchanged and the returned id is invalid.
 
     \param name User-visible track name.
     \return Stable id allocated for the newly added track, or an invalid id when creation fails.
     */
-    core::TrackId createTrack(std::string name = {});
+    core::TrackId createTrack(const std::string& name = {});
 
     /*!
     \brief Creates an audio clip through the backend and stores the accepted clip in Session.
 
     The target track must already exist in Session. The coordinator allocates the clip id before
-    calling the backend; if the backend rejects the request, that id is not reused.
+    asking the backend to provision the clip; if the backend rejects the request, that id is not
+    reused.
 
     \param track_id Track that should receive the created clip.
     \param audio_asset Framework-free asset selected by the user.

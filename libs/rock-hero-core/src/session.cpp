@@ -84,7 +84,7 @@ TrackId Session::allocateTrackId() noexcept
 }
 
 // Stores an already allocated track id without advancing the allocator.
-bool Session::addTrack(TrackId id, TrackData track_data)
+bool Session::addTrack(TrackId id, TrackSpec track_spec)
 {
     if (!id.isValid() || findTrackById(m_tracks, id) != nullptr)
     {
@@ -93,7 +93,7 @@ bool Session::addTrack(TrackId id, TrackData track_data)
 
     auto& track = m_tracks.emplace_back();
     track.id = id;
-    track.name = std::move(track_data.name);
+    track.name = std::move(track_spec.name);
 
     return true;
 }
@@ -119,8 +119,8 @@ AudioClipId Session::allocateAudioClipId() noexcept
     return audio_clip_id;
 }
 
-// Stores the current single clip payload for a track and refreshes the aggregate timeline.
-bool Session::setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipData audio_clip_data)
+// Stores the current single clip spec for a track and refreshes the aggregate timeline.
+bool Session::setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec)
 {
     if (!audio_clip_id.isValid() || clipIdBelongsToAnotherTrack(m_tracks, id, audio_clip_id))
     {
@@ -135,10 +135,10 @@ bool Session::setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipData 
 
     track->audio_clip = AudioClip{
         .id = audio_clip_id,
-        .asset = std::move(audio_clip_data.asset),
-        .asset_duration = audio_clip_data.asset_duration,
-        .source_range = audio_clip_data.source_range,
-        .position = audio_clip_data.position,
+        .asset = std::move(audio_clip_spec.asset),
+        .asset_duration = audio_clip_spec.asset_duration,
+        .source_range = audio_clip_spec.source_range,
+        .position = audio_clip_spec.position,
     };
     m_timeline = calculateTimeline(m_tracks);
     return true;
