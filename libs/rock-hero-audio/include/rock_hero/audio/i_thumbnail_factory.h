@@ -36,6 +36,8 @@ public:
     \brief Creates an IThumbnail bound to the supplied owner component.
     \param owner Component that should repaint when thumbnail proxy data changes.
     \return Newly created IThumbnail adapter.
+    \note The returned thumbnail must be destroyed before the owner component and the concrete
+    factory/backend that created it.
     */
     [[nodiscard]] virtual std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) = 0;
 

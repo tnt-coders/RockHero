@@ -131,10 +131,10 @@ public:
     /*!
     \brief Provisions a framework-free audio clip spec on a mapped backend track.
 
-    The current adapter supports one mapped Tracktion audio track. Clip provisions for unmapped track
-    ids fail so callers cannot accidentally mutate playback for a Session track the engine cannot
-    find later. Successful provisions map the project clip id to Tracktion's accepted EditItemID
-    while returning an identity-free clip spec for Session to commit.
+    The current adapter supports one mapped Tracktion audio track. Clip provisions for unmapped
+    track ids fail so callers cannot accidentally mutate playback for a Session track the engine
+    cannot find later. Successful provisions map the project clip id to Tracktion's accepted
+    EditItemID while returning an identity-free clip spec for Session to commit.
 
     \param track_id Track whose clip should be updated.
     \param audio_clip_id Session-allocated id to map to the Tracktion clip.
@@ -154,6 +154,7 @@ public:
 
     \param owner The component that should be repainted when the proxy finishes generating.
     \return A new IThumbnail instance.
+    \note The returned thumbnail must be destroyed before the owner component and this Engine.
     */
     [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override;
 
