@@ -348,9 +348,7 @@ TEST_CASE("EditorViewState represents empty and single-track editors", "[ui][edi
         loaded_audio_path = audio_asset->path;
     }
     REQUIRE(loaded_audio_path.has_value());
-    CHECK(
-        loaded_audio_path ==
-        std::optional<std::filesystem::path>{std::filesystem::path{"full_mix.wav"}});
+    CHECK(loaded_audio_path == std::optional{std::filesystem::path{"full_mix.wav"}});
     CHECK(single_track_state.last_load_error == std::optional<std::string>{"Could not load file"});
 }
 
@@ -448,7 +446,7 @@ TEST_CASE("IEditorView fake receives editor state", "[ui][editor-controller]")
     view.setState(state);
 
     CHECK(view.set_state_call_count == 1);
-    CHECK(view.last_state == std::optional<EditorViewState>{state});
+    CHECK(view.last_state == std::optional{state});
 }
 
 // Verifies a fake controller can receive the current editor intents without JUCE callback types.
@@ -464,12 +462,12 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     controller.onWaveformClicked(0.75);
 
     CHECK(controller.load_request_count == 1);
-    CHECK(controller.last_track_id == std::optional<core::TrackId>{track_id});
-    CHECK(controller.last_audio_asset == std::optional<core::AudioAsset>{audio_asset});
+    CHECK(controller.last_track_id == std::optional{track_id});
+    CHECK(controller.last_audio_asset == std::optional{audio_asset});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
-    CHECK(controller.last_normalized_x == std::optional<double>{0.75});
+    CHECK(controller.last_normalized_x == std::optional{0.75});
 }
 
 // Confirms attachView immediately delivers the controller's cached state so the view never
@@ -517,7 +515,7 @@ TEST_CASE(
     CHECK(session.tracks()[0].name == "Full Mix");
     CHECK_FALSE(session.tracks()[0].audio_clip.has_value());
     CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{core::TrackId{1}});
+    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     CHECK(edit.provision_audio_clip_call_count == 0);
 }
@@ -716,14 +714,14 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
         audio::TransportState{
             .playing = false,
         });
-    CHECK(lastStopEnabled(view) == std::optional<bool>{true});
+    CHECK(lastStopEnabled(view) == std::optional{true});
     const int pushes_before_stop = view.set_state_call_count;
 
     controller.onStopPressed();
 
     CHECK(transport.stop_call_count == 1);
     CHECK(view.set_state_call_count == pushes_before_stop + 1);
-    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
+    CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
 // Waveform clicks clamp out-of-range input and convert normalized positions through the current
@@ -743,16 +741,13 @@ TEST_CASE(
     EditorController controller{transport, edit_coordinator};
 
     controller.onWaveformClicked(0.5);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
 
     controller.onWaveformClicked(-0.25);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{0.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{0.0}});
 
     controller.onWaveformClicked(1.5);
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{4.0}});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{4.0}});
 }
 
 // A seek issued by the controller changes whether Stop can reset the cursor, so the controller
@@ -772,18 +767,17 @@ TEST_CASE("EditorController waveform click refreshes stop enabledness", "[ui][ed
     FakeEditorView view;
     controller.attachView(view);
 
-    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
+    CHECK(lastStopEnabled(view) == std::optional{false});
 
     controller.onWaveformClicked(0.5);
 
-    CHECK(
-        transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{2.0}});
-    CHECK(lastStopEnabled(view) == std::optional<bool>{true});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
+    CHECK(lastStopEnabled(view) == std::optional{true});
 
     controller.onWaveformClicked(0.0);
 
-    CHECK(transport.last_seek_position == std::optional<core::TimePosition>{core::TimePosition{}});
-    CHECK(lastStopEnabled(view) == std::optional<bool>{false});
+    CHECK(transport.last_seek_position == std::optional{core::TimePosition{}});
+    CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
 // Invalid track ids must not reach the audio backend; otherwise the edit could mutate playback
@@ -828,7 +822,7 @@ TEST_CASE(
 
     CHECK(
         findTrackAudioClip(session, track_id) ==
-        std::optional<core::AudioClip>{makeAudioClip(
+        std::optional{makeAudioClip(
             core::AudioClipId{1}, std::filesystem::path{"old.wav"}, original_range)});
     CHECK(session.timeline() == original_range);
     REQUIRE(view.last_state.has_value());
@@ -871,13 +865,13 @@ TEST_CASE("EditorController successful load stores asset and timeline", "[ui][ed
     controller.onLoadAudioAssetRequested(track_id, replacement);
 
     CHECK(edit.provision_audio_clip_call_count == 2);
-    CHECK(edit.last_track_id == std::optional<core::TrackId>{track_id});
-    CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{2}});
-    CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{replacement});
-    CHECK(edit.last_position == std::optional<core::TimePosition>{core::TimePosition{}});
+    CHECK(edit.last_track_id == std::optional{track_id});
+    CHECK(edit.last_audio_clip_id == std::optional{core::AudioClipId{2}});
+    CHECK(edit.last_audio_asset == std::optional{replacement});
+    CHECK(edit.last_position == std::optional{core::TimePosition{}});
     CHECK(
         findTrackAudioClip(session, track_id) ==
-        std::optional<core::AudioClip>{makeAudioClip(
+        std::optional{makeAudioClip(
             core::AudioClipId{2}, replacement.path, loadedTimelineRange(4.0))});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
@@ -917,9 +911,7 @@ TEST_CASE(
     if (view.last_state.has_value())
     {
         REQUIRE(view.last_state->tracks.size() == 1);
-        CHECK(
-            view.last_state->tracks.front().audio_asset ==
-            std::optional<core::AudioAsset>{replacement});
+        CHECK(view.last_state->tracks.front().audio_asset == std::optional{replacement});
         CHECK(view.last_state->play_pause_shows_pause_icon == true);
     }
 }

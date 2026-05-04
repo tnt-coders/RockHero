@@ -115,7 +115,7 @@ TEST_CASE("EditCoordinator creates a session track", "[ui][edit-coordinator]")
 
     CHECK(track_id == core::TrackId{1});
     CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.last_provisioned_track_id == std::optional<core::TrackId>{track_id});
+    CHECK(edit.last_provisioned_track_id == std::optional{track_id});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     REQUIRE(session.tracks().size() == 1);
     CHECK(session.tracks()[0].id == track_id);
@@ -158,16 +158,15 @@ TEST_CASE("EditCoordinator creates and stores an audio clip", "[ui][edit-coordin
     const auto audio_clip_id =
         coordinator.createAudioClip(track_id, audio_asset, core::TimePosition{});
 
-    CHECK(audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{1}});
+    CHECK(audio_clip_id == std::optional{core::AudioClipId{1}});
     CHECK(edit.provision_audio_clip_call_count == 1);
-    CHECK(edit.last_track_id == std::optional<core::TrackId>{track_id});
-    CHECK(edit.last_audio_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{1}});
-    CHECK(edit.last_audio_asset == std::optional<core::AudioAsset>{audio_asset});
-    CHECK(edit.last_position == std::optional<core::TimePosition>{core::TimePosition{}});
+    CHECK(edit.last_track_id == std::optional{track_id});
+    CHECK(edit.last_audio_clip_id == std::optional{core::AudioClipId{1}});
+    CHECK(edit.last_audio_asset == std::optional{audio_asset});
+    CHECK(edit.last_position == std::optional{core::TimePosition{}});
     CHECK(
         findTrackAudioClip(coordinator.session(), track_id) ==
-        std::optional<core::AudioClip>{makeAudioClip(
-            core::AudioClipId{1}, std::filesystem::path{"mix.wav"})});
+        std::optional{makeAudioClip(core::AudioClipId{1}, std::filesystem::path{"mix.wav"})});
 }
 
 // Verifies backend rejection leaves the session unchanged while preserving id monotonicity.
@@ -190,11 +189,10 @@ TEST_CASE("EditCoordinator preserves session on backend failure", "[ui][edit-coo
     const auto accepted_clip_id =
         coordinator.createAudioClip(track_id, accepted_asset, core::TimePosition{});
 
-    CHECK(accepted_clip_id == std::optional<core::AudioClipId>{core::AudioClipId{2}});
+    CHECK(accepted_clip_id == std::optional{core::AudioClipId{2}});
     CHECK(
         findTrackAudioClip(coordinator.session(), track_id) ==
-        std::optional<core::AudioClip>{makeAudioClip(
-            core::AudioClipId{2}, std::filesystem::path{"mix.wav"})});
+        std::optional{makeAudioClip(core::AudioClipId{2}, std::filesystem::path{"mix.wav"})});
 }
 
 // Verifies missing tracks are rejected before the backend can mutate playback state.

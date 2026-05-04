@@ -183,7 +183,7 @@ TEST_CASE("Engine edit provisions audio clip synchronously", "[audio][engine][in
     REQUIRE(std::filesystem::exists(audio_asset.path));
     const auto track = edit.provisionTrack(core::TrackId{1}, "Full Mix");
     REQUIRE(track.has_value());
-    CHECK(track == std::optional<core::TrackSpec>{core::TrackSpec{.name = "Full Mix"}});
+    CHECK(track == std::optional{core::TrackSpec{.name = "Full Mix"}});
 
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
@@ -274,9 +274,7 @@ TEST_CASE("Engine edit binds one project track id at a time", "[audio][engine][i
 
     const auto first_track_provisioned = edit.provisionTrack(core::TrackId{2}, "Full Mix");
     REQUIRE(first_track_provisioned.has_value());
-    CHECK(
-        first_track_provisioned ==
-        std::optional<core::TrackSpec>{core::TrackSpec{.name = "Full Mix"}});
+    CHECK(first_track_provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
 
     const auto other_track_provisioned = edit.provisionTrack(core::TrackId{1}, "Stem");
     const auto first_track_clip =
