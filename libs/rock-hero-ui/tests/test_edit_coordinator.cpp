@@ -124,7 +124,7 @@ TEST_CASE("EditCoordinator creates a session track", "[ui][edit-coordinator]")
     CHECK(edit.provision_audio_clip_call_count == 0);
 }
 
-// Verifies backend track-provision rejection leaves Session unchanged.
+// Verifies backend track-provision rejection leaves Session unchanged and consumes the id.
 TEST_CASE("EditCoordinator preserves session on track failure", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
@@ -136,6 +136,15 @@ TEST_CASE("EditCoordinator preserves session on track failure", "[ui][edit-coord
     CHECK_FALSE(track_id.isValid());
     CHECK(coordinator.session().tracks().empty());
     CHECK(edit.provision_track_call_count == 1);
+
+    edit.next_provision_track_result = true;
+    const core::TrackId accepted_track_id = coordinator.createTrack("Stem");
+
+    CHECK(accepted_track_id == core::TrackId{2});
+    CHECK(edit.provision_track_call_count == 2);
+    REQUIRE(coordinator.session().tracks().size() == 1);
+    CHECK(coordinator.session().tracks()[0].id == accepted_track_id);
+    CHECK(coordinator.session().tracks()[0].name == "Stem");
 }
 
 // Verifies the coordinator allocates identity, asks the backend, and commits the accepted clip.
