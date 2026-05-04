@@ -358,8 +358,7 @@ TEST_CASE("findTrack returns existing and missing tracks", "[core][session]")
     CHECK(found_track->name == "Full Mix");
     CHECK(
         found_track->audio_clip ==
-        std::optional<AudioClip>{withClipId(
-            makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
+        std::optional{withClipId(makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
     CHECK(session.findTrack(TrackId{999}) == nullptr);
 }
 
@@ -379,11 +378,10 @@ TEST_CASE("Renaming a track updates only that track", "[core][session]")
     CHECK(session.tracks()[1].name == "Solo");
     CHECK(
         session.tracks()[0].audio_clip ==
-        std::optional<AudioClip>{withClipId(
-            makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
+        std::optional{withClipId(makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
     CHECK(
         session.tracks()[1].audio_clip ==
-        std::optional<AudioClip>{withClipId(
+        std::optional{withClipId(
             makeAudioClip(std::filesystem::path{"solo.wav"}), AudioClipId{2})});
 }
 
@@ -400,8 +398,7 @@ TEST_CASE("Renaming a missing track fails cleanly", "[core][session]")
     CHECK(session.tracks()[0].name == "Full Mix");
     CHECK(
         session.tracks()[0].audio_clip ==
-        std::optional<AudioClip>{withClipId(
-            makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
+        std::optional{withClipId(makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
 }
 
 // Verifies setting one track clip does not disturb neighboring track specs.
@@ -422,10 +419,10 @@ TEST_CASE("Setting a track clip updates only that track", "[core][session]")
 
     CHECK(clip_set);
     REQUIRE(session.tracks().size() == 2);
-    CHECK(session.tracks()[0].audio_clip == std::optional<AudioClip>{replacement_clip});
+    CHECK(session.tracks()[0].audio_clip == std::optional{replacement_clip});
     CHECK(
         session.tracks()[1].audio_clip ==
-        std::optional<AudioClip>{withClipId(
+        std::optional{withClipId(
             makeAudioClip(std::filesystem::path{"solo.wav"}), AudioClipId{2})});
     CHECK(session.timeline() == timeline_range);
 }
@@ -453,10 +450,10 @@ TEST_CASE("Setting track clips stores allocated clip ids", "[core][session]")
             }));
 
     REQUIRE(setTestAudioClip(session, track_id, first_clip));
-    CHECK(findTrackAudioClip(session, track_id) == std::optional<AudioClip>{first_clip});
+    CHECK(findTrackAudioClip(session, track_id) == std::optional{first_clip});
 
     REQUIRE(setTestAudioClip(session, track_id, second_clip));
-    CHECK(findTrackAudioClip(session, track_id) == std::optional<AudioClip>{second_clip});
+    CHECK(findTrackAudioClip(session, track_id) == std::optional{second_clip});
 }
 
 // Verifies clips without allocated identities are rejected instead of silently assigned ids.
@@ -507,7 +504,7 @@ TEST_CASE("Setting an empty track clip stores the clip", "[core][session]")
 
     CHECK(clip_set);
     REQUIRE(session.tracks().size() == 1);
-    CHECK(session.tracks()[0].audio_clip == std::optional<AudioClip>{audio_clip});
+    CHECK(session.tracks()[0].audio_clip == std::optional{audio_clip});
     CHECK(session.timeline() == timeline_range);
 }
 
@@ -561,8 +558,7 @@ TEST_CASE("Setting a missing track clip fails cleanly", "[core][session]")
     REQUIRE(session.tracks().size() == 1);
     CHECK(
         session.tracks()[0].audio_clip ==
-        std::optional<AudioClip>{withClipId(
-            makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
+        std::optional{withClipId(makeAudioClip(std::filesystem::path{"mix.wav"}), AudioClipId{1})});
     CHECK(session.timeline() == TimeRange{});
 }
 
