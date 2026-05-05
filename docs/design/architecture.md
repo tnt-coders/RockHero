@@ -34,7 +34,8 @@ For the structural engineering rules that govern how new code should be organize
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
-| Song format | open-psarc (Conan) | PSARC format read/write for song packages |
+| Rock Hero project package | libzip + nlohmann_json (Conan) | `.rhp` archive extraction and manifest parsing |
+| Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
@@ -67,8 +68,8 @@ feature folders. Reusable libraries keep `src/` plus namespaced public headers u
 - `libs/rock-hero-audio` depends on Tracktion and JUCE audio modules.
 - `libs/rock-hero-audio` may also depend on `libs/rock-hero-core` for project-owned value types
   and interfaces that need to stay framework-free.
-- `libs/rock-hero-core` depends on standard C++ only; no JUCE, no Tracktion. May use
-  format-specific Conan packages (e.g. `open-psarc`).
+- `libs/rock-hero-core` remains framework-free: no JUCE, no Tracktion. It may use private
+  format-specific Conan packages such as `libzip`, `nlohmann_json`, and `open-psarc`.
 - `libs/rock-hero-core` must not depend on `libs/rock-hero-audio`.
 - App executables may depend on both libraries and on `rock-hero-ui`.
 - Tracktion headers are isolated to `rock-hero-audio` implementation files.
@@ -197,7 +198,8 @@ sequence managed by Tracktion Engine's `Edit` data model.
 
 # Song Data Model
 
-The `rock-hero-core` library owns all persistent song data. It depends on standard C++ only.
+The `rock-hero-core` library owns all persistent song data. It remains framework-free and keeps
+format parsing/package dependencies private to the module.
 
 \code{.txt}
 Song

@@ -1,6 +1,6 @@
 /*!
 \file i_project_loader.h
-\brief Framework-free project-loader contract for editor workflow code.
+\brief Framework-free project-loader contract for Rock Hero project packages.
 */
 
 #pragma once
@@ -11,7 +11,7 @@
 #include <rock_hero/core/song.h>
 #include <string>
 
-namespace rock_hero::ui
+namespace rock_hero::core
 {
 
 /*!
@@ -67,8 +67,8 @@ private:
 */
 struct LoadedProject
 {
-    /*! \brief Song data parsed from the opened project. */
-    core::Song song;
+    /*! \brief Song data parsed from the loaded project. */
+    Song song;
 
     /*! \brief Arrangement index selected by the project manifest. */
     std::size_t selected_arrangement_index{0};
@@ -98,7 +98,7 @@ struct ProjectLoadResult
     }
 };
 
-/*! \brief Framework-free project-load port consumed by the editor controller. */
+/*! \brief Framework-free project-load port consumed by apps and workflow code. */
 class IProjectLoader
 {
 public:
@@ -136,4 +136,4 @@ protected:
     IProjectLoader& operator=(IProjectLoader&&) = default;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::core
