@@ -9,12 +9,12 @@
 #include <optional>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
+#include <rock_hero/core/i_project_loader.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
-#include <rock_hero/ui/i_project_loader.h>
 #include <string>
 
 namespace rock_hero::ui
@@ -50,7 +50,7 @@ public:
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
-        IProjectLoader& project_loader);
+        core::IProjectLoader& project_loader);
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -146,7 +146,7 @@ private:
     EditCoordinator& m_edit_coordinator;
 
     // Project loader opens .rhp packages and owns pending extraction until promotion.
-    IProjectLoader& m_project_loader;
+    core::IProjectLoader& m_project_loader;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
@@ -161,7 +161,7 @@ private:
     bool m_session_edit_in_progress{false};
 
     // Cache owner for the currently loaded project package.
-    std::optional<LoadedProjectCache> m_project_cache{};
+    std::optional<core::LoadedProjectCache> m_project_cache{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
