@@ -133,7 +133,7 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
-// Creates child widgets and gives the track row the factory it will use for clip thumbnails.
+// Creates child widgets and gives the track row the factory it will use for waveform thumbnails.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
     audio::IThumbnailFactory& thumbnail_factory)

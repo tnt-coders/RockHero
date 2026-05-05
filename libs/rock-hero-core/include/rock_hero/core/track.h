@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <optional>
-#include <rock_hero/core/audio_clip.h>
+#include <rock_hero/core/track_audio.h>
 #include <string>
 
 namespace rock_hero::core
@@ -72,9 +72,8 @@ struct Track
     /*! \brief User-visible track name. */
     std::string name;
 
-    /*! \brief Optional audio clip currently assigned to this track. */
-    // TODO: Change to std::vector when tracks can support multiple audio clips
-    std::optional<AudioClip> audio_clip;
+    /*! \brief Optional full-source audio currently assigned to this track. */
+    std::optional<TrackAudio> audio;
 };
 
 } // namespace rock_hero::core

@@ -2,11 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstddef>
+#include <optional>
 #include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/ui/audio_clip_view.h>
-#include <utility>
 
 namespace rock_hero::ui
 {
@@ -14,9 +12,33 @@ namespace rock_hero::ui
 namespace
 {
 
-// Maps a clip's timeline range into the visible portion of a track row.
-[[nodiscard]] juce::Rectangle<int> boundsForClipTimelineRange(
-    core::TimeRange clip_timeline_range, core::TimeRange visible_timeline,
+// Concrete draw request after intersecting the track audio with the visible timeline.
+struct WaveformDrawRequest
+{
+    juce::Rectangle<int> bounds;
+    core::TimeRange visible_range;
+};
+
+// Returns the overlapping portion of two timeline ranges.
+[[nodiscard]] std::optional<core::TimeRange> intersectRanges(
+    core::TimeRange lhs, core::TimeRange rhs) noexcept
+{
+    const core::TimeRange intersection{
+        .start = core::TimePosition{std::max(lhs.start.seconds, rhs.start.seconds)},
+        .end = core::TimePosition{std::min(lhs.end.seconds, rhs.end.seconds)},
+    };
+
+    if (intersection.duration().seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    return intersection;
+}
+
+// Maps a timeline range into the visible portion of a track row.
+[[nodiscard]] juce::Rectangle<int> boundsForTimelineRange(
+    core::TimeRange timeline_range, core::TimeRange visible_timeline,
     juce::Rectangle<int> row_bounds) noexcept
 {
     const double visible_duration = visible_timeline.duration().seconds;
@@ -26,9 +48,9 @@ namespace
     }
 
     const double start_ratio =
-        (clip_timeline_range.start.seconds - visible_timeline.start.seconds) / visible_duration;
+        (timeline_range.start.seconds - visible_timeline.start.seconds) / visible_duration;
     const double end_ratio =
-        (clip_timeline_range.end.seconds - visible_timeline.start.seconds) / visible_duration;
+        (timeline_range.end.seconds - visible_timeline.start.seconds) / visible_duration;
     const double left_ratio = std::clamp(std::min(start_ratio, end_ratio), 0.0, 1.0);
     const double right_ratio = std::clamp(std::max(start_ratio, end_ratio), 0.0, 1.0);
 
@@ -44,38 +66,61 @@ namespace
     };
 }
 
+// Builds the draw range and bounds for the currently visible portion of full-source track audio.
+[[nodiscard]] std::optional<WaveformDrawRequest> waveformDrawRequest(
+    const core::TrackAudio& audio, core::TimeRange visible_timeline,
+    juce::Rectangle<int> row_bounds) noexcept
+{
+    const core::TimeRange audio_timeline = audio.timelineRange();
+    if (audio_timeline.duration().seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    const core::TimeRange effective_visible_timeline =
+        visible_timeline.duration().seconds > 0.0 ? visible_timeline : audio_timeline;
+    const auto visible_audio_range = intersectRanges(audio_timeline, effective_visible_timeline);
+    if (!visible_audio_range.has_value())
+    {
+        return std::nullopt;
+    }
+
+    return WaveformDrawRequest{
+        .bounds =
+            boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, row_bounds),
+        .visible_range = *visible_audio_range,
+    };
+}
+
 } // namespace
 
 // Creates an empty track view that will receive its thumbnail factory and state from a parent view.
 TrackView::TrackView() = default;
 
-// Detaches clip child components before member ownership releases them during teardown.
-TrackView::~TrackView()
-{
-    clearClipViews();
-}
+// Uses default destruction because ownership is fully represented by member objects.
+TrackView::~TrackView() = default;
 
-// Stores the factory used for current and future clip-view thumbnails.
+// Stores the factory and creates the track-owned thumbnail bound to this component.
 void TrackView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
 {
-    clearClipViews();
-    m_thumbnail_factory = &thumbnail_factory;
-    syncClipViewsToState();
+    m_thumbnail = thumbnail_factory.createThumbnail(*this);
+    m_thumbnail_source_asset.reset();
+    applyCurrentAudioToThumbnailIfNeeded();
     repaint();
 }
 
-// Stores the visible timeline range and updates child clip placement from timeline coordinates.
+// Stores the visible timeline range and redraws the appropriate waveform subsection.
 void TrackView::setVisibleTimeline(core::TimeRange visible_timeline)
 {
     m_visible_timeline = visible_timeline;
-    resized();
+    repaint();
 }
 
-// Stores the new track-view state, updates child clip views, and repaints the track-local content.
+// Stores the new track-view state, refreshes the thumbnail source when needed, and repaints.
 void TrackView::setState(const TrackViewState& state)
 {
     m_state = state;
-    syncClipViewsToState();
+    applyCurrentAudioToThumbnailIfNeeded();
     repaint();
 }
 
@@ -105,14 +150,14 @@ void TrackView::mouseDown(const juce::MouseEvent& event)
     m_listeners.call(&Listener::trackViewClicked, *this, clamped);
 }
 
-// Draws the row background and empty states; clip children render waveform content.
+// Draws the row background, status text, and the currently visible waveform range.
 void TrackView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
 
     g.fillAll(juce::Colours::black);
 
-    if (m_state.audio_clips.empty())
+    if (!m_state.audio.has_value())
     {
         g.setColour(juce::Colours::grey);
         const juce::String message =
@@ -123,68 +168,73 @@ void TrackView::paint(juce::Graphics& g)
         return;
     }
 
-    if (m_clip_views.empty())
+    if (!m_thumbnail)
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
     }
-}
 
-// Maps each owned clip child into the visible portion of the track row.
-void TrackView::resized()
-{
-    const auto bounds = getLocalBounds();
-    const std::size_t clip_count = std::min(m_clip_views.size(), m_state.audio_clips.size());
-    for (std::size_t index = 0; index < clip_count; ++index)
+    if (!m_thumbnail->hasSource())
     {
-        m_clip_views[index]->setBounds(boundsForClipTimelineRange(
-            m_state.audio_clips[index].timeline_range, m_visible_timeline, bounds));
-    }
-}
-
-// Keeps child clip views aligned with the row state without exposing Session to JUCE components.
-void TrackView::syncClipViewsToState()
-{
-    if (m_thumbnail_factory == nullptr)
-    {
-        clearClipViews();
+        g.setColour(juce::Colours::grey);
+        g.drawText("Preparing waveform", bounds, juce::Justification::centred);
         return;
     }
 
-    while (m_clip_views.size() > m_state.audio_clips.size())
+    if (m_thumbnail->isGeneratingProxy())
     {
-        removeChildComponent(m_clip_views.back().get());
-        m_clip_views.pop_back();
+        const auto pct = static_cast<int>(m_thumbnail->getProxyProgress() * 100.0f);
+        g.setColour(juce::Colours::white);
+        g.drawText(
+            "Building waveform: " + juce::String{pct} + "%", bounds, juce::Justification::centred);
+        return;
     }
 
-    while (m_clip_views.size() < m_state.audio_clips.size())
+    const auto draw_request = waveformDrawRequest(*m_state.audio, m_visible_timeline, bounds);
+    if (!draw_request.has_value() || draw_request->bounds.isEmpty())
     {
-        const std::size_t index = m_clip_views.size();
-        auto clip_view = std::make_unique<AudioClipView>();
-        clip_view->setComponentID("audio_clip_view");
-        clip_view->setState(m_state.audio_clips[index]);
-        clip_view->setThumbnail(m_thumbnail_factory->createThumbnail(*clip_view));
-        addAndMakeVisible(*clip_view);
-        m_clip_views.push_back(std::move(clip_view));
+        g.setColour(juce::Colours::grey);
+        g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
+        return;
     }
 
-    for (std::size_t index = 0; index < m_state.audio_clips.size(); ++index)
+    g.setColour(juce::Colours::lightgreen);
+    if (!m_thumbnail->drawChannels(g, draw_request->bounds, draw_request->visible_range, 1.0f))
     {
-        m_clip_views[index]->setState(m_state.audio_clips[index]);
+        g.setColour(juce::Colours::grey);
+        g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
     }
-
-    resized();
 }
 
-// Detaches owned JUCE child components before releasing the smart pointers that own them.
-void TrackView::clearClipViews()
+// Size changes only affect paint-time waveform mapping, so invalidating the row is enough.
+void TrackView::resized()
 {
-    while (!m_clip_views.empty())
+    repaint();
+}
+
+// Keeps thumbnail refresh local to the track by diffing the current asset against the source
+// already installed in this component.
+void TrackView::applyCurrentAudioToThumbnailIfNeeded()
+{
+    if (!m_thumbnail)
     {
-        removeChildComponent(m_clip_views.back().get());
-        m_clip_views.pop_back();
+        return;
     }
+
+    if (!m_state.audio.has_value())
+    {
+        m_thumbnail_source_asset.reset();
+        return;
+    }
+
+    if (m_thumbnail_source_asset == m_state.audio->asset)
+    {
+        return;
+    }
+
+    m_thumbnail->setSource(m_state.audio->asset);
+    m_thumbnail_source_asset = m_state.audio->asset;
 }
 
 } // namespace rock_hero::ui

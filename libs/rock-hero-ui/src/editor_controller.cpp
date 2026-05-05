@@ -45,7 +45,7 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Validates the track id, asks the editor edit coordinator to create and commit the clip, and
+// Validates the track id, asks the editor edit coordinator to load and commit the audio, and
 // coalesces reentrant transport callbacks so the view never sees stale intermediate state.
 void EditorController::onLoadAudioAssetRequested(
     core::TrackId track_id, core::AudioAsset audio_asset)
@@ -56,11 +56,10 @@ void EditorController::onLoadAudioAssetRequested(
     }
 
     m_session_edit_in_progress = true;
-    const auto audio_clip_id =
-        m_edit_coordinator.createAudioClip(track_id, audio_asset, core::TimePosition{});
+    const bool audio_loaded = m_edit_coordinator.setTrackAudio(track_id, audio_asset);
     m_session_edit_in_progress = false;
 
-    if (!audio_clip_id.has_value())
+    if (!audio_loaded)
     {
         m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
         m_pending_refresh = false;
@@ -76,11 +75,11 @@ void EditorController::onLoadAudioAssetRequested(
     deriveAndPush();
 }
 
-// Ignores the intent when no track has an asset, otherwise toggles between play and pause based
-// on the current transport state.
+// Ignores the intent when no track has audio, otherwise toggles between play and pause based on
+// the current transport state.
 void EditorController::onPlayPausePressed()
 {
-    if (!anyTrackHasClip())
+    if (!anyTrackHasAudio())
     {
         return;
     }
@@ -152,7 +151,7 @@ EditorViewState EditorController::deriveViewState() const
 
     EditorViewState state;
     state.load_button_enabled = !session().tracks().empty();
-    state.play_pause_enabled = anyTrackHasClip();
+    state.play_pause_enabled = anyTrackHasAudio();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline = timeline_range;
@@ -160,24 +159,11 @@ EditorViewState EditorController::deriveViewState() const
     state.tracks.reserve(session().tracks().size());
     for (const core::Track& track : session().tracks())
     {
-        std::vector<AudioClipViewState> audio_clips;
-        if (track.audio_clip.has_value())
-        {
-            const core::AudioClip& audio_clip = *track.audio_clip;
-            audio_clips.push_back(
-                AudioClipViewState{
-                    .audio_clip_id = audio_clip.id,
-                    .asset = audio_clip.asset,
-                    .source_range = audio_clip.source_range,
-                    .timeline_range = audio_clip.timelineRange(),
-                });
-        }
-
         state.tracks.push_back(
             TrackViewState{
                 .track_id = track.id,
                 .display_name = track.name,
-                .audio_clips = std::move(audio_clips),
+                .audio = track.audio,
             });
     }
     state.last_load_error = m_last_load_error;
@@ -197,10 +183,10 @@ void EditorController::deriveAndPush()
 
 // Walks the session tracks once to answer the "is anything playable" question used by both
 // state derivation and play/pause gating.
-bool EditorController::anyTrackHasClip() const
+bool EditorController::anyTrackHasAudio() const
 {
     return std::ranges::any_of(
-        session().tracks(), [](const core::Track& track) { return track.audio_clip.has_value(); });
+        session().tracks(), [](const core::Track& track) { return track.audio.has_value(); });
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to

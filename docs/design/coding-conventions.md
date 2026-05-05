@@ -167,15 +167,14 @@ When a function stores or takes ownership of a value, pass it by value and move 
 
 \code{.cpp}
 bool addTrack(TrackId id, TrackSpec track_spec);
-bool setAudioClip(
-    TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec);
+bool setTrackAudio(TrackId id, TrackAudio audio);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
 track.name = std::move(track_spec.name);
-track.audio_clip = AudioClip{.asset = std::move(audio_clip_spec.asset)};
+track.audio = std::move(audio);
 \endcode
 
 # Value Type Guardrails

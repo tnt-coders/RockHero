@@ -69,17 +69,17 @@ public:
     /*!
     \brief Draws the audio channels into the given graphics context.
 
-    Renders the requested source range of the loaded asset into the specified bounds. Invalid
-    source ranges fail without drawing.
+    Renders the requested visible range of the loaded asset into the specified bounds. Invalid
+    visible ranges fail without drawing.
 
     \param g Graphics context to draw into.
     \param bounds Rectangle defining the drawing area.
-    \param source_range Range inside the loaded source asset to draw.
+    \param visible_range Range inside the loaded source asset that is currently visible.
     \param vertical_zoom Vertical scale factor (1.0 = normal).
     \return True when the range was valid and drawing was attempted.
     */
     [[nodiscard]] virtual bool drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange source_range,
+        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
         float vertical_zoom) = 0;
 
 protected:

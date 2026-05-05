@@ -36,8 +36,8 @@ include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
 intentionally maps only one core::TrackId to one Tracktion audio track even though core::Session
-can model multiple tracks. Project-owned track and clip ids are translated to Tracktion
-EditItemIDs inside the implementation. All public methods must be called on the message thread.
+can model multiple tracks. Project-owned track ids are translated to Tracktion EditItemIDs inside
+the implementation. All public methods must be called on the message thread.
 
 \see rock_hero::MainWindow
 */
@@ -129,22 +129,18 @@ public:
         core::TrackId track_id, const std::string& name) override;
 
     /*!
-    \brief Provisions a framework-free audio clip spec on a mapped backend track.
+    \brief Provisions framework-free full-source audio on a mapped backend track.
 
-    The current adapter supports one mapped Tracktion audio track. Clip provisions for unmapped
+    The current adapter supports one mapped Tracktion audio track. Audio provisions for unmapped
     track ids fail so callers cannot accidentally mutate playback for a Session track the engine
-    cannot find later. Successful provisions map the project clip id to Tracktion's accepted
-    EditItemID while returning an identity-free clip spec for Session to commit.
+    cannot find later.
 
-    \param track_id Track whose clip should be updated.
-    \param audio_clip_id Session-allocated id to map to the Tracktion clip.
-    \param audio_asset Framework-free asset reference used as the clip source.
-    \param position Requested start position on the session timeline.
-    \return Accepted clip spec when the playback backend provisioned it.
+    \param track_id Track whose audio should be updated.
+    \param audio_asset Framework-free asset reference used as the track audio source.
+    \return Accepted track audio when the playback backend provisioned it.
     */
-    [[nodiscard]] std::optional<core::AudioClipSpec> provisionAudioClip(
-        core::TrackId track_id, core::AudioClipId audio_clip_id,
-        const core::AudioAsset& audio_asset, core::TimePosition position) override;
+    [[nodiscard]] std::optional<core::TrackAudio> provisionTrackAudio(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

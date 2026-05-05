@@ -9,12 +9,12 @@ namespace
 {
 
 // Rejects ranges that Tracktion cannot draw safely for the currently loaded source.
-[[nodiscard]] bool isValidSourceRange(core::TimeRange source_range, double source_length) noexcept
+[[nodiscard]] bool isValidVisibleRange(core::TimeRange visible_range, double source_length) noexcept
 {
-    return std::isfinite(source_range.start.seconds) && std::isfinite(source_range.end.seconds) &&
-           source_range.start.seconds >= 0.0 &&
-           source_range.end.seconds > source_range.start.seconds &&
-           source_range.end.seconds <= source_length;
+    return std::isfinite(visible_range.start.seconds) && std::isfinite(visible_range.end.seconds) &&
+           visible_range.start.seconds >= 0.0 &&
+           visible_range.end.seconds > visible_range.start.seconds &&
+           visible_range.end.seconds <= source_length;
 }
 
 } // namespace
@@ -54,20 +54,20 @@ float TracktionThumbnail::getProxyProgress() const
     return m_thumbnail.getProxyProgress();
 }
 
-// Draws the requested source range after validating it against the loaded source asset.
+// Draws the requested visible range after validating it against the loaded source asset.
 bool TracktionThumbnail::drawChannels(
-    juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange source_range,
+    juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
     float vertical_zoom)
 {
-    if (!m_has_source || !isValidSourceRange(source_range, m_source_length_seconds))
+    if (!m_has_source || !isValidVisibleRange(visible_range, m_source_length_seconds))
     {
         return false;
     }
 
-    const tracktion::TimeRange visible_range(
-        tracktion::TimePosition::fromSeconds(source_range.start.seconds),
-        tracktion::TimePosition::fromSeconds(source_range.end.seconds));
-    m_thumbnail.drawChannels(g, bounds, visible_range, vertical_zoom);
+    const tracktion::TimeRange tracktion_visible_range(
+        tracktion::TimePosition::fromSeconds(visible_range.start.seconds),
+        tracktion::TimePosition::fromSeconds(visible_range.end.seconds));
+    m_thumbnail.drawChannels(g, bounds, tracktion_visible_range, vertical_zoom);
     return true;
 }
 

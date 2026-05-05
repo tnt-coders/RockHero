@@ -83,35 +83,24 @@ public:
         };
     }
 
-    std::optional<core::AudioClipSpec> provisionAudioClip(
-        core::TrackId track_id, core::AudioClipId audio_clip_id,
-        const core::AudioAsset& audio_asset, core::TimePosition position) override
+    std::optional<core::TrackAudio> provisionTrackAudio(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override
     {
         last_track_id = track_id;
-        last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
-        last_position = position;
-        ++provision_audio_clip_call_count;
-        return core::AudioClipSpec{
+        ++provision_track_audio_call_count;
+        return core::TrackAudio{
             .asset = audio_asset,
-            .asset_duration = core::TimeDuration{8.0},
-            .source_range =
-                core::TimeRange{
-                    .start = core::TimePosition{},
-                    .end = core::TimePosition{8.0},
-                },
-            .position = position,
+            .duration = core::TimeDuration{8.0},
         };
     }
 
     std::optional<core::TrackId> last_provisioned_track_id{};
     std::optional<std::string> last_provisioned_track_name{};
     std::optional<core::TrackId> last_track_id{};
-    std::optional<core::AudioClipId> last_audio_clip_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
-    std::optional<core::TimePosition> last_position{};
     int provision_track_call_count{0};
-    int provision_audio_clip_call_count{0};
+    int provision_track_audio_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -141,7 +130,7 @@ public:
     }
 
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*visible_range*/,
         float /*vertical_zoom*/) override
     {
         return true;
@@ -206,11 +195,13 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
     auto& load_button = findRequiredChild<juce::TextButton>(component, "load_button");
     CHECK(load_button.isEnabled());
-    CHECK(thumbnail_factory.create_call_count == 0);
-    CHECK(thumbnail_factory.last_owner == nullptr);
-    CHECK(thumbnail_factory.last_thumbnail == nullptr);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
     CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.provision_audio_clip_call_count == 0);
+    CHECK(edit.provision_track_audio_call_count == 0);
     CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
     CHECK(transport.listeners.size() == 1);

@@ -89,7 +89,7 @@ public:
     controller-composed error is published. Reentrant transport notifications received during the
     edit are coalesced into a single final post-load push.
 
-    \param track_id Track whose audio clip should change.
+    \param track_id Track whose audio should change.
     \param audio_asset Framework-free audio asset selected by the user.
     */
     void onLoadAudioAssetRequested(core::TrackId track_id, core::AudioAsset audio_asset) override;
@@ -97,7 +97,7 @@ public:
     /*!
     \brief Handles a play/pause button press from the editor UI.
 
-    The intent is ignored when no session track has an audio clip. Otherwise, plays or pauses
+    The intent is ignored when no session track has audio. Otherwise, plays or pauses
     based on the current transport state.
     */
     void onPlayPausePressed() override;
@@ -133,8 +133,8 @@ private:
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
     void deriveAndPush();
 
-    // Reports whether at least one session track currently has an audio clip assigned.
-    [[nodiscard]] bool anyTrackHasClip() const;
+    // Reports whether at least one session track currently has audio assigned.
+    [[nodiscard]] bool anyTrackHasAudio() const;
 
     // Reports whether Stop would either stop playback or reset a non-start cursor position.
     [[nodiscard]] bool canStopTransport(const audio::TransportState& transport_state) const;

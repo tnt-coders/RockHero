@@ -1,7 +1,6 @@
 #include "edit_coordinator.h"
 
 #include <cassert>
-#include <optional>
 #include <string>
 #include <utility>
 
@@ -39,33 +38,28 @@ core::TrackId EditCoordinator::createTrack(const std::string& name)
     return track_id;
 }
 
-// Allocates durable identity, lets the backend provision the clip, then commits the accepted value.
-// Failed backend provisions intentionally leave the allocated id unused.
-std::optional<core::AudioClipId> EditCoordinator::createAudioClip(
-    core::TrackId track_id, const core::AudioAsset& audio_asset, core::TimePosition position)
+// Lets the backend accept the audio first, then commits the accepted value into Session.
+bool EditCoordinator::setTrackAudio(core::TrackId track_id, const core::AudioAsset& audio_asset)
 {
     if (m_session.findTrack(track_id) == nullptr)
     {
-        return std::nullopt;
+        return false;
     }
 
-    const core::AudioClipId audio_clip_id = m_session.allocateAudioClipId();
-    auto audio_clip_spec =
-        m_edit.get().provisionAudioClip(track_id, audio_clip_id, audio_asset, position);
-    if (!audio_clip_spec.has_value())
+    auto track_audio = m_edit.get().provisionTrackAudio(track_id, audio_asset);
+    if (!track_audio.has_value())
     {
-        return std::nullopt;
+        return false;
     }
 
-    const bool committed =
-        m_session.setAudioClip(track_id, audio_clip_id, std::move(audio_clip_spec).value());
-    assert(committed && "Session rejected a backend-accepted audio clip");
+    const bool committed = m_session.setTrackAudio(track_id, std::move(track_audio).value());
+    assert(committed && "Session rejected backend-accepted track audio");
     if (!committed)
     {
-        return std::nullopt;
+        return false;
     }
 
-    return audio_clip_id;
+    return true;
 }
 
 } // namespace rock_hero::ui
