@@ -39,10 +39,22 @@ namespace
 
 } // namespace
 
+// Starts with one arrangement shell until a real project file has been opened.
+Session::Session()
+{
+    m_song.chart.arrangements.push_back(Arrangement{});
+}
+
+// Exposes the full loaded song aggregate for read-only editor and test observation.
+const Song& Session::song() const noexcept
+{
+    return m_song;
+}
+
 // Exposes ordered arrangements without letting callers mutate the vector shape directly.
 const std::vector<Arrangement>& Session::arrangements() const noexcept
 {
-    return m_arrangements;
+    return m_song.chart.arrangements;
 }
 
 // Exposes loaded-content timeline mapping without letting callers mutate it independently.
@@ -54,21 +66,26 @@ TimeRange Session::timeline() const noexcept
 // Returns the arrangement shown by the current single-arrangement editor surface.
 const Arrangement* Session::currentArrangement() const noexcept
 {
-    return m_arrangements.empty() ? nullptr : &m_arrangements.front();
+    if (m_current_arrangement_index >= m_song.chart.arrangements.size())
+    {
+        return nullptr;
+    }
+
+    return &m_song.chart.arrangements[m_current_arrangement_index];
 }
 
-// Stores the current backing audio on the displayed arrangement and refreshes the timeline.
-bool Session::setCurrentArrangementAudio(AudioAsset audio_asset, TimeDuration audio_duration)
+// Commits a fully prepared song into the session and derives the display timeline from it.
+bool Session::loadSong(Song song, std::size_t selected_arrangement_index)
 {
-    auto* arrangement = m_arrangements.empty() ? nullptr : &m_arrangements.front();
-    if (arrangement == nullptr || audio_asset.path.empty() || audio_duration.seconds <= 0.0)
+    if (song.chart.arrangements.empty() ||
+        selected_arrangement_index >= song.chart.arrangements.size())
     {
         return false;
     }
 
-    arrangement->audio_asset = std::move(audio_asset);
-    arrangement->audio_duration = audio_duration;
-    m_timeline = calculateTimeline(m_arrangements);
+    m_song = std::move(song);
+    m_current_arrangement_index = selected_arrangement_index;
+    m_timeline = calculateTimeline(m_song.chart.arrangements);
     return true;
 }
 

@@ -166,14 +166,14 @@ bool containsArrangement(const Arrangement& arrangement) const;
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-bool setCurrentArrangementAudio(AudioAsset audio_asset, TimeDuration audio_duration);
+bool loadSong(Song song, std::size_t selected_arrangement_index);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
-arrangement.audio_asset = std::move(audio_asset);
-arrangement.audio_duration = audio_duration;
+m_song = std::move(song);
+m_current_arrangement_index = selected_arrangement_index;
 \endcode
 
 # Value Type Guardrails
@@ -229,7 +229,7 @@ wrapper, or when the wrapper type itself is the contract under test.
 Example:
 
 \code{.cpp}
-CHECK(error_message == std::optional<std::string>{"Could not load file"});
+CHECK(error_message == std::optional<std::string>{"Could not open project"});
 \endcode
 
 Do not rely on CTAD for string-literal optionals unless the intended stored type really is a
