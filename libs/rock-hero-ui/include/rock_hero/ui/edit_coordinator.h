@@ -6,11 +6,9 @@
 #pragma once
 
 #include <functional>
-#include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
-#include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
 #include <string>
 
@@ -73,20 +71,16 @@ public:
     core::TrackId createTrack(const std::string& name = {});
 
     /*!
-    \brief Creates an audio clip through the backend and stores the accepted clip in Session.
+    \brief Sets track audio through the backend and stores the accepted value in Session.
 
-    The target track must already exist in Session. The coordinator allocates the clip id before
-    asking the backend to provision the clip; if the backend rejects the request, that id is not
-    reused.
+    The target track must already exist in Session. The coordinator asks the backend to provision
+    the audio first; if the backend rejects the request, Session remains unchanged.
 
-    \param track_id Track that should receive the created clip.
+    \param track_id Track that should receive the audio.
     \param audio_asset Framework-free asset selected by the user.
-    \param position Requested clip start position on the session timeline.
-    \return Created clip id when the backend and Session both accept the edit; std::nullopt
-    otherwise.
+    \return True when the backend and Session both accept the edit.
     */
-    [[nodiscard]] std::optional<core::AudioClipId> createAudioClip(
-        core::TrackId track_id, const core::AudioAsset& audio_asset, core::TimePosition position);
+    [[nodiscard]] bool setTrackAudio(core::TrackId track_id, const core::AudioAsset& audio_asset);
 
 private:
     // Session stores accepted framework-free values after backend edits succeed.
