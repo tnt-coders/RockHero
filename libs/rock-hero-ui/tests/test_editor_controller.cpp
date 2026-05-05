@@ -6,6 +6,7 @@
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/transport_state.h>
 #include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/i_project_loader.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/ui/edit_coordinator.h>
@@ -13,7 +14,6 @@
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
-#include <rock_hero/ui/i_project_loader.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -166,16 +166,16 @@ public:
 };
 
 // Provides project-load results without touching JUCE or the filesystem.
-class FakeProjectLoader final : public IProjectLoader
+class FakeProjectLoader final : public core::IProjectLoader
 {
 public:
-    ProjectLoadResult loadProject(const std::filesystem::path& project_file) override
+    core::ProjectLoadResult loadProject(const std::filesystem::path& project_file) override
     {
         last_project_file = project_file;
         ++load_project_call_count;
         if (!next_project.has_value())
         {
-            return ProjectLoadResult{
+            return core::ProjectLoadResult{
                 .project = std::nullopt,
                 .error_message = next_error_message,
             };
@@ -183,13 +183,13 @@ public:
 
         auto project = std::move(next_project);
         next_project.reset();
-        return ProjectLoadResult{
+        return core::ProjectLoadResult{
             .project = std::move(project),
             .error_message = {},
         };
     }
 
-    std::optional<LoadedProject> next_project{};
+    std::optional<core::LoadedProject> next_project{};
     std::string next_error_message{"Project load failed"};
     std::optional<std::filesystem::path> last_project_file{};
     int load_project_call_count{0};
@@ -205,7 +205,7 @@ public:
 }
 
 // Builds loaded-project data with one arrangement.
-[[nodiscard]] LoadedProject makeLoadedProject(
+[[nodiscard]] core::LoadedProject makeLoadedProject(
     std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
 {
     core::Song song;
@@ -216,10 +216,10 @@ public:
             .audio_duration = timeline_range.duration(),
         });
 
-    return LoadedProject{
+    return core::LoadedProject{
         .song = std::move(song),
         .selected_arrangement_index = 0,
-        .cache = LoadedProjectCache{},
+        .cache = core::LoadedProjectCache{},
     };
 }
 
@@ -229,7 +229,7 @@ void loadArrangement(
     core::TimeRange timeline_range = loadedTimelineRange())
 {
     edit.next_audio_duration = timeline_range.duration();
-    LoadedProject project = makeLoadedProject(std::move(path), timeline_range);
+    core::LoadedProject project = makeLoadedProject(std::move(path), timeline_range);
     const bool song_loaded = edit_coordinator.loadSong(std::move(project.song), 0);
     REQUIRE(song_loaded);
 }
