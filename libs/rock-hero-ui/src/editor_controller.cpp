@@ -9,7 +9,8 @@ namespace rock_hero::ui
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
-    audio::ITransport& transport, EditCoordinator& edit_coordinator, IProjectLoader& project_loader)
+    audio::ITransport& transport, EditCoordinator& edit_coordinator,
+    core::IProjectLoader& project_loader)
     : m_transport(transport)
     , m_edit_coordinator(edit_coordinator)
     , m_project_loader(project_loader)
@@ -33,7 +34,7 @@ void EditorController::attachView(IEditorView& view)
 // promotes the extracted cache only after the backend and Session both accept the song.
 void EditorController::onOpenProjectRequested(std::filesystem::path project_file)
 {
-    ProjectLoadResult result = m_project_loader.loadProject(project_file);
+    core::ProjectLoadResult result = m_project_loader.loadProject(project_file);
     if (!result.succeeded())
     {
         m_last_load_error = std::string{"Could not open project: "} + result.error_message;
