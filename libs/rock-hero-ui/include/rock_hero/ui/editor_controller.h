@@ -10,7 +10,6 @@
 #include <rock_hero/audio/scoped_listener.h>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
-#include <rock_hero/core/track.h>
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
@@ -40,10 +39,9 @@ public:
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
-    If the coordinator-owned session has no tracks, the controller creates the initial editor
-    track through the edit coordinator before deriving state. The controller does not push state
-    during construction because no view is attached yet. The initial cached state becomes the
-    first push delivered to a view passed to attachView().
+    The coordinator-owned session supplies the temporary empty arrangement shell until project-file
+    loading exists. The controller does not push state during construction because no view is
+    attached yet. The initial cached state becomes the first push delivered to attachView().
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
@@ -82,22 +80,20 @@ public:
     void attachView(IEditorView& view);
 
     /*!
-    \brief Handles a request to assign an audio asset to one track.
+    \brief Handles a request to assign an audio asset to the current arrangement.
 
-    The request is ignored when the track id does not exist in the session. On a successful edit,
-    the controller clears any active load error. On a failed edit, the session is preserved and a
-    controller-composed error is published. Reentrant transport notifications received during the
-    edit are coalesced into a single final post-load push.
+    On a successful edit, the controller clears any active load error. On a failed edit, the
+    session is preserved and a controller-composed error is published. Reentrant transport
+    notifications received during the edit are coalesced into a single final post-load push.
 
-    \param track_id Track whose audio should change.
     \param audio_asset Framework-free audio asset selected by the user.
     */
-    void onLoadAudioAssetRequested(core::TrackId track_id, core::AudioAsset audio_asset) override;
+    void onLoadAudioAssetRequested(core::AudioAsset audio_asset) override;
 
     /*!
     \brief Handles a play/pause button press from the editor UI.
 
-    The intent is ignored when no session track has audio. Otherwise, plays or pauses
+    The intent is ignored when the current arrangement has no audio. Otherwise, plays or pauses
     based on the current transport state.
     */
     void onPlayPausePressed() override;
@@ -133,8 +129,8 @@ private:
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
     void deriveAndPush();
 
-    // Reports whether at least one session track currently has audio assigned.
-    [[nodiscard]] bool anyTrackHasAudio() const;
+    // Reports whether the current arrangement currently has audio assigned.
+    [[nodiscard]] bool currentArrangementHasAudio() const;
 
     // Reports whether Stop would either stop playback or reset a non-start cursor position.
     [[nodiscard]] bool canStopTransport(const audio::TransportState& transport_state) const;
@@ -156,10 +152,6 @@ private:
 
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
-
-    // Records that a transport callback arrived during an in-flight edit so the controller
-    // produces exactly one final post-edit push instead of one stale and one final push.
-    bool m_pending_refresh{false};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
