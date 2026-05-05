@@ -29,10 +29,10 @@ template <typename Value>
 class FakeEditorController final : public IEditorController
 {
 public:
-    void onLoadAudioAssetRequested(core::AudioAsset audio_asset) override
+    void onOpenProjectRequested(std::filesystem::path project_file) override
     {
-        last_audio_asset = std::move(audio_asset);
-        load_request_count += 1;
+        last_project_file = std::move(project_file);
+        open_project_request_count += 1;
     }
 
     void onPlayPausePressed() override
@@ -51,9 +51,9 @@ public:
         waveform_click_count += 1;
     }
 
-    std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<std::filesystem::path> last_project_file{};
     std::optional<double> last_normalized_x{};
-    int load_request_count{0};
+    int open_project_request_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -247,7 +247,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
 
     view.setState(
         EditorViewState{
-            .load_button_enabled = true,
+            .open_project_button_enabled = true,
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -273,19 +273,19 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
 
-    auto& load_button = findRequiredChild<juce::TextButton>(view, "load_button");
+    auto& open_project_button = findRequiredChild<juce::TextButton>(view, "open_project_button");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
 
     view.setState(EditorViewState{});
 
-    CHECK_FALSE(load_button.isEnabled());
+    CHECK_FALSE(open_project_button.isEnabled());
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
     CHECK(transport.position_read_count == 0);
 
     view.setState(
         EditorViewState{
-            .load_button_enabled = true,
+            .open_project_button_enabled = true,
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
@@ -298,7 +298,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .last_load_error = std::nullopt,
         });
 
-    CHECK(load_button.isEnabled());
+    CHECK(open_project_button.isEnabled());
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());

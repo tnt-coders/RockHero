@@ -6,8 +6,9 @@ namespace rock_hero::ui
 // Wires edit coordination, controller, and view after construction dependencies are available.
 Editor::Editor(
     audio::ITransport& transport, audio::IEdit& edit, audio::IThumbnailFactory& thumbnail_factory)
-    : m_edit_coordinator(edit)
-    , m_controller(transport, m_edit_coordinator)
+    : m_project_loader()
+    , m_edit_coordinator(edit)
+    , m_controller(transport, m_edit_coordinator, m_project_loader)
     , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);

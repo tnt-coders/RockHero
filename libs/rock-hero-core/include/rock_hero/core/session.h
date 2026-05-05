@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <cstddef>
 #include <rock_hero/core/arrangement.h>
+#include <rock_hero/core/song.h>
 #include <rock_hero/core/timeline.h>
 #include <vector>
 
@@ -15,14 +17,23 @@ namespace rock_hero::core
 /*!
 \brief Editable in-memory session state.
 
-Session owns the arrangements available in the current editor workflow. It is deliberately
-framework-free so controllers and tests can exercise session behavior without JUCE or Tracktion.
-The current editor presents one arrangement at a time; until project-file loading exists, a new
-session starts with a single empty arrangement shell.
+Session owns the Song currently loaded into the editor workflow. It is deliberately framework-free
+so controllers and tests can exercise session behavior without JUCE or Tracktion. The current
+editor presents one arrangement at a time; before a project is opened, a new session starts with a
+single empty arrangement shell.
 */
 class Session
 {
 public:
+    /*! \brief Creates a session with one temporary empty arrangement shell. */
+    Session();
+
+    /*!
+    \brief Returns the loaded song aggregate.
+    \return Current song data owned by the session.
+    */
+    [[nodiscard]] const Song& song() const noexcept;
+
     /*!
     \brief Returns arrangements in project order.
     \return Ordered arrangements owned by the session.
@@ -42,21 +53,23 @@ public:
     [[nodiscard]] const Arrangement* currentArrangement() const noexcept;
 
     /*!
-    \brief Sets the backing audio for the currently displayed arrangement.
+    \brief Replaces the current session song.
 
-    Editor orchestration should ask the playback backend to accept the candidate audio before
-    storing it in Session, but Session deliberately stays framework-free and stores only the
-    accepted project-owned values.
+    The selected arrangement index is stored as session state, not as persistent arrangement
+    identity. The selected arrangement must exist in the supplied song.
 
-    \param audio_asset Audio asset to store on the arrangement.
-    \param audio_duration Full natural duration of the accepted asset.
-    \return True when the current arrangement existed and the audio values were stored.
+    \param song Song aggregate to make current.
+    \param selected_arrangement_index Arrangement index displayed by the editor.
+    \return True when the song was accepted.
     */
-    bool setCurrentArrangementAudio(AudioAsset audio_asset, TimeDuration audio_duration);
+    bool loadSong(Song song, std::size_t selected_arrangement_index);
 
 private:
-    // Starts with one shell because project-file loading is not available yet.
-    std::vector<Arrangement> m_arrangements{Arrangement{}};
+    // Song aggregate currently loaded into the editor session.
+    Song m_song;
+
+    // Index of the arrangement currently shown by the single-arrangement editor surface.
+    std::size_t m_current_arrangement_index{0};
 
     // Canonical timeline range for loaded project content.
     TimeRange m_timeline{};

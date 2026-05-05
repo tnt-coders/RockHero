@@ -12,6 +12,7 @@
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view.h>
+#include <rock_hero/ui/project_loader.h>
 
 namespace rock_hero::ui
 {
@@ -59,6 +60,9 @@ public:
     [[nodiscard]] juce::Component& component() noexcept;
 
 private:
+    // Concrete project package loader used by the controller for open-project intents.
+    ProjectLoader m_project_loader;
+
     // Owns edit orchestration before the controller stores its non-owning reference.
     EditCoordinator m_edit_coordinator;
 

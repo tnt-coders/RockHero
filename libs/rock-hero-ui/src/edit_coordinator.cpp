@@ -16,18 +16,31 @@ const core::Session& EditCoordinator::session() const noexcept
     return m_session;
 }
 
-// Lets the backend accept the audio first, then commits the accepted values into Session.
-bool EditCoordinator::setArrangementAudio(const core::AudioAsset& audio_asset)
+// Lets the backend accept the selected arrangement audio, then commits the song into Session.
+bool EditCoordinator::loadSong(core::Song song, std::size_t selected_arrangement_index)
 {
-    auto audio_duration = m_edit.get().loadAudio(audio_asset);
+    if (song.chart.arrangements.empty() ||
+        selected_arrangement_index >= song.chart.arrangements.size())
+    {
+        return false;
+    }
+
+    core::Arrangement& selected_arrangement = song.chart.arrangements[selected_arrangement_index];
+    if (!selected_arrangement.audio_asset.has_value())
+    {
+        return false;
+    }
+
+    auto audio_duration = m_edit.get().loadAudio(*selected_arrangement.audio_asset);
     if (!audio_duration.has_value())
     {
         return false;
     }
 
-    const bool committed =
-        m_session.setCurrentArrangementAudio(audio_asset, audio_duration.value());
-    assert(committed && "Session rejected backend-accepted arrangement audio");
+    selected_arrangement.audio_duration = audio_duration.value();
+
+    const bool committed = m_session.loadSong(std::move(song), selected_arrangement_index);
+    assert(committed && "Session rejected backend-accepted project song");
     if (!committed)
     {
         return false;
