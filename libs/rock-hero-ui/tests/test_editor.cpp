@@ -121,7 +121,13 @@ public:
     void setSource(const core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
+        has_source = true;
         set_source_call_count += 1;
+    }
+
+    [[nodiscard]] bool hasSource() const override
+    {
+        return has_source;
     }
 
     [[nodiscard]] bool isGeneratingProxy() const override
@@ -134,17 +140,16 @@ public:
         return 0.0f;
     }
 
-    [[nodiscard]] double getLength() const override
+    [[nodiscard]] bool drawChannels(
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        float /*vertical_zoom*/) override
     {
-        return 1.0;
+        return true;
     }
-
-    void drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, float /*vertical_zoom*/) override
-    {}
 
     std::optional<core::AudioAsset> last_source{};
     int set_source_call_count{0};
+    bool has_source{false};
 };
 
 // Creates fake thumbnails while recording the owner component passed by Editor.
