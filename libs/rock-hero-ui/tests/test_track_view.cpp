@@ -49,7 +49,14 @@ public:
     void setSource(const core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
+        has_source = true;
         set_source_call_count += 1;
+    }
+
+    // Reports whether this fake has drawable source data.
+    [[nodiscard]] bool hasSource() const override
+    {
+        return has_source;
     }
 
     // Reports whether this fake thumbnail is still generating a proxy.
@@ -64,16 +71,13 @@ public:
         return proxy_progress;
     }
 
-    // Reports the fake audio length configured by the test.
-    [[nodiscard]] double getLength() const override
-    {
-        return length_seconds;
-    }
-
     // Ignores drawing because these tests only need observable state transitions.
-    void drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, float /*vertical_zoom*/) override
-    {}
+    [[nodiscard]] bool drawChannels(
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        float /*vertical_zoom*/) override
+    {
+        return true;
+    }
 
     // Last source installed into this thumbnail, if any.
     std::optional<core::AudioAsset> last_source{};
@@ -87,8 +91,8 @@ public:
     // Fake proxy progress.
     float proxy_progress{0.0f};
 
-    // Fake loaded length in seconds.
-    double length_seconds{1.0};
+    // Fake source-readiness flag.
+    bool has_source{false};
 };
 
 // Creates fake thumbnails while recording each clip component that requested one.

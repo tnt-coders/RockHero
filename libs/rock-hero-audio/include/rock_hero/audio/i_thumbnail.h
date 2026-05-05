@@ -6,6 +6,7 @@
 #pragma once
 
 #include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/timeline.h>
 
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
@@ -48,6 +49,12 @@ public:
     virtual void setSource(const core::AudioAsset& audio_asset) = 0;
 
     /*!
+    \brief Reports whether a drawable source asset is currently loaded.
+    \return True when source data is available for drawing.
+    */
+    [[nodiscard]] virtual bool hasSource() const = 0;
+
+    /*!
     \brief Reports whether the thumbnail proxy is still being generated.
     \return True while the proxy is being built.
     */
@@ -60,22 +67,20 @@ public:
     [[nodiscard]] virtual float getProxyProgress() const = 0;
 
     /*!
-    \brief Returns the duration of the loaded audio file in seconds.
-    \return Duration in seconds, or 0 if no file is set.
-    */
-    [[nodiscard]] virtual double getLength() const = 0;
-
-    /*!
     \brief Draws the audio channels into the given graphics context.
 
-    Renders the full duration of the loaded file into the specified bounds.
+    Renders the requested source range of the loaded asset into the specified bounds. Invalid
+    source ranges fail without drawing.
 
     \param g Graphics context to draw into.
     \param bounds Rectangle defining the drawing area.
+    \param source_range Range inside the loaded source asset to draw.
     \param vertical_zoom Vertical scale factor (1.0 = normal).
+    \return True when the range was valid and drawing was attempted.
     */
-    virtual void drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, float vertical_zoom) = 0;
+    [[nodiscard]] virtual bool drawChannels(
+        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange source_range,
+        float vertical_zoom) = 0;
 
 protected:
     /*! \brief Allows only derived thumbnail adapters to construct the interface base. */

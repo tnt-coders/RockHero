@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
-#include <cmath>
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -124,7 +123,7 @@ TEST_CASE("Engine thumbnail factory creates an adapter", "[audio][engine][integr
     const auto thumbnail = engine.createThumbnail(owner);
 
     REQUIRE(thumbnail != nullptr);
-    CHECK(std::fpclassify(thumbnail->getLength()) == FP_ZERO); // Exact zero without float ==.
+    CHECK_FALSE(thumbnail->hasSource());
 }
 
 // Verifies a real thumbnail adapter can load fixture metadata and render into JUCE graphics.
@@ -135,22 +134,48 @@ TEST_CASE("Engine thumbnail loads and draws fixture audio", "[audio][engine][int
     juce::Component owner;
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
+    const auto audio_clip = requireProvisionedFixtureAudioClip(engine);
     auto thumbnail = engine.createThumbnail(owner);
     REQUIRE(thumbnail != nullptr);
 
     thumbnail->setSource(audio_asset);
 
-    CHECK(thumbnail->getLength() > 0.0);
+    CHECK(thumbnail->hasSource());
     CHECK(thumbnail->getProxyProgress() >= 0.0f);
     CHECK(thumbnail->getProxyProgress() <= 1.0f);
 
     const juce::Image image(juce::Image::RGB, 128, 48, true);
     juce::Graphics graphics{image};
-    CHECK_NOTHROW(thumbnail->drawChannels(graphics, image.getBounds(), 1.0f));
+    CHECK(thumbnail->drawChannels(graphics, image.getBounds(), audio_clip.source_range, 1.0f));
 }
 
-// Verifies missing assets do not leave stale duration metadata in the thumbnail adapter.
-TEST_CASE("Engine thumbnail clears length for missing assets", "[audio][engine][integration]")
+// Verifies invalid source ranges fail before the adapter asks Tracktion to draw them.
+TEST_CASE("Engine thumbnail rejects invalid source ranges", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    juce::Component owner;
+    const auto audio_asset = fixtureAudioAsset();
+    REQUIRE(std::filesystem::exists(audio_asset.path));
+    auto thumbnail = engine.createThumbnail(owner);
+    REQUIRE(thumbnail != nullptr);
+    thumbnail->setSource(audio_asset);
+    REQUIRE(thumbnail->hasSource());
+
+    const juce::Image image(juce::Image::RGB, 128, 48, true);
+    juce::Graphics graphics{image};
+    CHECK_FALSE(thumbnail->drawChannels(
+        graphics,
+        image.getBounds(),
+        core::TimeRange{
+            .start = core::TimePosition{4.0},
+            .end = core::TimePosition{2.0},
+        },
+        1.0f));
+}
+
+// Verifies missing assets do not leave stale source-readiness state in the thumbnail adapter.
+TEST_CASE("Engine thumbnail clears source for missing assets", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
@@ -160,14 +185,14 @@ TEST_CASE("Engine thumbnail clears length for missing assets", "[audio][engine][
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
     thumbnail->setSource(audio_asset);
-    REQUIRE(thumbnail->getLength() > 0.0);
+    REQUIRE(thumbnail->hasSource());
 
     const core::AudioAsset missing_asset{
         fixtureAudioPath().parent_path() / "missing-thumbnail.wav",
     };
     thumbnail->setSource(missing_asset);
 
-    CHECK(std::fpclassify(thumbnail->getLength()) == FP_ZERO); // Exact zero without float ==.
+    CHECK_FALSE(thumbnail->hasSource());
     CHECK(thumbnail->getProxyProgress() >= 0.0f);
     CHECK(thumbnail->getProxyProgress() <= 1.0f);
 }
