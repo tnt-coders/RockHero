@@ -7,6 +7,7 @@
 
 #include <optional>
 #include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/audio_clip.h>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
 #include <string>

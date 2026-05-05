@@ -12,16 +12,16 @@ namespace rock_hero::ui
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
 std::optional<float> cursorXForTimelinePosition(
-    core::TimePosition position, core::TimePosition visible_timeline_start,
-    core::TimeDuration visible_timeline_duration, int width) noexcept
+    core::TimePosition position, core::TimeRange visible_timeline, int width) noexcept
 {
-    if (width <= 0 || visible_timeline_duration.seconds <= 0.0)
+    const core::TimeDuration visible_duration = visible_timeline.duration();
+    if (width <= 0 || visible_duration.seconds <= 0.0)
     {
         return std::nullopt;
     }
 
     const double relative_position =
-        (position.seconds - visible_timeline_start.seconds) / visible_timeline_duration.seconds;
+        (position.seconds - visible_timeline.start.seconds) / visible_duration.seconds;
     const double clamped_position = std::clamp(relative_position, 0.0, 1.0);
     const auto max_x = static_cast<double>(width - 1);
     return static_cast<float>(clamped_position * max_x);
@@ -42,12 +42,9 @@ public:
     }
 
     // Stores discrete timeline mapping data pushed by EditorView::setState().
-    void setVisibleTimelineRange(
-        core::TimePosition visible_timeline_start,
-        core::TimeDuration visible_timeline_duration) noexcept
+    void setVisibleTimelineRange(core::TimeRange visible_timeline) noexcept
     {
-        m_visible_timeline_start = visible_timeline_start;
-        m_visible_timeline_duration = visible_timeline_duration;
+        m_visible_timeline = visible_timeline;
     }
 
     // Draws only the cursor; static waveform content remains in TrackView below this overlay.
@@ -78,11 +75,8 @@ private:
     // Samples the current position at render cadence and invalidates only changed cursor strips.
     void advanceCursor()
     {
-        const auto next_cursor_x = cursorXForTimelinePosition(
-            m_transport.position(),
-            m_visible_timeline_start,
-            m_visible_timeline_duration,
-            getWidth());
+        const auto next_cursor_x =
+            cursorXForTimelinePosition(m_transport.position(), m_visible_timeline, getWidth());
 
         if (next_cursor_x == m_cursor_x)
         {
@@ -132,17 +126,14 @@ private:
     // Vblank-driven callback used to keep cursor motion smooth without transport listeners.
     juce::VBlankAttachment m_vblank_attachment;
 
-    // Start of the visible timeline range last pushed by EditorView::setState().
-    core::TimePosition m_visible_timeline_start{};
-
-    // Duration of the visible timeline range last pushed by EditorView::setState().
-    core::TimeDuration m_visible_timeline_duration{};
+    // Visible timeline range last pushed by EditorView::setState().
+    core::TimeRange m_visible_timeline{};
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
 };
 
-// Creates child widgets and installs the initial row thumbnail from the audio factory.
+// Creates child widgets and gives the track row the factory it will use for clip thumbnails.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
     audio::IThumbnailFactory& thumbnail_factory)
@@ -159,7 +150,7 @@ EditorView::EditorView(
     m_transport_controls.setComponentID("transport_controls");
     m_track_view.setComponentID("track_view");
 
-    m_track_view.setThumbnail(thumbnail_factory.createThumbnail(m_track_view));
+    m_track_view.setThumbnailFactory(thumbnail_factory);
 
     addAndMakeVisible(m_load_button);
     addAndMakeVisible(m_transport_controls);
@@ -185,6 +176,7 @@ void EditorView::setState(const EditorViewState& state)
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
 
+    m_track_view.setVisibleTimeline(m_state.visible_timeline);
     if (m_state.tracks.empty())
     {
         m_track_view.setState(TrackViewState{});
@@ -194,8 +186,7 @@ void EditorView::setState(const EditorViewState& state)
         m_track_view.setState(m_state.tracks.front());
     }
 
-    m_cursor_overlay->setVisibleTimelineRange(
-        m_state.visible_timeline_start, m_state.visible_timeline_duration);
+    m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentLoadErrorIfNeeded(m_state.last_load_error);
 }
 

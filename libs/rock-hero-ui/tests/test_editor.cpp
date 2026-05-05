@@ -201,12 +201,9 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
     auto& load_button = findRequiredChild<juce::TextButton>(component, "load_button");
     CHECK(load_button.isEnabled());
-    CHECK(thumbnail_factory.create_call_count == 1);
-    REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
-    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
-    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
-    CHECK_FALSE(thumbnail_factory.last_thumbnail->last_source.has_value());
+    CHECK(thumbnail_factory.create_call_count == 0);
+    CHECK(thumbnail_factory.last_owner == nullptr);
+    CHECK(thumbnail_factory.last_thumbnail == nullptr);
     CHECK(edit.provision_track_call_count == 1);
     CHECK(edit.provision_audio_clip_call_count == 0);
     CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});

@@ -1,33 +1,81 @@
 #include "track_view.h"
 
 #include <algorithm>
+#include <cmath>
+#include <cstddef>
 #include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
+#include <rock_hero/ui/audio_clip_view.h>
 #include <utility>
 
 namespace rock_hero::ui
 {
 
-// Creates an empty track view that will receive its thumbnail and state from a parent view.
+namespace
+{
+
+// Maps a clip's timeline range into the visible portion of a track row.
+[[nodiscard]] juce::Rectangle<int> boundsForClipTimelineRange(
+    core::TimeRange clip_timeline_range, core::TimeRange visible_timeline,
+    juce::Rectangle<int> row_bounds) noexcept
+{
+    const double visible_duration = visible_timeline.duration().seconds;
+    if (row_bounds.isEmpty() || visible_duration <= 0.0)
+    {
+        return {};
+    }
+
+    const double start_ratio =
+        (clip_timeline_range.start.seconds - visible_timeline.start.seconds) / visible_duration;
+    const double end_ratio =
+        (clip_timeline_range.end.seconds - visible_timeline.start.seconds) / visible_duration;
+    const double left_ratio = std::clamp(std::min(start_ratio, end_ratio), 0.0, 1.0);
+    const double right_ratio = std::clamp(std::max(start_ratio, end_ratio), 0.0, 1.0);
+
+    const double row_width = static_cast<double>(row_bounds.getWidth());
+    const int left = row_bounds.getX() + static_cast<int>(std::floor(left_ratio * row_width));
+    const int right = row_bounds.getX() + static_cast<int>(std::ceil(right_ratio * row_width));
+
+    return juce::Rectangle<int>{
+        left,
+        row_bounds.getY(),
+        std::max(0, right - left),
+        row_bounds.getHeight(),
+    };
+}
+
+} // namespace
+
+// Creates an empty track view that will receive its thumbnail factory and state from a parent view.
 TrackView::TrackView() = default;
 
-// Uses default destruction because ownership is fully represented by smart-pointer members.
-TrackView::~TrackView() = default;
-
-// Transfers thumbnail ownership into the view and points it at the current state asset when needed.
-void TrackView::setThumbnail(std::unique_ptr<audio::IThumbnail> thumbnail)
+// Detaches clip child components before member ownership releases them during teardown.
+TrackView::~TrackView()
 {
-    m_thumbnail = std::move(thumbnail);
-    m_thumbnail_source_asset.reset();
-    applyCurrentAssetToThumbnailIfNeeded();
+    clearClipViews();
+}
+
+// Stores the factory used for current and future clip-view thumbnails.
+void TrackView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
+{
+    clearClipViews();
+    m_thumbnail_factory = &thumbnail_factory;
+    syncClipViewsToState();
     repaint();
 }
 
-// Stores the new track-view state, refreshes the thumbnail source if the present asset changed,
-// and repaints the track-local content.
+// Stores the visible timeline range and updates child clip placement from timeline coordinates.
+void TrackView::setVisibleTimeline(core::TimeRange visible_timeline)
+{
+    m_visible_timeline = visible_timeline;
+    resized();
+}
+
+// Stores the new track-view state, updates child clip views, and repaints the track-local content.
 void TrackView::setState(const TrackViewState& state)
 {
     m_state = state;
-    applyCurrentAssetToThumbnailIfNeeded();
+    syncClipViewsToState();
     repaint();
 }
 
@@ -57,14 +105,14 @@ void TrackView::mouseDown(const juce::MouseEvent& event)
     m_listeners.call(&Listener::trackViewClicked, *this, clamped);
 }
 
-// Draws only the track-local waveform content; cursor motion is intentionally excluded.
+// Draws the row background and empty states; clip children render waveform content.
 void TrackView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
 
     g.fillAll(juce::Colours::black);
 
-    if (!m_state.audio_asset.has_value())
+    if (m_state.audio_clips.empty())
     {
         g.setColour(juce::Colours::grey);
         const juce::String message =
@@ -75,55 +123,68 @@ void TrackView::paint(juce::Graphics& g)
         return;
     }
 
-    if (!m_thumbnail)
+    if (m_clip_views.empty())
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
     }
-
-    if (m_thumbnail->getLength() <= 0.0)
-    {
-        g.setColour(juce::Colours::grey);
-        g.drawText("Preparing waveform", bounds, juce::Justification::centred);
-        return;
-    }
-
-    if (m_thumbnail->isGeneratingProxy())
-    {
-        const auto pct = static_cast<int>(m_thumbnail->getProxyProgress() * 100.0f);
-        g.setColour(juce::Colours::white);
-        g.drawText(
-            "Building waveform: " + juce::String{pct} + "%", bounds, juce::Justification::centred);
-        return;
-    }
-
-    g.setColour(juce::Colours::lightgreen);
-    m_thumbnail->drawChannels(g, bounds, 1.0f);
 }
 
-// Documents the intentional absence of child layout while preserving the JUCE override point.
+// Maps each owned clip child into the visible portion of the track row.
 void TrackView::resized()
 {
-    // The view renders directly into its own bounds; no child components exist at this stage.
+    const auto bounds = getLocalBounds();
+    const std::size_t clip_count = std::min(m_clip_views.size(), m_state.audio_clips.size());
+    for (std::size_t index = 0; index < clip_count; ++index)
+    {
+        m_clip_views[index]->setBounds(boundsForClipTimelineRange(
+            m_state.audio_clips[index].timeline_range, m_visible_timeline, bounds));
+    }
 }
 
-// Keeps thumbnail refresh local to the view by diffing the current present asset against the
-// thumbnail source already installed in this component.
-void TrackView::applyCurrentAssetToThumbnailIfNeeded()
+// Keeps child clip views aligned with the row state without exposing Session to JUCE components.
+void TrackView::syncClipViewsToState()
 {
-    if (!m_thumbnail || !m_state.audio_asset.has_value())
+    if (m_thumbnail_factory == nullptr)
     {
+        clearClipViews();
         return;
     }
 
-    if (m_thumbnail_source_asset == m_state.audio_asset)
+    while (m_clip_views.size() > m_state.audio_clips.size())
     {
-        return;
+        removeChildComponent(m_clip_views.back().get());
+        m_clip_views.pop_back();
     }
 
-    m_thumbnail->setSource(*m_state.audio_asset);
-    m_thumbnail_source_asset = m_state.audio_asset;
+    while (m_clip_views.size() < m_state.audio_clips.size())
+    {
+        const std::size_t index = m_clip_views.size();
+        auto clip_view = std::make_unique<AudioClipView>();
+        clip_view->setComponentID("audio_clip_view");
+        clip_view->setState(m_state.audio_clips[index]);
+        clip_view->setThumbnail(m_thumbnail_factory->createThumbnail(*clip_view));
+        addAndMakeVisible(*clip_view);
+        m_clip_views.push_back(std::move(clip_view));
+    }
+
+    for (std::size_t index = 0; index < m_state.audio_clips.size(); ++index)
+    {
+        m_clip_views[index]->setState(m_state.audio_clips[index]);
+    }
+
+    resized();
+}
+
+// Detaches owned JUCE child components before releasing the smart pointers that own them.
+void TrackView::clearClipViews()
+{
+    while (!m_clip_views.empty())
+    {
+        removeChildComponent(m_clip_views.back().get());
+        m_clip_views.pop_back();
+    }
 }
 
 } // namespace rock_hero::ui

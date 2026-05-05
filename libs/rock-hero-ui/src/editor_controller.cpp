@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cassert>
 #include <optional>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::ui
 {
@@ -153,19 +155,29 @@ EditorViewState EditorController::deriveViewState() const
     state.play_pause_enabled = anyTrackHasClip();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
-    state.visible_timeline_start = timeline_range.start;
-    state.visible_timeline_duration = timeline_range.duration();
+    state.visible_timeline = timeline_range;
 
     state.tracks.reserve(session().tracks().size());
     for (const core::Track& track : session().tracks())
     {
+        std::vector<AudioClipViewState> audio_clips;
+        if (track.audio_clip.has_value())
+        {
+            const core::AudioClip& audio_clip = *track.audio_clip;
+            audio_clips.push_back(
+                AudioClipViewState{
+                    .audio_clip_id = audio_clip.id,
+                    .asset = audio_clip.asset,
+                    .source_range = audio_clip.source_range,
+                    .timeline_range = audio_clip.timelineRange(),
+                });
+        }
+
         state.tracks.push_back(
             TrackViewState{
                 .track_id = track.id,
                 .display_name = track.name,
-                .audio_asset = track.audio_clip.has_value()
-                                   ? std::optional<core::AudioAsset>{track.audio_clip->asset}
-                                   : std::nullopt,
+                .audio_clips = std::move(audio_clips),
             });
     }
     state.last_load_error = m_last_load_error;

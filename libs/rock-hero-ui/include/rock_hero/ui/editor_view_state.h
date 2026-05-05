@@ -34,11 +34,8 @@ struct EditorViewState
     /*! \brief Selects whether the play/pause control should render a pause icon. */
     bool play_pause_shows_pause_icon{false};
 
-    /*! \brief Start of the visible timeline range used to map cursor position to pixels. */
-    core::TimePosition visible_timeline_start{};
-
-    /*! \brief Duration of the visible timeline range used to map cursor position to pixels. */
-    core::TimeDuration visible_timeline_duration{};
+    /*! \brief Visible timeline range used to map cursor position and clips to pixels. */
+    core::TimeRange visible_timeline{};
 
     /*! \brief Current waveform rows shown by the editor. */
     std::vector<TrackViewState> tracks;

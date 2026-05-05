@@ -24,14 +24,12 @@ namespace rock_hero::ui
 \brief Computes a cursor x coordinate for a timeline position and visible range.
 
 \param position Current transport position.
-\param visible_timeline_start Start of the visible timeline range.
-\param visible_timeline_duration Duration of the visible timeline range.
+\param visible_timeline Visible timeline range.
 \param width Drawing width in pixels.
 \return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
 */
 [[nodiscard]] std::optional<float> cursorXForTimelinePosition(
-    core::TimePosition position, core::TimePosition visible_timeline_start,
-    core::TimeDuration visible_timeline_duration, int width) noexcept;
+    core::TimePosition position, core::TimeRange visible_timeline, int width) noexcept;
 
 /*!
 \brief JUCE implementation of the editor view contract.
@@ -47,10 +45,10 @@ class EditorView final : public juce::Component,
 {
 public:
     /*!
-    \brief Creates the concrete editor view and installs the initial track thumbnail.
+    \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param thumbnail_factory Factory used immediately to create the initial row thumbnail.
+    \param thumbnail_factory Factory used by track-owned clip views to create thumbnails.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
