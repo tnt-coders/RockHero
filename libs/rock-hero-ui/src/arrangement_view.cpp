@@ -1,4 +1,4 @@
-#include "track_view.h"
+#include "arrangement_view.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,7 +12,7 @@ namespace rock_hero::ui
 namespace
 {
 
-// Concrete draw request after intersecting the track audio with the visible timeline.
+// Concrete draw request after intersecting arrangement audio with the visible timeline.
 struct WaveformDrawRequest
 {
     juce::Rectangle<int> bounds;
@@ -36,13 +36,13 @@ struct WaveformDrawRequest
     return intersection;
 }
 
-// Maps a timeline range into the visible portion of a track row.
+// Maps a timeline range into the visible portion of the arrangement view.
 [[nodiscard]] juce::Rectangle<int> boundsForTimelineRange(
     core::TimeRange timeline_range, core::TimeRange visible_timeline,
-    juce::Rectangle<int> row_bounds) noexcept
+    juce::Rectangle<int> view_bounds) noexcept
 {
     const double visible_duration = visible_timeline.duration().seconds;
-    if (row_bounds.isEmpty() || visible_duration <= 0.0)
+    if (view_bounds.isEmpty() || visible_duration <= 0.0)
     {
         return {};
     }
@@ -54,24 +54,24 @@ struct WaveformDrawRequest
     const double left_ratio = std::clamp(std::min(start_ratio, end_ratio), 0.0, 1.0);
     const double right_ratio = std::clamp(std::max(start_ratio, end_ratio), 0.0, 1.0);
 
-    const double row_width = static_cast<double>(row_bounds.getWidth());
-    const int left = row_bounds.getX() + static_cast<int>(std::floor(left_ratio * row_width));
-    const int right = row_bounds.getX() + static_cast<int>(std::ceil(right_ratio * row_width));
+    const double view_width = static_cast<double>(view_bounds.getWidth());
+    const int left = view_bounds.getX() + static_cast<int>(std::floor(left_ratio * view_width));
+    const int right = view_bounds.getX() + static_cast<int>(std::ceil(right_ratio * view_width));
 
     return juce::Rectangle<int>{
         left,
-        row_bounds.getY(),
+        view_bounds.getY(),
         std::max(0, right - left),
-        row_bounds.getHeight(),
+        view_bounds.getHeight(),
     };
 }
 
-// Builds the draw range and bounds for the currently visible portion of full-source track audio.
+// Builds the draw range and bounds for the visible portion of full-source arrangement audio.
 [[nodiscard]] std::optional<WaveformDrawRequest> waveformDrawRequest(
-    const core::TrackAudio& audio, core::TimeRange visible_timeline,
-    juce::Rectangle<int> row_bounds) noexcept
+    const ArrangementViewState& state, core::TimeRange visible_timeline,
+    juce::Rectangle<int> view_bounds) noexcept
 {
-    const core::TimeRange audio_timeline = audio.timelineRange();
+    const core::TimeRange audio_timeline = state.audioTimelineRange();
     if (audio_timeline.duration().seconds <= 0.0)
     {
         return std::nullopt;
@@ -87,21 +87,21 @@ struct WaveformDrawRequest
 
     return WaveformDrawRequest{
         .bounds =
-            boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, row_bounds),
+            boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, view_bounds),
         .visible_range = *visible_audio_range,
     };
 }
 
 } // namespace
 
-// Creates an empty track view that will receive its thumbnail factory and state from a parent view.
-TrackView::TrackView() = default;
+// Creates an empty arrangement view that receives its thumbnail factory and state from a parent.
+ArrangementView::ArrangementView() = default;
 
 // Uses default destruction because ownership is fully represented by member objects.
-TrackView::~TrackView() = default;
+ArrangementView::~ArrangementView() = default;
 
-// Stores the factory and creates the track-owned thumbnail bound to this component.
-void TrackView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
+// Stores the factory and creates the arrangement-owned thumbnail bound to this component.
+void ArrangementView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
 {
     m_thumbnail = thumbnail_factory.createThumbnail(*this);
     m_thumbnail_source_asset.reset();
@@ -110,35 +110,35 @@ void TrackView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
 }
 
 // Stores the visible timeline range and redraws the appropriate waveform subsection.
-void TrackView::setVisibleTimeline(core::TimeRange visible_timeline)
+void ArrangementView::setVisibleTimeline(core::TimeRange visible_timeline)
 {
     m_visible_timeline = visible_timeline;
     repaint();
 }
 
-// Stores the new track-view state, refreshes the thumbnail source when needed, and repaints.
-void TrackView::setState(const TrackViewState& state)
+// Stores the new arrangement-view state, refreshes the thumbnail source, and repaints.
+void ArrangementView::setState(const ArrangementViewState& state)
 {
     m_state = state;
     applyCurrentAudioToThumbnailIfNeeded();
     repaint();
 }
 
-// Registers a local click listener for normalized track-view intent.
-void TrackView::addListener(Listener& listener)
+// Registers a local click listener for normalized arrangement-view intent.
+void ArrangementView::addListener(Listener& listener)
 {
     m_listeners.add(&listener);
 }
 
 // Removes a previously registered local click listener.
-void TrackView::removeListener(Listener& listener)
+void ArrangementView::removeListener(Listener& listener)
 {
     m_listeners.remove(&listener);
 }
 
-// Converts track-view clicks into normalized horizontal intent and leaves seek policy to the
+// Converts arrangement-view clicks into normalized horizontal intent and leaves seek policy to the
 // parent.
-void TrackView::mouseDown(const juce::MouseEvent& event)
+void ArrangementView::mouseDown(const juce::MouseEvent& event)
 {
     if (getWidth() <= 0)
     {
@@ -147,24 +147,20 @@ void TrackView::mouseDown(const juce::MouseEvent& event)
 
     const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
-    m_listeners.call(&Listener::trackViewClicked, *this, clamped);
+    m_listeners.call(&Listener::arrangementViewClicked, *this, clamped);
 }
 
-// Draws the row background, status text, and the currently visible waveform range.
-void TrackView::paint(juce::Graphics& g)
+// Draws the view background, status text, and the currently visible waveform range.
+void ArrangementView::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
 
     g.fillAll(juce::Colours::black);
 
-    if (!m_state.audio.has_value())
+    if (!m_state.hasAudio())
     {
         g.setColour(juce::Colours::grey);
-        const juce::String message =
-            m_state.display_name.empty()
-                ? "No audio loaded"
-                : juce::String{m_state.display_name.c_str()} + ": no audio";
-        g.drawText(message, bounds, juce::Justification::centred);
+        g.drawText("No audio loaded", bounds, juce::Justification::centred);
         return;
     }
 
@@ -191,7 +187,7 @@ void TrackView::paint(juce::Graphics& g)
         return;
     }
 
-    const auto draw_request = waveformDrawRequest(*m_state.audio, m_visible_timeline, bounds);
+    const auto draw_request = waveformDrawRequest(m_state, m_visible_timeline, bounds);
     if (!draw_request.has_value() || draw_request->bounds.isEmpty())
     {
         g.setColour(juce::Colours::grey);
@@ -208,33 +204,33 @@ void TrackView::paint(juce::Graphics& g)
 }
 
 // Size changes only affect paint-time waveform mapping, so invalidating the row is enough.
-void TrackView::resized()
+void ArrangementView::resized()
 {
     repaint();
 }
 
-// Keeps thumbnail refresh local to the track by diffing the current asset against the source
+// Keeps thumbnail refresh local by diffing the current asset against the source
 // already installed in this component.
-void TrackView::applyCurrentAudioToThumbnailIfNeeded()
+void ArrangementView::applyCurrentAudioToThumbnailIfNeeded()
 {
     if (!m_thumbnail)
     {
         return;
     }
 
-    if (!m_state.audio.has_value())
+    if (!m_state.audio_asset.has_value())
     {
         m_thumbnail_source_asset.reset();
         return;
     }
 
-    if (m_thumbnail_source_asset == m_state.audio->asset)
+    if (m_thumbnail_source_asset == m_state.audio_asset)
     {
         return;
     }
 
-    m_thumbnail->setSource(m_state.audio->asset);
-    m_thumbnail_source_asset = m_state.audio->asset;
+    m_thumbnail->setSource(*m_state.audio_asset);
+    m_thumbnail_source_asset = m_state.audio_asset;
 }
 
 } // namespace rock_hero::ui

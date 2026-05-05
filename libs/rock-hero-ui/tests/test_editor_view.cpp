@@ -29,9 +29,8 @@ template <typename Value>
 class FakeEditorController final : public IEditorController
 {
 public:
-    void onLoadAudioAssetRequested(core::TrackId track_id, core::AudioAsset audio_asset) override
+    void onLoadAudioAssetRequested(core::AudioAsset audio_asset) override
     {
-        last_track_id = track_id;
         last_audio_asset = std::move(audio_asset);
         load_request_count += 1;
     }
@@ -52,7 +51,6 @@ public:
         waveform_click_count += 1;
     }
 
-    std::optional<core::TrackId> last_track_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
     std::optional<double> last_normalized_x{};
     int load_request_count{0};
@@ -97,7 +95,7 @@ public:
     mutable int position_read_count{0};
 };
 
-// Records thumbnail source updates installed through the track view owned by EditorView.
+// Records thumbnail source updates installed through the arrangement view owned by EditorView.
 class FakeThumbnail final : public audio::IThumbnail
 {
 public:
@@ -220,19 +218,19 @@ template <class ComponentType>
     };
 }
 
-// Builds full-source track audio for editor-view tests that need thumbnail source propagation.
-[[nodiscard]] core::TrackAudio makeTrackAudio(std::filesystem::path path)
+// Builds arrangement view state for editor-view tests that need thumbnail source propagation.
+[[nodiscard]] ArrangementViewState makeArrangementState(std::filesystem::path path)
 {
-    return core::TrackAudio{
-        .asset = core::AudioAsset{std::move(path)},
-        .duration = core::TimeDuration{4.0},
+    return ArrangementViewState{
+        .audio_asset = core::AudioAsset{std::move(path)},
+        .audio_duration = core::TimeDuration{4.0},
     };
 }
 
 } // namespace
 
-// Verifies the track thumbnail is created and later pointed at pushed track audio.
-TEST_CASE("EditorView applies track audio to the thumbnail", "[ui][editor-view]")
+// Verifies the arrangement thumbnail is created and later pointed at pushed audio.
+TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -243,7 +241,7 @@ TEST_CASE("EditorView applies track audio to the thumbnail", "[ui][editor-view]"
 
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "arrangement_view");
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
 
@@ -258,11 +256,7 @@ TEST_CASE("EditorView applies track audio to the thumbnail", "[ui][editor-view]"
                     .start = core::TimePosition{},
                     .end = core::TimePosition{4.0},
                 },
-            .tracks = {TrackViewState{
-                .track_id = core::TrackId{1},
-                .display_name = "Full Mix",
-                .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}),
-            }},
+            .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
             .last_load_error = std::nullopt,
         });
 
@@ -300,11 +294,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
                     .start = core::TimePosition{},
                     .end = core::TimePosition{8.0},
                 },
-            .tracks = {TrackViewState{
-                .track_id = core::TrackId{2},
-                .display_name = "Full Mix",
-                .audio = makeTrackAudio(std::filesystem::path{"mix.wav"}),
-            }},
+            .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .last_load_error = std::nullopt,
         });
 
@@ -315,7 +305,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 }
 
-// Verifies editor-wide timeline clicks are forwarded without depending on a specific track row.
+// Verifies editor-wide timeline clicks are forwarded to the controller.
 TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;

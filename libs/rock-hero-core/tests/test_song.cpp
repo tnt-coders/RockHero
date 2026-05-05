@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <rock_hero/core/song.h>
 
 namespace rock_hero::core
@@ -12,8 +13,6 @@ TEST_CASE("Song default construction is empty", "[core][song]")
     CHECK(song.metadata.artist.empty());
     CHECK(song.metadata.album.empty());
     CHECK(song.metadata.year == 0);
-    CHECK(song.audio_asset_ref.empty());
-    CHECK(song.tone_timeline_ref.empty());
     CHECK(song.chart.arrangements.empty());
 }
 
@@ -39,11 +38,12 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.artist = "Test Artist";
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
-    song.audio_asset_ref = "audio/backing.wav";
-    song.tone_timeline_ref = "tone/timeline.json";
     song.chart.arrangements.push_back(
         {.part = Part::Rhythm,
          .difficulty = DifficultyRating{6},
+         .audio_asset = AudioAsset{std::filesystem::path{"audio/rhythm.wav"}},
+         .audio_duration = TimeDuration{42.0},
+         .tone_timeline_ref = "tone/rhythm.json",
          .note_events = {
              {.position = TimePosition{3.0},
               .duration = TimeDuration{1.5},
@@ -55,12 +55,15 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(song.metadata.artist == "Test Artist");
     CHECK(song.metadata.album == "Test Album");
     CHECK(song.metadata.year == 2026);
-    CHECK(song.audio_asset_ref == "audio/backing.wav");
-    CHECK(song.tone_timeline_ref == "tone/timeline.json");
     REQUIRE(song.chart.arrangements.size() == 1);
     CHECK(song.chart.arrangements[0].part == Part::Rhythm);
     CHECK(song.chart.arrangements[0].difficulty == DifficultyRating{6});
     CHECK(difficultyTier(song.chart.arrangements[0].difficulty) == DifficultyTier::Hard);
+    REQUIRE(song.chart.arrangements[0].audio_asset.has_value());
+    CHECK(
+        song.chart.arrangements[0].audio_asset->path == std::filesystem::path{"audio/rhythm.wav"});
+    CHECK(song.chart.arrangements[0].audio_duration == TimeDuration{42.0});
+    CHECK(song.chart.arrangements[0].tone_timeline_ref == "tone/rhythm.json");
     REQUIRE(song.chart.arrangements[0].note_events.size() == 1);
     CHECK(song.chart.arrangements[0].note_events[0].position == TimePosition{3.0});
     CHECK(song.chart.arrangements[0].note_events[0].duration == TimeDuration{1.5});
