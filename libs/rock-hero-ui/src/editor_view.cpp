@@ -141,10 +141,10 @@ EditorView::EditorView(
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
 {
-    m_load_button.setComponentID("load_button");
-    m_load_button.setButtonText("Load File...");
-    m_load_button.setEnabled(false);
-    m_load_button.onClick = [this] { onLoadClicked(); };
+    m_open_project_button.setComponentID("open_project_button");
+    m_open_project_button.setButtonText("Open Project...");
+    m_open_project_button.setEnabled(false);
+    m_open_project_button.onClick = [this] { onOpenProjectClicked(); };
     setWantsKeyboardFocus(true);
 
     m_transport_controls.setComponentID("transport_controls");
@@ -152,7 +152,7 @@ EditorView::EditorView(
 
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
-    addAndMakeVisible(m_load_button);
+    addAndMakeVisible(m_open_project_button);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_arrangement_view);
     addAndMakeVisible(*m_cursor_overlay);
@@ -168,7 +168,7 @@ void EditorView::setState(const EditorViewState& state)
 {
     m_state = state;
 
-    m_load_button.setEnabled(m_state.load_button_enabled);
+    m_open_project_button.setEnabled(m_state.open_project_button_enabled);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -194,7 +194,7 @@ void EditorView::resized()
 {
     auto area = getLocalBounds().reduced(8);
     auto button_row = area.removeFromTop(32);
-    m_load_button.setBounds(button_row.removeFromLeft(120));
+    m_open_project_button.setBounds(button_row.removeFromLeft(136));
     button_row.removeFromLeft(8);
     m_transport_controls.setBounds(button_row.removeFromLeft(176));
     area.removeFromTop(8);
@@ -215,13 +215,13 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
-// Opens an asynchronous file chooser and sends accepted assets to the controller.
-void EditorView::onLoadClicked()
+// Opens an asynchronous file chooser and sends accepted project paths to the controller.
+void EditorView::onOpenProjectClicked()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Select an audio file",
-        juce::File::getSpecialLocation(juce::File::userMusicDirectory),
-        "*.wav;*.mp3;*.aiff;*.ogg;*.flac");
+        "Open Rock Hero project",
+        juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+        "*.rhp");
 
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
@@ -232,10 +232,8 @@ void EditorView::onLoadClicked()
                 return;
             }
 
-            const core::AudioAsset audio_asset{
-                std::filesystem::path{file.getFullPathName().toWideCharPointer()}
-            };
-            m_controller.onLoadAudioAssetRequested(audio_asset);
+            m_controller.onOpenProjectRequested(
+                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
 
@@ -257,7 +255,7 @@ void EditorView::presentLoadErrorIfNeeded(const std::optional<std::string>& erro
     juce::NativeMessageBox::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Could not load file")
+            .withTitle("Could not open project")
             .withMessage(juce::String{error->c_str()})
             .withButton("OK"),
         nullptr);

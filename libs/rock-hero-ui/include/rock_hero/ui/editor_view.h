@@ -54,7 +54,7 @@ public:
         IEditorController& controller, const audio::ITransport& transport,
         audio::IThumbnailFactory& thumbnail_factory);
 
-    /*! \brief Releases child widgets, cursor overlay, and file chooser state. */
+    /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
 
     /*! \brief Copying is disabled because JUCE component ownership is not copyable. */
@@ -94,8 +94,8 @@ public:
 private:
     class CursorOverlay;
 
-    // Opens the asynchronous file chooser and forwards accepted selections to the controller.
-    void onLoadClicked();
+    // Opens the asynchronous project chooser and forwards accepted selections to the controller.
+    void onOpenProjectClicked();
 
     // Presents a new load error once per error value.
     void presentLoadErrorIfNeeded(const std::optional<std::string>& error);
@@ -112,8 +112,8 @@ private:
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     EditorViewState m_state{};
 
-    // Button that launches the audio-file chooser for the current arrangement.
-    juce::TextButton m_load_button;
+    // Button that launches the project-package chooser.
+    juce::TextButton m_open_project_button;
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;

@@ -5,15 +5,16 @@
 
 #pragma once
 
+#include <filesystem>
 #include <optional>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
-#include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
+#include <rock_hero/ui/i_project_loader.h>
 #include <string>
 
 namespace rock_hero::ui
@@ -39,14 +40,17 @@ public:
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
-    The coordinator-owned session supplies the temporary empty arrangement shell until project-file
-    loading exists. The controller does not push state during construction because no view is
+    The coordinator-owned session supplies the temporary empty arrangement shell until the user
+    opens a project. The controller does not push state during construction because no view is
     attached yet. The initial cached state becomes the first push delivered to attachView().
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
+    \param project_loader Loader used to open project packages.
     */
-    EditorController(audio::ITransport& transport, EditCoordinator& edit_coordinator);
+    EditorController(
+        audio::ITransport& transport, EditCoordinator& edit_coordinator,
+        IProjectLoader& project_loader);
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -80,15 +84,15 @@ public:
     void attachView(IEditorView& view);
 
     /*!
-    \brief Handles a request to assign an audio asset to the current arrangement.
+    \brief Handles a request to open a Rock Hero project package.
 
-    On a successful edit, the controller clears any active load error. On a failed edit, the
-    session is preserved and a controller-composed error is published. Reentrant transport
-    notifications received during the edit are coalesced into a single final post-load push.
+    On a successful project load, the controller clears any active load error and promotes the
+    extracted cache. On failure, the old session/cache are preserved. Reentrant transport
+    notifications received during backend audio loading are coalesced into one final push.
 
-    \param audio_asset Framework-free audio asset selected by the user.
+    \param project_file Filesystem path selected by the user.
     */
-    void onLoadAudioAssetRequested(core::AudioAsset audio_asset) override;
+    void onOpenProjectRequested(std::filesystem::path project_file) override;
 
     /*!
     \brief Handles a play/pause button press from the editor UI.
@@ -141,6 +145,9 @@ private:
     // Edit coordinator applies backend-accepted session mutations.
     EditCoordinator& m_edit_coordinator;
 
+    // Project loader opens .rhp packages and owns pending extraction until promotion.
+    IProjectLoader& m_project_loader;
+
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
 
@@ -152,6 +159,9 @@ private:
 
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
+
+    // Cache owner for the currently loaded project package.
+    std::optional<LoadedProjectCache> m_project_cache{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
