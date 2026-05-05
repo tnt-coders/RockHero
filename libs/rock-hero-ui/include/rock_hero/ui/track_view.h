@@ -7,25 +7,27 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include <optional>
+#include <rock_hero/core/timeline.h>
 #include <rock_hero/ui/track_view_state.h>
+#include <vector>
 
 namespace rock_hero::audio
 {
-// Forward-declared IThumbnail port keeps this header independent of Tracktion implementation types.
-class IThumbnail;
+// Forward-declared thumbnail factory keeps this header independent of concrete audio adapters.
+class IThumbnailFactory;
 } // namespace rock_hero::audio
 
 namespace rock_hero::ui
 {
 
+class AudioClipView;
+
 /*!
 \brief Renders one track view from framework-free track state.
 
-The view owns one Tracktion-free audio::IThumbnail and refreshes it only when the incoming
-TrackViewState changes to a different present audio asset. It currently renders only track-local
-waveform content and emits normalized click intent upward. Cursor motion is intentionally
-excluded; EditorView owns the editor-wide cursor overlay.
+The view owns clip child components and maps their timeline ranges into the editor's visible
+timeline range. Cursor motion is intentionally excluded; EditorView owns the editor-wide cursor
+overlay.
 */
 class TrackView : public juce::Component
 {
@@ -72,19 +74,19 @@ public:
         Listener& operator=(Listener&&) = default;
     };
 
-    /*! \brief Creates an empty track view with no thumbnail installed yet. */
+    /*! \brief Creates an empty track view with no thumbnail factory installed yet. */
     TrackView();
 
-    /*! \brief Releases track-view-owned thumbnail resources. */
+    /*! \brief Releases track-view-owned clip views and listener state. */
     ~TrackView() override;
 
-    /*! \brief Copying is disabled because JUCE components and thumbnail ownership are not copyable.
-     */
+    /*!
+    \brief Copying is disabled because JUCE components and clip ownership are not copyable.
+    */
     TrackView(const TrackView&) = delete;
 
     /*!
-    \brief Copy assignment is disabled because JUCE components and thumbnail ownership are not
-    copyable.
+    \brief Copy assignment is disabled because JUCE components and clip ownership are not copyable.
     */
     TrackView& operator=(const TrackView&) = delete;
 
@@ -100,20 +102,25 @@ public:
     TrackView& operator=(TrackView&&) = delete;
 
     /*!
-    \brief Installs the track-view-owned thumbnail renderer.
+    \brief Installs the factory used to create clip-owned thumbnail renderers.
 
-    If the view already holds a present audio asset in its current state, the new thumbnail is
-    immediately pointed at that asset before this method returns.
+    Existing clip views are rebuilt because their thumbnails are bound to their owning clip
+    components at creation time.
 
-    \param thumbnail Newly created thumbnail owned by this view.
+    \param thumbnail_factory Factory used for current and future clip views.
     */
-    void setThumbnail(std::unique_ptr<audio::IThumbnail> thumbnail);
+    void setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory);
+
+    /*!
+    \brief Applies the visible timeline range used to map clips into row coordinates.
+    \param visible_timeline Timeline range currently visible in the editor.
+    */
+    void setVisibleTimeline(core::TimeRange visible_timeline);
 
     /*!
     \brief Applies the current framework-free track-view state.
 
-    If the state changes to a different present audio asset, the view refreshes its owned thumbnail
-    source exactly once for that asset.
+    The row creates or updates child clip views from the supplied clip state.
 
     \param state New track-view state to render.
     */
@@ -138,7 +145,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Draws the track-local waveform content for the current state.
+    \brief Draws row background and empty-state text behind clip children.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
@@ -147,17 +154,23 @@ public:
     void resized() override;
 
 private:
-    // Refreshes the owned thumbnail only when the view now points at a different present asset.
-    void applyCurrentAssetToThumbnailIfNeeded();
+    // Rebuilds and updates child clip views to match the current row state.
+    void syncClipViewsToState();
+
+    // Detaches and releases clip child components before rebuilding or teardown.
+    void clearClipViews();
 
     // Current framework-free track-view state last applied by the parent view.
     TrackViewState m_state{};
 
-    // Asset currently installed into the owned thumbnail, if any.
-    std::optional<core::AudioAsset> m_thumbnail_source_asset{};
+    // Editor-visible timeline range used to map clip timeline ranges to child bounds.
+    core::TimeRange m_visible_timeline{};
 
-    // Track-view-owned thumbnail used to render static waveform content.
-    std::unique_ptr<audio::IThumbnail> m_thumbnail;
+    // Factory that creates thumbnails bound to each owned clip view.
+    audio::IThumbnailFactory* m_thumbnail_factory{nullptr};
+
+    // Clip-view children owned and laid out by this track row.
+    std::vector<std::unique_ptr<AudioClipView>> m_clip_views;
 
     // Local listeners notified when the track view is clicked.
     juce::ListenerList<Listener> m_listeners;

@@ -5,7 +5,10 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/ui/track_view.h>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::ui
 {
@@ -88,6 +91,30 @@ public:
     double length_seconds{1.0};
 };
 
+// Creates fake thumbnails while recording each clip component that requested one.
+class FakeThumbnailFactory final : public audio::IThumbnailFactory
+{
+public:
+    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+        juce::Component& owner) override
+    {
+        last_owner = &owner;
+        create_call_count += 1;
+        auto thumbnail = std::make_unique<FakeThumbnail>();
+        thumbnails.push_back(thumbnail.get());
+        return thumbnail;
+    }
+
+    // Last clip component that requested a thumbnail, if any.
+    juce::Component* last_owner{nullptr};
+
+    // Thumbnail fakes currently owned by clip views.
+    std::vector<FakeThumbnail*> thumbnails{};
+
+    // Number of thumbnail creation requests observed.
+    int create_call_count{0};
+};
+
 // Records normalized click intent emitted by one track view.
 class FakeTrackViewListener final : public TrackView::Listener
 {
@@ -110,77 +137,150 @@ public:
     int click_count{0};
 };
 
+// Provides the default four-second clip range used by most track-view tests.
+[[nodiscard]] core::TimeRange defaultClipRange() noexcept
+{
+    return core::TimeRange{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{4.0},
+    };
+}
+
+// Builds one clip state for track-view tests that only care about asset propagation.
+[[nodiscard]] AudioClipViewState makeAudioClipViewState(
+    std::filesystem::path path, core::TimeRange timeline_range)
+{
+    const core::TimeRange source_range{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{timeline_range.duration().seconds},
+    };
+
+    return AudioClipViewState{
+        .audio_clip_id = core::AudioClipId{1},
+        .asset = core::AudioAsset{std::move(path)},
+        .source_range = source_range,
+        .timeline_range = timeline_range,
+    };
+}
+
+// Builds one default-range clip state for tests that do not care about timeline placement.
+[[nodiscard]] AudioClipViewState makeAudioClipViewState(std::filesystem::path path)
+{
+    return makeAudioClipViewState(std::move(path), defaultClipRange());
+}
+
 } // namespace
 
-// Verifies a newly present audio asset refreshes the track-view-owned thumbnail exactly once.
-TEST_CASE("TrackView refreshes thumbnail when a present asset arrives", "[ui][track-view]")
+// Verifies a newly present clip creates one clip-owned thumbnail and points it at the asset.
+TEST_CASE("TrackView creates a clip thumbnail when clip state arrives", "[ui][track-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
     TrackView view;
-    auto thumbnail = std::make_unique<FakeThumbnail>();
-    auto* thumbnail_ptr = thumbnail.get();
-    view.setThumbnail(std::move(thumbnail));
+    view.setThumbnailFactory(thumbnail_factory);
 
     view.setState(
         TrackViewState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
-            .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+            .audio_clips = {makeAudioClipViewState(std::filesystem::path{"full_mix.wav"})},
         });
 
-    CHECK(thumbnail_ptr->set_source_call_count == 1);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "audio_clip_view");
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    const FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    CHECK(thumbnail->set_source_call_count == 1);
     CHECK(
-        thumbnail_ptr->last_source ==
+        thumbnail->last_source ==
         std::optional{core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
 }
 
-// Verifies reapplying the same present asset does not trigger another thumbnail refresh.
-TEST_CASE("TrackView does not refresh thumbnail twice for the same asset", "[ui][track-view]")
+// Verifies reapplying the same clip state reuses the existing clip view and thumbnail source.
+TEST_CASE("TrackView reuses clip thumbnail for the same asset", "[ui][track-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
     TrackView view;
-    auto thumbnail = std::make_unique<FakeThumbnail>();
-    auto* thumbnail_ptr = thumbnail.get();
-    view.setThumbnail(std::move(thumbnail));
+    view.setThumbnailFactory(thumbnail_factory);
 
     const TrackViewState state{
         .track_id = core::TrackId{1},
         .display_name = "Full Mix",
-        .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+        .audio_clips = {makeAudioClipViewState(std::filesystem::path{"full_mix.wav"})},
     };
 
     view.setState(state);
     view.setState(state);
 
-    CHECK(thumbnail_ptr->set_source_call_count == 1);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    CHECK(thumbnail_factory.thumbnails.front()->set_source_call_count == 1);
 }
 
-// Verifies changing to a different present asset triggers another thumbnail refresh.
-TEST_CASE("TrackView refreshes thumbnail again when the asset changes", "[ui][track-view]")
+// Verifies changing the clip asset refreshes the existing clip-owned thumbnail.
+TEST_CASE("TrackView refreshes clip thumbnail when the asset changes", "[ui][track-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
     TrackView view;
-    auto thumbnail = std::make_unique<FakeThumbnail>();
-    auto* thumbnail_ptr = thumbnail.get();
-    view.setThumbnail(std::move(thumbnail));
+    view.setThumbnailFactory(thumbnail_factory);
 
     view.setState(
         TrackViewState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
-            .audio_asset = core::AudioAsset{std::filesystem::path{"full_mix.wav"}},
+            .audio_clips = {makeAudioClipViewState(std::filesystem::path{"full_mix.wav"})},
         });
     view.setState(
         TrackViewState{
             .track_id = core::TrackId{1},
             .display_name = "Full Mix",
-            .audio_asset = core::AudioAsset{std::filesystem::path{"guitar_stem.wav"}},
+            .audio_clips = {makeAudioClipViewState(std::filesystem::path{"guitar_stem.wav"})},
         });
 
-    CHECK(thumbnail_ptr->set_source_call_count == 2);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    const FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    CHECK(thumbnail->set_source_call_count == 2);
     CHECK(
-        thumbnail_ptr->last_source ==
+        thumbnail->last_source ==
         std::optional{core::AudioAsset{std::filesystem::path{"guitar_stem.wav"}}});
+}
+
+// Verifies TrackView maps clip timeline placement into child component bounds.
+TEST_CASE("TrackView maps clip timeline range into row bounds", "[ui][track-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
+    TrackView view;
+    view.setThumbnailFactory(thumbnail_factory);
+    view.setVisibleTimeline(
+        core::TimeRange{
+            .start = core::TimePosition{},
+            .end = core::TimePosition{10.0},
+        });
+    view.setBounds(0, 0, 100, 24);
+
+    view.setState(
+        TrackViewState{
+            .track_id = core::TrackId{1},
+            .display_name = "Full Mix",
+            .audio_clips = {makeAudioClipViewState(
+                std::filesystem::path{"full_mix.wav"},
+                core::TimeRange{
+                    .start = core::TimePosition{2.0},
+                    .end = core::TimePosition{6.0},
+                })},
+        });
+
+    juce::Component* const clip_view = view.findChildWithID("audio_clip_view");
+    REQUIRE(clip_view != nullptr);
+    CHECK(clip_view->getX() == 20);
+    CHECK(clip_view->getY() == 0);
+    CHECK(clip_view->getWidth() == 40);
+    CHECK(clip_view->getHeight() == 24);
 }
 
 // Verifies track-local hit testing emits a normalized horizontal click position.
