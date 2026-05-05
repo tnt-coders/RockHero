@@ -5,9 +5,10 @@
 
 #pragma once
 
-#include <optional>
 #include <rock_hero/core/track.h>
+#include <rock_hero/ui/audio_clip_view_state.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::ui
 {
@@ -27,8 +28,8 @@ struct TrackViewState
     /*! \brief User-visible label shown for the track. */
     std::string display_name;
 
-    /*! \brief Optional audio asset currently assigned to the track view. */
-    std::optional<core::AudioAsset> audio_asset;
+    /*! \brief Audio clips currently rendered in this track row. */
+    std::vector<AudioClipViewState> audio_clips;
 
     /*!
     \brief Compares two track-view states by their stored values.

@@ -8,8 +8,14 @@ add_library(rock_hero::ui ALIAS rock_hero_ui)
 
 # Keep the target surface small while the UI module remains focused on editor workflow and views.
 target_sources(
-    rock_hero_ui PRIVATE src/track_view.cpp src/transport_controls.cpp src/edit_coordinator.cpp
-                         src/editor_controller.cpp src/editor_view.cpp src/editor.cpp)
+    rock_hero_ui
+    PRIVATE src/audio_clip_view.cpp
+            src/track_view.cpp
+            src/transport_controls.cpp
+            src/edit_coordinator.cpp
+            src/editor_controller.cpp
+            src/editor_view.cpp
+            src/editor.cpp)
 
 # Expose namespaced public headers while preserving short includes inside the owning module.
 target_include_directories(

@@ -4,8 +4,14 @@ include(Catch)
 
 # Headless contract, controller-behavior, and narrow widget tests for the UI layer.
 add_executable(
-    rock_hero_ui_tests test_editor.cpp test_editor_controller.cpp test_editor_view.cpp
-                       test_edit_coordinator.cpp test_track_view.cpp test_transport_controls.cpp)
+    rock_hero_ui_tests
+    test_audio_clip_view.cpp
+    test_editor.cpp
+    test_editor_controller.cpp
+    test_editor_view.cpp
+    test_edit_coordinator.cpp
+    test_track_view.cpp
+    test_transport_controls.cpp)
 
 # Link the concrete UI library so tests inherit its public headers and transitive dependencies.
 target_link_libraries(rock_hero_ui_tests PRIVATE rock_hero::ui rock_hero::build_policy
