@@ -8,9 +8,11 @@ namespace rock_hero::ui
 
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
-EditorController::EditorController(audio::ITransport& transport, EditCoordinator& edit_coordinator)
+EditorController::EditorController(
+    audio::ITransport& transport, EditCoordinator& edit_coordinator, IProjectLoader& project_loader)
     : m_transport(transport)
     , m_edit_coordinator(edit_coordinator)
+    , m_project_loader(project_loader)
     , m_transport_listener(transport, *this)
 {
     m_last_state = deriveViewState();
@@ -27,21 +29,32 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Asks the edit coordinator to load and commit the audio, and coalesces reentrant transport
-// callbacks so the view never sees stale intermediate state.
-void EditorController::onLoadAudioAssetRequested(core::AudioAsset audio_asset)
+// Opens a project package, asks the edit coordinator to load its selected arrangement, and
+// promotes the extracted cache only after the backend and Session both accept the song.
+void EditorController::onOpenProjectRequested(std::filesystem::path project_file)
 {
-    m_session_edit_in_progress = true;
-    const bool audio_loaded = m_edit_coordinator.setArrangementAudio(audio_asset);
-    m_session_edit_in_progress = false;
-
-    if (!audio_loaded)
+    ProjectLoadResult result = m_project_loader.loadProject(project_file);
+    if (!result.succeeded())
     {
-        m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
+        m_last_load_error = std::string{"Could not open project: "} + result.error_message;
         deriveAndPush();
         return;
     }
 
+    m_session_edit_in_progress = true;
+    const bool project_loaded = m_edit_coordinator.loadSong(
+        std::move(result.project->song), result.project->selected_arrangement_index);
+    m_session_edit_in_progress = false;
+
+    if (!project_loaded)
+    {
+        m_last_load_error =
+            std::string{"Could not load project audio from: "} + project_file.string();
+        deriveAndPush();
+        return;
+    }
+
+    m_project_cache = std::move(result.project->cache);
     m_last_load_error.reset();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
@@ -122,7 +135,7 @@ EditorViewState EditorController::deriveViewState() const
     const core::TimeRange timeline_range = session().timeline();
 
     EditorViewState state;
-    state.load_button_enabled = session().currentArrangement() != nullptr;
+    state.open_project_button_enabled = true;
     state.play_pause_enabled = currentArrangementHasAudio();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;

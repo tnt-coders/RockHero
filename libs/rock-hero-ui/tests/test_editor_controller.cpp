@@ -13,6 +13,7 @@
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
+#include <rock_hero/ui/i_project_loader.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -42,11 +43,11 @@ public:
 class FakeEditorController final : public IEditorController
 {
 public:
-    // Captures the most recent audio-load request made through the controller contract.
-    void onLoadAudioAssetRequested(core::AudioAsset audio_asset) override
+    // Captures the most recent open-project request made through the controller contract.
+    void onOpenProjectRequested(std::filesystem::path project_file) override
     {
-        last_audio_asset = std::move(audio_asset);
-        load_request_count += 1;
+        last_project_file = std::move(project_file);
+        open_project_request_count += 1;
     }
 
     void onPlayPausePressed() override
@@ -65,9 +66,9 @@ public:
         waveform_click_count += 1;
     }
 
-    std::optional<core::AudioAsset> last_audio_asset{};
+    std::optional<std::filesystem::path> last_project_file{};
     std::optional<double> last_normalized_x{};
-    int load_request_count{0};
+    int open_project_request_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -164,6 +165,36 @@ public:
     std::function<void()> during_edit_action{};
 };
 
+// Provides project-load results without touching JUCE or the filesystem.
+class FakeProjectLoader final : public IProjectLoader
+{
+public:
+    ProjectLoadResult loadProject(const std::filesystem::path& project_file) override
+    {
+        last_project_file = project_file;
+        ++load_project_call_count;
+        if (!next_project.has_value())
+        {
+            return ProjectLoadResult{
+                .project = std::nullopt,
+                .error_message = next_error_message,
+            };
+        }
+
+        auto project = std::move(next_project);
+        next_project.reset();
+        return ProjectLoadResult{
+            .project = std::move(project),
+            .error_message = {},
+        };
+    }
+
+    std::optional<LoadedProject> next_project{};
+    std::string next_error_message{"Project load failed"};
+    std::optional<std::filesystem::path> last_project_file{};
+    int load_project_call_count{0};
+};
+
 // Provides a standard loaded-content range for controller tests.
 [[nodiscard]] core::TimeRange loadedTimelineRange(double end_seconds = 4.0) noexcept
 {
@@ -173,14 +204,34 @@ public:
     };
 }
 
+// Builds loaded-project data with one arrangement.
+[[nodiscard]] LoadedProject makeLoadedProject(
+    std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
+{
+    core::Song song;
+    song.chart.arrangements.push_back(
+        core::Arrangement{
+            .part = core::Part::Lead,
+            .audio_asset = core::AudioAsset{std::move(path)},
+            .audio_duration = timeline_range.duration(),
+        });
+
+    return LoadedProject{
+        .song = std::move(song),
+        .selected_arrangement_index = 0,
+        .cache = LoadedProjectCache{},
+    };
+}
+
 // Loads arrangement audio through the coordinator so tests keep backend/session coupling.
 void loadArrangement(
     EditCoordinator& edit_coordinator, FakeEdit& edit, std::filesystem::path path,
     core::TimeRange timeline_range = loadedTimelineRange())
 {
     edit.next_audio_duration = timeline_range.duration();
-    const bool audio_set = edit_coordinator.setArrangementAudio(core::AudioAsset{std::move(path)});
-    REQUIRE(audio_set);
+    LoadedProject project = makeLoadedProject(std::move(path), timeline_range);
+    const bool song_loaded = edit_coordinator.loadSong(std::move(project.song), 0);
+    REQUIRE(song_loaded);
 }
 
 // Exposes stop enabledness as an optional value so tests can assert presence and value together.
@@ -201,7 +252,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
 {
     const EditorViewState empty_state{};
 
-    CHECK(empty_state.load_button_enabled == false);
+    CHECK(empty_state.open_project_button_enabled == false);
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
@@ -211,7 +262,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
 
     const core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
     const EditorViewState loaded_state{
-        .load_button_enabled = true,
+        .open_project_button_enabled = true,
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
@@ -221,28 +272,28 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
                 .audio_asset = audio_asset,
                 .audio_duration = core::TimeDuration{180.0},
             },
-        .last_load_error = std::string{"Could not load file"},
+        .last_load_error = std::string{"Could not open project"},
     };
 
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
-    CHECK(loaded_state.last_load_error == std::optional<std::string>{"Could not load file"});
+    CHECK(loaded_state.last_load_error == std::optional<std::string>{"Could not open project"});
 }
 
 // Verifies a fake controller can receive editor intents without JUCE callback types.
 TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-controller]")
 {
     FakeEditorController controller;
-    const core::AudioAsset audio_asset{std::filesystem::path{"lead.wav"}};
+    const std::filesystem::path project_file{"song.rhp"};
 
-    controller.onLoadAudioAssetRequested(audio_asset);
+    controller.onOpenProjectRequested(project_file);
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
 
-    CHECK(controller.load_request_count == 1);
-    CHECK(controller.last_audio_asset == std::optional{audio_asset});
+    CHECK(controller.open_project_request_count == 1);
+    CHECK(controller.last_project_file == std::optional{project_file});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
@@ -255,14 +306,15 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
     FakeTransport transport;
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
 
     controller.attachView(view);
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 1);
-    CHECK(view.last_state->load_button_enabled == true);
+    CHECK(view.last_state->open_project_button_enabled == true);
     CHECK(view.last_state->play_pause_enabled == false);
     CHECK(view.last_state->stop_enabled == false);
     CHECK(view.last_state->play_pause_shows_pause_icon == false);
@@ -280,7 +332,8 @@ TEST_CASE("EditorController derives visible timeline range", "[ui][editor-contro
     EditCoordinator edit_coordinator{edit};
     loadArrangement(
         edit_coordinator, edit, std::filesystem::path{"a.wav"}, loadedTimelineRange(8.0));
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -296,7 +349,8 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"a.wav"});
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -329,7 +383,8 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[ui][editor-
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"a.wav"});
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
 
     controller.onPlayPausePressed();
     CHECK(transport.play_call_count == 1);
@@ -347,7 +402,8 @@ TEST_CASE("EditorController ignores play intent without audio", "[ui][editor-con
     FakeTransport transport;
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
 
     controller.onPlayPausePressed();
 
@@ -362,7 +418,8 @@ TEST_CASE("EditorController stop intent follows reset gate", "[ui][editor-contro
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"a.wav"});
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
 
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 0);
@@ -384,7 +441,8 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"a.wav"});
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -411,7 +469,8 @@ TEST_CASE("EditorController waveform click clamps and scales", "[ui][editor-cont
     EditCoordinator edit_coordinator{edit};
     loadArrangement(
         edit_coordinator, edit, std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
 
     controller.onWaveformClicked(0.5);
     CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
@@ -431,7 +490,8 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[ui][editor-c
     EditCoordinator edit_coordinator{edit};
     loadArrangement(
         edit_coordinator, edit, std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -448,7 +508,7 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[ui][editor-c
     CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
-// A failed audio load leaves the session unchanged and surfaces a controller-composed error.
+// A failed project-audio load leaves the session unchanged and surfaces an error.
 TEST_CASE("EditorController failed load preserves session", "[ui][editor-controller]")
 {
     FakeTransport transport;
@@ -457,12 +517,13 @@ TEST_CASE("EditorController failed load preserves session", "[ui][editor-control
     loadArrangement(
         edit_coordinator, edit, std::filesystem::path{"old.wav"}, loadedTimelineRange(6.0));
     edit.next_audio_duration = std::nullopt;
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    project_loader.next_project = makeLoadedProject(std::filesystem::path{"new.wav"});
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset replacement{std::filesystem::path{"new.wav"}};
-    controller.onLoadAudioAssetRequested(replacement);
+    controller.onOpenProjectRequested(std::filesystem::path{"new.rhp"});
 
     const core::Session& session = edit_coordinator.session();
     REQUIRE(session.currentArrangement() != nullptr);
@@ -472,28 +533,31 @@ TEST_CASE("EditorController failed load preserves session", "[ui][editor-control
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     REQUIRE(view.last_state.has_value());
     REQUIRE(view.last_state->last_load_error.has_value());
-    CHECK(view.last_state->last_load_error->find("new.wav") != std::string::npos);
+    CHECK(view.last_state->last_load_error->find("new.rhp") != std::string::npos);
 }
 
-// A successful audio load stores the asset and timeline, clears prior error, and pushes once.
-TEST_CASE("EditorController successful load stores audio", "[ui][editor-controller]")
+// A successful project load stores the selected audio and clears prior error.
+TEST_CASE("EditorController successful project load stores audio", "[ui][editor-controller]")
 {
     FakeTransport transport;
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
 
+    project_loader.next_project = makeLoadedProject(std::filesystem::path{"first.wav"});
     edit.next_audio_duration = std::nullopt;
-    controller.onLoadAudioAssetRequested(core::AudioAsset{std::filesystem::path{"first.wav"}});
+    controller.onOpenProjectRequested(std::filesystem::path{"first.rhp"});
     REQUIRE(view.last_state.has_value());
     REQUIRE(view.last_state->last_load_error.has_value());
     const int pushes_before_success = view.set_state_call_count;
 
     edit.next_audio_duration = core::TimeDuration{4.0};
     const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
-    controller.onLoadAudioAssetRequested(replacement);
+    project_loader.next_project = makeLoadedProject(replacement.path, loadedTimelineRange(4.0));
+    controller.onOpenProjectRequested(std::filesystem::path{"second.rhp"});
 
     const core::Session& session = edit_coordinator.session();
     CHECK(edit.load_audio_call_count == 2);
@@ -514,7 +578,8 @@ TEST_CASE("EditorController coalesces reentrant edit callbacks", "[ui][editor-co
     FakeTransport transport;
     FakeEdit edit;
     EditCoordinator edit_coordinator{edit};
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
     const int pushes_before_load = view.set_state_call_count;
@@ -527,7 +592,8 @@ TEST_CASE("EditorController coalesces reentrant edit callbacks", "[ui][editor-co
     };
 
     const core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
-    controller.onLoadAudioAssetRequested(replacement);
+    project_loader.next_project = makeLoadedProject(replacement.path);
+    controller.onOpenProjectRequested(std::filesystem::path{"loop.rhp"});
 
     CHECK(view.set_state_call_count == pushes_before_load + 1);
     REQUIRE(view.last_state.has_value());
@@ -543,10 +609,12 @@ TEST_CASE("EditorController preserves load error across transitions", "[ui][edit
     EditCoordinator edit_coordinator{edit};
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"old.wav"});
     edit.next_audio_duration = std::nullopt;
-    EditorController controller{transport, edit_coordinator};
+    FakeProjectLoader project_loader;
+    project_loader.next_project = makeLoadedProject(std::filesystem::path{"new.wav"});
+    EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
-    controller.onLoadAudioAssetRequested(core::AudioAsset{std::filesystem::path{"new.wav"}});
+    controller.onOpenProjectRequested(std::filesystem::path{"new.rhp"});
 
     REQUIRE(view.last_state.has_value());
     REQUIRE(view.last_state->last_load_error.has_value());

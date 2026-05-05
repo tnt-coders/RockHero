@@ -5,10 +5,11 @@
 
 #pragma once
 
+#include <cstddef>
 #include <functional>
 #include <rock_hero/audio/i_edit.h>
-#include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
+#include <rock_hero/core/song.h>
 
 namespace rock_hero::ui
 {
@@ -18,8 +19,8 @@ namespace rock_hero::ui
 
 EditCoordinator is the narrow workflow layer for edits that must touch both the framework-free
 core::Session and the audio::IEdit backend. It owns the editor session, asks the backend to accept
-candidate media first, and commits the accepted framework-free state only after the backend
-succeeds.
+the selected arrangement audio first, and commits the accepted framework-free song state only after
+the backend succeeds.
 
 Production editor code receives only read-only session access through this coordinator. That keeps
 controller and app code from manually performing half of a cross-boundary transaction while still
@@ -57,15 +58,16 @@ public:
     [[nodiscard]] const core::Session& session() const noexcept;
 
     /*!
-    \brief Sets arrangement audio through the backend and stores the accepted values in Session.
+    \brief Loads a prepared song through the backend and stores accepted values in Session.
 
-    The coordinator asks the backend to load the audio first; if the backend rejects the
-    request, Session remains unchanged.
+    The selected arrangement's audio is loaded into the backend first. Only after the backend
+    accepts the audio does the coordinator commit the song into Session with the accepted duration.
 
-    \param audio_asset Framework-free asset selected by the user.
+    \param song Song parsed from a project package.
+    \param selected_arrangement_index Arrangement index displayed by the editor.
     \return True when the backend and Session both accept the edit.
     */
-    [[nodiscard]] bool setArrangementAudio(const core::AudioAsset& audio_asset);
+    [[nodiscard]] bool loadSong(core::Song song, std::size_t selected_arrangement_index);
 
 private:
     // Session stores accepted framework-free values after backend edits succeed.
