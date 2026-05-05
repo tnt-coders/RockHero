@@ -76,31 +76,17 @@ public:
     bool renameTrack(TrackId id, std::string name);
 
     /*!
-    \brief Allocates the next stable audio clip id for an edit transaction.
+    \brief Sets the full-source audio for an existing track.
 
-    Clip ids are allocated before the audio backend is asked to provision a clip so backend state
-    and the framework-free Session state can agree on the same durable identity. Allocated ids are
-    intentionally not reused if the backend rejects the edit, so gaps are expected.
+    Editor orchestration should ask the playback backend to accept the candidate audio before
+    storing it in Session, but Session deliberately stays framework-free and stores only the
+    accepted project-owned value.
 
-    \return Newly allocated nonzero audio clip id.
+    \param id Track id whose audio should be set.
+    \param audio Audio value to store on the track.
+    \return True when the track existed and was updated; false when no track matched the id.
     */
-    [[nodiscard]] AudioClipId allocateAudioClipId() noexcept;
-
-    // TODO: Replace setAudioClip with addAudioClip and removeAudioClip once the project expands
-    // to support more than one clip per track.
-    /*!
-    \brief Sets the current audio clip spec for an existing track.
-
-    This is the current single-clip track mutation. Editor orchestration should ask the playback
-    backend to provision the candidate clip before storing it in Session, but Session deliberately
-    stays framework-free and only attaches the already allocated id to a framework-free clip spec.
-
-    \param id Track id whose clip should be set.
-    \param audio_clip_id Allocated clip id to attach to the clip spec.
-    \param audio_clip_spec Clip spec to store on the track.
-    \return True when the track existed and was updated; false when the track or clip id is invalid.
-    */
-    bool setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec);
+    bool setTrackAudio(TrackId id, TrackAudio audio);
 
 private:
     // Tracks stay in insertion order so UI projections can preserve row ordering.
@@ -111,9 +97,6 @@ private:
 
     // Zero is reserved for invalid ids, so generated ids start at one.
     TrackId m_next_track_id{1};
-
-    // Zero is reserved for invalid ids, so generated clip ids start at one.
-    AudioClipId m_next_audio_clip_id{1};
 };
 
 } // namespace rock_hero::core

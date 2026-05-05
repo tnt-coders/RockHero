@@ -7,9 +7,8 @@
 
 #include <optional>
 #include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/audio_clip.h>
-#include <rock_hero/core/timeline.h>
 #include <rock_hero/core/track.h>
+#include <rock_hero/core/track_audio.h>
 #include <string>
 
 namespace rock_hero::audio
@@ -24,7 +23,7 @@ playback, position, and listener behavior.
 
 Concrete adapters may support fewer playback tracks than core::Session can model. The current
 Tracktion-backed implementation is intentionally minimal and provisions only one backend track.
-Unsupported track and clip provisioning attempts fail explicitly rather than pretending that
+Unsupported track and audio provisioning attempts fail explicitly rather than pretending that
 independent backend playback exists.
 */
 class IEdit
@@ -51,26 +50,22 @@ public:
         core::TrackId track_id, const std::string& name) = 0;
 
     /*!
-    \brief Provisions an audio clip from an asset and returns the backend-accepted spec.
+    \brief Provisions full-source track audio and returns the backend-accepted value.
 
-    Implementations inspect the asset, build the default full-source clip at the requested timeline
-    position, apply it to the playback backend, and return the accepted framework-free clip spec.
-    Session attaches the supplied clip id only after this call succeeds, keeping backend acceptance
-    spec separate from session-owned identity. Provisioning may mutate backend adapter state.
+    Implementations inspect the asset, apply it to the playback backend as the track's complete
+    audio source, and return the accepted framework-free value. Provisioning may mutate backend
+    adapter state.
 
-    \param track_id Track whose audio clip should be updated.
-    \param audio_clip_id Session-allocated id to map to the backend clip.
-    \param audio_asset Framework-free audio asset used as the clip source.
-    \param position Requested start position on the session timeline.
-    \return Accepted clip spec when the backend provisioned it; std::nullopt otherwise.
+    \param track_id Track whose audio should be updated.
+    \param audio_asset Framework-free audio asset used as the track audio source.
+    \return Accepted track audio when the backend provisioned it; std::nullopt otherwise.
     \note The track id must already have been mapped through provisionTrack().
     */
-    [[nodiscard]] virtual std::optional<core::AudioClipSpec> provisionAudioClip(
-        core::TrackId track_id, core::AudioClipId audio_clip_id,
-        const core::AudioAsset& audio_asset, core::TimePosition position) = 0;
+    [[nodiscard]] virtual std::optional<core::TrackAudio> provisionTrackAudio(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) = 0;
 
-    // TODO: Expand this surface with project-owned clip and track edit commands when the editor
-    // gains real timeline authoring behavior instead of the current single-file workflow.
+    // TODO: Expand this surface with project-owned track edit commands when the editor gains real
+    // timeline authoring behavior instead of the current single-file workflow.
 
     // TODO: Add a separate project-owned undo/history boundary when editor requirements justify
     // it. Do not expose juce::UndoManager or Tracktion types through this public contract.

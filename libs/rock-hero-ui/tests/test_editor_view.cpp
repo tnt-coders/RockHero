@@ -124,7 +124,7 @@ public:
     }
 
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*source_range*/,
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*visible_range*/,
         float /*vertical_zoom*/) override
     {
         return true;
@@ -220,26 +220,19 @@ template <class ComponentType>
     };
 }
 
-// Builds one clip state for editor-view tests that only need state propagation to thumbnails.
-[[nodiscard]] AudioClipViewState makeAudioClipViewState(std::filesystem::path path)
+// Builds full-source track audio for editor-view tests that need thumbnail source propagation.
+[[nodiscard]] core::TrackAudio makeTrackAudio(std::filesystem::path path)
 {
-    const core::TimeRange clip_range{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{4.0},
-    };
-
-    return AudioClipViewState{
-        .audio_clip_id = core::AudioClipId{1},
+    return core::TrackAudio{
         .asset = core::AudioAsset{std::move(path)},
-        .source_range = clip_range,
-        .timeline_range = clip_range,
+        .duration = core::TimeDuration{4.0},
     };
 }
 
 } // namespace
 
-// Verifies clip thumbnails are created only when pushed state contains renderable clip state.
-TEST_CASE("EditorView creates clip thumbnails from clip state", "[ui][editor-view]")
+// Verifies the track thumbnail is created and later pointed at pushed track audio.
+TEST_CASE("EditorView applies track audio to the thumbnail", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -248,9 +241,11 @@ TEST_CASE("EditorView creates clip thumbnails from clip state", "[ui][editor-vie
 
     EditorView view{controller, transport, thumbnail_factory};
 
-    CHECK(thumbnail_factory.create_call_count == 0);
-    CHECK(thumbnail_factory.last_owner == nullptr);
-    CHECK(thumbnail_factory.last_thumbnail == nullptr);
+    CHECK(thumbnail_factory.create_call_count == 1);
+    REQUIRE(thumbnail_factory.last_owner != nullptr);
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+    CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
 
     view.setState(
         EditorViewState{
@@ -266,15 +261,12 @@ TEST_CASE("EditorView creates clip thumbnails from clip state", "[ui][editor-vie
             .tracks = {TrackViewState{
                 .track_id = core::TrackId{1},
                 .display_name = "Full Mix",
-                .audio_clips = {makeAudioClipViewState(std::filesystem::path{"full_mix.wav"})},
+                .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}),
             }},
             .last_load_error = std::nullopt,
         });
 
     CHECK(thumbnail_factory.create_call_count == 1);
-    REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "audio_clip_view");
-    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
 }
 
@@ -311,7 +303,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .tracks = {TrackViewState{
                 .track_id = core::TrackId{2},
                 .display_name = "Full Mix",
-                .audio_clips = {makeAudioClipViewState(std::filesystem::path{"mix.wav"})},
+                .audio = makeTrackAudio(std::filesystem::path{"mix.wav"}),
             }},
             .last_load_error = std::nullopt,
         });

@@ -177,8 +177,8 @@ See \ref design_architectural_principles for the full guidance.
 
 Rock Hero is not a general-purpose DAW. It uses exactly two tracks:
 
-**Track 1 — Backing Track**: A `WaveAudioClip` containing the song's audio file. Displayed as a
-waveform with a playhead in the editor.
+**Track 1 — Backing Track**: The song's full audio file. Displayed as a waveform with a playhead
+in the editor.
 
 **Track 2 — Guitar Input**: Receives live guitar through ASIO. Routed through a chain of VST
 plugins. Automation envelopes drive plugin parameters over the song's duration — bypass, wet/dry
@@ -475,7 +475,11 @@ Tests are registered with CTest via `catch_discover_tests`. See
 
 # Fallback Strategy
 
-If Tracktion Engine proves unsuitable (timing issues, API incompatibilities, debugging friction), the fallback is **JUCE alone** — building a custom transport, automation system, and audio clip playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatManager`, `AudioPlayHead`). This is significant work (several months) but preserves all other architectural decisions.
+If Tracktion Engine proves unsuitable (timing issues, API incompatibilities, debugging friction),
+the fallback is **JUCE alone** — building a custom transport, automation system, and full-file
+audio playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatManager`,
+`AudioPlayHead`). This is significant work (several months) but preserves all other architectural
+decisions.
 
 The architecture is designed for this: Tracktion Engine is isolated behind
 `libs/rock-hero-audio`. The game view, pitch detection, scoring, and editor UI depend on a

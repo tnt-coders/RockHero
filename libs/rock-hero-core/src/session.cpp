@@ -17,42 +17,32 @@ template <typename Tracks> [[nodiscard]] auto findTrackById(Tracks& tracks, Trac
     return position == tracks.end() ? nullptr : std::to_address(position);
 }
 
-// Derives the project timeline from stored clips instead of from backend internals.
+// Derives the project timeline from stored audio instead of from backend internals.
 [[nodiscard]] TimeRange calculateTimeline(const std::vector<Track>& tracks) noexcept
 {
     TimeRange timeline{};
-    bool found_clip = false;
+    bool found_audio = false;
 
     for (const Track& track : tracks)
     {
-        if (!track.audio_clip.has_value())
+        if (!track.audio.has_value())
         {
             continue;
         }
 
-        const TimeRange clip_range = track.audio_clip->timelineRange();
-        if (!found_clip)
+        const TimeRange audio_range = track.audio->timelineRange();
+        if (!found_audio)
         {
-            timeline = clip_range;
-            found_clip = true;
+            timeline = audio_range;
+            found_audio = true;
             continue;
         }
 
-        timeline.start.seconds = std::min(timeline.start.seconds, clip_range.start.seconds);
-        timeline.end.seconds = std::max(timeline.end.seconds, clip_range.end.seconds);
+        timeline.start.seconds = std::min(timeline.start.seconds, audio_range.start.seconds);
+        timeline.end.seconds = std::max(timeline.end.seconds, audio_range.end.seconds);
     }
 
     return timeline;
-}
-
-// Prevents one durable AudioClipId from being attached to multiple different tracks.
-[[nodiscard]] bool clipIdBelongsToAnotherTrack(
-    const std::vector<Track>& tracks, TrackId track_id, AudioClipId audio_clip_id) noexcept
-{
-    return std::ranges::any_of(tracks, [track_id, audio_clip_id](const Track& track) {
-        return track.id != track_id && track.audio_clip.has_value() &&
-               track.audio_clip->id == audio_clip_id;
-    });
 }
 
 } // namespace
@@ -111,35 +101,16 @@ bool Session::renameTrack(TrackId id, std::string name)
     return true;
 }
 
-// Allocates durable identity before an edit reaches the backend; failed edits leave gaps.
-AudioClipId Session::allocateAudioClipId() noexcept
+// Stores the current full-source audio for a track and refreshes the aggregate timeline.
+bool Session::setTrackAudio(TrackId id, TrackAudio audio)
 {
-    const AudioClipId audio_clip_id = m_next_audio_clip_id;
-    ++m_next_audio_clip_id.value;
-    return audio_clip_id;
-}
-
-// Stores the current single clip spec for a track and refreshes the aggregate timeline.
-bool Session::setAudioClip(TrackId id, AudioClipId audio_clip_id, AudioClipSpec audio_clip_spec)
-{
-    if (!audio_clip_id.isValid() || clipIdBelongsToAnotherTrack(m_tracks, id, audio_clip_id))
-    {
-        return false;
-    }
-
     auto* track = findTrackById(m_tracks, id);
     if (track == nullptr)
     {
         return false;
     }
 
-    track->audio_clip = AudioClip{
-        .id = audio_clip_id,
-        .asset = std::move(audio_clip_spec.asset),
-        .asset_duration = audio_clip_spec.asset_duration,
-        .source_range = audio_clip_spec.source_range,
-        .position = audio_clip_spec.position,
-    };
+    track->audio = std::move(audio);
     m_timeline = calculateTimeline(m_tracks);
     return true;
 }

@@ -48,7 +48,7 @@ public:
     \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param thumbnail_factory Factory used by track-owned clip views to create thumbnails.
+    \param thumbnail_factory Factory used by the track view to create its thumbnail.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
