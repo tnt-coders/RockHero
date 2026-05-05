@@ -173,20 +173,25 @@ See \ref design_architectural_principles for the full guidance.
 
 ---
 
-# Two-Track Design
+# Arrangement Display Design
 
-Rock Hero is not a general-purpose DAW. It uses exactly two tracks:
+Rock Hero is not a general-purpose DAW. The editor displays one playable Arrangement at a time:
+Lead, Rhythm, Bass, or another future authored route. An Arrangement contains the lanes needed to
+audition and author that route:
 
-**Track 1 — Backing Track**: The song's full audio file. Displayed as a waveform with a playhead
-in the editor.
+**Backing audio lane**: The full audio asset used for playback and waveform display. Most projects
+will share the same backing audio across arrangements, but the model permits arrangement-specific
+audio so a route can override the shared asset when needed.
 
-**Track 2 — Guitar Input**: Receives live guitar through ASIO. Routed through a chain of VST
-plugins. Automation envelopes drive plugin parameters over the song's duration — bypass, wet/dry
-mix, wah position, and any other exposed parameter. Mid-song tone changes are achieved by loading
-multiple plugins and automating their bypass and mix parameters, with short ramps (5-10ms) to avoid
-clicks. Tracktion Engine's `RackType` system is available for more complex routing needs.
+**Guitar input/effects lane**: Receives live guitar through ASIO and routes it through VST
+plugins. Automation envelopes drive plugin parameters over the arrangement duration: bypass,
+wet/dry mix, wah position, and any other exposed parameter. Mid-song tone changes are achieved by
+loading multiple plugins and automating their bypass and mix parameters, with short ramps
+(5-10ms) to avoid clicks. Tracktion Engine's `RackType` system is available for more complex
+routing needs.
 
-Both tracks share a single transport, tempo map, and time signature sequence managed by Tracktion Engine's `Edit` data model.
+The lanes in the displayed arrangement share a single transport, tempo map, and time signature
+sequence managed by Tracktion Engine's `Edit` data model.
 
 ---
 
@@ -197,13 +202,13 @@ The `rock-hero-core` library owns all persistent song data. It depends on standa
 \code{.txt}
 Song
   metadata          (title, artist, album, year)
-  audio_asset_ref   (path/identifier for the backing track audio file)
-  tone_timeline_ref (opaque blob — serialized tone automation; interpreted exclusively by
-                     rock-hero-audio)
   chart
     arrangements[*]
       part          (Lead | Rhythm | Bass)
       difficulty    (0 Unknown, 1-10 authored rating)
+      audio_asset    (optional path/identifier for backing audio)
+      audio_duration (full natural duration of the audio asset)
+      tone_timeline_ref (opaque blob interpreted exclusively by rock-hero-audio)
       note_events[*]
         position.seconds
         duration.seconds
@@ -216,11 +221,12 @@ rating: Easy for 1-2, Medium for 3-4, Hard for 5-6, Expert for 7-8, and Master f
 of 0 represents Unknown so draft/default arrangements do not imply a fake difficulty; validation
 for playable songs should reject Unknown.
 
-`Song` is the persistence and session root. When a session opens, the application loads a `Song`
-from disk, passes `audio_asset_ref` to `rock-hero-audio` for playback, and passes
-`tone_timeline_ref` to `rock-hero-audio` as an opaque blob. The game or editor reads
-`chart` to drive gameplay or authoring. `rock-hero-core` never interprets tone automation data —
-that belongs entirely to `rock-hero-audio`.
+`Song` is the persistence root. The editor session projects the song's arrangements into a
+framework-free `Session` and displays one arrangement at a time. When an arrangement is selected,
+the application passes its `audio_asset` to `rock-hero-audio` for playback and waveform
+generation, and passes `tone_timeline_ref` to `rock-hero-audio` as an opaque blob. The game or
+editor reads the arrangement notes to drive gameplay or authoring. `rock-hero-core` never
+interprets tone automation data - that belongs entirely to `rock-hero-audio`.
 
 ---
 
@@ -256,8 +262,8 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  │  libs/rock-hero-audio   │  │   │  │  libs/rock-hero-audio   │  │
 │  │  (Tracktion Engine)     │  │   │  │  (Tracktion Engine)     │  │
 │  │                         │  │   │  │                         │  │
-│  │  Track 1: Backing Track │  │   │  │  Track 1: Backing Track │  │
-│  │  Track 2: Guitar Input  │  │   │  │  Track 2: Guitar Input  │  │
+│  │  Backing Audio Lane     │  │   │  │  Backing Audio Lane     │  │
+│  │  Guitar FX Lane         │  │   │  │  Guitar FX Lane         │  │
 │  │  Transport + Automation │  │   │  │  Transport + Automation │  │
 │  └─────────────────────────┘  │   │  └─────────────────────────┘  │
 │                               │   │                               │

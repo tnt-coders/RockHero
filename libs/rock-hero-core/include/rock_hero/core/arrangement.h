@@ -1,13 +1,16 @@
 /*!
 \file arrangement.h
-\brief Arrangement entity within a Chart: a part/rated-difficulty variant with its note events.
+\brief Arrangement entity: one playable route with audio, tone automation, and notes.
 */
 
 #pragma once
 
 #include <cstdint>
+#include <optional>
+#include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/difficulty.h>
 #include <rock_hero/core/timeline.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::core
@@ -27,6 +30,14 @@ struct NoteEvent
 
     /*! \brief Fret number; zero means an open string. */
     int fret{0};
+
+    /*!
+    \brief Compares two note events by their stored fields.
+    \param lhs Left-hand note event.
+    \param rhs Right-hand note event.
+    \return True when both note events store equal values.
+    */
+    friend bool operator==(const NoteEvent& lhs, const NoteEvent& rhs) = default;
 };
 
 /*! \brief Guitar part within an arrangement. */
@@ -41,10 +52,12 @@ enum class Part : std::uint8_t
 };
 
 /*!
-\brief One playable variant of a Chart, identified by part and numeric difficulty.
+\brief One playable route, identified by part and numeric difficulty.
 
-An Arrangement owns the full sequence of NoteEvents the player must execute. The song library
-treats these as plain data; scoring logic lives in rock-hero-game.
+An Arrangement owns the playable data for one path through a song: the backing audio selected for
+that path, the opaque tone timeline used by the audio adapter, and the NoteEvents the player must
+execute. Core treats these as plain data; scoring and audio interpretation live outside this
+module.
 */
 struct Arrangement
 {
@@ -54,8 +67,50 @@ struct Arrangement
     /*! \brief Numeric difficulty rating represented by this arrangement. */
     DifficultyRating difficulty;
 
+    /*! \brief Backing audio assigned to this arrangement, when one has been loaded. */
+    std::optional<AudioAsset> audio_asset;
+
+    /*! \brief Full natural duration of the assigned backing audio. */
+    TimeDuration audio_duration;
+
+    /*!
+    \brief Opaque serialized tone automation data.
+
+    Interpreted exclusively by rock-hero-audio; core treats it as a pass-through blob.
+    */
+    std::string tone_timeline_ref;
+
     /*! \brief Ordered note events the player must execute for this arrangement. */
     std::vector<NoteEvent> note_events;
+
+    /*!
+    \brief Reports whether this arrangement has playable audio assigned.
+    \return True when an audio asset is present and has a positive duration.
+    */
+    [[nodiscard]] bool hasAudio() const noexcept
+    {
+        return audio_asset.has_value() && audio_duration.seconds > 0.0;
+    }
+
+    /*!
+    \brief Calculates the range occupied by the arrangement audio on the session timeline.
+    \return Timeline range from zero through the assigned audio duration.
+    */
+    [[nodiscard]] constexpr TimeRange audioTimelineRange() const noexcept
+    {
+        return TimeRange{
+            .start = TimePosition{},
+            .end = TimePosition{audio_duration.seconds},
+        };
+    }
+
+    /*!
+    \brief Compares two arrangements by their stored fields.
+    \param lhs Left-hand arrangement.
+    \param rhs Right-hand arrangement.
+    \return True when both arrangements store equal values.
+    */
+    friend bool operator==(const Arrangement& lhs, const Arrangement& rhs) = default;
 };
 
 } // namespace rock_hero::core

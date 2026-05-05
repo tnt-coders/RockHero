@@ -30,42 +30,30 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     return core::AudioAsset{fixtureAudioPath()};
 }
 
-// Provisions the backend track mapping required before audio edits can target a project track id.
-[[nodiscard]] bool provisionFixtureTrack(IEdit& edit, core::TrackId track_id = core::TrackId{1})
+// Converts an accepted duration into the timeline range used by rendering and seeks.
+[[nodiscard]] core::TimeRange timelineRangeForDuration(core::TimeDuration duration)
 {
-    return edit.provisionTrack(track_id, "Full Mix").has_value();
+    return core::TimeRange{
+        .start = core::TimePosition{},
+        .end = core::TimePosition{duration.seconds},
+    };
 }
 
-// Provisions the fixture audio for a project track that has already been mapped in the backend.
-[[nodiscard]] std::optional<core::TrackAudio> provisionFixtureAudioForMappedTrack(
-    IEdit& edit, core::TrackId track_id)
+// Loads the fixture through the public edit port and returns the accepted duration.
+[[nodiscard]] std::optional<core::TimeDuration> loadFixtureAudio(IEdit& edit)
 {
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    return edit.provisionTrackAudio(track_id, audio_asset);
+    return edit.loadAudio(audio_asset);
 }
 
-// Provisions the backend track mapping and fixture audio for a specific project track.
-[[nodiscard]] std::optional<core::TrackAudio> provisionFixtureAudioForTrack(
-    IEdit& edit, core::TrackId track_id)
+// Loads the fixture and fails the current test if the concrete backend rejects it.
+[[nodiscard]] core::TimeDuration requireLoadedFixtureAudio(IEdit& edit)
 {
-    REQUIRE(provisionFixtureTrack(edit, track_id));
-    return provisionFixtureAudioForMappedTrack(edit, track_id);
-}
-
-// Provisions the fixture through the public edit port and returns the accepted track audio.
-[[nodiscard]] std::optional<core::TrackAudio> provisionFixtureAudio(IEdit& edit)
-{
-    return provisionFixtureAudioForTrack(edit, core::TrackId{1});
-}
-
-// Provisions the fixture and fails the current test if the concrete backend rejects it.
-[[nodiscard]] core::TrackAudio requireProvisionedFixtureAudio(IEdit& edit)
-{
-    const auto audio = provisionFixtureAudio(edit);
-    REQUIRE(audio.has_value());
-    return audio.value_or(core::TrackAudio{});
+    const auto duration = loadFixtureAudio(edit);
+    REQUIRE(duration.has_value());
+    return duration.value_or(core::TimeDuration{});
 }
 
 // Records callback activity from the project-owned transport listener surface.
@@ -129,7 +117,7 @@ TEST_CASE("Engine thumbnail loads and draws fixture audio", "[audio][engine][int
     juce::Component owner;
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    const auto audio = requireProvisionedFixtureAudio(engine);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(engine);
     auto thumbnail = engine.createThumbnail(owner);
     REQUIRE(thumbnail != nullptr);
 
@@ -141,7 +129,8 @@ TEST_CASE("Engine thumbnail loads and draws fixture audio", "[audio][engine][int
 
     const juce::Image image(juce::Image::RGB, 128, 48, true);
     juce::Graphics graphics{image};
-    CHECK(thumbnail->drawChannels(graphics, image.getBounds(), audio.timelineRange(), 1.0f));
+    CHECK(thumbnail->drawChannels(
+        graphics, image.getBounds(), timelineRangeForDuration(audio_duration), 1.0f));
 }
 
 // Verifies invalid visible ranges fail before the adapter asks Tracktion to draw them.
@@ -192,8 +181,8 @@ TEST_CASE("Engine thumbnail clears source for missing assets", "[audio][engine][
     CHECK(thumbnail->getProxyProgress() <= 1.0f);
 }
 
-// Verifies audio provisioning returns a framework-free value while leaving transport stopped.
-TEST_CASE("Engine edit provisions track audio synchronously", "[audio][engine][integration]")
+// Verifies audio loading returns a duration while leaving transport stopped.
+TEST_CASE("Engine edit loads audio", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
@@ -202,22 +191,16 @@ TEST_CASE("Engine edit provisions track audio synchronously", "[audio][engine][i
 
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    const auto track = edit.provisionTrack(core::TrackId{1}, "Full Mix");
-    REQUIRE(track.has_value());
-    CHECK(track == std::optional{core::TrackSpec{.name = "Full Mix"}});
 
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const auto audio = edit.provisionTrackAudio(core::TrackId{1}, audio_asset);
+    const auto audio_duration = edit.loadAudio(audio_asset);
 
     transport.removeListener(recorder);
 
-    const core::TrackAudio accepted_audio = audio.value_or(core::TrackAudio{});
-    REQUIRE(audio.has_value());
-    CHECK(accepted_audio.asset == audio_asset);
-    CHECK(accepted_audio.duration.seconds > 0.0);
-    CHECK(accepted_audio.timelineRange().duration() == accepted_audio.duration);
+    REQUIRE(audio_duration.has_value());
+    CHECK(audio_duration->seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});
@@ -225,63 +208,15 @@ TEST_CASE("Engine edit provisions track audio synchronously", "[audio][engine][i
     CHECK(recorder.last_transport_state == TransportState{});
 }
 
-// Verifies audio provisioning cannot target a track id the backend has not mapped.
-TEST_CASE("Engine edit rejects audio for unmapped track ids", "[audio][engine][integration]")
+// Verifies the single Tracktion arrangement track can replace its loaded audio.
+TEST_CASE("Engine edit replaces arrangement audio", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
     IEdit& edit = engine;
 
-    const auto audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{1});
-
-    CHECK_FALSE(audio.has_value());
-}
-
-// Verifies the single-track adapter rejects invalid project track identities.
-TEST_CASE("Engine edit rejects invalid track ids", "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    Engine& engine = harness.engine;
-    IEdit& edit = engine;
-
-    const auto track_provisioned = edit.provisionTrack(core::TrackId{}, "Invalid");
-    const auto audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{});
-
-    CHECK_FALSE(track_provisioned.has_value());
-    CHECK_FALSE(audio.has_value());
-}
-
-// Verifies the single Tracktion track binds to one caller-chosen project track id.
-// TODO: Remove this test when Engine supports loading multiple project tracks independently.
-TEST_CASE("Engine edit binds one project track id at a time", "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    Engine& engine = harness.engine;
-    IEdit& edit = engine;
-
-    const auto first_track_provisioned = edit.provisionTrack(core::TrackId{2}, "Full Mix");
-    REQUIRE(first_track_provisioned.has_value());
-    CHECK(first_track_provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
-
-    const auto other_track_provisioned = edit.provisionTrack(core::TrackId{1}, "Stem");
-    const auto first_track_audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{2});
-    const auto other_track_audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{1});
-
-    CHECK_FALSE(other_track_provisioned.has_value());
-    CHECK(first_track_audio.has_value());
-    CHECK_FALSE(other_track_audio.has_value());
-}
-
-// Verifies the single Tracktion track can replace audio for its bound project track id.
-TEST_CASE("Engine edit replaces audio for the bound track id", "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    Engine& engine = harness.engine;
-    IEdit& edit = engine;
-
-    REQUIRE(provisionFixtureTrack(edit, core::TrackId{1}));
-    const auto first_audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{1});
-    const auto replacement_audio = provisionFixtureAudioForMappedTrack(edit, core::TrackId{1});
+    const auto first_audio = loadFixtureAudio(edit);
+    const auto replacement_audio = loadFixtureAudio(edit);
 
     CHECK(first_audio.has_value());
     CHECK(replacement_audio.has_value());
@@ -295,7 +230,7 @@ TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engi
     IEdit& edit = engine;
     ITransport& transport = engine;
 
-    [[maybe_unused]] const auto audio = requireProvisionedFixtureAudio(edit);
+    [[maybe_unused]] const auto audio_duration = requireLoadedFixtureAudio(edit);
 
     const auto loaded_state = transport.state();
     const core::AudioAsset missing_asset{
@@ -304,11 +239,11 @@ TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engi
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const auto provisioned_audio = edit.provisionTrackAudio(core::TrackId{1}, missing_asset);
+    const auto loaded_audio = edit.loadAudio(missing_asset);
 
     transport.removeListener(recorder);
 
-    CHECK_FALSE(provisioned_audio.has_value());
+    CHECK_FALSE(loaded_audio.has_value());
     CHECK(transport.state() == loaded_state);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(recorder.last_transport_state == TransportState{});
@@ -322,10 +257,10 @@ TEST_CASE("Engine seek updates live transport position", "[audio][engine][integr
     IEdit& edit = engine;
     ITransport& transport = engine;
 
-    const auto audio = requireProvisionedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
 
     const auto loaded_state = transport.state();
-    const double duration_seconds = audio.timelineRange().duration().seconds;
+    const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.25, duration_seconds * 0.5);
@@ -344,9 +279,9 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
 
-    const auto audio = requireProvisionedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
 
-    const double duration_seconds = audio.timelineRange().duration().seconds;
+    const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.3, duration_seconds * 0.5);
@@ -363,9 +298,9 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     IEdit& edit = engine;
     ITransport& transport = engine;
 
-    const auto audio = requireProvisionedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
 
-    const double duration_seconds = audio.timelineRange().duration().seconds;
+    const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
 
     TransportNotificationRecorder recorder;

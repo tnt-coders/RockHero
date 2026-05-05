@@ -11,10 +11,10 @@
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/core/timeline.h>
+#include <rock_hero/ui/arrangement_view.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
-#include <rock_hero/ui/track_view.h>
 #include <rock_hero/ui/transport_controls.h>
 
 namespace rock_hero::ui
@@ -48,7 +48,7 @@ public:
     \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.
-    \param thumbnail_factory Factory used by the track view to create its thumbnail.
+    \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
     */
     EditorView(
         IEditorController& controller, const audio::ITransport& transport,
@@ -81,7 +81,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out load controls, transport controls, waveform row, and timeline overlay. */
+    /*! \brief Lays out load controls, transport controls, waveform view, and timeline overlay. */
     void resized() override;
 
     /*!
@@ -112,14 +112,14 @@ private:
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     EditorViewState m_state{};
 
-    // Button that launches the audio-file chooser for the first track.
+    // Button that launches the audio-file chooser for the current arrangement.
     juce::TextButton m_load_button;
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Initial single waveform row used until later multi-row composition lands.
-    TrackView m_track_view;
+    // Waveform view for the currently displayed arrangement.
+    ArrangementView m_arrangement_view;
 
     // Editor-wide cursor and seek overlay drawn above the waveform row.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;

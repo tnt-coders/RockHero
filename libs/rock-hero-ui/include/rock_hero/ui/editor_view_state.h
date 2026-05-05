@@ -7,9 +7,8 @@
 
 #include <optional>
 #include <rock_hero/core/timeline.h>
-#include <rock_hero/ui/track_view_state.h>
+#include <rock_hero/ui/arrangement_view_state.h>
 #include <string>
-#include <vector>
 
 namespace rock_hero::ui
 {
@@ -39,8 +38,8 @@ struct EditorViewState
     */
     core::TimeRange visible_timeline{};
 
-    /*! \brief Current waveform rows shown by the editor. */
-    std::vector<TrackViewState> tracks;
+    /*! \brief Current arrangement waveform state shown by the editor. */
+    ArrangementViewState arrangement;
 
     /*! \brief Most recent load error to display, if one should currently be shown. */
     std::optional<std::string> last_load_error;

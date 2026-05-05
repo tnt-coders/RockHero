@@ -31,7 +31,7 @@ public:
     \brief Creates the editor feature and immediately pushes initial state to the view.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param edit Audio edit port used by the internal coordinator for cross-boundary edits.
-    \param thumbnail_factory Factory used during view construction for the initial track row.
+    \param thumbnail_factory Factory used during view construction for arrangement waveform.
     */
     Editor(
         audio::ITransport& transport, audio::IEdit& edit,
