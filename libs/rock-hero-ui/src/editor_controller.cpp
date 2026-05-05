@@ -1,21 +1,10 @@
 #include "editor_controller.h"
 
 #include <algorithm>
-#include <cassert>
 #include <optional>
-#include <utility>
-#include <vector>
 
 namespace rock_hero::ui
 {
-
-namespace
-{
-
-// Default editor row created for a fresh session before the user has imported audio.
-constexpr const char* g_default_track_name = "Full Mix";
-
-} // namespace
 
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
@@ -24,13 +13,6 @@ EditorController::EditorController(audio::ITransport& transport, EditCoordinator
     , m_edit_coordinator(edit_coordinator)
     , m_transport_listener(transport, *this)
 {
-    if (session().tracks().empty())
-    {
-        [[maybe_unused]] const core::TrackId track_id =
-            m_edit_coordinator.createTrack(g_default_track_name);
-        assert(track_id.isValid() && "EditorController failed to create the default track");
-    }
-
     m_last_state = deriveViewState();
 }
 
@@ -45,24 +27,17 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Validates the track id, asks the editor edit coordinator to load and commit the audio, and
-// coalesces reentrant transport callbacks so the view never sees stale intermediate state.
-void EditorController::onLoadAudioAssetRequested(
-    core::TrackId track_id, core::AudioAsset audio_asset)
+// Asks the edit coordinator to load and commit the audio, and coalesces reentrant transport
+// callbacks so the view never sees stale intermediate state.
+void EditorController::onLoadAudioAssetRequested(core::AudioAsset audio_asset)
 {
-    if (session().findTrack(track_id) == nullptr)
-    {
-        return;
-    }
-
     m_session_edit_in_progress = true;
-    const bool audio_loaded = m_edit_coordinator.setTrackAudio(track_id, audio_asset);
+    const bool audio_loaded = m_edit_coordinator.setArrangementAudio(audio_asset);
     m_session_edit_in_progress = false;
 
     if (!audio_loaded)
     {
         m_last_load_error = std::string{"Could not load file: "} + audio_asset.path.string();
-        m_pending_refresh = false;
         deriveAndPush();
         return;
     }
@@ -71,15 +46,13 @@ void EditorController::onLoadAudioAssetRequested(
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
     // have arrived during the edit window.
-    m_pending_refresh = false;
     deriveAndPush();
 }
 
-// Ignores the intent when no track has audio, otherwise toggles between play and pause based on
-// the current transport state.
+// Ignores the intent when the current arrangement has no audio, otherwise toggles playback.
 void EditorController::onPlayPausePressed()
 {
-    if (!anyTrackHasAudio())
+    if (!currentArrangementHasAudio())
     {
         return;
     }
@@ -129,7 +102,6 @@ void EditorController::onTransportStateChanged(audio::TransportState /*state*/)
 {
     if (m_session_edit_in_progress)
     {
-        m_pending_refresh = true;
         return;
     }
     deriveAndPush();
@@ -150,21 +122,18 @@ EditorViewState EditorController::deriveViewState() const
     const core::TimeRange timeline_range = session().timeline();
 
     EditorViewState state;
-    state.load_button_enabled = !session().tracks().empty();
-    state.play_pause_enabled = anyTrackHasAudio();
+    state.load_button_enabled = session().currentArrangement() != nullptr;
+    state.play_pause_enabled = currentArrangementHasAudio();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline = timeline_range;
 
-    state.tracks.reserve(session().tracks().size());
-    for (const core::Track& track : session().tracks())
+    if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {
-        state.tracks.push_back(
-            TrackViewState{
-                .track_id = track.id,
-                .display_name = track.name,
-                .audio = track.audio,
-            });
+        state.arrangement = ArrangementViewState{
+            .audio_asset = arrangement->audio_asset,
+            .audio_duration = arrangement->audio_duration,
+        };
     }
     state.last_load_error = m_last_load_error;
     return state;
@@ -181,12 +150,11 @@ void EditorController::deriveAndPush()
     }
 }
 
-// Walks the session tracks once to answer the "is anything playable" question used by both
-// state derivation and play/pause gating.
-bool EditorController::anyTrackHasAudio() const
+// Answers the "is the displayed arrangement playable" question used by state and intent gates.
+bool EditorController::currentArrangementHasAudio() const
 {
-    return std::ranges::any_of(
-        session().tracks(), [](const core::Track& track) { return track.audio.has_value(); });
+    const auto* arrangement = session().currentArrangement();
+    return arrangement != nullptr && arrangement->hasAudio();
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to

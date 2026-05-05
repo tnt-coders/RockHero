@@ -10,7 +10,6 @@
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <string>
 
 namespace juce
 {
@@ -35,9 +34,8 @@ This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio impl
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
-intentionally maps only one core::TrackId to one Tracktion audio track even though core::Session
-can model multiple tracks. Project-owned track ids are translated to Tracktion EditItemIDs inside
-the implementation. All public methods must be called on the message thread.
+uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
+called on the message thread.
 
 \see rock_hero::MainWindow
 */
@@ -114,33 +112,16 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Provisions a backend audio track mapped to a core::TrackId.
+    \brief Loads framework-free full-source audio for the current arrangement.
 
-    This is the first concrete implementation of audio::IEdit. It adapts Tracktion's initial
-    single-track edit by binding the one available Tracktion audio track to the supplied project
-    track id and storing the Tracktion EditItemID behind the adapter boundary. Later track
-    provisioning attempts fail until multi-track playback exists.
+    The current adapter supports one Tracktion audio track and replaces its media with the accepted
+    full-source asset.
 
-    \param track_id Session-allocated track id to bind to the Tracktion track.
-    \param name User-visible track name to apply to the Tracktion track.
-    \return Accepted track spec when the Tracktion track was mapped; std::nullopt otherwise.
+    \param audio_asset Framework-free asset reference used as the arrangement audio source.
+    \return Accepted full-source duration when the playback backend loaded it.
     */
-    [[nodiscard]] std::optional<core::TrackSpec> provisionTrack(
-        core::TrackId track_id, const std::string& name) override;
-
-    /*!
-    \brief Provisions framework-free full-source audio on a mapped backend track.
-
-    The current adapter supports one mapped Tracktion audio track. Audio provisions for unmapped
-    track ids fail so callers cannot accidentally mutate playback for a Session track the engine
-    cannot find later.
-
-    \param track_id Track whose audio should be updated.
-    \param audio_asset Framework-free asset reference used as the track audio source.
-    \return Accepted track audio when the playback backend provisioned it.
-    */
-    [[nodiscard]] std::optional<core::TrackAudio> provisionTrackAudio(
-        core::TrackId track_id, const core::AudioAsset& audio_asset) override;
+    [[nodiscard]] std::optional<core::TimeDuration> loadAudio(
+        const core::AudioAsset& audio_asset) override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

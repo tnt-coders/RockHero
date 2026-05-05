@@ -35,7 +35,7 @@ type, name the data type after what it is and name the UI type with the same bas
 
 Examples:
 
-- `Track` / `TrackView`
+- `Arrangement` / `ArrangementView`
 - `Clip` / `ClipView`
 
 Do not introduce alternate suffixes such as `Row`, `Lane`, or `Display` for these direct
@@ -48,8 +48,8 @@ function and method identifiers. In project documentation, refer to that style a
 ## Listener Naming
 
 Prefer the scoped name `Listener` for a type that exposes one clear notification surface. Existing
-names such as `ITransport::Listener`, `TrackView::Listener`, and `TransportControls::Listener` are
-acceptable because the owning type supplies the missing context.
+names such as `ITransport::Listener`, `ArrangementView::Listener`, and
+`TransportControls::Listener` are acceptable because the owning type supplies the missing context.
 
 As listener APIs evolve, consider a more specific nested name such as `StatusListener`,
 `ClickListener`, or `InteractionListener` if an owning type grows multiple independent listener
@@ -128,7 +128,7 @@ Benefits:
 
 Prefer an owning header to include related type headers rather than redefining several externally
 meaningful types in one file. For example, `editor_view_state.h` should include
-`track_view_state.h` rather than also defining `TrackViewState`.
+`arrangement_view_state.h` rather than also defining `ArrangementViewState`.
 
 This is a default, not an absolute rule. Small private helper types that are tightly coupled to
 one owning public type may still live in the same header when splitting them would make the API
@@ -152,7 +152,7 @@ A small project-owned value type means `sizeof(T) <= 16` and
 Examples:
 
 \code{.cpp}
-Track* findTrack(TrackId id) noexcept;
+Arrangement* currentArrangement() noexcept;
 void seek(TimePosition position);
 \endcode
 
@@ -160,21 +160,20 @@ Pass larger or non-trivially-copyable read-only inputs by `const&`:
 
 \code{.cpp}
 bool hasAsset(const AudioAsset& asset) const;
-bool containsTrack(const Track& track) const;
+bool containsArrangement(const Arrangement& arrangement) const;
 \endcode
 
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-bool addTrack(TrackId id, TrackSpec track_spec);
-bool setTrackAudio(TrackId id, TrackAudio audio);
+bool setCurrentArrangementAudio(AudioAsset audio_asset, TimeDuration audio_duration);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
-track.name = std::move(track_spec.name);
-track.audio = std::move(audio);
+arrangement.audio_asset = std::move(audio_asset);
+arrangement.audio_duration = audio_duration;
 \endcode
 
 # Value Type Guardrails
@@ -202,9 +201,9 @@ all mismatched fields that are still safe to evaluate.
 Example:
 
 \code{.cpp}
-REQUIRE(session.tracks().size() == 2);
-CHECK(session.tracks()[0].name == "Full Mix");
-CHECK(session.tracks()[1].name == "Guitar Stem");
+REQUIRE(session.arrangements().size() == 2);
+CHECK(session.arrangements()[0].part == Part::Lead);
+CHECK(session.arrangements()[1].part == Part::Bass);
 \endcode
 
 Use the `_FALSE` variants with the same rule: `REQUIRE_FALSE` for fatal preconditions and
@@ -220,8 +219,8 @@ the wrapped value.
 Examples:
 
 \code{.cpp}
-CHECK(edit.last_track_id == std::optional{core::TrackId{3}});
-CHECK(provisioned == std::optional{core::TrackSpec{.name = "Full Mix"}});
+CHECK(edit.last_audio_asset == std::optional{core::AudioAsset{std::filesystem::path{"mix.wav"}}});
+CHECK(loaded_duration == std::optional{core::TimeDuration{4.0}});
 \endcode
 
 Keep explicit template arguments when CTAD would deduce the wrong type, when constructing an empty
@@ -230,7 +229,7 @@ wrapper, or when the wrapper type itself is the contract under test.
 Example:
 
 \code{.cpp}
-CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+CHECK(error_message == std::optional<std::string>{"Could not load file"});
 \endcode
 
 Do not rely on CTAD for string-literal optionals unless the intended stored type really is a
@@ -295,7 +294,7 @@ Examples:
 
 \code{.cpp}
 TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transport]")
-TEST_CASE("Replacing a missing track asset fails cleanly", "[core][session]")
+TEST_CASE("Replacing missing arrangement audio fails cleanly", "[core][session]")
 TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
 \endcode
 

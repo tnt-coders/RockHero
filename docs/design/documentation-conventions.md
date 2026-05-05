@@ -148,7 +148,7 @@ Example for an indented member declaration:
 
 \code{.cpp}
     /*!
-    \brief Creates the concrete editor view and installs the initial track thumbnail.
+\brief Creates the concrete editor view and installs the arrangement thumbnail.
 
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by the cursor overlay for live position reads.

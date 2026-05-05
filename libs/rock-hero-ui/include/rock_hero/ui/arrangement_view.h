@@ -1,6 +1,6 @@
 /*!
-\file track_view.h
-\brief JUCE component that renders one track view.
+\file arrangement_view.h
+\brief JUCE component that renders the current arrangement view.
 */
 
 #pragma once
@@ -10,7 +10,7 @@
 #include <optional>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/timeline.h>
-#include <rock_hero/ui/track_view_state.h>
+#include <rock_hero/ui/arrangement_view_state.h>
 
 namespace rock_hero::audio
 {
@@ -25,17 +25,17 @@ namespace rock_hero::ui
 {
 
 /*!
-\brief Renders one track view from framework-free track state.
+\brief Renders the current arrangement from framework-free state.
 
-The view owns one thumbnail renderer for the track's full-source audio and draws the currently
-visible timeline range. Cursor motion is intentionally excluded; EditorView owns the editor-wide
-cursor overlay.
+The view owns one thumbnail renderer for the arrangement's full-source audio and draws the
+currently visible timeline range. Cursor motion is intentionally excluded; EditorView owns the
+editor-wide cursor overlay.
 */
-class TrackView : public juce::Component
+class ArrangementView : public juce::Component
 {
 public:
     /*!
-    \brief Listener for local track-view click intent.
+    \brief Listener for local arrangement-view click intent.
 
     The view stays presentation-focused. It reports normalized horizontal click positions and
     leaves all seek policy to its parent.
@@ -47,11 +47,11 @@ public:
         virtual ~Listener() = default;
 
         /*!
-        \brief Reports a click within the track view as a normalized horizontal position.
-        \param view Track view component that was clicked.
+        \brief Reports a click within the arrangement view as a normalized horizontal position.
+        \param view Arrangement view component that was clicked.
         \param normalized_x Click position normalized to the interval [0, 1].
         */
-        virtual void trackViewClicked(TrackView& view, double normalized_x) = 0;
+        virtual void arrangementViewClicked(ArrangementView& view, double normalized_x) = 0;
 
     protected:
         /*! \brief Constructs the listener base. */
@@ -76,40 +76,40 @@ public:
         Listener& operator=(Listener&&) = default;
     };
 
-    /*! \brief Creates an empty track view with no thumbnail factory installed yet. */
-    TrackView();
+    /*! \brief Creates an empty arrangement view with no thumbnail factory installed yet. */
+    ArrangementView();
 
-    /*! \brief Releases track-view-owned thumbnail and listener state. */
-    ~TrackView() override;
+    /*! \brief Releases arrangement-view-owned thumbnail and listener state. */
+    ~ArrangementView() override;
 
     /*!
     \brief Copying is disabled because JUCE components and thumbnail ownership are not copyable.
     */
-    TrackView(const TrackView&) = delete;
+    ArrangementView(const ArrangementView&) = delete;
 
     /*!
     \brief Copy assignment is disabled because JUCE components and thumbnail ownership are not
     copyable.
     */
-    TrackView& operator=(const TrackView&) = delete;
+    ArrangementView& operator=(const ArrangementView&) = delete;
 
     /*!
     \brief Moving is disabled because JUCE components and listener registrations are not movable.
     */
-    TrackView(TrackView&&) = delete;
+    ArrangementView(ArrangementView&&) = delete;
 
     /*!
     \brief Move assignment is disabled because JUCE components and listener registrations are not
     movable.
     */
-    TrackView& operator=(TrackView&&) = delete;
+    ArrangementView& operator=(ArrangementView&&) = delete;
 
     /*!
-    \brief Installs the factory used to create the track-owned thumbnail renderer.
+    \brief Installs the factory used to create the arrangement-owned thumbnail renderer.
 
-    The thumbnail is bound to this component so proxy completion can repaint the track row.
+    The thumbnail is bound to this component so proxy completion can repaint the arrangement view.
 
-    \param thumbnail_factory Factory used for the track thumbnail.
+    \param thumbnail_factory Factory used for the arrangement thumbnail.
     */
     void setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory);
 
@@ -120,13 +120,13 @@ public:
     void setVisibleTimeline(core::TimeRange visible_timeline);
 
     /*!
-    \brief Applies the current framework-free track-view state.
+    \brief Applies the current framework-free arrangement-view state.
 
-    The row refreshes its thumbnail source when the assigned track audio changes.
+    The view refreshes its thumbnail source when the assigned arrangement audio changes.
 
-    \param state New track-view state to render.
+    \param state New arrangement-view state to render.
     */
-    void setState(const TrackViewState& state);
+    void setState(const ArrangementViewState& state);
 
     /*!
     \brief Adds a local click listener.
@@ -142,7 +142,7 @@ public:
 
     /*!
     \brief Emits normalized click intent for the parent view layer.
-    \param event JUCE mouse event relative to this track view.
+    \param event JUCE mouse event relative to this arrangement view.
     */
     void mouseDown(const juce::MouseEvent& event) override;
 
@@ -152,26 +152,26 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Invalidates waveform content after track view size changes. */
+    /*! \brief Invalidates waveform content after arrangement view size changes. */
     void resized() override;
 
 private:
-    // Refreshes the owned thumbnail only when the track now points at a different asset.
+    // Refreshes the owned thumbnail only when the arrangement now points at a different asset.
     void applyCurrentAudioToThumbnailIfNeeded();
 
-    // Current framework-free track-view state last applied by the parent view.
-    TrackViewState m_state{};
+    // Current framework-free arrangement-view state last applied by the parent view.
+    ArrangementViewState m_state{};
 
     // Editor-visible timeline range used to choose the waveform span.
     core::TimeRange m_visible_timeline{};
 
-    // Track-view-owned thumbnail used to render static waveform content.
+    // Arrangement-view-owned thumbnail used to render static waveform content.
     std::unique_ptr<audio::IThumbnail> m_thumbnail;
 
     // Asset currently installed into the owned thumbnail, if any.
     std::optional<core::AudioAsset> m_thumbnail_source_asset{};
 
-    // Local listeners notified when the track view is clicked.
+    // Local listeners notified when the arrangement view is clicked.
     juce::ListenerList<Listener> m_listeners;
 };
 

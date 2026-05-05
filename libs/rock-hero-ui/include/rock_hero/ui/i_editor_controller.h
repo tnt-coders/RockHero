@@ -6,7 +6,6 @@
 #pragma once
 
 #include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/track.h>
 
 namespace rock_hero::ui
 {
@@ -24,12 +23,10 @@ public:
     virtual ~IEditorController() = default;
 
     /*!
-    \brief Handles a request to assign an audio asset to one track.
-    \param track_id Track whose audio should change.
+    \brief Handles a request to assign an audio asset to the current arrangement.
     \param audio_asset Framework-free audio asset selected by the user.
     */
-    virtual void onLoadAudioAssetRequested(
-        core::TrackId track_id, core::AudioAsset audio_asset) = 0;
+    virtual void onLoadAudioAssetRequested(core::AudioAsset audio_asset) = 0;
 
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;

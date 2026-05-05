@@ -6,7 +6,7 @@
 #include <optional>
 #include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/ui/track_view.h>
+#include <rock_hero/ui/arrangement_view.h>
 #include <utility>
 #include <vector>
 
@@ -16,7 +16,7 @@ namespace rock_hero::ui
 namespace
 {
 
-// Synthesizes a simple left-button mouse-down event relative to one component for track-view tests.
+// Synthesizes a simple left-button mouse-down event relative to one component.
 [[nodiscard]] juce::MouseEvent makeMouseDownEvent(juce::Component& component, float x, float y)
 {
     const auto position = juce::Point<float>{x, y};
@@ -41,7 +41,7 @@ namespace
     };
 }
 
-// Records thumbnail source refreshes and draw requests from the track view.
+// Records thumbnail source refreshes and draw requests from the arrangement view.
 class FakeThumbnail final : public audio::IThumbnail
 {
 public:
@@ -82,31 +82,14 @@ public:
         return draw_result;
     }
 
-    // Last source installed into this thumbnail, if any.
     std::optional<core::AudioAsset> last_source{};
-
-    // Last visible range requested for drawing, if any.
     std::optional<core::TimeRange> last_drawn_visible_range{};
-
-    // Last bounds requested for drawing, if any.
     std::optional<juce::Rectangle<int>> last_draw_bounds{};
-
-    // Last vertical zoom requested for drawing, if any.
     std::optional<float> last_vertical_zoom{};
-
-    // Number of times the view has refreshed this thumbnail's source.
     int set_source_call_count{0};
-
-    // Fake proxy-generation flag.
     bool generating_proxy{false};
-
-    // Fake proxy progress.
     float proxy_progress{0.0f};
-
-    // Fake source-readiness flag.
     bool has_source{false};
-
-    // Result returned by drawChannels().
     bool draw_result{true};
 };
 
@@ -124,64 +107,49 @@ public:
         return thumbnail;
     }
 
-    // Last component that requested a thumbnail, if any.
     juce::Component* last_owner{nullptr};
-
-    // Thumbnail fakes currently owned by track views.
     std::vector<FakeThumbnail*> thumbnails{};
-
-    // Number of thumbnail creation requests observed.
     int create_call_count{0};
 };
 
-// Records normalized click intent emitted by one track view.
-class FakeTrackViewListener final : public TrackView::Listener
+// Records normalized click intent emitted by the arrangement view.
+class FakeArrangementViewListener final : public ArrangementView::Listener
 {
 public:
     // Stores the view pointer and normalized position reported by the component under test.
-    void trackViewClicked(TrackView& view, double normalized_x) override
+    void arrangementViewClicked(ArrangementView& view, double normalized_x) override
     {
         last_view = &view;
         last_normalized_x = normalized_x;
         click_count += 1;
     }
 
-    // Last track view that emitted click intent, if any.
-    TrackView* last_view{nullptr};
-
-    // Last normalized x position emitted by the track view, if any.
+    ArrangementView* last_view{nullptr};
     std::optional<double> last_normalized_x{};
-
-    // Number of click events observed.
     int click_count{0};
 };
 
-// Builds full-source track audio for track-view tests.
-[[nodiscard]] core::TrackAudio makeTrackAudio(
+// Builds arrangement-view state with full-source audio.
+[[nodiscard]] ArrangementViewState makeArrangementState(
     std::filesystem::path path, core::TimeDuration duration = core::TimeDuration{4.0})
 {
-    return core::TrackAudio{
-        .asset = core::AudioAsset{std::move(path)},
-        .duration = duration,
+    return ArrangementViewState{
+        .audio_asset = core::AudioAsset{std::move(path)},
+        .audio_duration = duration,
     };
 }
 
 } // namespace
 
-// Verifies assigned audio points the track-owned thumbnail at the asset.
-TEST_CASE("TrackView creates a thumbnail for track audio", "[ui][track-view]")
+// Verifies assigned audio points the arrangement-owned thumbnail at the asset.
+TEST_CASE("ArrangementView creates a thumbnail for audio", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeThumbnailFactory thumbnail_factory;
-    TrackView view;
+    ArrangementView view;
     view.setThumbnailFactory(thumbnail_factory);
 
-    view.setState(
-        TrackViewState{
-            .track_id = core::TrackId{1},
-            .display_name = "Full Mix",
-            .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}),
-        });
+    view.setState(makeArrangementState(std::filesystem::path{"full_mix.wav"}));
 
     CHECK(thumbnail_factory.create_call_count == 1);
     CHECK(thumbnail_factory.last_owner == &view);
@@ -194,18 +162,14 @@ TEST_CASE("TrackView creates a thumbnail for track audio", "[ui][track-view]")
 }
 
 // Verifies reapplying the same audio state reuses the existing thumbnail source.
-TEST_CASE("TrackView reuses thumbnail source for the same asset", "[ui][track-view]")
+TEST_CASE("ArrangementView reuses thumbnail source", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeThumbnailFactory thumbnail_factory;
-    TrackView view;
+    ArrangementView view;
     view.setThumbnailFactory(thumbnail_factory);
 
-    const TrackViewState state{
-        .track_id = core::TrackId{1},
-        .display_name = "Full Mix",
-        .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}),
-    };
+    const ArrangementViewState state = makeArrangementState(std::filesystem::path{"full_mix.wav"});
 
     view.setState(state);
     view.setState(state);
@@ -215,26 +179,16 @@ TEST_CASE("TrackView reuses thumbnail source for the same asset", "[ui][track-vi
     CHECK(thumbnail_factory.thumbnails.front()->set_source_call_count == 1);
 }
 
-// Verifies changing the track asset refreshes the existing track-owned thumbnail.
-TEST_CASE("TrackView refreshes thumbnail when the asset changes", "[ui][track-view]")
+// Verifies changing the arrangement asset refreshes the existing thumbnail.
+TEST_CASE("ArrangementView refreshes thumbnail when asset changes", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeThumbnailFactory thumbnail_factory;
-    TrackView view;
+    ArrangementView view;
     view.setThumbnailFactory(thumbnail_factory);
 
-    view.setState(
-        TrackViewState{
-            .track_id = core::TrackId{1},
-            .display_name = "Full Mix",
-            .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}),
-        });
-    view.setState(
-        TrackViewState{
-            .track_id = core::TrackId{1},
-            .display_name = "Full Mix",
-            .audio = makeTrackAudio(std::filesystem::path{"guitar_stem.wav"}),
-        });
+    view.setState(makeArrangementState(std::filesystem::path{"full_mix.wav"}));
+    view.setState(makeArrangementState(std::filesystem::path{"lead_override.wav"}));
 
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
@@ -242,15 +196,15 @@ TEST_CASE("TrackView refreshes thumbnail when the asset changes", "[ui][track-vi
     CHECK(thumbnail->set_source_call_count == 2);
     CHECK(
         thumbnail->last_source ==
-        std::optional{core::AudioAsset{std::filesystem::path{"guitar_stem.wav"}}});
+        std::optional{core::AudioAsset{std::filesystem::path{"lead_override.wav"}}});
 }
 
-// Verifies TrackView asks the thumbnail to draw only the visible asset range.
-TEST_CASE("TrackView draws the visible waveform range", "[ui][track-view]")
+// Verifies ArrangementView asks the thumbnail to draw only the visible asset range.
+TEST_CASE("ArrangementView draws the visible waveform range", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeThumbnailFactory thumbnail_factory;
-    TrackView view;
+    ArrangementView view;
     view.setBounds(0, 0, 100, 24);
     view.setThumbnailFactory(thumbnail_factory);
     view.setVisibleTimeline(
@@ -259,12 +213,7 @@ TEST_CASE("TrackView draws the visible waveform range", "[ui][track-view]")
             .end = core::TimePosition{6.0},
         });
     view.setState(
-        TrackViewState{
-            .track_id = core::TrackId{1},
-            .display_name = "Full Mix",
-            .audio =
-                makeTrackAudio(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{10.0}),
-        });
+        makeArrangementState(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{10.0}));
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
     FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     const juce::Image image(juce::Image::RGB, 100, 24, true);
@@ -281,12 +230,12 @@ TEST_CASE("TrackView draws the visible waveform range", "[ui][track-view]")
     CHECK(thumbnail->last_vertical_zoom == std::optional{1.0f});
 }
 
-// Verifies audio shorter than the visible range is drawn into the matching row subset.
-TEST_CASE("TrackView maps short audio into visible row bounds", "[ui][track-view]")
+// Verifies audio shorter than the visible range is drawn into the matching view subset.
+TEST_CASE("ArrangementView maps short audio into visible bounds", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeThumbnailFactory thumbnail_factory;
-    TrackView view;
+    ArrangementView view;
     view.setBounds(0, 0, 100, 24);
     view.setThumbnailFactory(thumbnail_factory);
     view.setVisibleTimeline(
@@ -295,11 +244,7 @@ TEST_CASE("TrackView maps short audio into visible row bounds", "[ui][track-view
             .end = core::TimePosition{10.0},
         });
     view.setState(
-        TrackViewState{
-            .track_id = core::TrackId{1},
-            .display_name = "Full Mix",
-            .audio = makeTrackAudio(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{4.0}),
-        });
+        makeArrangementState(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{4.0}));
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
     FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     const juce::Image image(juce::Image::RGB, 100, 24, true);
@@ -310,12 +255,12 @@ TEST_CASE("TrackView maps short audio into visible row bounds", "[ui][track-view
     CHECK(thumbnail->last_draw_bounds == std::optional{juce::Rectangle<int>{0, 0, 40, 24}});
 }
 
-// Verifies track-local hit testing emits a normalized horizontal click position.
-TEST_CASE("TrackView reports normalized click position", "[ui][track-view]")
+// Verifies local hit testing emits a normalized horizontal click position.
+TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    TrackView view;
-    FakeTrackViewListener listener;
+    ArrangementView view;
+    FakeArrangementViewListener listener;
 
     view.addListener(listener);
     view.setBounds(0, 0, 200, 40);

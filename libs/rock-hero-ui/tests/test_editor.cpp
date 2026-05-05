@@ -9,7 +9,6 @@
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/ui/editor.h>
 #include <stdexcept>
-#include <string>
 #include <vector>
 
 namespace rock_hero::ui
@@ -72,35 +71,15 @@ public:
 class FakeEdit final : public audio::IEdit
 {
 public:
-    std::optional<core::TrackSpec> provisionTrack(
-        core::TrackId track_id, const std::string& name) override
+    std::optional<core::TimeDuration> loadAudio(const core::AudioAsset& audio_asset) override
     {
-        last_provisioned_track_id = track_id;
-        last_provisioned_track_name = name;
-        ++provision_track_call_count;
-        return core::TrackSpec{
-            .name = name,
-        };
-    }
-
-    std::optional<core::TrackAudio> provisionTrackAudio(
-        core::TrackId track_id, const core::AudioAsset& audio_asset) override
-    {
-        last_track_id = track_id;
         last_audio_asset = audio_asset;
-        ++provision_track_audio_call_count;
-        return core::TrackAudio{
-            .asset = audio_asset,
-            .duration = core::TimeDuration{8.0},
-        };
+        ++load_audio_call_count;
+        return core::TimeDuration{8.0};
     }
 
-    std::optional<core::TrackId> last_provisioned_track_id{};
-    std::optional<std::string> last_provisioned_track_name{};
-    std::optional<core::TrackId> last_track_id{};
     std::optional<core::AudioAsset> last_audio_asset{};
-    int provision_track_call_count{0};
-    int provision_track_audio_call_count{0};
+    int load_audio_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -197,13 +176,11 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(load_button.isEnabled());
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
-    CHECK(thumbnail_factory.last_owner->getComponentID() == "track_view");
+    CHECK(thumbnail_factory.last_owner->getComponentID() == "arrangement_view");
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
-    CHECK(edit.provision_track_call_count == 1);
-    CHECK(edit.provision_track_audio_call_count == 0);
-    CHECK(edit.last_provisioned_track_id == std::optional{core::TrackId{1}});
-    CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Full Mix"});
+    CHECK(edit.load_audio_call_count == 0);
+    CHECK_FALSE(edit.last_audio_asset.has_value());
     CHECK(transport.listeners.size() == 1);
 }
 

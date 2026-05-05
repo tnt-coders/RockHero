@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <rock_hero/core/arrangement.h>
 #include <rock_hero/core/timeline.h>
 
@@ -16,7 +17,7 @@ TEST_CASE("NoteEvent default construction is empty", "[core][arrangement]")
     CHECK(note.fret == 0);
 }
 
-// Verifies Arrangement's default part, unknown difficulty, and note storage contract.
+// Verifies Arrangement's default part, unknown difficulty, audio, and note storage contract.
 TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangement]")
 {
     const Arrangement arrangement;
@@ -24,15 +25,22 @@ TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangemen
     CHECK(arrangement.part == Part::Lead);
     CHECK(arrangement.difficulty == DifficultyRating{});
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Unknown);
+    CHECK_FALSE(arrangement.audio_asset.has_value());
+    CHECK(arrangement.audio_duration == TimeDuration{});
+    CHECK(arrangement.tone_timeline_ref.empty());
+    CHECK_FALSE(arrangement.hasAudio());
     CHECK(arrangement.note_events.empty());
 }
 
-// Verifies arrangements own note-event sequences with timing, string, and fret data intact.
-TEST_CASE("Arrangement holds note events", "[core][arrangement]")
+// Verifies arrangements own playable route data with timing, tone, and notes intact.
+TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
 {
     Arrangement arr;
     arr.part = Part::Lead;
     arr.difficulty = DifficultyRating{8};
+    arr.audio_asset = AudioAsset{std::filesystem::path{"lead.wav"}};
+    arr.audio_duration = TimeDuration{12.0};
+    arr.tone_timeline_ref = "tone/lead.json";
     arr.note_events.push_back(
         {.position = TimePosition{1.0},
          .duration = TimeDuration{0.5},
@@ -44,6 +52,16 @@ TEST_CASE("Arrangement holds note events", "[core][arrangement]")
     CHECK(arr.part == Part::Lead);
     CHECK(arr.difficulty == DifficultyRating{8});
     CHECK(difficultyTier(arr.difficulty) == DifficultyTier::Expert);
+    REQUIRE(arr.audio_asset.has_value());
+    CHECK(arr.audio_asset->path == std::filesystem::path{"lead.wav"});
+    CHECK(arr.audio_duration == TimeDuration{12.0});
+    CHECK(arr.tone_timeline_ref == "tone/lead.json");
+    CHECK(arr.hasAudio());
+    CHECK(
+        arr.audioTimelineRange() == TimeRange{
+                                        .start = TimePosition{},
+                                        .end = TimePosition{12.0},
+                                    });
     REQUIRE(arr.note_events.size() == 2);
     CHECK(arr.note_events[0].position == TimePosition{1.0});
     CHECK(arr.note_events[0].duration == TimeDuration{0.5});

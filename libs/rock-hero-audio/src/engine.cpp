@@ -3,13 +3,8 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
-#include <cstddef>
-#include <cstdint>
-#include <functional>
 #include <optional>
-#include <string>
 #include <tracktion_engine/tracktion_engine.h>
-#include <unordered_map>
 
 namespace rock_hero::audio
 {
@@ -20,25 +15,11 @@ struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Liste
 private:
     friend class Engine;
 
-    // Lets project-owned id wrappers act as hash keys without adding hashing policy to core.
-    struct IdHash
-    {
-        template <typename Id> [[nodiscard]] std::size_t operator()(Id id) const noexcept
-        {
-            return std::hash<std::uint64_t>{}(id.value);
-        }
-    };
-
-    using TrackIdMap = std::unordered_map<core::TrackId, tracktion::EditItemID, IdHash>;
-
     // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
 
     // Single-track edit used for current early backing-track playback.
     std::unique_ptr<tracktion::Edit> m_edit;
-
-    // Project-to-Tracktion track identity mapping. Currently limited to one entry.
-    TrackIdMap m_tracktion_track_ids;
 
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
@@ -108,37 +89,11 @@ private:
         return std::clamp(seconds, 0.0, m_loaded_length_seconds);
     }
 
-    // Finds the Tracktion track previously mapped to the project-owned track id.
-    [[nodiscard]] tracktion::AudioTrack* findMappedTrack(core::TrackId track_id) const
+    // Returns the single Tracktion audio track used for the current arrangement.
+    [[nodiscard]] tracktion::AudioTrack* currentAudioTrack() const
     {
-        const auto position = m_tracktion_track_ids.find(track_id);
-        if (position == m_tracktion_track_ids.end())
-        {
-            return nullptr;
-        }
-
-        return tracktion::findAudioTrackForID(*m_edit, position->second);
-    }
-
-    // Binds the single Tracktion audio track id to a project-owned track id.
-    [[nodiscard]] bool mapSingleAudioTrack(core::TrackId track_id, const std::string& name)
-    {
-        if (!track_id.isValid() || findMappedTrack(track_id) != nullptr ||
-            !m_tracktion_track_ids.empty())
-        {
-            return false;
-        }
-
         auto audio_tracks = tracktion::getAudioTracks(*m_edit);
-        auto* track = audio_tracks.getFirst();
-        if (track == nullptr)
-        {
-            return false;
-        }
-
-        track->setName(juce::String{name.c_str()});
-        m_tracktion_track_ids.emplace(track_id, track->itemID);
-        return true;
+        return audio_tracks.getFirst();
     }
 
     // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
@@ -261,25 +216,10 @@ core::TimePosition Engine::position() const noexcept
     return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
-// Binds the current single Tracktion audio track to one project-owned track id.
-std::optional<core::TrackSpec> Engine::provisionTrack(
-    core::TrackId track_id, const std::string& name)
+// Adapts the framework-free edit port onto the single Tracktion arrangement audio track.
+std::optional<core::TimeDuration> Engine::loadAudio(const core::AudioAsset& audio_asset)
 {
-    if (!m_impl->mapSingleAudioTrack(track_id, name))
-    {
-        return std::nullopt;
-    }
-
-    return core::TrackSpec{
-        .name = name,
-    };
-}
-
-// Adapts the framework-free edit port onto the mapped Tracktion audio track.
-std::optional<core::TrackAudio> Engine::provisionTrackAudio(
-    core::TrackId track_id, const core::AudioAsset& audio_asset)
-{
-    auto* track = m_impl->findMappedTrack(track_id);
+    auto* track = m_impl->currentAudioTrack();
     if (track == nullptr)
     {
         return std::nullopt;
@@ -307,11 +247,6 @@ std::optional<core::TrackAudio> Engine::provisionTrackAudio(
         return std::nullopt;
     }
 
-    core::TrackAudio track_audio{
-        .asset = audio_asset,
-        .duration = asset_duration,
-    };
-
     // Candidate is valid; stop playback before replacing audio in Tracktion's edit graph.
     auto& transport = m_impl->m_edit->getTransport();
     transport.stop(false, false);
@@ -331,11 +266,11 @@ std::optional<core::TrackAudio> Engine::provisionTrackAudio(
         return std::nullopt;
     }
 
-    m_impl->m_loaded_length_seconds = track_audio.timelineRange().end.seconds;
+    m_impl->m_loaded_length_seconds = asset_duration.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return track_audio;
+    return asset_duration;
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

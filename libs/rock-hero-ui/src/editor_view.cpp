@@ -47,7 +47,7 @@ public:
         m_visible_timeline = visible_timeline;
     }
 
-    // Draws only the cursor; static waveform content remains in TrackView below this overlay.
+    // Draws only the cursor; static waveform content remains in ArrangementView below it.
     void paint(juce::Graphics& g) override
     {
         if (!m_cursor_x.has_value())
@@ -133,7 +133,7 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
-// Creates child widgets and gives the track row the factory it will use for waveform thumbnails.
+// Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
     audio::IThumbnailFactory& thumbnail_factory)
@@ -148,13 +148,13 @@ EditorView::EditorView(
     setWantsKeyboardFocus(true);
 
     m_transport_controls.setComponentID("transport_controls");
-    m_track_view.setComponentID("track_view");
+    m_arrangement_view.setComponentID("arrangement_view");
 
-    m_track_view.setThumbnailFactory(thumbnail_factory);
+    m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
     addAndMakeVisible(m_load_button);
     addAndMakeVisible(m_transport_controls);
-    addAndMakeVisible(m_track_view);
+    addAndMakeVisible(m_arrangement_view);
     addAndMakeVisible(*m_cursor_overlay);
 
     setSize(800, 300);
@@ -168,7 +168,7 @@ void EditorView::setState(const EditorViewState& state)
 {
     m_state = state;
 
-    m_load_button.setEnabled(m_state.load_button_enabled && !m_state.tracks.empty());
+    m_load_button.setEnabled(m_state.load_button_enabled);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -176,15 +176,8 @@ void EditorView::setState(const EditorViewState& state)
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
 
-    m_track_view.setVisibleTimeline(m_state.visible_timeline);
-    if (m_state.tracks.empty())
-    {
-        m_track_view.setState(TrackViewState{});
-    }
-    else
-    {
-        m_track_view.setState(m_state.tracks.front());
-    }
+    m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
+    m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentLoadErrorIfNeeded(m_state.last_load_error);
@@ -196,7 +189,7 @@ void EditorView::paint(juce::Graphics& g)
     g.fillAll(juce::Colours::darkgrey);
 }
 
-// Keeps the control strip above one waveform row and overlays the cursor across that row.
+// Keeps the control strip above the waveform view and overlays the cursor across that view.
 void EditorView::resized()
 {
     auto area = getLocalBounds().reduced(8);
@@ -205,7 +198,7 @@ void EditorView::resized()
     button_row.removeFromLeft(8);
     m_transport_controls.setBounds(button_row.removeFromLeft(176));
     area.removeFromTop(8);
-    m_track_view.setBounds(area);
+    m_arrangement_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
     m_cursor_overlay->toFront(false);
 }
@@ -225,12 +218,6 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 // Opens an asynchronous file chooser and sends accepted assets to the controller.
 void EditorView::onLoadClicked()
 {
-    if (m_state.tracks.empty())
-    {
-        return;
-    }
-
-    const core::TrackId track_id = m_state.tracks.front().track_id;
     m_file_chooser = std::make_unique<juce::FileChooser>(
         "Select an audio file",
         juce::File::getSpecialLocation(juce::File::userMusicDirectory),
@@ -238,7 +225,7 @@ void EditorView::onLoadClicked()
 
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-        [this, track_id](const juce::FileChooser& chooser) {
+        [this](const juce::FileChooser& chooser) {
             const auto file = chooser.getResult();
             if (!file.existsAsFile())
             {
@@ -248,7 +235,7 @@ void EditorView::onLoadClicked()
             const core::AudioAsset audio_asset{
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()}
             };
-            m_controller.onLoadAudioAssetRequested(track_id, audio_asset);
+            m_controller.onLoadAudioAssetRequested(audio_asset);
         });
 }
 

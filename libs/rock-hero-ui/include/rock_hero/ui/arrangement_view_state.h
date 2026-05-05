@@ -1,0 +1,60 @@
+/*!
+\file arrangement_view_state.h
+\brief Framework-free per-arrangement view state used by editor view contracts.
+*/
+
+#pragma once
+
+#include <optional>
+#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/core/timeline.h>
+
+namespace rock_hero::ui
+{
+
+/*!
+\brief View-facing state for the arrangement currently displayed by the editor.
+
+This state stays focused on the information the current editor UI can actually render. In the
+current stage that is one full-source waveform for the displayed arrangement.
+*/
+struct ArrangementViewState
+{
+    /*! \brief Backing audio currently rendered for the arrangement, if any. */
+    std::optional<core::AudioAsset> audio_asset;
+
+    /*! \brief Full natural duration of the rendered backing audio. */
+    core::TimeDuration audio_duration;
+
+    /*!
+    \brief Reports whether this state has playable audio assigned.
+    \return True when an audio asset is present and has a positive duration.
+    */
+    [[nodiscard]] bool hasAudio() const noexcept
+    {
+        return audio_asset.has_value() && audio_duration.seconds > 0.0;
+    }
+
+    /*!
+    \brief Calculates the visible timeline range for the current audio.
+    \return Timeline range from zero through the audio duration.
+    */
+    [[nodiscard]] constexpr core::TimeRange audioTimelineRange() const noexcept
+    {
+        return core::TimeRange{
+            .start = core::TimePosition{},
+            .end = core::TimePosition{audio_duration.seconds},
+        };
+    }
+
+    /*!
+    \brief Compares two arrangement-view states by their stored values.
+    \param lhs Left-hand arrangement-view state.
+    \param rhs Right-hand arrangement-view state.
+    \return True when both arrangement-view states store equal values.
+    */
+    friend bool operator==(const ArrangementViewState& lhs, const ArrangementViewState& rhs) =
+        default;
+};
+
+} // namespace rock_hero::ui
