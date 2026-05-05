@@ -30,7 +30,6 @@ private:
     };
 
     using TrackIdMap = std::unordered_map<core::TrackId, tracktion::EditItemID, IdHash>;
-    using AudioClipIdMap = std::unordered_map<core::AudioClipId, tracktion::EditItemID, IdHash>;
 
     // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
@@ -41,10 +40,7 @@ private:
     // Project-to-Tracktion track identity mapping. Currently limited to one entry.
     TrackIdMap m_tracktion_track_ids;
 
-    // Project-to-Tracktion clip identity mapping. Currently limited to one live clip.
-    AudioClipIdMap m_tracktion_clip_ids;
-
-    // Duration of the loaded clip, used to clamp seeks and detect end-of-file.
+    // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
     // Last coarse state used to suppress duplicate listener notifications.
@@ -145,16 +141,7 @@ private:
         return true;
     }
 
-    // Records the Tracktion clip id after Tracktion has accepted and created the clip.
-    void mapSingleAudioClip(core::AudioClipId audio_clip_id, tracktion::EditItemID clip_id)
-    {
-        // The current adapter asks Tracktion to replace the only clip on the mapped track, so all
-        // previous project-to-Tracktion clip identities are stale after a successful insertion.
-        m_tracktion_clip_ids.clear();
-        m_tracktion_clip_ids.emplace(audio_clip_id, clip_id);
-    }
-
-    // Detects the moment Tracktion playback has reached or passed the loaded clip duration.
+    // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
     [[nodiscard]] bool shouldStopAtLoadedEnd(double raw_position_seconds) const
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
@@ -181,7 +168,7 @@ Engine::Engine()
     // Stereo output, no input for now (ASIO guitar input comes later).
     m_impl->m_engine->getDeviceManager().initialise(0, 2);
 
-    // createSingleTrackEdit already provides one AudioTrack ready for clips.
+    // createSingleTrackEdit already provides one AudioTrack ready for media.
     m_impl->m_edit = tracktion::Edit::createSingleTrackEdit(*m_impl->m_engine);
 
     // TransportControl derives from juce::ChangeBroadcaster and notifies on any transport
@@ -289,12 +276,11 @@ std::optional<core::TrackSpec> Engine::provisionTrack(
 }
 
 // Adapts the framework-free edit port onto the mapped Tracktion audio track.
-std::optional<core::AudioClipSpec> Engine::provisionAudioClip(
-    core::TrackId track_id, core::AudioClipId audio_clip_id, const core::AudioAsset& audio_asset,
-    core::TimePosition position)
+std::optional<core::TrackAudio> Engine::provisionTrackAudio(
+    core::TrackId track_id, const core::AudioAsset& audio_asset)
 {
     auto* track = m_impl->findMappedTrack(track_id);
-    if (track == nullptr || !audio_clip_id.isValid())
+    if (track == nullptr)
     {
         return std::nullopt;
     }
@@ -305,13 +291,6 @@ std::optional<core::AudioClipSpec> Engine::provisionAudioClip(
     const auto path_text = audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
     if (!file.existsAsFile())
-    {
-        return std::nullopt;
-    }
-
-    // The current single-file transport path still assumes the loaded clip begins at zero.
-    // Nonzero placement needs a wider transport timeline model before it is safe to accept.
-    if (position != core::TimePosition{})
     {
         return std::nullopt;
     }
@@ -328,42 +307,35 @@ std::optional<core::AudioClipSpec> Engine::provisionAudioClip(
         return std::nullopt;
     }
 
-    core::AudioClipSpec audio_clip_spec{
+    core::TrackAudio track_audio{
         .asset = audio_asset,
-        .asset_duration = asset_duration,
-        .source_range =
-            core::TimeRange{
-                .start = core::TimePosition{},
-                .end = core::TimePosition{asset_duration.seconds},
-            },
-        .position = position,
+        .duration = asset_duration,
     };
 
-    // Candidate is valid; stop playback before replacing clips in Tracktion's edit graph.
+    // Candidate is valid; stop playback before replacing audio in Tracktion's edit graph.
     auto& transport = m_impl->m_edit->getTransport();
     transport.stop(false, false);
 
-    const auto start = tracktion::TimePosition::fromSeconds(position.seconds);
+    const auto start = tracktion::TimePosition{};
     const auto length = tracktion::TimeDuration::fromSeconds(asset_duration.seconds);
-    const tracktion::ClipPosition clip_position{
+    const tracktion::ClipPosition wave_clip_position{
         .time = {start, start + length}, .offset = tracktion::TimeDuration{}
     };
 
-    // Final trailing argument asks Tracktion to replace any existing clips on the track.
-    const auto clip =
-        track->insertWaveClip(file.getFileNameWithoutExtension(), file, clip_position, true);
-    if (clip == nullptr)
+    // Final trailing argument asks Tracktion to replace any existing media on the track.
+    const auto wave_clip =
+        track->insertWaveClip(file.getFileNameWithoutExtension(), file, wave_clip_position, true);
+    if (wave_clip == nullptr)
     {
         m_impl->updateTransportState();
         return std::nullopt;
     }
 
-    m_impl->mapSingleAudioClip(audio_clip_id, clip->itemID);
-    m_impl->m_loaded_length_seconds = audio_clip_spec.timelineRange().end.seconds;
+    m_impl->m_loaded_length_seconds = track_audio.timelineRange().end.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return audio_clip_spec;
+    return track_audio;
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

@@ -11,11 +11,11 @@ namespace rock_hero::audio
 namespace
 {
 
-// Minimal fake audio-edit port that records the latest clip-provision request.
+// Minimal fake audio-edit port that records the latest track-audio provision request.
 struct FakeEdit final : IEdit
 {
-    // Seeds the fake with the accepted clip returned from provisionAudioClip().
-    explicit FakeEdit(std::optional<core::AudioClipSpec> provision_result)
+    // Seeds the fake with the accepted track audio returned from provisionTrackAudio().
+    explicit FakeEdit(std::optional<core::TrackAudio> provision_result)
         : result{std::move(provision_result)}
     {}
 
@@ -36,21 +36,18 @@ struct FakeEdit final : IEdit
         };
     }
 
-    // Records the requested track, clip id, asset, and position for boundary-contract checks.
-    std::optional<core::AudioClipSpec> provisionAudioClip(
-        core::TrackId track_id, core::AudioClipId audio_clip_id,
-        const core::AudioAsset& audio_asset, core::TimePosition position) override
+    // Records the requested track and asset for boundary-contract checks.
+    std::optional<core::TrackAudio> provisionTrackAudio(
+        core::TrackId track_id, const core::AudioAsset& audio_asset) override
     {
         last_track_id = track_id;
-        last_audio_clip_id = audio_clip_id;
         last_audio_asset = audio_asset;
-        last_position = position;
         ++call_count;
         return result;
     }
 
-    // Result returned from provisionAudioClip() to simulate backend success or failure.
-    std::optional<core::AudioClipSpec> result{};
+    // Result returned from provisionTrackAudio() to simulate backend success or failure.
+    std::optional<core::TrackAudio> result{};
 
     // Result returned from provisionTrack() to simulate backend success or failure.
     bool next_provision_track_result{true};
@@ -61,37 +58,25 @@ struct FakeEdit final : IEdit
     // Last track name received through provisionTrack(), if the fake has been called.
     std::optional<std::string> last_provisioned_track_name{};
 
-    // Last track id received through provisionAudioClip(), if the fake has been called.
+    // Last track id received through provisionTrackAudio(), if the fake has been called.
     std::optional<core::TrackId> last_track_id{};
 
-    // Last audio clip id received through provisionAudioClip(), if the fake has been called.
-    std::optional<core::AudioClipId> last_audio_clip_id{};
-
-    // Last audio asset received through provisionAudioClip(), if the fake has been called.
+    // Last audio asset received through provisionTrackAudio(), if the fake has been called.
     std::optional<core::AudioAsset> last_audio_asset{};
 
-    // Last timeline position received through provisionAudioClip(), if the fake has been called.
-    std::optional<core::TimePosition> last_position{};
-
-    // Number of clip-provision attempts observed by the fake.
+    // Number of track-audio provision attempts observed by the fake.
     int call_count{0};
 
     // Number of backend-track-provision attempts observed by the fake.
     int provision_track_call_count{0};
 };
 
-// Builds the accepted clip value returned by the fake edit port.
-[[nodiscard]] core::AudioClipSpec makeAudioClipSpec(std::filesystem::path path)
+// Builds the accepted track-audio value returned by the fake edit port.
+[[nodiscard]] core::TrackAudio makeTrackAudio(std::filesystem::path path)
 {
-    return core::AudioClipSpec{
+    return core::TrackAudio{
         .asset = core::AudioAsset{std::move(path)},
-        .asset_duration = core::TimeDuration{4.0},
-        .source_range =
-            core::TimeRange{
-                .start = core::TimePosition{},
-                .end = core::TimePosition{4.0},
-            },
-        .position = core::TimePosition{},
+        .duration = core::TimeDuration{4.0},
     };
 }
 
@@ -124,34 +109,30 @@ TEST_CASE("IEdit fake can report failed track provisioning", "[audio][edit]")
     CHECK(edit.last_provisioned_track_name == std::optional<std::string>{"Rejected"});
 }
 
-// Verifies the audio-edit port receives the full clip-provision request.
-TEST_CASE("IEdit fake receives an audio clip provision request", "[audio][edit]")
+// Verifies the audio-edit port receives the full track-audio provision request.
+TEST_CASE("IEdit fake receives a track audio provision request", "[audio][edit]")
 {
-    const core::AudioClipSpec clip = makeAudioClipSpec(std::filesystem::path{"drums.wav"});
-    FakeEdit edit{clip};
+    const core::TrackAudio audio = makeTrackAudio(std::filesystem::path{"drums.wav"});
+    FakeEdit edit{audio};
     const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
 
-    const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{3}, core::AudioClipId{12}, asset, core::TimePosition{2.0});
+    const auto provisioned_audio = edit.provisionTrackAudio(core::TrackId{3}, asset);
 
-    CHECK(provisioned_clip == std::optional{clip});
+    CHECK(provisioned_audio == std::optional{audio});
     CHECK(edit.call_count == 1);
     CHECK(edit.last_track_id == std::optional{core::TrackId{3}});
-    CHECK(edit.last_audio_clip_id == std::optional{core::AudioClipId{12}});
     CHECK(edit.last_audio_asset == std::optional{asset});
-    CHECK(edit.last_position == std::optional{core::TimePosition{2.0}});
 }
 
-// Verifies the port return value can represent failed clip provisioning.
-TEST_CASE("IEdit fake can report failed clip provisioning", "[audio][edit]")
+// Verifies the port return value can represent failed track-audio provisioning.
+TEST_CASE("IEdit fake can report failed track audio provisioning", "[audio][edit]")
 {
     FakeEdit edit{std::nullopt};
     const core::AudioAsset asset{std::filesystem::path{"missing.wav"}};
 
-    const auto provisioned_clip = edit.provisionAudioClip(
-        core::TrackId{1}, core::AudioClipId{15}, asset, core::TimePosition{});
+    const auto provisioned_audio = edit.provisionTrackAudio(core::TrackId{1}, asset);
 
-    CHECK_FALSE(provisioned_clip.has_value());
+    CHECK_FALSE(provisioned_audio.has_value());
     CHECK(edit.call_count == 1);
 }
 

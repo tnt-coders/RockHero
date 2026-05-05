@@ -46,7 +46,7 @@ public:
 
     /*! \copydoc IThumbnail::drawChannels */
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange source_range,
+        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
         float vertical_zoom) override;
 
 private:
