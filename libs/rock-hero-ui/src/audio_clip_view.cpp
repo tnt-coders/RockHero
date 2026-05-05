@@ -41,7 +41,7 @@ void AudioClipView::paint(juce::Graphics& g)
         return;
     }
 
-    if (m_thumbnail->getLength() <= 0.0)
+    if (!m_thumbnail->hasSource())
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Preparing waveform", bounds, juce::Justification::centred);
@@ -58,7 +58,11 @@ void AudioClipView::paint(juce::Graphics& g)
     }
 
     g.setColour(juce::Colours::lightgreen);
-    m_thumbnail->drawChannels(g, bounds, 1.0f);
+    if (!m_thumbnail->drawChannels(g, bounds, m_state.source_range, 1.0f))
+    {
+        g.setColour(juce::Colours::grey);
+        g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
+    }
 }
 
 // Keeps thumbnail refresh local to the clip by diffing the current asset against the source
