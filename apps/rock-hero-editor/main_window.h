@@ -64,6 +64,9 @@ public:
     void closeButtonPressed() override;
 
 private:
+    // Requests normal JUCE application shutdown after the editor has allowed exit.
+    void closeWindow();
+
     // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<audio::Engine> m_audio_engine;
 

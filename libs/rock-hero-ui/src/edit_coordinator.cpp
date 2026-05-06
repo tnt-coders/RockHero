@@ -49,4 +49,11 @@ bool EditCoordinator::loadSong(core::Song song, std::size_t selected_arrangement
     return true;
 }
 
+// Clears backend media before resetting the framework-free session state.
+void EditCoordinator::closeSong()
+{
+    m_edit.get().clearAudio();
+    m_session.reset();
+}
+
 } // namespace rock_hero::ui

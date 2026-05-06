@@ -38,6 +38,9 @@ using SaveFunction =
 using SaveAsFunction = std::function<std::expected<void, std::string>(
     core::Project& project, const std::filesystem::path& path, const core::Song& song)>;
 
+/*! \brief Requests that the composed editor host exit the application. */
+using ExitFunction = std::function<void()>;
+
 /*!
 \brief Concrete editor workflow coordinator.
 
@@ -58,9 +61,9 @@ public:
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
-    The coordinator-owned session supplies the temporary empty arrangement shell until the user
-    opens a project. The controller does not push state during construction because no view is
-    attached yet. The initial cached state becomes the first push delivered to attachView().
+    The coordinator-owned session starts empty until the user opens a project. The controller does
+    not push state during construction because no view is attached yet. The initial cached state
+    becomes the first push delivered to attachView().
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
@@ -68,11 +71,13 @@ public:
     \param import_function Optional seam used to import foreign packages.
     \param save_function Optional seam used to save to the current destination.
     \param save_as_function Optional seam used to save to a chosen destination.
+    \param exit_function Optional seam used to request application exit.
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
         OpenFunction open_function = {}, ImportFunction import_function = {},
-        SaveFunction save_function = {}, SaveAsFunction save_as_function = {});
+        SaveFunction save_function = {}, SaveAsFunction save_as_function = {},
+        ExitFunction exit_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -136,6 +141,21 @@ public:
     */
     void onSaveAsRequested(std::filesystem::path file) override;
 
+    /*! \brief Handles cancellation of a controller-requested Save As chooser. */
+    void onSaveAsCancelled() override;
+
+    /*! \brief Handles a request to close the current project. */
+    void onCloseRequested() override;
+
+    /*! \brief Handles a request to exit the editor application. */
+    void onExitRequested() override;
+
+    /*!
+    \brief Handles a decision from the unsaved-changes prompt.
+    \param decision Decision selected by the user.
+    */
+    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override;
+
     /*!
     \brief Handles a play/pause button press from the editor UI.
 
@@ -163,8 +183,38 @@ public:
     void onWaveformClicked(double normalized_x) override;
 
 private:
+    struct PendingProjectRequest
+    {
+        PendingProjectAction action{PendingProjectAction::Close};
+        std::filesystem::path file;
+    };
+
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
     void onTransportStateChanged(audio::TransportState state) override;
+
+    // Requests a project-level action, prompting first when unsaved changes are present.
+    void requestProjectAction(PendingProjectRequest request);
+
+    // Runs a project-level action after prompts and save requirements are satisfied.
+    void performProjectAction(const PendingProjectRequest& request);
+
+    // Opens a native project package without first checking unsaved-change state.
+    void openProject(const std::filesystem::path& file);
+
+    // Imports a foreign project package without first checking unsaved-change state.
+    void importProject(const std::filesystem::path& file);
+
+    // Closes the current project context, session, and backend edit state.
+    [[nodiscard]] bool closeProject();
+
+    // Saves to the current destination and updates dirty tracking on success.
+    [[nodiscard]] bool saveProject();
+
+    // Continues the stored pending action after a successful prompted save.
+    void continuePendingProjectAction();
+
+    // Clears any in-progress unsaved-change or Save As prompt.
+    void clearPendingProjectAction() noexcept;
 
     // Returns the read-only session owned by the edit coordinator.
     [[nodiscard]] const core::Session& session() const noexcept;
@@ -177,6 +227,9 @@ private:
 
     // Reports whether the current arrangement currently has audio assigned.
     [[nodiscard]] bool currentArrangementHasAudio() const;
+
+    // Reports whether closing or replacing the current project would discard user work.
+    [[nodiscard]] bool hasUnsavedChanges() const noexcept;
 
     // Reports whether Stop would either stop playback or reset a non-start cursor position.
     [[nodiscard]] bool canStopTransport(const audio::TransportState& transport_state) const;
@@ -199,6 +252,9 @@ private:
     // Saves the current session song to a chosen destination.
     SaveAsFunction m_save_as_function;
 
+    // Requests application exit from the composition host.
+    ExitFunction m_exit_function;
+
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
 
@@ -216,6 +272,18 @@ private:
 
     // True when Save must first collect a native package path, such as after import.
     bool m_save_requires_destination{false};
+
+    // True once current session changes need to be saved or discarded before replacement.
+    bool m_has_unsaved_changes{false};
+
+    // Action waiting for either unsaved-change confirmation or a prompted Save As path.
+    std::optional<PendingProjectRequest> m_pending_project_action{};
+
+    // True while the view should present an unsaved-changes prompt.
+    bool m_unsaved_changes_prompt_visible{false};
+
+    // True while the view should present a Save As chooser for a pending action.
+    bool m_save_as_prompt_visible{false};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
