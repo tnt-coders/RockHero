@@ -30,8 +30,8 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Opens a project package, asks the edit coordinator to load its selected arrangement, and
-// promotes the extracted cache only after the backend and Session both accept the song.
+// Opens a project package, asks the edit coordinator to load the initial arrangement, and stores
+// the project only after the backend and Session both accept the song.
 void EditorController::onOpenProjectRequested(std::filesystem::path project_file)
 {
     core::ProjectLoadResult result = m_project_loader.loadProject(project_file);
@@ -43,8 +43,7 @@ void EditorController::onOpenProjectRequested(std::filesystem::path project_file
     }
 
     m_session_edit_in_progress = true;
-    const bool project_loaded = m_edit_coordinator.loadSong(
-        std::move(result.project->song), result.project->selected_arrangement_index);
+    const bool project_loaded = m_edit_coordinator.loadSong(result.project->song, 0);
     m_session_edit_in_progress = false;
 
     if (!project_loaded)
@@ -55,7 +54,7 @@ void EditorController::onOpenProjectRequested(std::filesystem::path project_file
         return;
     }
 
-    m_project_cache = std::move(result.project->cache);
+    m_project = std::move(result.project);
     m_last_load_error.reset();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may

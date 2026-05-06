@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <rock_hero/core/arrangement.h>
@@ -30,26 +29,19 @@ namespace
 
 using Json = nlohmann::json;
 
-struct ParsedArrangement
-{
-    std::string id;
-    Arrangement arrangement;
-};
-
-struct ManifestProject
+struct SongDocument
 {
     Song song;
-    std::size_t selected_arrangement_index{0};
 };
 
-struct ManifestLoadResult
+struct SongDocumentLoadResult
 {
-    std::optional<ManifestProject> project;
+    std::optional<SongDocument> song_document;
     std::string error_message;
 
     [[nodiscard]] bool succeeded() const noexcept
     {
-        return project.has_value();
+        return song_document.has_value();
     }
 };
 
@@ -209,11 +201,11 @@ private:
     zip_file_t* m_file{};
 };
 
-// Builds a uniform manifest-read failure result.
-[[nodiscard]] ManifestLoadResult failManifestLoad(std::string message)
+// Builds a uniform song-document read failure result.
+[[nodiscard]] SongDocumentLoadResult failSongDocumentLoad(std::string message)
 {
-    return ManifestLoadResult{
-        .project = std::nullopt,
+    return SongDocumentLoadResult{
+        .song_document = std::nullopt,
         .error_message = std::move(message),
     };
 }
@@ -290,19 +282,15 @@ private:
 #endif
 }
 
-// Finds the current manifest name while keeping compatibility with the first generated package.
-[[nodiscard]] std::optional<std::filesystem::path> findManifest(
+// Finds the required editable song document in an extracted project directory.
+[[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
     const std::filesystem::path& directory)
 {
-    for (const std::filesystem::path manifest_name :
-         {std::filesystem::path{"manifest.json"}, std::filesystem::path{"project.json"}})
+    const std::filesystem::path song_document_path = directory / "song.json";
+    std::error_code error;
+    if (std::filesystem::is_regular_file(song_document_path, error))
     {
-        const std::filesystem::path manifest_path = directory / manifest_name;
-        std::error_code error;
-        if (std::filesystem::is_regular_file(manifest_path, error))
-        {
-            return manifest_path;
-        }
+        return song_document_path;
     }
 
     return std::nullopt;
@@ -390,7 +378,7 @@ private:
     return true;
 }
 
-// Converts a manifest-relative path into a concrete file path inside the extracted directory.
+// Converts a package-relative path into a concrete file path inside the extracted directory.
 [[nodiscard]] std::optional<std::filesystem::path> resolveExistingFile(
     const std::filesystem::path& directory, const std::string& relative_path)
 {
@@ -410,7 +398,7 @@ private:
     return resolved_path;
 }
 
-// Reads a required string property from a manifest object.
+// Reads a required string property from a song-document object.
 [[nodiscard]] std::optional<std::string> readRequiredString(
     const Json& object, const char* property_name)
 {
@@ -423,7 +411,7 @@ private:
     return value->get<std::string>();
 }
 
-// Translates manifest part names into the current core enum.
+// Translates song-document part names into the current core enum.
 [[nodiscard]] std::optional<Part> parsePart(const std::string& text)
 {
     if (text == "Lead")
@@ -445,10 +433,10 @@ private:
 }
 
 // Reads song metadata while treating missing descriptive fields as blank draft values.
-[[nodiscard]] SongMetadata readMetadata(const Json& manifest)
+[[nodiscard]] SongMetadata readMetadata(const Json& song_document)
 {
-    const auto metadata = manifest.find("metadata");
-    if (metadata == manifest.end() || !metadata->is_object())
+    const auto metadata = song_document.find("metadata");
+    if (metadata == song_document.end() || !metadata->is_object())
     {
         return {};
     }
@@ -461,15 +449,15 @@ private:
     };
 }
 
-// Reads manifest audio assets into an ID map keyed only inside the loader.
+// Reads song audio assets into an ID map keyed only inside the loader.
 [[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
-    const std::filesystem::path& directory, const Json& manifest, std::string& error_message)
+    const std::filesystem::path& directory, const Json& song_document, std::string& error_message)
 {
-    const auto audio_assets_json = manifest.find("audioAssets");
-    if (audio_assets_json == manifest.end() || !audio_assets_json->is_array() ||
+    const auto audio_assets_json = song_document.find("audioAssets");
+    if (audio_assets_json == song_document.end() || !audio_assets_json->is_array() ||
         audio_assets_json->empty())
     {
-        error_message = "manifest.json must contain at least one audio asset";
+        error_message = "song.json must contain at least one audio asset";
         return std::nullopt;
     }
 
@@ -509,20 +497,20 @@ private:
     return audio_assets;
 }
 
-// Reads arrangements and leaves arrangement IDs as loader-only metadata.
-[[nodiscard]] std::optional<std::vector<ParsedArrangement>> readArrangements(
-    const std::filesystem::path& directory, const Json& manifest,
+// Reads arrangements from song-document entries into framework-free core values.
+[[nodiscard]] std::optional<std::vector<Arrangement>> readArrangements(
+    const std::filesystem::path& directory, const Json& song_document,
     const std::unordered_map<std::string, AudioAsset>& audio_assets, std::string& error_message)
 {
-    const auto arrangements_json = manifest.find("arrangements");
-    if (arrangements_json == manifest.end() || !arrangements_json->is_array() ||
+    const auto arrangements_json = song_document.find("arrangements");
+    if (arrangements_json == song_document.end() || !arrangements_json->is_array() ||
         arrangements_json->empty())
     {
-        error_message = "manifest.json must contain at least one arrangement";
+        error_message = "song.json must contain at least one arrangement";
         return std::nullopt;
     }
 
-    std::vector<ParsedArrangement> arrangements;
+    std::vector<Arrangement> arrangements;
     arrangements.reserve(arrangements_json->size());
 
     for (const Json& arrangement_json : *arrangements_json)
@@ -533,14 +521,12 @@ private:
             return std::nullopt;
         }
 
-        const auto id = readRequiredString(arrangement_json, "id");
         const auto part_text = readRequiredString(arrangement_json, "part");
         const auto arrangement_file = readRequiredString(arrangement_json, "file");
         const auto audio_id = readRequiredString(arrangement_json, "audio");
-        if (!id.has_value() || id->empty() || !part_text.has_value() ||
-            !arrangement_file.has_value() || !audio_id.has_value())
+        if (!part_text.has_value() || !arrangement_file.has_value() || !audio_id.has_value())
         {
-            error_message = "arrangement entries require id, part, file, and audio fields";
+            error_message = "arrangement entries require part, file, and audio fields";
             return std::nullopt;
         }
 
@@ -565,134 +551,88 @@ private:
         }
 
         arrangements.push_back(
-            ParsedArrangement{
-                .id = *id,
-                .arrangement = Arrangement{
-                    .part = *part,
-                    .difficulty = DifficultyRating{},
-                    .audio_asset = audio_asset->second,
-                },
+            Arrangement{
+                .part = *part,
+                .difficulty = DifficultyRating{},
+                .audio_asset = audio_asset->second,
             });
     }
 
     return arrangements;
 }
 
-// Finds the selected arrangement index by manifest ID, defaulting to the first arrangement.
-[[nodiscard]] std::optional<std::size_t> selectedArrangementIndex(
-    const Json& manifest, const std::vector<ParsedArrangement>& arrangements,
-    std::string& error_message)
-{
-    const auto selected = manifest.find("selectedArrangement");
-    if (selected == manifest.end() || selected->is_null())
-    {
-        return 0U;
-    }
-
-    if (!selected->is_string())
-    {
-        error_message = "selectedArrangement must be a string";
-        return std::nullopt;
-    }
-
-    const std::string selected_id = selected->get<std::string>();
-    const auto found = std::ranges::find_if(
-        arrangements, [&](const ParsedArrangement& item) { return item.id == selected_id; });
-
-    if (found == arrangements.end())
-    {
-        error_message = "selectedArrangement references unknown arrangement: " + selected_id;
-        return std::nullopt;
-    }
-
-    return static_cast<std::size_t>(std::distance(arrangements.begin(), found));
-}
-
-// Reads the v1 project manifest and resolves package-relative asset references.
-[[nodiscard]] ManifestLoadResult readProjectManifest(const std::filesystem::path& directory)
+// Reads the v1 song document and resolves package-relative asset references.
+[[nodiscard]] SongDocumentLoadResult readSongDocument(const std::filesystem::path& directory)
 {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
     {
-        return failManifestLoad("Project directory does not exist");
+        return failSongDocumentLoad("Project directory does not exist");
     }
 
-    const auto manifest_path = findManifest(directory);
-    if (!manifest_path.has_value())
+    const auto song_document_path = findSongDocument(directory);
+    if (!song_document_path.has_value())
     {
-        return failManifestLoad("Project directory does not contain manifest.json or project.json");
+        return failSongDocumentLoad("Project directory does not contain song.json");
     }
 
-    std::ifstream manifest_file{*manifest_path};
-    if (!manifest_file.is_open())
+    std::ifstream song_document_file{*song_document_path};
+    if (!song_document_file.is_open())
     {
-        return failManifestLoad("Could not open project manifest");
+        return failSongDocumentLoad("Could not open song.json");
     }
 
-    Json manifest;
+    Json song_document;
     try
     {
-        manifest = Json::parse(manifest_file);
+        song_document = Json::parse(song_document_file);
     }
     catch (const Json::parse_error& exception)
     {
-        return failManifestLoad(
-            std::string{"Could not parse project manifest: "} + exception.what());
+        return failSongDocumentLoad(std::string{"Could not parse song.json: "} + exception.what());
     }
 
     try
     {
-        if (!manifest.is_object() || manifest.value("formatVersion", 0) != 1)
+        if (!song_document.is_object() || song_document.value("formatVersion", 0) != 1)
         {
-            return failManifestLoad("Unsupported project manifest formatVersion");
+            return failSongDocumentLoad("Unsupported song.json formatVersion");
         }
 
         std::string error_message;
-        const auto audio_assets = readAudioAssets(directory, manifest, error_message);
+        const auto audio_assets = readAudioAssets(directory, song_document, error_message);
         if (!audio_assets.has_value())
         {
-            return failManifestLoad(error_message);
+            return failSongDocumentLoad(error_message);
         }
 
-        const auto arrangements =
-            readArrangements(directory, manifest, *audio_assets, error_message);
+        auto arrangements =
+            readArrangements(directory, song_document, *audio_assets, error_message);
         if (!arrangements.has_value())
         {
-            return failManifestLoad(error_message);
-        }
-
-        const auto selected_index =
-            selectedArrangementIndex(manifest, *arrangements, error_message);
-        if (!selected_index.has_value())
-        {
-            return failManifestLoad(error_message);
+            return failSongDocumentLoad(error_message);
         }
 
         Song song;
-        song.metadata = readMetadata(manifest);
-        song.chart.arrangements.reserve(arrangements->size());
-        for (const ParsedArrangement& parsed_arrangement : *arrangements)
-        {
-            song.chart.arrangements.push_back(parsed_arrangement.arrangement);
-        }
+        song.metadata = readMetadata(song_document);
+        song.chart.arrangements = std::move(*arrangements);
 
-        return ManifestLoadResult{
-            .project =
-                ManifestProject{
+        return SongDocumentLoadResult{
+            .song_document =
+                SongDocument{
                     .song = std::move(song),
-                    .selected_arrangement_index = *selected_index,
                 },
             .error_message = {},
         };
     }
     catch (const Json::exception& exception)
     {
-        return failManifestLoad(std::string{"Invalid project manifest: "} + exception.what());
+        return failSongDocumentLoad(std::string{"Invalid song.json: "} + exception.what());
     }
 }
 
 // Creates one cache directory under the platform temp directory for a loaded project.
-[[nodiscard]] std::optional<LoadedProjectCache> createCacheDirectory(std::string& error_message)
+[[nodiscard]] std::optional<std::filesystem::path> createCacheDirectory(std::string& error_message)
 {
     std::error_code error;
     const std::filesystem::path temp_root = std::filesystem::temp_directory_path(error);
@@ -723,7 +663,7 @@ private:
         error.clear();
         if (std::filesystem::create_directory(cache_directory, error))
         {
-            return LoadedProjectCache{cache_directory};
+            return cache_directory;
         }
 
         if (error)
@@ -863,54 +803,51 @@ private:
 
 } // namespace
 
-// Takes ownership of the extracted cache directory.
-LoadedProjectCache::LoadedProjectCache(std::filesystem::path directory) noexcept
-    : m_directory(std::move(directory))
+// Takes ownership of parsed project data and the extracted cache directory it references.
+Project::Project(Song song_data, std::filesystem::path extracted_cache_directory)
+    : song(std::move(song_data))
+    , cache_directory(std::move(extracted_cache_directory))
 {}
 
-// Removes the extracted cache when the loaded project leaves scope.
-LoadedProjectCache::~LoadedProjectCache()
+// Removes the extracted cache when the project leaves scope.
+Project::~Project()
 {
-    reset();
+    resetCache();
 }
 
-// Transfers cache ownership and clears the source owner.
-LoadedProjectCache::LoadedProjectCache(LoadedProjectCache&& other) noexcept
-    : m_directory(std::exchange(other.m_directory, {}))
+// Transfers parsed project data and cache ownership, clearing the source cache path.
+Project::Project(Project&& other)
+    : song(std::move(other.song))
+    , cache_directory(std::exchange(other.cache_directory, {}))
 {}
 
-// Removes the old owned cache before taking ownership from another cache owner.
-LoadedProjectCache& LoadedProjectCache::operator=(LoadedProjectCache&& other) noexcept
+// Removes the old cache before taking ownership from another project.
+Project& Project::operator=(Project&& other)
 {
     if (this != &other)
     {
-        reset();
-        m_directory = std::exchange(other.m_directory, {});
+        resetCache();
+        song = std::move(other.song);
+        cache_directory = std::exchange(other.cache_directory, {});
     }
 
     return *this;
 }
 
-// Exposes the owned directory for tests and diagnostics.
-const std::filesystem::path& LoadedProjectCache::directory() const noexcept
-{
-    return m_directory;
-}
-
 // Best-effort cache removal; project loading must not throw from cleanup.
-void LoadedProjectCache::reset() noexcept
+void Project::resetCache() noexcept
 {
-    if (m_directory.empty())
+    if (cache_directory.empty())
     {
         return;
     }
 
     std::error_code error;
-    std::filesystem::remove_all(m_directory, error);
-    m_directory.clear();
+    std::filesystem::remove_all(cache_directory, error);
+    cache_directory.clear();
 }
 
-// Opens the package archive, extracts it safely, and reads the project manifest.
+// Opens the package archive, extracts it safely, and reads the song document.
 ProjectLoadResult ProjectLoader::loadProject(const std::filesystem::path& package_path)
 {
     std::error_code filesystem_error;
@@ -926,31 +863,30 @@ ProjectLoadResult ProjectLoader::loadProject(const std::filesystem::path& packag
         return failProjectLoad("Could not open project package: " + error_message);
     }
 
-    auto cache = createCacheDirectory(error_message);
-    if (!cache.has_value())
+    auto cache_directory = createCacheDirectory(error_message);
+    if (!cache_directory.has_value())
     {
         return failProjectLoad(error_message);
     }
 
-    const auto extraction_error = extractZipToCache(*archive->get(), cache->directory());
+    Project project{Song{}, std::move(*cache_directory)};
+
+    const auto extraction_error = extractZipToCache(*archive->get(), project.cache_directory);
     if (extraction_error.has_value())
     {
         return failProjectLoad(*extraction_error);
     }
 
-    ManifestLoadResult loaded_project = readProjectManifest(cache->directory());
-    if (!loaded_project.succeeded())
+    SongDocumentLoadResult loaded_song_document = readSongDocument(project.cache_directory);
+    if (!loaded_song_document.succeeded())
     {
-        return failProjectLoad(loaded_project.error_message);
+        return failProjectLoad(loaded_song_document.error_message);
     }
 
+    project.song = std::move(loaded_song_document.song_document->song);
+
     return ProjectLoadResult{
-        .project =
-            LoadedProject{
-                .song = std::move(loaded_project.project->song),
-                .selected_arrangement_index = loaded_project.project->selected_arrangement_index,
-                .cache = std::move(*cache),
-            },
+        .project = std::move(project),
         .error_message = {},
     };
 }

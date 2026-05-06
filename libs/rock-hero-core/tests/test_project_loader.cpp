@@ -85,11 +85,11 @@ void writePackage(
     REQUIRE(zip_close(archive) == 0);
 }
 
-// Returns the minimal manifest shared by package-loader tests.
-[[nodiscard]] PackageEntry minimalManifestEntry()
+// Returns the minimal song document shared by package-loader tests.
+[[nodiscard]] PackageEntry minimalSongDocumentEntry()
 {
     return PackageEntry{
-        .path = "manifest.json",
+        .path = "song.json",
         .contents =
             R"({
                 "formatVersion": 1,
@@ -105,13 +105,11 @@ void writePackage(
                 ],
                 "arrangements": [
                     {
-                        "id": "lead",
                         "part": "Lead",
                         "file": "arrangements/lead.xml",
                         "audio": "backing"
                     }
-                ],
-                "selectedArrangement": "lead"
+                ]
             })",
     };
 }
@@ -126,14 +124,13 @@ void writeMinimalPackage(const std::filesystem::path& package_path)
             PackageEntry{
                 .path = "arrangements/lead.xml", .contents = "<Arrangement formatVersion=\"1\" />"
             },
-            minimalManifestEntry(),
+            minimalSongDocumentEntry(),
         });
 }
 
-// Writes a valid package with two arrangements so selectedArrangement can be verified.
+// Writes a valid package with two arrangements so song-document ordering can be verified.
 void writeTwoArrangementPackage(
-    const std::filesystem::path& package_path, const std::string& manifest_name = "manifest.json",
-    const std::string& selected_arrangement = "bass")
+    const std::filesystem::path& package_path, const std::string& song_document_name = "song.json")
 {
     writePackage(
         package_path,
@@ -146,7 +143,7 @@ void writeTwoArrangementPackage(
                 .path = "arrangements/bass.xml", .contents = "<Arrangement formatVersion=\"1\" />"
             },
             PackageEntry{
-                .path = manifest_name,
+                .path = song_document_name,
                 .contents = std::string{
                     R"({
                             "formatVersion": 1,
@@ -164,28 +161,23 @@ void writeTwoArrangementPackage(
                             ],
                             "arrangements": [
                                 {
-                                    "id": "lead",
                                     "part": "Lead",
                                     "file": "arrangements/lead.xml",
                                     "audio": "backing"
                                 },
                                 {
-                                    "id": "bass",
                                     "part": "Bass",
                                     "file": "arrangements/bass.xml",
                                     "audio": "backing"
                                 }
-                            ],
-                            "selectedArrangement": ")" +
-                    selected_arrangement +
-                    R"("
+                            ]
                         })"
                 },
             },
         });
 }
 
-// Writes a package whose manifest asset path should be rejected as unsafe.
+// Writes a package whose song-document asset path should be rejected as unsafe.
 void writeUnsafeAssetPackage(
     const std::filesystem::path& package_path, const std::string& unsafe_path = "../outside.wav")
 {
@@ -197,7 +189,7 @@ void writeUnsafeAssetPackage(
                 .path = "arrangements/lead.xml", .contents = "<Arrangement formatVersion=\"1\" />"
             },
             PackageEntry{
-                .path = "manifest.json",
+                .path = "song.json",
                 .contents =
                     R"({
                         "formatVersion": 1,
@@ -211,13 +203,11 @@ void writeUnsafeAssetPackage(
                         ],
                         "arrangements": [
                             {
-                                "id": "lead",
                                 "part": "Lead",
                                 "file": "arrangements/lead.xml",
                                 "audio": "backing"
                             }
-                        ],
-                        "selectedArrangement": "lead"
+                        ]
                     })"
             },
         });
@@ -240,12 +230,11 @@ TEST_CASE("ProjectLoader loads a minimal RHP package", "[core][project-loader]")
     CHECK(result.project->song.metadata.artist == "A Day To Remember");
     REQUIRE(result.project->song.chart.arrangements.size() == 1);
     CHECK(result.project->song.chart.arrangements.front().part == Part::Lead);
-    CHECK(result.project->selected_arrangement_index == 0);
-    CHECK(std::filesystem::is_directory(result.project->cache.directory()));
+    CHECK(std::filesystem::is_directory(result.project->cache_directory));
 }
 
-// Verifies the manifest reader loads metadata, assets, and selected arrangement index.
-TEST_CASE("ProjectLoader loads selected arrangement from manifest", "[core][project-loader]")
+// Verifies the song document reader loads metadata, assets, and arrangements in file order.
+TEST_CASE("ProjectLoader loads arrangements from song.json", "[core][project-loader]")
 {
     const TemporaryPackageDirectory directory;
     const std::filesystem::path package_path = directory.path() / "song.rhp";
@@ -260,25 +249,24 @@ TEST_CASE("ProjectLoader loads selected arrangement from manifest", "[core][proj
     REQUIRE(result.project->song.chart.arrangements.size() == 2);
     CHECK(result.project->song.chart.arrangements[0].part == Part::Lead);
     CHECK(result.project->song.chart.arrangements[1].part == Part::Bass);
-    CHECK(result.project->selected_arrangement_index == 1);
     REQUIRE(result.project->song.chart.arrangements[1].audio_asset.has_value());
     CHECK(
         result.project->song.chart.arrangements[1].audio_asset->path ==
-        (result.project->cache.directory() / "audio/backing.wav").lexically_normal());
+        (result.project->cache_directory / "audio/backing.wav").lexically_normal());
     CHECK_FALSE(result.project->song.chart.arrangements[1].hasAudio());
 }
 
-// Verifies the first generated sample's project.json name remains readable.
-TEST_CASE("ProjectLoader accepts the sample project.json name", "[core][project-loader]")
+// Verifies the loader does not accept the old project.json song-document name.
+TEST_CASE("ProjectLoader rejects project.json", "[core][project-loader]")
 {
     const TemporaryPackageDirectory directory;
     const std::filesystem::path package_path = directory.path() / "song.rhp";
-    writeTwoArrangementPackage(package_path, "project.json", "lead");
+    writeTwoArrangementPackage(package_path, "project.json");
 
     const ProjectLoadResult result = ProjectLoader{}.loadProject(package_path);
 
-    REQUIRE(result.succeeded());
-    CHECK(result.project->selected_arrangement_index == 0);
+    CHECK_FALSE(result.succeeded());
+    CHECK(result.error_message.find("song.json") != std::string::npos);
 }
 
 // Verifies the loader rejects path traversal before extracting archive entries.
@@ -295,7 +283,7 @@ TEST_CASE("ProjectLoader rejects unsafe RHP entries", "[core][project-loader]")
     CHECK(result.error_message.find("unsafe") != std::string::npos);
 }
 
-// Verifies manifest asset paths cannot escape the extracted project directory.
+// Verifies song-document asset paths cannot escape the extracted project directory.
 TEST_CASE("ProjectLoader rejects unsafe asset paths", "[core][project-loader]")
 {
     const TemporaryPackageDirectory directory;
@@ -308,8 +296,8 @@ TEST_CASE("ProjectLoader rejects unsafe asset paths", "[core][project-loader]")
     CHECK(result.error_message.find("unsafe") != std::string::npos);
 }
 
-// Verifies manifest asset paths cannot use Windows drive or stream syntax.
-TEST_CASE("ProjectLoader rejects colon-separated manifest asset paths", "[core][project-loader]")
+// Verifies song-document asset paths cannot use Windows drive or stream syntax.
+TEST_CASE("ProjectLoader rejects colon-separated asset paths", "[core][project-loader]")
 {
     const TemporaryPackageDirectory directory;
     const std::filesystem::path package_path = directory.path() / "unsafe-asset.rhp";

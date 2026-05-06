@@ -41,8 +41,8 @@ public:
     [[nodiscard]] const std::vector<Arrangement>& arrangements() const noexcept;
 
     /*!
-    \brief Returns the project timeline range covered by loaded arrangement content.
-    \return Current project timeline range.
+    \brief Returns the timeline range covered by the current arrangement content.
+    \return Current arrangement timeline range.
     */
     [[nodiscard]] TimeRange timeline() const noexcept;
 
@@ -56,7 +56,7 @@ public:
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement
-    identity. The selected arrangement must exist in the supplied song.
+    identity. The selected arrangement must exist in the supplied song and have playable audio.
 
     \param song Song aggregate to make current.
     \param selected_arrangement_index Arrangement index displayed by the editor.
@@ -71,7 +71,7 @@ private:
     // Index of the arrangement currently shown by the single-arrangement editor surface.
     std::size_t m_current_arrangement_index{0};
 
-    // Canonical timeline range for loaded project content.
+    // Canonical timeline range for the current arrangement content.
     TimeRange m_timeline{};
 };
 

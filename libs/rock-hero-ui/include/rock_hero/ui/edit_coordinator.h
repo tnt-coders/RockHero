@@ -61,7 +61,7 @@ public:
     \brief Loads a prepared song through the backend and stores accepted values in Session.
 
     The selected arrangement's audio is loaded into the backend first. Only after the backend
-    accepts the audio does the coordinator commit the song into Session with the accepted duration.
+    accepts the audio with a positive duration does the coordinator commit the song into Session.
 
     \param song Song parsed from a project package.
     \param selected_arrangement_index Arrangement index displayed by the editor.

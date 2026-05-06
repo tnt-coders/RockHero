@@ -86,8 +86,8 @@ public:
     /*!
     \brief Handles a request to open a Rock Hero project package.
 
-    On a successful project load, the controller clears any active load error and promotes the
-    extracted cache. On failure, the old session/cache are preserved. Reentrant transport
+    On a successful project load, the controller clears any active load error and stores the
+    project package. On failure, the old session/project are preserved. Reentrant transport
     notifications received during backend audio loading are coalesced into one final push.
 
     \param project_file Filesystem path selected by the user.
@@ -145,7 +145,7 @@ private:
     // Edit coordinator applies backend-accepted session mutations.
     EditCoordinator& m_edit_coordinator;
 
-    // Project loader opens .rhp packages and owns pending extraction until promotion.
+    // Project loader opens .rhp packages.
     core::IProjectLoader& m_project_loader;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
@@ -160,8 +160,8 @@ private:
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
 
-    // Cache owner for the currently loaded project package.
-    std::optional<core::LoadedProjectCache> m_project_cache{};
+    // Currently loaded project package; keeps extracted cache files alive.
+    std::optional<core::Project> m_project{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;

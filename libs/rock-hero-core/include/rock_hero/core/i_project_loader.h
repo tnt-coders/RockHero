@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <cstddef>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/core/song.h>
@@ -15,66 +14,48 @@ namespace rock_hero::core
 {
 
 /*!
-\brief Owns an extracted project cache directory for the lifetime of a loaded project.
-*/
-class LoadedProjectCache final
-{
-public:
-    /*! \brief Creates an empty cache owner. */
-    LoadedProjectCache() noexcept = default;
+\brief Project data returned by a project loader.
 
+Project owns the extracted cache directory because parsed audio asset paths can point into it.
+Destroying the Project removes that directory on a best-effort basis.
+*/
+struct Project
+{
     /*!
-    \brief Takes ownership of an extracted cache directory.
-    \param directory Directory to remove when this owner is destroyed or replaced.
+    \brief Creates a loaded project over parsed song data and an extracted cache directory.
+    \param song_data Song data parsed from the project package.
+    \param extracted_cache_directory Directory removed when this project is destroyed or replaced.
     */
-    explicit LoadedProjectCache(std::filesystem::path directory) noexcept;
+    Project(Song song_data, std::filesystem::path extracted_cache_directory);
 
     /*! \brief Removes the owned cache directory, if one is present. */
-    ~LoadedProjectCache();
+    ~Project();
 
     /*! \brief Copying is disabled because cache ownership is unique. */
-    LoadedProjectCache(const LoadedProjectCache&) = delete;
+    Project(const Project&) = delete;
 
     /*! \brief Copy assignment is disabled because cache ownership is unique. */
-    LoadedProjectCache& operator=(const LoadedProjectCache&) = delete;
+    Project& operator=(const Project&) = delete;
 
-    /*! \brief Transfers cache ownership from another owner. */
-    LoadedProjectCache(LoadedProjectCache&& other) noexcept;
-
-    /*!
-    \brief Replaces this cache owner with another owner.
-    \param other Cache owner to move from.
-    \return Reference to this cache owner.
-    */
-    LoadedProjectCache& operator=(LoadedProjectCache&& other) noexcept;
+    /*! \brief Transfers project data and cache ownership from another project. */
+    Project(Project&& other);
 
     /*!
-    \brief Returns the owned cache directory.
-    \return Cache directory path, or an empty path for an empty owner.
+    \brief Replaces this project with another project's data and cache ownership.
+    \param other Project to move from.
+    \return Reference to this project.
     */
-    [[nodiscard]] const std::filesystem::path& directory() const noexcept;
+    Project& operator=(Project&& other);
 
-private:
-    // Removes the currently owned directory and clears ownership.
-    void reset() noexcept;
-
-    // Directory removed by reset() and the destructor.
-    std::filesystem::path m_directory;
-};
-
-/*!
-\brief Project data returned by a project loader.
-*/
-struct LoadedProject
-{
     /*! \brief Song data parsed from the loaded project. */
     Song song;
 
-    /*! \brief Arrangement index selected by the project manifest. */
-    std::size_t selected_arrangement_index{0};
+    /*! \brief Directory containing extracted project files referenced by song data. */
+    std::filesystem::path cache_directory;
 
-    /*! \brief Cache owner that keeps extracted project files alive. */
-    LoadedProjectCache cache;
+private:
+    // Removes the currently owned cache directory and clears ownership.
+    void resetCache() noexcept;
 };
 
 /*!
@@ -83,7 +64,7 @@ struct LoadedProject
 struct ProjectLoadResult
 {
     /*! \brief Loaded project data when loading succeeded. */
-    std::optional<LoadedProject> project;
+    std::optional<Project> project;
 
     /*! \brief Human-readable failure detail when project is empty. */
     std::string error_message;
