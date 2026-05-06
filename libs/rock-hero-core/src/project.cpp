@@ -30,11 +30,6 @@ namespace
 
 using Json = nlohmann::json;
 
-struct SongDocument
-{
-    Song song;
-};
-
 class ZipSource final
 {
 public:
@@ -197,8 +192,8 @@ private:
     zip_file_t* m_file{};
 };
 
-// Builds a uniform song-document read failure result.
-[[nodiscard]] std::expected<SongDocument, std::string> failSongDocumentLoad(std::string message)
+// Builds a uniform song read failure result.
+[[nodiscard]] std::expected<Song, std::string> failSongLoad(std::string message)
 {
     return std::unexpected<std::string>{std::move(message)};
 }
@@ -599,26 +594,25 @@ private:
     return arrangements;
 }
 
-// Reads the v1 song document and resolves package-relative asset references.
-[[nodiscard]] std::expected<SongDocument, std::string> readSongDocument(
-    const std::filesystem::path& directory)
+// Reads song.json and resolves package-relative asset references into core data.
+[[nodiscard]] std::expected<Song, std::string> readSong(const std::filesystem::path& directory)
 {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
     {
-        return failSongDocumentLoad("Project directory does not exist");
+        return failSongLoad("Project directory does not exist");
     }
 
     const auto song_document_path = findSongDocument(directory);
     if (!song_document_path.has_value())
     {
-        return failSongDocumentLoad("Project directory does not contain song.json");
+        return failSongLoad("Project directory does not contain song.json");
     }
 
     std::ifstream song_document_file{*song_document_path};
     if (!song_document_file.is_open())
     {
-        return failSongDocumentLoad("Could not open song.json");
+        return failSongLoad("Could not open song.json");
     }
 
     Json song_document;
@@ -628,44 +622,39 @@ private:
     }
     catch (const Json::parse_error& exception)
     {
-        return failSongDocumentLoad(std::string{"Could not parse song.json: "} + exception.what());
+        return failSongLoad(std::string{"Could not parse song.json: "} + exception.what());
     }
 
     try
     {
         if (!song_document.is_object() || song_document.value("formatVersion", 0) != 1)
         {
-            return failSongDocumentLoad("Unsupported song.json formatVersion");
+            return failSongLoad("Unsupported song.json formatVersion");
         }
 
         std::string error_message;
         const auto audio_assets = readAudioAssets(directory, song_document, error_message);
         if (!audio_assets.has_value())
         {
-            return failSongDocumentLoad(error_message);
+            return failSongLoad(error_message);
         }
 
         auto arrangements =
             readArrangements(directory, song_document, *audio_assets, error_message);
         if (!arrangements.has_value())
         {
-            return failSongDocumentLoad(error_message);
+            return failSongLoad(error_message);
         }
 
         Song song;
         song.metadata = readMetadata(song_document);
         song.chart.arrangements = std::move(*arrangements);
 
-        return std::expected<SongDocument, std::string>{
-            std::in_place,
-            SongDocument{
-                .song = std::move(song),
-            },
-        };
+        return std::expected<Song, std::string>{std::in_place, std::move(song)};
     }
     catch (const Json::exception& exception)
     {
-        return failSongDocumentLoad(std::string{"Invalid song.json: "} + exception.what());
+        return failSongLoad(std::string{"Invalid song.json: "} + exception.what());
     }
 }
 
@@ -1308,13 +1297,13 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
         return failProjectLoad(*extraction_error);
     }
 
-    auto loaded_song_document = readSongDocument(loaded_project.m_workspace_directory);
-    if (!loaded_song_document.has_value())
+    auto loaded_song = readSong(loaded_project.m_workspace_directory);
+    if (!loaded_song.has_value())
     {
-        return failProjectLoad(std::move(loaded_song_document.error()));
+        return failProjectLoad(std::move(loaded_song.error()));
     }
 
-    Song song = std::move(loaded_song_document->song);
+    Song song = std::move(*loaded_song);
     *this = std::move(loaded_project);
 
     return song;
