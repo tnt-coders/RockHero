@@ -145,6 +145,11 @@ EditorView::EditorView(
     m_open_project_button.setButtonText("Open Project...");
     m_open_project_button.setEnabled(false);
     m_open_project_button.onClick = [this] { onOpenProjectClicked(); };
+
+    m_import_project_button.setComponentID("import_project_button");
+    m_import_project_button.setButtonText("Import Project...");
+    m_import_project_button.setEnabled(false);
+    m_import_project_button.onClick = [this] { onImportProjectClicked(); };
     setWantsKeyboardFocus(true);
 
     m_transport_controls.setComponentID("transport_controls");
@@ -153,6 +158,7 @@ EditorView::EditorView(
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
     addAndMakeVisible(m_open_project_button);
+    addAndMakeVisible(m_import_project_button);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_arrangement_view);
     addAndMakeVisible(*m_cursor_overlay);
@@ -169,6 +175,7 @@ void EditorView::setState(const EditorViewState& state)
     m_state = state;
 
     m_open_project_button.setEnabled(m_state.open_project_button_enabled);
+    m_import_project_button.setEnabled(m_state.import_project_button_enabled);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -195,6 +202,8 @@ void EditorView::resized()
     auto area = getLocalBounds().reduced(8);
     auto button_row = area.removeFromTop(32);
     m_open_project_button.setBounds(button_row.removeFromLeft(136));
+    button_row.removeFromLeft(8);
+    m_import_project_button.setBounds(button_row.removeFromLeft(136));
     button_row.removeFromLeft(8);
     m_transport_controls.setBounds(button_row.removeFromLeft(176));
     area.removeFromTop(8);
@@ -237,6 +246,28 @@ void EditorView::onOpenProjectClicked()
         });
 }
 
+// Opens an asynchronous file chooser and sends accepted import paths to the controller.
+void EditorView::onImportProjectClicked()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Import Rocksmith project",
+        juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+        "*.psarc");
+
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
+        [this](const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            if (!file.existsAsFile())
+            {
+                return;
+            }
+
+            m_controller.onImportProjectRequested(
+                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
+        });
+}
+
 // Shows each distinct error once and resets the edge when the controller clears the error.
 void EditorView::presentLoadErrorIfNeeded(const std::optional<std::string>& error)
 {
@@ -255,7 +286,7 @@ void EditorView::presentLoadErrorIfNeeded(const std::optional<std::string>& erro
     juce::NativeMessageBox::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Could not open project")
+            .withTitle("Could not load project")
             .withMessage(juce::String{error->c_str()})
             .withButton("OK"),
         nullptr);

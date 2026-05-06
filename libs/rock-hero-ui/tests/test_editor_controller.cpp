@@ -51,6 +51,12 @@ public:
         open_project_request_count += 1;
     }
 
+    void onImportProjectRequested(std::filesystem::path project_file) override
+    {
+        last_import_file = std::move(project_file);
+        import_project_request_count += 1;
+    }
+
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
@@ -68,8 +74,10 @@ public:
     }
 
     std::optional<std::filesystem::path> last_project_file{};
+    std::optional<std::filesystem::path> last_import_file{};
     std::optional<double> last_normalized_x{};
     int open_project_request_count{0};
+    int import_project_request_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -186,6 +194,22 @@ public:
         return song;
     }
 
+    std::expected<core::Song, std::string> import(
+        core::Project& project, const std::filesystem::path& project_file)
+    {
+        (void)project;
+        last_import_file = project_file;
+        ++import_project_call_count;
+        if (!next_import_song.has_value())
+        {
+            return std::unexpected<std::string>{next_import_error_message};
+        }
+
+        core::Song song = std::move(*next_import_song);
+        next_import_song.reset();
+        return song;
+    }
+
     [[nodiscard]] ProjectLoadFunction function() noexcept
     {
         return [this](core::Project& project, const std::filesystem::path& project_file) {
@@ -193,10 +217,21 @@ public:
         };
     }
 
+    [[nodiscard]] ProjectImportFunction importFunction() noexcept
+    {
+        return [this](core::Project& project, const std::filesystem::path& project_file) {
+            return import(project, project_file);
+        };
+    }
+
     std::optional<core::Song> next_song{};
+    std::optional<core::Song> next_import_song{};
     std::string next_error_message{"Project load failed"};
+    std::string next_import_error_message{"Project import failed"};
     std::optional<std::filesystem::path> last_project_file{};
+    std::optional<std::filesystem::path> last_import_file{};
     int load_project_call_count{0};
+    int import_project_call_count{0};
 };
 
 // Provides a standard loaded-content range for controller tests.
@@ -272,6 +307,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     const EditorViewState empty_state{};
 
     CHECK(empty_state.open_project_button_enabled == false);
+    CHECK(empty_state.import_project_button_enabled == false);
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
@@ -282,6 +318,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     const core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
     const EditorViewState loaded_state{
         .open_project_button_enabled = true,
+        .import_project_button_enabled = true,
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
@@ -305,14 +342,18 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
 {
     FakeEditorController controller;
     const std::filesystem::path project_file{"song.rhp"};
+    const std::filesystem::path import_file{"song.psarc"};
 
     controller.onOpenProjectRequested(project_file);
+    controller.onImportProjectRequested(import_file);
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
 
     CHECK(controller.open_project_request_count == 1);
     CHECK(controller.last_project_file == std::optional{project_file});
+    CHECK(controller.import_project_request_count == 1);
+    CHECK(controller.last_import_file == std::optional{import_file});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
@@ -333,6 +374,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 1);
     CHECK(view.last_state->open_project_button_enabled == true);
+    CHECK(view.last_state->import_project_button_enabled == true);
     CHECK(view.last_state->play_pause_enabled == false);
     CHECK(view.last_state->stop_enabled == false);
     CHECK(view.last_state->play_pause_shows_pause_icon == false);
@@ -570,6 +612,76 @@ TEST_CASE("EditorController successful project load stores audio", "[ui][editor-
     controller.onOpenProjectRequested(std::filesystem::path{"second.rhp"});
 
     const core::Session& session = edit_coordinator.session();
+    CHECK(edit.load_audio_call_count == 2);
+    CHECK(edit.last_audio_asset == std::optional{replacement});
+    REQUIRE(session.currentArrangement() != nullptr);
+    CHECK(session.currentArrangement()->audio_asset == std::optional{replacement});
+    CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
+    CHECK(session.timeline() == loadedTimelineRange(4.0));
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->last_load_error.has_value());
+    CHECK(view.last_state->arrangement.audio_asset == std::optional{replacement});
+    CHECK(view.set_state_call_count == pushes_before_success + 1);
+}
+
+// A failed import leaves the current session unchanged and surfaces an error.
+TEST_CASE("EditorController failed import preserves session", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    loadArrangement(
+        edit_coordinator, edit, std::filesystem::path{"old.wav"}, loadedTimelineRange(6.0));
+    FakeProjectLoad project_load;
+    EditorController controller{
+        transport, edit_coordinator, ProjectLoadFunction{}, project_load.importFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onImportProjectRequested(std::filesystem::path{"broken.psarc"});
+
+    const core::Session& session = edit_coordinator.session();
+    REQUIRE(session.currentArrangement() != nullptr);
+    CHECK(
+        session.currentArrangement()->audio_asset ==
+        std::optional{core::AudioAsset{std::filesystem::path{"old.wav"}}});
+    CHECK(session.timeline() == loadedTimelineRange(6.0));
+    CHECK(project_load.import_project_call_count == 1);
+    CHECK(project_load.load_project_call_count == 0);
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    CHECK(view.last_state->last_load_error->find("import") != std::string::npos);
+}
+
+// A successful import stores the imported audio and clears prior error.
+TEST_CASE("EditorController successful import stores audio", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectLoad project_load;
+    EditorController controller{
+        transport, edit_coordinator, ProjectLoadFunction{}, project_load.importFunction()
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_load.next_import_song = makeSong(std::filesystem::path{"first.ogg"});
+    edit.next_audio_duration = std::nullopt;
+    controller.onImportProjectRequested(std::filesystem::path{"first.psarc"});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->last_load_error.has_value());
+    const int pushes_before_success = view.set_state_call_count;
+
+    edit.next_audio_duration = core::TimeDuration{4.0};
+    const core::AudioAsset replacement{std::filesystem::path{"imported.ogg"}};
+    project_load.next_import_song = makeSong(replacement.path, loadedTimelineRange(4.0));
+    controller.onImportProjectRequested(std::filesystem::path{"second.psarc"});
+
+    const core::Session& session = edit_coordinator.session();
+    CHECK(project_load.import_project_call_count == 2);
+    CHECK(project_load.load_project_call_count == 0);
     CHECK(edit.load_audio_call_count == 2);
     CHECK(edit.last_audio_asset == std::optional{replacement});
     REQUIRE(session.currentArrangement() != nullptr);
