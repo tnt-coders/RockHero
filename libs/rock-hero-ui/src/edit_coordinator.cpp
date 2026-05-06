@@ -31,8 +31,8 @@ bool EditCoordinator::loadSong(core::Song song, std::size_t selected_arrangement
         return false;
     }
 
-    auto audio_duration = m_edit.get().loadAudio(*selected_arrangement.audio_asset);
-    if (!audio_duration.has_value())
+    const auto audio_duration = m_edit.get().loadAudio(*selected_arrangement.audio_asset);
+    if (!audio_duration.has_value() || audio_duration->seconds <= 0.0)
     {
         return false;
     }

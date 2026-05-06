@@ -96,6 +96,24 @@ TEST_CASE("EditCoordinator preserves session on project-audio failure", "[ui][ed
     CHECK(coordinator.session().timeline() == core::TimeRange{});
 }
 
+// Verifies non-positive durations do not become playable arrangement audio.
+TEST_CASE("EditCoordinator rejects zero-duration audio", "[ui][edit-coordinator]")
+{
+    FakeEdit edit;
+    EditCoordinator coordinator{edit};
+    edit.next_load_audio_result = core::TimeDuration{};
+    const core::AudioAsset failed_asset{std::filesystem::path{"empty.wav"}};
+
+    const bool failed = coordinator.loadSong(makeSong(failed_asset.path), 0);
+
+    CHECK_FALSE(failed);
+    CHECK(edit.load_audio_call_count == 1);
+    CHECK(edit.last_audio_asset == std::optional{failed_asset});
+    REQUIRE(coordinator.session().arrangements().size() == 1);
+    CHECK_FALSE(coordinator.session().arrangements().front().hasAudio());
+    CHECK(coordinator.session().timeline() == core::TimeRange{});
+}
+
 // Verifies a selected arrangement can be loaded without storing package IDs in core.
 TEST_CASE("EditCoordinator loads the selected arrangement index", "[ui][edit-coordinator]")
 {
