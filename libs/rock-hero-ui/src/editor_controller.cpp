@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <expected>
 #include <optional>
+#include <rock_hero/core/psarc_project_importer.h>
 #include <utility>
 
 namespace rock_hero::ui
@@ -18,18 +19,29 @@ namespace
     return project.load(project_file);
 }
 
+// Production project-import path used when tests do not provide a custom import seam.
+[[nodiscard]] std::expected<core::Song, std::string> defaultProjectImport(
+    core::Project& project, const std::filesystem::path& project_file)
+{
+    core::PsarcProjectImporter importer;
+    return project.import(project_file, importer);
+}
+
 } // namespace
 
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
     audio::ITransport& transport, EditCoordinator& edit_coordinator,
-    ProjectLoadFunction project_load_function)
+    ProjectLoadFunction project_load_function, ProjectImportFunction project_import_function)
     : m_transport(transport)
     , m_edit_coordinator(edit_coordinator)
     , m_project_load_function(
           project_load_function ? std::move(project_load_function)
                                 : ProjectLoadFunction{defaultProjectLoad})
+    , m_project_import_function(
+          project_import_function ? std::move(project_import_function)
+                                  : ProjectImportFunction{defaultProjectImport})
     , m_transport_listener(transport, *this)
 {
     m_last_state = deriveViewState();
@@ -70,6 +82,42 @@ void EditorController::onOpenProjectRequested(std::filesystem::path project_file
     {
         m_last_load_error =
             std::string{"Could not load project audio from: "} + project_file.string();
+        deriveAndPush();
+        return;
+    }
+
+    m_project = std::move(project);
+    m_last_load_error.reset();
+
+    // The single derive-and-push below also satisfies any deferred transport refresh that may
+    // have arrived during the edit window.
+    deriveAndPush();
+}
+
+// Imports a foreign project, asks the edit coordinator to load the initial arrangement, and stores
+// the unsaved project workspace only after the backend and Session both accept the song.
+void EditorController::onImportProjectRequested(std::filesystem::path project_file)
+{
+    core::Project project;
+    std::expected<core::Song, std::string> loaded_song =
+        m_project_import_function(project, project_file);
+    if (!loaded_song.has_value())
+    {
+        m_last_load_error = std::string{"Could not import project: "} + loaded_song.error();
+        deriveAndPush();
+        return;
+    }
+
+    core::Song song = std::move(*loaded_song);
+
+    m_session_edit_in_progress = true;
+    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song), 0);
+    m_session_edit_in_progress = false;
+
+    if (!project_loaded)
+    {
+        m_last_load_error =
+            std::string{"Could not load imported project audio from: "} + project_file.string();
         deriveAndPush();
         return;
     }
@@ -156,6 +204,7 @@ EditorViewState EditorController::deriveViewState() const
 
     EditorViewState state;
     state.open_project_button_enabled = true;
+    state.import_project_button_enabled = true;
     state.play_pause_enabled = currentArrangementHasAudio();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
