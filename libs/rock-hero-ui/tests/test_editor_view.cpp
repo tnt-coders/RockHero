@@ -35,6 +35,12 @@ public:
         open_project_request_count += 1;
     }
 
+    void onImportProjectRequested(std::filesystem::path project_file) override
+    {
+        last_import_file = std::move(project_file);
+        import_project_request_count += 1;
+    }
+
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
@@ -52,8 +58,10 @@ public:
     }
 
     std::optional<std::filesystem::path> last_project_file{};
+    std::optional<std::filesystem::path> last_import_file{};
     std::optional<double> last_normalized_x{};
     int open_project_request_count{0};
+    int import_project_request_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -248,6 +256,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     view.setState(
         EditorViewState{
             .open_project_button_enabled = true,
+            .import_project_button_enabled = true,
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -274,11 +283,14 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     EditorView view{controller, transport, thumbnail_factory};
 
     auto& open_project_button = findRequiredChild<juce::TextButton>(view, "open_project_button");
+    auto& import_project_button =
+        findRequiredChild<juce::TextButton>(view, "import_project_button");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
 
     view.setState(EditorViewState{});
 
     CHECK_FALSE(open_project_button.isEnabled());
+    CHECK_FALSE(import_project_button.isEnabled());
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
     CHECK(transport.position_read_count == 0);
@@ -286,6 +298,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     view.setState(
         EditorViewState{
             .open_project_button_enabled = true,
+            .import_project_button_enabled = true,
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
@@ -299,6 +312,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
         });
 
     CHECK(open_project_button.isEnabled());
+    CHECK(import_project_button.isEnabled());
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());

@@ -24,6 +24,9 @@ struct EditorViewState
     /*! \brief Enables or disables the open-project command. */
     bool open_project_button_enabled{false};
 
+    /*! \brief Enables or disables the import-project command. */
+    bool import_project_button_enabled{false};
+
     /*! \brief Enables or disables the play/pause command. */
     bool play_pause_enabled{false};
 

@@ -26,6 +26,10 @@ namespace rock_hero::ui
 using ProjectLoadFunction = std::function<std::expected<core::Song, std::string>(
     core::Project& project, const std::filesystem::path& project_path)>;
 
+/*! \brief Imports a foreign project package into a project context and returns the parsed song. */
+using ProjectImportFunction = std::function<std::expected<core::Song, std::string>(
+    core::Project& project, const std::filesystem::path& project_path)>;
+
 /*!
 \brief Concrete editor workflow coordinator.
 
@@ -53,10 +57,12 @@ public:
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
     \param project_load_function Optional seam used to open project packages.
+    \param project_import_function Optional seam used to import foreign project packages.
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
-        ProjectLoadFunction project_load_function = {});
+        ProjectLoadFunction project_load_function = {},
+        ProjectImportFunction project_import_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -99,6 +105,17 @@ public:
     \param project_file Filesystem path selected by the user.
     */
     void onOpenProjectRequested(std::filesystem::path project_file) override;
+
+    /*!
+    \brief Handles a request to import a foreign project package.
+
+    On a successful import, the controller clears any active load error and stores the unsaved
+    project workspace. On failure, the old session/project are preserved. Reentrant transport
+    notifications received during backend audio loading are coalesced into one final push.
+
+    \param project_file Filesystem path selected by the user.
+    */
+    void onImportProjectRequested(std::filesystem::path project_file) override;
 
     /*!
     \brief Handles a play/pause button press from the editor UI.
@@ -154,6 +171,9 @@ private:
     // Opens .rhp packages into temporary project contexts.
     ProjectLoadFunction m_project_load_function;
 
+    // Imports foreign project packages into temporary unsaved project contexts.
+    ProjectImportFunction m_project_import_function;
+
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
 
@@ -166,7 +186,7 @@ private:
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
 
-    // Currently loaded project package; keeps extracted workspace files alive.
+    // Currently loaded or imported project context; keeps workspace files alive.
     std::optional<core::Project> m_project{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.

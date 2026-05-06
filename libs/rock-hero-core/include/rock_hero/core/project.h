@@ -7,6 +7,7 @@
 
 #include <expected>
 #include <filesystem>
+#include <rock_hero/core/i_project_importer.h>
 #include <rock_hero/core/song.h>
 #include <string>
 
@@ -53,11 +54,29 @@ public:
     [[nodiscard]] std::expected<Song, std::string> load(const std::filesystem::path& path);
 
     /*!
+    \brief Imports a foreign project package into a new unsaved workspace.
+    \param source_path Foreign project package to import.
+    \param importer Importer that understands the source project format.
+    \return Imported song data, or a failure message.
+    */
+    [[nodiscard]] std::expected<Song, std::string> import(
+        const std::filesystem::path& source_path, IProjectImporter& importer);
+
+    /*!
     \brief Saves the supplied song to the currently open project package.
     \param song Song data to persist.
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> save(const Song& song);
+
+    /*!
+    \brief Saves the supplied song to a package path and associates this project with it.
+    \param path Destination .rhp package path.
+    \param song Song data to persist.
+    \return Empty success, or a failure message.
+    */
+    [[nodiscard]] std::expected<void, std::string> saveAs(
+        const std::filesystem::path& path, const Song& song);
 
     /*!
     \brief Returns the file path associated with this project.

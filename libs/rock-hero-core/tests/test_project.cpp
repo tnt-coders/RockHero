@@ -213,6 +213,21 @@ void writeUnsafeAssetPackage(
         });
 }
 
+// Creates a song that can be saved into a package from an external audio file.
+[[nodiscard]] Song makeSaveableSong(const std::filesystem::path& audio_path)
+{
+    Song song;
+    song.metadata.title = "Imported Song";
+    song.metadata.artist = "Imported Artist";
+    song.chart.arrangements.push_back(
+        Arrangement{
+            .part = Part::Lead,
+            .difficulty = DifficultyRating{},
+            .audio_asset = AudioAsset{audio_path},
+        });
+    return song;
+}
+
 } // namespace
 
 // Verifies a valid .rhp archive extracts to workspace and loads through Project.
@@ -372,6 +387,37 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     CHECK(std::filesystem::is_regular_file(reloaded_audio_path));
 }
 
+// Verifies saveAs creates a native project package even before a package path exists.
+TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
+{
+    const TemporaryPackageDirectory directory;
+    const std::filesystem::path package_path = directory.path() / "saved.rhp";
+    const std::filesystem::path audio_path = directory.path() / "backing.wav";
+    {
+        std::ofstream audio{audio_path, std::ios::binary};
+        audio << "audio bytes";
+    }
+
+    Project project;
+    const Song song = makeSaveableSong(audio_path);
+    const std::expected<void, std::string> saved = project.saveAs(package_path, song);
+
+    REQUIRE(saved.has_value());
+    CHECK(project.path() == package_path);
+    CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+
+    Project reloaded_project;
+    const auto reloaded_song = reloaded_project.load(package_path);
+    REQUIRE(reloaded_song.has_value());
+    CHECK(reloaded_song->metadata.title == "Imported Song");
+    CHECK(reloaded_song->metadata.artist == "Imported Artist");
+    REQUIRE(reloaded_song->chart.arrangements.size() == 1);
+    REQUIRE(reloaded_song->chart.arrangements.front().audio_asset.has_value());
+    CHECK(
+        std::filesystem::is_regular_file(
+            reloaded_song->chart.arrangements.front().audio_asset->path));
+}
+
 // Verifies save has a clear failure when no package has been opened yet.
 TEST_CASE("Project save rejects unopened projects", "[core][project]")
 {
@@ -379,7 +425,7 @@ TEST_CASE("Project save rejects unopened projects", "[core][project]")
     const std::expected<void, std::string> saved = project.save(Song{});
 
     CHECK_FALSE(saved.has_value());
-    CHECK(saved.error().find("loaded") != std::string::npos);
+    CHECK(saved.error().find("path") != std::string::npos);
 }
 
 } // namespace rock_hero::core
