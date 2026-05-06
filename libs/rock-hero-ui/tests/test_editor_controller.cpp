@@ -189,7 +189,7 @@ public:
         };
     }
 
-    std::optional<core::LoadedProject> next_project{};
+    std::optional<core::Project> next_project{};
     std::string next_error_message{"Project load failed"};
     std::optional<std::filesystem::path> last_project_file{};
     int load_project_call_count{0};
@@ -204,8 +204,8 @@ public:
     };
 }
 
-// Builds loaded-project data with one arrangement.
-[[nodiscard]] core::LoadedProject makeLoadedProject(
+// Builds project data with one arrangement.
+[[nodiscard]] core::Project makeProject(
     std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
 {
     core::Song song;
@@ -216,11 +216,26 @@ public:
             .audio_duration = timeline_range.duration(),
         });
 
-    return core::LoadedProject{
-        .song = std::move(song),
-        .selected_arrangement_index = 0,
-        .cache = core::LoadedProjectCache{},
-    };
+    return core::Project{std::move(song), {}};
+}
+
+// Builds project data with two arrangements so controller selection policy can be tested.
+[[nodiscard]] core::Project makeTwoArrangementProject(
+    std::filesystem::path lead_path, std::filesystem::path bass_path)
+{
+    core::Song song;
+    song.chart.arrangements.push_back(
+        core::Arrangement{
+            .part = core::Part::Lead,
+            .audio_asset = core::AudioAsset{std::move(lead_path)},
+        });
+    song.chart.arrangements.push_back(
+        core::Arrangement{
+            .part = core::Part::Bass,
+            .audio_asset = core::AudioAsset{std::move(bass_path)},
+        });
+
+    return core::Project{std::move(song), {}};
 }
 
 // Loads arrangement audio through the coordinator so tests keep backend/session coupling.
@@ -229,7 +244,7 @@ void loadArrangement(
     core::TimeRange timeline_range = loadedTimelineRange())
 {
     edit.next_audio_duration = timeline_range.duration();
-    core::LoadedProject project = makeLoadedProject(std::move(path), timeline_range);
+    core::Project project = makeProject(std::move(path), timeline_range);
     const bool song_loaded = edit_coordinator.loadSong(std::move(project.song), 0);
     REQUIRE(song_loaded);
 }
@@ -518,7 +533,7 @@ TEST_CASE("EditorController failed load preserves session", "[ui][editor-control
         edit_coordinator, edit, std::filesystem::path{"old.wav"}, loadedTimelineRange(6.0));
     edit.next_audio_duration = std::nullopt;
     FakeProjectLoader project_loader;
-    project_loader.next_project = makeLoadedProject(std::filesystem::path{"new.wav"});
+    project_loader.next_project = makeProject(std::filesystem::path{"new.wav"});
     EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);
@@ -547,7 +562,7 @@ TEST_CASE("EditorController successful project load stores audio", "[ui][editor-
     FakeEditorView view;
     controller.attachView(view);
 
-    project_loader.next_project = makeLoadedProject(std::filesystem::path{"first.wav"});
+    project_loader.next_project = makeProject(std::filesystem::path{"first.wav"});
     edit.next_audio_duration = std::nullopt;
     controller.onOpenProjectRequested(std::filesystem::path{"first.rhp"});
     REQUIRE(view.last_state.has_value());
@@ -556,7 +571,7 @@ TEST_CASE("EditorController successful project load stores audio", "[ui][editor-
 
     edit.next_audio_duration = core::TimeDuration{4.0};
     const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
-    project_loader.next_project = makeLoadedProject(replacement.path, loadedTimelineRange(4.0));
+    project_loader.next_project = makeProject(replacement.path, loadedTimelineRange(4.0));
     controller.onOpenProjectRequested(std::filesystem::path{"second.rhp"});
 
     const core::Session& session = edit_coordinator.session();
@@ -570,6 +585,28 @@ TEST_CASE("EditorController successful project load stores audio", "[ui][editor-
     CHECK_FALSE(view.last_state->last_load_error.has_value());
     CHECK(view.last_state->arrangement.audio_asset == std::optional{replacement});
     CHECK(view.set_state_call_count == pushes_before_success + 1);
+}
+
+// Project packages do not carry editor selection state, so the controller opens index zero.
+TEST_CASE("EditorController defaults project load to first arrangement", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectLoader project_loader;
+    EditorController controller{transport, edit_coordinator, project_loader};
+
+    const core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
+    const core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
+    project_loader.next_project = makeTwoArrangementProject(lead_asset.path, bass_asset.path);
+
+    controller.onOpenProjectRequested(std::filesystem::path{"song.rhp"});
+
+    CHECK(edit.last_audio_asset == std::optional{lead_asset});
+    REQUIRE(edit_coordinator.session().currentArrangement() != nullptr);
+    CHECK(edit_coordinator.session().currentArrangement()->part == core::Part::Lead);
+    CHECK(
+        edit_coordinator.session().currentArrangement()->audio_asset == std::optional{lead_asset});
 }
 
 // Reentrant transport notifications during an in-flight edit are coalesced into one final push.
@@ -592,7 +629,7 @@ TEST_CASE("EditorController coalesces reentrant edit callbacks", "[ui][editor-co
     };
 
     const core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
-    project_loader.next_project = makeLoadedProject(replacement.path);
+    project_loader.next_project = makeProject(replacement.path);
     controller.onOpenProjectRequested(std::filesystem::path{"loop.rhp"});
 
     CHECK(view.set_state_call_count == pushes_before_load + 1);
@@ -610,7 +647,7 @@ TEST_CASE("EditorController preserves load error across transitions", "[ui][edit
     loadArrangement(edit_coordinator, edit, std::filesystem::path{"old.wav"});
     edit.next_audio_duration = std::nullopt;
     FakeProjectLoader project_loader;
-    project_loader.next_project = makeLoadedProject(std::filesystem::path{"new.wav"});
+    project_loader.next_project = makeProject(std::filesystem::path{"new.wav"});
     EditorController controller{transport, edit_coordinator, project_loader};
     FakeEditorView view;
     controller.attachView(view);

@@ -34,7 +34,7 @@ For the structural engineering rules that govern how new code should be organize
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
-| Rock Hero project package | libzip + nlohmann_json (Conan) | `.rhp` archive extraction and manifest parsing |
+| Rock Hero project package | libzip + nlohmann_json | `.rhp` extraction; `song.json` parsing |
 | Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
