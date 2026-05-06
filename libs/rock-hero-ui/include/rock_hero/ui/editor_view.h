@@ -97,6 +97,9 @@ private:
     // Opens the asynchronous project chooser and forwards accepted selections to the controller.
     void onOpenProjectClicked();
 
+    // Opens the asynchronous import chooser and forwards accepted selections to the controller.
+    void onImportProjectClicked();
+
     // Presents a new load error once per error value.
     void presentLoadErrorIfNeeded(const std::optional<std::string>& error);
 
@@ -114,6 +117,9 @@ private:
 
     // Button that launches the project-package chooser.
     juce::TextButton m_open_project_button;
+
+    // Button that launches the temporary PSARC import chooser.
+    juce::TextButton m_import_project_button;
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;

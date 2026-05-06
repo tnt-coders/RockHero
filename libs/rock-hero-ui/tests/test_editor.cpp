@@ -174,7 +174,10 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
     auto& open_project_button =
         findRequiredChild<juce::TextButton>(component, "open_project_button");
+    auto& import_project_button =
+        findRequiredChild<juce::TextButton>(component, "import_project_button");
     CHECK(open_project_button.isEnabled());
+    CHECK(import_project_button.isEnabled());
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
     CHECK(thumbnail_factory.last_owner->getComponentID() == "arrangement_view");

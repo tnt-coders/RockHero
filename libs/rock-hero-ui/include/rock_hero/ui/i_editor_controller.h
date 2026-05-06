@@ -28,6 +28,12 @@ public:
     */
     virtual void onOpenProjectRequested(std::filesystem::path project_file) = 0;
 
+    /*!
+    \brief Handles a request to import a foreign project package.
+    \param project_file Filesystem path selected by the user.
+    */
+    virtual void onImportProjectRequested(std::filesystem::path project_file) = 0;
+
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;
 

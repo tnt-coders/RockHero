@@ -204,6 +204,12 @@ private:
     return std::unexpected<std::string>{std::move(message)};
 }
 
+// Builds a failed project-import result with a single message.
+[[nodiscard]] std::expected<Song, std::string> failProjectImport(std::string message)
+{
+    return std::unexpected<std::string>{std::move(message)};
+}
+
 // Builds a failed project-save result with a single message.
 [[nodiscard]] std::expected<void, std::string> failProjectSave(std::string message)
 {
@@ -1225,6 +1231,37 @@ private:
     return std::nullopt;
 }
 
+// Resolves imported arrangement audio into the workspace owned by the imported project.
+[[nodiscard]] std::expected<Song, std::string> normalizeImportedSong(
+    const std::filesystem::path& workspace_directory, Song song)
+{
+    if (song.chart.arrangements.empty())
+    {
+        return failProjectImport("Imported project must contain at least one arrangement");
+    }
+
+    for (Arrangement& arrangement : song.chart.arrangements)
+    {
+        if (!arrangement.audio_asset.has_value())
+        {
+            return failProjectImport("Imported arrangements must reference audio");
+        }
+
+        const auto relative_audio_path =
+            relativeWorkspacePath(workspace_directory, arrangement.audio_asset->path);
+        if (!relative_audio_path.has_value())
+        {
+            return failProjectImport(
+                "Imported arrangement audio is missing or outside the project workspace");
+        }
+
+        arrangement.audio_asset =
+            AudioAsset{(workspace_directory / *relative_audio_path).lexically_normal()};
+    }
+
+    return std::expected<Song, std::string>{std::in_place, std::move(song)};
+}
+
 } // namespace
 
 // Removes the extracted workspace when the project leaves scope.
@@ -1309,12 +1346,46 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     return song;
 }
 
+// Imports a foreign package into a new workspace without assigning a native package path.
+std::expected<Song, std::string> Project::import(
+    const std::filesystem::path& source_path, IProjectImporter& importer)
+{
+    std::string error_message;
+    auto workspace_directory = createWorkspaceDirectory(error_message);
+    if (!workspace_directory.has_value())
+    {
+        return failProjectImport(error_message);
+    }
+
+    Project imported_project;
+    imported_project.m_workspace_directory = std::move(*workspace_directory);
+
+    auto imported_song =
+        importer.importProject(source_path, imported_project.m_workspace_directory);
+    if (!imported_song.has_value())
+    {
+        return failProjectImport(std::move(imported_song.error()));
+    }
+
+    auto normalized_song =
+        normalizeImportedSong(imported_project.m_workspace_directory, std::move(*imported_song));
+    if (!normalized_song.has_value())
+    {
+        return failProjectImport(std::move(normalized_song.error()));
+    }
+
+    Song song = std::move(*normalized_song);
+    *this = std::move(imported_project);
+
+    return song;
+}
+
 // Writes the current session song to the open project workspace and package.
 std::expected<void, std::string> Project::save(const Song& song)
 {
     if (m_path.empty() || m_workspace_directory.empty())
     {
-        return failProjectSave("Cannot save before a project has been loaded");
+        return failProjectSave("Cannot save before a project path has been chosen");
     }
 
     std::error_code error;
@@ -1335,6 +1406,62 @@ std::expected<void, std::string> Project::save(const Song& song)
         return failProjectSave(*package_error);
     }
 
+    return std::expected<void, std::string>{};
+}
+
+// Saves to a chosen package path, creating a workspace first when this project is unopened.
+std::expected<void, std::string> Project::saveAs(
+    const std::filesystem::path& path, const Song& song)
+{
+    if (path.empty())
+    {
+        return failProjectSave("Cannot save a project without a package path");
+    }
+
+    if (m_workspace_directory.empty())
+    {
+        std::string error_message;
+        auto workspace_directory = createWorkspaceDirectory(error_message);
+        if (!workspace_directory.has_value())
+        {
+            return failProjectSave(error_message);
+        }
+
+        Project saved_project;
+        saved_project.m_path = path;
+        saved_project.m_workspace_directory = std::move(*workspace_directory);
+
+        if (const auto write_error =
+                writeSongDocumentForSave(saved_project.m_workspace_directory, song);
+            write_error.has_value())
+        {
+            return failProjectSave(*write_error);
+        }
+
+        if (const auto package_error =
+                writeWorkspaceToPackage(saved_project.m_workspace_directory, saved_project.m_path);
+            package_error.has_value())
+        {
+            return failProjectSave(*package_error);
+        }
+
+        *this = std::move(saved_project);
+        return std::expected<void, std::string>{};
+    }
+
+    if (const auto write_error = writeSongDocumentForSave(m_workspace_directory, song);
+        write_error.has_value())
+    {
+        return failProjectSave(*write_error);
+    }
+
+    if (const auto package_error = writeWorkspaceToPackage(m_workspace_directory, path);
+        package_error.has_value())
+    {
+        return failProjectSave(*package_error);
+    }
+
+    m_path = path;
     return std::expected<void, std::string>{};
 }
 
