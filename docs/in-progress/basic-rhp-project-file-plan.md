@@ -11,7 +11,7 @@ for later chart and tone authoring work.
 
 The first version should be intentionally small:
 
-- one top-level project index file
+- one top-level song index file
 - one bundled backing WAV file
 - one Lead arrangement XML file
 - enough metadata to display and reload the project
@@ -23,24 +23,24 @@ The first version should be intentionally small:
 simple directory layout:
 
 ```text
-project.json
+song.json
 audio/
   backing.wav
 arrangements/
   lead.xml
 ```
 
-Use JSON for the root project index because it is a compact and direct match for project-level
+Use JSON for the root song index because it is a compact and direct match for song-level
 metadata, asset lists, and arrangement references. Use XML for arrangement files because Rocksmith
 arrangements are XML and Rock Hero will eventually need XML arrangement parsing for import work.
 
 Do not name the root file `manifest.json`. Reserve "manifest" for Rocksmith import data and any
-future package-only metadata. In Rock Hero, the root document is the editable project definition,
-so `project.json` is clearer.
+future package-only metadata. In Rock Hero, the root document is the song-level definition, so
+`song.json` is clearer.
 
-## Initial `project.json`
+## Initial `song.json`
 
-The first root document should describe project metadata, audio assets, and arrangement entries:
+The first root document should describe song metadata, audio assets, and arrangement entries:
 
 ```json
 {
@@ -60,18 +60,18 @@ The first root document should describe project metadata, audio assets, and arra
   ],
   "arrangements": [
     {
-      "id": "lead",
       "part": "Lead",
       "file": "arrangements/lead.xml",
       "audio": "backing"
     }
-  ],
-  "selectedArrangement": "lead"
+  ]
 }
 ```
 
 The `audio` field is an asset id, not a file path. This keeps the model ready for shared backing
 audio and later arrangement-specific overrides without duplicating paths in every arrangement XML.
+The current editor opens the first arrangement by default until it gains an explicit arrangement
+picker. Current arrangement selection is session/editor state, not project file content.
 
 ## Initial Arrangement XML
 
@@ -82,17 +82,17 @@ The first arrangement XML should be a minimal placeholder with no editor-unused 
 <Arrangement formatVersion="1" />
 ```
 
-Audio assignment belongs in `project.json`, not in the arrangement XML, because backing audio is
-usually global. Arrangement identity and part also belong in `project.json` for now because the
-current editor only needs enough arrangement data to select a path and display its waveform. Add
-notes, difficulty, tone timeline references, and other path-specific authoring data only when the
-editor actually needs to read or write them.
+Audio assignment belongs in `song.json`, not in the arrangement XML, because backing audio is
+usually global. Arrangement part also belongs in `song.json` for now because the current editor
+only needs enough arrangement data to load a path and display its waveform. Add notes, difficulty,
+tone timeline references, and other path-specific authoring data only when the editor actually
+needs to read or write them.
 
 ## Dependency Direction
 
 Add `nlohmann_json` for:
 
-- Rock Hero `project.json`
+- Rock Hero `song.json`
 - future Rocksmith `.hsan`
 - future Rocksmith manifest `.json`
 
@@ -108,10 +108,10 @@ types.
 
 ## Archive Handling
 
-Core should own project data parsing and writing, but it should not depend on JUCE. The archive
+Core should own song data parsing and writing, but it should not depend on JUCE. The archive
 layer should therefore be separated from the document parser:
 
-- core parses and writes an extracted project directory layout
+- core parses and writes an extracted song directory layout
 - a thin archive adapter packs and extracts `.rhp` zip files
 - editor/app workflow can use the archive adapter before calling core project loading
 
@@ -137,8 +137,8 @@ struct AudioFileInfo
 ```
 
 The editor generation workflow should ask the audio engine for `AudioFileInfo`, then pass the
-accepted duration into the project writer. On load, the editor should ask the audio engine to load
-the selected arrangement's audio before committing the loaded project into `Session`.
+accepted duration into the song writer. On load, the editor should ask the audio engine to load
+the initial arrangement's audio before committing the loaded project into `Session`.
 
 ## Generation Workflow
 
@@ -147,7 +147,7 @@ When the user provides a WAV file:
 1. Probe the WAV through the audio engine.
 2. Create a temporary staging directory.
 3. Copy the WAV into `audio/`.
-4. Generate `project.json` using the WAV filename as the default title.
+4. Generate `song.json` using the WAV filename as the default title.
 5. Generate `arrangements/lead.xml`.
 6. Pack the staging directory into an `.rhp` zip archive.
 7. Optionally load the generated package immediately into the editor.
@@ -160,11 +160,11 @@ version can normalize the copied file name to `backing.wav` for deterministic ou
 When the editor opens an `.rhp` file:
 
 1. Extract the zip to a temporary project cache directory.
-2. Parse `project.json`.
-3. Resolve project-relative paths.
-4. Parse the selected arrangement XML.
+2. Parse `song.json`.
+3. Resolve package-relative paths.
+4. Parse arrangement XML data needed by the current format.
 5. Build a `core::Song` with one or more arrangements.
-6. Ask the audio engine to load the selected arrangement's audio.
+6. Ask the audio engine to load the initial arrangement's audio.
 7. Commit the loaded song into `Session`.
 8. Push derived editor state so `ArrangementView` displays the waveform.
 
@@ -177,8 +177,8 @@ previous editor session and show a load error.
 
 - Add `nlohmann_json` to Conan and core CMake privately.
 - Add `pugixml` to Conan and core CMake privately.
-- Define core project load/create result structs with string error messages.
-- Add project JSON parsing/writing for an extracted directory.
+- Define core song load/create result structs with string error messages.
+- Add song JSON parsing/writing for an extracted directory.
 - Add arrangement XML parsing/writing for the minimal placeholder shell.
 
 ### Phase 2: Audio Probe Contract
@@ -190,19 +190,19 @@ previous editor session and show a load error.
 ### Phase 3: RHP Generation
 
 - Add a generator workflow that accepts a WAV path and output `.rhp` path.
-- Probe audio, stage files, write project documents, and pack the zip.
+- Probe audio, stage files, write song documents, and pack the zip.
 - Keep package creation deterministic enough for tests where possible.
 
 ### Phase 4: Editor Load and Display
 
 - Add an "Open Project" controller intent for `.rhp`.
-- Extract the package, load core project data, and backend-load the selected arrangement audio.
+- Extract the package, load core song data, and backend-load the initial arrangement audio.
 - Replace the session only after the core data and audio backend both succeed.
 - Display the loaded arrangement waveform through the existing `ArrangementView`.
 
 ### Phase 5: Tests
 
-- Core tests for `project.json` round-trip and path resolution.
+- Core tests for `song.json` round-trip and path resolution.
 - Core tests for minimal placeholder arrangement XML read/write.
 - Workflow tests with fake audio probing and fake archive behavior.
 - UI/controller tests proving failed project load preserves the old session.

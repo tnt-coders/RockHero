@@ -4,6 +4,7 @@
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/song.h>
+#include <utility>
 
 namespace rock_hero::core
 {
@@ -123,7 +124,7 @@ TEST_CASE("Session loadSong replaces existing project data", "[core][session]")
                               });
 }
 
-// Verifies a project-selected arrangement index controls the displayed arrangement.
+// Verifies the requested arrangement index controls the displayed arrangement and timeline.
 TEST_CASE("Session loadSong stores the selected arrangement index", "[core][session]")
 {
     Session session;
@@ -132,7 +133,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
         Arrangement{
             .part = Part::Lead,
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
-            .audio_duration = TimeDuration{4.0},
+            .audio_duration = TimeDuration{9.0},
         });
     song.chart.arrangements.push_back(
         Arrangement{
@@ -149,6 +150,37 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
         session.timeline() == TimeRange{
                                   .start = TimePosition{},
                                   .end = TimePosition{5.0},
+                              });
+}
+
+// Verifies the selected arrangement must have backend-accepted playable audio.
+TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][session]")
+{
+    Session session;
+    const AudioAsset original_audio = makeAudioAsset(std::filesystem::path{"mix.wav"});
+
+    REQUIRE(session.loadSong(makeSongWithAudio(original_audio.path, TimeDuration{4.0}), 0));
+
+    Song song;
+    song.chart.arrangements.push_back(
+        Arrangement{
+            .part = Part::Lead,
+            .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
+            .audio_duration = TimeDuration{6.0},
+        });
+    song.chart.arrangements.push_back(
+        Arrangement{
+            .part = Part::Bass,
+            .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
+        });
+
+    CHECK_FALSE(session.loadSong(std::move(song), 1));
+    REQUIRE(session.currentArrangement() != nullptr);
+    CHECK(session.currentArrangement()->audio_asset == std::optional{original_audio});
+    CHECK(
+        session.timeline() == TimeRange{
+                                  .start = TimePosition{},
+                                  .end = TimePosition{4.0},
                               });
 }
 
