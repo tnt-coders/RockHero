@@ -35,10 +35,17 @@ public:
     }
 
     // Removes the temp directory without failing tests on best-effort cleanup errors.
-    ~TemporaryPackageDirectory()
+    ~TemporaryPackageDirectory() noexcept
     {
-        std::error_code error;
-        std::filesystem::remove_all(m_path, error);
+        try
+        {
+            std::error_code error;
+            std::filesystem::remove_all(m_path, error);
+        }
+        catch (...)
+        {
+            m_path.clear();
+        }
     }
 
     TemporaryPackageDirectory(const TemporaryPackageDirectory&) = delete;
@@ -250,6 +257,30 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(result->chart.arrangements.front().part == Part::Lead);
     CHECK(project.path() == path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+}
+
+// Verifies explicit close reports cleanup success and clears the project context.
+TEST_CASE("Project close removes workspace and clears context", "[core][project]")
+{
+    const TemporaryPackageDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rhp";
+    writeMinimalPackage(path);
+
+    Project project;
+    const std::expected<Song, std::string> result = project.load(path);
+    REQUIRE(result.has_value());
+
+    const std::filesystem::path workspace_directory = project.workspaceDirectory();
+    REQUIRE(std::filesystem::is_directory(workspace_directory));
+
+    const std::expected<void, std::string> closed = project.close();
+
+    REQUIRE(closed.has_value());
+    CHECK(project.path().empty());
+    CHECK(project.workspaceDirectory().empty());
+
+    std::error_code error;
+    CHECK_FALSE(std::filesystem::exists(workspace_directory, error));
 }
 
 // Verifies package loading enforces song.json at the package root.

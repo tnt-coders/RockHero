@@ -6,6 +6,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <exception>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -216,6 +217,12 @@ private:
     return std::unexpected<std::string>{std::move(message)};
 }
 
+// Builds a failed project-close result with a single message.
+[[nodiscard]] std::expected<void, std::string> failProjectClose(std::string message)
+{
+    return std::unexpected<std::string>{std::move(message)};
+}
+
 // Converts a libzip error object into a stable project-owned string.
 [[nodiscard]] std::string zipErrorMessage(zip_error_t& error)
 {
@@ -321,7 +328,8 @@ private:
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
     const std::filesystem::path& directory)
 {
-    const std::filesystem::path song_document_path = directory / "song.json";
+    // Intentionally non-const so return-by-value can move the path.
+    std::filesystem::path song_document_path = directory / "song.json";
     std::error_code error;
     if (std::filesystem::is_regular_file(song_document_path, error))
     {
@@ -423,7 +431,8 @@ private:
         return std::nullopt;
     }
 
-    const std::filesystem::path resolved_path = (directory / path).lexically_normal();
+    // Intentionally non-const so return-by-value can move the path.
+    std::filesystem::path resolved_path = (directory / path).lexically_normal();
     std::error_code error;
     if (!std::filesystem::is_regular_file(resolved_path, error))
     {
@@ -689,7 +698,8 @@ private:
 
     for (int attempt = 0; attempt < 100; ++attempt)
     {
-        const std::filesystem::path workspace_directory =
+        // Intentionally non-const so return-by-value can move the path.
+        std::filesystem::path workspace_directory =
             workspace_root /
             (std::to_string(now) + "-" + std::to_string(sequence) + "-" + std::to_string(attempt));
 
@@ -759,7 +769,8 @@ private:
         return "Could not write project package entry: " + output_path.string();
     }
 
-    std::array<char, 64 * 1024> buffer{};
+    constexpr std::size_t buffer_size = 65536;
+    std::array<char, buffer_size> buffer{};
     while (true)
     {
         const zip_int64_t bytes_read = zip_fread(file.get(), buffer.data(), buffer.size());
@@ -794,7 +805,7 @@ private:
     }
 
     std::set<std::string> extracted_entries;
-    for (zip_uint64_t index = 0; index < static_cast<zip_uint64_t>(entry_count); ++index)
+    for (zip_uint64_t index = 0; std::cmp_less(index, entry_count); ++index)
     {
         zip_stat_t entry_stat;
         zip_stat_init(&entry_stat);
@@ -886,7 +897,8 @@ private:
         return std::nullopt;
     }
 
-    const std::filesystem::path relative_path = resolved_path.lexically_relative(workspace);
+    // Intentionally non-const so return-by-value can move the path.
+    std::filesystem::path relative_path = resolved_path.lexically_relative(workspace);
     if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
         !isSafeRelativePath(relative_path))
     {
@@ -906,7 +918,7 @@ private:
 
     for (char& character : file_name)
     {
-        const unsigned char value = static_cast<unsigned char>(character);
+        const auto value = static_cast<unsigned char>(character);
         if (!std::isalnum(value) && character != '.' && character != '-' && character != '_')
         {
             character = '_';
@@ -954,7 +966,8 @@ private:
         return std::nullopt;
     }
 
-    const std::filesystem::path relative_path =
+    // Intentionally non-const so return-by-value can move the path.
+    std::filesystem::path relative_path =
         uniqueAudioPath(workspace_directory, source_path, asset_index);
     const std::filesystem::path output_path = workspace_directory / relative_path;
     std::filesystem::create_directories(output_path.parent_path(), error);
@@ -1263,10 +1276,22 @@ private:
 
 } // namespace
 
-// Removes the extracted workspace when the project leaves scope.
-Project::~Project()
+// Closes the workspace during object teardown; explicit close() is the reporting path.
+Project::~Project() noexcept
 {
-    resetWorkspace();
+    try
+    {
+        if (const auto close_result = close(); !close_result.has_value())
+        {
+            m_path.clear();
+            m_workspace_directory.clear();
+        }
+    }
+    catch (...)
+    {
+        m_path.clear();
+        m_workspace_directory.clear();
+    }
 }
 
 // Transfers package state and workspace ownership, clearing the source paths.
@@ -1280,7 +1305,20 @@ Project& Project::operator=(Project&& other) noexcept
 {
     if (this != &other)
     {
-        resetWorkspace();
+        try
+        {
+            if (const auto close_result = close(); !close_result.has_value())
+            {
+                m_path.clear();
+                m_workspace_directory.clear();
+            }
+        }
+        catch (...)
+        {
+            m_path.clear();
+            m_workspace_directory.clear();
+        }
+
         m_path = std::exchange(other.m_path, {});
         m_workspace_directory = std::exchange(other.m_workspace_directory, {});
     }
@@ -1340,6 +1378,11 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     }
 
     Song song = std::move(*loaded_song);
+    if (auto close_result = close(); !close_result.has_value())
+    {
+        return failProjectLoad(std::move(close_result.error()));
+    }
+
     *this = std::move(loaded_project);
 
     return song;
@@ -1374,6 +1417,11 @@ std::expected<Song, std::string> Project::import(
     }
 
     Song song = std::move(*normalized_song);
+    if (auto close_result = close(); !close_result.has_value())
+    {
+        return failProjectImport(std::move(close_result.error()));
+    }
+
     *this = std::move(imported_project);
 
     return song;
@@ -1464,17 +1512,39 @@ std::expected<void, std::string> Project::saveAs(
     return std::expected<void, std::string>{};
 }
 
-// Best-effort workspace removal; project loading must not throw from cleanup.
-void Project::resetWorkspace() noexcept
+// Reports workspace cleanup failure for callers that explicitly close a project.
+std::expected<void, std::string> Project::close()
 {
     if (m_workspace_directory.empty())
     {
-        return;
+        m_path.clear();
+        return std::expected<void, std::string>{};
     }
 
     std::error_code error;
-    std::filesystem::remove_all(m_workspace_directory, error);
+    try
+    {
+        std::filesystem::remove_all(m_workspace_directory, error);
+    }
+    catch (const std::exception& exception)
+    {
+        std::string message = "Could not remove project workspace: ";
+        message += exception.what();
+        return failProjectClose(std::move(message));
+    }
+    catch (...)
+    {
+        return failProjectClose("Could not remove project workspace");
+    }
+
+    if (error)
+    {
+        return failProjectClose("Could not remove project workspace: " + error.message());
+    }
+
+    m_path.clear();
     m_workspace_directory.clear();
+    return std::expected<void, std::string>{};
 }
 
 } // namespace rock_hero::core
