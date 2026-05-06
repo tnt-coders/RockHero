@@ -11,9 +11,9 @@ add_executable(
     test_chart.cpp
     test_difficulty.cpp
     test_timeline.cpp
-    test_project_loader.cpp)
+    test_project.cpp)
 
-# The package-loader tests use libzip directly to create fixture archives.
+# The project package tests use libzip directly to create fixture archives.
 target_link_libraries(rock_hero_core_tests PRIVATE rock_hero::core rock_hero::build_policy
                                                    libzip::zip Catch2::Catch2WithMain)
 

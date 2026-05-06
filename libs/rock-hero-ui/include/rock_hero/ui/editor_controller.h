@@ -5,11 +5,13 @@
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
-#include <rock_hero/core/i_project_loader.h>
+#include <rock_hero/core/project.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_view_state.h>
@@ -19,6 +21,10 @@
 
 namespace rock_hero::ui
 {
+
+/*! \brief Opens a project package into a project context and returns the parsed song. */
+using ProjectLoadFunction = std::function<std::expected<core::Song, std::string>(
+    core::Project& project, const std::filesystem::path& project_path)>;
 
 /*!
 \brief Concrete editor workflow coordinator.
@@ -46,11 +52,11 @@ public:
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
-    \param project_loader Loader used to open project packages.
+    \param project_load_function Optional seam used to open project packages.
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
-        core::IProjectLoader& project_loader);
+        ProjectLoadFunction project_load_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -145,8 +151,8 @@ private:
     // Edit coordinator applies backend-accepted session mutations.
     EditCoordinator& m_edit_coordinator;
 
-    // Project loader opens .rhp packages.
-    core::IProjectLoader& m_project_loader;
+    // Opens .rhp packages into temporary project contexts.
+    ProjectLoadFunction m_project_load_function;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
@@ -160,7 +166,7 @@ private:
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
 
-    // Currently loaded project package; keeps extracted cache files alive.
+    // Currently loaded project package; keeps extracted workspace files alive.
     std::optional<core::Project> m_project{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.

@@ -5,8 +5,8 @@ add_library(rock_hero::core ALIAS rock_hero_core)
 find_package(libzip REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
-# Keep the target surface small while core owns song/session state and project package loading.
-target_sources(rock_hero_core PRIVATE src/project_loader.cpp src/session.cpp src/song.cpp)
+# Keep the target surface small while core owns song/session state and project persistence.
+target_sources(rock_hero_core PRIVATE src/project.cpp src/session.cpp src/song.cpp)
 
 # Expose namespaced public headers while preserving short includes inside the owning module.
 target_include_directories(
