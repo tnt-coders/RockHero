@@ -23,8 +23,23 @@ inside the supplied workspace.
 class IProjectImporter
 {
 public:
+    /*! \brief Creates an importer interface base. */
+    IProjectImporter() = default;
+
     /*! \brief Allows cleanup through the importer interface. */
     virtual ~IProjectImporter() = default;
+
+    /*! \brief Copying is disabled because importer implementations own format-specific state. */
+    IProjectImporter(const IProjectImporter&) = delete;
+
+    /*! \brief Copy assignment is disabled because importer implementations own unique state. */
+    IProjectImporter& operator=(const IProjectImporter&) = delete;
+
+    /*! \brief Moving is disabled because importers are used through stable interface references. */
+    IProjectImporter(IProjectImporter&&) = delete;
+
+    /*! \brief Move assignment is disabled because importers are used through stable references. */
+    IProjectImporter& operator=(IProjectImporter&&) = delete;
 
     /*!
     \brief Imports a foreign project package into an existing workspace directory.

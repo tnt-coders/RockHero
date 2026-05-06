@@ -56,19 +56,22 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(song.metadata.album == "Test Album");
     CHECK(song.metadata.year == 2026);
     REQUIRE(song.chart.arrangements.size() == 1);
-    CHECK(song.chart.arrangements[0].part == Part::Rhythm);
-    CHECK(song.chart.arrangements[0].difficulty == DifficultyRating{6});
-    CHECK(difficultyTier(song.chart.arrangements[0].difficulty) == DifficultyTier::Hard);
-    REQUIRE(song.chart.arrangements[0].audio_asset.has_value());
-    CHECK(
-        song.chart.arrangements[0].audio_asset->path == std::filesystem::path{"audio/rhythm.wav"});
-    CHECK(song.chart.arrangements[0].audio_duration == TimeDuration{42.0});
-    CHECK(song.chart.arrangements[0].tone_timeline_ref == "tone/rhythm.json");
-    REQUIRE(song.chart.arrangements[0].note_events.size() == 1);
-    CHECK(song.chart.arrangements[0].note_events[0].position == TimePosition{3.0});
-    CHECK(song.chart.arrangements[0].note_events[0].duration == TimeDuration{1.5});
-    CHECK(song.chart.arrangements[0].note_events[0].string_number == 2);
-    CHECK(song.chart.arrangements[0].note_events[0].fret == 7);
+    const Arrangement& arrangement = song.chart.arrangements[0];
+    CHECK(arrangement.part == Part::Rhythm);
+    CHECK(arrangement.difficulty == DifficultyRating{6});
+    CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Hard);
+    REQUIRE(arrangement.audio_asset.has_value());
+    if (arrangement.audio_asset.has_value())
+    {
+        CHECK(arrangement.audio_asset.value().path == std::filesystem::path{"audio/rhythm.wav"});
+    }
+    CHECK(arrangement.audio_duration == TimeDuration{42.0});
+    CHECK(arrangement.tone_timeline_ref == "tone/rhythm.json");
+    REQUIRE(arrangement.note_events.size() == 1);
+    CHECK(arrangement.note_events[0].position == TimePosition{3.0});
+    CHECK(arrangement.note_events[0].duration == TimeDuration{1.5});
+    CHECK(arrangement.note_events[0].string_number == 2);
+    CHECK(arrangement.note_events[0].fret == 7);
 }
 
 } // namespace rock_hero::core
