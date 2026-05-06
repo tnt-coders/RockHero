@@ -40,6 +40,7 @@ position through a const audio::ITransport reference at vblank cadence; current 
 not part of EditorViewState.
 */
 class EditorView final : public juce::Component,
+                         public juce::MenuBarModel,
                          public IEditorView,
                          private TransportControls::Listener
 {
@@ -81,7 +82,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out load controls, transport controls, waveform view, and timeline overlay. */
+    /*! \brief Lays out the menu, transport controls, waveform view, and timeline overlay. */
     void resized() override;
 
     /*!
@@ -91,17 +92,42 @@ public:
     */
     bool keyPressed(const juce::KeyPress& key) override;
 
+    /*!
+    \brief Returns the top-level editor menu names.
+    \return Menu names shown by the menu bar.
+    */
+    [[nodiscard]] juce::StringArray getMenuBarNames() override;
+
+    /*!
+    \brief Builds one top-level menu from the current editor state.
+    \param top_level_menu_index Index of the requested top-level menu.
+    \param menu_name Name of the requested top-level menu.
+    \return Popup menu for the requested menu.
+    */
+    [[nodiscard]] juce::PopupMenu getMenuForIndex(
+        int top_level_menu_index, const juce::String& menu_name) override;
+
+    /*!
+    \brief Handles a selected File-menu item.
+    \param menu_item_id Selected menu item identifier.
+    \param top_level_menu_index Index of the top-level menu that produced the selection.
+    */
+    void menuItemSelected(int menu_item_id, int top_level_menu_index) override;
+
 private:
     class CursorOverlay;
 
-    // Opens the asynchronous project chooser and forwards accepted selections to the controller.
-    void onOpenProjectClicked();
+    // Opens the asynchronous native package chooser and forwards accepted selections.
+    void showOpenChooser();
 
-    // Opens the asynchronous import chooser and forwards accepted selections to the controller.
-    void onImportProjectClicked();
+    // Opens the asynchronous import chooser and forwards accepted selections.
+    void showImportChooser();
 
-    // Presents a new load error once per error value.
-    void presentLoadErrorIfNeeded(const std::optional<std::string>& error);
+    // Opens the asynchronous save chooser and forwards accepted selections.
+    void showSaveAsChooser();
+
+    // Presents a new workflow error once per error value.
+    void presentErrorIfNeeded(const std::optional<std::string>& error);
 
     // TransportControls::Listener implementation.
     void onPlayPausePressed() override;
@@ -115,11 +141,8 @@ private:
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     EditorViewState m_state{};
 
-    // Button that launches the project-package chooser.
-    juce::TextButton m_open_project_button;
-
-    // Button that launches the temporary PSARC import chooser.
-    juce::TextButton m_import_project_button;
+    // Editor File menu.
+    juce::MenuBarComponent m_menu_bar;
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;

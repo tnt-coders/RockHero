@@ -249,6 +249,35 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
 
+// Verifies package loading enforces song.json at the package root.
+TEST_CASE("Project rejects package wrapped in one root directory", "[core][project]")
+{
+    const TemporaryPackageDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rhp";
+    writePackage(
+        path,
+        std::vector{
+            PackageEntry{
+                .path = "wrapped/audio/backing.wav",
+                .contents = "audio",
+            },
+            PackageEntry{
+                .path = "wrapped/arrangements/lead.xml",
+                .contents = "<Arrangement formatVersion=\"1\" />",
+            },
+            PackageEntry{
+                .path = "wrapped/song.json",
+                .contents = minimalSongDocumentEntry().contents,
+            },
+        });
+
+    Project project;
+    const std::expected<Song, std::string> result = project.load(path);
+
+    CHECK_FALSE(result.has_value());
+    CHECK(result.error().find("song.json") != std::string::npos);
+}
+
 // Verifies the song document reader loads metadata, assets, and arrangements in file order.
 TEST_CASE("Project loads arrangements from song.json", "[core][project]")
 {
