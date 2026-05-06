@@ -1,19 +1,35 @@
 #include "editor_controller.h"
 
 #include <algorithm>
+#include <expected>
 #include <optional>
+#include <utility>
 
 namespace rock_hero::ui
 {
+
+namespace
+{
+
+// Production project-open path used when tests do not provide a custom open seam.
+[[nodiscard]] std::expected<core::Song, std::string> defaultProjectLoad(
+    core::Project& project, const std::filesystem::path& project_file)
+{
+    return project.load(project_file);
+}
+
+} // namespace
 
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
     audio::ITransport& transport, EditCoordinator& edit_coordinator,
-    core::IProjectLoader& project_loader)
+    ProjectLoadFunction project_load_function)
     : m_transport(transport)
     , m_edit_coordinator(edit_coordinator)
-    , m_project_loader(project_loader)
+    , m_project_load_function(
+          project_load_function ? std::move(project_load_function)
+                                : ProjectLoadFunction{defaultProjectLoad})
     , m_transport_listener(transport, *this)
 {
     m_last_state = deriveViewState();
@@ -34,16 +50,20 @@ void EditorController::attachView(IEditorView& view)
 // the project only after the backend and Session both accept the song.
 void EditorController::onOpenProjectRequested(std::filesystem::path project_file)
 {
-    core::ProjectLoadResult result = m_project_loader.loadProject(project_file);
-    if (!result.succeeded())
+    core::Project project;
+    std::expected<core::Song, std::string> loaded_song =
+        m_project_load_function(project, project_file);
+    if (!loaded_song.has_value())
     {
-        m_last_load_error = std::string{"Could not open project: "} + result.error_message;
+        m_last_load_error = std::string{"Could not open project: "} + loaded_song.error();
         deriveAndPush();
         return;
     }
 
+    core::Song song = std::move(*loaded_song);
+
     m_session_edit_in_progress = true;
-    const bool project_loaded = m_edit_coordinator.loadSong(result.project->song, 0);
+    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song), 0);
     m_session_edit_in_progress = false;
 
     if (!project_loaded)
@@ -54,7 +74,7 @@ void EditorController::onOpenProjectRequested(std::filesystem::path project_file
         return;
     }
 
-    m_project = std::move(result.project);
+    m_project = std::move(project);
     m_last_load_error.reset();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may

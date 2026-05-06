@@ -1,4 +1,4 @@
-#include "project_loader.h"
+#include "project.h"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +6,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -32,17 +33,6 @@ using Json = nlohmann::json;
 struct SongDocument
 {
     Song song;
-};
-
-struct SongDocumentLoadResult
-{
-    std::optional<SongDocument> song_document;
-    std::string error_message;
-
-    [[nodiscard]] bool succeeded() const noexcept
-    {
-        return song_document.has_value();
-    }
 };
 
 class ZipSource final
@@ -147,6 +137,12 @@ public:
         return m_archive;
     }
 
+    // Releases ownership after libzip closes the archive successfully.
+    zip_t* release() noexcept
+    {
+        return std::exchange(m_archive, nullptr);
+    }
+
 private:
     zip_t* m_archive{};
 };
@@ -202,21 +198,21 @@ private:
 };
 
 // Builds a uniform song-document read failure result.
-[[nodiscard]] SongDocumentLoadResult failSongDocumentLoad(std::string message)
+[[nodiscard]] std::expected<SongDocument, std::string> failSongDocumentLoad(std::string message)
 {
-    return SongDocumentLoadResult{
-        .song_document = std::nullopt,
-        .error_message = std::move(message),
-    };
+    return std::unexpected<std::string>{std::move(message)};
 }
 
 // Builds a failed project-load result with a single message.
-[[nodiscard]] ProjectLoadResult failProjectLoad(std::string message)
+[[nodiscard]] std::expected<Song, std::string> failProjectLoad(std::string message)
 {
-    return ProjectLoadResult{
-        .project = std::nullopt,
-        .error_message = std::move(message),
-    };
+    return std::unexpected<std::string>{std::move(message)};
+}
+
+// Builds a failed project-save result with a single message.
+[[nodiscard]] std::expected<void, std::string> failProjectSave(std::string message)
+{
+    return std::unexpected<std::string>{std::move(message)};
 }
 
 // Converts a libzip error object into a stable project-owned string.
@@ -272,6 +268,48 @@ private:
 #else
     int error_code{};
     zip_t* archive = zip_open(package_path.string().c_str(), ZIP_RDONLY, &error_code);
+    if (archive == nullptr)
+    {
+        error_message = zipErrorMessage(error_code);
+        return std::nullopt;
+    }
+
+    return ZipArchive{archive};
+#endif
+}
+
+// Opens an archive for writing through the platform path API while keeping libzip private.
+[[nodiscard]] std::optional<ZipArchive> openArchiveForWriting(
+    const std::filesystem::path& package_path, std::string& error_message)
+{
+#if defined(_WIN32)
+    zip_error_t error;
+    zip_error_init(&error);
+
+    ZipSource source{zip_source_win32w_create(
+        package_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
+    if (source.get() == nullptr)
+    {
+        error_message = zipErrorMessage(error);
+        zip_error_fini(&error);
+        return std::nullopt;
+    }
+
+    zip_t* archive = zip_open_from_source(source.get(), ZIP_CREATE | ZIP_TRUNCATE, &error);
+    if (archive == nullptr)
+    {
+        error_message = zipErrorMessage(error);
+        zip_error_fini(&error);
+        return std::nullopt;
+    }
+
+    source.release();
+    zip_error_fini(&error);
+    return ZipArchive{archive};
+#else
+    int error_code{};
+    zip_t* archive =
+        zip_open(package_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     if (archive == nullptr)
     {
         error_message = zipErrorMessage(error_code);
@@ -339,7 +377,7 @@ private:
     });
 }
 
-// Rejects ZIP entry names that could escape or ambiguously address the cache directory.
+// Rejects ZIP entry names that could escape or ambiguously address the workspace directory.
 [[nodiscard]] bool isSafeZipEntryName(std::string_view entry_name)
 {
     if (entry_name.empty())
@@ -449,7 +487,7 @@ private:
     };
 }
 
-// Reads song audio assets into an ID map keyed only inside the loader.
+// Reads song audio assets into an ID map keyed only inside project IO.
 [[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
     const std::filesystem::path& directory, const Json& song_document, std::string& error_message)
 {
@@ -562,7 +600,8 @@ private:
 }
 
 // Reads the v1 song document and resolves package-relative asset references.
-[[nodiscard]] SongDocumentLoadResult readSongDocument(const std::filesystem::path& directory)
+[[nodiscard]] std::expected<SongDocument, std::string> readSongDocument(
+    const std::filesystem::path& directory)
 {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
@@ -617,12 +656,11 @@ private:
         song.metadata = readMetadata(song_document);
         song.chart.arrangements = std::move(*arrangements);
 
-        return SongDocumentLoadResult{
-            .song_document =
-                SongDocument{
-                    .song = std::move(song),
-                },
-            .error_message = {},
+        return std::expected<SongDocument, std::string>{
+            std::in_place,
+            SongDocument{
+                .song = std::move(song),
+            },
         };
     }
     catch (const Json::exception& exception)
@@ -631,8 +669,9 @@ private:
     }
 }
 
-// Creates one cache directory under the platform temp directory for a loaded project.
-[[nodiscard]] std::optional<std::filesystem::path> createCacheDirectory(std::string& error_message)
+// Creates one workspace directory under the platform temp directory for an open project.
+[[nodiscard]] std::optional<std::filesystem::path> createWorkspaceDirectory(
+    std::string& error_message)
 {
     std::error_code error;
     const std::filesystem::path temp_root = std::filesystem::temp_directory_path(error);
@@ -642,38 +681,38 @@ private:
         return std::nullopt;
     }
 
-    const std::filesystem::path cache_root = temp_root / "RockHero" / "project-cache";
-    std::filesystem::create_directories(cache_root, error);
+    const std::filesystem::path workspace_root = temp_root / "RockHero" / "project-workspaces";
+    std::filesystem::create_directories(workspace_root, error);
     if (error)
     {
-        error_message = "Could not create project cache root: " + error.message();
+        error_message = "Could not create project workspace root: " + error.message();
         return std::nullopt;
     }
 
-    static std::atomic_uint64_t cache_sequence{0};
+    static std::atomic_uint64_t workspace_sequence{0};
     const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    const std::uint64_t sequence = cache_sequence.fetch_add(1, std::memory_order_relaxed);
+    const std::uint64_t sequence = workspace_sequence.fetch_add(1, std::memory_order_relaxed);
 
     for (int attempt = 0; attempt < 100; ++attempt)
     {
-        const std::filesystem::path cache_directory =
-            cache_root /
+        const std::filesystem::path workspace_directory =
+            workspace_root /
             (std::to_string(now) + "-" + std::to_string(sequence) + "-" + std::to_string(attempt));
 
         error.clear();
-        if (std::filesystem::create_directory(cache_directory, error))
+        if (std::filesystem::create_directory(workspace_directory, error))
         {
-            return cache_directory;
+            return workspace_directory;
         }
 
         if (error)
         {
-            error_message = "Could not create project cache directory: " + error.message();
+            error_message = "Could not create project workspace directory: " + error.message();
             return std::nullopt;
         }
     }
 
-    error_message = "Could not allocate a unique project cache directory";
+    error_message = "Could not allocate a unique project workspace directory";
     return std::nullopt;
 }
 
@@ -750,9 +789,9 @@ private:
     return std::nullopt;
 }
 
-// Extracts all safe, regular ZIP entries into a newly-created cache directory.
-[[nodiscard]] std::optional<std::string> extractZipToCache(
-    zip_t& archive, const std::filesystem::path& cache_directory)
+// Extracts all safe, regular ZIP entries into a newly-created workspace directory.
+[[nodiscard]] std::optional<std::string> extractZipToWorkspace(
+    zip_t& archive, const std::filesystem::path& workspace_directory)
 {
     const zip_int64_t entry_count = zip_get_num_entries(&archive, ZIP_FL_UNCHANGED);
     if (entry_count <= 0)
@@ -790,7 +829,7 @@ private:
         }
 
         const std::filesystem::path output_path =
-            (cache_directory / std::filesystem::path{entry_path_name}).lexically_normal();
+            (workspace_directory / std::filesystem::path{entry_path_name}).lexically_normal();
         if (const auto extraction_error = extractFileEntry(archive, index, output_path);
             extraction_error.has_value())
         {
@@ -801,54 +840,443 @@ private:
     return std::nullopt;
 }
 
-} // namespace
-
-// Takes ownership of parsed project data and the extracted cache directory it references.
-Project::Project(Song song_data, std::filesystem::path extracted_cache_directory)
-    : song(std::move(song_data))
-    , cache_directory(std::move(extracted_cache_directory))
-{}
-
-// Removes the extracted cache when the project leaves scope.
-Project::~Project()
+// Converts arrangement parts into the stable song-document spelling.
+[[nodiscard]] std::string partName(Part part)
 {
-    resetCache();
+    switch (part)
+    {
+    case Part::Lead:
+        return "Lead";
+    case Part::Rhythm:
+        return "Rhythm";
+    case Part::Bass:
+        return "Bass";
+    }
+
+    return "Lead";
 }
 
-// Transfers parsed project data and cache ownership, clearing the source cache path.
+// Produces a lowercase stem suitable for generated arrangement file names.
+[[nodiscard]] std::string partFileStem(Part part)
+{
+    switch (part)
+    {
+    case Part::Lead:
+        return "lead";
+    case Part::Rhythm:
+        return "rhythm";
+    case Part::Bass:
+        return "bass";
+    }
+
+    return "arrangement";
+}
+
+// Returns true when a relative path tries to escape its base.
+[[nodiscard]] bool startsWithParentTraversal(const std::filesystem::path& path)
+{
+    return std::ranges::any_of(
+        path, [](const std::filesystem::path& part) { return part == ".."; });
+}
+
+// Resolves an asset path and reports its package-relative spelling when it is in the workspace.
+[[nodiscard]] std::optional<std::filesystem::path> relativeWorkspacePath(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& asset_path)
+{
+    const std::filesystem::path workspace = workspace_directory.lexically_normal();
+    const std::filesystem::path resolved_path =
+        (asset_path.is_absolute() ? asset_path : workspace / asset_path).lexically_normal();
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(resolved_path, error))
+    {
+        return std::nullopt;
+    }
+
+    const std::filesystem::path relative_path = resolved_path.lexically_relative(workspace);
+    if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
+        !isSafeRelativePath(relative_path))
+    {
+        return std::nullopt;
+    }
+
+    return relative_path;
+}
+
+// Replaces path characters that would be awkward or unsafe in generated package entries.
+[[nodiscard]] std::string sanitizeFileName(std::string file_name, std::size_t fallback_index)
+{
+    if (file_name.empty() || file_name == "." || file_name == "..")
+    {
+        file_name = "audio-" + std::to_string(fallback_index + 1);
+    }
+
+    for (char& character : file_name)
+    {
+        const unsigned char value = static_cast<unsigned char>(character);
+        if (!std::isalnum(value) && character != '.' && character != '-' && character != '_')
+        {
+            character = '_';
+        }
+    }
+
+    return file_name;
+}
+
+// Chooses a generated package-relative audio path that does not overwrite another asset.
+[[nodiscard]] std::filesystem::path uniqueAudioPath(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
+    std::size_t asset_index)
+{
+    const std::string file_name = sanitizeFileName(source_path.filename().string(), asset_index);
+    const std::filesystem::path stem = std::filesystem::path{file_name}.stem();
+    const std::filesystem::path extension = std::filesystem::path{file_name}.extension();
+
+    for (std::size_t attempt = 0; attempt < 100; ++attempt)
+    {
+        const std::filesystem::path candidate_name =
+            attempt == 0 ? std::filesystem::path{file_name}
+                         : stem.string() + "-" + std::to_string(attempt + 1) + extension.string();
+        const std::filesystem::path relative_path = std::filesystem::path{"audio"} / candidate_name;
+        std::error_code error;
+        if (!std::filesystem::exists(workspace_directory / relative_path, error))
+        {
+            return relative_path;
+        }
+    }
+
+    return std::filesystem::path{"audio"} /
+           ("audio-" + std::to_string(asset_index + 1) + source_path.extension().string());
+}
+
+// Copies an external audio asset into the project workspace and returns its relative path.
+[[nodiscard]] std::optional<std::filesystem::path> importAudioAsset(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
+    std::size_t asset_index, std::string& error_message)
+{
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(source_path, error))
+    {
+        error_message = "Audio asset does not exist: " + source_path.string();
+        return std::nullopt;
+    }
+
+    const std::filesystem::path relative_path =
+        uniqueAudioPath(workspace_directory, source_path, asset_index);
+    const std::filesystem::path output_path = workspace_directory / relative_path;
+    std::filesystem::create_directories(output_path.parent_path(), error);
+    if (error)
+    {
+        error_message = "Could not create audio asset directory: " + error.message();
+        return std::nullopt;
+    }
+
+    std::filesystem::copy_file(
+        source_path, output_path, std::filesystem::copy_options::overwrite_existing, error);
+    if (error)
+    {
+        error_message = "Could not copy audio asset into project: " + error.message();
+        return std::nullopt;
+    }
+
+    return relative_path;
+}
+
+// Ensures an arrangement file exists for the generated song-document reference.
+[[nodiscard]] std::optional<std::string> ensureArrangementFile(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path)
+{
+    const std::filesystem::path arrangement_path = workspace_directory / relative_path;
+    std::error_code error;
+    if (std::filesystem::is_regular_file(arrangement_path, error))
+    {
+        return std::nullopt;
+    }
+
+    std::filesystem::create_directories(arrangement_path.parent_path(), error);
+    if (error)
+    {
+        return "Could not create arrangement directory: " + error.message();
+    }
+
+    std::ofstream arrangement_file{arrangement_path};
+    if (!arrangement_file.is_open())
+    {
+        return "Could not write arrangement file: " + arrangement_path.string();
+    }
+
+    arrangement_file << "<Arrangement formatVersion=\"1\" />\n";
+    return std::nullopt;
+}
+
+// Creates a generated arrangement file path for one arrangement entry.
+[[nodiscard]] std::filesystem::path arrangementFilePath(
+    Part part, std::unordered_map<std::string, int>& part_counts)
+{
+    const std::string stem = partFileStem(part);
+    int& count = part_counts[stem];
+    ++count;
+
+    if (count == 1)
+    {
+        return std::filesystem::path{"arrangements"} / (stem + ".xml");
+    }
+
+    return std::filesystem::path{"arrangements"} / (stem + "-" + std::to_string(count) + ".xml");
+}
+
+// Creates the JSON song document that represents the supplied session song.
+[[nodiscard]] std::optional<Json> buildSongDocumentForSave(
+    const std::filesystem::path& workspace_directory, const Song& song, std::string& error_message)
+{
+    if (song.chart.arrangements.empty())
+    {
+        error_message = "Cannot save a project with no arrangements";
+        return std::nullopt;
+    }
+
+    Json audio_assets = Json::array();
+    Json arrangements = Json::array();
+    std::unordered_map<std::string, std::string> audio_ids_by_path;
+    std::unordered_map<std::string, int> part_counts;
+
+    for (std::size_t index = 0; index < song.chart.arrangements.size(); ++index)
+    {
+        const Arrangement& arrangement = song.chart.arrangements[index];
+        if (!arrangement.audio_asset.has_value())
+        {
+            error_message = "Cannot save an arrangement without audio";
+            return std::nullopt;
+        }
+
+        std::filesystem::path relative_audio_path;
+        const std::filesystem::path& source_path = arrangement.audio_asset->path;
+        if (const auto workspace_path = relativeWorkspacePath(workspace_directory, source_path);
+            workspace_path.has_value())
+        {
+            relative_audio_path = *workspace_path;
+        }
+        else
+        {
+            const auto imported_path =
+                importAudioAsset(workspace_directory, source_path, index, error_message);
+            if (!imported_path.has_value())
+            {
+                return std::nullopt;
+            }
+            relative_audio_path = *imported_path;
+        }
+
+        const std::string relative_audio_name = relative_audio_path.generic_string();
+        auto audio_id = audio_ids_by_path.find(relative_audio_name);
+        if (audio_id == audio_ids_by_path.end())
+        {
+            const std::string generated_id =
+                "audio-" + std::to_string(audio_ids_by_path.size() + 1);
+            audio_assets.push_back(
+                Json{
+                    {"id", generated_id},
+                    {"path", relative_audio_name},
+                });
+            audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
+        }
+
+        const std::filesystem::path arrangement_file =
+            arrangementFilePath(arrangement.part, part_counts);
+        if (const auto arrangement_error =
+                ensureArrangementFile(workspace_directory, arrangement_file);
+            arrangement_error.has_value())
+        {
+            error_message = *arrangement_error;
+            return std::nullopt;
+        }
+
+        arrangements.push_back(
+            Json{
+                {"part", partName(arrangement.part)},
+                {"file", arrangement_file.generic_string()},
+                {"audio", audio_id->second},
+            });
+    }
+
+    return Json{
+        {"formatVersion", 1},
+        {"metadata",
+         Json{
+             {"title", song.metadata.title},
+             {"artist", song.metadata.artist},
+             {"album", song.metadata.album},
+             {"year", song.metadata.year},
+         }},
+        {"audioAssets", audio_assets},
+        {"arrangements", arrangements},
+    };
+}
+
+// Writes song.json into the extracted workspace.
+[[nodiscard]] std::optional<std::string> writeSongDocumentForSave(
+    const std::filesystem::path& workspace_directory, const Song& song)
+{
+    std::string error_message;
+    const auto song_document = buildSongDocumentForSave(workspace_directory, song, error_message);
+    if (!song_document.has_value())
+    {
+        return error_message;
+    }
+
+    std::ofstream song_document_file{workspace_directory / "song.json"};
+    if (!song_document_file.is_open())
+    {
+        return "Could not write song.json";
+    }
+
+    song_document_file << song_document->dump(4) << '\n';
+    if (!song_document_file.good())
+    {
+        return "Could not write song.json";
+    }
+
+    return std::nullopt;
+}
+
+// Creates a libzip file source for adding a workspace file to the saved package.
+[[nodiscard]] zip_source_t* createFileSource(zip_t& archive, const std::filesystem::path& path)
+{
+#if defined(_WIN32)
+    return zip_source_win32w(&archive, path.wstring().c_str(), 0, ZIP_LENGTH_TO_END);
+#else
+    return zip_source_file(&archive, path.string().c_str(), 0, ZIP_LENGTH_TO_END);
+#endif
+}
+
+// Adds one regular workspace file to the output package archive.
+[[nodiscard]] std::optional<std::string> addFileToPackage(
+    zip_t& archive, const std::filesystem::path& workspace_directory,
+    const std::filesystem::path& file_path)
+{
+    const std::filesystem::path relative_path =
+        file_path.lexically_normal().lexically_relative(workspace_directory.lexically_normal());
+    if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
+        !isSafeRelativePath(relative_path))
+    {
+        return "Project workspace contains an unsafe file path";
+    }
+
+    zip_source_t* source = createFileSource(archive, file_path);
+    if (source == nullptr)
+    {
+        return "Could not read project workspace file: " + file_path.string();
+    }
+
+    const std::string entry_name = relative_path.generic_string();
+    if (zip_file_add(&archive, entry_name.c_str(), source, ZIP_FL_ENC_UTF_8) < 0)
+    {
+        zip_source_free(source);
+        return "Could not add project package entry: " + entry_name;
+    }
+
+    return std::nullopt;
+}
+
+// Rewrites the package archive from the current extracted workspace.
+[[nodiscard]] std::optional<std::string> writeWorkspaceToPackage(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& package_path)
+{
+    std::error_code error;
+    if (!package_path.parent_path().empty())
+    {
+        std::filesystem::create_directories(package_path.parent_path(), error);
+        if (error)
+        {
+            return "Could not create project package directory: " + error.message();
+        }
+    }
+
+    std::string error_message;
+    auto archive = openArchiveForWriting(package_path, error_message);
+    if (!archive.has_value())
+    {
+        return "Could not open project package for writing: " + error_message;
+    }
+
+    std::filesystem::recursive_directory_iterator directory_iterator{
+        workspace_directory,
+        error,
+    };
+    if (error)
+    {
+        return "Could not enumerate project workspace: " + error.message();
+    }
+
+    for (const std::filesystem::directory_entry& entry : directory_iterator)
+    {
+        error.clear();
+        if (!entry.is_regular_file(error))
+        {
+            if (error)
+            {
+                return "Could not inspect project workspace file: " + error.message();
+            }
+            continue;
+        }
+
+        if (const auto add_error =
+                addFileToPackage(*archive->get(), workspace_directory, entry.path());
+            add_error.has_value())
+        {
+            return add_error;
+        }
+    }
+
+    if (zip_close(archive->get()) != 0)
+    {
+        return "Could not write project package";
+    }
+    archive->release();
+
+    return std::nullopt;
+}
+
+} // namespace
+
+// Removes the extracted workspace when the project leaves scope.
+Project::~Project()
+{
+    resetWorkspace();
+}
+
+// Transfers package state and workspace ownership, clearing the source paths.
 Project::Project(Project&& other)
-    : song(std::move(other.song))
-    , cache_directory(std::exchange(other.cache_directory, {}))
+    : m_path(std::exchange(other.m_path, {}))
+    , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
 {}
 
-// Removes the old cache before taking ownership from another project.
+// Removes the old workspace before taking ownership from another project.
 Project& Project::operator=(Project&& other)
 {
     if (this != &other)
     {
-        resetCache();
-        song = std::move(other.song);
-        cache_directory = std::exchange(other.cache_directory, {});
+        resetWorkspace();
+        m_path = std::exchange(other.m_path, {});
+        m_workspace_directory = std::exchange(other.m_workspace_directory, {});
     }
 
     return *this;
 }
 
-// Best-effort cache removal; project loading must not throw from cleanup.
-void Project::resetCache() noexcept
+// Returns the file path associated with this open project.
+const std::filesystem::path& Project::path() const noexcept
 {
-    if (cache_directory.empty())
-    {
-        return;
-    }
+    return m_path;
+}
 
-    std::error_code error;
-    std::filesystem::remove_all(cache_directory, error);
-    cache_directory.clear();
+// Returns the extracted workspace path used by parsed audio asset references.
+const std::filesystem::path& Project::workspaceDirectory() const noexcept
+{
+    return m_workspace_directory;
 }
 
 // Opens the package archive, extracts it safely, and reads the song document.
-ProjectLoadResult ProjectLoader::loadProject(const std::filesystem::path& package_path)
+std::expected<Song, std::string> Project::load(const std::filesystem::path& package_path)
 {
     std::error_code filesystem_error;
     if (!std::filesystem::is_regular_file(package_path, filesystem_error))
@@ -863,32 +1291,75 @@ ProjectLoadResult ProjectLoader::loadProject(const std::filesystem::path& packag
         return failProjectLoad("Could not open project package: " + error_message);
     }
 
-    auto cache_directory = createCacheDirectory(error_message);
-    if (!cache_directory.has_value())
+    auto workspace_directory = createWorkspaceDirectory(error_message);
+    if (!workspace_directory.has_value())
     {
         return failProjectLoad(error_message);
     }
 
-    Project project{Song{}, std::move(*cache_directory)};
+    Project loaded_project;
+    loaded_project.m_path = package_path;
+    loaded_project.m_workspace_directory = std::move(*workspace_directory);
 
-    const auto extraction_error = extractZipToCache(*archive->get(), project.cache_directory);
+    const auto extraction_error =
+        extractZipToWorkspace(*archive->get(), loaded_project.m_workspace_directory);
     if (extraction_error.has_value())
     {
         return failProjectLoad(*extraction_error);
     }
 
-    SongDocumentLoadResult loaded_song_document = readSongDocument(project.cache_directory);
-    if (!loaded_song_document.succeeded())
+    auto loaded_song_document = readSongDocument(loaded_project.m_workspace_directory);
+    if (!loaded_song_document.has_value())
     {
-        return failProjectLoad(loaded_song_document.error_message);
+        return failProjectLoad(std::move(loaded_song_document.error()));
     }
 
-    project.song = std::move(loaded_song_document.song_document->song);
+    Song song = std::move(loaded_song_document->song);
+    *this = std::move(loaded_project);
 
-    return ProjectLoadResult{
-        .project = std::move(project),
-        .error_message = {},
-    };
+    return song;
+}
+
+// Writes the current session song to the open project workspace and package.
+std::expected<void, std::string> Project::save(const Song& song)
+{
+    if (m_path.empty() || m_workspace_directory.empty())
+    {
+        return failProjectSave("Cannot save before a project has been loaded");
+    }
+
+    std::error_code error;
+    if (!std::filesystem::is_directory(m_workspace_directory, error))
+    {
+        return failProjectSave("Project workspace does not exist");
+    }
+
+    if (const auto write_error = writeSongDocumentForSave(m_workspace_directory, song);
+        write_error.has_value())
+    {
+        return failProjectSave(*write_error);
+    }
+
+    if (const auto package_error = writeWorkspaceToPackage(m_workspace_directory, m_path);
+        package_error.has_value())
+    {
+        return failProjectSave(*package_error);
+    }
+
+    return std::expected<void, std::string>{};
+}
+
+// Best-effort workspace removal; project loading must not throw from cleanup.
+void Project::resetWorkspace() noexcept
+{
+    if (m_workspace_directory.empty())
+    {
+        return;
+    }
+
+    std::error_code error;
+    std::filesystem::remove_all(m_workspace_directory, error);
+    m_workspace_directory.clear();
 }
 
 } // namespace rock_hero::core

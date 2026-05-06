@@ -9,7 +9,6 @@
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/core/project_loader.h>
 #include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view.h>
@@ -60,9 +59,6 @@ public:
     [[nodiscard]] juce::Component& component() noexcept;
 
 private:
-    // Concrete project package loader used by the controller for open-project intents.
-    core::ProjectLoader m_project_loader;
-
     // Owns edit orchestration before the controller stores its non-owning reference.
     EditCoordinator m_edit_coordinator;
 
