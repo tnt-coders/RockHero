@@ -37,14 +37,14 @@ public:
     Project& operator=(const Project&) = delete;
 
     /*! \brief Transfers package state and workspace ownership from another project. */
-    Project(Project&& other);
+    Project(Project&& other) noexcept;
 
     /*!
     \brief Replaces this project with another project's package state and workspace ownership.
     \param other Project to move from.
     \return Reference to this project.
     */
-    Project& operator=(Project&& other);
+    Project& operator=(Project&& other) noexcept;
 
     /*!
     \brief Loads a Rock Hero project package into this project context.

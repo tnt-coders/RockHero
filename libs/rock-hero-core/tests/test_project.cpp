@@ -224,6 +224,9 @@ void writeUnsafeAssetPackage(
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
             .audio_asset = AudioAsset{audio_path},
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     return song;
 }
@@ -293,12 +296,16 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     CHECK(result->metadata.artist == "A Day To Remember");
     REQUIRE(result->chart.arrangements.size() == 2);
     CHECK(result->chart.arrangements[0].part == Part::Lead);
-    CHECK(result->chart.arrangements[1].part == Part::Bass);
-    REQUIRE(result->chart.arrangements[1].audio_asset.has_value());
-    CHECK(
-        result->chart.arrangements[1].audio_asset->path ==
-        (project.workspaceDirectory() / "audio/backing.wav").lexically_normal());
-    CHECK_FALSE(result->chart.arrangements[1].hasAudio());
+    const Arrangement& bass_arrangement = result->chart.arrangements[1];
+    CHECK(bass_arrangement.part == Part::Bass);
+    REQUIRE(bass_arrangement.audio_asset.has_value());
+    if (bass_arrangement.audio_asset.has_value())
+    {
+        CHECK(
+            bass_arrangement.audio_asset.value().path ==
+            (project.workspaceDirectory() / "audio/backing.wav").lexically_normal());
+    }
+    CHECK_FALSE(bass_arrangement.hasAudio());
 }
 
 // Verifies project loading does not accept the old project.json song-document name.
@@ -410,10 +417,13 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     REQUIRE(reloaded_song.has_value());
     REQUIRE(reloaded_song->chart.arrangements.size() == 1);
     REQUIRE(reloaded_song->chart.arrangements.front().audio_asset.has_value());
-    const std::filesystem::path reloaded_audio_path =
-        reloaded_song->chart.arrangements.front().audio_asset->path;
-    CHECK(reloaded_audio_path.parent_path().filename() == "audio");
-    CHECK(std::filesystem::is_regular_file(reloaded_audio_path));
+    if (reloaded_song->chart.arrangements.front().audio_asset.has_value())
+    {
+        const std::filesystem::path reloaded_audio_path =
+            reloaded_song->chart.arrangements.front().audio_asset.value().path;
+        CHECK(reloaded_audio_path.parent_path().filename() == "audio");
+        CHECK(std::filesystem::is_regular_file(reloaded_audio_path));
+    }
 }
 
 // Verifies saveAs creates a native project package even before a package path exists.
@@ -442,9 +452,12 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     CHECK(reloaded_song->metadata.artist == "Imported Artist");
     REQUIRE(reloaded_song->chart.arrangements.size() == 1);
     REQUIRE(reloaded_song->chart.arrangements.front().audio_asset.has_value());
-    CHECK(
-        std::filesystem::is_regular_file(
-            reloaded_song->chart.arrangements.front().audio_asset->path));
+    if (reloaded_song->chart.arrangements.front().audio_asset.has_value())
+    {
+        CHECK(
+            std::filesystem::is_regular_file(
+                reloaded_song->chart.arrangements.front().audio_asset.value().path));
+    }
 }
 
 // Verifies save has a clear failure when no package has been opened yet.

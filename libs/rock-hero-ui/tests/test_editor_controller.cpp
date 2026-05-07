@@ -325,8 +325,11 @@ private:
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(path)},
             .audio_duration = timeline_range.duration(),
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 
     return song;
@@ -340,12 +343,20 @@ private:
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(lead_path)},
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Bass,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(bass_path)},
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 
     return song;
@@ -459,16 +470,20 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 1);
-    CHECK(view.last_state->open_enabled == true);
-    CHECK(view.last_state->import_enabled == true);
-    CHECK(view.last_state->save_enabled == false);
-    CHECK(view.last_state->save_as_enabled == false);
-    CHECK(view.last_state->play_pause_enabled == false);
-    CHECK(view.last_state->stop_enabled == false);
-    CHECK(view.last_state->play_pause_shows_pause_icon == false);
-    CHECK(view.last_state->visible_timeline == core::TimeRange{});
-    CHECK_FALSE(view.last_state->arrangement.hasAudio());
-    CHECK_FALSE(view.last_state->last_error.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.open_enabled == true);
+        CHECK(state.import_enabled == true);
+        CHECK(state.save_enabled == false);
+        CHECK(state.save_as_enabled == false);
+        CHECK(state.play_pause_enabled == false);
+        CHECK(state.stop_enabled == false);
+        CHECK(state.play_pause_shows_pause_icon == false);
+        CHECK(state.visible_timeline == core::TimeRange{});
+        CHECK_FALSE(state.arrangement.hasAudio());
+        CHECK_FALSE(state.last_error.has_value());
+    }
     CHECK(edit.load_audio_call_count == 0);
 }
 
@@ -485,8 +500,12 @@ TEST_CASE("EditorController derives visible timeline range", "[ui][editor-contro
     controller.attachView(view);
 
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->visible_timeline == loadedTimelineRange(8.0));
-    CHECK(view.last_state->arrangement.audio_duration == core::TimeDuration{8.0});
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.visible_timeline == loadedTimelineRange(8.0));
+        CHECK(state.arrangement.audio_duration == core::TimeDuration{8.0});
+    }
 }
 
 // Each coarse transport transition produces exactly one fresh push so the view stays current.
@@ -507,9 +526,13 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 2);
-    CHECK(view.last_state->play_pause_shows_pause_icon == true);
-    CHECK(view.last_state->stop_enabled == true);
-    CHECK(view.last_state->visible_timeline == loadedTimelineRange());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& playing_state = view.last_state.value();
+        CHECK(playing_state.play_pause_shows_pause_icon == true);
+        CHECK(playing_state.stop_enabled == true);
+        CHECK(playing_state.visible_timeline == loadedTimelineRange());
+    }
 
     transport.setStateAndNotify(
         audio::TransportState{
@@ -518,8 +541,12 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == 3);
-    CHECK(view.last_state->play_pause_shows_pause_icon == false);
-    CHECK(view.last_state->stop_enabled == false);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& stopped_state = view.last_state.value();
+        CHECK(stopped_state.play_pause_shows_pause_icon == false);
+        CHECK(stopped_state.stop_enabled == false);
+    }
 }
 
 // Play intent issues play() when stopped and pause() when playing, once audio is loaded.
@@ -672,8 +699,11 @@ TEST_CASE("EditorController failed load preserves session", "[ui][editor-control
         std::optional{core::AudioAsset{std::filesystem::path{"old.wav"}}});
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
-    CHECK(view.last_state->last_error->find("new.rhp") != std::string::npos);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.last_error == std::optional<std::string>{"Could not load audio from: new.rhp"});
+    }
 }
 
 // A successful open stores the selected audio and clears prior error.
@@ -691,7 +721,13 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
     edit.next_audio_duration = std::nullopt;
     controller.onOpenRequested(std::filesystem::path{"first.rhp"});
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& failed_state = view.last_state.value();
+        CHECK(
+            failed_state.last_error ==
+            std::optional<std::string>{"Could not load audio from: first.rhp"});
+    }
     const int pushes_before_success = view.set_state_call_count;
 
     edit.next_audio_duration = core::TimeDuration{4.0};
@@ -707,11 +743,15 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
     CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->last_error.has_value());
-    CHECK(view.last_state->arrangement.audio_asset == std::optional{replacement});
-    CHECK(view.last_state->save_enabled == true);
-    CHECK(view.last_state->save_as_enabled == true);
-    CHECK(view.last_state->save_requires_destination == false);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK_FALSE(state.last_error.has_value());
+        CHECK(state.arrangement.audio_asset == std::optional{replacement});
+        CHECK(state.save_enabled == true);
+        CHECK(state.save_as_enabled == true);
+        CHECK(state.save_requires_destination == false);
+    }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
 }
 
@@ -743,7 +783,11 @@ TEST_CASE("EditorController save writes current session song", "[ui][editor-cont
     CHECK(project_io.save_as_call_count == 0);
     CHECK(project_io.last_save_audio_path == std::optional{audio_asset.path});
     REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->last_error.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK_FALSE(state.last_error.has_value());
+    }
 }
 
 // Save failures are surfaced without clearing the loaded session.
@@ -772,8 +816,11 @@ TEST_CASE("EditorController save failure surfaces an error", "[ui][editor-contro
 
     CHECK(project_io.save_call_count == 1);
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
-    CHECK(view.last_state->last_error->find("disk full") != std::string::npos);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.last_error == std::optional<std::string>{"Could not save: disk full"});
+    }
 }
 
 // A failed import leaves the current session unchanged and surfaces an error.
@@ -802,8 +849,11 @@ TEST_CASE("EditorController failed import preserves session", "[ui][editor-contr
     CHECK(project_load.import_call_count == 1);
     CHECK(project_load.open_call_count == 0);
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
-    CHECK(view.last_state->last_error->find("import") != std::string::npos);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.last_error == std::optional<std::string>{"Could not import: Import failed"});
+    }
 }
 
 // A successful import stores the imported audio and clears prior error.
@@ -823,7 +873,13 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
     edit.next_audio_duration = std::nullopt;
     controller.onImportRequested(std::filesystem::path{"first.psarc"});
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& failed_state = view.last_state.value();
+        CHECK(
+            failed_state.last_error ==
+            std::optional<std::string>{"Could not load imported audio from: first.psarc"});
+    }
     const int pushes_before_success = view.set_state_call_count;
 
     edit.next_audio_duration = core::TimeDuration{4.0};
@@ -841,11 +897,15 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
     CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->last_error.has_value());
-    CHECK(view.last_state->arrangement.audio_asset == std::optional{replacement});
-    CHECK(view.last_state->save_enabled == true);
-    CHECK(view.last_state->save_as_enabled == true);
-    CHECK(view.last_state->save_requires_destination == true);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK_FALSE(state.last_error.has_value());
+        CHECK(state.arrangement.audio_asset == std::optional{replacement});
+        CHECK(state.save_enabled == true);
+        CHECK(state.save_as_enabled == true);
+        CHECK(state.save_requires_destination == true);
+    }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
 }
 
@@ -871,7 +931,11 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     project_io.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->save_requires_destination == true);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& imported_state = view.last_state.value();
+        CHECK(imported_state.save_requires_destination == true);
+    }
 
     controller.onSaveRequested();
 
@@ -883,7 +947,11 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     CHECK(project_io.last_save_as_file == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(project_io.last_save_as_audio_path == std::optional{audio_asset.path});
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->save_requires_destination == false);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& saved_state = view.last_state.value();
+        CHECK(saved_state.save_requires_destination == false);
+    }
 
     controller.onSaveRequested();
 
@@ -937,8 +1005,12 @@ TEST_CASE("EditorController coalesces reentrant edit callbacks", "[ui][editor-co
 
     CHECK(view.set_state_call_count == pushes_before_load + 1);
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->arrangement.audio_asset == std::optional{replacement});
-    CHECK(view.last_state->play_pause_shows_pause_icon == true);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.arrangement.audio_asset == std::optional{replacement});
+        CHECK(state.play_pause_shows_pause_icon == true);
+    }
 }
 
 // Later transport transitions preserve the existing workflow error until success clears it.
@@ -957,8 +1029,13 @@ TEST_CASE("EditorController preserves workflow error across transitions", "[ui][
     controller.onOpenRequested(std::filesystem::path{"new.rhp"});
 
     REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->last_error.has_value());
-    const std::optional<std::string> original_error = view.last_state->last_error;
+    std::optional<std::string> original_error;
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& failed_state = view.last_state.value();
+        REQUIRE(failed_state.last_error.has_value());
+        original_error = failed_state.last_error;
+    }
 
     transport.setStateAndNotify(
         audio::TransportState{
@@ -966,7 +1043,11 @@ TEST_CASE("EditorController preserves workflow error across transitions", "[ui][
         });
 
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->last_error == original_error);
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& playing_state = view.last_state.value();
+        CHECK(playing_state.last_error == original_error);
+    }
 }
 
 } // namespace rock_hero::ui
