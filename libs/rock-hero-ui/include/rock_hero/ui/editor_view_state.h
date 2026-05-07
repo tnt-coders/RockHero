@@ -21,11 +21,20 @@ the concrete JUCE view through IEditorView.
 */
 struct EditorViewState
 {
-    /*! \brief Enables or disables the open-project command. */
-    bool open_project_button_enabled{false};
+    /*! \brief Enables or disables the File > Open command. */
+    bool open_enabled{false};
 
-    /*! \brief Enables or disables the import-project command. */
-    bool import_project_button_enabled{false};
+    /*! \brief Enables or disables the File > Import command. */
+    bool import_enabled{false};
+
+    /*! \brief Enables or disables the File > Save command. */
+    bool save_enabled{false};
+
+    /*! \brief Enables or disables the File > Save As command. */
+    bool save_as_enabled{false};
+
+    /*! \brief Selects whether File > Save should ask for a destination first. */
+    bool save_requires_destination{false};
 
     /*! \brief Enables or disables the play/pause command. */
     bool play_pause_enabled{false};
@@ -44,8 +53,8 @@ struct EditorViewState
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement;
 
-    /*! \brief Most recent load error to display, if one should currently be shown. */
-    std::optional<std::string> last_load_error;
+    /*! \brief Most recent workflow error to display, if one should currently be shown. */
+    std::optional<std::string> last_error;
 
     /*!
     \brief Compares two editor view states by their stored values.
