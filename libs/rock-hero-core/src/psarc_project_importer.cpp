@@ -350,6 +350,9 @@ void addImportedArrangement(
             .part = part,
             .difficulty = DifficultyRating{},
             .audio_asset = audio_asset,
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 }
 
