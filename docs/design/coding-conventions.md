@@ -246,8 +246,8 @@ Examples:
 - `test_audio.cpp` for audio-port behavior
 - `test_edit.cpp` for future edit-command placeholder behavior until real commands exist
 - `test_engine.cpp` for concrete engine adapter behavior
-- `test_session.cpp`, `test_song.cpp`, `test_chart.cpp`, `test_arrangement.cpp` for core model
-  types once each subject has enough tests to stand on its own
+- `test_session.cpp`, `test_song.cpp`, `test_arrangement.cpp` for core model types once each
+  subject has enough tests to stand on its own
 
 Prefer keeping related tests together while the subject is still small. Split into separate test
 files when one of these becomes true:
@@ -287,8 +287,8 @@ under test.
 Current tag shape:
 
 - module tag first: `[audio]`, `[core]`, `[ui]`
-- subject tag second: `[transport]`, `[audio]`, `[edit]`, `[engine]`, `[session]`,
-  `[song]`, `[chart]`, `[arrangement]`, `[editor-controller]`
+- subject tag second: `[transport]`, `[audio]`, `[edit]`, `[engine]`, `[session]`, `[song]`,
+  `[arrangement]`, `[editor-controller]`
 - optional classification tags last when needed: for example `[integration]`
 
 Examples:

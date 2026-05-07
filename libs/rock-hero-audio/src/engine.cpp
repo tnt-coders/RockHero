@@ -250,7 +250,7 @@ core::TimePosition Engine::position() const noexcept
 // Validates every arrangement audio file and records the accepted backend durations.
 bool Engine::prepareSong(core::Song& song)
 {
-    for (core::Arrangement& arrangement : song.chart.arrangements)
+    for (core::Arrangement& arrangement : song.arrangements)
     {
         if (arrangement.audio_asset.path.empty())
         {

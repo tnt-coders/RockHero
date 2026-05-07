@@ -74,7 +74,7 @@ public:
     bool prepareSong(core::Song& song) override
     {
         ++prepare_song_call_count;
-        for (core::Arrangement& arrangement : song.chart.arrangements)
+        for (core::Arrangement& arrangement : song.arrangements)
         {
             arrangement.audio_duration = core::TimeDuration{8.0};
         }

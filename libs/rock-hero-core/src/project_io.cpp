@@ -951,7 +951,7 @@ struct WrittenSongFiles
 [[nodiscard]] std::optional<SongDocumentForSave> buildSongDocumentForSave(
     const std::filesystem::path& workspace_directory, const Song& song, std::string& error_message)
 {
-    if (song.chart.arrangements.empty())
+    if (song.arrangements.empty())
     {
         error_message = "Cannot save a project with no arrangements";
         return std::nullopt;
@@ -964,11 +964,11 @@ struct WrittenSongFiles
     std::unordered_map<std::string, int> id_counts;
     std::set<std::string> used_arrangement_ids;
     std::vector<std::string> arrangement_ids;
-    arrangement_ids.reserve(song.chart.arrangements.size());
+    arrangement_ids.reserve(song.arrangements.size());
 
-    for (std::size_t index = 0; index < song.chart.arrangements.size(); ++index)
+    for (std::size_t index = 0; index < song.arrangements.size(); ++index)
     {
-        const Arrangement& arrangement = song.chart.arrangements[index];
+        const Arrangement& arrangement = song.arrangements[index];
         if (arrangement.audio_asset.path.empty())
         {
             error_message = "Cannot save an arrangement without audio";
@@ -1295,7 +1295,7 @@ std::expected<Song, std::string> readSong(const std::filesystem::path& directory
 
         Song song;
         song.metadata = readMetadata(song_document);
-        song.chart.arrangements = std::move(*arrangements);
+        song.arrangements = std::move(*arrangements);
 
         return std::expected<Song, std::string>{std::in_place, std::move(song)};
     }

@@ -96,7 +96,7 @@ RockHero/
     rock-hero/              - Game app (note highway, scoring)
   libs/
     rock-hero-audio/        - Tracktion Engine isolation adapter (static library)
-    rock-hero-core/         - Song/Chart/Arrangement types + serialization (static library, no JUCE)
+    rock-hero-core/         - Song/Arrangement types + serialization (static library, no JUCE)
     rock-hero-ui/           - JUCE UI components (static library)
   docs/                     - Design docs and Doxygen configuration
   external/tracktion_engine/ - Git submodule: Tracktion Engine + JUCE 8
@@ -110,7 +110,7 @@ target IDs stay underscore-separated (`rock_hero_audio`, `rock_hero_core`, `rock
 Key files:
 - **`libs/rock-hero-audio/include/rock_hero/audio/engine.h`** /
   **`src/engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
-- **`libs/rock-hero-core/include/rock_hero/core/`** - `Song`, `Chart`, `Arrangement` types +
+- **`libs/rock-hero-core/include/rock_hero/core/`** - `Song`, `Arrangement` types +
   format serialization; standard C++ only
 - **`libs/rock-hero-ui/include/rock_hero/ui/`** - Waveform and transport UI components
 - **`apps/rock-hero-editor/`** - editor window and app entry point

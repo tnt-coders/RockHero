@@ -476,7 +476,7 @@ As the codebase evolves, favor these moves:
   `rock-hero-ui`
 - remove broad Tracktion escape hatches in favor of narrow abstractions
 - keep serialization policy separate from domain state where practical
-- add builders and fixtures for `Song`, `Chart`, `Arrangement`, and note sequences
+- add builders and fixtures for `Song`, `Arrangement`, and note sequences
 - keep app targets small and orchestration-focused
 
 # CMake and Test Layout

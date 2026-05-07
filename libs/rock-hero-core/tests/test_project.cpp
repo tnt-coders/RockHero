@@ -336,7 +336,7 @@ void writeUnsafeAssetPackage(
     Song song;
     song.metadata.title = "Imported Song";
     song.metadata.artist = "Imported Artist";
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "lead",
             .part = Part::Lead,
@@ -364,9 +364,9 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
     CHECK(result->metadata.artist == "A Day To Remember");
-    REQUIRE(result->chart.arrangements.size() == 1);
-    CHECK(result->chart.arrangements.front().id == "lead");
-    CHECK(result->chart.arrangements.front().part == Part::Lead);
+    REQUIRE(result->arrangements.size() == 1);
+    CHECK(result->arrangements.front().id == "lead");
+    CHECK(result->arrangements.front().part == Part::Lead);
     CHECK(project.editorState().selected_arrangement == std::optional<std::string>{"lead"});
     CHECK(project.editorState().cursor_position == TimePosition{0.0});
     CHECK(project.path() == path);
@@ -387,8 +387,8 @@ TEST_CASE("Project imports a Rock runtime package", "[core][project]")
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
     CHECK(result->metadata.artist == "A Day To Remember");
-    REQUIRE(result->chart.arrangements.size() == 1);
-    const Arrangement& arrangement = result->chart.arrangements.front();
+    REQUIRE(result->arrangements.size() == 1);
+    const Arrangement& arrangement = result->arrangements.front();
     CHECK(arrangement.id == "lead");
     CHECK(arrangement.part == Part::Lead);
     CHECK(
@@ -469,9 +469,9 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
     CHECK(result->metadata.artist == "A Day To Remember");
-    REQUIRE(result->chart.arrangements.size() == 2);
-    CHECK(result->chart.arrangements[0].part == Part::Lead);
-    const Arrangement& bass_arrangement = result->chart.arrangements[1];
+    REQUIRE(result->arrangements.size() == 2);
+    CHECK(result->arrangements[0].part == Part::Lead);
+    const Arrangement& bass_arrangement = result->arrangements[1];
     CHECK(bass_arrangement.part == Part::Bass);
     CHECK(
         bass_arrangement.audio_asset.path ==
@@ -599,8 +599,8 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     Project project;
     auto song = project.load(path);
     REQUIRE(song.has_value());
-    REQUIRE(song->chart.arrangements.size() == 1);
-    song->chart.arrangements.front().audio_asset = AudioAsset{external_audio_path};
+    REQUIRE(song->arrangements.size() == 1);
+    song->arrangements.front().audio_asset = AudioAsset{external_audio_path};
 
     const std::expected<void, std::string> saved = project.save(*song);
     REQUIRE(saved.has_value());
@@ -608,8 +608,8 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     Project reloaded_project;
     const auto reloaded_song = reloaded_project.load(path);
     REQUIRE(reloaded_song.has_value());
-    REQUIRE(reloaded_song->chart.arrangements.size() == 1);
-    const AudioAsset& reloaded_audio_asset = reloaded_song->chart.arrangements.front().audio_asset;
+    REQUIRE(reloaded_song->arrangements.size() == 1);
+    const AudioAsset& reloaded_audio_asset = reloaded_song->arrangements.front().audio_asset;
     CHECK(reloaded_audio_asset.path.parent_path().filename() == "audio");
     CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
@@ -638,8 +638,8 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     REQUIRE(reloaded_song.has_value());
     CHECK(reloaded_song->metadata.title == "Imported Song");
     CHECK(reloaded_song->metadata.artist == "Imported Artist");
-    REQUIRE(reloaded_song->chart.arrangements.size() == 1);
-    const AudioAsset& reloaded_audio_asset = reloaded_song->chart.arrangements.front().audio_asset;
+    REQUIRE(reloaded_song->arrangements.size() == 1);
+    const AudioAsset& reloaded_audio_asset = reloaded_song->arrangements.front().audio_asset;
     CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 

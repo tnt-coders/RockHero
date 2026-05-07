@@ -102,12 +102,12 @@ namespace
 [[nodiscard]] std::expected<Song, std::string> normalizeImportedSong(
     const std::filesystem::path& workspace_directory, Song song)
 {
-    if (song.chart.arrangements.empty())
+    if (song.arrangements.empty())
     {
         return failProjectImport("Imported project must contain at least one arrangement");
     }
 
-    for (Arrangement& arrangement : song.chart.arrangements)
+    for (Arrangement& arrangement : song.arrangements)
     {
         if (arrangement.audio_asset.path.empty())
         {
