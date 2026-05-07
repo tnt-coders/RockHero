@@ -19,14 +19,17 @@ namespace rock_hero::core
 
 Session owns the Song currently loaded into the editor workflow. It is deliberately framework-free
 so controllers and tests can exercise session behavior without JUCE or Tracktion. The current
-editor presents one arrangement at a time; before a project is opened, a new session starts with a
-single empty arrangement shell.
+editor presents one arrangement at a time; before a project is opened, the session contains no
+arrangements.
 */
 class Session
 {
 public:
-    /*! \brief Creates a session with one temporary empty arrangement shell. */
+    /*! \brief Creates an empty session with no loaded project arrangements. */
     Session();
+
+    /*! \brief Clears the current song and returns the session to the no-project state. */
+    void reset();
 
     /*!
     \brief Returns the loaded song aggregate.
@@ -48,7 +51,7 @@ public:
 
     /*!
     \brief Returns the arrangement currently displayed by the editor.
-    \return Current arrangement, or nullptr if a future loaded project contains none.
+    \return Current arrangement, or nullptr when no project is loaded.
     */
     [[nodiscard]] const Arrangement* currentArrangement() const noexcept;
 

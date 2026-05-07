@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -117,6 +118,12 @@ public:
 private:
     class CursorOverlay;
 
+    enum class SaveAsChooserPurpose : std::uint8_t
+    {
+        UserCommand,
+        PendingProjectAction,
+    };
+
     // Opens the asynchronous native package chooser and forwards accepted selections.
     void showOpenChooser();
 
@@ -124,10 +131,19 @@ private:
     void showImportChooser();
 
     // Opens the asynchronous save chooser and forwards accepted selections.
-    void showSaveAsChooser();
+    void showSaveAsChooser(SaveAsChooserPurpose purpose);
 
     // Presents a new workflow error once per error value.
     void presentErrorIfNeeded(const std::optional<std::string>& error);
+
+    // Presents an unsaved-changes prompt once per prompt request.
+    void presentUnsavedChangesPromptIfNeeded(const std::optional<UnsavedChangesPrompt>& prompt);
+
+    // Presents a Save As chooser once per controller-requested prompt.
+    void presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& prompt);
+
+    // Returns the content area used for the arrangement waveform or empty-project message.
+    [[nodiscard]] juce::Rectangle<int> arrangementBounds() const;
 
     // TransportControls::Listener implementation.
     void onPlayPausePressed() override;
@@ -158,6 +174,12 @@ private:
 
     // Last error already shown to the user so repeated state pushes do not re-open dialogs.
     std::optional<std::string> m_last_presented_error{};
+
+    // Last unsaved-changes prompt already shown to avoid re-opening dialogs on repeated pushes.
+    std::optional<UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};
+
+    // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
+    std::optional<SaveAsPrompt> m_last_presented_save_as_prompt{};
 };
 
 } // namespace rock_hero::ui

@@ -52,6 +52,27 @@ public:
         save_as_request_count += 1;
     }
 
+    void onSaveAsCancelled() override
+    {
+        save_as_cancel_count += 1;
+    }
+
+    void onCloseRequested() override
+    {
+        close_request_count += 1;
+    }
+
+    void onExitRequested() override
+    {
+        exit_request_count += 1;
+    }
+
+    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
+    {
+        last_unsaved_changes_decision = decision;
+        unsaved_changes_decision_count += 1;
+    }
+
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
@@ -72,10 +93,15 @@ public:
     std::optional<std::filesystem::path> last_import_file{};
     std::optional<std::filesystem::path> last_save_as_file{};
     std::optional<double> last_normalized_x{};
+    std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
     int open_request_count{0};
     int import_request_count{0};
     int save_request_count{0};
     int save_as_request_count{0};
+    int save_as_cancel_count{0};
+    int close_request_count{0};
+    int exit_request_count{0};
+    int unsaved_changes_decision_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -287,6 +313,11 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
         EditorViewState{
             .open_enabled = true,
             .import_enabled = true,
+            .save_enabled = false,
+            .save_as_enabled = false,
+            .close_enabled = false,
+            .project_loaded = true,
+            .save_requires_destination = false,
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -297,6 +328,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
             .last_error = std::nullopt,
+            .unsaved_changes_prompt = std::nullopt,
+            .save_as_prompt = std::nullopt,
         });
 
     CHECK(thumbnail_factory.create_call_count == 1);
@@ -314,7 +347,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     constexpr int save_command{3};
+    constexpr int close_command{5};
+    constexpr int exit_command{6};
 
     view.setState(EditorViewState{});
 
@@ -327,6 +363,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.save_request_count == 0);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
+    CHECK_FALSE(arrangement_view.isVisible());
     CHECK(transport.position_read_count == 0);
 
     view.setState(
@@ -335,6 +372,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .import_enabled = true,
             .save_enabled = true,
             .save_as_enabled = true,
+            .close_enabled = true,
+            .project_loaded = true,
             .save_requires_destination = false,
             .play_pause_enabled = true,
             .stop_enabled = true,
@@ -346,13 +385,21 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .last_error = std::nullopt,
+            .unsaved_changes_prompt = std::nullopt,
+            .save_as_prompt = std::nullopt,
         });
 
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), close_command).isEnabled);
     view.menuItemSelected(save_command, 0);
+    view.menuItemSelected(close_command, 0);
+    view.menuItemSelected(exit_command, 0);
     CHECK(controller.save_request_count == 1);
+    CHECK(controller.close_request_count == 1);
+    CHECK(controller.exit_request_count == 1);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
+    CHECK(arrangement_view.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 0);
 }
@@ -366,8 +413,31 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
     view.setBounds(0, 0, 500, 200);
+    view.setState(
+        EditorViewState{
+            .open_enabled = true,
+            .import_enabled = true,
+            .save_enabled = true,
+            .save_as_enabled = true,
+            .close_enabled = true,
+            .project_loaded = true,
+            .save_requires_destination = false,
+            .play_pause_enabled = true,
+            .stop_enabled = false,
+            .play_pause_shows_pause_icon = false,
+            .visible_timeline =
+                core::TimeRange{
+                    .start = core::TimePosition{},
+                    .end = core::TimePosition{4.0},
+                },
+            .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
+            .last_error = std::nullopt,
+            .unsaved_changes_prompt = std::nullopt,
+            .save_as_prompt = std::nullopt,
+        });
 
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 20.0f));

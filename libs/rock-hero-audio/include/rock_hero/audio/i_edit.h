@@ -41,6 +41,9 @@ public:
     [[nodiscard]] virtual std::optional<core::TimeDuration> loadAudio(
         const core::AudioAsset& audio_asset) = 0;
 
+    /*! \brief Clears the currently loaded arrangement audio from the backend edit. */
+    virtual void clearAudio() = 0;
+
     // TODO: Expand this surface with project-owned arrangement edit commands when the editor gains
     // real tone, automation, and chart authoring behavior.
 

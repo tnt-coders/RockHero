@@ -78,8 +78,14 @@ public:
         return core::TimeDuration{8.0};
     }
 
+    void clearAudio() override
+    {
+        ++clear_audio_call_count;
+    }
+
     std::optional<core::AudioAsset> last_audio_asset{};
     int load_audio_call_count{0};
+    int clear_audio_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.

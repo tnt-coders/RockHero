@@ -22,8 +22,14 @@ public:
         return next_load_audio_result;
     }
 
+    void clearAudio() override
+    {
+        ++clear_audio_call_count;
+    }
+
     std::optional<core::TimeDuration> next_load_audio_result{core::TimeDuration{10.0}};
     int load_audio_call_count{0};
+    int clear_audio_call_count{0};
     std::optional<core::AudioAsset> last_audio_asset{};
 };
 
@@ -45,17 +51,14 @@ public:
 
 } // namespace
 
-// Verifies the coordinator exposes a session with the temporary empty arrangement shell.
-TEST_CASE("EditCoordinator owns an arrangement session", "[ui][edit-coordinator]")
+// Verifies the coordinator exposes an empty session until loading succeeds.
+TEST_CASE("EditCoordinator owns an empty session", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
     const EditCoordinator coordinator{edit};
 
-    REQUIRE(coordinator.session().arrangements().size() == 1);
-    CHECK(
-        coordinator.session().currentArrangement() ==
-        &coordinator.session().arrangements().front());
-    CHECK_FALSE(coordinator.session().arrangements().front().hasAudio());
+    CHECK(coordinator.session().arrangements().empty());
+    CHECK(coordinator.session().currentArrangement() == nullptr);
     CHECK(edit.load_audio_call_count == 0);
 }
 
@@ -82,7 +85,7 @@ TEST_CASE("EditCoordinator loads accepted song audio", "[ui][edit-coordinator]")
                                             });
 }
 
-// Verifies failed backend audio loading leaves the session arrangement unchanged.
+// Verifies failed backend audio loading leaves the empty session unchanged.
 TEST_CASE("EditCoordinator preserves session on project-audio failure", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
@@ -95,8 +98,8 @@ TEST_CASE("EditCoordinator preserves session on project-audio failure", "[ui][ed
     CHECK_FALSE(failed);
     CHECK(edit.load_audio_call_count == 1);
     CHECK(edit.last_audio_asset == std::optional{failed_asset});
-    REQUIRE(coordinator.session().arrangements().size() == 1);
-    CHECK_FALSE(coordinator.session().arrangements().front().hasAudio());
+    CHECK(coordinator.session().arrangements().empty());
+    CHECK(coordinator.session().currentArrangement() == nullptr);
     CHECK(coordinator.session().timeline() == core::TimeRange{});
 }
 
@@ -113,8 +116,25 @@ TEST_CASE("EditCoordinator rejects zero-duration audio", "[ui][edit-coordinator]
     CHECK_FALSE(failed);
     CHECK(edit.load_audio_call_count == 1);
     CHECK(edit.last_audio_asset == std::optional{failed_asset});
-    REQUIRE(coordinator.session().arrangements().size() == 1);
-    CHECK_FALSE(coordinator.session().arrangements().front().hasAudio());
+    CHECK(coordinator.session().arrangements().empty());
+    CHECK(coordinator.session().currentArrangement() == nullptr);
+    CHECK(coordinator.session().timeline() == core::TimeRange{});
+}
+
+// Verifies closing clears backend audio and restores the no-project session.
+TEST_CASE("EditCoordinator closeSong clears audio and session", "[ui][edit-coordinator]")
+{
+    FakeEdit edit;
+    EditCoordinator coordinator{edit};
+    const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
+
+    REQUIRE(coordinator.loadSong(makeSong(audio_asset.path), 0));
+
+    coordinator.closeSong();
+
+    CHECK(edit.clear_audio_call_count == 1);
+    CHECK(coordinator.session().arrangements().empty());
+    CHECK(coordinator.session().currentArrangement() == nullptr);
     CHECK(coordinator.session().timeline() == core::TimeRange{});
 }
 
