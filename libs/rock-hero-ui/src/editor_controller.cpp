@@ -1,8 +1,10 @@
 #include "editor_controller.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cctype>
 #include <expected>
+#include <iterator>
 #include <optional>
 #include <rock_hero/core/psarc_importer.h>
 #include <rock_hero/core/rock_importer.h>
@@ -74,16 +76,37 @@ namespace
 void defaultExit()
 {}
 
+// Resolves persisted arrangement IDs to the current song order, falling back to the first item.
+[[nodiscard]] std::size_t getSelectedArrangementIndex(
+    const core::Song& song, const std::optional<std::string>& selected_arrangement)
+{
+    if (!selected_arrangement.has_value())
+    {
+        return 0;
+    }
+
+    const auto found = std::ranges::find_if(
+        song.chart.arrangements, [&selected_arrangement](const core::Arrangement& arrangement) {
+            return arrangement.id == *selected_arrangement;
+        });
+    if (found == song.chart.arrangements.end())
+    {
+        return 0;
+    }
+
+    return static_cast<std::size_t>(std::distance(song.chart.arrangements.begin(), found));
+}
+
 } // namespace
 
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
-    audio::ITransport& transport, EditCoordinator& edit_coordinator, OpenFunction open_function,
+    audio::ITransport& transport, audio::IAudio& audio, OpenFunction open_function,
     ImportFunction import_function, SaveFunction save_function, SaveAsFunction save_as_function,
     PublishFunction publish_function, ExitFunction exit_function)
     : m_transport(transport)
-    , m_edit_coordinator(edit_coordinator)
+    , m_audio(audio)
     , m_open_function(open_function ? std::move(open_function) : OpenFunction{defaultOpen})
     , m_import_function(
           import_function ? std::move(import_function) : ImportFunction{defaultImport})
@@ -109,8 +132,7 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Opens a package, asks the edit coordinator to load the initial arrangement, and stores the
-// context only after the backend and Session both accept the song.
+// Opens a package and stores the context only after audio and Session both accept the song.
 void EditorController::onOpenRequested(std::filesystem::path file)
 {
     requestProjectAction(
@@ -135,12 +157,7 @@ void EditorController::openProject(const std::filesystem::path& file)
     core::Song song = std::move(*loaded_song);
     const core::ProjectEditorState editor_state = project.editorState();
 
-    m_session_edit_in_progress = true;
-    const bool project_loaded =
-        m_edit_coordinator.loadSong(std::move(song), editor_state.selected_arrangement);
-    m_session_edit_in_progress = false;
-
-    if (!project_loaded)
+    if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
         m_last_error = std::string{"Could not load audio from: "} + file.string();
         deriveAndPush();
@@ -156,12 +173,11 @@ void EditorController::openProject(const std::filesystem::path& file)
     clearPendingProjectAction();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
-    // have arrived during the edit window.
+    // have arrived during the load window.
     deriveAndPush();
 }
 
-// Imports a foreign package, asks the edit coordinator to load the initial arrangement, and stores
-// the unsaved workspace only after the backend and Session both accept the song.
+// Imports a foreign package and stores the workspace only after audio and Session accept the song.
 void EditorController::onImportRequested(std::filesystem::path file)
 {
     requestProjectAction(
@@ -185,11 +201,7 @@ void EditorController::importProject(const std::filesystem::path& file)
 
     core::Song song = std::move(*loaded_song);
 
-    m_session_edit_in_progress = true;
-    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song));
-    m_session_edit_in_progress = false;
-
-    if (!project_loaded)
+    if (!loadSessionSong(std::move(song), std::nullopt))
     {
         m_last_error = std::string{"Could not load imported audio from: "} + file.string();
         deriveAndPush();
@@ -204,7 +216,7 @@ void EditorController::importProject(const std::filesystem::path& file)
     clearPendingProjectAction();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
-    // have arrived during the edit window.
+    // have arrived during the load window.
     deriveAndPush();
 }
 
@@ -366,10 +378,11 @@ void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
     }
 }
 
-// Ignores the intent when the current arrangement has no audio, otherwise toggles playback.
+// Ignores the intent until audio activation has committed an arrangement, otherwise toggles
+// playback.
 void EditorController::onPlayPausePressed()
 {
-    if (!currentArrangementHasAudio())
+    if (!hasLoadedArrangement())
     {
         return;
     }
@@ -413,11 +426,11 @@ void EditorController::onWaveformClicked(double normalized_x)
     deriveAndPush();
 }
 
-// Coarse-only transport callback. During an in-flight edit, defer the push so the post-edit
+// Coarse-only transport callback. During an in-flight session load, defer the push so the final
 // derivation runs against the updated session and transport state instead of stale data.
 void EditorController::onTransportStateChanged(audio::TransportState /*state*/)
 {
-    if (m_session_edit_in_progress)
+    if (m_session_load_in_progress)
     {
         return;
     }
@@ -477,7 +490,8 @@ bool EditorController::closeProject()
 {
     if (!m_project.has_value())
     {
-        m_edit_coordinator.closeSong();
+        m_audio.clearActiveArrangement();
+        m_session.reset();
         m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
@@ -485,7 +499,8 @@ bool EditorController::closeProject()
     }
 
     m_transport.stop();
-    m_edit_coordinator.closeSong();
+    m_audio.clearActiveArrangement();
+    m_session.reset();
 
     auto closed = m_project->close();
     if (!closed.has_value())
@@ -550,10 +565,10 @@ void EditorController::clearPendingProjectAction() noexcept
     m_save_as_prompt_visible = false;
 }
 
-// Returns the coordinator-owned editor session through the read-only access boundary.
+// Returns the controller-owned editor session through the read-only access boundary.
 const core::Session& EditorController::session() const noexcept
 {
-    return m_edit_coordinator.session();
+    return m_session;
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.
@@ -571,6 +586,35 @@ core::ProjectEditorState EditorController::projectEditorStateForSave() const
     }
 
     return editor_state;
+}
+
+// Prepares project audio, activates the selected arrangement, and commits the song to Session.
+bool EditorController::loadSessionSong(
+    core::Song song, const std::optional<std::string>& selected_arrangement)
+{
+    if (song.chart.arrangements.empty())
+    {
+        return false;
+    }
+
+    if (!m_audio.prepareSong(song))
+    {
+        return false;
+    }
+
+    const std::size_t selected_index = getSelectedArrangementIndex(song, selected_arrangement);
+    m_session_load_in_progress = true;
+    const bool active_arrangement_set =
+        m_audio.setActiveArrangement(song.chart.arrangements[selected_index]);
+    bool committed = false;
+    if (active_arrangement_set)
+    {
+        committed = m_session.loadSong(std::move(song), selected_index);
+        assert(committed && "Session rejected backend-accepted project song");
+    }
+    m_session_load_in_progress = false;
+
+    return committed;
 }
 
 // Builds the message-thread view state from the session and transport state. Current cursor
@@ -595,7 +639,7 @@ EditorViewState EditorController::deriveViewState() const
     state.close_enabled = m_project.has_value();
     state.project_loaded = session().currentArrangement() != nullptr;
     state.save_requires_destination = m_save_requires_destination;
-    state.play_pause_enabled = currentArrangementHasAudio();
+    state.play_pause_enabled = hasLoadedArrangement();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.visible_timeline = timeline_range;
@@ -633,11 +677,10 @@ void EditorController::deriveAndPush()
     }
 }
 
-// Answers the "is the displayed arrangement playable" question used by state and intent gates.
-bool EditorController::currentArrangementHasAudio() const
+// Answers the "has loading committed a usable arrangement" question used by intent gates.
+bool EditorController::hasLoadedArrangement() const
 {
-    const auto* arrangement = session().currentArrangement();
-    return arrangement != nullptr && arrangement->hasAudio();
+    return session().currentArrangement() != nullptr;
 }
 
 // Treat imported unsaved projects and future session edits as requiring confirmation.
@@ -650,7 +693,7 @@ bool EditorController::hasUnsavedChanges() const noexcept
 // the start of the loaded timeline.
 bool EditorController::canStopTransport(const audio::TransportState& transport_state) const
 {
-    return currentArrangementHasAudio() &&
+    return hasLoadedArrangement() &&
            (transport_state.playing || m_transport.position() != session().timeline().start);
 }
 

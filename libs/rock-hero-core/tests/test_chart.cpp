@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <filesystem>
 #include <rock_hero/core/chart.h>
 
 namespace rock_hero::core
@@ -21,7 +22,7 @@ TEST_CASE("Chart holds multiple arrangements", "[core][chart]")
             .id = "lead",
             .part = Part::Lead,
             .difficulty = DifficultyRating{2},
-            .audio_asset = {},
+            .audio_asset = AudioAsset{std::filesystem::path{"lead.wav"}},
             .audio_duration = TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},
@@ -31,7 +32,7 @@ TEST_CASE("Chart holds multiple arrangements", "[core][chart]")
             .id = "bass",
             .part = Part::Bass,
             .difficulty = DifficultyRating{9},
-            .audio_asset = {},
+            .audio_asset = AudioAsset{std::filesystem::path{"bass.wav"}},
             .audio_duration = TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},

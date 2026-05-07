@@ -17,7 +17,7 @@ TEST_CASE("NoteEvent default construction is empty", "[core][arrangement]")
     CHECK(note.fret == 0);
 }
 
-// Verifies Arrangement's default part, unknown difficulty, audio, and note storage contract.
+// Verifies Arrangement's default value remains an unplayable draft until audio is assigned.
 TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangement]")
 {
     const Arrangement arrangement;
@@ -26,10 +26,9 @@ TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangemen
     CHECK(arrangement.part == Part::Lead);
     CHECK(arrangement.difficulty == DifficultyRating{});
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Unknown);
-    CHECK_FALSE(arrangement.audio_asset.has_value());
+    CHECK(arrangement.audio_asset.path.empty());
     CHECK(arrangement.audio_duration == TimeDuration{});
     CHECK(arrangement.tone_timeline_ref.empty());
-    CHECK_FALSE(arrangement.hasAudio());
     CHECK(arrangement.note_events.empty());
 }
 
@@ -55,11 +54,9 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
     CHECK(arr.part == Part::Lead);
     CHECK(arr.difficulty == DifficultyRating{8});
     CHECK(difficultyTier(arr.difficulty) == DifficultyTier::Expert);
-    REQUIRE(arr.audio_asset.has_value());
-    CHECK(arr.audio_asset->path == std::filesystem::path{"lead.wav"});
+    CHECK(arr.audio_asset.path == std::filesystem::path{"lead.wav"});
     CHECK(arr.audio_duration == TimeDuration{12.0});
     CHECK(arr.tone_timeline_ref == "tone/lead.json");
-    CHECK(arr.hasAudio());
     CHECK(
         arr.audioTimelineRange() == TimeRange{
                                         .start = TimePosition{},

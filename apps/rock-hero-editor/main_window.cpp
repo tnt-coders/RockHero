@@ -15,9 +15,8 @@ MainWindow::MainWindow(const juce::String& title)
           juce::DocumentWindow::allButtons)
     , m_audio_engine(std::make_unique<audio::Engine>())
 {
-    // Engine currently implements each editor-facing audio port. Passing it for each role keeps
-    // Editor dependent on narrow interfaces rather than on the concrete Tracktion adapter. The
-    // editor owns its Session internally through EditCoordinator so app code cannot bypass edits.
+    // Engine implements each editor-facing audio port. Passing it for each role keeps Editor
+    // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
     m_editor = std::make_unique<ui::Editor>(
         *m_audio_engine, *m_audio_engine, *m_audio_engine, [this] { closeWindow(); });
 
