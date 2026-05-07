@@ -29,16 +29,27 @@ template <typename Value>
 class FakeEditorController final : public IEditorController
 {
 public:
-    void onOpenProjectRequested(std::filesystem::path project_file) override
+    void onOpenRequested(std::filesystem::path file) override
     {
-        last_project_file = std::move(project_file);
-        open_project_request_count += 1;
+        last_open_file = std::move(file);
+        open_request_count += 1;
     }
 
-    void onImportProjectRequested(std::filesystem::path project_file) override
+    void onImportRequested(std::filesystem::path file) override
     {
-        last_import_file = std::move(project_file);
-        import_project_request_count += 1;
+        last_import_file = std::move(file);
+        import_request_count += 1;
+    }
+
+    void onSaveRequested() override
+    {
+        save_request_count += 1;
+    }
+
+    void onSaveAsRequested(std::filesystem::path file) override
+    {
+        last_save_as_file = std::move(file);
+        save_as_request_count += 1;
     }
 
     void onPlayPausePressed() override
@@ -57,11 +68,14 @@ public:
         waveform_click_count += 1;
     }
 
-    std::optional<std::filesystem::path> last_project_file{};
+    std::optional<std::filesystem::path> last_open_file{};
     std::optional<std::filesystem::path> last_import_file{};
+    std::optional<std::filesystem::path> last_save_as_file{};
     std::optional<double> last_normalized_x{};
-    int open_project_request_count{0};
-    int import_project_request_count{0};
+    int open_request_count{0};
+    int import_request_count{0};
+    int save_request_count{0};
+    int save_as_request_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -235,6 +249,22 @@ template <class ComponentType>
     };
 }
 
+// Returns a plain menu item by id; these are not JUCE command-manager-backed items.
+[[nodiscard]] juce::PopupMenu::Item requiredMenuItem(const juce::PopupMenu& menu, int item_id)
+{
+    juce::PopupMenu::MenuItemIterator iterator{menu, true};
+    while (iterator.next())
+    {
+        const juce::PopupMenu::Item& item = iterator.getItem();
+        if (item.itemID == item_id)
+        {
+            return item;
+        }
+    }
+
+    throw std::runtime_error{"Missing menu item"};
+}
+
 } // namespace
 
 // Verifies the arrangement thumbnail is created and later pointed at pushed audio.
@@ -255,8 +285,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
 
     view.setState(
         EditorViewState{
-            .open_project_button_enabled = true,
-            .import_project_button_enabled = true,
+            .open_enabled = true,
+            .import_enabled = true,
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -266,7 +296,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                     .end = core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
-            .last_load_error = std::nullopt,
+            .last_error = std::nullopt,
         });
 
     CHECK(thumbnail_factory.create_call_count == 1);
@@ -282,23 +312,30 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
 
-    auto& open_project_button = findRequiredChild<juce::TextButton>(view, "open_project_button");
-    auto& import_project_button =
-        findRequiredChild<juce::TextButton>(view, "import_project_button");
+    auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+    constexpr int save_command{3};
 
     view.setState(EditorViewState{});
 
-    CHECK_FALSE(open_project_button.isEnabled());
-    CHECK_FALSE(import_project_button.isEnabled());
+    CHECK(menu_bar.isVisible());
+    const juce::StringArray menu_names = view.getMenuBarNames();
+    REQUIRE(menu_names.size() == 1);
+    CHECK(menu_names[0] == "File");
+    CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    view.menuItemSelected(save_command, 0);
+    CHECK(controller.save_request_count == 0);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
     CHECK(transport.position_read_count == 0);
 
     view.setState(
         EditorViewState{
-            .open_project_button_enabled = true,
-            .import_project_button_enabled = true,
+            .open_enabled = true,
+            .import_enabled = true,
+            .save_enabled = true,
+            .save_as_enabled = true,
+            .save_requires_destination = false,
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
@@ -308,11 +345,12 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
                     .end = core::TimePosition{8.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
-            .last_load_error = std::nullopt,
+            .last_error = std::nullopt,
         });
 
-    CHECK(open_project_button.isEnabled());
-    CHECK(import_project_button.isEnabled());
+    CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    view.menuItemSelected(save_command, 0);
+    CHECK(controller.save_request_count == 1);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());

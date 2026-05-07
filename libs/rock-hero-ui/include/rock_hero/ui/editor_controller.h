@@ -22,13 +22,21 @@
 namespace rock_hero::ui
 {
 
-/*! \brief Opens a project package into a project context and returns the parsed song. */
-using ProjectLoadFunction = std::function<std::expected<core::Song, std::string>(
-    core::Project& project, const std::filesystem::path& project_path)>;
+/*! \brief Opens a native package into a project context and returns the parsed song. */
+using OpenFunction = std::function<std::expected<core::Song, std::string>(
+    core::Project& project, const std::filesystem::path& path)>;
 
-/*! \brief Imports a foreign project package into a project context and returns the parsed song. */
-using ProjectImportFunction = std::function<std::expected<core::Song, std::string>(
-    core::Project& project, const std::filesystem::path& project_path)>;
+/*! \brief Imports a foreign package into a project context and returns the parsed song. */
+using ImportFunction = std::function<std::expected<core::Song, std::string>(
+    core::Project& project, const std::filesystem::path& path)>;
+
+/*! \brief Saves the current song through the project context. */
+using SaveFunction =
+    std::function<std::expected<void, std::string>(core::Project& project, const core::Song& song)>;
+
+/*! \brief Saves the current song to a chosen path through the project context. */
+using SaveAsFunction = std::function<std::expected<void, std::string>(
+    core::Project& project, const std::filesystem::path& path, const core::Song& song)>;
 
 /*!
 \brief Concrete editor workflow coordinator.
@@ -56,13 +64,15 @@ public:
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param edit_coordinator Coordinator used to apply backend-accepted session edits.
-    \param project_load_function Optional seam used to open project packages.
-    \param project_import_function Optional seam used to import foreign project packages.
+    \param open_function Optional seam used to open native packages.
+    \param import_function Optional seam used to import foreign packages.
+    \param save_function Optional seam used to save to the current destination.
+    \param save_as_function Optional seam used to save to a chosen destination.
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
-        ProjectLoadFunction project_load_function = {},
-        ProjectImportFunction project_import_function = {});
+        OpenFunction open_function = {}, ImportFunction import_function = {},
+        SaveFunction save_function = {}, SaveAsFunction save_as_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -96,26 +106,35 @@ public:
     void attachView(IEditorView& view);
 
     /*!
-    \brief Handles a request to open a Rock Hero project package.
+    \brief Handles a request to open a Rock Hero package.
 
-    On a successful project load, the controller clears any active load error and stores the
-    project package. On failure, the old session/project are preserved. Reentrant transport
+    On success, the controller clears any active error and stores the package context. On failure,
+    the old session/context are preserved. Reentrant transport
     notifications received during backend audio loading are coalesced into one final push.
 
-    \param project_file Filesystem path selected by the user.
+    \param file Filesystem path selected by the user.
     */
-    void onOpenProjectRequested(std::filesystem::path project_file) override;
+    void onOpenRequested(std::filesystem::path file) override;
 
     /*!
-    \brief Handles a request to import a foreign project package.
+    \brief Handles a request to import a foreign package.
 
-    On a successful import, the controller clears any active load error and stores the unsaved
-    project workspace. On failure, the old session/project are preserved. Reentrant transport
+    On success, the controller clears any active error and stores an unsaved workspace. On failure,
+    the old session/context are preserved. Reentrant transport
     notifications received during backend audio loading are coalesced into one final push.
 
-    \param project_file Filesystem path selected by the user.
+    \param file Filesystem path selected by the user.
     */
-    void onImportProjectRequested(std::filesystem::path project_file) override;
+    void onImportRequested(std::filesystem::path file) override;
+
+    /*! \brief Handles a request to save to the current destination. */
+    void onSaveRequested() override;
+
+    /*!
+    \brief Handles a request to save to a chosen destination.
+    \param file Filesystem path selected by the user.
+    */
+    void onSaveAsRequested(std::filesystem::path file) override;
 
     /*!
     \brief Handles a play/pause button press from the editor UI.
@@ -169,10 +188,16 @@ private:
     EditCoordinator& m_edit_coordinator;
 
     // Opens .rhp packages into temporary project contexts.
-    ProjectLoadFunction m_project_load_function;
+    OpenFunction m_open_function;
 
-    // Imports foreign project packages into temporary unsaved project contexts.
-    ProjectImportFunction m_project_import_function;
+    // Imports foreign packages into temporary unsaved project contexts.
+    ImportFunction m_import_function;
+
+    // Saves the current session song to the current destination.
+    SaveFunction m_save_function;
+
+    // Saves the current session song to a chosen destination.
+    SaveAsFunction m_save_as_function;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};
@@ -180,14 +205,17 @@ private:
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
 
-    // Persisted controller-composed load error preserved across unrelated state transitions.
-    std::optional<std::string> m_last_load_error{};
+    // Persisted controller-composed workflow error preserved across unrelated state transitions.
+    std::optional<std::string> m_last_error{};
 
     // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
     bool m_session_edit_in_progress{false};
 
     // Currently loaded or imported project context; keeps workspace files alive.
     std::optional<core::Project> m_project{};
+
+    // True when Save must first collect a native package path, such as after import.
+    bool m_save_requires_destination{false};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
