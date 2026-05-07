@@ -404,9 +404,9 @@ void EditorView::showOpenChooser()
 void EditorView::showImportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import Rocksmith package",
+        "Import Rock Hero or Rocksmith package",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-        "*.psarc");
+        "*.rock;*.psarc");
 
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
