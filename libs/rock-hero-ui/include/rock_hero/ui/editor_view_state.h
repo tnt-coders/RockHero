@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <rock_hero/core/timeline.h>
 #include <rock_hero/ui/arrangement_view_state.h>
@@ -81,6 +82,12 @@ struct EditorViewState
 
     /*! \brief Enables or disables the File > Save As command. */
     bool save_as_enabled{false};
+
+    /*! \brief Enables or disables the File > Publish command. */
+    bool publish_enabled{false};
+
+    /*! \brief Suggested .rock destination used to pre-fill the publish chooser. */
+    std::filesystem::path suggested_publish_file{};
 
     /*! \brief Enables or disables the File > Close command. */
     bool close_enabled{false};

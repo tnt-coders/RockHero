@@ -39,7 +39,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
     song.chart.arrangements.push_back(
-        {.part = Part::Rhythm,
+        {.id = "rhythm",
+         .part = Part::Rhythm,
          .difficulty = DifficultyRating{6},
          .audio_asset = AudioAsset{std::filesystem::path{"audio/rhythm.wav"}},
          .audio_duration = TimeDuration{42.0},

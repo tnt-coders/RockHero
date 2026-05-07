@@ -31,11 +31,16 @@ using ImportFunction = std::function<std::expected<core::Song, std::string>(
     core::Project& project, const std::filesystem::path& path)>;
 
 /*! \brief Saves the current song through the project context. */
-using SaveFunction =
-    std::function<std::expected<void, std::string>(core::Project& project, const core::Song& song)>;
+using SaveFunction = std::function<std::expected<void, std::string>(
+    core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)>;
 
 /*! \brief Saves the current song to a chosen path through the project context. */
 using SaveAsFunction = std::function<std::expected<void, std::string>(
+    core::Project& project, const std::filesystem::path& path, const core::Song& song,
+    core::ProjectEditorState editor_state)>;
+
+/*! \brief Publishes the current song to a chosen package path through the project context. */
+using PublishFunction = std::function<std::expected<void, std::string>(
     core::Project& project, const std::filesystem::path& path, const core::Song& song)>;
 
 /*! \brief Requests that the composed editor host exit the application. */
@@ -71,13 +76,14 @@ public:
     \param import_function Optional seam used to import foreign packages.
     \param save_function Optional seam used to save to the current destination.
     \param save_as_function Optional seam used to save to a chosen destination.
+    \param publish_function Optional seam used to publish playable packages.
     \param exit_function Optional seam used to request application exit.
     */
     EditorController(
         audio::ITransport& transport, EditCoordinator& edit_coordinator,
         OpenFunction open_function = {}, ImportFunction import_function = {},
         SaveFunction save_function = {}, SaveAsFunction save_as_function = {},
-        ExitFunction exit_function = {});
+        PublishFunction publish_function = {}, ExitFunction exit_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -140,6 +146,12 @@ public:
     \param file Filesystem path selected by the user.
     */
     void onSaveAsRequested(std::filesystem::path file) override;
+
+    /*!
+    \brief Handles a request to publish a playable Rock Hero package.
+    \param file Filesystem path selected by the user.
+    */
+    void onPublishRequested(std::filesystem::path file) override;
 
     /*! \brief Handles cancellation of a controller-requested Save As chooser. */
     void onSaveAsCancelled() override;
@@ -219,6 +231,9 @@ private:
     // Returns the read-only session owned by the edit coordinator.
     [[nodiscard]] const core::Session& session() const noexcept;
 
+    // Builds the editor-only project state persisted by Save and Save As.
+    [[nodiscard]] core::ProjectEditorState projectEditorStateForSave() const;
+
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
 
@@ -252,6 +267,9 @@ private:
     // Saves the current session song to a chosen destination.
     SaveAsFunction m_save_as_function;
 
+    // Publishes the current session song to a playable package destination.
+    PublishFunction m_publish_function;
+
     // Requests application exit from the composition host.
     ExitFunction m_exit_function;
 
@@ -269,6 +287,9 @@ private:
 
     // Currently loaded or imported project context; keeps workspace files alive.
     std::optional<core::Project> m_project{};
+
+    // User-selected native project path used for project-name-derived UI suggestions.
+    std::filesystem::path m_project_file{};
 
     // True when Save must first collect a native package path, such as after import.
     bool m_save_requires_destination{false};

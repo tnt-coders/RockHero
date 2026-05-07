@@ -29,16 +29,24 @@ namespace
 
 // Production save path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSave(
-    core::Project& project, const core::Song& song)
+    core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)
 {
-    return project.save(song);
+    return project.save(song, std::move(editor_state));
 }
 
 // Production save-as path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSaveAs(
+    core::Project& project, const std::filesystem::path& file, const core::Song& song,
+    core::ProjectEditorState editor_state)
+{
+    return project.saveAs(file, song, std::move(editor_state));
+}
+
+// Production publish path used when tests do not provide a custom seam.
+[[nodiscard]] std::expected<void, std::string> defaultPublish(
     core::Project& project, const std::filesystem::path& file, const core::Song& song)
 {
-    return project.saveAs(file, song);
+    return project.publish(file, song);
 }
 
 // Production exit fallback used when a composition host does not provide an exit callback.
@@ -52,7 +60,7 @@ void defaultExit()
 EditorController::EditorController(
     audio::ITransport& transport, EditCoordinator& edit_coordinator, OpenFunction open_function,
     ImportFunction import_function, SaveFunction save_function, SaveAsFunction save_as_function,
-    ExitFunction exit_function)
+    PublishFunction publish_function, ExitFunction exit_function)
     : m_transport(transport)
     , m_edit_coordinator(edit_coordinator)
     , m_open_function(open_function ? std::move(open_function) : OpenFunction{defaultOpen})
@@ -61,6 +69,8 @@ EditorController::EditorController(
     , m_save_function(save_function ? std::move(save_function) : SaveFunction{defaultSave})
     , m_save_as_function(
           save_as_function ? std::move(save_as_function) : SaveAsFunction{defaultSaveAs})
+    , m_publish_function(
+          publish_function ? std::move(publish_function) : PublishFunction{defaultPublish})
     , m_exit_function(exit_function ? std::move(exit_function) : ExitFunction{defaultExit})
     , m_transport_listener(transport, *this)
 {
@@ -102,9 +112,11 @@ void EditorController::openProject(const std::filesystem::path& file)
     }
 
     core::Song song = std::move(*loaded_song);
+    const core::ProjectEditorState editor_state = project.editorState();
 
     m_session_edit_in_progress = true;
-    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song), 0);
+    const bool project_loaded =
+        m_edit_coordinator.loadSong(std::move(song), editor_state.selected_arrangement);
     m_session_edit_in_progress = false;
 
     if (!project_loaded)
@@ -115,6 +127,8 @@ void EditorController::openProject(const std::filesystem::path& file)
     }
 
     m_project = std::move(project);
+    m_project_file = file;
+    m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
     m_last_error.reset();
@@ -151,7 +165,7 @@ void EditorController::importProject(const std::filesystem::path& file)
     core::Song song = std::move(*loaded_song);
 
     m_session_edit_in_progress = true;
-    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song), 0);
+    const bool project_loaded = m_edit_coordinator.loadSong(std::move(song));
     m_session_edit_in_progress = false;
 
     if (!project_loaded)
@@ -162,6 +176,7 @@ void EditorController::importProject(const std::filesystem::path& file)
     }
 
     m_project = std::move(project);
+    m_project_file.clear();
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
     m_last_error.reset();
@@ -202,7 +217,8 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
         return;
     }
 
-    const auto saved = m_save_as_function(*m_project, file, session().song());
+    const auto saved =
+        m_save_as_function(*m_project, file, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
         m_last_error = std::string{"Could not save as: "} + saved.error();
@@ -211,6 +227,7 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
     }
 
     m_save_requires_destination = false;
+    m_project_file = file;
     m_has_unsaved_changes = false;
     m_last_error.reset();
     if (m_pending_project_action.has_value())
@@ -219,6 +236,27 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
         return;
     }
 
+    deriveAndPush();
+}
+
+// Publishes the current project as a playable package without changing save destination or dirty
+// state.
+void EditorController::onPublishRequested(std::filesystem::path file)
+{
+    if (!m_project.has_value())
+    {
+        return;
+    }
+
+    const auto published = m_publish_function(*m_project, file, session().song());
+    if (!published.has_value())
+    {
+        m_last_error = std::string{"Could not publish: "} + published.error();
+        deriveAndPush();
+        return;
+    }
+
+    m_last_error.reset();
     deriveAndPush();
 }
 
@@ -419,6 +457,7 @@ bool EditorController::closeProject()
     if (!m_project.has_value())
     {
         m_edit_coordinator.closeSong();
+        m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         return true;
@@ -432,6 +471,7 @@ bool EditorController::closeProject()
     {
         m_last_error = std::string{"Could not close: "} + closed.error();
         m_project.reset();
+        m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         deriveAndPush();
@@ -439,6 +479,7 @@ bool EditorController::closeProject()
     }
 
     m_project.reset();
+    m_project_file.clear();
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
     m_last_error.reset();
@@ -453,7 +494,7 @@ bool EditorController::saveProject()
         return false;
     }
 
-    const auto saved = m_save_function(*m_project, session().song());
+    const auto saved = m_save_function(*m_project, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
         m_last_error = std::string{"Could not save: "} + saved.error();
@@ -494,6 +535,23 @@ const core::Session& EditorController::session() const noexcept
     return m_edit_coordinator.session();
 }
 
+// Captures editor-only persistence state from the current transport and displayed arrangement.
+core::ProjectEditorState EditorController::projectEditorStateForSave() const
+{
+    core::ProjectEditorState editor_state{
+        .cursor_position = m_transport.position(),
+        .selected_arrangement = std::nullopt,
+    };
+
+    const auto* arrangement = session().currentArrangement();
+    if (arrangement != nullptr && !arrangement->id.empty())
+    {
+        editor_state.selected_arrangement = arrangement->id;
+    }
+
+    return editor_state;
+}
+
 // Builds the message-thread view state from the session and transport state. Current cursor
 // position is only sampled to derive stop enabledness; the view receives discrete mapping state
 // rather than a continuously pushed playhead position.
@@ -507,6 +565,12 @@ EditorViewState EditorController::deriveViewState() const
     state.import_enabled = true;
     state.save_enabled = m_project.has_value();
     state.save_as_enabled = m_project.has_value();
+    state.publish_enabled = m_project.has_value();
+    if (!m_project_file.empty())
+    {
+        state.suggested_publish_file = m_project_file;
+        state.suggested_publish_file.replace_extension(".rock");
+    }
     state.close_enabled = m_project.has_value();
     state.project_loaded = session().currentArrangement() != nullptr;
     state.save_requires_destination = m_save_requires_destination;

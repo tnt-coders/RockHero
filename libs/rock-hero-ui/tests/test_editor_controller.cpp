@@ -68,6 +68,12 @@ public:
         save_as_request_count += 1;
     }
 
+    void onPublishRequested(std::filesystem::path file) override
+    {
+        last_publish_file = std::move(file);
+        publish_request_count += 1;
+    }
+
     void onSaveAsCancelled() override
     {
         save_as_cancel_count += 1;
@@ -108,12 +114,14 @@ public:
     std::optional<std::filesystem::path> last_open_file{};
     std::optional<std::filesystem::path> last_import_file{};
     std::optional<std::filesystem::path> last_save_as_file{};
+    std::optional<std::filesystem::path> last_publish_file{};
     std::optional<double> last_normalized_x{};
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
     int open_request_count{0};
     int import_request_count{0};
     int save_request_count{0};
     int save_as_request_count{0};
+    int publish_request_count{0};
     int save_as_cancel_count{0};
     int close_request_count{0};
     int exit_request_count{0};
@@ -257,10 +265,12 @@ public:
         return song;
     }
 
-    std::expected<void, std::string> save(core::Project& project, const core::Song& song)
+    std::expected<void, std::string> save(
+        core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)
     {
         (void)project;
         last_save_audio_path = firstAudioPath(song);
+        last_save_editor_state = std::move(editor_state);
         ++save_call_count;
         if (next_save_error.has_value())
         {
@@ -270,15 +280,31 @@ public:
     }
 
     std::expected<void, std::string> saveAs(
-        core::Project& project, const std::filesystem::path& file, const core::Song& song)
+        core::Project& project, const std::filesystem::path& file, const core::Song& song,
+        core::ProjectEditorState editor_state)
     {
         (void)project;
         last_save_as_file = file;
         last_save_as_audio_path = firstAudioPath(song);
+        last_save_as_editor_state = std::move(editor_state);
         ++save_as_call_count;
         if (next_save_as_error.has_value())
         {
             return std::unexpected<std::string>{*next_save_as_error};
+        }
+        return std::expected<void, std::string>{};
+    }
+
+    std::expected<void, std::string> publish(
+        core::Project& project, const std::filesystem::path& file, const core::Song& song)
+    {
+        (void)project;
+        last_publish_file = file;
+        last_publish_audio_path = firstAudioPath(song);
+        ++publish_call_count;
+        if (next_publish_error.has_value())
+        {
+            return std::unexpected<std::string>{*next_publish_error};
         }
         return std::expected<void, std::string>{};
     }
@@ -299,16 +325,31 @@ public:
 
     [[nodiscard]] SaveFunction saveFunction() noexcept
     {
-        return
-            [this](core::Project& project, const core::Song& song) { return save(project, song); };
+        return [this](
+                   core::Project& project,
+                   const core::Song& song,
+                   core::ProjectEditorState editor_state) {
+            return save(project, song, std::move(editor_state));
+        };
     }
 
     [[nodiscard]] SaveAsFunction saveAsFunction() noexcept
     {
+        return [this](
+                   core::Project& project,
+                   const std::filesystem::path& file,
+                   const core::Song& song,
+                   core::ProjectEditorState editor_state) {
+            return saveAs(project, file, song, std::move(editor_state));
+        };
+    }
+
+    [[nodiscard]] PublishFunction publishFunction() noexcept
+    {
         return
             [this](
                 core::Project& project, const std::filesystem::path& file, const core::Song& song) {
-                return saveAs(project, file, song);
+                return publish(project, file, song);
             };
     }
 
@@ -318,15 +359,21 @@ public:
     std::string next_import_error_message{"Import failed"};
     std::optional<std::string> next_save_error{};
     std::optional<std::string> next_save_as_error{};
+    std::optional<std::string> next_publish_error{};
     std::optional<std::filesystem::path> last_open_file{};
     std::optional<std::filesystem::path> last_import_file{};
     std::optional<std::filesystem::path> last_save_as_file{};
+    std::optional<std::filesystem::path> last_publish_file{};
     std::optional<std::filesystem::path> last_save_audio_path{};
     std::optional<std::filesystem::path> last_save_as_audio_path{};
+    std::optional<std::filesystem::path> last_publish_audio_path{};
+    std::optional<core::ProjectEditorState> last_save_editor_state{};
+    std::optional<core::ProjectEditorState> last_save_as_editor_state{};
     int open_call_count{0};
     int import_call_count{0};
     int save_call_count{0};
     int save_as_call_count{0};
+    int publish_call_count{0};
 
 private:
     // Returns the first arrangement audio path to verify the saved session content.
@@ -357,6 +404,7 @@ private:
     core::Song song;
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "lead",
             .part = core::Part::Lead,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(path)},
@@ -375,6 +423,7 @@ private:
     core::Song song;
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "lead",
             .part = core::Part::Lead,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(lead_path)},
@@ -384,6 +433,7 @@ private:
         });
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "bass",
             .part = core::Part::Bass,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(bass_path)},
@@ -401,8 +451,7 @@ void loadArrangement(
     core::TimeRange timeline_range = loadedTimelineRange())
 {
     edit.next_audio_duration = timeline_range.duration();
-    const bool song_loaded =
-        edit_coordinator.loadSong(makeSong(std::move(path), timeline_range), 0);
+    const bool song_loaded = edit_coordinator.loadSong(makeSong(std::move(path), timeline_range));
     REQUIRE(song_loaded);
 }
 
@@ -428,6 +477,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     CHECK(empty_state.import_enabled == false);
     CHECK(empty_state.save_enabled == false);
     CHECK(empty_state.save_as_enabled == false);
+    CHECK(empty_state.publish_enabled == false);
+    CHECK(empty_state.suggested_publish_file.empty());
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
@@ -446,6 +497,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
         .import_enabled = true,
         .save_enabled = true,
         .save_as_enabled = true,
+        .publish_enabled = true,
+        .suggested_publish_file = std::filesystem::path{"saved.rock"},
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,
@@ -482,11 +535,13 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     const std::filesystem::path open_file{"song.rhp"};
     const std::filesystem::path import_file{"song.psarc"};
     const std::filesystem::path save_as_file{"saved.rhp"};
+    const std::filesystem::path publish_file{"saved.rock"};
 
     controller.onOpenRequested(open_file);
     controller.onImportRequested(import_file);
     controller.onSaveRequested();
     controller.onSaveAsRequested(save_as_file);
+    controller.onPublishRequested(publish_file);
     controller.onSaveAsCancelled();
     controller.onCloseRequested();
     controller.onExitRequested();
@@ -502,6 +557,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     CHECK(controller.save_request_count == 1);
     CHECK(controller.save_as_request_count == 1);
     CHECK(controller.last_save_as_file == std::optional{save_as_file});
+    CHECK(controller.publish_request_count == 1);
+    CHECK(controller.last_publish_file == std::optional{publish_file});
     CHECK(controller.save_as_cancel_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
@@ -534,6 +591,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
         CHECK(state.import_enabled == true);
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
+        CHECK(state.publish_enabled == false);
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.play_pause_enabled == false);
@@ -812,6 +870,8 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
+        CHECK(state.publish_enabled == true);
+        CHECK(state.suggested_publish_file == std::filesystem::path{"second.rock"});
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.save_requires_destination == false);
@@ -844,6 +904,8 @@ TEST_CASE("EditorController close clears loaded project", "[ui][editor-controlle
         const EditorViewState& state = view.last_state.value();
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
+        CHECK(state.publish_enabled == false);
+        CHECK(state.suggested_publish_file.empty());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.play_pause_enabled == false);
@@ -874,12 +936,18 @@ TEST_CASE("EditorController save writes current session song", "[ui][editor-cont
     const core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
     project_io.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    transport.current_position = core::TimePosition{1.25};
 
     controller.onSaveRequested();
 
     CHECK(project_io.save_call_count == 1);
     CHECK(project_io.save_as_call_count == 0);
     CHECK(project_io.last_save_audio_path == std::optional{audio_asset.path});
+    CHECK(
+        project_io.last_save_editor_state == std::optional{core::ProjectEditorState{
+                                                 .cursor_position = core::TimePosition{1.25},
+                                                 .selected_arrangement = std::string{"lead"},
+                                             }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -918,6 +986,80 @@ TEST_CASE("EditorController save failure surfaces an error", "[ui][editor-contro
     {
         const EditorViewState& state = view.last_state.value();
         CHECK(state.last_error == std::optional<std::string>{"Could not save: disk full"});
+    }
+}
+
+// Publish writes a playable package copy without changing save-destination state.
+TEST_CASE("EditorController publish writes package copy", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        edit_coordinator,
+        project_io.openFunction(),
+        ImportFunction{},
+        project_io.saveFunction(),
+        project_io.saveAsFunction(),
+        project_io.publishFunction(),
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
+    project_io.next_song = makeSong(audio_asset.path);
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+
+    CHECK(project_io.publish_call_count == 1);
+    CHECK(project_io.save_as_call_count == 0);
+    CHECK(project_io.last_publish_file == std::optional{std::filesystem::path{"song.rock"}});
+    CHECK(project_io.last_publish_audio_path == std::optional{audio_asset.path});
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.save_requires_destination == false);
+        CHECK_FALSE(state.last_error.has_value());
+    }
+}
+
+// Publish failures surface an error without closing or retargeting the current project.
+TEST_CASE("EditorController publish failure surfaces an error", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        edit_coordinator,
+        project_io.openFunction(),
+        ImportFunction{},
+        SaveFunction{},
+        SaveAsFunction{},
+        project_io.publishFunction(),
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_io.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    project_io.next_publish_error = std::string{"disk full"};
+
+    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+
+    CHECK(project_io.publish_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.publish_enabled == true);
+        CHECK(state.close_enabled == true);
+        CHECK(state.last_error == std::optional<std::string>{"Could not publish: disk full"});
     }
 }
 
@@ -1002,6 +1144,7 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
+        CHECK(state.publish_enabled == true);
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
         CHECK(state.save_requires_destination == true);
@@ -1030,11 +1173,14 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     const core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
     project_io.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    transport.current_position = core::TimePosition{2.5};
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
         const EditorViewState& imported_state = view.last_state.value();
         CHECK(imported_state.save_requires_destination == true);
+        CHECK(imported_state.publish_enabled == true);
+        CHECK(imported_state.suggested_publish_file.empty());
         CHECK(imported_state.close_enabled == true);
         CHECK(imported_state.project_loaded == true);
     }
@@ -1048,11 +1194,17 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     CHECK(project_io.save_as_call_count == 1);
     CHECK(project_io.last_save_as_file == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(project_io.last_save_as_audio_path == std::optional{audio_asset.path});
+    CHECK(
+        project_io.last_save_as_editor_state == std::optional{core::ProjectEditorState{
+                                                    .cursor_position = core::TimePosition{2.5},
+                                                    .selected_arrangement = std::string{"lead"},
+                                                }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
         const EditorViewState& saved_state = view.last_state.value();
         CHECK(saved_state.save_requires_destination == false);
+        CHECK(saved_state.suggested_publish_file == std::filesystem::path{"saved.rock"});
         CHECK_FALSE(saved_state.unsaved_changes_prompt.has_value());
     }
 
@@ -1101,6 +1253,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[ui][editor
     {
         const EditorViewState& cancel_state = view.last_state.value();
         CHECK_FALSE(cancel_state.unsaved_changes_prompt.has_value());
+        CHECK(cancel_state.publish_enabled == true);
         CHECK(cancel_state.close_enabled == true);
         CHECK(cancel_state.project_loaded == true);
         CHECK(cancel_state.save_requires_destination == true);
@@ -1151,6 +1304,7 @@ TEST_CASE("EditorController saves prompted import before close", "[ui][editor-co
     if (view.last_state.has_value())
     {
         const EditorViewState& close_state = view.last_state.value();
+        CHECK(close_state.publish_enabled == false);
         CHECK(close_state.close_enabled == false);
         CHECK(close_state.project_loaded == false);
         CHECK_FALSE(close_state.arrangement.hasAudio());
@@ -1172,6 +1326,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][edit
         project_io.importFunction(),
         project_io.saveFunction(),
         project_io.saveAsFunction(),
+        PublishFunction{},
         [&exit_call_count] { ++exit_call_count; },
     };
     FakeEditorView view;

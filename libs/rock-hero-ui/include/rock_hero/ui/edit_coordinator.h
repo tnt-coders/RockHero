@@ -7,9 +7,11 @@
 
 #include <cstddef>
 #include <functional>
+#include <optional>
 #include <rock_hero/audio/i_edit.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/song.h>
+#include <string>
 
 namespace rock_hero::ui
 {
@@ -64,10 +66,11 @@ public:
     accepts the audio with a positive duration does the coordinator commit the song into Session.
 
     \param song Song parsed from a project package.
-    \param selected_arrangement_index Arrangement index displayed by the editor.
+    \param selected_arrangement Arrangement ID displayed by the editor, if one was saved.
     \return True when the backend and Session both accept the edit.
     */
-    [[nodiscard]] bool loadSong(core::Song song, std::size_t selected_arrangement_index);
+    [[nodiscard]] bool loadSong(
+        core::Song song, const std::optional<std::string>& selected_arrangement = std::nullopt);
 
     /*! \brief Clears backend arrangement audio and restores the empty editor session. */
     void closeSong();

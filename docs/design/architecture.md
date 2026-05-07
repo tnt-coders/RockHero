@@ -34,11 +34,14 @@ For the structural engineering rules that govern how new code should be organize
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
-| Rock Hero project package | libzip + nlohmann_json | `.rhp` extraction; `song.json` parsing |
+| Rock Hero package formats | libzip + nlohmann_json | `.rhp` editor packages; `.rock` runtime packages |
 | Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
+
+`.rhp` packages store `project.json` at the root and song content under `song/`. `.rock`
+packages store runtime song content directly at the archive root.
 
 ---
 
@@ -206,6 +209,7 @@ Song
   metadata          (title, artist, album, year)
   chart
     arrangements[*]
+      id            (stable project-local arrangement identifier)
       part          (Lead | Rhythm | Bass)
       difficulty    (0 Unknown, 1-10 authored rating)
       audio_asset    (optional path/identifier for backing audio)
