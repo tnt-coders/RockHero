@@ -60,23 +60,22 @@ const Arrangement* Session::currentArrangement() const noexcept
 }
 
 // Commits a fully prepared song once the selected arrangement has playable audio.
-bool Session::loadSong(Song song, std::size_t selected_arrangement_index)
+bool Session::loadSong(Song song, std::size_t selected_arrangement)
 {
-    if (song.chart.arrangements.empty() ||
-        selected_arrangement_index >= song.chart.arrangements.size())
+    if (song.chart.arrangements.empty() || selected_arrangement >= song.chart.arrangements.size())
     {
         return false;
     }
 
-    const Arrangement& selected_arrangement = song.chart.arrangements[selected_arrangement_index];
-    if (!selected_arrangement.hasAudio())
+    const Arrangement& arrangement = song.chart.arrangements[selected_arrangement];
+    if (!arrangement.hasAudio())
     {
         return false;
     }
 
-    const TimeRange timeline = calculateTimeline(selected_arrangement);
+    const TimeRange timeline = calculateTimeline(arrangement);
     m_song = std::move(song);
-    m_current_arrangement_index = selected_arrangement_index;
+    m_current_arrangement_index = selected_arrangement;
     m_timeline = timeline;
     return true;
 }

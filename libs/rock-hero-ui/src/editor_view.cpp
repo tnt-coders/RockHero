@@ -19,6 +19,7 @@ constexpr int g_save_command{3};
 constexpr int g_save_as_command{4};
 constexpr int g_close_command{5};
 constexpr int g_exit_command{6};
+constexpr int g_publish_command{7};
 
 // Ensures saved packages use the native Rock Hero extension when the chooser returns none.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -29,6 +30,29 @@ constexpr int g_exit_command{6};
         path.replace_extension(".rhp");
     }
     return path;
+}
+
+// Ensures published packages use the playable Rock Hero extension when the chooser returns none.
+[[nodiscard]] std::filesystem::path pathWithRockExtension(const juce::File& file)
+{
+    std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
+    if (!path.empty() && path.extension().empty())
+    {
+        path.replace_extension(".rock");
+    }
+    return path;
+}
+
+// Converts a project-suggested publish path into JUCE's save-dialog starting file.
+[[nodiscard]] juce::File publishChooserInitialFile(const std::filesystem::path& suggested_file)
+{
+    if (suggested_file.empty())
+    {
+        return juce::File::getSpecialLocation(juce::File::userHomeDirectory);
+    }
+
+    const auto& native_path = suggested_file.native();
+    return juce::File{juce::String{native_path.c_str()}};
 }
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it.
@@ -290,6 +314,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
     menu.addSeparator();
     menu.addItem(g_save_command, "Save", m_state.save_enabled);
     menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
+    menu.addItem(g_publish_command, "Publish...", m_state.publish_enabled);
     menu.addSeparator();
     menu.addItem(g_close_command, "Close", m_state.close_enabled);
     menu.addItem(g_exit_command, "Exit");
@@ -331,6 +356,12 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         if (m_state.save_as_enabled)
         {
             showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+        }
+        break;
+    case g_publish_command:
+        if (m_state.publish_enabled)
+        {
+            showPublishChooser();
         }
         break;
     case g_close_command:
@@ -414,6 +445,28 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
             }
 
             m_controller.onSaveAsRequested(pathWithRhpExtension(file));
+        });
+}
+
+// Opens an asynchronous file chooser and sends accepted playable publish paths to the controller.
+void EditorView::showPublishChooser()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Publish Rock Hero Song (.rock)",
+        publishChooserInitialFile(m_state.suggested_publish_file),
+        "*.rock");
+
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::warnAboutOverwriting,
+        [this](const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            if (file.getFullPathName().isEmpty())
+            {
+                return;
+            }
+
+            m_controller.onPublishRequested(pathWithRockExtension(file));
         });
 }
 

@@ -25,6 +25,7 @@ namespace
     song.metadata.title = "Test Song";
     song.chart.arrangements.push_back(
         Arrangement{
+            .id = "lead",
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::move(path)),
@@ -147,6 +148,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
     Song song;
     song.chart.arrangements.push_back(
         Arrangement{
+            .id = "lead",
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
@@ -156,6 +158,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
         });
     song.chart.arrangements.push_back(
         Arrangement{
+            .id = "bass",
             .part = Part::Bass,
             .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
@@ -186,6 +189,7 @@ TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][
     Song song;
     song.chart.arrangements.push_back(
         Arrangement{
+            .id = "lead",
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
@@ -195,6 +199,7 @@ TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][
         });
     song.chart.arrangements.push_back(
         Arrangement{
+            .id = "bass",
             .part = Part::Bass,
             .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),

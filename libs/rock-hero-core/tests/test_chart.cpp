@@ -18,6 +18,7 @@ TEST_CASE("Chart holds multiple arrangements", "[core][chart]")
     Chart chart;
     chart.arrangements.push_back(
         Arrangement{
+            .id = "lead",
             .part = Part::Lead,
             .difficulty = DifficultyRating{2},
             .audio_asset = {},
@@ -27,6 +28,7 @@ TEST_CASE("Chart holds multiple arrangements", "[core][chart]")
         });
     chart.arrangements.push_back(
         Arrangement{
+            .id = "bass",
             .part = Part::Bass,
             .difficulty = DifficultyRating{9},
             .audio_asset = {},

@@ -39,6 +39,7 @@ public:
     core::Song song;
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "lead",
             .part = core::Part::Lead,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(audio_path)},
@@ -69,7 +70,7 @@ TEST_CASE("EditCoordinator loads accepted song audio", "[ui][edit-coordinator]")
     EditCoordinator coordinator{edit};
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
 
-    const bool loaded = coordinator.loadSong(makeSong(audio_asset.path), 0);
+    const bool loaded = coordinator.loadSong(makeSong(audio_asset.path));
 
     CHECK(loaded);
     CHECK(edit.load_audio_call_count == 1);
@@ -93,7 +94,7 @@ TEST_CASE("EditCoordinator preserves session on project-audio failure", "[ui][ed
     edit.next_load_audio_result = std::nullopt;
     const core::AudioAsset failed_asset{std::filesystem::path{"missing.wav"}};
 
-    const bool failed = coordinator.loadSong(makeSong(failed_asset.path), 0);
+    const bool failed = coordinator.loadSong(makeSong(failed_asset.path));
 
     CHECK_FALSE(failed);
     CHECK(edit.load_audio_call_count == 1);
@@ -111,7 +112,7 @@ TEST_CASE("EditCoordinator rejects zero-duration audio", "[ui][edit-coordinator]
     edit.next_load_audio_result = core::TimeDuration{};
     const core::AudioAsset failed_asset{std::filesystem::path{"empty.wav"}};
 
-    const bool failed = coordinator.loadSong(makeSong(failed_asset.path), 0);
+    const bool failed = coordinator.loadSong(makeSong(failed_asset.path));
 
     CHECK_FALSE(failed);
     CHECK(edit.load_audio_call_count == 1);
@@ -128,7 +129,7 @@ TEST_CASE("EditCoordinator closeSong clears audio and session", "[ui][edit-coord
     EditCoordinator coordinator{edit};
     const core::AudioAsset audio_asset{std::filesystem::path{"mix.wav"}};
 
-    REQUIRE(coordinator.loadSong(makeSong(audio_asset.path), 0));
+    REQUIRE(coordinator.loadSong(makeSong(audio_asset.path)));
 
     coordinator.closeSong();
 
@@ -138,14 +139,15 @@ TEST_CASE("EditCoordinator closeSong clears audio and session", "[ui][edit-coord
     CHECK(coordinator.session().timeline() == core::TimeRange{});
 }
 
-// Verifies a selected arrangement can be loaded without storing package IDs in core.
-TEST_CASE("EditCoordinator loads the selected arrangement index", "[ui][edit-coordinator]")
+// Verifies a selected arrangement ID controls which audio is loaded.
+TEST_CASE("EditCoordinator loads the selected arrangement", "[ui][edit-coordinator]")
 {
     FakeEdit edit;
     EditCoordinator coordinator{edit};
     core::Song song;
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "lead",
             .part = core::Part::Lead,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::filesystem::path{"lead.wav"}},
@@ -155,6 +157,7 @@ TEST_CASE("EditCoordinator loads the selected arrangement index", "[ui][edit-coo
         });
     song.chart.arrangements.push_back(
         core::Arrangement{
+            .id = "bass",
             .part = core::Part::Bass,
             .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::filesystem::path{"bass.wav"}},
@@ -163,7 +166,7 @@ TEST_CASE("EditCoordinator loads the selected arrangement index", "[ui][edit-coo
             .note_events = {},
         });
 
-    const bool loaded = coordinator.loadSong(std::move(song), 1);
+    const bool loaded = coordinator.loadSong(std::move(song), std::optional<std::string>{"bass"});
 
     CHECK(loaded);
     CHECK(

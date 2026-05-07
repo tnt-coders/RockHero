@@ -31,6 +31,10 @@ namespace
 
 using Json = nlohmann::json;
 
+constexpr std::string_view g_project_document_name{"project.json"};
+constexpr std::string_view g_song_directory_name{"song"};
+constexpr std::string_view g_song_document_name{"song.json"};
+
 class ZipSource final
 {
 public:
@@ -217,6 +221,12 @@ private:
     return std::unexpected<std::string>{std::move(message)};
 }
 
+// Builds a failed project-publish result with a single message.
+[[nodiscard]] std::expected<void, std::string> failProjectPublish(std::string message)
+{
+    return std::unexpected<std::string>{std::move(message)};
+}
+
 // Builds a failed project-close result with a single message.
 [[nodiscard]] std::expected<void, std::string> failProjectClose(std::string message)
 {
@@ -329,7 +339,7 @@ private:
     const std::filesystem::path& directory)
 {
     // Intentionally non-const so return-by-value can move the path.
-    std::filesystem::path song_document_path = directory / "song.json";
+    std::filesystem::path song_document_path = directory / g_song_document_name;
     std::error_code error;
     if (std::filesystem::is_regular_file(song_document_path, error))
     {
@@ -455,6 +465,107 @@ private:
     return value->get<std::string>();
 }
 
+// Reads an optional string property while rejecting non-string values.
+[[nodiscard]] std::expected<std::optional<std::string>, std::string> readOptionalString(
+    const Json& object, const char* property_name)
+{
+    const auto value = object.find(property_name);
+    if (value == object.end() || value->is_null())
+    {
+        return std::optional<std::string>{};
+    }
+
+    if (!value->is_string())
+    {
+        return std::unexpected<std::string>{
+            std::string{property_name} + " must be a string when present"
+        };
+    }
+
+    return std::optional<std::string>{value->get<std::string>()};
+}
+
+// Reads project.json editor state from the extracted native project root.
+[[nodiscard]] std::expected<ProjectEditorState, std::string> readProjectEditorState(
+    const std::filesystem::path& workspace_directory)
+{
+    const std::filesystem::path project_document_path =
+        workspace_directory / g_project_document_name;
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(project_document_path, error))
+    {
+        return std::unexpected<std::string>{"Project directory does not contain project.json"};
+    }
+
+    std::ifstream project_document_file{project_document_path};
+    if (!project_document_file.is_open())
+    {
+        return std::unexpected<std::string>{"Could not open project.json"};
+    }
+
+    Json project_document;
+    try
+    {
+        project_document = Json::parse(project_document_file);
+    }
+    catch (const Json::parse_error& exception)
+    {
+        return std::unexpected<std::string>{
+            std::string{"Could not parse project.json: "} + exception.what()
+        };
+    }
+
+    try
+    {
+        if (!project_document.is_object() || project_document.value("formatVersion", 0) != 1)
+        {
+            return std::unexpected<std::string>{"Unsupported project.json formatVersion"};
+        }
+
+        ProjectEditorState editor_state;
+        const auto editor_state_json = project_document.find("editorState");
+        if (editor_state_json == project_document.end() || editor_state_json->is_null())
+        {
+            return editor_state;
+        }
+
+        if (!editor_state_json->is_object())
+        {
+            return std::unexpected<std::string>{"project.json editorState must be an object"};
+        }
+
+        const auto cursor_position_json = editor_state_json->find("cursorPosition");
+        if (cursor_position_json != editor_state_json->end() && !cursor_position_json->is_null())
+        {
+            if (!cursor_position_json->is_number())
+            {
+                return std::unexpected<std::string>{"cursorPosition must be a number"};
+            }
+
+            editor_state.cursor_position = TimePosition{cursor_position_json->get<double>()};
+        }
+
+        auto selected_arrangement = readOptionalString(*editor_state_json, "selectedArrangement");
+        if (!selected_arrangement.has_value())
+        {
+            return std::unexpected<std::string>{std::move(selected_arrangement.error())};
+        }
+
+        if (selected_arrangement->has_value() && !selected_arrangement->value().empty())
+        {
+            editor_state.selected_arrangement = std::move(selected_arrangement->value());
+        }
+
+        return editor_state;
+    }
+    catch (const Json::exception& exception)
+    {
+        return std::unexpected<std::string>{
+            std::string{"Invalid project.json: "} + exception.what()
+        };
+    }
+}
+
 // Translates song-document part names into the current core enum.
 [[nodiscard]] std::optional<Part> parsePart(const std::string& text)
 {
@@ -556,6 +667,7 @@ private:
 
     std::vector<Arrangement> arrangements;
     arrangements.reserve(arrangements_json->size());
+    std::set<std::string> arrangement_ids;
 
     for (const Json& arrangement_json : *arrangements_json)
     {
@@ -565,12 +677,21 @@ private:
             return std::nullopt;
         }
 
+        const auto id = readRequiredString(arrangement_json, "id");
         const auto part_text = readRequiredString(arrangement_json, "part");
         const auto arrangement_file = readRequiredString(arrangement_json, "file");
         const auto audio_id = readRequiredString(arrangement_json, "audio");
-        if (!part_text.has_value() || !arrangement_file.has_value() || !audio_id.has_value())
+        if (!id.has_value() || id->empty() || !part_text.has_value() ||
+            !arrangement_file.has_value() || !audio_id.has_value())
         {
-            error_message = "arrangement entries require part, file, and audio fields";
+            error_message =
+                "arrangement entries require non-empty id, part, file, and audio fields";
+            return std::nullopt;
+        }
+
+        if (!arrangement_ids.insert(*id).second)
+        {
+            error_message = "duplicate arrangement id: " + *id;
             return std::nullopt;
         }
 
@@ -596,6 +717,7 @@ private:
 
         arrangements.push_back(
             Arrangement{
+                .id = *id,
                 .part = *part,
                 .difficulty = DifficultyRating{},
                 .audio_asset = audio_asset->second,
@@ -1031,8 +1153,48 @@ private:
     return std::filesystem::path{"arrangements"} / (stem + "-" + std::to_string(count) + ".xml");
 }
 
+struct SongDocumentForSave
+{
+    Json document;
+    std::vector<std::string> arrangement_ids;
+};
+
+struct WrittenSongFiles
+{
+    std::vector<std::string> arrangement_ids;
+};
+
+// Chooses the ID to write for one arrangement, generating a stable fallback when needed.
+[[nodiscard]] std::optional<std::string> arrangementIdForSave(
+    const Arrangement& arrangement, std::unordered_map<std::string, int>& id_counts,
+    std::set<std::string>& used_ids, std::string& error_message)
+{
+    if (!arrangement.id.empty())
+    {
+        if (!used_ids.insert(arrangement.id).second)
+        {
+            error_message = "Cannot save duplicate arrangement id: " + arrangement.id;
+            return std::nullopt;
+        }
+
+        return arrangement.id;
+    }
+
+    const std::string stem = partFileStem(arrangement.part);
+    int& count = id_counts[stem];
+    while (true)
+    {
+        ++count;
+        std::string candidate = count == 1 ? stem : stem + "-" + std::to_string(count);
+        if (used_ids.insert(candidate).second)
+        {
+            return candidate;
+        }
+    }
+}
+
 // Creates the JSON song document that represents the supplied session song.
-[[nodiscard]] std::optional<Json> buildSongDocumentForSave(
+[[nodiscard]] std::optional<SongDocumentForSave> buildSongDocumentForSave(
     const std::filesystem::path& workspace_directory, const Song& song, std::string& error_message)
 {
     if (song.chart.arrangements.empty())
@@ -1045,6 +1207,10 @@ private:
     Json arrangements = Json::array();
     std::unordered_map<std::string, std::string> audio_ids_by_path;
     std::unordered_map<std::string, int> part_counts;
+    std::unordered_map<std::string, int> id_counts;
+    std::set<std::string> used_arrangement_ids;
+    std::vector<std::string> arrangement_ids;
+    arrangement_ids.reserve(song.chart.arrangements.size());
 
     for (std::size_t index = 0; index < song.chart.arrangements.size(); ++index)
     {
@@ -1087,6 +1253,13 @@ private:
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
+        const auto arrangement_id =
+            arrangementIdForSave(arrangement, id_counts, used_arrangement_ids, error_message);
+        if (!arrangement_id.has_value())
+        {
+            return std::nullopt;
+        }
+
         const std::filesystem::path arrangement_file =
             arrangementFilePath(arrangement.part, part_counts);
         if (const auto arrangement_error =
@@ -1099,47 +1272,136 @@ private:
 
         arrangements.push_back(
             Json{
+                {"id", *arrangement_id},
                 {"part", partName(arrangement.part)},
                 {"file", arrangement_file.generic_string()},
                 {"audio", audio_id->second},
             });
+        arrangement_ids.push_back(*arrangement_id);
     }
 
-    return Json{
-        {"formatVersion", 1},
-        {"metadata",
-         Json{
-             {"title", song.metadata.title},
-             {"artist", song.metadata.artist},
-             {"album", song.metadata.album},
-             {"year", song.metadata.year},
-         }},
-        {"audioAssets", audio_assets},
-        {"arrangements", arrangements},
+    return SongDocumentForSave{
+        .document =
+            Json{
+                {"formatVersion", 1},
+                {"metadata",
+                 Json{
+                     {"title", song.metadata.title},
+                     {"artist", song.metadata.artist},
+                     {"album", song.metadata.album},
+                     {"year", song.metadata.year},
+                 }},
+                {"audioAssets", audio_assets},
+                {"arrangements", arrangements},
+            },
+        .arrangement_ids = std::move(arrangement_ids),
     };
 }
 
-// Writes song.json into the extracted workspace.
-[[nodiscard]] std::optional<std::string> writeSongDocumentForSave(
-    const std::filesystem::path& workspace_directory, const Song& song)
+// Chooses a selected arrangement ID to persist in project.json.
+[[nodiscard]] std::optional<std::string> selectedArrangementForSave(
+    const ProjectEditorState& editor_state, const std::vector<std::string>& arrangement_ids)
+{
+    if (arrangement_ids.empty())
+    {
+        return std::nullopt;
+    }
+
+    if (editor_state.selected_arrangement.has_value() &&
+        std::ranges::find(arrangement_ids, *editor_state.selected_arrangement) !=
+            arrangement_ids.end())
+    {
+        return editor_state.selected_arrangement;
+    }
+
+    return arrangement_ids.front();
+}
+
+// Writes project.json into the extracted project workspace root.
+[[nodiscard]] std::optional<std::string> writeProjectDocumentForSave(
+    const std::filesystem::path& workspace_directory, const ProjectEditorState& editor_state,
+    const std::vector<std::string>& arrangement_ids)
+{
+    Json editor_state_json{
+        {"cursorPosition", editor_state.cursor_position.seconds},
+    };
+
+    const auto selected_arrangement = selectedArrangementForSave(editor_state, arrangement_ids);
+    if (selected_arrangement.has_value())
+    {
+        editor_state_json["selectedArrangement"] = *selected_arrangement;
+    }
+
+    const Json project_document{
+        {"formatVersion", 1},
+        {"editorState", editor_state_json},
+    };
+
+    std::ofstream project_document_file{workspace_directory / g_project_document_name};
+    if (!project_document_file.is_open())
+    {
+        return "Could not write project.json";
+    }
+
+    project_document_file << project_document.dump(4) << '\n';
+    if (!project_document_file.good())
+    {
+        return "Could not write project.json";
+    }
+
+    return std::nullopt;
+}
+
+// Writes runtime song files into the supplied package-content directory.
+[[nodiscard]] std::expected<WrittenSongFiles, std::string> writeSongFilesForSave(
+    const std::filesystem::path& song_directory, const Song& song)
 {
     std::string error_message;
-    const auto song_document = buildSongDocumentForSave(workspace_directory, song, error_message);
+    std::error_code error;
+    std::filesystem::create_directories(song_directory, error);
+    if (error)
+    {
+        return std::unexpected<std::string>{"Could not create song directory: " + error.message()};
+    }
+
+    auto song_document = buildSongDocumentForSave(song_directory, song, error_message);
     if (!song_document.has_value())
     {
-        return error_message;
+        return std::unexpected<std::string>{std::move(error_message)};
     }
 
-    std::ofstream song_document_file{workspace_directory / "song.json"};
+    std::ofstream song_document_file{song_directory / g_song_document_name};
     if (!song_document_file.is_open())
     {
-        return "Could not write song.json";
+        return std::unexpected<std::string>{"Could not write song.json"};
     }
 
-    song_document_file << song_document->dump(4) << '\n';
+    song_document_file << song_document->document.dump(4) << '\n';
     if (!song_document_file.good())
     {
-        return "Could not write song.json";
+        return std::unexpected<std::string>{"Could not write song.json"};
+    }
+
+    return WrittenSongFiles{.arrangement_ids = std::move(song_document->arrangement_ids)};
+}
+
+// Writes project.json and song/song.json into the extracted workspace.
+[[nodiscard]] std::optional<std::string> writeProjectFilesForSave(
+    const std::filesystem::path& workspace_directory, const Song& song,
+    const ProjectEditorState& editor_state)
+{
+    const std::filesystem::path song_directory = workspace_directory / g_song_directory_name;
+    const auto song_files = writeSongFilesForSave(song_directory, song);
+    if (!song_files.has_value())
+    {
+        return song_files.error();
+    }
+
+    if (const auto write_error = writeProjectDocumentForSave(
+            workspace_directory, editor_state, song_files->arrangement_ids);
+        write_error.has_value())
+    {
+        return write_error;
     }
 
     return std::nullopt;
@@ -1285,12 +1547,14 @@ Project::~Project() noexcept
         {
             m_path.clear();
             m_workspace_directory.clear();
+            m_editor_state = ProjectEditorState{};
         }
     }
     catch (...)
     {
         m_path.clear();
         m_workspace_directory.clear();
+        m_editor_state = ProjectEditorState{};
     }
 }
 
@@ -1298,6 +1562,7 @@ Project::~Project() noexcept
 Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
+    , m_editor_state(std::exchange(other.m_editor_state, {}))
 {}
 
 // Removes the old workspace before taking ownership from another project.
@@ -1311,16 +1576,19 @@ Project& Project::operator=(Project&& other) noexcept
             {
                 m_path.clear();
                 m_workspace_directory.clear();
+                m_editor_state = ProjectEditorState{};
             }
         }
         catch (...)
         {
             m_path.clear();
             m_workspace_directory.clear();
+            m_editor_state = ProjectEditorState{};
         }
 
         m_path = std::exchange(other.m_path, {});
         m_workspace_directory = std::exchange(other.m_workspace_directory, {});
+        m_editor_state = std::exchange(other.m_editor_state, {});
     }
 
     return *this;
@@ -1336,6 +1604,12 @@ const std::filesystem::path& Project::path() const noexcept
 const std::filesystem::path& Project::workspaceDirectory() const noexcept
 {
     return m_workspace_directory;
+}
+
+// Returns editor-only state read from project.json or default state before loading.
+const ProjectEditorState& Project::editorState() const noexcept
+{
+    return m_editor_state;
 }
 
 // Opens the package archive, extracts it safely, and reads the song document.
@@ -1371,13 +1645,22 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
         return failProjectLoad(*extraction_error);
     }
 
-    auto loaded_song = readSong(loaded_project.m_workspace_directory);
+    auto editor_state = readProjectEditorState(loaded_project.m_workspace_directory);
+    if (!editor_state.has_value())
+    {
+        return failProjectLoad(std::move(editor_state.error()));
+    }
+
+    auto loaded_song = readSong(loaded_project.m_workspace_directory / g_song_directory_name);
     if (!loaded_song.has_value())
     {
         return failProjectLoad(std::move(loaded_song.error()));
     }
 
     Song song = std::move(*loaded_song);
+    loaded_project.m_editor_state = std::move(*editor_state);
+    // TODO: Surface a non-fatal load warning if selectedArrangement no longer matches any
+    // arrangement ID; EditCoordinator currently falls back to the first arrangement silently.
     if (auto close_result = close(); !close_result.has_value())
     {
         return failProjectLoad(std::move(close_result.error()));
@@ -1401,16 +1684,22 @@ std::expected<Song, std::string> Project::import(
 
     Project imported_project;
     imported_project.m_workspace_directory = std::move(*workspace_directory);
+    const std::filesystem::path song_directory =
+        imported_project.m_workspace_directory / g_song_directory_name;
+    std::error_code create_error;
+    std::filesystem::create_directories(song_directory, create_error);
+    if (create_error)
+    {
+        return failProjectImport("Could not create song directory: " + create_error.message());
+    }
 
-    auto imported_song =
-        importer.importProject(source_path, imported_project.m_workspace_directory);
+    auto imported_song = importer.importProject(source_path, song_directory);
     if (!imported_song.has_value())
     {
         return failProjectImport(std::move(imported_song.error()));
     }
 
-    auto normalized_song =
-        normalizeImportedSong(imported_project.m_workspace_directory, std::move(*imported_song));
+    auto normalized_song = normalizeImportedSong(song_directory, std::move(*imported_song));
     if (!normalized_song.has_value())
     {
         return failProjectImport(std::move(normalized_song.error()));
@@ -1430,6 +1719,12 @@ std::expected<Song, std::string> Project::import(
 // Writes the current session song to the open project workspace and package.
 std::expected<void, std::string> Project::save(const Song& song)
 {
+    return save(song, m_editor_state);
+}
+
+// Writes the current session song and editor state to the open project workspace and package.
+std::expected<void, std::string> Project::save(const Song& song, ProjectEditorState editor_state)
+{
     if (m_path.empty() || m_workspace_directory.empty())
     {
         return failProjectSave("Cannot save before a project path has been chosen");
@@ -1441,7 +1736,8 @@ std::expected<void, std::string> Project::save(const Song& song)
         return failProjectSave("Project workspace does not exist");
     }
 
-    if (const auto write_error = writeSongDocumentForSave(m_workspace_directory, song);
+    if (const auto write_error =
+            writeProjectFilesForSave(m_workspace_directory, song, editor_state);
         write_error.has_value())
     {
         return failProjectSave(*write_error);
@@ -1453,12 +1749,20 @@ std::expected<void, std::string> Project::save(const Song& song)
         return failProjectSave(*package_error);
     }
 
+    m_editor_state = std::move(editor_state);
     return std::expected<void, std::string>{};
 }
 
 // Saves to a chosen package path, creating a workspace first when this project is unopened.
 std::expected<void, std::string> Project::saveAs(
     const std::filesystem::path& path, const Song& song)
+{
+    return saveAs(path, song, m_editor_state);
+}
+
+// Saves song data and editor state to a chosen package path.
+std::expected<void, std::string> Project::saveAs(
+    const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state)
 {
     if (path.empty())
     {
@@ -1479,7 +1783,7 @@ std::expected<void, std::string> Project::saveAs(
         saved_project.m_workspace_directory = std::move(*workspace_directory);
 
         if (const auto write_error =
-                writeSongDocumentForSave(saved_project.m_workspace_directory, song);
+                writeProjectFilesForSave(saved_project.m_workspace_directory, song, editor_state);
             write_error.has_value())
         {
             return failProjectSave(*write_error);
@@ -1492,11 +1796,13 @@ std::expected<void, std::string> Project::saveAs(
             return failProjectSave(*package_error);
         }
 
+        saved_project.m_editor_state = std::move(editor_state);
         *this = std::move(saved_project);
         return std::expected<void, std::string>{};
     }
 
-    if (const auto write_error = writeSongDocumentForSave(m_workspace_directory, song);
+    if (const auto write_error =
+            writeProjectFilesForSave(m_workspace_directory, song, editor_state);
         write_error.has_value())
     {
         return failProjectSave(*write_error);
@@ -1509,6 +1815,43 @@ std::expected<void, std::string> Project::saveAs(
     }
 
     m_path = path;
+    m_editor_state = std::move(editor_state);
+    return std::expected<void, std::string>{};
+}
+
+// Publishes runtime song content without project metadata or retargeting future saves.
+std::expected<void, std::string> Project::publish(
+    const std::filesystem::path& path, const Song& song)
+{
+    if (path.empty())
+    {
+        return failProjectPublish("Cannot publish a project without a package path");
+    }
+
+    if (m_workspace_directory.empty())
+    {
+        return failProjectPublish("Cannot publish before a project workspace exists");
+    }
+
+    const std::filesystem::path song_directory = m_workspace_directory / g_song_directory_name;
+    std::error_code error;
+    if (!std::filesystem::is_directory(m_workspace_directory, error))
+    {
+        return failProjectPublish("Project workspace does not exist");
+    }
+
+    if (const auto song_files = writeSongFilesForSave(song_directory, song);
+        !song_files.has_value())
+    {
+        return failProjectPublish(song_files.error());
+    }
+
+    if (const auto package_error = writeWorkspaceToPackage(song_directory, path);
+        package_error.has_value())
+    {
+        return failProjectPublish(*package_error);
+    }
+
     return std::expected<void, std::string>{};
 }
 
@@ -1518,6 +1861,7 @@ std::expected<void, std::string> Project::close()
     if (m_workspace_directory.empty())
     {
         m_path.clear();
+        m_editor_state = ProjectEditorState{};
         return std::expected<void, std::string>{};
     }
 
@@ -1544,6 +1888,7 @@ std::expected<void, std::string> Project::close()
 
     m_path.clear();
     m_workspace_directory.clear();
+    m_editor_state = ProjectEditorState{};
     return std::expected<void, std::string>{};
 }
 

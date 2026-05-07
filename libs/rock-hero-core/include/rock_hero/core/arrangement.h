@@ -61,6 +61,9 @@ module.
 */
 struct Arrangement
 {
+    /*! \brief Stable arrangement identifier used by project editor state. */
+    std::string id;
+
     /*! \brief Guitar part played by this arrangement. */
     Part part{Part::Lead};
 

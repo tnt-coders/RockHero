@@ -1,5 +1,6 @@
 #include "edit_coordinator.h"
 
+#include <algorithm>
 #include <cassert>
 
 namespace rock_hero::ui
@@ -16,30 +17,57 @@ const core::Session& EditCoordinator::session() const noexcept
     return m_session;
 }
 
-// Lets the backend accept the selected arrangement audio, then commits the song into Session.
-bool EditCoordinator::loadSong(core::Song song, std::size_t selected_arrangement_index)
+namespace
 {
-    if (song.chart.arrangements.empty() ||
-        selected_arrangement_index >= song.chart.arrangements.size())
+
+// Resolves persisted arrangement IDs to the current song order, falling back to the first item.
+[[nodiscard]] std::size_t resolveSelectedArrangement(
+    const core::Song& song, const std::optional<std::string>& selected_arrangement)
+{
+    if (!selected_arrangement.has_value())
+    {
+        return 0;
+    }
+
+    const auto found = std::ranges::find_if(
+        song.chart.arrangements, [&selected_arrangement](const core::Arrangement& arrangement) {
+            return arrangement.id == *selected_arrangement;
+        });
+    if (found == song.chart.arrangements.end())
+    {
+        return 0;
+    }
+
+    return static_cast<std::size_t>(std::distance(song.chart.arrangements.begin(), found));
+}
+
+} // namespace
+
+// Lets the backend accept the selected arrangement audio, then commits the song into Session.
+bool EditCoordinator::loadSong(
+    core::Song song, const std::optional<std::string>& selected_arrangement)
+{
+    if (song.chart.arrangements.empty())
     {
         return false;
     }
 
-    core::Arrangement& selected_arrangement = song.chart.arrangements[selected_arrangement_index];
-    if (!selected_arrangement.audio_asset.has_value())
+    const std::size_t selected_index = resolveSelectedArrangement(song, selected_arrangement);
+    core::Arrangement& arrangement = song.chart.arrangements[selected_index];
+    if (!arrangement.audio_asset.has_value())
     {
         return false;
     }
 
-    const auto audio_duration = m_edit.get().loadAudio(*selected_arrangement.audio_asset);
+    const auto audio_duration = m_edit.get().loadAudio(*arrangement.audio_asset);
     if (!audio_duration.has_value() || audio_duration->seconds <= 0.0)
     {
         return false;
     }
 
-    selected_arrangement.audio_duration = audio_duration.value();
+    arrangement.audio_duration = audio_duration.value();
 
-    const bool committed = m_session.loadSong(std::move(song), selected_arrangement_index);
+    const bool committed = m_session.loadSong(std::move(song), selected_index);
     assert(committed && "Session rejected backend-accepted project song");
     if (!committed)
     {
