@@ -160,6 +160,9 @@ private:
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     EditorViewState m_state{};
 
+    // Flat app-menu look-and-feel owned for the lifetime of the menu bar.
+    std::unique_ptr<juce::LookAndFeel> m_menu_look_and_feel;
+
     // Editor File menu.
     juce::MenuBarComponent m_menu_bar;
 
