@@ -213,7 +213,7 @@ Song
       id            (stable project-local arrangement identifier)
       part          (Lead | Rhythm | Bass)
       difficulty    (0 Unknown, 1-10 authored rating)
-      audio_asset    (optional path/identifier for backing audio)
+      audio_asset    (required path/identifier for backing audio)
       audio_duration (full natural duration of the audio asset)
       tone_timeline_ref (opaque blob interpreted exclusively by rock-hero-audio)
       note_events[*]
@@ -229,11 +229,21 @@ of 0 represents Unknown so draft/default arrangements do not imply a fake diffic
 for playable songs should reject Unknown.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
-framework-free `Session` and displays one arrangement at a time. When an arrangement is selected,
-the application passes its `audio_asset` to `rock-hero-audio` for playback and waveform
-generation, and passes `tone_timeline_ref` to `rock-hero-audio` as an opaque blob. The game or
-editor reads the arrangement notes to drive gameplay or authoring. `rock-hero-core` never
-interprets tone automation data - that belongs entirely to `rock-hero-audio`.
+framework-free `Session` and displays one arrangement at a time. Core project loading validates
+package structure, safe asset paths, and required arrangement audio references. Before a parsed song
+is committed to the editor session, the editor workflow validates every arrangement's audio through
+the `rock-hero-audio` boundary and rejects the project if any asset is unreadable or reports a
+non-positive duration. When an arrangement is selected, the application passes its `audio_asset` to
+`rock-hero-audio` for playback and waveform generation, and passes `tone_timeline_ref` to
+`rock-hero-audio` as an opaque blob. The game or editor reads the arrangement notes to drive
+gameplay or authoring. `rock-hero-core` never interprets tone automation data - that belongs
+entirely to `rock-hero-audio`.
+
+The editor-facing audio boundary is `audio::IAudio`: it prepares loaded songs by validating
+arrangement audio and filling accepted durations, makes the selected arrangement active in the
+playback backend, and clears the active arrangement when the project closes. `audio::IEdit` is
+reserved for future undoable/redoable model-edit commands and should not carry project loading,
+audio preparation, transport, or playback setup responsibilities.
 
 ---
 

@@ -391,14 +391,10 @@ TEST_CASE("Project imports a Rock runtime package", "[core][project]")
     const Arrangement& arrangement = result->chart.arrangements.front();
     CHECK(arrangement.id == "lead");
     CHECK(arrangement.part == Part::Lead);
-    REQUIRE(arrangement.audio_asset.has_value());
-    if (arrangement.audio_asset.has_value())
-    {
-        CHECK(
-            arrangement.audio_asset->path ==
-            (project.workspaceDirectory() / "song" / "audio" / "backing.wav").lexically_normal());
-        CHECK(std::filesystem::is_regular_file(arrangement.audio_asset->path));
-    }
+    CHECK(
+        arrangement.audio_asset.path ==
+        (project.workspaceDirectory() / "song" / "audio" / "backing.wav").lexically_normal());
+    CHECK(std::filesystem::is_regular_file(arrangement.audio_asset.path));
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
@@ -477,14 +473,10 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     CHECK(result->chart.arrangements[0].part == Part::Lead);
     const Arrangement& bass_arrangement = result->chart.arrangements[1];
     CHECK(bass_arrangement.part == Part::Bass);
-    REQUIRE(bass_arrangement.audio_asset.has_value());
-    if (bass_arrangement.audio_asset.has_value())
-    {
-        CHECK(
-            bass_arrangement.audio_asset.value().path ==
-            (project.workspaceDirectory() / "song/audio/backing.wav").lexically_normal());
-    }
-    CHECK_FALSE(bass_arrangement.hasAudio());
+    CHECK(
+        bass_arrangement.audio_asset.path ==
+        (project.workspaceDirectory() / "song/audio/backing.wav").lexically_normal());
+    CHECK(bass_arrangement.audio_duration == TimeDuration{});
 }
 
 // Verifies stale selected-arrangement IDs do not fail project loading.
@@ -617,14 +609,9 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     const auto reloaded_song = reloaded_project.load(path);
     REQUIRE(reloaded_song.has_value());
     REQUIRE(reloaded_song->chart.arrangements.size() == 1);
-    REQUIRE(reloaded_song->chart.arrangements.front().audio_asset.has_value());
-    if (reloaded_song->chart.arrangements.front().audio_asset.has_value())
-    {
-        const std::filesystem::path reloaded_audio_path =
-            reloaded_song->chart.arrangements.front().audio_asset.value().path;
-        CHECK(reloaded_audio_path.parent_path().filename() == "audio");
-        CHECK(std::filesystem::is_regular_file(reloaded_audio_path));
-    }
+    const AudioAsset& reloaded_audio_asset = reloaded_song->chart.arrangements.front().audio_asset;
+    CHECK(reloaded_audio_asset.path.parent_path().filename() == "audio");
+    CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 
 // Verifies saveAs creates a native project package even before a package path exists.
@@ -652,13 +639,8 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     CHECK(reloaded_song->metadata.title == "Imported Song");
     CHECK(reloaded_song->metadata.artist == "Imported Artist");
     REQUIRE(reloaded_song->chart.arrangements.size() == 1);
-    REQUIRE(reloaded_song->chart.arrangements.front().audio_asset.has_value());
-    if (reloaded_song->chart.arrangements.front().audio_asset.has_value())
-    {
-        CHECK(
-            std::filesystem::is_regular_file(
-                reloaded_song->chart.arrangements.front().audio_asset.value().path));
-    }
+    const AudioAsset& reloaded_audio_asset = reloaded_song->chart.arrangements.front().audio_asset;
+    CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 
 // Verifies publish writes runtime content at the package root without retargeting save.

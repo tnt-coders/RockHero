@@ -109,13 +109,13 @@ namespace
 
     for (Arrangement& arrangement : song.chart.arrangements)
     {
-        if (!arrangement.audio_asset.has_value())
+        if (arrangement.audio_asset.path.empty())
         {
             return failProjectImport("Imported arrangements must reference audio");
         }
 
         const auto relative_audio_path =
-            project_io::relativeWorkspacePath(workspace_directory, arrangement.audio_asset->path);
+            project_io::relativeWorkspacePath(workspace_directory, arrangement.audio_asset.path);
         if (!relative_audio_path.has_value())
         {
             return failProjectImport(
@@ -248,7 +248,7 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     Song song = std::move(*loaded_song);
     loaded_project.m_editor_state = std::move(*editor_state);
     // TODO: Surface a non-fatal load warning if selectedArrangement no longer matches any
-    // arrangement ID; EditCoordinator currently falls back to the first arrangement silently.
+    // arrangement ID; EditorController currently falls back to the first arrangement silently.
     if (auto close_result = close(); !close_result.has_value())
     {
         return failProjectLoad(std::move(close_result.error()));

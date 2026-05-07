@@ -5,14 +5,13 @@
 namespace rock_hero::ui
 {
 
-// Wires edit coordination, controller, and view after construction dependencies are available.
+// Wires the controller and view after construction dependencies are available.
 Editor::Editor(
-    audio::ITransport& transport, audio::IEdit& edit, audio::IThumbnailFactory& thumbnail_factory,
+    audio::ITransport& transport, audio::IAudio& audio, audio::IThumbnailFactory& thumbnail_factory,
     ExitFunction exit_function)
-    : m_edit_coordinator(edit)
-    , m_controller(
-          transport, m_edit_coordinator, OpenFunction{}, ImportFunction{}, SaveFunction{},
-          SaveAsFunction{}, PublishFunction{}, std::move(exit_function))
+    : m_controller(
+          transport, audio, OpenFunction{}, ImportFunction{}, SaveFunction{}, SaveAsFunction{},
+          PublishFunction{}, std::move(exit_function))
     , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);

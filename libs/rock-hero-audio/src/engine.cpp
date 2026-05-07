@@ -9,6 +9,37 @@
 namespace rock_hero::audio
 {
 
+namespace
+{
+
+// Opens an asset through Tracktion only long enough to validate it and read its duration.
+[[nodiscard]] std::optional<core::TimeDuration> readAudioDuration(
+    tracktion::Engine& engine, const core::AudioAsset& audio_asset)
+{
+    const auto path_text = audio_asset.path.wstring();
+    const juce::File file{juce::String{path_text.c_str()}};
+    if (!file.existsAsFile())
+    {
+        return std::nullopt;
+    }
+
+    const tracktion::AudioFile audio_file(engine, file);
+    if (!audio_file.isValid())
+    {
+        return std::nullopt;
+    }
+
+    const core::TimeDuration asset_duration{audio_file.getLength()};
+    if (asset_duration.seconds <= 0.0)
+    {
+        return std::nullopt;
+    }
+
+    return asset_duration;
+}
+
+} // namespace
+
 // Private Tracktion/JUCE adapter state hidden behind Engine's public pimpl boundary.
 struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Listener
 {
@@ -216,35 +247,47 @@ core::TimePosition Engine::position() const noexcept
     return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
-// Adapts the framework-free edit port onto the single Tracktion arrangement audio track.
-std::optional<core::TimeDuration> Engine::loadAudio(const core::AudioAsset& audio_asset)
+// Validates every arrangement audio file and records the accepted backend durations.
+bool Engine::prepareSong(core::Song& song)
+{
+    for (core::Arrangement& arrangement : song.chart.arrangements)
+    {
+        if (arrangement.audio_asset.path.empty())
+        {
+            return false;
+        }
+
+        const auto audio_duration = readAudioDuration(*m_impl->m_engine, arrangement.audio_asset);
+        if (!audio_duration.has_value())
+        {
+            return false;
+        }
+
+        arrangement.audio_duration = *audio_duration;
+    }
+
+    return true;
+}
+
+// Makes the prepared arrangement active on the single Tracktion arrangement audio track.
+bool Engine::setActiveArrangement(const core::Arrangement& arrangement)
 {
     auto* track = m_impl->currentAudioTrack();
     if (track == nullptr)
     {
-        return std::nullopt;
+        return false;
     }
 
-    // TODO: Route this through a project-owned edit-history boundary once undo/redo lands.
-    // The history surface should own transaction semantics instead of exposing Tracktion or JUCE
-    // undo primitives through Rock Hero interfaces.
-    const auto path_text = audio_asset.path.wstring();
+    if (arrangement.audio_asset.path.empty() || arrangement.audio_duration.seconds <= 0.0)
+    {
+        return false;
+    }
+
+    const auto path_text = arrangement.audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
     if (!file.existsAsFile())
     {
-        return std::nullopt;
-    }
-
-    const tracktion::AudioFile audio_file(*m_impl->m_engine, file);
-    if (!audio_file.isValid())
-    {
-        return std::nullopt;
-    }
-
-    const core::TimeDuration asset_duration{audio_file.getLength()};
-    if (asset_duration.seconds <= 0.0)
-    {
-        return std::nullopt;
+        return false;
     }
 
     // Candidate is valid; stop playback before replacing audio in Tracktion's edit graph.
@@ -252,7 +295,7 @@ std::optional<core::TimeDuration> Engine::loadAudio(const core::AudioAsset& audi
     transport.stop(false, false);
 
     const auto start = tracktion::TimePosition{};
-    const auto length = tracktion::TimeDuration::fromSeconds(asset_duration.seconds);
+    const auto length = tracktion::TimeDuration::fromSeconds(arrangement.audio_duration.seconds);
     const tracktion::ClipPosition wave_clip_position{
         .time = {start, start + length}, .offset = tracktion::TimeDuration{}
     };
@@ -263,18 +306,18 @@ std::optional<core::TimeDuration> Engine::loadAudio(const core::AudioAsset& audi
     if (wave_clip == nullptr)
     {
         m_impl->updateTransportState();
-        return std::nullopt;
+        return false;
     }
 
-    m_impl->m_loaded_length_seconds = asset_duration.seconds;
+    m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
     m_impl->updateTransportState();
-    return asset_duration;
+    return true;
 }
 
 // Clears the single arrangement track so closed projects do not leave stale media in Tracktion.
-void Engine::clearAudio()
+void Engine::clearActiveArrangement()
 {
     auto& transport = m_impl->m_edit->getTransport();
     transport.stop(false, false);
