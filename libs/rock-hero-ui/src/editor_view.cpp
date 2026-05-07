@@ -20,6 +20,11 @@ constexpr int g_save_as_command{4};
 constexpr int g_close_command{5};
 constexpr int g_exit_command{6};
 constexpr int g_publish_command{7};
+constexpr int g_menu_bar_height{24};
+constexpr int g_content_inset{8};
+constexpr int g_control_gap{8};
+constexpr int g_transport_height{32};
+const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 
 // Ensures saved packages use the native Rock Hero extension when the chooser returns none.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -198,11 +203,44 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
+// Paints the editor menu strip as flat application chrome instead of a framed control.
+class MenuLookAndFeel final : public juce::LookAndFeel_V4
+{
+public:
+    // Matches the editor background without the default JUCE top/bottom border lines.
+    void drawMenuBarBackground(
+        juce::Graphics& g, int /*width*/, int /*height*/, bool /*isMouseOverBar*/,
+        juce::MenuBarComponent& /*menu_bar*/) override
+    {
+        g.fillAll(g_editor_background_colour);
+    }
+
+    // Keeps the menu item readable on the flat strip and uses a simple hover fill.
+    void drawMenuBarItem(
+        juce::Graphics& g, int width, int height, int item_index, const juce::String& item_text,
+        bool is_mouse_over_item, bool is_menu_open, bool /*isMouseOverBar*/,
+        juce::MenuBarComponent& menu_bar) override
+    {
+        const juce::Rectangle<int> bounds{0, 0, width, height};
+        if (is_menu_open || is_mouse_over_item)
+        {
+            g.setColour(juce::Colours::grey);
+            g.fillRect(bounds.reduced(2, 2));
+        }
+
+        g.setColour(
+            menu_bar.isEnabled() ? juce::Colours::white : juce::Colours::white.withAlpha(0.5f));
+        g.setFont(getMenuBarFont(menu_bar, item_index, item_text));
+        g.drawFittedText(item_text, bounds.reduced(4, 0), juce::Justification::centred, 1);
+    }
+};
+
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
     audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(controller)
+    , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
@@ -210,6 +248,7 @@ EditorView::EditorView(
     setWantsKeyboardFocus(true);
 
     m_menu_bar.setComponentID("file_menu_bar");
+    m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
     m_arrangement_view.setComponentID("arrangement_view");
 
@@ -228,6 +267,7 @@ EditorView::EditorView(
 // Disconnects the menu bar from this model before base and member teardown begins.
 EditorView::~EditorView()
 {
+    m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
 }
 
@@ -259,7 +299,7 @@ void EditorView::setState(const EditorViewState& state)
 // Paints the background and the no-project empty state when no waveform surface is visible.
 void EditorView::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colours::darkgrey);
+    g.fillAll(g_editor_background_colour);
 
     if (!m_state.project_loaded)
     {
@@ -272,10 +312,10 @@ void EditorView::paint(juce::Graphics& g)
 void EditorView::resized()
 {
     auto area = arrangementBounds();
-    auto top_area = getLocalBounds().reduced(8);
-    m_menu_bar.setBounds(top_area.removeFromTop(24));
-    top_area.removeFromTop(8);
-    auto transport_row = top_area.removeFromTop(32);
+    auto top_area = getLocalBounds();
+    m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
+    top_area = top_area.reduced(g_content_inset);
+    auto transport_row = top_area.removeFromTop(g_transport_height);
     m_transport_controls.setBounds(transport_row.removeFromLeft(176));
     m_arrangement_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
@@ -562,11 +602,11 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& 
 // Mirrors resized() layout so paint() can draw the empty-project message in the content area.
 juce::Rectangle<int> EditorView::arrangementBounds() const
 {
-    auto area = getLocalBounds().reduced(8);
-    area.removeFromTop(24);
-    area.removeFromTop(8);
-    area.removeFromTop(32);
-    area.removeFromTop(8);
+    auto area = getLocalBounds();
+    area.removeFromTop(g_menu_bar_height);
+    area = area.reduced(g_content_inset);
+    area.removeFromTop(g_transport_height);
+    area.removeFromTop(g_control_gap);
     return area;
 }
 
