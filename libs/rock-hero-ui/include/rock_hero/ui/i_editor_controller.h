@@ -23,16 +23,25 @@ public:
     virtual ~IEditorController() = default;
 
     /*!
-    \brief Handles a request to open a Rock Hero project package.
-    \param project_file Filesystem path selected by the user.
+    \brief Handles a request to open a Rock Hero package.
+    \param file Filesystem path selected by the user.
     */
-    virtual void onOpenProjectRequested(std::filesystem::path project_file) = 0;
+    virtual void onOpenRequested(std::filesystem::path file) = 0;
 
     /*!
-    \brief Handles a request to import a foreign project package.
-    \param project_file Filesystem path selected by the user.
+    \brief Handles a request to import a foreign package.
+    \param file Filesystem path selected by the user.
     */
-    virtual void onImportProjectRequested(std::filesystem::path project_file) = 0;
+    virtual void onImportRequested(std::filesystem::path file) = 0;
+
+    /*! \brief Handles a request to save to the current destination. */
+    virtual void onSaveRequested() = 0;
+
+    /*!
+    \brief Handles a request to save to a chosen destination.
+    \param file Filesystem path selected by the user.
+    */
+    virtual void onSaveAsRequested(std::filesystem::path file) = 0;
 
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;

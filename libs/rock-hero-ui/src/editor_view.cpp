@@ -10,6 +10,28 @@
 namespace rock_hero::ui
 {
 
+namespace
+{
+
+constexpr int g_open_command{1};
+constexpr int g_import_command{2};
+constexpr int g_save_command{3};
+constexpr int g_save_as_command{4};
+constexpr int g_exit_command{5};
+
+// Ensures saved packages use the native Rock Hero extension when the chooser returns none.
+[[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
+{
+    std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
+    if (!path.empty() && path.extension().empty())
+    {
+        path.replace_extension(".rhp");
+    }
+    return path;
+}
+
+} // namespace
+
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
 std::optional<float> cursorXForTimelinePosition(
     core::TimePosition position, core::TimeRange visible_timeline, int width) noexcept
@@ -138,27 +160,19 @@ EditorView::EditorView(
     IEditorController& controller, const audio::ITransport& transport,
     audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(controller)
+    , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
 {
-    m_open_project_button.setComponentID("open_project_button");
-    m_open_project_button.setButtonText("Open Project...");
-    m_open_project_button.setEnabled(false);
-    m_open_project_button.onClick = [this] { onOpenProjectClicked(); };
-
-    m_import_project_button.setComponentID("import_project_button");
-    m_import_project_button.setButtonText("Import Project...");
-    m_import_project_button.setEnabled(false);
-    m_import_project_button.onClick = [this] { onImportProjectClicked(); };
     setWantsKeyboardFocus(true);
 
+    m_menu_bar.setComponentID("file_menu_bar");
     m_transport_controls.setComponentID("transport_controls");
     m_arrangement_view.setComponentID("arrangement_view");
 
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
-    addAndMakeVisible(m_open_project_button);
-    addAndMakeVisible(m_import_project_button);
+    addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_arrangement_view);
     addAndMakeVisible(*m_cursor_overlay);
@@ -166,16 +180,18 @@ EditorView::EditorView(
     setSize(800, 300);
 }
 
-// Uses default destruction because child ownership is represented by members.
-EditorView::~EditorView() = default;
+// Disconnects the menu bar from this model before base and member teardown begins.
+EditorView::~EditorView()
+{
+    m_menu_bar.setModel(nullptr);
+}
 
 // Projects controller-derived state into child widgets and cursor mapping state.
 void EditorView::setState(const EditorViewState& state)
 {
     m_state = state;
 
-    m_open_project_button.setEnabled(m_state.open_project_button_enabled);
-    m_import_project_button.setEnabled(m_state.import_project_button_enabled);
+    menuItemsChanged();
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -187,7 +203,7 @@ void EditorView::setState(const EditorViewState& state)
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
-    presentLoadErrorIfNeeded(m_state.last_load_error);
+    presentErrorIfNeeded(m_state.last_error);
 }
 
 // Paints a neutral background while child widgets render their own content.
@@ -200,12 +216,10 @@ void EditorView::paint(juce::Graphics& g)
 void EditorView::resized()
 {
     auto area = getLocalBounds().reduced(8);
-    auto button_row = area.removeFromTop(32);
-    m_open_project_button.setBounds(button_row.removeFromLeft(136));
-    button_row.removeFromLeft(8);
-    m_import_project_button.setBounds(button_row.removeFromLeft(136));
-    button_row.removeFromLeft(8);
-    m_transport_controls.setBounds(button_row.removeFromLeft(176));
+    m_menu_bar.setBounds(area.removeFromTop(24));
+    area.removeFromTop(8);
+    auto transport_row = area.removeFromTop(32);
+    m_transport_controls.setBounds(transport_row.removeFromLeft(176));
     area.removeFromTop(8);
     m_arrangement_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
@@ -224,11 +238,84 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
-// Opens an asynchronous file chooser and sends accepted project paths to the controller.
-void EditorView::onOpenProjectClicked()
+// Returns the single File menu displayed by the editor.
+juce::StringArray EditorView::getMenuBarNames()
+{
+    return {"File"};
+}
+
+// Builds the File menu using only controller-derived state.
+juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce::String& menu_name)
+{
+    if (top_level_menu_index != 0 || menu_name != "File")
+    {
+        return {};
+    }
+
+    juce::PopupMenu menu;
+    menu.addItem(g_open_command, "Open...", m_state.open_enabled);
+    menu.addItem(g_import_command, "Import...", m_state.import_enabled);
+    menu.addSeparator();
+    menu.addItem(g_save_command, "Save", m_state.save_enabled);
+    menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
+    menu.addSeparator();
+    menu.addItem(g_exit_command, "Exit");
+    return menu;
+}
+
+// Routes File menu selections to either a chooser or a direct controller intent.
+void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
+{
+    switch (menu_item_id)
+    {
+    case g_open_command:
+        if (m_state.open_enabled)
+        {
+            showOpenChooser();
+        }
+        break;
+    case g_import_command:
+        if (m_state.import_enabled)
+        {
+            showImportChooser();
+        }
+        break;
+    case g_save_command:
+        if (!m_state.save_enabled)
+        {
+            break;
+        }
+        if (m_state.save_requires_destination)
+        {
+            showSaveAsChooser();
+        }
+        else
+        {
+            m_controller.onSaveRequested();
+        }
+        break;
+    case g_save_as_command:
+        if (m_state.save_as_enabled)
+        {
+            showSaveAsChooser();
+        }
+        break;
+    case g_exit_command:
+        if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
+        {
+            app->systemRequestedQuit();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+// Opens an asynchronous file chooser and sends accepted native package paths to the controller.
+void EditorView::showOpenChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Open Rock Hero project",
+        "Open Rock Hero package",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rhp");
 
@@ -241,16 +328,16 @@ void EditorView::onOpenProjectClicked()
                 return;
             }
 
-            m_controller.onOpenProjectRequested(
+            m_controller.onOpenRequested(
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
 
 // Opens an asynchronous file chooser and sends accepted import paths to the controller.
-void EditorView::onImportProjectClicked()
+void EditorView::showImportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import Rocksmith project",
+        "Import Rocksmith package",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.psarc");
 
@@ -263,13 +350,35 @@ void EditorView::onImportProjectClicked()
                 return;
             }
 
-            m_controller.onImportProjectRequested(
+            m_controller.onImportRequested(
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
 
+// Opens an asynchronous file chooser and sends accepted save paths to the controller.
+void EditorView::showSaveAsChooser()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Save Rock Hero package",
+        juce::File::getSpecialLocation(juce::File::userHomeDirectory),
+        "*.rhp");
+
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::warnAboutOverwriting,
+        [this](const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            if (file.getFullPathName().isEmpty())
+            {
+                return;
+            }
+
+            m_controller.onSaveAsRequested(pathWithRhpExtension(file));
+        });
+}
+
 // Shows each distinct error once and resets the edge when the controller clears the error.
-void EditorView::presentLoadErrorIfNeeded(const std::optional<std::string>& error)
+void EditorView::presentErrorIfNeeded(const std::optional<std::string>& error)
 {
     if (!error.has_value())
     {
@@ -286,7 +395,7 @@ void EditorView::presentLoadErrorIfNeeded(const std::optional<std::string>& erro
     juce::NativeMessageBox::showAsync(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Could not load project")
+            .withTitle("Could not complete request")
             .withMessage(juce::String{error->c_str()})
             .withButton("OK"),
         nullptr);
