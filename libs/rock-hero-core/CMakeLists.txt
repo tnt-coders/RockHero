@@ -7,8 +7,8 @@ find_package(nlohmann_json REQUIRED)
 find_package(OpenPSARC REQUIRED)
 
 # Keep the target surface small while core owns song/session state and project persistence.
-target_sources(rock_hero_core PRIVATE src/project.cpp src/psarc_project_importer.cpp
-                                      src/session.cpp src/song.cpp)
+target_sources(rock_hero_core PRIVATE src/project.cpp src/project_io.cpp src/psarc_importer.cpp
+                                      src/rock_importer.cpp src/session.cpp src/song.cpp)
 
 # Expose namespaced public headers while preserving short includes inside the owning module.
 target_include_directories(

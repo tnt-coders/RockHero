@@ -1,4 +1,4 @@
-#include "psarc_project_importer.h"
+#include "psarc_importer.h"
 
 #include <algorithm>
 #include <cctype>
@@ -540,7 +540,7 @@ void addImportedArrangement(
 } // namespace
 
 // Imports the minimal PSARC song metadata, arrangement XML, and converted backing audio.
-std::expected<Song, std::string> PsarcProjectImporter::importProject(
+std::expected<Song, std::string> PsarcImporter::importProject(
     const std::filesystem::path& source_path, const std::filesystem::path& workspace_directory)
 {
     try

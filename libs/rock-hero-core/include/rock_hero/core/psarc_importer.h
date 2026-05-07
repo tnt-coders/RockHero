@@ -1,6 +1,6 @@
 /*!
-\file psarc_project_importer.h
-\brief Rocksmith PSARC project importer.
+\file psarc_importer.h
+\brief Rocksmith PSARC importer.
 */
 
 #pragma once
@@ -17,7 +17,7 @@ The importer converts Rocksmith SNG arrangements to XML and copies them into the
 workspace. Embedded arrangement XML is used only when no SNG arrangement XML can be produced. It
 does not parse note data from the arrangement XML yet.
 */
-class PsarcProjectImporter final : public IProjectImporter
+class PsarcImporter final : public IProjectImporter
 {
 public:
     /*!

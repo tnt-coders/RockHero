@@ -73,7 +73,7 @@ then set `Project::path()` after the package write succeeds.
 The concrete PSARC implementation can be:
 
 ```cpp
-class PsarcProjectImporter final : public IProjectImporter
+class PsarcImporter final : public IProjectImporter
 {
 public:
     [[nodiscard]] std::expected<Song, std::string> importProject(
@@ -114,7 +114,7 @@ public:
 
 ### Phase 3: PSARC Extraction Adapter
 
-- Add `PsarcProjectImporter` as the first concrete `IProjectImporter`.
+- Add `PsarcImporter` as the first concrete `IProjectImporter`.
 - Link `open-psarc` privately from `rock_hero_core`; do not expose it in public headers.
 - Extract the archive into the `Project::import` workspace directory.
 - Copy associated audio into the workspace.
@@ -143,7 +143,7 @@ public:
 
 - Add an explicit import command beside the existing native open command.
 - Let the user pick a source PSARC.
-- Use a temporary `Project` and the production `PsarcProjectImporter`.
+- Use a temporary `Project` and the production `PsarcImporter`.
 - Load the returned `Song` into the editor session only after the native import commit succeeds.
 - Treat the imported project as unsaved until the user saves or chooses Save As.
 - Display "No project loaded." when no song is present in the session.
