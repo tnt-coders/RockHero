@@ -5,8 +5,9 @@
 
 #pragma once
 
-#include <rock_hero/core/chart.h>
+#include <rock_hero/core/arrangement.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::core
 {
@@ -32,7 +33,7 @@ struct SongMetadata
 
 A Song owns all data needed to start a game or editing session:
 - Descriptive metadata such as title, artist, and album.
-- A Chart containing the playable Arrangements.
+- Playable Arrangements for authored parts.
 
 Arrangement-owned tone automation blobs are interpreted exclusively by rock-hero-audio and are
 never parsed here.
@@ -43,8 +44,8 @@ struct Song
     /*! \brief Descriptive metadata for the song. */
     SongMetadata metadata;
 
-    /*! \brief Playable chart data for the song. */
-    Chart chart;
+    /*! \brief Playable part/difficulty-rating variants available for the song. */
+    std::vector<Arrangement> arrangements;
 };
 
 } // namespace rock_hero::core

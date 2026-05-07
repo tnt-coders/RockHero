@@ -13,7 +13,7 @@ namespace
 [[nodiscard]] core::Song makeSong(std::filesystem::path audio_path)
 {
     core::Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         core::Arrangement{
             .id = "lead",
             .part = core::Part::Lead,
@@ -39,7 +39,7 @@ public:
             return false;
         }
 
-        for (core::Arrangement& arrangement : song.chart.arrangements)
+        for (core::Arrangement& arrangement : song.arrangements)
         {
             arrangement.audio_duration = prepared_duration;
         }
@@ -81,8 +81,8 @@ TEST_CASE("IAudio prepares song audio", "[audio][audio]")
     const bool prepared = audio.prepareSong(song);
 
     CHECK(prepared);
-    REQUIRE(song.chart.arrangements.size() == 1);
-    CHECK(song.chart.arrangements.front().audio_duration == core::TimeDuration{12.0});
+    REQUIRE(song.arrangements.size() == 1);
+    CHECK(song.arrangements.front().audio_duration == core::TimeDuration{12.0});
     CHECK(audio.prepare_song_call_count == 1);
     CHECK(audio.set_active_arrangement_call_count == 0);
 }
@@ -107,9 +107,9 @@ TEST_CASE("IAudio sets active arrangement", "[audio][audio]")
     FakeAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
-    REQUIRE(song.chart.arrangements.size() == 1);
+    REQUIRE(song.arrangements.size() == 1);
 
-    const bool active_set = audio.setActiveArrangement(song.chart.arrangements.front());
+    const bool active_set = audio.setActiveArrangement(song.arrangements.front());
 
     CHECK(active_set);
     CHECK(
@@ -124,8 +124,8 @@ TEST_CASE("IAudio clears active arrangement", "[audio][audio]")
     FakeAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
-    REQUIRE(song.chart.arrangements.size() == 1);
-    REQUIRE(audio.setActiveArrangement(song.chart.arrangements.front()));
+    REQUIRE(song.arrangements.size() == 1);
+    REQUIRE(audio.setActiveArrangement(song.arrangements.front()));
 
     audio.clearActiveArrangement();
 

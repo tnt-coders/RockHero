@@ -46,7 +46,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
     core::Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         core::Arrangement{
             .id = "lead",
             .part = core::Part::Lead,
@@ -64,8 +64,8 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 {
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
-    REQUIRE(song.chart.arrangements.size() == 1);
-    const core::Arrangement& arrangement = song.chart.arrangements.front();
+    REQUIRE(song.arrangements.size() == 1);
+    const core::Arrangement& arrangement = song.arrangements.front();
     REQUIRE(audio.setActiveArrangement(arrangement));
     return arrangement.audio_duration;
 }
@@ -205,17 +205,17 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
 
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
-    REQUIRE(song.chart.arrangements.size() == 1);
+    REQUIRE(song.arrangements.size() == 1);
 
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const bool active_set = audio.setActiveArrangement(song.chart.arrangements.front());
+    const bool active_set = audio.setActiveArrangement(song.arrangements.front());
 
     transport.removeListener(recorder);
 
     CHECK(active_set);
-    CHECK(song.chart.arrangements.front().audio_duration.seconds > 0.0);
+    CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});
@@ -234,8 +234,8 @@ TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
     const bool prepared = audio.prepareSong(song);
 
     CHECK(prepared);
-    REQUIRE(song.chart.arrangements.size() == 1);
-    CHECK(song.chart.arrangements.front().audio_duration.seconds > 0.0);
+    REQUIRE(song.arrangements.size() == 1);
+    CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     CHECK(transport.state() == TransportState{});
     CHECK(transport.position() == core::TimePosition{});
 }
@@ -246,7 +246,7 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     EngineTestHarness harness;
     IAudio& audio = harness.engine;
     auto song = makeFixtureSong();
-    song.chart.arrangements.front().audio_asset =
+    song.arrangements.front().audio_asset =
         core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
 
     const bool prepared = audio.prepareSong(song);
@@ -262,8 +262,8 @@ TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integ
     IAudio& audio = engine;
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
-    REQUIRE(song.chart.arrangements.size() == 1);
-    const core::Arrangement& arrangement = song.chart.arrangements.front();
+    REQUIRE(song.arrangements.size() == 1);
+    const core::Arrangement& arrangement = song.arrangements.front();
 
     const bool first_audio_set = audio.setActiveArrangement(arrangement);
     const bool replacement_audio_set = audio.setActiveArrangement(arrangement);

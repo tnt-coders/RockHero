@@ -212,7 +212,7 @@ public:
             return false;
         }
 
-        for (core::Arrangement& arrangement : song.chart.arrangements)
+        for (core::Arrangement& arrangement : song.arrangements)
         {
             last_prepared_audio_asset = arrangement.audio_asset;
             ++prepared_audio_asset_count;
@@ -408,12 +408,12 @@ private:
     // Returns the first arrangement audio path to verify the saved session content.
     [[nodiscard]] static std::optional<std::filesystem::path> firstAudioPath(const core::Song& song)
     {
-        if (song.chart.arrangements.empty())
+        if (song.arrangements.empty())
         {
             return std::nullopt;
         }
 
-        const core::AudioAsset& audio_asset = song.chart.arrangements.front().audio_asset;
+        const core::AudioAsset& audio_asset = song.arrangements.front().audio_asset;
         if (audio_asset.path.empty())
         {
             return std::nullopt;
@@ -437,7 +437,7 @@ private:
     std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
 {
     core::Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         core::Arrangement{
             .id = "lead",
             .part = core::Part::Lead,
@@ -456,7 +456,7 @@ private:
     std::filesystem::path lead_path, std::filesystem::path bass_path)
 {
     core::Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         core::Arrangement{
             .id = "lead",
             .part = core::Part::Lead,
@@ -466,7 +466,7 @@ private:
             .tone_timeline_ref = {},
             .note_events = {},
         });
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         core::Arrangement{
             .id = "bass",
             .part = core::Part::Bass,
