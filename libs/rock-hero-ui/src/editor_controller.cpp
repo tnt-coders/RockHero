@@ -1,9 +1,12 @@
 #include "editor_controller.h"
 
 #include <algorithm>
+#include <cctype>
 #include <expected>
 #include <optional>
-#include <rock_hero/core/psarc_project_importer.h>
+#include <rock_hero/core/psarc_importer.h>
+#include <rock_hero/core/rock_importer.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::ui
@@ -23,8 +26,26 @@ namespace
 [[nodiscard]] std::expected<core::Song, std::string> defaultImport(
     core::Project& project, const std::filesystem::path& file)
 {
-    core::PsarcProjectImporter importer;
-    return project.import(file, importer);
+    std::string extension = file.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+
+    if (extension == ".rock")
+    {
+        core::RockImporter importer;
+        return project.import(file, importer);
+    }
+
+    if (extension == ".psarc")
+    {
+        core::PsarcImporter importer;
+        return project.import(file, importer);
+    }
+
+    return std::unexpected<std::string>{
+        "Unsupported import package extension: " + file.extension().string()
+    };
 }
 
 // Production save path used when tests do not provide a custom seam.

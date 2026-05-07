@@ -5,6 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <rock_hero/core/project.h>
+#include <rock_hero/core/rock_importer.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -197,6 +198,14 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
     };
 }
 
+// Returns the flat runtime song document used by .rock package import tests.
+[[nodiscard]] PackageEntry minimalRuntimeSongDocumentEntry()
+{
+    PackageEntry entry = minimalSongDocumentEntry();
+    entry.path = "song.json";
+    return entry;
+}
+
 // Writes a minimal valid .rhp package for project tests.
 void writeMinimalPackage(const std::filesystem::path& path)
 {
@@ -210,6 +219,20 @@ void writeMinimalPackage(const std::filesystem::path& path)
             },
             projectDocumentEntry(),
             minimalSongDocumentEntry(),
+        });
+}
+
+// Writes a minimal valid .rock package with runtime content at the archive root.
+void writeMinimalRockPackage(const std::filesystem::path& path)
+{
+    writePackage(
+        path,
+        std::vector{
+            PackageEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
+            PackageEntry{
+                .path = "arrangements/lead.xml", .contents = "<Arrangement formatVersion=\"1\" />"
+            },
+            minimalRuntimeSongDocumentEntry(),
         });
 }
 
@@ -347,6 +370,36 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(project.editorState().selected_arrangement == std::optional<std::string>{"lead"});
     CHECK(project.editorState().cursor_position == TimePosition{0.0});
     CHECK(project.path() == path);
+    CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+}
+
+// Verifies .rock runtime packages import into an unsaved editor project workspace.
+TEST_CASE("Project imports a Rock runtime package", "[core][project]")
+{
+    const TemporaryPackageDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rock";
+    writeMinimalRockPackage(path);
+
+    Project project;
+    RockImporter importer;
+    const std::expected<Song, std::string> result = project.import(path, importer);
+
+    REQUIRE(result.has_value());
+    CHECK(result->metadata.title == "Monument");
+    CHECK(result->metadata.artist == "A Day To Remember");
+    REQUIRE(result->chart.arrangements.size() == 1);
+    const Arrangement& arrangement = result->chart.arrangements.front();
+    CHECK(arrangement.id == "lead");
+    CHECK(arrangement.part == Part::Lead);
+    REQUIRE(arrangement.audio_asset.has_value());
+    if (arrangement.audio_asset.has_value())
+    {
+        CHECK(
+            arrangement.audio_asset->path ==
+            (project.workspaceDirectory() / "song" / "audio" / "backing.wav").lexically_normal());
+        CHECK(std::filesystem::is_regular_file(arrangement.audio_asset->path));
+    }
+    CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
 
