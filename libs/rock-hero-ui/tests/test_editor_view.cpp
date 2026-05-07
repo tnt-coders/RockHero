@@ -420,6 +420,21 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 }
 
+// Verifies the File menu occupies the top application strip instead of an inset control frame.
+TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 500, 200);
+
+    auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
+    CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 500, 24});
+}
+
 // Verifies editor-wide timeline clicks are forwarded to the controller.
 TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
 {
