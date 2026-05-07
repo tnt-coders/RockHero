@@ -556,9 +556,9 @@ std::expected<Song, std::string> PsarcImporter::importProject(
             return failImport(audio_asset.error());
         }
 
-        song.chart.arrangements =
+        song.arrangements =
             importArrangements(psarc, parts_by_stem, *audio_asset, workspace_directory);
-        if (song.chart.arrangements.empty())
+        if (song.arrangements.empty())
         {
             return failImport("PSARC did not contain supported arrangement XML files");
         }

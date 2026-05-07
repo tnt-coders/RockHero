@@ -86,15 +86,15 @@ void defaultExit()
     }
 
     const auto found = std::ranges::find_if(
-        song.chart.arrangements, [&selected_arrangement](const core::Arrangement& arrangement) {
+        song.arrangements, [&selected_arrangement](const core::Arrangement& arrangement) {
             return arrangement.id == *selected_arrangement;
         });
-    if (found == song.chart.arrangements.end())
+    if (found == song.arrangements.end())
     {
         return 0;
     }
 
-    return static_cast<std::size_t>(std::distance(song.chart.arrangements.begin(), found));
+    return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
 }
 
 } // namespace
@@ -592,7 +592,7 @@ core::ProjectEditorState EditorController::projectEditorStateForSave() const
 bool EditorController::loadSessionSong(
     core::Song song, const std::optional<std::string>& selected_arrangement)
 {
-    if (song.chart.arrangements.empty())
+    if (song.arrangements.empty())
     {
         return false;
     }
@@ -605,7 +605,7 @@ bool EditorController::loadSessionSong(
     const std::size_t selected_index = getSelectedArrangementIndex(song, selected_arrangement);
     m_session_load_in_progress = true;
     const bool active_arrangement_set =
-        m_audio.setActiveArrangement(song.chart.arrangements[selected_index]);
+        m_audio.setActiveArrangement(song.arrangements[selected_index]);
     bool committed = false;
     if (active_arrangement_set)
     {
