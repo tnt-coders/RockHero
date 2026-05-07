@@ -52,6 +52,12 @@ public:
         save_as_request_count += 1;
     }
 
+    void onPublishRequested(std::filesystem::path file) override
+    {
+        last_publish_file = std::move(file);
+        publish_request_count += 1;
+    }
+
     void onSaveAsCancelled() override
     {
         save_as_cancel_count += 1;
@@ -92,12 +98,14 @@ public:
     std::optional<std::filesystem::path> last_open_file{};
     std::optional<std::filesystem::path> last_import_file{};
     std::optional<std::filesystem::path> last_save_as_file{};
+    std::optional<std::filesystem::path> last_publish_file{};
     std::optional<double> last_normalized_x{};
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
     int open_request_count{0};
     int import_request_count{0};
     int save_request_count{0};
     int save_as_request_count{0};
+    int publish_request_count{0};
     int save_as_cancel_count{0};
     int close_request_count{0};
     int exit_request_count{0};
@@ -315,6 +323,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .import_enabled = true,
             .save_enabled = false,
             .save_as_enabled = false,
+            .publish_enabled = false,
+            .suggested_publish_file = std::filesystem::path{},
             .close_enabled = false,
             .project_loaded = true,
             .save_requires_destination = false,
@@ -351,6 +361,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
+    constexpr int publish_command{7};
 
     view.setState(EditorViewState{});
 
@@ -372,6 +383,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .import_enabled = true,
             .save_enabled = true,
             .save_as_enabled = true,
+            .publish_enabled = true,
+            .suggested_publish_file = std::filesystem::path{"song.rock"},
             .close_enabled = true,
             .project_loaded = true,
             .save_requires_destination = false,
@@ -390,6 +403,9 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
         });
 
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    const auto publish_item = requiredMenuItem(view.getMenuForIndex(0, "File"), publish_command);
+    CHECK(publish_item.isEnabled);
+    CHECK(publish_item.text == "Publish...");
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), close_command).isEnabled);
     view.menuItemSelected(save_command, 0);
     view.menuItemSelected(close_command, 0);
@@ -419,6 +435,8 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .import_enabled = true,
             .save_enabled = true,
             .save_as_enabled = true,
+            .publish_enabled = true,
+            .suggested_publish_file = std::filesystem::path{"song.rock"},
             .close_enabled = true,
             .project_loaded = true,
             .save_requires_destination = false,

@@ -7,12 +7,37 @@
 
 #include <expected>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/core/i_project_importer.h>
 #include <rock_hero/core/song.h>
+#include <rock_hero/core/timeline.h>
 #include <string>
 
 namespace rock_hero::core
 {
+
+/*!
+\brief Editor-only state persisted by a native project package.
+
+This state is intentionally separate from Song so published playable packages can treat song data
+and editor session state as different concerns.
+*/
+struct ProjectEditorState
+{
+    /*! \brief Cursor position to restore when the project is opened. */
+    TimePosition cursor_position{};
+
+    /*! \brief Arrangement ID to display when the project is opened, if one was saved. */
+    std::optional<std::string> selected_arrangement;
+
+    /*!
+    \brief Compares two editor-state values by their stored fields.
+    \param lhs Left-hand editor state.
+    \param rhs Right-hand editor state.
+    \return True when both editor-state values store equal fields.
+    */
+    friend bool operator==(const ProjectEditorState& lhs, const ProjectEditorState& rhs) = default;
+};
 
 /*!
 \brief Open project package context.
@@ -71,12 +96,40 @@ public:
     [[nodiscard]] std::expected<void, std::string> save(const Song& song);
 
     /*!
+    \brief Saves the supplied song and editor state to the currently open project package.
+    \param song Song data to persist.
+    \param editor_state Editor-only project state to persist.
+    \return Empty success, or a failure message.
+    */
+    [[nodiscard]] std::expected<void, std::string> save(
+        const Song& song, ProjectEditorState editor_state);
+
+    /*!
     \brief Saves the supplied song to a package path and associates this project with it.
     \param path Destination .rhp package path.
     \param song Song data to persist.
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> saveAs(
+        const std::filesystem::path& path, const Song& song);
+
+    /*!
+    \brief Saves the supplied song and editor state to a package path and associates it.
+    \param path Destination .rhp package path.
+    \param song Song data to persist.
+    \param editor_state Editor-only project state to persist.
+    \return Empty success, or a failure message.
+    */
+    [[nodiscard]] std::expected<void, std::string> saveAs(
+        const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state);
+
+    /*!
+    \brief Publishes the supplied song to a runtime package without changing this project path.
+    \param path Destination package path.
+    \param song Song data to publish.
+    \return Empty success, or a failure message.
+    */
+    [[nodiscard]] std::expected<void, std::string> publish(
         const std::filesystem::path& path, const Song& song);
 
     /*!
@@ -97,9 +150,16 @@ public:
     */
     [[nodiscard]] const std::filesystem::path& workspaceDirectory() const noexcept;
 
+    /*!
+    \brief Returns editor state read from the current project package.
+    \return Editor-only project state, or defaults before load succeeds.
+    */
+    [[nodiscard]] const ProjectEditorState& editorState() const noexcept;
+
 private:
     std::filesystem::path m_path;
     std::filesystem::path m_workspace_directory;
+    ProjectEditorState m_editor_state;
 };
 
 } // namespace rock_hero::core

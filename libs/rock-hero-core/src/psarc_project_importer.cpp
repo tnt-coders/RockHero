@@ -343,10 +343,12 @@ void copyFileTo(const std::filesystem::path& source_path, const std::filesystem:
 
 // Adds one imported arrangement using the single converted backing audio file.
 void addImportedArrangement(
-    std::vector<Arrangement>& arrangements, Part part, const AudioAsset& audio_asset)
+    std::vector<Arrangement>& arrangements, std::string id, Part part,
+    const AudioAsset& audio_asset)
 {
     arrangements.push_back(
         Arrangement{
+            .id = std::move(id),
             .part = part,
             .difficulty = DifficultyRating{},
             .audio_asset = audio_asset,
@@ -468,7 +470,8 @@ void addImportedArrangement(
         const std::filesystem::path relative_arrangement_path = arrangementPath(*part, part_counts);
         extractFileTo(psarc, file_name, workspace_directory / relative_arrangement_path);
 
-        addImportedArrangement(arrangements, *part, audio_asset);
+        addImportedArrangement(
+            arrangements, relative_arrangement_path.stem().generic_string(), *part, audio_asset);
     }
 
     return arrangements;
@@ -511,7 +514,8 @@ void addImportedArrangement(
         const std::filesystem::path relative_arrangement_path = arrangementPath(*part, part_counts);
         copyFileTo(xml_file, workspace_directory / relative_arrangement_path);
 
-        addImportedArrangement(arrangements, *part, audio_asset);
+        addImportedArrangement(
+            arrangements, relative_arrangement_path.stem().generic_string(), *part, audio_asset);
     }
 
     std::filesystem::remove_all(arrangement_staging, error);

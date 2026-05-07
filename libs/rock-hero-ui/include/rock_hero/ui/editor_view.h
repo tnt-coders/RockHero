@@ -133,6 +133,9 @@ private:
     // Opens the asynchronous save chooser and forwards accepted selections.
     void showSaveAsChooser(SaveAsChooserPurpose purpose);
 
+    // Opens the asynchronous publish chooser and forwards accepted selections.
+    void showPublishChooser();
+
     // Presents a new workflow error once per error value.
     void presentErrorIfNeeded(const std::optional<std::string>& error);
 

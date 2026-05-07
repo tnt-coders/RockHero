@@ -22,6 +22,7 @@ TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangemen
 {
     const Arrangement arrangement;
 
+    CHECK(arrangement.id.empty());
     CHECK(arrangement.part == Part::Lead);
     CHECK(arrangement.difficulty == DifficultyRating{});
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Unknown);
@@ -36,6 +37,7 @@ TEST_CASE("Arrangement default construction is lead unrated", "[core][arrangemen
 TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
 {
     Arrangement arr;
+    arr.id = "lead";
     arr.part = Part::Lead;
     arr.difficulty = DifficultyRating{8};
     arr.audio_asset = AudioAsset{std::filesystem::path{"lead.wav"}};
@@ -49,6 +51,7 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
     arr.note_events.push_back(
         {.position = TimePosition{2.0}, .duration = TimeDuration{}, .string_number = 6, .fret = 0});
 
+    CHECK(arr.id == "lead");
     CHECK(arr.part == Part::Lead);
     CHECK(arr.difficulty == DifficultyRating{8});
     CHECK(difficultyTier(arr.difficulty) == DifficultyTier::Expert);
