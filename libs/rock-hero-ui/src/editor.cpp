@@ -12,7 +12,7 @@ Editor::Editor(
     : m_edit_coordinator(edit)
     , m_controller(
           transport, m_edit_coordinator, OpenFunction{}, ImportFunction{}, SaveFunction{},
-          SaveAsFunction{}, std::move(exit_function))
+          SaveAsFunction{}, PublishFunction{}, std::move(exit_function))
     , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);

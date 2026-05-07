@@ -166,14 +166,14 @@ bool containsArrangement(const Arrangement& arrangement) const;
 When a function stores or takes ownership of a value, pass it by value and move it into storage:
 
 \code{.cpp}
-bool loadSong(Song song, std::size_t selected_arrangement_index);
+bool loadSong(Song song, std::size_t selected_arrangement);
 \endcode
 
 The corresponding implementation should make the ownership transfer explicit:
 
 \code{.cpp}
 m_song = std::move(song);
-m_current_arrangement_index = selected_arrangement_index;
+m_current_arrangement_index = selected_arrangement;
 \endcode
 
 # Value Type Guardrails

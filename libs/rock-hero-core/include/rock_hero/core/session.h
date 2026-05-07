@@ -62,10 +62,10 @@ public:
     identity. The selected arrangement must exist in the supplied song and have playable audio.
 
     \param song Song aggregate to make current.
-    \param selected_arrangement_index Arrangement index displayed by the editor.
+    \param selected_arrangement Arrangement index displayed by the editor.
     \return True when the song was accepted.
     */
-    bool loadSong(Song song, std::size_t selected_arrangement_index);
+    bool loadSong(Song song, std::size_t selected_arrangement);
 
 private:
     // Song aggregate currently loaded into the editor session.
