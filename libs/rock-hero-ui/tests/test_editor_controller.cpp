@@ -68,6 +68,27 @@ public:
         save_as_request_count += 1;
     }
 
+    void onSaveAsCancelled() override
+    {
+        save_as_cancel_count += 1;
+    }
+
+    void onCloseRequested() override
+    {
+        close_request_count += 1;
+    }
+
+    void onExitRequested() override
+    {
+        exit_request_count += 1;
+    }
+
+    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
+    {
+        last_unsaved_changes_decision = decision;
+        unsaved_changes_decision_count += 1;
+    }
+
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
@@ -88,10 +109,15 @@ public:
     std::optional<std::filesystem::path> last_import_file{};
     std::optional<std::filesystem::path> last_save_as_file{};
     std::optional<double> last_normalized_x{};
+    std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
     int open_request_count{0};
     int import_request_count{0};
     int save_request_count{0};
     int save_as_request_count{0};
+    int save_as_cancel_count{0};
+    int close_request_count{0};
+    int exit_request_count{0};
+    int unsaved_changes_decision_count{0};
     int play_pause_press_count{0};
     int stop_press_count{0};
     int waveform_click_count{0};
@@ -182,8 +208,15 @@ public:
         return next_audio_duration;
     }
 
+    void clearAudio() override
+    {
+        last_audio_asset.reset();
+        ++clear_audio_call_count;
+    }
+
     std::optional<core::TimeDuration> next_audio_duration{core::TimeDuration{4.0}};
     int load_audio_call_count{0};
+    int clear_audio_call_count{0};
     std::optional<core::AudioAsset> last_audio_asset{};
     std::function<void()> during_edit_action{};
 };
@@ -395,6 +428,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     CHECK(empty_state.import_enabled == false);
     CHECK(empty_state.save_enabled == false);
     CHECK(empty_state.save_as_enabled == false);
+    CHECK(empty_state.close_enabled == false);
+    CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
@@ -402,6 +437,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     CHECK(empty_state.visible_timeline == core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK_FALSE(empty_state.last_error.has_value());
+    CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
+    CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
     const core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
     const EditorViewState loaded_state{
@@ -409,6 +446,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
         .import_enabled = true,
         .save_enabled = true,
         .save_as_enabled = true,
+        .close_enabled = true,
+        .project_loaded = true,
         .save_requires_destination = false,
         .play_pause_enabled = true,
         .stop_enabled = true,
@@ -420,12 +459,20 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
                 .audio_duration = core::TimeDuration{180.0},
             },
         .last_error = std::string{"Could not open"},
+        .unsaved_changes_prompt = UnsavedChangesPrompt{.action = PendingProjectAction::Close},
+        .save_as_prompt = SaveAsPrompt{.action = PendingProjectAction::Close},
     };
 
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
     CHECK(loaded_state.last_error == std::optional<std::string>{"Could not open"});
+    CHECK(
+        loaded_state.unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Close}});
+    CHECK(
+        loaded_state.save_as_prompt ==
+        std::optional{SaveAsPrompt{.action = PendingProjectAction::Close}});
 }
 
 // Verifies a fake controller can receive editor intents without JUCE callback types.
@@ -440,6 +487,10 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     controller.onImportRequested(import_file);
     controller.onSaveRequested();
     controller.onSaveAsRequested(save_as_file);
+    controller.onSaveAsCancelled();
+    controller.onCloseRequested();
+    controller.onExitRequested();
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
@@ -451,6 +502,12 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
     CHECK(controller.save_request_count == 1);
     CHECK(controller.save_as_request_count == 1);
     CHECK(controller.last_save_as_file == std::optional{save_as_file});
+    CHECK(controller.save_as_cancel_count == 1);
+    CHECK(controller.close_request_count == 1);
+    CHECK(controller.exit_request_count == 1);
+    CHECK(controller.unsaved_changes_decision_count == 1);
+    CHECK(
+        controller.last_unsaved_changes_decision == std::optional{UnsavedChangesDecision::Discard});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
@@ -477,12 +534,16 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
         CHECK(state.import_enabled == true);
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
+        CHECK(state.close_enabled == false);
+        CHECK(state.project_loaded == false);
         CHECK(state.play_pause_enabled == false);
         CHECK(state.stop_enabled == false);
         CHECK(state.play_pause_shows_pause_icon == false);
         CHECK(state.visible_timeline == core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.last_error.has_value());
+        CHECK_FALSE(state.unsaved_changes_prompt.has_value());
+        CHECK_FALSE(state.save_as_prompt.has_value());
     }
     CHECK(edit.load_audio_call_count == 0);
 }
@@ -504,6 +565,7 @@ TEST_CASE("EditorController derives visible timeline range", "[ui][editor-contro
     {
         const EditorViewState& state = view.last_state.value();
         CHECK(state.visible_timeline == loadedTimelineRange(8.0));
+        CHECK(state.project_loaded == true);
         CHECK(state.arrangement.audio_duration == core::TimeDuration{8.0});
     }
 }
@@ -750,9 +812,45 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
+        CHECK(state.close_enabled == true);
+        CHECK(state.project_loaded == true);
         CHECK(state.save_requires_destination == false);
+        CHECK_FALSE(state.unsaved_changes_prompt.has_value());
     }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
+}
+
+// Close stops playback, clears backend audio, and returns the view to an empty project state.
+TEST_CASE("EditorController close clears loaded project", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    EditorController controller{transport, edit_coordinator, project_io.openFunction()};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_io.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    controller.onCloseRequested();
+
+    CHECK(transport.stop_call_count == 1);
+    CHECK(edit.clear_audio_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.save_enabled == false);
+        CHECK(state.save_as_enabled == false);
+        CHECK(state.close_enabled == false);
+        CHECK(state.project_loaded == false);
+        CHECK(state.play_pause_enabled == false);
+        CHECK(state.visible_timeline == core::TimeRange{});
+        CHECK_FALSE(state.arrangement.hasAudio());
+        CHECK_FALSE(state.last_error.has_value());
+    }
 }
 
 // Save writes the currently loaded session song through the injected persistence seam.
@@ -904,6 +1002,8 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
+        CHECK(state.close_enabled == true);
+        CHECK(state.project_loaded == true);
         CHECK(state.save_requires_destination == true);
     }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
@@ -935,6 +1035,8 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     {
         const EditorViewState& imported_state = view.last_state.value();
         CHECK(imported_state.save_requires_destination == true);
+        CHECK(imported_state.close_enabled == true);
+        CHECK(imported_state.project_loaded == true);
     }
 
     controller.onSaveRequested();
@@ -951,11 +1053,149 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     {
         const EditorViewState& saved_state = view.last_state.value();
         CHECK(saved_state.save_requires_destination == false);
+        CHECK_FALSE(saved_state.unsaved_changes_prompt.has_value());
     }
 
     controller.onSaveRequested();
 
     CHECK(project_io.save_call_count == 1);
+}
+
+// Unsaved imported content prompts before close and Cancel leaves the project loaded.
+TEST_CASE("EditorController prompts before closing unsaved import", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        edit_coordinator,
+        OpenFunction{},
+        project_io.importFunction(),
+        project_io.saveFunction(),
+        project_io.saveAsFunction(),
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_io.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    controller.onCloseRequested();
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& prompt_state = view.last_state.value();
+        CHECK(
+            prompt_state.unsaved_changes_prompt ==
+            std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Close}});
+    }
+    CHECK(edit.clear_audio_call_count == 0);
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Cancel);
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& cancel_state = view.last_state.value();
+        CHECK_FALSE(cancel_state.unsaved_changes_prompt.has_value());
+        CHECK(cancel_state.close_enabled == true);
+        CHECK(cancel_state.project_loaded == true);
+        CHECK(cancel_state.save_requires_destination == true);
+    }
+    CHECK(edit.clear_audio_call_count == 0);
+}
+
+// Choosing Save for an unsaved import asks for a destination, saves, and then closes.
+TEST_CASE("EditorController saves prompted import before close", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        edit_coordinator,
+        OpenFunction{},
+        project_io.importFunction(),
+        project_io.saveFunction(),
+        project_io.saveAsFunction(),
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
+    project_io.next_import_song = makeSong(audio_asset.path);
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    controller.onCloseRequested();
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Save);
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& prompt_state = view.last_state.value();
+        CHECK(
+            prompt_state.save_as_prompt ==
+            std::optional{SaveAsPrompt{.action = PendingProjectAction::Close}});
+    }
+
+    controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
+
+    CHECK(project_io.save_as_call_count == 1);
+    CHECK(project_io.last_save_as_audio_path == std::optional{audio_asset.path});
+    CHECK(edit.clear_audio_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& close_state = view.last_state.value();
+        CHECK(close_state.close_enabled == false);
+        CHECK(close_state.project_loaded == false);
+        CHECK_FALSE(close_state.arrangement.hasAudio());
+    }
+}
+
+// Discarding unsaved import changes lets the pending exit request reach the host callback.
+TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeEdit edit;
+    EditCoordinator edit_coordinator{edit};
+    FakeProjectIo project_io;
+    int exit_call_count = 0;
+    EditorController controller{
+        transport,
+        edit_coordinator,
+        OpenFunction{},
+        project_io.importFunction(),
+        project_io.saveFunction(),
+        project_io.saveAsFunction(),
+        [&exit_call_count] { ++exit_call_count; },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_io.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    controller.onExitRequested();
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& prompt_state = view.last_state.value();
+        CHECK(
+            prompt_state.unsaved_changes_prompt ==
+            std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Exit}});
+    }
+    CHECK(exit_call_count == 0);
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+
+    CHECK(edit.clear_audio_call_count >= 1);
+    CHECK(exit_call_count == 1);
 }
 
 // Project packages do not carry editor selection state, so the controller opens index zero.

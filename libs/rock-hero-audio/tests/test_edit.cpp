@@ -26,6 +26,13 @@ public:
         return result;
     }
 
+    // Records that the current arrangement audio should be cleared.
+    void clearAudio() override
+    {
+        last_audio_asset.reset();
+        ++clear_audio_call_count;
+    }
+
     // Result returned from loadAudio() to simulate backend success or failure.
     std::optional<core::TimeDuration> result{};
 
@@ -34,6 +41,9 @@ public:
 
     // Number of audio-load calls received by the fake.
     int load_audio_call_count{0};
+
+    // Number of audio-clear calls received by the fake.
+    int clear_audio_call_count{0};
 };
 
 } // namespace
@@ -62,6 +72,19 @@ TEST_CASE("IEdit arrangement-audio loading can fail", "[audio][edit]")
     CHECK_FALSE(duration.has_value());
     CHECK(edit.last_audio_asset == std::optional{asset});
     CHECK(edit.load_audio_call_count == 1);
+}
+
+// Verifies the edit port exposes a command to clear the current arrangement audio.
+TEST_CASE("IEdit clears audio", "[audio][edit]")
+{
+    FakeEdit edit{core::TimeDuration{12.0}};
+    const core::AudioAsset asset{std::filesystem::path{"drums.wav"}};
+    REQUIRE(edit.loadAudio(asset).has_value());
+
+    edit.clearAudio();
+
+    CHECK_FALSE(edit.last_audio_asset.has_value());
+    CHECK(edit.clear_audio_call_count == 1);
 }
 
 } // namespace rock_hero::audio

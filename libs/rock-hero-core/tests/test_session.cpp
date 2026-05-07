@@ -56,20 +56,33 @@ TEST_CASE("AudioAsset default construction is empty", "[core][audio_asset]")
     CHECK(audio_asset.path.empty());
 }
 
-// Verifies a new session exposes one editable shell while project-file loading is absent.
-TEST_CASE("Session default construction has one empty arrangement", "[core][session]")
+// Verifies a new session has no arrangement until project-file loading succeeds.
+TEST_CASE("Session default construction is empty", "[core][session]")
 {
     const Session session;
 
-    CHECK(session.song().chart.arrangements.size() == 1);
-    REQUIRE(session.arrangements().size() == 1);
-    CHECK(session.currentArrangement() == &session.arrangements().front());
-    CHECK(session.arrangements().front().part == Part::Lead);
-    CHECK_FALSE(session.arrangements().front().hasAudio());
+    CHECK(session.song().chart.arrangements.empty());
+    CHECK(session.arrangements().empty());
+    CHECK(session.currentArrangement() == nullptr);
     CHECK(session.timeline() == TimeRange{});
 }
 
-// Verifies loading a prepared song replaces the temporary empty arrangement shell.
+// Verifies reset returns a loaded session to the same no-project state used at construction.
+TEST_CASE("Session reset restores the empty project state", "[core][session]")
+{
+    Session session;
+    REQUIRE(session.loadSong(
+        makeSongWithAudio(std::filesystem::path{"mix.wav"}, TimeDuration{4.0}), 0));
+
+    session.reset();
+
+    CHECK(session.song().chart.arrangements.empty());
+    CHECK(session.arrangements().empty());
+    CHECK(session.currentArrangement() == nullptr);
+    CHECK(session.timeline() == TimeRange{});
+}
+
+// Verifies loading a prepared song replaces the empty no-project session.
 TEST_CASE("Session loadSong replaces the current song", "[core][session]")
 {
     Session session;
