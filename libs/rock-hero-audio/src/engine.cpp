@@ -273,6 +273,29 @@ std::optional<core::TimeDuration> Engine::loadAudio(const core::AudioAsset& audi
     return asset_duration;
 }
 
+// Clears the single arrangement track so closed projects do not leave stale media in Tracktion.
+void Engine::clearAudio()
+{
+    auto& transport = m_impl->m_edit->getTransport();
+    transport.stop(false, false);
+    transport.setPosition(tracktion::TimePosition{});
+
+    if (auto* track = m_impl->currentAudioTrack(); track != nullptr)
+    {
+        const juce::Array<tracktion::Clip*> clips = track->getClips();
+        for (tracktion::Clip* clip : clips)
+        {
+            if (clip != nullptr)
+            {
+                clip->removeFromParent();
+            }
+        }
+    }
+
+    m_impl->m_loaded_length_seconds = 0.0;
+    m_impl->updateTransportState();
+}
+
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.
 std::unique_ptr<IThumbnail> Engine::createThumbnail(juce::Component& owner)
 {

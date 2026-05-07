@@ -17,7 +17,8 @@ constexpr int g_open_command{1};
 constexpr int g_import_command{2};
 constexpr int g_save_command{3};
 constexpr int g_save_as_command{4};
-constexpr int g_exit_command{5};
+constexpr int g_close_command{5};
+constexpr int g_exit_command{6};
 
 // Ensures saved packages use the native Rock Hero extension when the chooser returns none.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -28,6 +29,24 @@ constexpr int g_exit_command{5};
         path.replace_extension(".rhp");
     }
     return path;
+}
+
+// Gives the unsaved-changes prompt enough context for the action that triggered it.
+[[nodiscard]] juce::String unsavedChangesPromptMessage(PendingProjectAction action)
+{
+    switch (action)
+    {
+    case PendingProjectAction::Close:
+        return "Save changes before closing the current project?";
+    case PendingProjectAction::Open:
+        return "Save changes before opening another project?";
+    case PendingProjectAction::Import:
+        return "Save changes before importing another project?";
+    case PendingProjectAction::Exit:
+        return "Save changes before exiting Rock Hero Editor?";
+    }
+
+    return "Save changes before continuing?";
 }
 
 } // namespace
@@ -176,6 +195,8 @@ EditorView::EditorView(
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_arrangement_view);
     addAndMakeVisible(*m_cursor_overlay);
+    m_arrangement_view.setVisible(m_state.project_loaded);
+    m_cursor_overlay->setVisible(m_state.project_loaded);
 
     setSize(800, 300);
 }
@@ -192,6 +213,8 @@ void EditorView::setState(const EditorViewState& state)
     m_state = state;
 
     menuItemsChanged();
+    m_arrangement_view.setVisible(m_state.project_loaded);
+    m_cursor_overlay->setVisible(m_state.project_loaded);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -204,23 +227,32 @@ void EditorView::setState(const EditorViewState& state)
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentErrorIfNeeded(m_state.last_error);
+    presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
+    presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    repaint();
 }
 
-// Paints a neutral background while child widgets render their own content.
+// Paints the background and the no-project empty state when no waveform surface is visible.
 void EditorView::paint(juce::Graphics& g)
 {
     g.fillAll(juce::Colours::darkgrey);
+
+    if (!m_state.project_loaded)
+    {
+        g.setColour(juce::Colours::lightgrey);
+        g.drawText("No Project Loaded", arrangementBounds(), juce::Justification::centred);
+    }
 }
 
 // Keeps the control strip above the waveform view and overlays the cursor across that view.
 void EditorView::resized()
 {
-    auto area = getLocalBounds().reduced(8);
-    m_menu_bar.setBounds(area.removeFromTop(24));
-    area.removeFromTop(8);
-    auto transport_row = area.removeFromTop(32);
+    auto area = arrangementBounds();
+    auto top_area = getLocalBounds().reduced(8);
+    m_menu_bar.setBounds(top_area.removeFromTop(24));
+    top_area.removeFromTop(8);
+    auto transport_row = top_area.removeFromTop(32);
     m_transport_controls.setBounds(transport_row.removeFromLeft(176));
-    area.removeFromTop(8);
     m_arrangement_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
     m_cursor_overlay->toFront(false);
@@ -259,6 +291,7 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
     menu.addItem(g_save_command, "Save", m_state.save_enabled);
     menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
     menu.addSeparator();
+    menu.addItem(g_close_command, "Close", m_state.close_enabled);
     menu.addItem(g_exit_command, "Exit");
     return menu;
 }
@@ -287,7 +320,7 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         }
         if (m_state.save_requires_destination)
         {
-            showSaveAsChooser();
+            showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
         }
         else
         {
@@ -297,14 +330,17 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
     case g_save_as_command:
         if (m_state.save_as_enabled)
         {
-            showSaveAsChooser();
+            showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+        }
+        break;
+    case g_close_command:
+        if (m_state.close_enabled)
+        {
+            m_controller.onCloseRequested();
         }
         break;
     case g_exit_command:
-        if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
-        {
-            app->systemRequestedQuit();
-        }
+        m_controller.onExitRequested();
         break;
     default:
         break;
@@ -356,7 +392,7 @@ void EditorView::showImportChooser()
 }
 
 // Opens an asynchronous file chooser and sends accepted save paths to the controller.
-void EditorView::showSaveAsChooser()
+void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
         "Save Rock Hero package",
@@ -366,10 +402,14 @@ void EditorView::showSaveAsChooser()
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
             juce::FileBrowserComponent::warnAboutOverwriting,
-        [this](const juce::FileChooser& chooser) {
+        [this, purpose](const juce::FileChooser& chooser) {
             const auto file = chooser.getResult();
             if (file.getFullPathName().isEmpty())
             {
+                if (purpose == SaveAsChooserPurpose::PendingProjectAction)
+                {
+                    m_controller.onSaveAsCancelled();
+                }
                 return;
             }
 
@@ -399,6 +439,82 @@ void EditorView::presentErrorIfNeeded(const std::optional<std::string>& error)
             .withMessage(juce::String{error->c_str()})
             .withButton("OK"),
         nullptr);
+}
+
+// Shows each distinct unsaved-changes prompt once and reports the selected decision.
+void EditorView::presentUnsavedChangesPromptIfNeeded(
+    const std::optional<UnsavedChangesPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_unsaved_changes_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_unsaved_changes_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_presented_unsaved_changes_prompt = prompt;
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    juce::NativeMessageBox::showAsync(
+        juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::QuestionIcon)
+            .withTitle("Unsaved changes")
+            .withMessage(unsavedChangesPromptMessage(prompt->action))
+            .withButton("Save")
+            .withButton("Discard")
+            .withButton("Cancel")
+            .withAssociatedComponent(this),
+        [safe_this](int button_index) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            switch (button_index)
+            {
+            case 0:
+                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Save);
+                break;
+            case 1:
+                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+                break;
+            default:
+                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Cancel);
+                break;
+            }
+        });
+}
+
+// Shows a controller-requested Save As chooser once and reports cancellation when needed.
+void EditorView::presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_save_as_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_save_as_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_presented_save_as_prompt = prompt;
+    showSaveAsChooser(SaveAsChooserPurpose::PendingProjectAction);
+}
+
+// Mirrors resized() layout so paint() can draw the empty-project message in the content area.
+juce::Rectangle<int> EditorView::arrangementBounds() const
+{
+    auto area = getLocalBounds().reduced(8);
+    area.removeFromTop(24);
+    area.removeFromTop(8);
+    area.removeFromTop(32);
+    area.removeFromTop(8);
+    return area;
 }
 
 // Forwards the transport-control intent to the workflow controller.

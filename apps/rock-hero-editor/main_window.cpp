@@ -18,7 +18,8 @@ MainWindow::MainWindow(const juce::String& title)
     // Engine currently implements each editor-facing audio port. Passing it for each role keeps
     // Editor dependent on narrow interfaces rather than on the concrete Tracktion adapter. The
     // editor owns its Session internally through EditCoordinator so app code cannot bypass edits.
-    m_editor = std::make_unique<ui::Editor>(*m_audio_engine, *m_audio_engine, *m_audio_engine);
+    m_editor = std::make_unique<ui::Editor>(
+        *m_audio_engine, *m_audio_engine, *m_audio_engine, [this] { closeWindow(); });
 
     setUsingNativeTitleBar(true);
     setContentNonOwned(&m_editor->component(), true);
@@ -35,10 +36,19 @@ MainWindow::~MainWindow()
     clearContentComponent();
 }
 
-// Routes the native close button through JUCE so normal application shutdown runs.
+// Routes the native close button through the same guarded exit flow as File > Exit.
 void MainWindow::closeButtonPressed()
 {
-    juce::JUCEApplication::getInstance()->systemRequestedQuit();
+    m_editor->requestExit();
+}
+
+// Runs normal JUCE application shutdown after the editor has allowed the close to continue.
+void MainWindow::closeWindow()
+{
+    if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
+    {
+        app->systemRequestedQuit();
+    }
 }
 
 } // namespace rock_hero

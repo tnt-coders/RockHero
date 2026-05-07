@@ -123,6 +123,9 @@ public:
     [[nodiscard]] std::optional<core::TimeDuration> loadAudio(
         const core::AudioAsset& audio_asset) override;
 
+    /*! \brief Clears arrangement audio from the Tracktion edit and resets playback state. */
+    void clearAudio() override;
+
     /*!
     \brief Creates an IThumbnail bound to this engine.
 

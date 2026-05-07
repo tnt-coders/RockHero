@@ -32,10 +32,11 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param edit Audio edit port used by the internal coordinator for cross-boundary edits.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
+    \param exit_function Callback used when guarded editor exit is allowed to continue.
     */
     Editor(
         audio::ITransport& transport, audio::IEdit& edit,
-        audio::IThumbnailFactory& thumbnail_factory);
+        audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();
@@ -57,6 +58,9 @@ public:
     \return Editor view component owned by this feature wrapper.
     */
     [[nodiscard]] juce::Component& component() noexcept;
+
+    /*! \brief Requests the same guarded exit workflow used by File > Exit. */
+    void requestExit();
 
 private:
     // Owns edit orchestration before the controller stores its non-owning reference.

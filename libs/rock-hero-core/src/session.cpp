@@ -16,10 +16,18 @@ namespace
 
 } // namespace
 
-// Starts with one arrangement shell until a real project file has been opened.
+// Starts empty until a real project file has been opened.
 Session::Session()
 {
-    m_song.chart.arrangements.push_back(Arrangement{});
+    reset();
+}
+
+// Restores the no-project editor session after the current project is closed.
+void Session::reset()
+{
+    m_song = Song{};
+    m_current_arrangement_index = 0;
+    m_timeline = TimeRange{};
 }
 
 // Exposes the full loaded song aggregate for read-only editor and test observation.

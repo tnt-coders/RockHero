@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <rock_hero/ui/editor_view_state.h>
 
 namespace rock_hero::ui
 {
@@ -42,6 +43,21 @@ public:
     \param file Filesystem path selected by the user.
     */
     virtual void onSaveAsRequested(std::filesystem::path file) = 0;
+
+    /*! \brief Handles cancellation of a controller-requested Save As destination chooser. */
+    virtual void onSaveAsCancelled() = 0;
+
+    /*! \brief Handles a request to close the current project without exiting the app. */
+    virtual void onCloseRequested() = 0;
+
+    /*! \brief Handles a request to exit the editor application. */
+    virtual void onExitRequested() = 0;
+
+    /*!
+    \brief Handles the user's response to an unsaved-changes confirmation prompt.
+    \param decision Decision selected by the user.
+    */
+    virtual void onUnsavedChangesDecision(UnsavedChangesDecision decision) = 0;
 
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;

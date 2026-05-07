@@ -69,6 +69,9 @@ public:
     */
     [[nodiscard]] bool loadSong(core::Song song, std::size_t selected_arrangement_index);
 
+    /*! \brief Clears backend arrangement audio and restores the empty editor session. */
+    void closeSong();
+
 private:
     // Session stores accepted framework-free values after backend edits succeed.
     core::Session m_session;
