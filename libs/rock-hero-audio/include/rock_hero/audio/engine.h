@@ -6,8 +6,7 @@
 #pragma once
 
 #include <memory>
-#include <optional>
-#include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
 
@@ -39,7 +38,7 @@ called on the message thread.
 
 \see rock_hero::MainWindow
 */
-class Engine : public ITransport, public IEdit, public IThumbnailFactory
+class Engine : public ITransport, public IAudio, public IThumbnailFactory
 {
 public:
     /*!
@@ -112,19 +111,29 @@ public:
     void removeListener(ITransport::Listener& listener) override;
 
     /*!
-    \brief Loads framework-free full-source audio for the current arrangement.
+    \brief Validates song arrangement audio and fills accepted durations.
 
-    The current adapter supports one Tracktion audio track and replaces its media with the accepted
-    full-source asset.
+    The current adapter opens every referenced audio file through Tracktion long enough to verify
+    that it is readable and has a positive duration.
 
-    \param audio_asset Framework-free asset reference used as the arrangement audio source.
-    \return Accepted full-source duration when the playback backend loaded it.
+    \param song Candidate song to prepare for session loading.
+    \return True when every arrangement has usable positive-duration audio.
     */
-    [[nodiscard]] std::optional<core::TimeDuration> loadAudio(
-        const core::AudioAsset& audio_asset) override;
+    [[nodiscard]] bool prepareSong(core::Song& song) override;
 
-    /*! \brief Clears arrangement audio from the Tracktion edit and resets playback state. */
-    void clearAudio() override;
+    /*!
+    \brief Makes an already-prepared arrangement active in the Tracktion edit.
+
+    The current adapter supports one Tracktion audio track and replaces its media with the
+    arrangement's full-source asset.
+
+    \param arrangement Prepared arrangement to make active.
+    \return True when the playback backend made the arrangement playable.
+    */
+    [[nodiscard]] bool setActiveArrangement(const core::Arrangement& arrangement) override;
+
+    /*! \brief Clears the active arrangement from the Tracktion edit and resets playback state. */
+    void clearActiveArrangement() override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

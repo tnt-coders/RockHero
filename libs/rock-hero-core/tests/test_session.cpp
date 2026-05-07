@@ -1,6 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <optional>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/session.h>
 #include <rock_hero/core/song.h>
@@ -95,9 +94,8 @@ TEST_CASE("Session loadSong replaces the current song", "[core][session]")
     CHECK(loaded);
     REQUIRE(session.arrangements().size() == 1);
     const Arrangement& arrangement = session.arrangements().front();
-    CHECK(arrangement.audio_asset == std::optional{audio_asset});
+    CHECK(arrangement.audio_asset == audio_asset);
     CHECK(arrangement.audio_duration == TimeDuration{8.0});
-    CHECK(arrangement.hasAudio());
     CHECK(
         arrangement.audioTimelineRange() == TimeRange{
                                                 .start = TimePosition{},
@@ -132,7 +130,7 @@ TEST_CASE("Session loadSong replaces existing project data", "[core][session]")
 
     REQUIRE(session.arrangements().size() == 1);
     const Arrangement& arrangement = session.arrangements().front();
-    CHECK(arrangement.audio_asset == std::optional{second_audio});
+    CHECK(arrangement.audio_asset == second_audio);
     CHECK(arrangement.audio_duration == TimeDuration{5.0});
     CHECK(
         session.timeline() == TimeRange{
@@ -178,8 +176,8 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
                               });
 }
 
-// Verifies the selected arrangement must have backend-accepted playable audio.
-TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][session]")
+// Verifies every arrangement must have backend-accepted playable duration.
+TEST_CASE("Session loadSong rejects arrangement without duration", "[core][session]")
 {
     Session session;
     const AudioAsset original_audio = makeAudioAsset(std::filesystem::path{"mix.wav"});
@@ -208,9 +206,9 @@ TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][
             .note_events = {},
         });
 
-    CHECK_FALSE(session.loadSong(std::move(song), 1));
+    CHECK_FALSE(session.loadSong(std::move(song), 0));
     REQUIRE(session.currentArrangement() != nullptr);
-    CHECK(session.currentArrangement()->audio_asset == std::optional{original_audio});
+    CHECK(session.currentArrangement()->audio_asset == original_audio);
     CHECK(
         session.timeline() == TimeRange{
                                   .start = TimePosition{},
@@ -231,7 +229,7 @@ TEST_CASE("Session loadSong rejects invalid replacement data", "[core][session]"
     CHECK_FALSE(session.loadSong(
         makeSongWithAudio(std::filesystem::path{"bad.wav"}, TimeDuration{5.0}), 1));
     REQUIRE(session.arrangements().size() == 1);
-    CHECK(session.arrangements().front().audio_asset == std::optional{original_audio});
+    CHECK(session.arrangements().front().audio_asset == original_audio);
     CHECK(session.arrangements().front().audio_duration == TimeDuration{4.0});
     CHECK(
         session.timeline() == TimeRange{

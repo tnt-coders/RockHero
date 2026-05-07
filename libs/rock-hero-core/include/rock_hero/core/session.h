@@ -59,7 +59,7 @@ public:
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement
-    identity. The selected arrangement must exist in the supplied song and have playable audio.
+    identity. The selected arrangement must exist and every arrangement must have playable audio.
 
     \param song Song aggregate to make current.
     \param selected_arrangement Arrangement index displayed by the editor.

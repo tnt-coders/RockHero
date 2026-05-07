@@ -7,7 +7,8 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
                "${CMAKE_CURRENT_BINARY_DIR}/test-data/drum_loop.wav" COPYONLY)
 
 # Fast public-contract tests exercise audio ports without constructing Tracktion/JUCE adapters.
-add_executable(rock_hero_audio_tests test_edit.cpp test_thumbnail_source.cpp test_transport.cpp)
+add_executable(rock_hero_audio_tests test_audio.cpp test_edit.cpp test_thumbnail_source.cpp
+                                     test_transport.cpp)
 
 # The fast target includes audio public headers directly and uses only core value types.
 target_include_directories(rock_hero_audio_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")

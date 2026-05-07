@@ -61,11 +61,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(arrangement.part == Part::Rhythm);
     CHECK(arrangement.difficulty == DifficultyRating{6});
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Hard);
-    REQUIRE(arrangement.audio_asset.has_value());
-    if (arrangement.audio_asset.has_value())
-    {
-        CHECK(arrangement.audio_asset.value().path == std::filesystem::path{"audio/rhythm.wav"});
-    }
+    CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio/rhythm.wav"});
     CHECK(arrangement.audio_duration == TimeDuration{42.0});
     CHECK(arrangement.tone_timeline_ref == "tone/rhythm.json");
     REQUIRE(arrangement.note_events.size() == 1);

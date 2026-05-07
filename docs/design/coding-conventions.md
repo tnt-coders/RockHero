@@ -219,7 +219,7 @@ the wrapped value.
 Examples:
 
 \code{.cpp}
-CHECK(edit.last_audio_asset == std::optional{core::AudioAsset{std::filesystem::path{"mix.wav"}}});
+CHECK(audio.last_audio_asset == std::optional{core::AudioAsset{std::filesystem::path{"mix.wav"}}});
 CHECK(loaded_duration == std::optional{core::TimeDuration{4.0}});
 \endcode
 
@@ -243,7 +243,8 @@ mirroring production file names mechanically.
 Examples:
 
 - `test_transport.cpp` for transport-port behavior
-- `test_edit.cpp` for edit-port behavior
+- `test_audio.cpp` for audio-port behavior
+- `test_edit.cpp` for future edit-command placeholder behavior until real commands exist
 - `test_engine.cpp` for concrete engine adapter behavior
 - `test_session.cpp`, `test_song.cpp`, `test_chart.cpp`, `test_arrangement.cpp` for core model
   types once each subject has enough tests to stand on its own
@@ -285,9 +286,9 @@ under test.
 
 Current tag shape:
 
-- module tag first: `[audio]`, `[core]`
-- subject tag second: `[transport]`, `[edit]`, `[engine]`, `[session]`, `[song]`,
-  `[chart]`, `[arrangement]`
+- module tag first: `[audio]`, `[core]`, `[ui]`
+- subject tag second: `[transport]`, `[audio]`, `[edit]`, `[engine]`, `[session]`,
+  `[song]`, `[chart]`, `[arrangement]`, `[editor-controller]`
 - optional classification tags last when needed: for example `[integration]`
 
 Examples:
@@ -295,7 +296,7 @@ Examples:
 \code{.cpp}
 TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transport]")
 TEST_CASE("Replacing missing arrangement audio fails cleanly", "[core][session]")
-TEST_CASE("Engine edit updates state synchronously", "[audio][engine][integration]")
+TEST_CASE("Engine audio port updates state synchronously", "[audio][engine][integration]")
 \endcode
 
 Guidelines:

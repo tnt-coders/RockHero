@@ -1,5 +1,6 @@
 #include "session.h"
 
+#include <algorithm>
 #include <utility>
 
 namespace rock_hero::core
@@ -12,6 +13,20 @@ namespace
 [[nodiscard]] TimeRange calculateTimeline(const Arrangement& arrangement) noexcept
 {
     return arrangement.audioTimelineRange();
+}
+
+// Reports whether backend audio loading prepared the arrangement for a playable session.
+[[nodiscard]] bool hasLoadedAudio(const Arrangement& arrangement) noexcept
+{
+    return !arrangement.audio_asset.path.empty() && arrangement.audio_duration.seconds > 0.0;
+}
+
+// Reports whether every arrangement has passed backend audio validation before session commit.
+[[nodiscard]] bool hasLoadedAudio(const Song& song)
+{
+    return std::ranges::all_of(song.chart.arrangements, [](const Arrangement& arrangement) {
+        return hasLoadedAudio(arrangement);
+    });
 }
 
 } // namespace
@@ -59,7 +74,7 @@ const Arrangement* Session::currentArrangement() const noexcept
     return &m_song.chart.arrangements[m_current_arrangement_index];
 }
 
-// Commits a fully prepared song once the selected arrangement has playable audio.
+// Commits a fully prepared song once every arrangement has backend-loaded audio.
 bool Session::loadSong(Song song, std::size_t selected_arrangement)
 {
     if (song.chart.arrangements.empty() || selected_arrangement >= song.chart.arrangements.size())
@@ -67,12 +82,12 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
         return false;
     }
 
-    const Arrangement& arrangement = song.chart.arrangements[selected_arrangement];
-    if (!arrangement.hasAudio())
+    if (!hasLoadedAudio(song))
     {
         return false;
     }
 
+    const Arrangement& arrangement = song.chart.arrangements[selected_arrangement];
     const TimeRange timeline = calculateTimeline(arrangement);
     m_song = std::move(song);
     m_current_arrangement_index = selected_arrangement;
