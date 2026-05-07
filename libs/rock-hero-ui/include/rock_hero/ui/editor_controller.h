@@ -1,6 +1,6 @@
 /*!
 \file editor_controller.h
-\brief Headless editor workflow coordinator backed by core, transport, and edit coordination.
+\brief Headless editor workflow coordinator backed by core, transport, and audio activation.
 */
 
 #pragma once
@@ -9,11 +9,11 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
 #include <rock_hero/core/project.h>
 #include <rock_hero/core/session.h>
-#include <rock_hero/ui/edit_coordinator.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
@@ -49,7 +49,7 @@ using ExitFunction = std::function<void()>;
 /*!
 \brief Concrete editor workflow coordinator.
 
-Translates editor user intents into transport and edit requests without exposing JUCE
+Translates editor user intents into transport, audio, and project requests without exposing JUCE
 types. Subscribes to the transport listener surface for coarse transition-shaped updates and
 re-derives EditorViewState whenever a real change has occurred. The controller owns
 load-error policy, play/pause/stop gating, and seek normalization. Continuous playhead motion is
@@ -58,7 +58,7 @@ at its own render cadence. The controller samples position only for discrete wor
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced transport and edit coordinator must outlive the controller.
+The referenced transport and audio ports must outlive the controller.
 */
 class EditorController final : public IEditorController, private audio::ITransport::Listener
 {
@@ -66,12 +66,12 @@ public:
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
-    The coordinator-owned session starts empty until the user opens a project. The controller does
-    not push state during construction because no view is attached yet. The initial cached state
-    becomes the first push delivered to attachView().
+    The owned session starts empty until the user opens a project. The controller does not push
+    state during construction because no view is attached yet. The initial cached state becomes the
+    first push delivered to attachView().
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param edit_coordinator Coordinator used to apply backend-accepted session edits.
+    \param audio Audio port used to validate and load arrangement audio.
     \param open_function Optional seam used to open native packages.
     \param import_function Optional seam used to import foreign packages.
     \param save_function Optional seam used to save to the current destination.
@@ -80,10 +80,10 @@ public:
     \param exit_function Optional seam used to request application exit.
     */
     EditorController(
-        audio::ITransport& transport, EditCoordinator& edit_coordinator,
-        OpenFunction open_function = {}, ImportFunction import_function = {},
-        SaveFunction save_function = {}, SaveAsFunction save_as_function = {},
-        PublishFunction publish_function = {}, ExitFunction exit_function = {});
+        audio::ITransport& transport, audio::IAudio& audio, OpenFunction open_function = {},
+        ImportFunction import_function = {}, SaveFunction save_function = {},
+        SaveAsFunction save_as_function = {}, PublishFunction publish_function = {},
+        ExitFunction exit_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -117,11 +117,17 @@ public:
     void attachView(IEditorView& view);
 
     /*!
+    \brief Returns read-only access to the loaded editor session.
+    \return Session state owned by this controller.
+    */
+    [[nodiscard]] const core::Session& session() const noexcept;
+
+    /*!
     \brief Handles a request to open a Rock Hero package.
 
     On success, the controller clears any active error and stores the package context. On failure,
     the old session/context are preserved. Reentrant transport
-    notifications received during backend audio loading are coalesced into one final push.
+    notifications received during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
     */
@@ -132,7 +138,7 @@ public:
 
     On success, the controller clears any active error and stores an unsaved workspace. On failure,
     the old session/context are preserved. Reentrant transport
-    notifications received during backend audio loading are coalesced into one final push.
+    notifications received during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
     */
@@ -171,7 +177,7 @@ public:
     /*!
     \brief Handles a play/pause button press from the editor UI.
 
-    The intent is ignored when the current arrangement has no audio. Otherwise, plays or pauses
+    The intent is ignored when no arrangement is loaded. Otherwise, plays or pauses
     based on the current transport state.
     */
     void onPlayPausePressed() override;
@@ -216,7 +222,7 @@ private:
     // Imports a foreign project package without first checking unsaved-change state.
     void importProject(const std::filesystem::path& file);
 
-    // Closes the current project context, session, and backend edit state.
+    // Closes the current project context, session, and backend audio state.
     [[nodiscard]] bool closeProject();
 
     // Saves to the current destination and updates dirty tracking on success.
@@ -228,11 +234,12 @@ private:
     // Clears any in-progress unsaved-change or Save As prompt.
     void clearPendingProjectAction() noexcept;
 
-    // Returns the read-only session owned by the edit coordinator.
-    [[nodiscard]] const core::Session& session() const noexcept;
-
     // Builds the editor-only project state persisted by Save and Save As.
     [[nodiscard]] core::ProjectEditorState projectEditorStateForSave() const;
+
+    // Prepares project audio, activates the selected arrangement, and commits to Session.
+    [[nodiscard]] bool loadSessionSong(
+        core::Song song, const std::optional<std::string>& selected_arrangement);
 
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
@@ -240,8 +247,8 @@ private:
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
     void deriveAndPush();
 
-    // Reports whether the current arrangement currently has audio assigned.
-    [[nodiscard]] bool currentArrangementHasAudio() const;
+    // Reports whether the controller has committed a backend-accepted arrangement.
+    [[nodiscard]] bool hasLoadedArrangement() const;
 
     // Reports whether closing or replacing the current project would discard user work.
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
@@ -252,8 +259,11 @@ private:
     // Transport port used for control intents and coarse listener delivery.
     audio::ITransport& m_transport;
 
-    // Edit coordinator applies backend-accepted session mutations.
-    EditCoordinator& m_edit_coordinator;
+    // Audio port used for project audio validation and selected-arrangement loading.
+    audio::IAudio& m_audio;
+
+    // Song aggregate and selected arrangement state currently loaded in the editor.
+    core::Session m_session;
 
     // Opens .rhp packages into temporary project contexts.
     OpenFunction m_open_function;
@@ -282,8 +292,8 @@ private:
     // Persisted controller-composed workflow error preserved across unrelated state transitions.
     std::optional<std::string> m_last_error{};
 
-    // Set true while a session edit is in flight so reentrant transport callbacks defer pushing.
-    bool m_session_edit_in_progress{false};
+    // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
+    bool m_session_load_in_progress{false};
 
     // Currently loaded or imported project context; keeps workspace files alive.
     std::optional<core::Project> m_project{};

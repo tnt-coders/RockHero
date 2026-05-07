@@ -3,8 +3,8 @@
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <optional>
 #include <rock_hero/audio/engine.h>
+#include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_thumbnail.h>
 
 namespace rock_hero::audio
@@ -15,7 +15,7 @@ namespace
 
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
-static_assert(std::derived_from<Engine, IEdit>);
+static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
@@ -24,7 +24,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     return std::filesystem::path{TEST_DATA_DIR} / "drum_loop.wav";
 }
 
-// Wraps the real fixture path in the framework-free asset type used by IEdit.
+// Wraps the real fixture path in the framework-free asset type used by IAudio.
 [[nodiscard]] core::AudioAsset fixtureAudioAsset()
 {
     return core::AudioAsset{fixtureAudioPath()};
@@ -39,21 +39,35 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     };
 }
 
-// Loads the fixture through the public edit port and returns the accepted duration.
-[[nodiscard]] std::optional<core::TimeDuration> loadFixtureAudio(IEdit& edit)
+// Builds a minimal song that references the real fixture audio.
+[[nodiscard]] core::Song makeFixtureSong()
 {
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    return edit.loadAudio(audio_asset);
+    core::Song song;
+    song.chart.arrangements.push_back(
+        core::Arrangement{
+            .id = "lead",
+            .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
+            .audio_asset = audio_asset,
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
+    return song;
 }
 
-// Loads the fixture and fails the current test if the concrete backend rejects it.
-[[nodiscard]] core::TimeDuration requireLoadedFixtureAudio(IEdit& edit)
+// Prepares and activates the fixture arrangement, failing the test if either step is rejected.
+[[nodiscard]] core::TimeDuration requireLoadedFixtureAudio(IAudio& audio)
 {
-    const auto duration = loadFixtureAudio(edit);
-    REQUIRE(duration.has_value());
-    return duration.value_or(core::TimeDuration{});
+    auto song = makeFixtureSong();
+    REQUIRE(audio.prepareSong(song));
+    REQUIRE(song.chart.arrangements.size() == 1);
+    const core::Arrangement& arrangement = song.chart.arrangements.front();
+    REQUIRE(audio.setActiveArrangement(arrangement));
+    return arrangement.audio_duration;
 }
 
 // Records callback activity from the project-owned transport listener surface.
@@ -181,29 +195,27 @@ TEST_CASE("Engine thumbnail clears source for missing assets", "[audio][engine][
     CHECK(thumbnail->getProxyProgress() <= 1.0f);
 }
 
-// Verifies audio loading returns a duration while leaving transport stopped.
-TEST_CASE("Engine edit loads audio", "[audio][engine][integration]")
+// Verifies activating prepared audio leaves transport stopped.
+TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = engine;
     ITransport& transport = engine;
 
-    const auto audio_asset = fixtureAudioAsset();
-    REQUIRE(std::filesystem::exists(audio_asset.path));
+    auto song = makeFixtureSong();
+    REQUIRE(audio.prepareSong(song));
+    REQUIRE(song.chart.arrangements.size() == 1);
 
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const auto audio_duration = edit.loadAudio(audio_asset);
+    const bool active_set = audio.setActiveArrangement(song.chart.arrangements.front());
 
     transport.removeListener(recorder);
 
-    REQUIRE(audio_duration.has_value());
-    if (audio_duration.has_value())
-    {
-        CHECK(audio_duration.value().seconds > 0.0);
-    }
+    CHECK(active_set);
+    CHECK(song.chart.arrangements.front().audio_duration.seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});
@@ -211,29 +223,65 @@ TEST_CASE("Engine edit loads audio", "[audio][engine][integration]")
     CHECK(recorder.last_transport_state == TransportState{});
 }
 
-// Verifies the single Tracktion arrangement track can replace its loaded audio.
-TEST_CASE("Engine edit replaces arrangement audio", "[audio][engine][integration]")
+// Verifies song preparation fills fixture audio duration without mutating transport state.
+TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = harness.engine;
+    const ITransport& transport = harness.engine;
+    auto song = makeFixtureSong();
 
-    const auto first_audio = loadFixtureAudio(edit);
-    const auto replacement_audio = loadFixtureAudio(edit);
+    const bool prepared = audio.prepareSong(song);
 
-    CHECK(first_audio.has_value());
-    CHECK(replacement_audio.has_value());
+    CHECK(prepared);
+    REQUIRE(song.chart.arrangements.size() == 1);
+    CHECK(song.chart.arrangements.front().audio_duration.seconds > 0.0);
+    CHECK(transport.state() == TransportState{});
+    CHECK(transport.position() == core::TimePosition{});
 }
 
-// Verifies a failed edit request leaves the previous transport state visible through state().
-TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engine][integration]")
+// Verifies song preparation rejects missing assets without loading fallback media.
+TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudio& audio = harness.engine;
+    auto song = makeFixtureSong();
+    song.chart.arrangements.front().audio_asset =
+        core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
+
+    const bool prepared = audio.prepareSong(song);
+
+    CHECK_FALSE(prepared);
+}
+
+// Verifies the single Tracktion arrangement track can replace its loaded audio.
+TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = engine;
+    auto song = makeFixtureSong();
+    REQUIRE(audio.prepareSong(song));
+    REQUIRE(song.chart.arrangements.size() == 1);
+    const core::Arrangement& arrangement = song.chart.arrangements.front();
+
+    const bool first_audio_set = audio.setActiveArrangement(arrangement);
+    const bool replacement_audio_set = audio.setActiveArrangement(arrangement);
+
+    CHECK(first_audio_set);
+    CHECK(replacement_audio_set);
+}
+
+// Verifies a failed activation leaves the previous transport state visible through state().
+TEST_CASE(
+    "Failed engine audio activation preserves transport state", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    Engine& engine = harness.engine;
+    IAudio& audio = engine;
     ITransport& transport = engine;
 
-    [[maybe_unused]] const auto audio_duration = requireLoadedFixtureAudio(edit);
+    [[maybe_unused]] const auto audio_duration = requireLoadedFixtureAudio(audio);
 
     const auto loaded_state = transport.state();
     const core::AudioAsset missing_asset{
@@ -242,11 +290,20 @@ TEST_CASE("Failed engine edit preserves existing transport state", "[audio][engi
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const auto loaded_audio = edit.loadAudio(missing_asset);
+    const bool active_set = audio.setActiveArrangement(
+        core::Arrangement{
+            .id = "missing",
+            .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
+            .audio_asset = missing_asset,
+            .audio_duration = core::TimeDuration{1.0},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
 
     transport.removeListener(recorder);
 
-    CHECK_FALSE(loaded_audio.has_value());
+    CHECK_FALSE(active_set);
     CHECK(transport.state() == loaded_state);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(recorder.last_transport_state == TransportState{});
@@ -257,10 +314,10 @@ TEST_CASE("Engine seek updates live transport position", "[audio][engine][integr
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = engine;
     ITransport& transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const auto loaded_state = transport.state();
     const double duration_seconds = audio_duration.seconds;
@@ -278,11 +335,11 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = engine;
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
@@ -298,10 +355,10 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IEdit& edit = engine;
+    IAudio& audio = engine;
     ITransport& transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(edit);
+    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);

@@ -14,7 +14,7 @@ namespace rock_hero::ui
 /*!
 \brief Project-owned boundary for editor user intents.
 
-Concrete implementations translate these plain-English intents into transport, edit, session, and
+Concrete implementations translate these plain-English intents into transport, audio, session, and
 view updates without exposing JUCE callback types to tests or to non-UI code.
 */
 class IEditorController

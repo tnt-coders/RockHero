@@ -3,7 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/i_edit.h>
+#include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_thumbnail.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
@@ -67,25 +67,36 @@ public:
     std::vector<Listener*> listeners{};
 };
 
-// Minimal edit port fake used by Editor construction and initial state projection.
-class FakeEdit final : public audio::IEdit
+// Minimal audio port fake used by Editor construction and initial state projection.
+class FakeAudio final : public audio::IAudio
 {
 public:
-    std::optional<core::TimeDuration> loadAudio(const core::AudioAsset& audio_asset) override
+    bool prepareSong(core::Song& song) override
     {
-        last_audio_asset = audio_asset;
-        ++load_audio_call_count;
-        return core::TimeDuration{8.0};
+        ++prepare_song_call_count;
+        for (core::Arrangement& arrangement : song.chart.arrangements)
+        {
+            arrangement.audio_duration = core::TimeDuration{8.0};
+        }
+        return true;
     }
 
-    void clearAudio() override
+    bool setActiveArrangement(const core::Arrangement& arrangement) override
     {
-        ++clear_audio_call_count;
+        last_active_audio_asset = arrangement.audio_asset;
+        ++set_active_arrangement_call_count;
+        return true;
     }
 
-    std::optional<core::AudioAsset> last_audio_asset{};
-    int load_audio_call_count{0};
-    int clear_audio_call_count{0};
+    void clearActiveArrangement() override
+    {
+        ++clear_active_arrangement_call_count;
+    }
+
+    std::optional<core::AudioAsset> last_active_audio_asset{};
+    int prepare_song_call_count{0};
+    int set_active_arrangement_call_count{0};
+    int clear_active_arrangement_call_count{0};
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
@@ -171,10 +182,10 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransport transport;
-    FakeEdit edit;
+    FakeAudio audio;
     FakeThumbnailFactory thumbnail_factory;
 
-    Editor editor{transport, edit, thumbnail_factory};
+    Editor editor{transport, audio, thumbnail_factory};
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
@@ -185,8 +196,8 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(thumbnail_factory.last_owner->getComponentID() == "arrangement_view");
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
-    CHECK(edit.load_audio_call_count == 0);
-    CHECK_FALSE(edit.last_audio_asset.has_value());
+    CHECK(audio.set_active_arrangement_call_count == 0);
+    CHECK_FALSE(audio.last_active_audio_asset.has_value());
     CHECK(transport.listeners.size() == 1);
 }
 

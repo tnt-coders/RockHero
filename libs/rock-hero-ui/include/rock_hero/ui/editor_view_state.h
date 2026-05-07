@@ -66,7 +66,7 @@ struct SaveAsPrompt
 /*!
 \brief Full message-thread state rendered by the editor view.
 
-The controller derives this state from transport, edit, and session information, then pushes it to
+The controller derives this state from transport, audio, and session information, then pushes it to
 the concrete JUCE view through IEditorView.
 */
 struct EditorViewState

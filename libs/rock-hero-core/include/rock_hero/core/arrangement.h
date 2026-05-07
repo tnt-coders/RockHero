@@ -6,7 +6,6 @@
 #pragma once
 
 #include <cstdint>
-#include <optional>
 #include <rock_hero/core/audio_asset.h>
 #include <rock_hero/core/difficulty.h>
 #include <rock_hero/core/timeline.h>
@@ -70,8 +69,8 @@ struct Arrangement
     /*! \brief Numeric difficulty rating represented by this arrangement. */
     DifficultyRating difficulty;
 
-    /*! \brief Backing audio assigned to this arrangement, when one has been loaded. */
-    std::optional<AudioAsset> audio_asset;
+    /*! \brief Backing audio assigned to this arrangement. */
+    AudioAsset audio_asset;
 
     /*! \brief Full natural duration of the assigned backing audio. */
     TimeDuration audio_duration;
@@ -85,15 +84,6 @@ struct Arrangement
 
     /*! \brief Ordered note events the player must execute for this arrangement. */
     std::vector<NoteEvent> note_events;
-
-    /*!
-    \brief Reports whether this arrangement has playable audio assigned.
-    \return True when an audio asset is present and has a positive duration.
-    */
-    [[nodiscard]] bool hasAudio() const noexcept
-    {
-        return audio_asset.has_value() && audio_duration.seconds > 0.0;
-    }
 
     /*!
     \brief Calculates the range occupied by the arrangement audio on the session timeline.

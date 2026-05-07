@@ -90,12 +90,17 @@ configure_file(
 
 - Every project-owned function or method definition in a `.cpp` file gets a regular comment
   immediately above it unless it is explicitly trivial.
+- Every class or struct defined entirely inside a `.cpp` file gets a regular class-level comment
+  immediately above the definition unless it is explicitly trivial.
 - Trivial exceptions are defaulted or empty special members with no meaningful behavior, obvious
   one-line local lambdas, generated macro entrypoints such as `START_JUCE_APPLICATION`, and test
   helpers whose names and assertions already explain the purpose.
 - `.cpp` method comments should explain why the method exists, lifecycle timing, ownership or
   lifetime effects, framework callback role, threading or realtime constraints, user-visible
   behavior, failure behavior, or why a temporary implementation is acceptable.
+- `.cpp` class and struct comments should explain the helper's file-local role, ownership or
+  lifetime model, threading constraints, stored-state invariants, or why the type stays private to
+  the translation unit. Keep these as regular comments, not Doxygen comments.
 - Test `.cpp` files follow the same regular-comment rule. Each `TEST_CASE` should have a concise
   comment immediately above it explaining the behavior, invariant, or regression it verifies.
   Test helper classes, member functions, free functions, and member variables should be commented

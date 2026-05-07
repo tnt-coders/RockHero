@@ -31,6 +31,7 @@ using Json = nlohmann::json;
 constexpr std::string_view g_project_document_name{"project.json"};
 constexpr std::string_view g_song_document_name{"song.json"};
 
+// Owns a libzip source until archive-opening code transfers or frees it.
 class ZipSource final
 {
 public:
@@ -87,6 +88,7 @@ private:
     zip_source_t* m_source{};
 };
 
+// Owns a libzip archive handle and discards it unless a successful close releases it.
 class ZipArchive final
 {
 public:
@@ -143,6 +145,7 @@ private:
     zip_t* m_archive{};
 };
 
+// Owns a libzip entry stream during extraction and closes it on scope exit.
 class ZipFile final
 {
 public:
@@ -902,12 +905,14 @@ private:
     return std::filesystem::path{"arrangements"} / (stem + "-" + std::to_string(count) + ".xml");
 }
 
+// Pairs the generated song document with arrangement IDs needed by project.json.
 struct SongDocumentForSave
 {
     Json document;
     std::vector<std::string> arrangement_ids;
 };
 
+// Carries saved song-document arrangement IDs across the write helper boundary.
 struct WrittenSongFiles
 {
     std::vector<std::string> arrangement_ids;
@@ -964,14 +969,14 @@ struct WrittenSongFiles
     for (std::size_t index = 0; index < song.chart.arrangements.size(); ++index)
     {
         const Arrangement& arrangement = song.chart.arrangements[index];
-        if (!arrangement.audio_asset.has_value())
+        if (arrangement.audio_asset.path.empty())
         {
             error_message = "Cannot save an arrangement without audio";
             return std::nullopt;
         }
 
         std::filesystem::path relative_audio_path;
-        const std::filesystem::path& source_path = arrangement.audio_asset->path;
+        const std::filesystem::path& source_path = arrangement.audio_asset.path;
         if (const auto workspace_path = relativeWorkspacePath(workspace_directory, source_path);
             workspace_path.has_value())
         {
@@ -1220,9 +1225,10 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
             return std::unexpected<std::string>{std::move(selected_arrangement.error())};
         }
 
-        if (selected_arrangement->has_value() && !selected_arrangement->value().empty())
+        std::optional<std::string> selected_arrangement_value = std::move(*selected_arrangement);
+        if (selected_arrangement_value.has_value() && !selected_arrangement_value->empty())
         {
-            editor_state.selected_arrangement = std::move(selected_arrangement->value());
+            editor_state.selected_arrangement = std::move(*selected_arrangement_value);
         }
 
         return editor_state;
