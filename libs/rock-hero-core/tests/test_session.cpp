@@ -22,7 +22,7 @@ namespace
 {
     Song song;
     song.metadata.title = "Test Song";
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "lead",
             .part = Part::Lead,
@@ -61,7 +61,7 @@ TEST_CASE("Session default construction is empty", "[core][session]")
 {
     const Session session;
 
-    CHECK(session.song().chart.arrangements.empty());
+    CHECK(session.song().arrangements.empty());
     CHECK(session.arrangements().empty());
     CHECK(session.currentArrangement() == nullptr);
     CHECK(session.timeline() == TimeRange{});
@@ -76,7 +76,7 @@ TEST_CASE("Session reset restores the empty project state", "[core][session]")
 
     session.reset();
 
-    CHECK(session.song().chart.arrangements.empty());
+    CHECK(session.song().arrangements.empty());
     CHECK(session.arrangements().empty());
     CHECK(session.currentArrangement() == nullptr);
     CHECK(session.timeline() == TimeRange{});
@@ -144,7 +144,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
 {
     Session session;
     Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "lead",
             .part = Part::Lead,
@@ -154,7 +154,7 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .tone_timeline_ref = {},
             .note_events = {},
         });
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "bass",
             .part = Part::Bass,
@@ -185,7 +185,7 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
     REQUIRE(session.loadSong(makeSongWithAudio(original_audio.path, TimeDuration{4.0}), 0));
 
     Song song;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "lead",
             .part = Part::Lead,
@@ -195,7 +195,7 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .tone_timeline_ref = {},
             .note_events = {},
         });
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         Arrangement{
             .id = "bass",
             .part = Part::Bass,

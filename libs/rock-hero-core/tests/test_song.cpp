@@ -13,7 +13,7 @@ TEST_CASE("Song default construction is empty", "[core][song]")
     CHECK(song.metadata.artist.empty());
     CHECK(song.metadata.album.empty());
     CHECK(song.metadata.year == 0);
-    CHECK(song.chart.arrangements.empty());
+    CHECK(song.arrangements.empty());
 }
 
 // Verifies metadata fields remain plain value storage until validation rules are introduced.
@@ -30,6 +30,42 @@ TEST_CASE("Song metadata round-trip", "[core][song]")
     CHECK(song.metadata.year == 2026);
 }
 
+// Verifies songs can aggregate multiple part/difficulty-rating variants directly.
+TEST_CASE("Song holds multiple arrangements", "[core][song]")
+{
+    Song song;
+    song.arrangements.push_back(
+        Arrangement{
+            .id = "lead",
+            .part = Part::Lead,
+            .difficulty = DifficultyRating{2},
+            .audio_asset = AudioAsset{std::filesystem::path{"lead.wav"}},
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
+    song.arrangements.push_back(
+        Arrangement{
+            .id = "bass",
+            .part = Part::Bass,
+            .difficulty = DifficultyRating{9},
+            .audio_asset = AudioAsset{std::filesystem::path{"bass.wav"}},
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
+
+    REQUIRE(song.arrangements.size() == 2);
+    CHECK(song.arrangements[0].part == Part::Lead);
+    CHECK(song.arrangements[0].difficulty == DifficultyRating{2});
+    CHECK(difficultyTier(song.arrangements[0].difficulty) == DifficultyTier::Easy);
+    CHECK(song.arrangements[0].note_events.empty());
+    CHECK(song.arrangements[1].part == Part::Bass);
+    CHECK(song.arrangements[1].difficulty == DifficultyRating{9});
+    CHECK(difficultyTier(song.arrangements[1].difficulty) == DifficultyTier::Master);
+    CHECK(song.arrangements[1].note_events.empty());
+}
+
 // Verifies Song stores all top-level value fields without imposing validation policy.
 TEST_CASE("Song stores top-level value fields", "[core][song]")
 {
@@ -38,7 +74,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.artist = "Test Artist";
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
-    song.chart.arrangements.push_back(
+    song.arrangements.push_back(
         {.id = "rhythm",
          .part = Part::Rhythm,
          .difficulty = DifficultyRating{6},
@@ -56,8 +92,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(song.metadata.artist == "Test Artist");
     CHECK(song.metadata.album == "Test Album");
     CHECK(song.metadata.year == 2026);
-    REQUIRE(song.chart.arrangements.size() == 1);
-    const Arrangement& arrangement = song.chart.arrangements[0];
+    REQUIRE(song.arrangements.size() == 1);
+    const Arrangement& arrangement = song.arrangements[0];
     CHECK(arrangement.part == Part::Rhythm);
     CHECK(arrangement.difficulty == DifficultyRating{6});
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Hard);

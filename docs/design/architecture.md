@@ -208,19 +208,18 @@ format parsing/package dependencies private to the module.
 \code{.txt}
 Song
   metadata          (title, artist, album, year)
-  chart
-    arrangements[*]
-      id            (stable project-local arrangement identifier)
-      part          (Lead | Rhythm | Bass)
-      difficulty    (0 Unknown, 1-10 authored rating)
-      audio_asset    (required path/identifier for backing audio)
-      audio_duration (full natural duration of the audio asset)
-      tone_timeline_ref (opaque blob interpreted exclusively by rock-hero-audio)
-      note_events[*]
-        position.seconds
-        duration.seconds
-        string_number (1–6)
-        fret
+  arrangements[*]
+    id            (stable project-local arrangement identifier)
+    part          (Lead | Rhythm | Bass)
+    difficulty    (0 Unknown, 1-10 authored rating)
+    audio_asset    (required path/identifier for backing audio)
+    audio_duration (full natural duration of the audio asset)
+    tone_timeline_ref (opaque blob interpreted exclusively by rock-hero-audio)
+    note_events[*]
+      position.seconds
+      duration.seconds
+      string_number (1–6)
+      fret
 \endcode
 
 Arrangement difficulty is stored as the numeric rating. The display tier is derived from that
@@ -251,7 +250,10 @@ audio preparation, transport, or playback setup responsibilities.
 
 ## Rock Hero Editor
 
-Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Chart`/`Arrangement` while auditioning playback. Disables structural model edits while transport is running. Tone and chart decisions are kept in one executable by design — they are too tightly coupled to author in separate tools.
+Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Arrangement`
+while auditioning playback. Disables structural model edits while transport is running. Tone and
+chart decisions are kept in one executable by design — they are too tightly coupled to author in
+separate tools.
 
 ## Rock Hero Game
 
@@ -286,7 +288,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │                               │   │                               │
 │  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
 │  │  libs/rock-hero-core    │  │   │  │  libs/rock-hero-core    │  │
-│  │  Song/Chart/Arrangement │  │   │  │  Song/Chart/Arrangement │  │
+│  │    Song/Arrangement     │  │   │  │    Song/Arrangement     │  │
 │  └─────────────────────────┘  │   │  │  + Scoring logic        │  │
 │                               │   │  └─────────────────────────┘  │
 └───────────────────────────────┘   │                               │
@@ -470,8 +472,8 @@ Visual polish, 3D fretboard, particles, and UI theming come after gameplay funda
 Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-library test targets
 live alongside each library:
 
-- `libs/rock-hero-core/tests/` — active; covers `Song`, `Chart`, and `Arrangement` construction
-  and field access
+- `libs/rock-hero-core/tests/` — active; covers `Song` and `Arrangement` construction and field
+  access
 - `libs/rock-hero-audio/tests/` — not yet added
 - `libs/rock-hero-ui/tests/` — not yet added
 
