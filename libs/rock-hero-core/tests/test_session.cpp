@@ -165,7 +165,8 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .note_events = {},
         });
 
-    REQUIRE(session.loadSong(std::move(song), 1));
+    const bool loaded = session.loadSong(std::move(song), 1);
+    REQUIRE(loaded);
 
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->part == Part::Bass);
@@ -206,7 +207,8 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .note_events = {},
         });
 
-    CHECK_FALSE(session.loadSong(std::move(song), 0));
+    const bool loaded = session.loadSong(std::move(song), 0);
+    CHECK_FALSE(loaded);
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->audio_asset == original_audio);
     CHECK(
@@ -225,7 +227,8 @@ TEST_CASE("Session loadSong rejects invalid replacement data", "[core][session]"
     REQUIRE(session.loadSong(makeSongWithAudio(original_audio.path, TimeDuration{4.0}), 0));
 
     Song empty_song;
-    CHECK_FALSE(session.loadSong(std::move(empty_song), 0));
+    const bool loaded_empty_song = session.loadSong(std::move(empty_song), 0);
+    CHECK_FALSE(loaded_empty_song);
     CHECK_FALSE(session.loadSong(
         makeSongWithAudio(std::filesystem::path{"bad.wav"}, TimeDuration{5.0}), 1));
     REQUIRE(session.arrangements().size() == 1);
