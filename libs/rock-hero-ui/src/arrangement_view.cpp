@@ -54,7 +54,7 @@ struct WaveformDrawRequest
     const double left_ratio = std::clamp(std::min(start_ratio, end_ratio), 0.0, 1.0);
     const double right_ratio = std::clamp(std::max(start_ratio, end_ratio), 0.0, 1.0);
 
-    const double view_width = static_cast<double>(view_bounds.getWidth());
+    const auto view_width = static_cast<double>(view_bounds.getWidth());
     const int left = view_bounds.getX() + static_cast<int>(std::floor(left_ratio * view_width));
     const int right = view_bounds.getX() + static_cast<int>(std::ceil(right_ratio * view_width));
 

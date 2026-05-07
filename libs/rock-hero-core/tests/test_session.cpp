@@ -26,8 +26,11 @@ namespace
     song.chart.arrangements.push_back(
         Arrangement{
             .part = Part::Lead,
+            .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::move(path)),
             .audio_duration = duration,
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     return song;
 }
@@ -132,14 +135,20 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
     song.chart.arrangements.push_back(
         Arrangement{
             .part = Part::Lead,
+            .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
             .audio_duration = TimeDuration{9.0},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     song.chart.arrangements.push_back(
         Arrangement{
             .part = Part::Bass,
+            .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
             .audio_duration = TimeDuration{5.0},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 
     REQUIRE(session.loadSong(std::move(song), 1));
@@ -165,13 +174,20 @@ TEST_CASE("Session loadSong rejects current arrangement without audio", "[core][
     song.chart.arrangements.push_back(
         Arrangement{
             .part = Part::Lead,
+            .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
             .audio_duration = TimeDuration{6.0},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     song.chart.arrangements.push_back(
         Arrangement{
             .part = Part::Bass,
+            .difficulty = DifficultyRating{},
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 
     CHECK_FALSE(session.loadSong(std::move(song), 1));

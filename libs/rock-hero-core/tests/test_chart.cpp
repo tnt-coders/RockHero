@@ -17,9 +17,23 @@ TEST_CASE("Chart holds multiple arrangements", "[core][chart]")
 {
     Chart chart;
     chart.arrangements.push_back(
-        {.part = Part::Lead, .difficulty = DifficultyRating{2}, .note_events = {}});
+        Arrangement{
+            .part = Part::Lead,
+            .difficulty = DifficultyRating{2},
+            .audio_asset = {},
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
     chart.arrangements.push_back(
-        {.part = Part::Bass, .difficulty = DifficultyRating{9}, .note_events = {}});
+        Arrangement{
+            .part = Part::Bass,
+            .difficulty = DifficultyRating{9},
+            .audio_asset = {},
+            .audio_duration = TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
+        });
 
     REQUIRE(chart.arrangements.size() == 2);
     CHECK(chart.arrangements[0].part == Part::Lead);

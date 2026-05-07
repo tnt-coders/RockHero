@@ -18,8 +18,9 @@ namespace rock_hero::core
 \brief Open project package context.
 
 Project owns the extracted workspace directory because loaded Song audio asset paths can point
-into it. Destroying the Project removes that workspace on a best-effort basis. Session owns the
-editable Song; Project owns only the package/workspace context needed to load and save it.
+into it. Call close() when cleanup failures need to be reported. Destroying the Project removes
+that workspace on a best-effort basis. Session owns the editable Song; Project owns only the
+package/workspace context needed to load and save it.
 */
 class Project
 {
@@ -27,8 +28,8 @@ public:
     /*! \brief Creates an unopened project context. */
     Project() = default;
 
-    /*! \brief Removes the owned workspace directory, if one is present. */
-    ~Project();
+    /*! \brief Closes the project context without allowing cleanup errors to escape. */
+    ~Project() noexcept;
 
     /*! \brief Copying is disabled because workspace ownership is unique. */
     Project(const Project&) = delete;
@@ -79,6 +80,12 @@ public:
         const std::filesystem::path& path, const Song& song);
 
     /*!
+    \brief Closes the current project context and removes its extracted workspace.
+    \return Empty success, or a failure message when workspace removal fails.
+    */
+    [[nodiscard]] std::expected<void, std::string> close();
+
+    /*!
     \brief Returns the file path associated with this project.
     \return Project file path, or an empty path before load succeeds.
     */
@@ -93,9 +100,6 @@ public:
 private:
     std::filesystem::path m_path;
     std::filesystem::path m_workspace_directory;
-
-    // Removes the currently owned workspace directory and clears ownership.
-    void resetWorkspace() noexcept;
 };
 
 } // namespace rock_hero::core

@@ -34,7 +34,11 @@ public:
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::move(audio_path)},
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     return song;
 }
@@ -123,12 +127,20 @@ TEST_CASE("EditCoordinator loads the selected arrangement index", "[ui][edit-coo
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Lead,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::filesystem::path{"lead.wav"}},
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
     song.chart.arrangements.push_back(
         core::Arrangement{
             .part = core::Part::Bass,
+            .difficulty = core::DifficultyRating{},
             .audio_asset = core::AudioAsset{std::filesystem::path{"bass.wav"}},
+            .audio_duration = core::TimeDuration{},
+            .tone_timeline_ref = {},
+            .note_events = {},
         });
 
     const bool loaded = coordinator.loadSong(std::move(song), 1);
