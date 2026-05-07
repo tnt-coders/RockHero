@@ -200,7 +200,10 @@ TEST_CASE("Engine edit loads audio", "[audio][engine][integration]")
     transport.removeListener(recorder);
 
     REQUIRE(audio_duration.has_value());
-    CHECK(audio_duration->seconds > 0.0);
+    if (audio_duration.has_value())
+    {
+        CHECK(audio_duration.value().seconds > 0.0);
+    }
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == core::TimePosition{});

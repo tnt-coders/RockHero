@@ -228,16 +228,6 @@ private:
     return message;
 }
 
-// Converts the integer error from zip_open() into a stable project-owned string.
-[[nodiscard]] std::string zipErrorMessage(int error_code)
-{
-    zip_error_t error;
-    zip_error_init_with_code(&error, error_code);
-    std::string message = zipErrorMessage(error);
-    zip_error_fini(&error);
-    return message;
-}
-
 // Opens an archive through the platform path API while keeping libzip private to core.
 [[nodiscard]] std::optional<ZipArchive> openArchive(
     const std::filesystem::path& package_path, std::string& error_message)
@@ -271,7 +261,10 @@ private:
     zip_t* archive = zip_open(package_path.string().c_str(), ZIP_RDONLY, &error_code);
     if (archive == nullptr)
     {
-        error_message = zipErrorMessage(error_code);
+        zip_error_t error;
+        zip_error_init_with_code(&error, error_code);
+        error_message = zipErrorMessage(error);
+        zip_error_fini(&error);
         return std::nullopt;
     }
 
@@ -313,7 +306,10 @@ private:
         zip_open(package_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     if (archive == nullptr)
     {
-        error_message = zipErrorMessage(error_code);
+        zip_error_t error;
+        zip_error_init_with_code(&error, error_code);
+        error_message = zipErrorMessage(error);
+        zip_error_fini(&error);
         return std::nullopt;
     }
 
@@ -594,6 +590,9 @@ private:
                 .part = *part,
                 .difficulty = DifficultyRating{},
                 .audio_asset = audio_asset->second,
+                .audio_duration = TimeDuration{},
+                .tone_timeline_ref = {},
+                .note_events = {},
             });
     }
 
@@ -684,9 +683,9 @@ private:
         return std::nullopt;
     }
 
-    static std::atomic_uint64_t workspace_sequence{0};
+    static std::atomic_uint64_t g_workspace_sequence{0};
     const auto now = std::chrono::steady_clock::now().time_since_epoch().count();
-    const std::uint64_t sequence = workspace_sequence.fetch_add(1, std::memory_order_relaxed);
+    const std::uint64_t sequence = g_workspace_sequence.fetch_add(1, std::memory_order_relaxed);
 
     for (int attempt = 0; attempt < 100; ++attempt)
     {
@@ -741,7 +740,7 @@ private:
 [[nodiscard]] std::optional<std::string> extractFileEntry(
     zip_t& archive, zip_uint64_t index, const std::filesystem::path& output_path)
 {
-    ZipFile file{zip_fopen_index(&archive, index, ZIP_FL_UNCHANGED)};
+    const ZipFile file{zip_fopen_index(&archive, index, ZIP_FL_UNCHANGED)};
     if (file.get() == nullptr)
     {
         return "Could not open project package entry for extraction";
@@ -1193,7 +1192,7 @@ private:
         return "Could not open project package for writing: " + error_message;
     }
 
-    std::filesystem::recursive_directory_iterator directory_iterator{
+    const std::filesystem::recursive_directory_iterator directory_iterator{
         workspace_directory,
         error,
     };
@@ -1271,13 +1270,13 @@ Project::~Project()
 }
 
 // Transfers package state and workspace ownership, clearing the source paths.
-Project::Project(Project&& other)
+Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
 {}
 
 // Removes the old workspace before taking ownership from another project.
-Project& Project::operator=(Project&& other)
+Project& Project::operator=(Project&& other) noexcept
 {
     if (this != &other)
     {
