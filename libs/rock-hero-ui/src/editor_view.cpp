@@ -404,9 +404,9 @@ void EditorView::showOpenChooser()
 void EditorView::showImportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import the source game package",
+        "Import Rock Hero or the source game package",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-        "*.source-package");
+        "*.rock;*.source-package");
 
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,

@@ -41,7 +41,8 @@ For the structural engineering rules that govern how new code should be organize
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
 
 `.rhp` packages store `project.json` at the root and song content under `song/`. `.rock`
-packages store runtime song content directly at the archive root.
+packages store runtime song content directly at the archive root and can be imported by the
+editor as unsaved projects.
 
 ---
 
