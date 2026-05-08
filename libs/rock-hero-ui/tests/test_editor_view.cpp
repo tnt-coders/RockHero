@@ -301,12 +301,53 @@ template <class ComponentType>
 }
 
 // Builds arrangement view state for editor-view tests that need thumbnail source propagation.
-[[nodiscard]] ArrangementViewState makeArrangementState(std::filesystem::path path)
+[[nodiscard]] ArrangementViewState makeArrangementState(
+    std::filesystem::path path, double duration_seconds = 4.0)
 {
     return ArrangementViewState{
         .audio_asset = core::AudioAsset{std::move(path)},
-        .audio_duration = core::TimeDuration{4.0},
+        .audio_duration = core::TimeDuration{duration_seconds},
     };
+}
+
+// Builds a loaded editor state with a full-source timeline for viewport layout tests.
+[[nodiscard]] EditorViewState makeLoadedEditorState(double duration_seconds)
+{
+    return EditorViewState{
+        .open_enabled = true,
+        .import_enabled = true,
+        .save_enabled = true,
+        .save_as_enabled = true,
+        .publish_enabled = true,
+        .suggested_publish_file = std::filesystem::path{"song.rock"},
+        .close_enabled = true,
+        .project_loaded = true,
+        .save_requires_destination = false,
+        .play_pause_enabled = true,
+        .stop_enabled = false,
+        .play_pause_shows_pause_icon = false,
+        .visible_timeline =
+            core::TimeRange{
+                .start = core::TimePosition{},
+                .end = core::TimePosition{duration_seconds},
+            },
+        .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
+        .last_error = std::nullopt,
+        .unsaved_changes_prompt = std::nullopt,
+        .save_as_prompt = std::nullopt,
+    };
+}
+
+// Returns the default timeline-canvas height after reserving the horizontal scrollbar.
+[[nodiscard]] int defaultUsableTrackViewportHeight(const juce::Viewport& viewport)
+{
+    return 720 - viewport.getScrollBarThickness();
+}
+
+// Returns the fixed track row height that allows three tracks at the default size.
+[[nodiscard]] int defaultTrackHeight(const juce::Viewport& viewport)
+{
+    return defaultUsableTrackViewportHeight(viewport) / 3;
 }
 
 // Returns a plain menu item by id; these are not JUCE command-manager-backed items.
@@ -481,12 +522,17 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
     auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 24, 484, 40});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
-    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
-    CHECK(cursor_overlay.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+    CHECK(
+        arrangement_view.getBounds() ==
+        juce::Rectangle<int>{0, 0, 1264, defaultTrackHeight(viewport)});
+    CHECK(
+        cursor_overlay.getBounds() ==
+        juce::Rectangle<int>{0, 0, 1264, defaultUsableTrackViewportHeight(viewport)});
 }
 
 // Verifies the default editor size gives the viewport its planned fixed canvas dimensions.
@@ -501,13 +547,107 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
 
     auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 720});
     CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
-    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
+    CHECK(
+        arrangement_view.getBounds() ==
+        juce::Rectangle<int>{0, 0, 1264, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
+}
+
+// Verifies the default zoom maps ten seconds of timeline to the canonical canvas width.
+TEST_CASE("EditorView defaults zoom to ten seconds per canvas", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(makeLoadedEditorState(20.0));
+
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    CHECK(
+        track_content.getBounds() ==
+        juce::Rectangle<int>{0, 0, 2528, defaultUsableTrackViewportHeight(viewport)});
+    CHECK(
+        arrangement_view.getBounds() ==
+        juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
+    CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
+    CHECK(viewport.getViewWidth() == track_viewport.getWidth());
+    CHECK(viewport.getViewHeight() == track_content.getHeight());
+}
+
+// Verifies mouse wheel zoom scales the timeline content instead of seeking transport.
+TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(makeLoadedEditorState(20.0));
+
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    const int default_width = track_content.getWidth();
+
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f),
+        juce::MouseWheelDetails{
+            .deltaX = 0.0f,
+            .deltaY = 1.0f,
+            .isReversed = false,
+            .isSmooth = false,
+            .isInertial = false,
+        });
+
+    CHECK(track_content.getWidth() > default_width);
+    CHECK(controller.waveform_click_count == 0);
+}
+
+// Verifies Stop-command state resets the horizontal viewport without treating pause as stop.
+TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+
+    auto state = makeLoadedEditorState(20.0);
+    state.stop_enabled = true;
+    state.play_pause_shows_pause_icon = true;
+    transport.current_position = core::TimePosition{5.0};
+    view.setState(state);
+
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    REQUIRE(track_content.getWidth() > viewport.getViewWidth());
+
+    viewport.setViewPosition(400, 0);
+    REQUIRE(viewport.getViewPositionX() == 400);
+
+    state.play_pause_shows_pause_icon = false;
+    view.setState(state);
+    CHECK(viewport.getViewPositionX() == 400);
+
+    state.stop_enabled = false;
+    transport.current_position = core::TimePosition{};
+    view.setState(state);
+    CHECK(viewport.getViewPositionX() == 0);
 }
 
 // Verifies editor resizing does not scale the fixed waveform track.
@@ -520,20 +660,22 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
     EditorView view{controller, transport, thumbnail_factory};
 
     view.setBounds(0, 0, 1280, 800);
+    view.setState(makeLoadedEditorState(20.0));
     auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     const juce::Rectangle<int> track_bounds = arrangement_view.getBounds();
+    const juce::Rectangle<int> content_bounds = track_content.getBounds();
 
     view.setBounds(0, 0, 1000, 500);
 
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 420});
-    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+    CHECK(track_content.getBounds() == content_bounds);
     CHECK(arrangement_view.getBounds() == track_bounds);
 }
 
-// Verifies larger windows extend cursor height without changing the timeline scale.
-TEST_CASE("EditorView keeps cursor width fixed for larger viewport", "[ui][editor-view]")
+// Verifies larger windows extend cursor height without changing zoom-derived width.
+TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -542,14 +684,20 @@ TEST_CASE("EditorView keeps cursor width fixed for larger viewport", "[ui][edito
     EditorView view{controller, transport, thumbnail_factory};
 
     view.setBounds(0, 0, 1600, 1000);
+    view.setState(makeLoadedEditorState(20.0));
 
     auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 920});
-    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 920});
-    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
+    CHECK(
+        track_content.getBounds() ==
+        juce::Rectangle<int>{0, 0, 2528, 920 - viewport.getScrollBarThickness()});
+    CHECK(
+        arrangement_view.getBounds() ==
+        juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 
