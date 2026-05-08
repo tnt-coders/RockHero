@@ -66,19 +66,13 @@ private:
     std::filesystem::path m_path;
 };
 
-// Opens a package archive for writing through libzip.
-[[nodiscard]] zip_t* openPackageForWriting(const std::filesystem::path& path)
+// Writes a zip-backed .rhp archive from the supplied entries.
+void writePackage(const std::filesystem::path& path, const std::vector<PackageEntry>& entries)
 {
     int error_code{};
     zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     REQUIRE(archive != nullptr);
-    return archive;
-}
 
-// Writes a zip-backed .rhp archive from the supplied entries.
-void writePackage(const std::filesystem::path& path, const std::vector<PackageEntry>& entries)
-{
-    zip_t* archive = openPackageForWriting(path);
     for (const PackageEntry& entry : entries)
     {
         zip_source_t* source =

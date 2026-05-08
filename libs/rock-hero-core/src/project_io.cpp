@@ -813,10 +813,11 @@ private:
 
     for (std::size_t attempt = 0; attempt < 100; ++attempt)
     {
-        const std::filesystem::path candidate_name =
-            attempt == 0 ? std::filesystem::path{file_name}
+        const std::string candidate_file_name =
+            attempt == 0 ? file_name
                          : stem.string() + "-" + std::to_string(attempt + 1) + extension.string();
-        const std::filesystem::path relative_path = std::filesystem::path{"audio"} / candidate_name;
+        const std::filesystem::path candidate_name{candidate_file_name};
+        std::filesystem::path relative_path = std::filesystem::path{"audio"} / candidate_name;
         std::error_code error;
         if (!std::filesystem::exists(workspace_directory / relative_path, error))
         {
