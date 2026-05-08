@@ -240,10 +240,21 @@ TransportState Engine::state() const noexcept
     return m_impl->currentTransportState();
 }
 
-// Reads Tracktion directly for smooth cursor rendering instead of returning cached state.
+// Reads audible playback time while running so Tracktion's post-seek UI hold does not stall the
+// editor cursor for the first few frames after a live seek.
 core::TimePosition Engine::position() const noexcept
 {
-    const double raw_position_seconds = m_impl->m_edit->getTransport().getPosition().inSeconds();
+    auto& transport = m_impl->m_edit->getTransport();
+    double raw_position_seconds = transport.getPosition().inSeconds();
+    if (transport.isPlaying())
+    {
+        if (auto* const playback_context = transport.getCurrentPlaybackContext();
+            playback_context != nullptr)
+        {
+            raw_position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
+        }
+    }
+
     return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
