@@ -13,7 +13,7 @@ namespace rock_hero::ui
 {
 
 /*!
-\brief A horizontal strip containing Play/Pause and Stop transport buttons.
+\brief A horizontal strip containing Stop and Play/Pause transport buttons.
 
 Interaction is entirely listener-based; this component has no knowledge of transport policy or the
 audio engine. The owner supplies already-derived TransportControlsState and handles emitted

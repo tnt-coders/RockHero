@@ -230,7 +230,8 @@ template <class ComponentType>
 // Returns the play/pause button from the transport-controls child.
 [[nodiscard]] juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
 {
-    auto* button = dynamic_cast<juce::DrawableButton*>(controls.getChildComponent(0));
+    auto* button =
+        dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("play_pause_button"));
     if (button == nullptr)
     {
         throw std::runtime_error{"TransportControls play/pause button missing"};
@@ -241,7 +242,7 @@ template <class ComponentType>
 // Returns the stop button from the transport-controls child.
 [[nodiscard]] juce::DrawableButton& getStopButton(TransportControls& controls)
 {
-    auto* button = dynamic_cast<juce::DrawableButton*>(controls.getChildComponent(1));
+    auto* button = dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("stop_button"));
     if (button == nullptr)
     {
         throw std::runtime_error{"TransportControls stop button missing"};
@@ -433,6 +434,25 @@ TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][edi
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 500, 24});
+}
+
+// Verifies the full-width transport strip sits directly below the menu before the waveform.
+TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 500, 200);
+
+    auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    CHECK(controls.getBounds() == juce::Rectangle<int>{8, 24, 484, 40});
+    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
+    CHECK(cursor_overlay.getBounds() == arrangement_view.getBounds());
 }
 
 // Verifies editor-wide timeline clicks are forwarded to the controller.

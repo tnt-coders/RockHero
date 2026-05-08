@@ -23,7 +23,7 @@ MainWindow::MainWindow(const juce::String& title)
     setUsingNativeTitleBar(true);
     setContentNonOwned(&m_editor->component(), true);
     setResizable(true, false);
-    centreWithSize(800, 300);
+    centreWithSize(1280, 800);
     setVisible(true);
 }
 
