@@ -49,7 +49,7 @@ public:
     /*!
     \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
-    \param transport Read-only transport used by the cursor overlay for live position reads.
+    \param transport Read-only transport used by cursor drawing and viewport following.
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
     */
     EditorView(
@@ -124,7 +124,7 @@ public:
 private:
     class CursorOverlay;
 
-    // Private viewport shell that hosts fixed-size track content for the editor timeline.
+    // Private viewport shell that hosts zoomable track content for the editor timeline.
     class TrackViewport;
 
     enum class SaveAsChooserPurpose : std::uint8_t
@@ -184,10 +184,10 @@ private:
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
 
-    // Editor-wide cursor and seek overlay drawn above the fixed-size track canvas.
+    // Editor-wide cursor and seek overlay drawn above the zoomable track canvas.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;
 
-    // Real viewport that hosts the fixed-size track canvas.
+    // Real viewport that hosts the zoomable track canvas.
     std::unique_ptr<TrackViewport> m_track_viewport;
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.

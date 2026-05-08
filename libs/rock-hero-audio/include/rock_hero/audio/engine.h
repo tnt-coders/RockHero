@@ -93,8 +93,8 @@ public:
     [[nodiscard]] TransportState state() const noexcept override;
 
     /*!
-    \brief Reads the current Tracktion position.
-    \return Current position.
+    \brief Reads the current playback position used for render-cadence cursor drawing.
+    \return Current playback position.
     */
     [[nodiscard]] core::TimePosition position() const noexcept override;
 
