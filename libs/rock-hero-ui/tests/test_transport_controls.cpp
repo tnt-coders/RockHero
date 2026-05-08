@@ -161,6 +161,27 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
     CHECK_FALSE(play_pause_button.getToggleState());
 }
 
+// Verifies transport button clicks cannot steal editor-level keyboard shortcuts.
+TEST_CASE("TransportControls buttons do not take keyboard focus", "[ui][transport-controls]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeTransportControlsListener listener;
+    TransportControls controls{listener};
+    controls.setState(
+        TransportControlsState{
+            .play_pause_enabled = true,
+            .stop_enabled = true,
+            .play_pause_shows_pause_icon = false,
+        });
+
+    auto& play_pause_button = getPlayPauseButton(controls);
+    auto& stop_button = getStopButton(controls);
+    CHECK_FALSE(play_pause_button.getWantsKeyboardFocus());
+    CHECK_FALSE(play_pause_button.getMouseClickGrabsKeyboardFocus());
+    CHECK_FALSE(stop_button.getWantsKeyboardFocus());
+    CHECK_FALSE(stop_button.getMouseClickGrabsKeyboardFocus());
+}
+
 // Verifies the primary button emits the listener's play/pause intent when clicked.
 TEST_CASE("TransportControls play pause click calls listener", "[ui][transport-controls]")
 {

@@ -83,8 +83,14 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the menu, transport controls, waveform view, and timeline overlay. */
+    /*! \brief Lays out the menu, transport controls, track viewport, and timeline overlay. */
     void resized() override;
+
+    /*! \brief Requests startup keyboard focus when the editor becomes visible. */
+    void visibilityChanged() override;
+
+    /*! \brief Requests startup keyboard focus when the editor is attached to a window. */
+    void parentHierarchyChanged() override;
 
     /*!
     \brief Handles editor-level keyboard shortcuts.
@@ -118,6 +124,9 @@ public:
 private:
     class CursorOverlay;
 
+    // Private viewport shell that hosts fixed-size track content for the editor timeline.
+    class TrackViewport;
+
     enum class SaveAsChooserPurpose : std::uint8_t
     {
         UserCommand,
@@ -145,8 +154,11 @@ private:
     // Presents a Save As chooser once per controller-requested prompt.
     void presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& prompt);
 
-    // Returns the content area used for the arrangement waveform or empty-project message.
-    [[nodiscard]] juce::Rectangle<int> arrangementBounds() const;
+    // Returns the editor area assigned to the scrollable track viewport.
+    [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
+
+    // Queues editor startup focus once JUCE has attached it to a visible peer.
+    void requestInitialKeyboardFocusIfReady();
 
     // TransportControls::Listener implementation.
     void onPlayPausePressed() override;
@@ -169,11 +181,14 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Waveform view for the currently displayed arrangement.
+    // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
 
-    // Editor-wide cursor and seek overlay drawn above the waveform row.
+    // Editor-wide cursor and seek overlay drawn above the fixed-size track canvas.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;
+
+    // Real viewport that hosts the fixed-size track canvas.
+    std::unique_ptr<TrackViewport> m_track_viewport;
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
@@ -186,6 +201,9 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<SaveAsPrompt> m_last_presented_save_as_prompt{};
+
+    // True after the editor has made its one startup focus request.
+    bool m_has_requested_initial_keyboard_focus{false};
 };
 
 } // namespace rock_hero::ui

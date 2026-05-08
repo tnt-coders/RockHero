@@ -33,10 +33,14 @@ TransportControls::TransportControls(Listener& listener)
     m_play_pause_button->setImages(m_play_drawable.get());
     m_play_pause_button->setComponentID("play_pause_button");
     m_play_pause_button->setClickingTogglesState(false);
+    m_play_pause_button->setWantsKeyboardFocus(false);
+    m_play_pause_button->setMouseClickGrabsKeyboardFocus(false);
     m_play_pause_button->setEnabled(false);
 
     m_stop_button->setImages(m_stop_drawable.get());
     m_stop_button->setComponentID("stop_button");
+    m_stop_button->setWantsKeyboardFocus(false);
+    m_stop_button->setMouseClickGrabsKeyboardFocus(false);
     m_stop_button->setEnabled(false);
 
     m_play_pause_button->onClick = [this] { handlePlayPauseClicked(); };
