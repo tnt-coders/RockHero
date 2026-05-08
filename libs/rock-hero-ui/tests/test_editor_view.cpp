@@ -208,11 +208,36 @@ public:
     int create_call_count{0};
 };
 
-// Returns a required child component by id and type, failing the current test if missing.
+// Recursively searches a component tree because viewport-hosted children are nested.
+[[nodiscard]] juce::Component* findChildRecursive(juce::Component& parent, const juce::String& id)
+{
+    if (parent.getComponentID() == id)
+    {
+        return &parent;
+    }
+
+    for (int index = 0; index < parent.getNumChildComponents(); ++index)
+    {
+        auto* const child = parent.getChildComponent(index);
+        if (child == nullptr)
+        {
+            continue;
+        }
+
+        if (auto* const matched_child = findChildRecursive(*child, id); matched_child != nullptr)
+        {
+            return matched_child;
+        }
+    }
+
+    return nullptr;
+}
+
+// Returns a required descendant component by id and type, failing the current test if missing.
 template <class ComponentType>
 [[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
 {
-    auto* child = parent.findChildWithID(id);
+    auto* child = findChildRecursive(parent, id);
     if (child == nullptr)
     {
         throw std::runtime_error{"Missing child component: " + id.toStdString()};
@@ -358,7 +383,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
@@ -375,7 +403,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.save_request_count == 0);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
+    CHECK(track_viewport.isVisible());
+    CHECK(track_content.isVisible());
     CHECK_FALSE(arrangement_view.isVisible());
+    CHECK_FALSE(cursor_overlay.isVisible());
     CHECK(transport.position_read_count == 0);
 
     view.setState(
@@ -417,6 +448,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(arrangement_view.isVisible());
+    CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 0);
 }
@@ -436,7 +468,7 @@ TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][edi
     CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 500, 24});
 }
 
-// Verifies the full-width transport strip sits directly below the menu before the waveform.
+// Verifies the full-width transport strip sits directly above the track viewport.
 TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -448,11 +480,77 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     view.setBounds(0, 0, 500, 200);
 
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 24, 484, 40});
-    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
-    CHECK(cursor_overlay.getBounds() == arrangement_view.getBounds());
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
+    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
+    CHECK(cursor_overlay.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+}
+
+// Verifies the default editor size gives the viewport its planned fixed canvas dimensions.
+TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 720});
+    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
+    CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
+}
+
+// Verifies editor resizing does not scale the fixed waveform track.
+TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    const juce::Rectangle<int> track_bounds = arrangement_view.getBounds();
+
+    view.setBounds(0, 0, 1000, 500);
+
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 420});
+    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+    CHECK(arrangement_view.getBounds() == track_bounds);
+}
+
+// Verifies larger windows extend cursor height without changing the timeline scale.
+TEST_CASE("EditorView keeps cursor width fixed for larger viewport", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1600, 1000);
+
+    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 920});
+    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 920});
+    CHECK(arrangement_view.getBounds() == juce::Rectangle<int>{0, 0, 1264, 240});
+    CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 
 // Verifies editor-wide timeline clicks are forwarded to the controller.
@@ -463,7 +561,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
-    view.setBounds(0, 0, 500, 200);
+    view.setBounds(0, 0, 1600, 1000);
     view.setState(
         EditorViewState{
             .open_enabled = true,
@@ -490,10 +588,14 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
         });
 
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    const auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
-    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 20.0f));
+    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
+    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
 
     CHECK(controller.waveform_click_count == 1);
     const auto last_normalized_x = controller.last_normalized_x;
@@ -501,7 +603,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(0.25));
 }
 
-// Verifies keyboard play/pause uses the same editor intent as the transport button.
+// Verifies the focusable editor root maps keyboard play/pause to the transport intent.
 TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -510,6 +612,7 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
 
+    CHECK(view.getWantsKeyboardFocus());
     CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
     CHECK(controller.play_pause_press_count == 1);
 }
