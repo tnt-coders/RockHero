@@ -25,8 +25,12 @@ constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
+constexpr int g_track_canvas_width{1264};
+constexpr int g_track_canvas_height{720};
+constexpr int g_primary_track_height{240};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
+const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
 
 // Ensures saved packages use the native Rock Hero extension when the chooser returns none.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -205,6 +209,127 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
+// Hosts the fixed-size track canvas inside a JUCE viewport for future multi-track scrolling.
+class EditorView::TrackViewport final : public juce::Component
+{
+public:
+    // Installs the existing waveform track and cursor overlay into viewport-owned content.
+    TrackViewport(ArrangementView& arrangement_view, CursorOverlay& cursor_overlay)
+        : m_arrangement_view(arrangement_view)
+        , m_cursor_overlay(cursor_overlay)
+    {
+        setComponentID("track_viewport");
+        m_content.setComponentID("track_viewport_content");
+        m_viewport.setComponentID("track_viewport_scroll");
+
+        m_viewport.setScrollBarsShown(true, true);
+        m_viewport.setViewedComponent(&m_content, false);
+        addAndMakeVisible(m_viewport);
+
+        m_content.addAndMakeVisible(m_arrangement_view);
+        m_content.addAndMakeVisible(m_cursor_overlay);
+        m_content.setSize(g_track_canvas_width, g_track_canvas_height);
+        setProjectLoaded(false);
+    }
+
+    // Uses default destruction because the viewed component is owned by this shell.
+    ~TrackViewport() override = default;
+
+    // Copying is disabled because JUCE component trees and references are not copyable.
+    TrackViewport(const TrackViewport&) = delete;
+
+    // Copy assignment is disabled because JUCE component trees and references are not copyable.
+    TrackViewport& operator=(const TrackViewport&) = delete;
+
+    // Moving is disabled because hosted component references must remain stable.
+    TrackViewport(TrackViewport&&) = delete;
+
+    // Move assignment is disabled because hosted component references must remain stable.
+    TrackViewport& operator=(TrackViewport&&) = delete;
+
+    // Stores project-loaded state so the canvas can paint its empty-project message.
+    void setProjectLoaded(bool project_loaded)
+    {
+        m_content.setProjectLoaded(project_loaded);
+        m_arrangement_view.setVisible(project_loaded);
+        m_cursor_overlay.setVisible(project_loaded);
+        repaint();
+    }
+
+    // Paints the area around the fixed-size content when the viewport is larger than the canvas.
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(g_track_viewport_colour);
+    }
+
+    // Keeps the viewport responsive while preserving fixed-size content and track bounds.
+    void resized() override
+    {
+        m_viewport.setBounds(getLocalBounds());
+        layoutFixedCanvas();
+    }
+
+private:
+    // Paints the fixed-size track canvas and empty-project message.
+    class Content final : public juce::Component
+    {
+    public:
+        // Starts as an empty project canvas until EditorView pushes loaded state.
+        Content()
+        {
+            setInterceptsMouseClicks(false, true);
+        }
+
+        // Stores whether child track content should replace the empty-project message.
+        void setProjectLoaded(bool project_loaded)
+        {
+            m_project_loaded = project_loaded;
+            repaint();
+        }
+
+        // Draws the darker viewport canvas and centered empty-project status text.
+        void paint(juce::Graphics& g) override
+        {
+            const auto bounds = getLocalBounds();
+            g.fillAll(g_track_viewport_colour);
+
+            if (m_project_loaded)
+            {
+                return;
+            }
+
+            g.setColour(juce::Colours::lightgrey);
+            g.drawText("No Project Loaded", bounds, juce::Justification::centred);
+        }
+
+    private:
+        // False while no project is loaded so the viewport itself owns empty-state drawing.
+        bool m_project_loaded{false};
+    };
+
+    // Keeps the timeline width fixed while extending passive height for taller viewports.
+    void layoutFixedCanvas()
+    {
+        const int content_height = std::max(g_track_canvas_height, getHeight());
+        m_content.setSize(g_track_canvas_width, content_height);
+        m_arrangement_view.setBounds(0, 0, g_track_canvas_width, g_primary_track_height);
+        m_cursor_overlay.setBounds(m_content.getLocalBounds());
+        m_cursor_overlay.toFront(false);
+    }
+
+    // Fixed-size canvas that holds the current waveform track and future track rows.
+    Content m_content;
+
+    // JUCE scrolling container around the fixed-size canvas.
+    juce::Viewport m_viewport;
+
+    // Existing waveform view hosted as the first track row.
+    ArrangementView& m_arrangement_view;
+
+    // Full-canvas cursor and click overlay.
+    CursorOverlay& m_cursor_overlay;
+};
+
 // Paints the editor menu strip as flat application chrome instead of a framed control.
 class MenuLookAndFeel final : public juce::LookAndFeel_V4
 {
@@ -246,6 +371,7 @@ EditorView::EditorView(
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
+    , m_track_viewport(std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay))
 {
     setWantsKeyboardFocus(true);
 
@@ -258,10 +384,8 @@ EditorView::EditorView(
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
-    addAndMakeVisible(m_arrangement_view);
-    addAndMakeVisible(*m_cursor_overlay);
-    m_arrangement_view.setVisible(m_state.project_loaded);
-    m_cursor_overlay->setVisible(m_state.project_loaded);
+    addAndMakeVisible(*m_track_viewport);
+    m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
     setSize(1280, 800);
 }
@@ -279,8 +403,7 @@ void EditorView::setState(const EditorViewState& state)
     m_state = state;
 
     menuItemsChanged();
-    m_arrangement_view.setVisible(m_state.project_loaded);
-    m_cursor_overlay->setVisible(m_state.project_loaded);
+    m_track_viewport->setProjectLoaded(m_state.project_loaded);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -298,33 +421,37 @@ void EditorView::setState(const EditorViewState& state)
     repaint();
 }
 
-// Paints the background, transport strip, and no-project state when no waveform is visible.
+// Paints the background and transport strip behind child widgets.
 void EditorView::paint(juce::Graphics& g)
 {
     g.fillAll(g_editor_background_colour);
 
     g.setColour(g_transport_bar_colour);
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
-
-    if (!m_state.project_loaded)
-    {
-        g.setColour(juce::Colours::lightgrey);
-        g.drawText("No Project Loaded", arrangementBounds(), juce::Justification::centred);
-    }
 }
 
-// Keeps the control strip above the waveform view and overlays the cursor across that view.
+// Keeps the control strip above the track viewport and its fixed-size content canvas.
 void EditorView::resized()
 {
-    auto area = arrangementBounds();
+    auto area = trackViewportBounds();
     auto top_area = getLocalBounds();
     m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
     auto transport_row = top_area.removeFromTop(g_transport_bar_height);
     m_transport_controls.setBounds(
         transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset));
-    m_arrangement_view.setBounds(area);
-    m_cursor_overlay->setBounds(area);
-    m_cursor_overlay->toFront(false);
+    m_track_viewport->setBounds(area);
+}
+
+// Retries the startup focus request if this component is explicitly shown later.
+void EditorView::visibilityChanged()
+{
+    requestInitialKeyboardFocusIfReady();
+}
+
+// Retries the startup focus request when JUCE attaches the editor under a window peer.
+void EditorView::parentHierarchyChanged()
+{
+    requestInitialKeyboardFocusIfReady();
 }
 
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
@@ -604,8 +731,8 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& 
     showSaveAsChooser(SaveAsChooserPurpose::PendingProjectAction);
 }
 
-// Mirrors resized() layout so paint() can draw the empty-project message in the content area.
-juce::Rectangle<int> EditorView::arrangementBounds() const
+// Mirrors resized() layout so the track viewport occupies the editor content area.
+juce::Rectangle<int> EditorView::trackViewportBounds() const
 {
     auto area = getLocalBounds();
     area.removeFromTop(g_menu_bar_height);
@@ -615,6 +742,32 @@ juce::Rectangle<int> EditorView::arrangementBounds() const
     area.removeFromRight(g_content_inset);
     area.removeFromBottom(g_content_inset);
     return area;
+}
+
+// Schedules focus after the current attach/show callback so the native peer can activate first.
+void EditorView::requestInitialKeyboardFocusIfReady()
+{
+    if (m_has_requested_initial_keyboard_focus || !isShowing())
+    {
+        return;
+    }
+
+    m_has_requested_initial_keyboard_focus = true;
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    juce::MessageManager::callAsync([safe_this] {
+        if (safe_this == nullptr)
+        {
+            return;
+        }
+
+        if (!safe_this->isShowing())
+        {
+            safe_this->m_has_requested_initial_keyboard_focus = false;
+            return;
+        }
+
+        safe_this->grabKeyboardFocus();
+    });
 }
 
 // Forwards the transport-control intent to the workflow controller.
