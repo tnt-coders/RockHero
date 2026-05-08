@@ -24,7 +24,9 @@ constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
+constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
+const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 
 // Ensures saved packages use the native Rock Hero extension when the chooser returns none.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -261,7 +263,7 @@ EditorView::EditorView(
     m_arrangement_view.setVisible(m_state.project_loaded);
     m_cursor_overlay->setVisible(m_state.project_loaded);
 
-    setSize(800, 300);
+    setSize(1280, 800);
 }
 
 // Disconnects the menu bar from this model before base and member teardown begins.
@@ -296,10 +298,13 @@ void EditorView::setState(const EditorViewState& state)
     repaint();
 }
 
-// Paints the background and the no-project empty state when no waveform surface is visible.
+// Paints the background, transport strip, and no-project state when no waveform is visible.
 void EditorView::paint(juce::Graphics& g)
 {
     g.fillAll(g_editor_background_colour);
+
+    g.setColour(g_transport_bar_colour);
+    g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
 
     if (!m_state.project_loaded)
     {
@@ -314,9 +319,9 @@ void EditorView::resized()
     auto area = arrangementBounds();
     auto top_area = getLocalBounds();
     m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
-    top_area = top_area.reduced(g_content_inset);
-    auto transport_row = top_area.removeFromTop(g_transport_height);
-    m_transport_controls.setBounds(transport_row.removeFromLeft(176));
+    auto transport_row = top_area.removeFromTop(g_transport_bar_height);
+    m_transport_controls.setBounds(
+        transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset));
     m_arrangement_view.setBounds(area);
     m_cursor_overlay->setBounds(area);
     m_cursor_overlay->toFront(false);
@@ -604,9 +609,11 @@ juce::Rectangle<int> EditorView::arrangementBounds() const
 {
     auto area = getLocalBounds();
     area.removeFromTop(g_menu_bar_height);
-    area = area.reduced(g_content_inset);
-    area.removeFromTop(g_transport_height);
+    area.removeFromTop(g_transport_bar_height);
     area.removeFromTop(g_control_gap);
+    area.removeFromLeft(g_content_inset);
+    area.removeFromRight(g_content_inset);
+    area.removeFromBottom(g_content_inset);
     return area;
 }
 
