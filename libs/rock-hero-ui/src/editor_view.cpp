@@ -26,8 +26,12 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_track_canvas_width{1264};
-constexpr int g_track_canvas_height{720};
-constexpr int g_primary_track_height{240};
+constexpr int g_track_canvas_default_height{720};
+constexpr int g_tracks_visible_at_default_size{3};
+constexpr double g_default_seconds_per_track_canvas{10.0};
+constexpr double g_min_seconds_per_track_canvas{1.0};
+constexpr double g_max_seconds_per_track_canvas{120.0};
+constexpr double g_mouse_wheel_zoom_factor{1.2};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
@@ -209,73 +213,17 @@ private:
     std::optional<float> m_cursor_x{};
 };
 
-// Hosts the fixed-size track canvas inside a JUCE viewport for future multi-track scrolling.
+// Hosts zoomable track content inside a JUCE viewport for future multi-track scrolling.
 class EditorView::TrackViewport final : public juce::Component
 {
-public:
-    // Installs the existing waveform track and cursor overlay into viewport-owned content.
-    TrackViewport(ArrangementView& arrangement_view, CursorOverlay& cursor_overlay)
-        : m_arrangement_view(arrangement_view)
-        , m_cursor_overlay(cursor_overlay)
-    {
-        setComponentID("track_viewport");
-        m_content.setComponentID("track_viewport_content");
-        m_viewport.setComponentID("track_viewport_scroll");
-
-        m_viewport.setScrollBarsShown(true, true);
-        m_viewport.setViewedComponent(&m_content, false);
-        addAndMakeVisible(m_viewport);
-
-        m_content.addAndMakeVisible(m_arrangement_view);
-        m_content.addAndMakeVisible(m_cursor_overlay);
-        m_content.setSize(g_track_canvas_width, g_track_canvas_height);
-        setProjectLoaded(false);
-    }
-
-    // Uses default destruction because the viewed component is owned by this shell.
-    ~TrackViewport() override = default;
-
-    // Copying is disabled because JUCE component trees and references are not copyable.
-    TrackViewport(const TrackViewport&) = delete;
-
-    // Copy assignment is disabled because JUCE component trees and references are not copyable.
-    TrackViewport& operator=(const TrackViewport&) = delete;
-
-    // Moving is disabled because hosted component references must remain stable.
-    TrackViewport(TrackViewport&&) = delete;
-
-    // Move assignment is disabled because hosted component references must remain stable.
-    TrackViewport& operator=(TrackViewport&&) = delete;
-
-    // Stores project-loaded state so the canvas can paint its empty-project message.
-    void setProjectLoaded(bool project_loaded)
-    {
-        m_content.setProjectLoaded(project_loaded);
-        m_arrangement_view.setVisible(project_loaded);
-        m_cursor_overlay.setVisible(project_loaded);
-        repaint();
-    }
-
-    // Paints the area around the fixed-size content when the viewport is larger than the canvas.
-    void paint(juce::Graphics& g) override
-    {
-        g.fillAll(g_track_viewport_colour);
-    }
-
-    // Keeps the viewport responsive while preserving fixed-size content and track bounds.
-    void resized() override
-    {
-        m_viewport.setBounds(getLocalBounds());
-        layoutFixedCanvas();
-    }
-
 private:
-    // Paints the fixed-size track canvas and empty-project message.
+    // Paints the timeline content area and delegates wheel zoom back to the viewport shell.
     class Content final : public juce::Component
     {
     public:
-        // Starts as an empty project canvas until EditorView pushes loaded state.
-        Content()
+        // Stores the owning viewport shell so wheel input can update shared zoom state.
+        explicit Content(TrackViewport& owner)
+            : m_owner(owner)
         {
             setInterceptsMouseClicks(false, true);
         }
@@ -302,32 +250,329 @@ private:
             g.drawText("No Project Loaded", bounds, juce::Justification::centred);
         }
 
+        // Converts normal wheel movement over timeline content into horizontal zoom.
+        void mouseWheelMove(
+            const juce::MouseEvent& /*event*/, const juce::MouseWheelDetails& wheel) override
+        {
+            m_owner.handleMouseWheelZoom(wheel);
+        }
+
     private:
+        // Owner receives input so zoom state stays centralized in TrackViewport.
+        TrackViewport& m_owner;
+
         // False while no project is loaded so the viewport itself owns empty-state drawing.
         bool m_project_loaded{false};
     };
 
-    // Keeps the timeline width fixed while extending passive height for taller viewports.
-    void layoutFixedCanvas()
+public:
+    // Installs the existing waveform track and cursor overlay into viewport-owned content.
+    TrackViewport(
+        ArrangementView& arrangement_view, CursorOverlay& cursor_overlay,
+        const audio::ITransport& transport)
+        : m_arrangement_view(arrangement_view)
+        , m_cursor_overlay(cursor_overlay)
+        , m_transport(transport)
+        , m_content(*this)
+        , m_vblank_attachment(this, [this] { updatePlaybackFollow(); })
     {
-        const int content_height = std::max(g_track_canvas_height, getHeight());
-        m_content.setSize(g_track_canvas_width, content_height);
-        m_arrangement_view.setBounds(0, 0, g_track_canvas_width, g_primary_track_height);
+        setComponentID("track_viewport");
+        m_content.setComponentID("track_viewport_content");
+        m_viewport.setComponentID("track_viewport_scroll");
+
+        m_viewport.setScrollBarsShown(true, true);
+        m_viewport.setViewedComponent(&m_content, false);
+        addAndMakeVisible(m_viewport);
+
+        m_content.addAndMakeVisible(m_arrangement_view);
+        m_content.addAndMakeVisible(m_cursor_overlay);
+        m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
+        setProjectLoaded(false);
+    }
+
+    // Uses default destruction because the viewed component is owned by this shell.
+    ~TrackViewport() override = default;
+
+    // Copying is disabled because JUCE component trees and references are not copyable.
+    TrackViewport(const TrackViewport&) = delete;
+
+    // Copy assignment is disabled because JUCE component trees and references are not copyable.
+    TrackViewport& operator=(const TrackViewport&) = delete;
+
+    // Moving is disabled because hosted component references must remain stable.
+    TrackViewport(TrackViewport&&) = delete;
+
+    // Move assignment is disabled because hosted component references must remain stable.
+    TrackViewport& operator=(TrackViewport&&) = delete;
+
+    // Stores project-loaded state so the canvas can paint its empty-project message.
+    void setProjectLoaded(bool project_loaded)
+    {
+        m_project_loaded = project_loaded;
+        if (!m_project_loaded)
+        {
+            m_seconds_per_track_canvas = g_default_seconds_per_track_canvas;
+            m_playback_active = false;
+            m_playback_start_pending = false;
+            m_stop_enabled = false;
+        }
+
+        m_content.setProjectLoaded(project_loaded);
+        m_arrangement_view.setVisible(project_loaded);
+        m_cursor_overlay.setVisible(project_loaded);
+        layoutScaledCanvas();
+        repaint();
+    }
+
+    // Stores the full timeline used to size zoomable content and resets zoom on range changes.
+    void setTimelineRange(core::TimeRange timeline_range)
+    {
+        if (m_timeline_range != timeline_range)
+        {
+            m_timeline_range = timeline_range;
+            m_seconds_per_track_canvas = g_default_seconds_per_track_canvas;
+        }
+
+        layoutScaledCanvas();
+    }
+
+    // Stores coarse transport state pushed by the controller and handles Stop-button reset.
+    void setTransportDisplayState(bool playback_active, bool stop_enabled)
+    {
+        if (playback_active && !m_playback_active)
+        {
+            m_playback_start_pending = true;
+        }
+
+        const bool stopped_now = m_stop_enabled && !stop_enabled && !playback_active;
+        m_playback_active = playback_active;
+        m_stop_enabled = stop_enabled;
+
+        if (stopped_now && m_project_loaded && timelineDurationSeconds() > 0.0 &&
+            m_transport.position() == m_timeline_range.start)
+        {
+            setViewportLeft(0);
+        }
+    }
+
+    // Paints the area around zoomed content when the viewport is larger than the canvas.
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(g_track_viewport_colour);
+    }
+
+    // Keeps the viewport responsive while preserving zoom-derived content bounds.
+    void resized() override
+    {
+        m_viewport.setBounds(getLocalBounds());
+        layoutScaledCanvas();
+    }
+
+private:
+    // Returns the duration of the currently displayed full timeline.
+    [[nodiscard]] double timelineDurationSeconds() const noexcept
+    {
+        return m_timeline_range.duration().seconds;
+    }
+
+    // Returns the default content height after reserving space for the horizontal scrollbar.
+    [[nodiscard]] int defaultVisibleCanvasHeight() const noexcept
+    {
+        return std::max(1, g_track_canvas_default_height - m_viewport.getScrollBarThickness());
+    }
+
+    // Keeps each track at one third of the default usable viewport height.
+    [[nodiscard]] int primaryTrackHeight() const noexcept
+    {
+        return std::max(1, defaultVisibleCanvasHeight() / g_tracks_visible_at_default_size);
+    }
+
+    // Converts the current zoom level into the width of the full timeline content.
+    [[nodiscard]] int scaledContentWidth() const noexcept
+    {
+        const double duration = timelineDurationSeconds();
+        if (!m_project_loaded || duration <= 0.0)
+        {
+            return std::max(g_track_canvas_width, getWidth());
+        }
+
+        const double scaled_width = std::ceil(
+            duration * static_cast<double>(g_track_canvas_width) / m_seconds_per_track_canvas);
+        return std::max(1, static_cast<int>(scaled_width));
+    }
+
+    // Predicts horizontal scrollbar presence so content height can leave room for it.
+    [[nodiscard]] bool needsHorizontalScrollbar(int content_width) const noexcept
+    {
+        return content_width > getWidth();
+    }
+
+    // Extends content only when the viewport grows; the default canvas already fits three tracks.
+    [[nodiscard]] int scaledContentHeight(int content_width) const noexcept
+    {
+        const int horizontal_scrollbar_height =
+            needsHorizontalScrollbar(content_width) ? m_viewport.getScrollBarThickness() : 0;
+        const int visible_height = std::max(0, getHeight() - horizontal_scrollbar_height);
+        return std::max(defaultVisibleCanvasHeight(), visible_height);
+    }
+
+    // Keeps vertical content responsive while horizontal content follows zoom state.
+    void layoutScaledCanvas()
+    {
+        const int content_width = scaledContentWidth();
+        m_content.setSize(content_width, scaledContentHeight(content_width));
+        m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
         m_cursor_overlay.setBounds(m_content.getLocalBounds());
         m_cursor_overlay.toFront(false);
     }
 
-    // Fixed-size canvas that holds the current waveform track and future track rows.
-    Content m_content;
+    // Changes the horizontal timeline scale while keeping the same viewport center time.
+    void handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
+    {
+        const float wheel_delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
+        if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || wheel_delta == 0.0f ||
+            wheel.isInertial)
+        {
+            return;
+        }
 
-    // JUCE scrolling container around the fixed-size canvas.
-    juce::Viewport m_viewport;
+        const double center_time = viewportCenterTimeSeconds();
+        const double wheel_steps = std::max(1.0, static_cast<double>(std::abs(wheel_delta)) * 4.0);
+        const double zoom_factor = std::pow(g_mouse_wheel_zoom_factor, wheel_steps);
+        const double next_seconds_per_track_canvas = wheel_delta > 0.0f
+                                                         ? m_seconds_per_track_canvas / zoom_factor
+                                                         : m_seconds_per_track_canvas * zoom_factor;
+
+        m_seconds_per_track_canvas = std::clamp(
+            next_seconds_per_track_canvas,
+            g_min_seconds_per_track_canvas,
+            g_max_seconds_per_track_canvas);
+        layoutScaledCanvas();
+        centerViewportOnTime(center_time);
+    }
+
+    // Finds the timeline time at the center of the currently visible viewport.
+    [[nodiscard]] double viewportCenterTimeSeconds() const noexcept
+    {
+        const double duration = timelineDurationSeconds();
+        if (duration <= 0.0 || m_content.getWidth() <= 0)
+        {
+            return m_timeline_range.start.seconds;
+        }
+
+        const double center_x = static_cast<double>(m_viewport.getViewPositionX()) +
+                                static_cast<double>(m_viewport.getViewWidth()) / 2.0;
+        const double normalized_x =
+            std::clamp(center_x / static_cast<double>(m_content.getWidth()), 0.0, 1.0);
+        return m_timeline_range.start.seconds + normalized_x * duration;
+    }
+
+    // Repositions the viewport so the supplied timeline time remains near the center.
+    void centerViewportOnTime(double time_seconds)
+    {
+        const double duration = timelineDurationSeconds();
+        if (duration <= 0.0 || m_content.getWidth() <= 0)
+        {
+            return;
+        }
+
+        const double normalized_time =
+            std::clamp((time_seconds - m_timeline_range.start.seconds) / duration, 0.0, 1.0);
+        const double center_x = normalized_time * static_cast<double>(m_content.getWidth());
+        const int next_x = static_cast<int>(
+            std::round(center_x - static_cast<double>(m_viewport.getViewWidth()) / 2.0));
+        setViewportLeft(next_x);
+    }
+
+    // Keeps playback visible using controller-pushed state plus live position reads.
+    void updatePlaybackFollow()
+    {
+        if (!m_project_loaded || !m_playback_active || timelineDurationSeconds() <= 0.0)
+        {
+            return;
+        }
+
+        const auto cursor_x = cursorXForTimelinePosition(
+            m_transport.position(), m_timeline_range, m_content.getWidth());
+        if (!cursor_x.has_value())
+        {
+            return;
+        }
+
+        if (m_playback_start_pending)
+        {
+            m_playback_start_pending = false;
+            scrollToCursorIfOutOfView(*cursor_x);
+            return;
+        }
+
+        scrollToCursorIfAtRightEdge(*cursor_x);
+    }
+
+    // Snaps playback start to the cursor only when the cursor is outside the viewport.
+    void scrollToCursorIfOutOfView(float cursor_x)
+    {
+        const auto view_area = m_viewport.getViewArea();
+        if (cursor_x < static_cast<float>(view_area.getX()) ||
+            cursor_x >= static_cast<float>(view_area.getRight()))
+        {
+            setViewportLeft(static_cast<int>(std::floor(cursor_x)));
+        }
+    }
+
+    // Starts the next visible page at the cursor once playback reaches the right edge.
+    void scrollToCursorIfAtRightEdge(float cursor_x)
+    {
+        const auto view_area = m_viewport.getViewArea();
+        if (cursor_x >= static_cast<float>(view_area.getRight()))
+        {
+            setViewportLeft(static_cast<int>(std::floor(cursor_x)));
+        }
+    }
+
+    // Moves the horizontal viewport position while preserving the current vertical scroll.
+    void setViewportLeft(int requested_x)
+    {
+        const int max_x = std::max(0, m_content.getWidth() - m_viewport.getViewWidth());
+        const int next_x = std::clamp(requested_x, 0, max_x);
+        m_viewport.setViewPosition(next_x, m_viewport.getViewPositionY());
+    }
 
     // Existing waveform view hosted as the first track row.
     ArrangementView& m_arrangement_view;
 
     // Full-canvas cursor and click overlay.
     CursorOverlay& m_cursor_overlay;
+
+    // Read-only transport sampled to keep the viewport near the live cursor during playback.
+    const audio::ITransport& m_transport;
+
+    // Zoomed canvas that holds the current waveform track and future track rows.
+    Content m_content;
+
+    // JUCE scrolling container around the zoomed timeline canvas.
+    juce::Viewport m_viewport;
+
+    // Vblank callback used for viewport-follow behavior without continuous controller pushes.
+    juce::VBlankAttachment m_vblank_attachment;
+
+    // Full timeline range represented by the current zoomed content width.
+    core::TimeRange m_timeline_range{};
+
+    // Horizontal zoom value: how many seconds fit in the canonical track canvas width.
+    double m_seconds_per_track_canvas{g_default_seconds_per_track_canvas};
+
+    // Tracks empty vs loaded display mode for layout and zoom gating.
+    bool m_project_loaded{false};
+
+    // Coarse playing flag from EditorViewState, used to avoid vblank state polling.
+    bool m_playback_active{false};
+
+    // True for one follow tick after playback starts so the viewport can reveal the cursor.
+    bool m_playback_start_pending{false};
+
+    // Previous stop-button enabled state, used to identify a Stop-command reset.
+    bool m_stop_enabled{false};
 };
 
 // Paints the editor menu strip as flat application chrome instead of a framed control.
@@ -371,7 +616,8 @@ EditorView::EditorView(
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
-    , m_track_viewport(std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay))
+    , m_track_viewport(
+          std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
 {
     setWantsKeyboardFocus(true);
 
@@ -404,6 +650,9 @@ void EditorView::setState(const EditorViewState& state)
 
     menuItemsChanged();
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
+    m_track_viewport->setTimelineRange(m_state.visible_timeline);
+    m_track_viewport->setTransportDisplayState(
+        m_state.play_pause_shows_pause_icon, m_state.stop_enabled);
     m_transport_controls.setState(
         TransportControlsState{
             .play_pause_enabled = m_state.play_pause_enabled,
@@ -430,7 +679,7 @@ void EditorView::paint(juce::Graphics& g)
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
 }
 
-// Keeps the control strip above the track viewport and its fixed-size content canvas.
+// Keeps the control strip above the track viewport and its zoomed content canvas.
 void EditorView::resized()
 {
     auto area = trackViewportBounds();
