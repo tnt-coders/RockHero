@@ -1,5 +1,7 @@
 #include "main_window.h"
 
+#include "editor_settings.h"
+
 #include <rock_hero/audio/engine.h>
 #include <rock_hero/ui/editor.h>
 
@@ -13,18 +15,25 @@ MainWindow::MainWindow(const juce::String& title)
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons)
+    , m_settings(std::make_unique<EditorSettings>())
     , m_audio_engine(std::make_unique<audio::Engine>())
 {
     // Engine implements each editor-facing audio port. Passing it for each role keeps Editor
     // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
     m_editor = std::make_unique<ui::Editor>(
-        *m_audio_engine, *m_audio_engine, *m_audio_engine, [this] { closeWindow(); });
+        *m_audio_engine,
+        *m_audio_engine,
+        *m_audio_engine,
+        [this](std::optional<std::filesystem::path> project_file) {
+            closeWindow(std::move(project_file));
+        });
 
     setUsingNativeTitleBar(true);
     setContentNonOwned(&m_editor->component(), true);
     setResizable(true, false);
     centreWithSize(1280, 800);
     setVisible(true);
+    restoreLastOpenProject();
 }
 
 // Removes JUCE's non-owning pointers before owned content and engine members are destroyed.
@@ -38,15 +47,65 @@ MainWindow::~MainWindow()
 // Routes the native close button through the same guarded exit flow as File > Exit.
 void MainWindow::closeButtonPressed()
 {
-    m_editor->requestExit();
+    requestExit();
 }
 
-// Runs normal JUCE application shutdown after the editor has allowed the close to continue.
-void MainWindow::closeWindow()
+// Routes platform quit requests through the same guarded exit flow as the close button.
+void MainWindow::requestExit()
 {
+    if (m_editor != nullptr)
+    {
+        m_editor->requestExit();
+        return;
+    }
+
     if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
     {
-        app->systemRequestedQuit();
+        app->quit();
+    }
+}
+
+// Attempts to reopen the project that was loaded when the previous editor process exited.
+void MainWindow::restoreLastOpenProject()
+{
+    if (m_editor == nullptr || m_settings == nullptr)
+    {
+        return;
+    }
+
+    const std::optional<std::filesystem::path> project_file = m_settings->lastOpenProject();
+    if (!project_file.has_value())
+    {
+        return;
+    }
+
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(*project_file, error))
+    {
+        m_settings->setLastOpenProject(std::nullopt);
+        return;
+    }
+
+    m_editor->openProject(*project_file);
+    const std::optional<std::filesystem::path> opened_project = m_editor->currentProjectFile();
+    if (!opened_project.has_value() ||
+        opened_project->lexically_normal() != project_file->lexically_normal())
+    {
+        m_settings->setLastOpenProject(std::nullopt);
+    }
+}
+
+// Saves app-local restore state, then runs normal JUCE application shutdown.
+void MainWindow::closeWindow(std::optional<std::filesystem::path> project_file)
+{
+    if (m_settings != nullptr)
+    {
+        m_settings->setLastOpenProject(std::move(project_file));
+    }
+
+    if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
+    {
+        app->quit();
     }
 }
 

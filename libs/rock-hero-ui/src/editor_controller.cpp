@@ -73,7 +73,7 @@ namespace
 }
 
 // Production exit fallback used when a composition host does not provide an exit callback.
-void defaultExit()
+void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
 {}
 
 // Resolves persisted arrangement IDs to the current song order, falling back to the first item.
@@ -476,10 +476,11 @@ void EditorController::performProjectAction(const PendingProjectRequest& request
         importProject(request.file);
         break;
     case PendingProjectAction::Exit:
+        const std::optional<std::filesystem::path> restorable_project_file = currentProjectFile();
         if (closeProject())
         {
             clearPendingProjectAction();
-            m_exit_function();
+            m_exit_function(restorable_project_file);
         }
         break;
     }
@@ -569,6 +570,17 @@ void EditorController::clearPendingProjectAction() noexcept
 const core::Session& EditorController::session() const noexcept
 {
     return m_session;
+}
+
+// Returns a native project file only when the current workspace is backed by one.
+std::optional<std::filesystem::path> EditorController::currentProjectFile() const
+{
+    if (!m_project.has_value() || m_project_file.empty())
+    {
+        return std::nullopt;
+    }
+
+    return m_project_file;
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.

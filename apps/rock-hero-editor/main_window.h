@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
 
 namespace rock_hero::audio
 {
@@ -22,6 +24,9 @@ class Editor;
 
 namespace rock_hero
 {
+
+// Forward-declared so the window can persist app-local editor settings privately.
+class EditorSettings;
 
 /*!
 \brief Main application window.
@@ -63,9 +68,18 @@ public:
     /*! \brief Requests application quit when the user closes the window. */
     void closeButtonPressed() override;
 
+    /*! \brief Requests the same guarded exit workflow used by File > Exit. */
+    void requestExit();
+
 private:
-    // Requests normal JUCE application shutdown after the editor has allowed exit.
-    void closeWindow();
+    // Restores the previous native project when the stored path still points at a file.
+    void restoreLastOpenProject();
+
+    // Requests normal JUCE application shutdown after saving app-local restore state.
+    void closeWindow(std::optional<std::filesystem::path> project_file);
+
+    // Owns editor app settings that live outside project packages.
+    std::unique_ptr<EditorSettings> m_settings;
 
     // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<audio::Engine> m_audio_engine;

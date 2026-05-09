@@ -26,6 +26,18 @@ juce::Component& Editor::component() noexcept
     return m_view;
 }
 
+// Opens a project after construction so app startup can restore the previous session.
+void Editor::openProject(std::filesystem::path file)
+{
+    m_controller.onOpenRequested(std::move(file));
+}
+
+// Exposes only the restorable project path, not the controller internals.
+std::optional<std::filesystem::path> Editor::currentProjectFile() const
+{
+    return m_controller.currentProjectFile();
+}
+
 // Lets the app window close button use the same unsaved-change gate as File > Exit.
 void Editor::requestExit()
 {
