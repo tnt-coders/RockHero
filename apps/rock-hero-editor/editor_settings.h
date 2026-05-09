@@ -24,6 +24,12 @@ public:
     /*! \brief Opens the editor settings file using the app's standard per-user location. */
     EditorSettings();
 
+    /*!
+    \brief Opens the editor settings file at an explicit native path.
+    \param settings_file Settings file path used instead of the app's standard per-user location.
+    */
+    explicit EditorSettings(const std::filesystem::path& settings_file);
+
     /*! \brief Copying is disabled because juce::PropertiesFile is stateful file IO. */
     EditorSettings(const EditorSettings&) = delete;
 
