@@ -18,6 +18,16 @@ constexpr const char* g_last_open_project_key{"lastOpenProject"};
 #endif
 }
 
+// Converts a native filesystem path into the JUCE file object used by PropertiesFile.
+[[nodiscard]] juce::File fileFromPath(const std::filesystem::path& path)
+{
+#if JUCE_WINDOWS
+    return juce::File{juce::String{path.wstring().c_str()}};
+#else
+    return juce::File{juce::String{path.string()}};
+#endif
+}
+
 // Converts a filesystem path into a JUCE string without losing Windows wide characters.
 [[nodiscard]] juce::String settingsValueFromPath(const std::filesystem::path& path)
 {
@@ -50,6 +60,11 @@ constexpr const char* g_last_open_project_key{"lastOpenProject"};
 // Opens the JUCE properties file that backs app-local editor settings.
 EditorSettings::EditorSettings()
     : m_properties(editorSettingsOptions())
+{}
+
+// Opens an explicit settings file so app-shell behavior can be exercised in isolation.
+EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
+    : m_properties(fileFromPath(settings_file), editorSettingsOptions())
 {}
 
 // Reads the last native project path stored by a previous allowed editor exit.
