@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
@@ -56,6 +58,18 @@ public:
     \return Editor view component owned by this feature wrapper.
     */
     [[nodiscard]] juce::Component& component() noexcept;
+
+    /*!
+    \brief Opens a native project package through the guarded controller workflow.
+    \param file Project package path to open.
+    */
+    void openProject(std::filesystem::path file);
+
+    /*!
+    \brief Returns the native project file that can be reopened on the next launch.
+    \return Current `.rhp` project path, or empty when the loaded work has no native file.
+    */
+    [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
 
     /*! \brief Requests the same guarded exit workflow used by File > Exit. */
     void requestExit();

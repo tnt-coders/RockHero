@@ -43,8 +43,8 @@ using SaveAsFunction = std::function<std::expected<void, std::string>(
 using PublishFunction = std::function<std::expected<void, std::string>(
     core::Project& project, const std::filesystem::path& path, const core::Song& song)>;
 
-/*! \brief Requests that the composed editor host exit the application. */
-using ExitFunction = std::function<void()>;
+/*! \brief Requests host exit with the native project file to restore on next launch, if any. */
+using ExitFunction = std::function<void(std::optional<std::filesystem::path> project_file)>;
 
 /*!
 \brief Concrete editor workflow coordinator.
@@ -121,6 +121,12 @@ public:
     \return Session state owned by this controller.
     */
     [[nodiscard]] const core::Session& session() const noexcept;
+
+    /*!
+    \brief Returns the native project file that can be reopened on the next launch.
+    \return Current `.rhp` project path, or empty when the loaded work has no native file.
+    */
+    [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
 
     /*!
     \brief Handles a request to open a Rock Hero package.
