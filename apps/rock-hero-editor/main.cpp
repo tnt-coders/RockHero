@@ -43,6 +43,12 @@ public:
     // Handles platform quit requests through JUCE's normal quit path.
     void systemRequestedQuit() override
     {
+        if (m_main_window != nullptr)
+        {
+            m_main_window->requestExit();
+            return;
+        }
+
         quit();
     }
 

@@ -895,6 +895,7 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
     const core::Session& session = controller.session();
     CHECK(audio.set_active_arrangement_call_count == 2);
     CHECK(audio.last_active_audio_asset == std::optional{replacement});
+    CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"second.rhp"}});
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->audio_asset == replacement);
     CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
@@ -934,6 +935,7 @@ TEST_CASE("EditorController close clears loaded project", "[ui][editor-controlle
 
     CHECK(transport.stop_call_count == 1);
     CHECK(audio.clear_active_arrangement_call_count == 1);
+    CHECK_FALSE(controller.currentProjectFile().has_value());
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -949,6 +951,38 @@ TEST_CASE("EditorController close clears loaded project", "[ui][editor-controlle
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.last_error.has_value());
     }
+}
+
+// Exiting reports the native project path that should be restored on next launch.
+TEST_CASE("EditorController reports project file on exit", "[ui][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectIo project_io;
+    int exit_call_count = 0;
+    std::optional<std::filesystem::path> exit_project_file{};
+    EditorController controller{
+        transport,
+        audio,
+        project_io.openFunction(),
+        ImportFunction{},
+        SaveFunction{},
+        SaveAsFunction{},
+        PublishFunction{},
+        [&exit_call_count, &exit_project_file](std::optional<std::filesystem::path> project_file) {
+            exit_project_file = std::move(project_file);
+            ++exit_call_count;
+        },
+    };
+
+    project_io.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    controller.onExitRequested();
+
+    CHECK(exit_call_count == 1);
+    CHECK(exit_project_file == std::optional{std::filesystem::path{"song.rhp"}});
+    CHECK_FALSE(controller.currentProjectFile().has_value());
 }
 
 // Save writes the currently loaded session song through the injected persistence seam.
@@ -1166,6 +1200,7 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
     CHECK(project_load.open_call_count == 0);
     CHECK(audio.set_active_arrangement_call_count == 2);
     CHECK(audio.last_active_audio_asset == std::optional{replacement});
+    CHECK_FALSE(controller.currentProjectFile().has_value());
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->audio_asset == replacement);
     CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
@@ -1227,6 +1262,7 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     CHECK(project_io.save_as_call_count == 1);
     CHECK(project_io.last_save_as_file == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(project_io.last_save_as_audio_path == std::optional{audio_asset.path});
+    CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(
         project_io.last_save_as_editor_state == std::optional{core::ProjectEditorState{
                                                     .cursor_position = core::TimePosition{2.5},
@@ -1349,6 +1385,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][edit
     FakeAudio audio;
     FakeProjectIo project_io;
     int exit_call_count = 0;
+    std::optional<std::filesystem::path> exit_project_file{std::filesystem::path{"old.rhp"}};
     EditorController controller{
         transport,
         audio,
@@ -1357,7 +1394,10 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][edit
         project_io.saveFunction(),
         project_io.saveAsFunction(),
         PublishFunction{},
-        [&exit_call_count] { ++exit_call_count; },
+        [&exit_call_count, &exit_project_file](std::optional<std::filesystem::path> project_file) {
+            exit_project_file = std::move(project_file);
+            ++exit_call_count;
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1381,6 +1421,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][edit
 
     CHECK(audio.clear_active_arrangement_call_count >= 1);
     CHECK(exit_call_count == 1);
+    CHECK_FALSE(exit_project_file.has_value());
 }
 
 // Project packages do not carry editor selection state, so the controller opens index zero.

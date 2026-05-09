@@ -5,7 +5,7 @@ juce_add_gui_app(rock_hero_editor PRODUCT_NAME "Rock Hero Editor" VERSION ${PROJ
 set_target_properties(rock_hero_editor PROPERTIES OUTPUT_NAME "rock-hero-editor")
 
 # The editor target is still intentionally flat while the app remains small.
-target_sources(rock_hero_editor PRIVATE main.cpp main_window.cpp)
+target_sources(rock_hero_editor PRIVATE editor_settings.cpp main.cpp main_window.cpp)
 
 # Main-window implementation includes stay local to this small target for now.
 target_include_directories(rock_hero_editor PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
