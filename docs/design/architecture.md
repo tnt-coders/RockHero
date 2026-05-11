@@ -85,9 +85,10 @@ includes stay explicit and collision-resistant.
 - `core` submodules must not depend on sibling `ui` submodules.
 - App executables may link the matching product umbrella plus the common umbrella.
 - Libraries and tests should link narrow submodule targets rather than parent umbrellas.
-- Tracktion headers are isolated to `rock-hero-common/audio` implementation files.
-- Normal library code should link `rock_hero::common::audio::api`, not the concrete audio
-  implementation target.
+- Tracktion headers are isolated to `rock-hero-common/audio` implementation files and private
+  implementation headers.
+- Normal library code should use project-owned audio ports from `rock_hero::common::audio`; app
+  composition code and concrete adapter tests may construct `common::audio::Engine`.
 
 ## JUCE and Tracktion CMake linkage
 
@@ -179,8 +180,8 @@ defined in `.clang-format`.
 **Architectural principles:**
 
 - Keep most behavior in pure or near-pure libraries rather than in UI or app targets.
-- Treat `rock-hero-common/audio::impl` as an adapter around Tracktion/JUCE, not as a home for
-  general business logic.
+- Treat `rock-hero-common/audio` implementation files as adapters around Tracktion/JUCE, not as a
+  home for general business logic.
 - Keep product `ui` submodules focused on presentation and intent emission rather than policy.
 - Put headless editor workflow in `rock-hero-editor/core` once it becomes broader than a local UI
   helper.
@@ -490,7 +491,7 @@ Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-li
 live alongside each library:
 
 - `rock-hero-common/core/tests/` for shared domain and native song package behavior
-- `rock-hero-common/audio/*/tests/` for shared audio contracts and adapter behavior
+- `rock-hero-common/audio/tests/` for shared audio contracts and adapter behavior
 - `rock-hero-editor/core/tests/` for headless editor workflow
 - `rock-hero-editor/ui/tests/` for focused editor UI helpers and wiring
 - `rock-hero-game/core/tests/`, `rock-hero-game/audio/tests/`, and `rock-hero-game/ui/tests/`

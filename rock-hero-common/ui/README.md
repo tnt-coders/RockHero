@@ -7,5 +7,8 @@ code requires them.
 
 Do not place editor-only JUCE components or game-only bgfx/SDL rendering here.
 
+The include namespace currently contains only `.gitkeep` so Git preserves the empty public include
+root. Remove `.gitkeep` in the same change that adds the first real public header.
+
 First real code should be a shared UI service, window, look-and-feel, or calibration/settings
 surface used by both products.
