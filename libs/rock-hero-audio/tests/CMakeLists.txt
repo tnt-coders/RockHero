@@ -12,7 +12,7 @@ add_executable(rock_hero_audio_tests test_audio.cpp test_edit.cpp test_thumbnail
 
 # The fast target includes audio public headers directly and uses only core value types.
 target_include_directories(rock_hero_audio_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-target_link_libraries(rock_hero_audio_tests PRIVATE rock_hero::core rock_hero::build_policy
+target_link_libraries(rock_hero_audio_tests PRIVATE rock_hero::common::core rock_hero::build_policy
                                                     Catch2::Catch2WithMain)
 
 # Real-engine adapter coverage lives in a separate binary because it constructs Tracktion/JUCE.

@@ -7,7 +7,7 @@
 
 #include <filesystem>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -30,4 +30,4 @@ struct AudioAsset
     friend bool operator==(const AudioAsset& lhs, const AudioAsset& rhs) = default;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

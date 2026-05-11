@@ -46,7 +46,7 @@ class FakeThumbnail final : public audio::IThumbnail
 {
 public:
     // Captures the new source each time the view asks the thumbnail to refresh itself.
-    void setSource(const core::AudioAsset& audio_asset) override
+    void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
         has_source = true;
@@ -73,7 +73,7 @@ public:
 
     // Records the requested visible range so paint behavior can be observed.
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> bounds, core::TimeRange visible_range,
+        juce::Graphics& /*g*/, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
         float vertical_zoom) override
     {
         last_draw_bounds = bounds;
@@ -82,8 +82,8 @@ public:
         return draw_result;
     }
 
-    std::optional<core::AudioAsset> last_source{};
-    std::optional<core::TimeRange> last_drawn_visible_range{};
+    std::optional<common::core::AudioAsset> last_source{};
+    std::optional<common::core::TimeRange> last_drawn_visible_range{};
     std::optional<juce::Rectangle<int>> last_draw_bounds{};
     std::optional<float> last_vertical_zoom{};
     int set_source_call_count{0};
@@ -131,10 +131,11 @@ public:
 
 // Builds arrangement-view state with full-source audio.
 [[nodiscard]] ArrangementViewState makeArrangementState(
-    std::filesystem::path path, core::TimeDuration duration = core::TimeDuration{4.0})
+    std::filesystem::path path,
+    common::core::TimeDuration duration = common::core::TimeDuration{4.0})
 {
     return ArrangementViewState{
-        .audio_asset = core::AudioAsset{std::move(path)},
+        .audio_asset = common::core::AudioAsset{std::move(path)},
         .audio_duration = duration,
     };
 }
@@ -158,7 +159,7 @@ TEST_CASE("ArrangementView creates a thumbnail for audio", "[ui][arrangement-vie
     CHECK(thumbnail->set_source_call_count == 1);
     CHECK(
         thumbnail->last_source ==
-        std::optional{core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
+        std::optional{common::core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
 }
 
 // Verifies reapplying the same audio state reuses the existing thumbnail source.
@@ -196,7 +197,7 @@ TEST_CASE("ArrangementView refreshes thumbnail when asset changes", "[ui][arrang
     CHECK(thumbnail->set_source_call_count == 2);
     CHECK(
         thumbnail->last_source ==
-        std::optional{core::AudioAsset{std::filesystem::path{"lead_override.wav"}}});
+        std::optional{common::core::AudioAsset{std::filesystem::path{"lead_override.wav"}}});
 }
 
 // Verifies ArrangementView asks the thumbnail to draw only the visible asset range.
@@ -208,12 +209,12 @@ TEST_CASE("ArrangementView draws the visible waveform range", "[ui][arrangement-
     view.setBounds(0, 0, 100, 24);
     view.setThumbnailFactory(thumbnail_factory);
     view.setVisibleTimeline(
-        core::TimeRange{
-            .start = core::TimePosition{2.0},
-            .end = core::TimePosition{6.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{2.0},
+            .end = common::core::TimePosition{6.0},
         });
-    view.setState(
-        makeArrangementState(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{10.0}));
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"}, common::core::TimeDuration{10.0}));
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
     FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     const juce::Image image(juce::Image::RGB, 100, 24, true);
@@ -222,9 +223,9 @@ TEST_CASE("ArrangementView draws the visible waveform range", "[ui][arrangement-
     view.paint(graphics);
 
     CHECK(
-        thumbnail->last_drawn_visible_range == std::optional{core::TimeRange{
-                                                   .start = core::TimePosition{2.0},
-                                                   .end = core::TimePosition{6.0},
+        thumbnail->last_drawn_visible_range == std::optional{common::core::TimeRange{
+                                                   .start = common::core::TimePosition{2.0},
+                                                   .end = common::core::TimePosition{6.0},
                                                }});
     CHECK(thumbnail->last_draw_bounds == std::optional{image.getBounds()});
     CHECK(thumbnail->last_vertical_zoom == std::optional{1.0f});
@@ -239,12 +240,12 @@ TEST_CASE("ArrangementView maps short audio into visible bounds", "[ui][arrangem
     view.setBounds(0, 0, 100, 24);
     view.setThumbnailFactory(thumbnail_factory);
     view.setVisibleTimeline(
-        core::TimeRange{
-            .start = core::TimePosition{},
-            .end = core::TimePosition{10.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{10.0},
         });
-    view.setState(
-        makeArrangementState(std::filesystem::path{"full_mix.wav"}, core::TimeDuration{4.0}));
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"}, common::core::TimeDuration{4.0}));
     REQUIRE(thumbnail_factory.thumbnails.size() == 1);
     FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
     const juce::Image image(juce::Image::RGB, 100, 24, true);

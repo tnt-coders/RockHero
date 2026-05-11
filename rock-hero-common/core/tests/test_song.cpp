@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/core/song.h>
+#include <rock_hero/common/core/song.h>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 // Verifies that default song state is empty so loaders can detect unset metadata and assets.
@@ -107,4 +107,4 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(arrangement.note_events[0].fret == 7);
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

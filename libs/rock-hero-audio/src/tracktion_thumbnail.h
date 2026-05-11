@@ -33,7 +33,7 @@ public:
     TracktionThumbnail(tracktion::Engine& engine, juce::Component& owner);
 
     /*! \copydoc IThumbnail::setSource */
-    void setSource(const core::AudioAsset& audio_asset) override;
+    void setSource(const common::core::AudioAsset& audio_asset) override;
 
     /*! \copydoc IThumbnail::hasSource */
     [[nodiscard]] bool hasSource() const override;
@@ -46,7 +46,7 @@ public:
 
     /*! \copydoc IThumbnail::drawChannels */
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
+        juce::Graphics& g, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
         float vertical_zoom) override;
 
 private:

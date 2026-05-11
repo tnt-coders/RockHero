@@ -9,11 +9,11 @@ include_guard()
 # flag lists here. Rock Hero is already built around JUCE and Tracktion, and JUCE's defaults are a
 # pragmatic baseline for the compiler matrix this project currently supports.
 #
-# Important exception: `rock_hero_core` is still source-level framework-free. Its public headers and
-# implementation must not include JUCE or Tracktion. The only allowed build-time coupling is through
-# this file's policy targets. If that coupling ever blocks a core-only build or package, replace the
-# implementations below with project-owned flags while keeping the public `rock_hero::build_policy`
-# call sites unchanged.
+# Important exception: framework-free core targets are still source-level framework-free. Their
+# public headers and implementation must not include JUCE or Tracktion. The only allowed build-time
+# coupling is through this file's policy targets. If that coupling ever blocks a core-only build or
+# package, replace the implementations below with project-owned flags while keeping the public
+# `rock_hero::build_policy` call sites unchanged.
 
 if(NOT TARGET juce::juce_recommended_warning_flags
    OR NOT TARGET juce::juce_recommended_config_flags

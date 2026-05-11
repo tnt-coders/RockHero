@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/timeline.h>
 
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-ui) already link.
@@ -27,7 +27,7 @@ namespace rock_hero::audio
 
 Exposes only JUCE-facing file and graphics types so that UI code can render audio thumbnails
 without including Tracktion headers or linking Tracktion libraries. Thumbnail source assignment
-uses the project-owned core::AudioAsset value so UI code stays framework-free at the loading
+uses the project-owned common::core::AudioAsset value so UI code stays framework-free at the loading
 boundary. Concrete instances are obtained through IThumbnailFactory::createThumbnail().
 
 \see IThumbnailFactory
@@ -46,7 +46,7 @@ public:
 
     \param audio_asset Framework-free audio asset reference to display.
     */
-    virtual void setSource(const core::AudioAsset& audio_asset) = 0;
+    virtual void setSource(const common::core::AudioAsset& audio_asset) = 0;
 
     /*!
     \brief Reports whether a drawable source asset is currently loaded.
@@ -79,7 +79,7 @@ public:
     \return True when the range was valid and drawing was attempted.
     */
     [[nodiscard]] virtual bool drawChannels(
-        juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
+        juce::Graphics& g, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
         float vertical_zoom) = 0;
 
 protected:

@@ -4,14 +4,14 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
-#include <rock_hero/core/project.h>
-#include <rock_hero/core/rock_importer.h>
+#include <rock_hero/common/core/project.h>
+#include <rock_hero/common/core/rock_importer.h>
 #include <string>
 #include <utility>
 #include <vector>
 #include <zip.h>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -680,4 +680,4 @@ TEST_CASE("Project save rejects unopened projects", "[core][project]")
     CHECK(saved.error().find("path") != std::string::npos);
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

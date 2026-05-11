@@ -8,7 +8,7 @@
 #include <system_error>
 #include <utility>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -48,4 +48,4 @@ std::expected<Song, std::string> RockImporter::importProject(
     return imported_song;
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

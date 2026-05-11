@@ -5,11 +5,11 @@
 
 #pragma once
 
-#include <rock_hero/core/arrangement.h>
+#include <rock_hero/common/core/arrangement.h>
 #include <string>
 #include <vector>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*! \brief Descriptive metadata attached to a Song. */
@@ -35,7 +35,7 @@ A Song owns all data needed to start a game or editing session:
 - Descriptive metadata such as title, artist, and album.
 - Playable Arrangements for authored parts.
 
-Arrangement-owned tone automation blobs are interpreted exclusively by rock-hero-audio and are
+Arrangement-owned tone automation blobs are interpreted exclusively by common/audio and are
 never parsed here.
 Song depends only on standard C++. It has no dependency on JUCE or Tracktion Engine.
 */
@@ -48,4 +48,4 @@ struct Song
     std::vector<Arrangement> arrangements;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

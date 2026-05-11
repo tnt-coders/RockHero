@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <utility>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -95,4 +95,4 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
     return true;
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

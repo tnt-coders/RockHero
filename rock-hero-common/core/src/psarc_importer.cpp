@@ -10,8 +10,8 @@
 #include <nlohmann/json.hpp>
 #include <open-psarc/psarc_file.h>
 #include <optional>
-#include <rock_hero/core/arrangement.h>
-#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/audio_asset.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -19,7 +19,7 @@
 #include <utility>
 #include <vector>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -575,4 +575,4 @@ std::expected<Song, std::string> PsarcImporter::importProject(
     }
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

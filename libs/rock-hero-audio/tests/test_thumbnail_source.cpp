@@ -12,7 +12,7 @@ TEST_CASE("IThumbnail source assignment uses AudioAsset", "[audio][thumbnail]")
 {
     static_assert(std::is_same_v<
                   decltype(&IThumbnail::setSource),
-                  void (IThumbnail::*)(const core::AudioAsset&)>);
+                  void (IThumbnail::*)(const common::core::AudioAsset&)>);
 
     SUCCEED();
 }

@@ -6,10 +6,10 @@
 #include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/transport_state.h>
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/project.h>
-#include <rock_hero/core/session.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/project.h>
+#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
@@ -147,12 +147,12 @@ public:
     void stop() override
     {
         current_state.playing = false;
-        current_position = core::TimePosition{};
+        current_position = common::core::TimePosition{};
         ++stop_call_count;
     }
 
     // Records the requested seek so tests can verify clamping and timeline scaling.
-    void seek(core::TimePosition position) override
+    void seek(common::core::TimePosition position) override
     {
         last_seek_position = position;
         current_position = position;
@@ -164,7 +164,7 @@ public:
         return current_state;
     }
 
-    [[nodiscard]] core::TimePosition position() const noexcept override
+    [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         return current_position;
     }
@@ -190,9 +190,9 @@ public:
     }
 
     audio::TransportState current_state{};
-    core::TimePosition current_position{};
+    common::core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
-    std::optional<core::TimePosition> last_seek_position{};
+    std::optional<common::core::TimePosition> last_seek_position{};
     int play_call_count{0};
     int pause_call_count{0};
     int stop_call_count{0};
@@ -204,7 +204,7 @@ class FakeAudio final : public audio::IAudio
 {
 public:
     // Records project-audio preparation and fills accepted arrangement durations.
-    bool prepareSong(core::Song& song) override
+    bool prepareSong(common::core::Song& song) override
     {
         ++prepare_song_call_count;
         if (!next_prepare_result)
@@ -212,7 +212,7 @@ public:
             return false;
         }
 
-        for (core::Arrangement& arrangement : song.arrangements)
+        for (common::core::Arrangement& arrangement : song.arrangements)
         {
             last_prepared_audio_asset = arrangement.audio_asset;
             ++prepared_audio_asset_count;
@@ -228,7 +228,7 @@ public:
     }
 
     // Records the active arrangement and optionally fires an injected reentrant action.
-    bool setActiveArrangement(const core::Arrangement& arrangement) override
+    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
     {
         last_active_audio_asset = arrangement.audio_asset;
         ++set_active_arrangement_call_count;
@@ -245,7 +245,7 @@ public:
         ++clear_active_arrangement_call_count;
     }
 
-    core::TimeDuration next_prepared_audio_duration{core::TimeDuration{4.0}};
+    common::core::TimeDuration next_prepared_audio_duration{common::core::TimeDuration{4.0}};
     bool next_prepare_result{true};
     bool next_set_active_arrangement_result{true};
     int prepare_song_call_count{0};
@@ -253,8 +253,8 @@ public:
     int set_active_arrangement_call_count{0};
     int clear_active_arrangement_call_count{0};
     std::filesystem::path failed_prepare_audio_path{};
-    std::optional<core::AudioAsset> last_prepared_audio_asset{};
-    std::optional<core::AudioAsset> last_active_audio_asset{};
+    std::optional<common::core::AudioAsset> last_prepared_audio_asset{};
+    std::optional<common::core::AudioAsset> last_active_audio_asset{};
     std::function<void()> during_active_arrangement_action{};
 };
 
@@ -262,8 +262,8 @@ public:
 class FakeProjectIo final
 {
 public:
-    std::expected<core::Song, std::string> open(
-        core::Project& project, const std::filesystem::path& file)
+    std::expected<common::core::Song, std::string> open(
+        common::core::Project& project, const std::filesystem::path& file)
     {
         (void)project;
         last_open_file = file;
@@ -273,13 +273,13 @@ public:
             return std::unexpected<std::string>{next_error_message};
         }
 
-        core::Song song = std::move(*next_song);
+        common::core::Song song = std::move(*next_song);
         next_song.reset();
         return song;
     }
 
-    std::expected<core::Song, std::string> import(
-        core::Project& project, const std::filesystem::path& file)
+    std::expected<common::core::Song, std::string> import(
+        common::core::Project& project, const std::filesystem::path& file)
     {
         (void)project;
         last_import_file = file;
@@ -289,13 +289,14 @@ public:
             return std::unexpected<std::string>{next_import_error_message};
         }
 
-        core::Song song = std::move(*next_import_song);
+        common::core::Song song = std::move(*next_import_song);
         next_import_song.reset();
         return song;
     }
 
     std::expected<void, std::string> save(
-        core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)
+        common::core::Project& project, const common::core::Song& song,
+        common::core::ProjectEditorState editor_state)
     {
         (void)project;
         last_save_audio_path = firstAudioPath(song);
@@ -309,8 +310,8 @@ public:
     }
 
     std::expected<void, std::string> saveAs(
-        core::Project& project, const std::filesystem::path& file, const core::Song& song,
-        core::ProjectEditorState editor_state)
+        common::core::Project& project, const std::filesystem::path& file,
+        const common::core::Song& song, common::core::ProjectEditorState editor_state)
     {
         (void)project;
         last_save_as_file = file;
@@ -325,7 +326,8 @@ public:
     }
 
     std::expected<void, std::string> publish(
-        core::Project& project, const std::filesystem::path& file, const core::Song& song)
+        common::core::Project& project, const std::filesystem::path& file,
+        const common::core::Song& song)
     {
         (void)project;
         last_publish_file = file;
@@ -340,14 +342,14 @@ public:
 
     [[nodiscard]] OpenFunction openFunction() noexcept
     {
-        return [this](core::Project& project, const std::filesystem::path& file) {
+        return [this](common::core::Project& project, const std::filesystem::path& file) {
             return open(project, file);
         };
     }
 
     [[nodiscard]] ImportFunction importFunction() noexcept
     {
-        return [this](core::Project& project, const std::filesystem::path& file) {
+        return [this](common::core::Project& project, const std::filesystem::path& file) {
             return import(project, file);
         };
     }
@@ -355,9 +357,9 @@ public:
     [[nodiscard]] SaveFunction saveFunction() noexcept
     {
         return [this](
-                   core::Project& project,
-                   const core::Song& song,
-                   core::ProjectEditorState editor_state) {
+                   common::core::Project& project,
+                   const common::core::Song& song,
+                   common::core::ProjectEditorState editor_state) {
             return save(project, song, std::move(editor_state));
         };
     }
@@ -365,25 +367,24 @@ public:
     [[nodiscard]] SaveAsFunction saveAsFunction() noexcept
     {
         return [this](
-                   core::Project& project,
+                   common::core::Project& project,
                    const std::filesystem::path& file,
-                   const core::Song& song,
-                   core::ProjectEditorState editor_state) {
+                   const common::core::Song& song,
+                   common::core::ProjectEditorState editor_state) {
             return saveAs(project, file, song, std::move(editor_state));
         };
     }
 
     [[nodiscard]] PublishFunction publishFunction() noexcept
     {
-        return
-            [this](
-                core::Project& project, const std::filesystem::path& file, const core::Song& song) {
-                return publish(project, file, song);
-            };
+        return [this](
+                   common::core::Project& project,
+                   const std::filesystem::path& file,
+                   const common::core::Song& song) { return publish(project, file, song); };
     }
 
-    std::optional<core::Song> next_song{};
-    std::optional<core::Song> next_import_song{};
+    std::optional<common::core::Song> next_song{};
+    std::optional<common::core::Song> next_import_song{};
     std::string next_error_message{"Open failed"};
     std::string next_import_error_message{"Import failed"};
     std::optional<std::string> next_save_error{};
@@ -396,8 +397,8 @@ public:
     std::optional<std::filesystem::path> last_save_audio_path{};
     std::optional<std::filesystem::path> last_save_as_audio_path{};
     std::optional<std::filesystem::path> last_publish_audio_path{};
-    std::optional<core::ProjectEditorState> last_save_editor_state{};
-    std::optional<core::ProjectEditorState> last_save_as_editor_state{};
+    std::optional<common::core::ProjectEditorState> last_save_editor_state{};
+    std::optional<common::core::ProjectEditorState> last_save_as_editor_state{};
     int open_call_count{0};
     int import_call_count{0};
     int save_call_count{0};
@@ -406,14 +407,15 @@ public:
 
 private:
     // Returns the first arrangement audio path to verify the saved session content.
-    [[nodiscard]] static std::optional<std::filesystem::path> firstAudioPath(const core::Song& song)
+    [[nodiscard]] static std::optional<std::filesystem::path> firstAudioPath(
+        const common::core::Song& song)
     {
         if (song.arrangements.empty())
         {
             return std::nullopt;
         }
 
-        const core::AudioAsset& audio_asset = song.arrangements.front().audio_asset;
+        const common::core::AudioAsset& audio_asset = song.arrangements.front().audio_asset;
         if (audio_asset.path.empty())
         {
             return std::nullopt;
@@ -424,25 +426,25 @@ private:
 };
 
 // Provides a standard loaded-content range for controller tests.
-[[nodiscard]] core::TimeRange loadedTimelineRange(double end_seconds = 4.0) noexcept
+[[nodiscard]] common::core::TimeRange loadedTimelineRange(double end_seconds = 4.0) noexcept
 {
-    return core::TimeRange{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{end_seconds},
+    return common::core::TimeRange{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{end_seconds},
     };
 }
 
 // Builds song data with one arrangement.
-[[nodiscard]] core::Song makeSong(
-    std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
+[[nodiscard]] common::core::Song makeSong(
+    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
 {
-    core::Song song;
+    common::core::Song song;
     song.arrangements.push_back(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "lead",
-            .part = core::Part::Lead,
-            .difficulty = core::DifficultyRating{},
-            .audio_asset = core::AudioAsset{std::move(path)},
+            .part = common::core::Part::Lead,
+            .difficulty = common::core::DifficultyRating{},
+            .audio_asset = common::core::AudioAsset{std::move(path)},
             .audio_duration = timeline_range.duration(),
             .tone_timeline_ref = {},
             .note_events = {},
@@ -452,27 +454,27 @@ private:
 }
 
 // Builds song data with two arrangements so controller selection policy can be tested.
-[[nodiscard]] core::Song makeTwoArrangementSong(
+[[nodiscard]] common::core::Song makeTwoArrangementSong(
     std::filesystem::path lead_path, std::filesystem::path bass_path)
 {
-    core::Song song;
+    common::core::Song song;
     song.arrangements.push_back(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "lead",
-            .part = core::Part::Lead,
-            .difficulty = core::DifficultyRating{},
-            .audio_asset = core::AudioAsset{std::move(lead_path)},
-            .audio_duration = core::TimeDuration{},
+            .part = common::core::Part::Lead,
+            .difficulty = common::core::DifficultyRating{},
+            .audio_asset = common::core::AudioAsset{std::move(lead_path)},
+            .audio_duration = common::core::TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},
         });
     song.arrangements.push_back(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "bass",
-            .part = core::Part::Bass,
-            .difficulty = core::DifficultyRating{},
-            .audio_asset = core::AudioAsset{std::move(bass_path)},
-            .audio_duration = core::TimeDuration{},
+            .part = common::core::Part::Bass,
+            .difficulty = common::core::DifficultyRating{},
+            .audio_asset = common::core::AudioAsset{std::move(bass_path)},
+            .audio_duration = common::core::TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},
         });
@@ -483,7 +485,7 @@ private:
 // Loads arrangement audio through the controller so tests keep backend/session coupling.
 void loadArrangement(
     EditorController& controller, FakeProjectIo& project_io, FakeAudio& audio,
-    std::filesystem::path path, core::TimeRange timeline_range = loadedTimelineRange())
+    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
 {
     audio.next_prepared_audio_duration = timeline_range.duration();
     audio.next_set_active_arrangement_result = true;
@@ -522,13 +524,13 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
-    CHECK(empty_state.visible_timeline == core::TimeRange{});
+    CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK_FALSE(empty_state.last_error.has_value());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
-    const core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
+    const common::core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
     const EditorViewState loaded_state{
         .open_enabled = true,
         .import_enabled = true,
@@ -546,7 +548,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
         .arrangement =
             ArrangementViewState{
                 .audio_asset = audio_asset,
-                .audio_duration = core::TimeDuration{180.0},
+                .audio_duration = common::core::TimeDuration{180.0},
             },
         .last_error = std::string{"Could not open"},
         .unsaved_changes_prompt = UnsavedChangesPrompt{.action = PendingProjectAction::Close},
@@ -633,7 +635,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
         CHECK(state.play_pause_enabled == false);
         CHECK(state.stop_enabled == false);
         CHECK(state.play_pause_shows_pause_icon == false);
-        CHECK(state.visible_timeline == core::TimeRange{});
+        CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.last_error.has_value());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
@@ -660,7 +662,7 @@ TEST_CASE("EditorController derives visible timeline range", "[ui][editor-contro
         const EditorViewState& state = view.last_state.value();
         CHECK(state.visible_timeline == loadedTimelineRange(8.0));
         CHECK(state.project_loaded == true);
-        CHECK(state.arrangement.audio_duration == core::TimeDuration{8.0});
+        CHECK(state.arrangement.audio_duration == common::core::TimeDuration{8.0});
     }
 }
 
@@ -749,10 +751,10 @@ TEST_CASE("EditorController stop intent follows reset gate", "[ui][editor-contro
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 0);
 
-    transport.current_position = core::TimePosition{1.5};
+    transport.current_position = common::core::TimePosition{1.5};
     controller.onStopPressed();
     CHECK(transport.stop_call_count == 1);
-    CHECK(transport.current_position == core::TimePosition{});
+    CHECK(transport.current_position == common::core::TimePosition{});
 
     transport.current_state.playing = true;
     controller.onStopPressed();
@@ -770,7 +772,7 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
     FakeEditorView view;
     controller.attachView(view);
 
-    transport.current_position = core::TimePosition{1.5};
+    transport.current_position = common::core::TimePosition{1.5};
     transport.setStateAndNotify(
         audio::TransportState{
             .playing = false,
@@ -796,13 +798,13 @@ TEST_CASE("EditorController waveform click clamps and scales", "[ui][editor-cont
         controller, project_io, audio, std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
 
     controller.onWaveformClicked(0.5);
-    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
 
     controller.onWaveformClicked(-0.25);
-    CHECK(transport.last_seek_position == std::optional{core::TimePosition{0.0}});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{0.0}});
 
     controller.onWaveformClicked(1.5);
-    CHECK(transport.last_seek_position == std::optional{core::TimePosition{4.0}});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{4.0}});
 }
 
 // A seek issued by the controller refreshes whether Stop can reset the cursor.
@@ -821,12 +823,12 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[ui][editor-c
 
     controller.onWaveformClicked(0.5);
 
-    CHECK(transport.last_seek_position == std::optional{core::TimePosition{2.0}});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
     CHECK(lastStopEnabled(view) == std::optional{true});
 
     controller.onWaveformClicked(0.0);
 
-    CHECK(transport.last_seek_position == std::optional{core::TimePosition{}});
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{}});
     CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
@@ -850,11 +852,11 @@ TEST_CASE("EditorController failed activation preserves session", "[ui][editor-c
 
     controller.onOpenRequested(std::filesystem::path{"new.rhp"});
 
-    const core::Session& session = controller.session();
+    const common::core::Session& session = controller.session();
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(
         session.currentArrangement()->audio_asset ==
-        core::AudioAsset{std::filesystem::path{"old.wav"}});
+        common::core::AudioAsset{std::filesystem::path{"old.wav"}});
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -888,17 +890,17 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
-    const core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
+    const common::core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
     project_load.next_song = makeSong(replacement.path, loadedTimelineRange(4.0));
     controller.onOpenRequested(std::filesystem::path{"second.rhp"});
 
-    const core::Session& session = controller.session();
+    const common::core::Session& session = controller.session();
     CHECK(audio.set_active_arrangement_call_count == 2);
     CHECK(audio.last_active_audio_asset == std::optional{replacement});
     CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"second.rhp"}});
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->audio_asset == replacement);
-    CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
+    CHECK(session.currentArrangement()->audio_duration == common::core::TimeDuration{4.0});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -947,7 +949,7 @@ TEST_CASE("EditorController close clears loaded project", "[ui][editor-controlle
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.play_pause_enabled == false);
-        CHECK(state.visible_timeline == core::TimeRange{});
+        CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.last_error.has_value());
     }
@@ -1002,10 +1004,10 @@ TEST_CASE("EditorController save writes current session song", "[ui][editor-cont
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
+    const common::core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
     project_io.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
-    transport.current_position = core::TimePosition{1.25};
+    transport.current_position = common::core::TimePosition{1.25};
 
     controller.onSaveRequested();
 
@@ -1013,10 +1015,11 @@ TEST_CASE("EditorController save writes current session song", "[ui][editor-cont
     CHECK(project_io.save_as_call_count == 0);
     CHECK(project_io.last_save_audio_path == std::optional{audio_asset.path});
     CHECK(
-        project_io.last_save_editor_state == std::optional{core::ProjectEditorState{
-                                                 .cursor_position = core::TimePosition{1.25},
-                                                 .selected_arrangement = std::string{"lead"},
-                                             }});
+        project_io.last_save_editor_state ==
+        std::optional{common::core::ProjectEditorState{
+            .cursor_position = common::core::TimePosition{1.25},
+            .selected_arrangement = std::string{"lead"},
+        }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -1075,7 +1078,7 @@ TEST_CASE("EditorController publish writes package copy", "[ui][editor-controlle
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
+    const common::core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
     project_io.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
@@ -1151,11 +1154,11 @@ TEST_CASE("EditorController failed import preserves session", "[ui][editor-contr
 
     controller.onImportRequested(std::filesystem::path{"broken.psarc"});
 
-    const core::Session& session = controller.session();
+    const common::core::Session& session = controller.session();
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(
         session.currentArrangement()->audio_asset ==
-        core::AudioAsset{std::filesystem::path{"old.wav"}});
+        common::core::AudioAsset{std::filesystem::path{"old.wav"}});
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     CHECK(project_load.import_call_count == 1);
     CHECK(project_load.open_call_count == 0);
@@ -1191,11 +1194,11 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
-    const core::AudioAsset replacement{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset replacement{std::filesystem::path{"imported.ogg"}};
     project_load.next_import_song = makeSong(replacement.path, loadedTimelineRange(4.0));
     controller.onImportRequested(std::filesystem::path{"second.psarc"});
 
-    const core::Session& session = controller.session();
+    const common::core::Session& session = controller.session();
     CHECK(project_load.import_call_count == 2);
     CHECK(project_load.open_call_count == 0);
     CHECK(audio.set_active_arrangement_call_count == 2);
@@ -1203,7 +1206,7 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
     CHECK_FALSE(controller.currentProjectFile().has_value());
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(session.currentArrangement()->audio_asset == replacement);
-    CHECK(session.currentArrangement()->audio_duration == core::TimeDuration{4.0});
+    CHECK(session.currentArrangement()->audio_duration == common::core::TimeDuration{4.0});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -1238,10 +1241,10 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
     project_io.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
-    transport.current_position = core::TimePosition{2.5};
+    transport.current_position = common::core::TimePosition{2.5};
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -1264,10 +1267,11 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
     CHECK(project_io.last_save_as_audio_path == std::optional{audio_asset.path});
     CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(
-        project_io.last_save_as_editor_state == std::optional{core::ProjectEditorState{
-                                                    .cursor_position = core::TimePosition{2.5},
-                                                    .selected_arrangement = std::string{"lead"},
-                                                }});
+        project_io.last_save_as_editor_state ==
+        std::optional{common::core::ProjectEditorState{
+            .cursor_position = common::core::TimePosition{2.5},
+            .selected_arrangement = std::string{"lead"},
+        }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -1346,7 +1350,7 @@ TEST_CASE("EditorController saves prompted import before close", "[ui][editor-co
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
     project_io.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
 
@@ -1432,15 +1436,15 @@ TEST_CASE("EditorController defaults open to first arrangement", "[ui][editor-co
     FakeProjectIo project_load;
     EditorController controller{transport, audio, project_load.openFunction()};
 
-    const core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
-    const core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
+    const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
+    const common::core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
     project_load.next_song = makeTwoArrangementSong(lead_asset.path, bass_asset.path);
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
     CHECK(audio.last_active_audio_asset == std::optional{lead_asset});
     REQUIRE(controller.session().currentArrangement() != nullptr);
-    CHECK(controller.session().currentArrangement()->part == core::Part::Lead);
+    CHECK(controller.session().currentArrangement()->part == common::core::Part::Lead);
     CHECK(controller.session().currentArrangement()->audio_asset == lead_asset);
 }
 
@@ -1454,8 +1458,8 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[ui][ed
     FakeEditorView view;
     controller.attachView(view);
 
-    const core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
-    const core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
+    const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
+    const common::core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
     audio.failed_prepare_audio_path = bass_asset.path;
     project_load.next_song = makeTwoArrangementSong(lead_asset.path, bass_asset.path);
 
@@ -1492,7 +1496,7 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[ui][editor-c
             });
     };
 
-    const core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
+    const common::core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
     project_load.next_song = makeSong(replacement.path);
     controller.onOpenRequested(std::filesystem::path{"loop.rhp"});
 
