@@ -1,6 +1,6 @@
 /*!
 \file project.h
-\brief Open Rock Hero project package context and workspace ownership.
+\brief Editor project package context and workspace ownership.
 */
 
 #pragma once
@@ -10,16 +10,16 @@
 #include <optional>
 #include <rock_hero/common/core/song.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/editor/core/i_project_importer.h>
+#include <rock_hero/editor/core/i_song_importer.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
 /*!
-\brief Editor-only state persisted by a native project package.
+\brief Editor-only state persisted by an editor project package.
 
-This state is intentionally separate from Song so published playable packages can treat song data
+This state is intentionally separate from Song so native song packages can treat song data
 and editor session state as different concerns.
 */
 struct ProjectEditorState
@@ -40,12 +40,12 @@ struct ProjectEditorState
 };
 
 /*!
-\brief Open project package context.
+\brief Editor project package context.
 
 Project owns the extracted workspace directory because loaded Song audio asset paths can point
 into it. Call close() when cleanup failures need to be reported. Destroying the Project removes
 that workspace on a best-effort basis. Session owns the editable Song; Project owns only the
-package/workspace context needed to load and save it.
+project package and workspace context needed to load and save it.
 */
 class Project
 {
@@ -62,11 +62,11 @@ public:
     /*! \brief Copy assignment is disabled because workspace ownership is unique. */
     Project& operator=(const Project&) = delete;
 
-    /*! \brief Transfers package state and workspace ownership from another project. */
+    /*! \brief Transfers project package state and workspace ownership from another project. */
     Project(Project&& other) noexcept;
 
     /*!
-    \brief Replaces this project with another project's package state and workspace ownership.
+    \brief Replaces this project with another project's package path and workspace ownership.
     \param other Project to move from.
     \return Reference to this project.
     */
@@ -81,13 +81,13 @@ public:
         const std::filesystem::path& path);
 
     /*!
-    \brief Imports a foreign project package into a new unsaved workspace.
-    \param source_path Foreign project package to import.
-    \param importer Importer that understands the source project format.
+    \brief Imports a song source into a new unsaved project workspace.
+    \param source_path Song source to import.
+    \param importer Importer that understands the source song format.
     \return Imported song data, or a failure message.
     */
     [[nodiscard]] std::expected<common::core::Song, std::string> import(
-        const std::filesystem::path& source_path, IProjectImporter& importer);
+        const std::filesystem::path& source_path, ISongImporter& importer);
 
     /*!
     \brief Saves the supplied song to the currently open project package.
@@ -106,8 +106,8 @@ public:
         const common::core::Song& song, ProjectEditorState editor_state);
 
     /*!
-    \brief Saves the supplied song to a package path and associates this project with it.
-    \param path Destination .rhp package path.
+    \brief Saves the supplied song to a project package path and associates it.
+    \param path Destination `.rhp` project package path.
     \param song Song data to persist.
     \return Empty success, or a failure message.
     */
@@ -115,8 +115,8 @@ public:
         const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
-    \brief Saves the supplied song and editor state to a package path and associates it.
-    \param path Destination .rhp package path.
+    \brief Saves the supplied song and editor state to a project package path and associates it.
+    \param path Destination `.rhp` project package path.
     \param song Song data to persist.
     \param editor_state Editor-only project state to persist.
     \return Empty success, or a failure message.
@@ -126,8 +126,8 @@ public:
         ProjectEditorState editor_state);
 
     /*!
-    \brief Publishes the supplied song to a runtime package without changing this project path.
-    \param path Destination package path.
+    \brief Publishes the supplied song to a native song package without changing this project path.
+    \param path Destination native song package path.
     \param song Song data to publish.
     \return Empty success, or a failure message.
     */

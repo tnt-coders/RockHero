@@ -34,14 +34,14 @@ For the structural engineering rules that govern how new code should be organize
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
-| Rock Hero package formats | libzip + nlohmann_json | `.rhp` editor packages; `.rock` runtime packages |
+| Rock Hero package formats | libzip + nlohmann_json | `.rhp` editor project packages; `.rock` native song packages |
 | Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
 
 `.rhp` packages store `project.json` at the root and song content under `song/`. `.rock`
-packages store runtime song content directly at the archive root and can be imported by the
+packages store native song content directly at the archive root and can be imported by the
 editor as unsaved projects.
 
 ---
@@ -242,11 +242,12 @@ of 0 represents Unknown so draft/default arrangements do not imply a fake diffic
 for playable songs should reject Unknown.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
-framework-free `Session` and displays one arrangement at a time. Runtime package loading validates
-package structure, safe asset paths, and required arrangement audio references. Before a parsed song
-is committed to the editor session, the editor workflow validates every arrangement's audio through
-the `rock-hero-common/audio` boundary and rejects the project if any asset is unreadable or reports
-a non-positive duration. When an arrangement is selected, the application passes its `audio_asset`
+framework-free `Session` and displays one arrangement at a time. Native song package loading
+validates archive structure, safe asset paths, and required arrangement audio references. Before a
+parsed song is committed to the editor session, the editor workflow validates every arrangement's
+audio through the `rock-hero-common/audio` boundary and rejects the project if any asset is
+unreadable or reports a non-positive duration. When an arrangement is selected, the application
+passes its `audio_asset`
 to `rock-hero-common/audio` for playback and waveform generation, and passes `tone_timeline_ref`
 to `rock-hero-common/audio` as an opaque blob. The game or editor reads the arrangement notes to
 drive gameplay or authoring. `rock-hero-common/core` never interprets tone automation data - that
@@ -488,7 +489,7 @@ Visual polish, 3D fretboard, particles, and UI theming come after gameplay funda
 Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-library test targets
 live alongside each library:
 
-- `rock-hero-common/core/tests/` for shared domain and package behavior
+- `rock-hero-common/core/tests/` for shared domain and native song package behavior
 - `rock-hero-common/audio/*/tests/` for shared audio contracts and adapter behavior
 - `rock-hero-editor/core/tests/` for headless editor workflow
 - `rock-hero-editor/ui/tests/` for focused editor UI helpers and wiring

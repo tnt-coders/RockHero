@@ -1,6 +1,6 @@
 /*!
-\file i_project_importer.h
-\brief Editor-owned boundary for importing foreign project formats.
+\file i_song_importer.h
+\brief Editor-owned boundary for importing song sources into editable workspaces.
 */
 
 #pragma once
@@ -14,40 +14,40 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Imports a foreign project format into a caller-provided workspace.
+\brief Imports a song source into a caller-provided workspace.
 
-Implementations read a source package, copy or convert the minimal required files into the
-workspace directory, and return the converted song data. The returned Song must reference files
+Implementations read a source archive or directory, copy or convert the minimal required files into
+the workspace directory, and return the imported song data. The returned Song must reference files
 inside the supplied workspace.
 */
-class IProjectImporter
+class ISongImporter
 {
 public:
     /*! \brief Creates an importer interface base. */
-    IProjectImporter() = default;
+    ISongImporter() = default;
 
     /*! \brief Allows cleanup through the importer interface. */
-    virtual ~IProjectImporter() = default;
+    virtual ~ISongImporter() = default;
 
     /*! \brief Copying is disabled because importer implementations own format-specific state. */
-    IProjectImporter(const IProjectImporter&) = delete;
+    ISongImporter(const ISongImporter&) = delete;
 
     /*! \brief Copy assignment is disabled because importer implementations own unique state. */
-    IProjectImporter& operator=(const IProjectImporter&) = delete;
+    ISongImporter& operator=(const ISongImporter&) = delete;
 
     /*! \brief Moving is disabled because importers are used through stable interface references. */
-    IProjectImporter(IProjectImporter&&) = delete;
+    ISongImporter(ISongImporter&&) = delete;
 
     /*! \brief Move assignment is disabled because importers are used through stable references. */
-    IProjectImporter& operator=(IProjectImporter&&) = delete;
+    ISongImporter& operator=(ISongImporter&&) = delete;
 
     /*!
-    \brief Imports a foreign project package into an existing workspace directory.
-    \param source_path Foreign project package to read.
+    \brief Imports a song source into an existing workspace directory.
+    \param source_path Song source to read.
     \param workspace_directory Existing workspace directory to populate.
     \return Imported song data, or a failure message.
     */
-    [[nodiscard]] virtual std::expected<common::core::Song, std::string> importProject(
+    [[nodiscard]] virtual std::expected<common::core::Song, std::string> importSong(
         const std::filesystem::path& source_path,
         const std::filesystem::path& workspace_directory) = 0;
 };

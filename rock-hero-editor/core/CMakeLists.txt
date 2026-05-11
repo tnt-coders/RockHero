@@ -4,10 +4,10 @@ add_library(rock_hero::editor::core ALIAS rock_hero_editor_core)
 find_package(nlohmann_json REQUIRED)
 find_package(OpenPSARC REQUIRED)
 
-# Headless editor workflow and native project persistence stay testable without JUCE widgets.
+# Headless editor workflow and editor project persistence stay testable without JUCE widgets.
 target_sources(
     rock_hero_editor_core PRIVATE src/editor_controller.cpp src/project.cpp src/project_io.cpp
-                                  src/psarc_importer.cpp src/rock_importer.cpp)
+                                  src/psarc_song_importer.cpp src/rock_song_importer.cpp)
 
 target_include_directories(
     rock_hero_editor_core

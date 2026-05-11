@@ -4,7 +4,7 @@ add_library(rock_hero::common::core ALIAS rock_hero_common_core)
 find_package(libzip REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
-# Shared framework-free domain library for song/session state and runtime package persistence.
+# Shared framework-free domain library for song/session state and native song package persistence.
 target_sources(rock_hero_common_core PRIVATE src/session.cpp src/song.cpp src/song_package.cpp)
 
 target_include_directories(
@@ -12,7 +12,7 @@ target_include_directories(
     PUBLIC include
     PRIVATE include/rock_hero/common/core)
 
-# Keep package-format dependencies private so consumers see only project-owned core headers.
+# Keep song/archive-format dependencies private so consumers see only project-owned core headers.
 target_link_libraries(rock_hero_common_core PRIVATE rock_hero::build_policy libzip::zip
                                                     nlohmann_json::nlohmann_json)
 
