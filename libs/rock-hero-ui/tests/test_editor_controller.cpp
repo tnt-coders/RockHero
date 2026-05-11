@@ -3,9 +3,9 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_transport.h>
-#include <rock_hero/audio/transport_state.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
@@ -131,7 +131,7 @@ public:
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
-class FakeTransport final : public audio::ITransport
+class FakeTransport final : public common::audio::ITransport
 {
 public:
     void play() override
@@ -159,7 +159,7 @@ public:
         ++seek_call_count;
     }
 
-    [[nodiscard]] audio::TransportState state() const noexcept override
+    [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
@@ -180,7 +180,7 @@ public:
     }
 
     // Updates the state and fires a coarse listener callback to mimic a real transition.
-    void setStateAndNotify(const audio::TransportState& new_state)
+    void setStateAndNotify(const common::audio::TransportState& new_state)
     {
         current_state = new_state;
         for (Listener* listener : listeners)
@@ -189,7 +189,7 @@ public:
         }
     }
 
-    audio::TransportState current_state{};
+    common::audio::TransportState current_state{};
     common::core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
     std::optional<common::core::TimePosition> last_seek_position{};
@@ -200,7 +200,7 @@ public:
 };
 
 // Configurable IAudio fake that records calls and can simulate reentrant notifications.
-class FakeAudio final : public audio::IAudio
+class FakeAudio final : public common::audio::IAudio
 {
 public:
     // Records project-audio preparation and fills accepted arrangement durations.
@@ -678,7 +678,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     controller.attachView(view);
 
     transport.setStateAndNotify(
-        audio::TransportState{
+        common::audio::TransportState{
             .playing = true,
         });
 
@@ -693,7 +693,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
     }
 
     transport.setStateAndNotify(
-        audio::TransportState{
+        common::audio::TransportState{
             .playing = false,
         });
 
@@ -774,7 +774,7 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
 
     transport.current_position = common::core::TimePosition{1.5};
     transport.setStateAndNotify(
-        audio::TransportState{
+        common::audio::TransportState{
             .playing = false,
         });
     CHECK(lastStopEnabled(view) == std::optional{true});
@@ -1491,7 +1491,7 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[ui][editor-c
 
     audio.during_active_arrangement_action = [&] {
         transport.setStateAndNotify(
-            audio::TransportState{
+            common::audio::TransportState{
                 .playing = true,
             });
     };
@@ -1534,7 +1534,7 @@ TEST_CASE("EditorController preserves workflow error across transitions", "[ui][
     }
 
     transport.setStateAndNotify(
-        audio::TransportState{
+        common::audio::TransportState{
             .playing = true,
         });
 

@@ -9,8 +9,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/arrangement_view.h>
 #include <rock_hero/ui/editor_view_state.h>
@@ -38,8 +38,8 @@ namespace rock_hero::ui
 
 EditorView renders transition-shaped EditorViewState, owns concrete child widgets, and forwards
 user intent to IEditorController. It also owns one editor-wide cursor overlay that reads current
-position through a const audio::ITransport reference at vblank cadence; current cursor position is
-not part of EditorViewState.
+position through a const common::audio::ITransport reference at vblank cadence; current cursor
+position is not part of EditorViewState.
 */
 class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
@@ -54,8 +54,8 @@ public:
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
     */
     EditorView(
-        IEditorController& controller, const audio::ITransport& transport,
-        audio::IThumbnailFactory& thumbnail_factory);
+        IEditorController& controller, const common::audio::ITransport& transport,
+        common::audio::IThumbnailFactory& thumbnail_factory);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;

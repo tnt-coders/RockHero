@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
@@ -62,4 +62,4 @@ private:
     Listener& m_listener;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

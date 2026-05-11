@@ -6,7 +6,7 @@
 #include <optional>
 #include <tracktion_engine/tracktion_engine.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 namespace
@@ -356,4 +356,4 @@ std::unique_ptr<IThumbnail> Engine::createThumbnail(juce::Component& owner)
     return std::make_unique<TracktionThumbnail>(*m_impl->m_engine, owner);
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

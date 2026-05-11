@@ -5,10 +5,10 @@
 
 #pragma once
 
-#include <rock_hero/audio/transport_state.h>
+#include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/timeline.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
@@ -134,4 +134,4 @@ protected:
     ITransport& operator=(ITransport&&) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio
