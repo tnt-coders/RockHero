@@ -1,8 +1,13 @@
 add_library(rock_hero_editor_core STATIC)
 add_library(rock_hero::editor::core ALIAS rock_hero_editor_core)
 
-# Headless editor workflow policy lives here so it can be tested without JUCE widgets.
-target_sources(rock_hero_editor_core PRIVATE src/editor_controller.cpp)
+find_package(nlohmann_json REQUIRED)
+find_package(OpenPSARC REQUIRED)
+
+# Headless editor workflow and native project persistence stay testable without JUCE widgets.
+target_sources(
+    rock_hero_editor_core PRIVATE src/editor_controller.cpp src/project.cpp src/project_io.cpp
+                                  src/psarc_importer.cpp src/rock_importer.cpp)
 
 target_include_directories(
     rock_hero_editor_core
@@ -12,6 +17,6 @@ target_include_directories(
 target_link_libraries(
     rock_hero_editor_core
     PUBLIC rock_hero::common::core rock_hero::common::audio::api
-    PRIVATE rock_hero::build_policy)
+    PRIVATE rock_hero::build_policy nlohmann_json::nlohmann_json OpenPSARC::OpenPSARC)
 
 add_subdirectory(tests)
