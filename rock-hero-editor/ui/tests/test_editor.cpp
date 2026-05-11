@@ -7,17 +7,17 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
-#include <rock_hero/ui/editor.h>
+#include <rock_hero/editor/ui/editor.h>
 #include <stdexcept>
 #include <vector>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
 {
 
-// Records transport listeners and state so EditorController can subscribe during construction.
+// Records transport listeners and state so the controller can subscribe during construction.
 class FakeTransport final : public common::audio::ITransport
 {
 public:
@@ -201,4 +201,4 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(transport.listeners.size() == 1);
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

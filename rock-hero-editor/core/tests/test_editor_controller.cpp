@@ -10,15 +10,15 @@
 #include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/ui/editor_controller.h>
-#include <rock_hero/ui/editor_view_state.h>
-#include <rock_hero/ui/i_editor_controller.h>
-#include <rock_hero/ui/i_editor_view.h>
+#include <rock_hero/editor/core/editor_controller.h>
+#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
 #include <utility>
 #include <vector>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 namespace
@@ -508,7 +508,7 @@ void loadArrangement(
 } // namespace
 
 // Verifies editor state represents a single displayed arrangement without extra identity.
-TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]")
+TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controller]")
 {
     const EditorViewState empty_state{};
 
@@ -568,7 +568,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[ui][editor-controller]
 }
 
 // Verifies a fake controller can receive editor intents without JUCE callback types.
-TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-controller]")
+TEST_CASE("IEditorController fake receives editor intents", "[core][editor-controller]")
 {
     FakeEditorController controller;
     const std::filesystem::path open_file{"song.rhp"};
@@ -611,7 +611,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[ui][editor-control
 }
 
 // Confirms attachView immediately delivers the controller's cached arrangement state.
-TEST_CASE("EditorController pushes derived state on view attachment", "[ui][editor-controller]")
+TEST_CASE("EditorController pushes derived state on view attachment", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -645,7 +645,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[ui][edit
 }
 
 // Verifies the controller pushes session timeline mapping from loaded arrangement audio.
-TEST_CASE("EditorController derives visible timeline range", "[ui][editor-controller]")
+TEST_CASE("EditorController derives visible timeline range", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -667,7 +667,7 @@ TEST_CASE("EditorController derives visible timeline range", "[ui][editor-contro
 }
 
 // Each coarse transport transition produces exactly one fresh push so the view stays current.
-TEST_CASE("EditorController pushes one state per coarse transition", "[ui][editor-controller]")
+TEST_CASE("EditorController pushes one state per coarse transition", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -708,7 +708,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[ui][edito
 }
 
 // Play intent issues play() when stopped and pause() when playing, once audio is loaded.
-TEST_CASE("EditorController play intent toggles loaded transport", "[ui][editor-controller]")
+TEST_CASE("EditorController play intent toggles loaded transport", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -727,7 +727,7 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[ui][editor-
 }
 
 // Without arrangement audio there is nothing to play, so the intent is a no-op.
-TEST_CASE("EditorController ignores play intent without audio", "[ui][editor-controller]")
+TEST_CASE("EditorController ignores play intent without audio", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -740,7 +740,7 @@ TEST_CASE("EditorController ignores play intent without audio", "[ui][editor-con
 }
 
 // The stop intent respects the same gate the view publishes.
-TEST_CASE("EditorController stop intent follows reset gate", "[ui][editor-controller]")
+TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -762,7 +762,7 @@ TEST_CASE("EditorController stop intent follows reset gate", "[ui][editor-contro
 }
 
 // Stopping from a paused non-start cursor refreshes the view directly after stop().
-TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][editor-controller]")
+TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -788,7 +788,7 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[ui][edi
 }
 
 // Waveform clicks clamp out-of-range input and convert positions through the session timeline.
-TEST_CASE("EditorController waveform click clamps and scales", "[ui][editor-controller]")
+TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -808,7 +808,7 @@ TEST_CASE("EditorController waveform click clamps and scales", "[ui][editor-cont
 }
 
 // A seek issued by the controller refreshes whether Stop can reset the cursor.
-TEST_CASE("EditorController waveform click refreshes stop state", "[ui][editor-controller]")
+TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -833,7 +833,7 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[ui][editor-c
 }
 
 // A failed project-audio activation leaves the session unchanged and surfaces an error.
-TEST_CASE("EditorController failed activation preserves session", "[ui][editor-controller]")
+TEST_CASE("EditorController failed activation preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -867,7 +867,7 @@ TEST_CASE("EditorController failed activation preserves session", "[ui][editor-c
 }
 
 // A successful open stores the selected audio and clears prior error.
-TEST_CASE("EditorController successful open stores audio", "[ui][editor-controller]")
+TEST_CASE("EditorController successful open stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -921,7 +921,7 @@ TEST_CASE("EditorController successful open stores audio", "[ui][editor-controll
 }
 
 // Close stops playback, clears backend audio, and returns the view to an empty project state.
-TEST_CASE("EditorController close clears loaded project", "[ui][editor-controller]")
+TEST_CASE("EditorController close clears loaded project", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -956,7 +956,7 @@ TEST_CASE("EditorController close clears loaded project", "[ui][editor-controlle
 }
 
 // Exiting reports the native project path that should be restored on next launch.
-TEST_CASE("EditorController reports project file on exit", "[ui][editor-controller]")
+TEST_CASE("EditorController reports project file on exit", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -988,7 +988,7 @@ TEST_CASE("EditorController reports project file on exit", "[ui][editor-controll
 }
 
 // Save writes the currently loaded session song through the injected persistence seam.
-TEST_CASE("EditorController save writes current session song", "[ui][editor-controller]")
+TEST_CASE("EditorController save writes current session song", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1029,7 +1029,7 @@ TEST_CASE("EditorController save writes current session song", "[ui][editor-cont
 }
 
 // Save failures are surfaced without clearing the loaded session.
-TEST_CASE("EditorController save failure surfaces an error", "[ui][editor-controller]")
+TEST_CASE("EditorController save failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1061,7 +1061,7 @@ TEST_CASE("EditorController save failure surfaces an error", "[ui][editor-contro
 }
 
 // Publish writes a playable package copy without changing save-destination state.
-TEST_CASE("EditorController publish writes package copy", "[ui][editor-controller]")
+TEST_CASE("EditorController publish writes package copy", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1098,7 +1098,7 @@ TEST_CASE("EditorController publish writes package copy", "[ui][editor-controlle
 }
 
 // Publish failures surface an error without closing or retargeting the current project.
-TEST_CASE("EditorController publish failure surfaces an error", "[ui][editor-controller]")
+TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1133,7 +1133,7 @@ TEST_CASE("EditorController publish failure surfaces an error", "[ui][editor-con
 }
 
 // A failed import leaves the current session unchanged and surfaces an error.
-TEST_CASE("EditorController failed import preserves session", "[ui][editor-controller]")
+TEST_CASE("EditorController failed import preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1171,7 +1171,7 @@ TEST_CASE("EditorController failed import preserves session", "[ui][editor-contr
 }
 
 // A successful import stores the imported audio and clears prior error.
-TEST_CASE("EditorController successful import stores audio", "[ui][editor-controller]")
+TEST_CASE("EditorController successful import stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1225,7 +1225,7 @@ TEST_CASE("EditorController successful import stores audio", "[ui][editor-contro
 }
 
 // Imported content requires Save As before direct Save can write to a destination.
-TEST_CASE("EditorController import requires Save As destination", "[ui][editor-controller]")
+TEST_CASE("EditorController import requires Save As destination", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1287,7 +1287,7 @@ TEST_CASE("EditorController import requires Save As destination", "[ui][editor-c
 }
 
 // Unsaved imported content prompts before close and Cancel leaves the project loaded.
-TEST_CASE("EditorController prompts before closing unsaved import", "[ui][editor-controller]")
+TEST_CASE("EditorController prompts before closing unsaved import", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1334,7 +1334,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[ui][editor
 }
 
 // Choosing Save for an unsaved import asks for a destination, saves, and then closes.
-TEST_CASE("EditorController saves prompted import before close", "[ui][editor-controller]")
+TEST_CASE("EditorController saves prompted import before close", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1383,7 +1383,7 @@ TEST_CASE("EditorController saves prompted import before close", "[ui][editor-co
 }
 
 // Discarding unsaved import changes lets the pending exit request reach the host callback.
-TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][editor-controller]")
+TEST_CASE("EditorController prompts before exit with unsaved import", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1429,7 +1429,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[ui][edit
 }
 
 // Project packages do not carry editor selection state, so the controller opens index zero.
-TEST_CASE("EditorController defaults open to first arrangement", "[ui][editor-controller]")
+TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1449,7 +1449,7 @@ TEST_CASE("EditorController defaults open to first arrangement", "[ui][editor-co
 }
 
 // Opening a project validates every arrangement before the selected arrangement is loaded.
-TEST_CASE("EditorController rejects invalid project arrangement audio", "[ui][editor-controller]")
+TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1479,7 +1479,7 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[ui][ed
 }
 
 // Reentrant transport notifications during in-flight arrangement activation coalesce once.
-TEST_CASE("EditorController coalesces reentrant audio callbacks", "[ui][editor-controller]")
+TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1511,7 +1511,8 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[ui][editor-c
 }
 
 // Later transport transitions preserve the existing workflow error until success clears it.
-TEST_CASE("EditorController preserves workflow error across transitions", "[ui][editor-controller]")
+TEST_CASE(
+    "EditorController preserves workflow error across transitions", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1546,4 +1547,4 @@ TEST_CASE("EditorController preserves workflow error across transitions", "[ui][
     }
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

@@ -7,9 +7,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include <rock_hero/ui/transport_controls_state.h>
+#include <rock_hero/editor/ui/transport_controls_state.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -124,4 +124,4 @@ private:
     std::unique_ptr<juce::Drawable> m_stop_drawable;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

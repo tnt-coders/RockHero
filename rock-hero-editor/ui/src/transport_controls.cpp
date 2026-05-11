@@ -3,7 +3,7 @@
 #include <BinaryData.h>
 #include <algorithm>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -99,4 +99,4 @@ void TransportControls::handleStopClicked()
     m_listener.onStopPressed();
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui
