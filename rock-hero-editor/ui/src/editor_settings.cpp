@@ -1,6 +1,6 @@
 #include "editor_settings.h"
 
-namespace rock_hero
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -94,4 +94,4 @@ void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> pro
     m_properties.saveIfNeeded();
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::ui

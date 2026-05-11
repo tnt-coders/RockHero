@@ -22,7 +22,7 @@ namespace rock_hero::ui
 class Editor;
 } // namespace rock_hero::ui
 
-namespace rock_hero
+namespace rock_hero::editor::ui
 {
 
 // Forward-declared so the window can persist app-local editor settings privately.
@@ -54,15 +54,19 @@ public:
     /*! \brief Copying is disabled because JUCE windows and owned runtime state are fixed. */
     MainWindow(const MainWindow&) = delete;
 
-    /*! \brief Copy assignment is disabled because JUCE windows and owned runtime state are not
-     * copyable. */
+    /*!
+    \brief Copy assignment is disabled because JUCE windows and owned runtime state are not
+    copyable.
+    */
     MainWindow& operator=(const MainWindow&) = delete;
 
     /*! \brief Moving is disabled because JUCE windows and owned runtime state are not movable. */
     MainWindow(MainWindow&&) = delete;
 
-    /*! \brief Move assignment is disabled because JUCE windows and owned runtime state are not
-     * movable. */
+    /*!
+    \brief Move assignment is disabled because JUCE windows and owned runtime state are not
+    movable.
+    */
     MainWindow& operator=(MainWindow&&) = delete;
 
     /*! \brief Requests application quit when the user closes the window. */
@@ -82,10 +86,10 @@ private:
     std::unique_ptr<EditorSettings> m_settings;
 
     // Owns Tracktion-backed playback for the lifetime of the editor window.
-    std::unique_ptr<audio::Engine> m_audio_engine;
+    std::unique_ptr<rock_hero::audio::Engine> m_audio_engine;
 
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
-    std::unique_ptr<ui::Editor> m_editor;
+    std::unique_ptr<rock_hero::ui::Editor> m_editor;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::ui
