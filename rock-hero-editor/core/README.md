@@ -2,8 +2,9 @@
 
 Editor-specific headless workflow and policy belongs here.
 
-Allowed dependencies: `common/core`, `common/audio::api`, and private editor project and song
-import format dependencies.
+Allowed dependencies: `common/core`, `common/audio`, and private editor project and song import
+format dependencies. Use audio ports here unless a concrete engine type is truly part of the
+headless workflow boundary.
 
 Do not place JUCE widgets, concrete audio engines, app startup, or Tracktion implementation details
 here.

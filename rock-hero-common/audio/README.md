@@ -2,15 +2,13 @@
 
 Shared audio contracts and the default shared audio implementation belong here.
 
-This module is intentionally split into:
+This module exposes one target:
 
-- `rock_hero::common::audio::api` for audio ports and project-owned contracts.
-- `rock_hero::common::audio::impl` for the current concrete Tracktion/JUCE-backed implementation.
-- `rock_hero::common::audio` as an app-facing umbrella over both.
+- `rock_hero::common::audio` for audio ports, project-owned contracts, and the current concrete
+  Tracktion/JUCE-backed adapter.
 
-Normal library code and most tests should link `rock_hero::common::audio::api`. App executables and
-concrete adapter tests may link `rock_hero::common::audio`. Normal library code should not link
-`rock_hero::common::audio::impl` directly.
+Normal library code should depend on the project-owned audio ports by convention. App composition
+code and concrete adapter tests may construct the default `Engine` implementation.
 
 Tracktion headers stay private to implementation files and private implementation headers. Public
 headers expose project-owned types and carefully chosen forward declarations.

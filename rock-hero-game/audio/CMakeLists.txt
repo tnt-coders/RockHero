@@ -10,5 +10,5 @@ target_include_directories(
 
 target_link_libraries(
     rock_hero_game_audio
-    PUBLIC rock_hero::common::core rock_hero::common::audio::api rock_hero::game::core
+    PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::game::core
     PRIVATE rock_hero::build_policy)
