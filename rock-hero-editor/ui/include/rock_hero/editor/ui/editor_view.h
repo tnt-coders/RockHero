@@ -12,13 +12,13 @@
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/ui/arrangement_view.h>
-#include <rock_hero/ui/editor_view_state.h>
-#include <rock_hero/ui/i_editor_controller.h>
-#include <rock_hero/ui/i_editor_view.h>
-#include <rock_hero/ui/transport_controls.h>
+#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/ui/arrangement_view.h>
+#include <rock_hero/editor/ui/transport_controls.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -36,14 +36,14 @@ namespace rock_hero::ui
 /*!
 \brief JUCE implementation of the editor view contract.
 
-EditorView renders transition-shaped EditorViewState, owns concrete child widgets, and forwards
-user intent to IEditorController. It also owns one editor-wide cursor overlay that reads current
+EditorView renders transition-shaped editor state, owns concrete child widgets, and forwards user
+intent to the editor controller. It also owns one editor-wide cursor overlay that reads current
 position through a const common::audio::ITransport reference at vblank cadence; current cursor
-position is not part of EditorViewState.
+position is not part of the derived editor state.
 */
 class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
-                         public IEditorView,
+                         public core::IEditorView,
                          private TransportControls::Listener
 {
 public:
@@ -54,7 +54,7 @@ public:
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
     */
     EditorView(
-        IEditorController& controller, const common::audio::ITransport& transport,
+        core::IEditorController& controller, const common::audio::ITransport& transport,
         common::audio::IThumbnailFactory& thumbnail_factory);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
@@ -76,7 +76,7 @@ public:
     \brief Applies transition-shaped editor state to child widgets.
     \param state State derived by the controller.
     */
-    void setState(const EditorViewState& state) override;
+    void setState(const core::EditorViewState& state) override;
 
     /*!
     \brief Paints the editor background behind child widgets.
@@ -150,10 +150,11 @@ private:
     void presentErrorIfNeeded(const std::optional<std::string>& error);
 
     // Presents an unsaved-changes prompt once per prompt request.
-    void presentUnsavedChangesPromptIfNeeded(const std::optional<UnsavedChangesPrompt>& prompt);
+    void presentUnsavedChangesPromptIfNeeded(
+        const std::optional<core::UnsavedChangesPrompt>& prompt);
 
     // Presents a Save As chooser once per controller-requested prompt.
-    void presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& prompt);
+    void presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt);
 
     // Returns the editor area assigned to the scrollable track viewport.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
@@ -168,10 +169,10 @@ private:
     void onStopPressed() override;
 
     // Controller that owns editor workflow policy.
-    IEditorController& m_controller;
+    core::IEditorController& m_controller;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
-    EditorViewState m_state{};
+    core::EditorViewState m_state{};
 
     // Flat app-menu look-and-feel owned for the lifetime of the menu bar.
     std::unique_ptr<juce::LookAndFeel> m_menu_look_and_feel;
@@ -198,13 +199,13 @@ private:
     std::optional<std::string> m_last_presented_error{};
 
     // Last unsaved-changes prompt already shown to avoid re-opening dialogs on repeated pushes.
-    std::optional<UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};
+    std::optional<core::UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
-    std::optional<SaveAsPrompt> m_last_presented_save_as_prompt{};
+    std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

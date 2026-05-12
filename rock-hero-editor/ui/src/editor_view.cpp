@@ -7,7 +7,7 @@
 #include <rock_hero/common/core/audio_asset.h>
 #include <utility>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -71,17 +71,17 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 }
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it.
-[[nodiscard]] juce::String unsavedChangesPromptMessage(PendingProjectAction action)
+[[nodiscard]] juce::String unsavedChangesPromptMessage(core::PendingProjectAction action)
 {
     switch (action)
     {
-    case PendingProjectAction::Close:
+    case core::PendingProjectAction::Close:
         return "Save changes before closing the current project?";
-    case PendingProjectAction::Open:
+    case core::PendingProjectAction::Open:
         return "Save changes before opening another project?";
-    case PendingProjectAction::Import:
+    case core::PendingProjectAction::Import:
         return "Save changes before importing another project?";
-    case PendingProjectAction::Exit:
+    case core::PendingProjectAction::Exit:
         return "Save changes before exiting Rock Hero Editor?";
     }
 
@@ -113,7 +113,7 @@ class EditorView::CursorOverlay final : public juce::Component
 {
 public:
     // Starts vblank-driven cursor refresh against the injected read-only transport.
-    CursorOverlay(IEditorController& controller, const common::audio::ITransport& transport)
+    CursorOverlay(core::IEditorController& controller, const common::audio::ITransport& transport)
         : m_controller(controller)
         , m_transport(transport)
         , m_vblank_attachment(this, [this] { advanceCursor(); })
@@ -199,7 +199,7 @@ private:
     }
 
     // Controller receives editor-level timeline seek intent.
-    IEditorController& m_controller;
+    core::IEditorController& m_controller;
 
     // Read-only transport source sampled at vblank cadence for its live position method.
     const common::audio::ITransport& m_transport;
@@ -566,7 +566,7 @@ private:
     // Tracks empty vs loaded display mode for layout and zoom gating.
     bool m_project_loaded{false};
 
-    // Coarse playing flag from EditorViewState, used to avoid vblank state polling.
+    // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};
 
     // True for one follow tick after playback starts so the viewport can reveal the cursor.
@@ -610,7 +610,7 @@ public:
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
-    IEditorController& controller, const common::audio::ITransport& transport,
+    core::IEditorController& controller, const common::audio::ITransport& transport,
     common::audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(controller)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
@@ -645,7 +645,7 @@ EditorView::~EditorView()
 }
 
 // Projects controller-derived state into child widgets and cursor mapping state.
-void EditorView::setState(const EditorViewState& state)
+void EditorView::setState(const core::EditorViewState& state)
 {
     m_state = state;
 
@@ -918,7 +918,7 @@ void EditorView::presentErrorIfNeeded(const std::optional<std::string>& error)
 
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.
 void EditorView::presentUnsavedChangesPromptIfNeeded(
-    const std::optional<UnsavedChangesPrompt>& prompt)
+    const std::optional<core::UnsavedChangesPrompt>& prompt)
 {
     if (!prompt.has_value())
     {
@@ -951,20 +951,23 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
             switch (button_index)
             {
             case 0:
-                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Save);
+                safe_this->m_controller.onUnsavedChangesDecision(
+                    core::UnsavedChangesDecision::Save);
                 break;
             case 1:
-                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+                safe_this->m_controller.onUnsavedChangesDecision(
+                    core::UnsavedChangesDecision::Discard);
                 break;
             default:
-                safe_this->m_controller.onUnsavedChangesDecision(UnsavedChangesDecision::Cancel);
+                safe_this->m_controller.onUnsavedChangesDecision(
+                    core::UnsavedChangesDecision::Cancel);
                 break;
             }
         });
 }
 
 // Shows a controller-requested Save As chooser once and reports cancellation when needed.
-void EditorView::presentSaveAsPromptIfNeeded(const std::optional<SaveAsPrompt>& prompt)
+void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt)
 {
     if (!prompt.has_value())
     {
@@ -1032,4 +1035,4 @@ void EditorView::onStopPressed()
     m_controller.onStopPressed();
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

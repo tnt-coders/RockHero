@@ -5,9 +5,9 @@
 
 #pragma once
 
-#include <rock_hero/ui/editor_view_state.h>
+#include <rock_hero/editor/core/editor_view_state.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -51,4 +51,4 @@ protected:
     IEditorView& operator=(IEditorView&&) = default;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

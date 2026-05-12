@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -32,4 +32,4 @@ struct TransportControlsState
         default;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

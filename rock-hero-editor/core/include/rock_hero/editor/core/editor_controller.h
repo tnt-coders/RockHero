@@ -14,12 +14,12 @@
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
-#include <rock_hero/ui/editor_view_state.h>
-#include <rock_hero/ui/i_editor_controller.h>
-#include <rock_hero/ui/i_editor_view.h>
+#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 /*! \brief Opens a native package into a project context and returns the parsed song. */
@@ -329,4 +329,4 @@ private:
         m_transport_listener;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

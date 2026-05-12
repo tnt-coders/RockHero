@@ -6,11 +6,11 @@
 #include <optional>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
-#include <rock_hero/ui/arrangement_view.h>
+#include <rock_hero/editor/ui/arrangement_view.h>
 #include <utility>
 #include <vector>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -130,11 +130,11 @@ public:
 };
 
 // Builds arrangement-view state with full-source audio.
-[[nodiscard]] ArrangementViewState makeArrangementState(
+[[nodiscard]] core::ArrangementViewState makeArrangementState(
     std::filesystem::path path,
     common::core::TimeDuration duration = common::core::TimeDuration{4.0})
 {
-    return ArrangementViewState{
+    return core::ArrangementViewState{
         .audio_asset = common::core::AudioAsset{std::move(path)},
         .audio_duration = duration,
     };
@@ -170,7 +170,8 @@ TEST_CASE("ArrangementView reuses thumbnail source", "[ui][arrangement-view]")
     ArrangementView view;
     view.setThumbnailFactory(thumbnail_factory);
 
-    const ArrangementViewState state = makeArrangementState(std::filesystem::path{"full_mix.wav"});
+    const core::ArrangementViewState state =
+        makeArrangementState(std::filesystem::path{"full_mix.wav"});
 
     view.setState(state);
     view.setState(state);
@@ -277,4 +278,4 @@ TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement
     }
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

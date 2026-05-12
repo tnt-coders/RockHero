@@ -1,8 +1,8 @@
 #include "main_window.h"
 
 #include <rock_hero/common/audio/engine.h>
+#include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/editor_settings.h>
-#include <rock_hero/ui/editor.h>
 
 namespace rock_hero::editor::ui
 {
@@ -19,7 +19,7 @@ MainWindow::MainWindow(const juce::String& title)
 {
     // Engine implements each editor-facing audio port. Passing it for each role keeps Editor
     // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
-    m_editor = std::make_unique<rock_hero::ui::Editor>(
+    m_editor = std::make_unique<Editor>(
         *m_audio_engine,
         *m_audio_engine,
         *m_audio_engine,

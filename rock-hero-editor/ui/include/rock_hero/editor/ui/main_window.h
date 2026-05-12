@@ -16,14 +16,10 @@ namespace rock_hero::common::audio
 class Engine;
 } // namespace rock_hero::common::audio
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 // Forward-declared so the window can install the composed editor without exposing UI internals.
 class Editor;
-} // namespace rock_hero::ui
-
-namespace rock_hero::editor::ui
-{
 
 // Forward-declared so the window can persist app-local editor settings privately.
 class EditorSettings;
@@ -37,7 +33,7 @@ The destructor clears the DocumentWindow's non-owning content pointer before mem
 to avoid dangling-pointer issues during teardown.
 
 \see rock_hero::common::audio::Engine
-\see rock_hero::ui::Editor
+\see rock_hero::editor::ui::Editor
 */
 class MainWindow : public juce::DocumentWindow
 {
@@ -89,7 +85,7 @@ private:
     std::unique_ptr<rock_hero::common::audio::Engine> m_audio_engine;
 
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
-    std::unique_ptr<rock_hero::ui::Editor> m_editor;
+    std::unique_ptr<Editor> m_editor;
 };
 
 } // namespace rock_hero::editor::ui

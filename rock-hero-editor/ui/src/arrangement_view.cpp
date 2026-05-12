@@ -6,7 +6,7 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -68,7 +68,7 @@ struct WaveformDrawRequest
 
 // Builds the draw range and bounds for the visible portion of full-source arrangement audio.
 [[nodiscard]] std::optional<WaveformDrawRequest> waveformDrawRequest(
-    const ArrangementViewState& state, common::core::TimeRange visible_timeline,
+    const core::ArrangementViewState& state, common::core::TimeRange visible_timeline,
     juce::Rectangle<int> view_bounds) noexcept
 {
     const common::core::TimeRange audio_timeline = state.audioTimelineRange();
@@ -117,7 +117,7 @@ void ArrangementView::setVisibleTimeline(common::core::TimeRange visible_timelin
 }
 
 // Stores the new arrangement-view state, refreshes the thumbnail source, and repaints.
-void ArrangementView::setState(const ArrangementViewState& state)
+void ArrangementView::setState(const core::ArrangementViewState& state)
 {
     m_state = state;
     applyCurrentAudioToThumbnailIfNeeded();
@@ -233,4 +233,4 @@ void ArrangementView::applyCurrentAudioToThumbnailIfNeeded()
     m_thumbnail_source_asset = m_state.audio_asset;
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui
