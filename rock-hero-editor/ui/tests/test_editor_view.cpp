@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
@@ -739,7 +740,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
-    const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
+    const float click_x = std::floor(static_cast<float>(cursor_overlay.getWidth()) * 0.25f) + 0.5f;
     const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
     REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
     REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
@@ -748,7 +749,9 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     CHECK(controller.waveform_click_count == 1);
     const auto last_normalized_x = controller.last_normalized_x;
     REQUIRE(last_normalized_x.has_value());
-    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(0.25));
+    const double expected_normalized_x =
+        static_cast<double>(click_x) / static_cast<double>(cursor_overlay.getWidth());
+    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
 }
 
 // Verifies the focusable editor root maps keyboard play/pause to the transport intent.
