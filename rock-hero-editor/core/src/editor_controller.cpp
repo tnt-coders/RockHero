@@ -9,6 +9,7 @@
 #include <rock_hero/editor/core/psarc_song_importer.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
+#include <system_error>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -73,8 +74,15 @@ namespace
 }
 
 // Production exit fallback used when a composition host does not provide an exit callback.
-void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
+void defaultExit()
 {}
+
+// Uses the real filesystem to avoid adding another startup-restore callback seam.
+[[nodiscard]] bool projectFileExists(const std::filesystem::path& project_file)
+{
+    std::error_code error;
+    return std::filesystem::is_regular_file(project_file, error);
+}
 
 // Resolves persisted arrangement IDs to the current song order, falling back to the first item.
 [[nodiscard]] std::size_t getSelectedArrangementIndex(
@@ -102,20 +110,26 @@ void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
-    common::audio::ITransport& transport, common::audio::IAudio& audio, OpenFunction open_function,
-    ImportFunction import_function, SaveFunction save_function, SaveAsFunction save_as_function,
-    PublishFunction publish_function, ExitFunction exit_function)
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
-    , m_open_function(open_function ? std::move(open_function) : OpenFunction{defaultOpen})
+    , m_open_function(
+          services.open_function ? std::move(services.open_function) : OpenFunction{defaultOpen})
     , m_import_function(
-          import_function ? std::move(import_function) : ImportFunction{defaultImport})
-    , m_save_function(save_function ? std::move(save_function) : SaveFunction{defaultSave})
+          services.import_function ? std::move(services.import_function)
+                                   : ImportFunction{defaultImport})
+    , m_save_function(
+          services.save_function ? std::move(services.save_function) : SaveFunction{defaultSave})
     , m_save_as_function(
-          save_as_function ? std::move(save_as_function) : SaveAsFunction{defaultSaveAs})
+          services.save_as_function ? std::move(services.save_as_function)
+                                    : SaveAsFunction{defaultSaveAs})
     , m_publish_function(
-          publish_function ? std::move(publish_function) : PublishFunction{defaultPublish})
-    , m_exit_function(exit_function ? std::move(exit_function) : ExitFunction{defaultExit})
+          services.publish_function ? std::move(services.publish_function)
+                                    : PublishFunction{defaultPublish})
+    , m_exit_function(
+          services.exit_function ? std::move(services.exit_function) : ExitFunction{defaultExit})
+    , m_settings(services.settings)
     , m_transport_listener(transport, *this)
 {
     m_last_state = deriveViewState();
@@ -480,7 +494,11 @@ void EditorController::performProjectAction(const PendingProjectRequest& request
         if (closeProject())
         {
             clearPendingProjectAction();
-            m_exit_function(restorable_project_file);
+            if (m_settings != nullptr)
+            {
+                m_settings->setLastOpenProject(restorable_project_file);
+            }
+            m_exit_function();
         }
         break;
     }
@@ -581,6 +599,35 @@ std::optional<std::filesystem::path> EditorController::currentProjectFile() cons
     }
 
     return m_project_file;
+}
+
+// Restores a settings-backed project and clears stale restore state when the path cannot load.
+void EditorController::restoreLastOpenProject()
+{
+    if (m_settings == nullptr)
+    {
+        return;
+    }
+
+    const std::optional<std::filesystem::path> project_file = m_settings->lastOpenProject();
+    if (!project_file.has_value())
+    {
+        return;
+    }
+
+    if (!projectFileExists(*project_file))
+    {
+        m_settings->setLastOpenProject(std::nullopt);
+        return;
+    }
+
+    onOpenRequested(*project_file);
+    const std::optional<std::filesystem::path> opened_project = currentProjectFile();
+    if (!opened_project.has_value() ||
+        opened_project->lexically_normal() != project_file->lexically_normal())
+    {
+        m_settings->setLastOpenProject(std::nullopt);
+    }
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.

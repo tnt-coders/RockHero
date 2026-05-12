@@ -1,5 +1,8 @@
 #include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
+#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/ui/main_window.h>
 
 namespace rock_hero::editor::app
@@ -30,13 +33,27 @@ public:
     // Creates the editor window once JUCE has entered application startup.
     void initialise(const juce::String& /*command_line*/) override
     {
-        m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(getApplicationName());
+        m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
+        m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
+
+        // Engine implements each editor-facing audio port. Passing it for each role keeps UI code
+        // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
+        m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
+            getApplicationName(),
+            *m_audio_engine,
+            *m_audio_engine,
+            *m_audio_engine,
+            *m_editor_settings,
+            [this] { quit(); });
+        m_main_window->restoreLastOpenProject();
     }
 
     // Releases the editor window before JUCE tears down the application object.
     void shutdown() override
     {
         m_main_window.reset();
+        m_editor_settings.reset();
+        m_audio_engine.reset();
     }
 
     // Handles platform quit requests through JUCE's normal quit path.
@@ -52,6 +69,12 @@ public:
     }
 
 private:
+    // Owns Tracktion-backed playback for the lifetime of the editor window.
+    std::unique_ptr<rock_hero::common::audio::Engine> m_audio_engine;
+
+    // Owns app-local editor settings persistence used by controller restore policy.
+    std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
+
     // Owns the editor window after JUCE startup and releases it during shutdown.
     std::unique_ptr<rock_hero::editor::ui::MainWindow> m_main_window;
 };
