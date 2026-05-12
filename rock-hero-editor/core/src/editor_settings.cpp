@@ -1,6 +1,6 @@
 #include "editor_settings.h"
 
-namespace rock_hero::editor::ui
+namespace rock_hero::editor::core
 {
 
 namespace
@@ -62,7 +62,7 @@ EditorSettings::EditorSettings()
     : m_properties(editorSettingsOptions())
 {}
 
-// Opens an explicit settings file so app-shell behavior can be exercised in isolation.
+// Opens an explicit settings file so lifecycle behavior can be exercised in isolation.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
     : m_properties(fileFromPath(settings_file), editorSettingsOptions())
 {}
@@ -94,4 +94,4 @@ void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> pro
     m_properties.saveIfNeeded();
 }
 
-} // namespace rock_hero::editor::ui
+} // namespace rock_hero::editor::core

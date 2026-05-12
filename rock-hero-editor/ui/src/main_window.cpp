@@ -1,30 +1,30 @@
 #include "main_window.h"
 
-#include <rock_hero/common/audio/engine.h>
 #include <rock_hero/editor/ui/editor.h>
-#include <rock_hero/editor/ui/editor_settings.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
 
-// Owns the editor runtime dependencies before creating the editor feature that stores references.
-MainWindow::MainWindow(const juce::String& title)
+// Installs the composed editor UI around app-owned runtime dependencies.
+MainWindow::MainWindow(
+    const juce::String& title, common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IThumbnailFactory& thumbnail_factory, core::EditorSettings& settings,
+    ExitCallback exit_callback)
     : juce::DocumentWindow(
           title,
           juce::Desktop::getInstance().getDefaultLookAndFeel().findColour(
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons)
-    , m_settings(std::make_unique<EditorSettings>())
-    , m_audio_engine(std::make_unique<rock_hero::common::audio::Engine>())
+    , m_exit_callback(std::move(exit_callback))
 {
-    // Engine implements each editor-facing audio port. Passing it for each role keeps Editor
-    // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
     m_editor = std::make_unique<Editor>(
-        *m_audio_engine,
-        *m_audio_engine,
-        *m_audio_engine,
-        [this](std::optional<std::filesystem::path> project_file) {
-            closeWindow(std::move(project_file));
+        transport,
+        audio,
+        thumbnail_factory,
+        core::EditorController::Services{
+            .exit_function = m_exit_callback,
+            .settings = &settings,
         });
 
     setUsingNativeTitleBar(true);
@@ -32,7 +32,6 @@ MainWindow::MainWindow(const juce::String& title)
     setResizable(true, false);
     centreWithSize(1280, 800);
     setVisible(true);
-    restoreLastOpenProject();
 }
 
 // Removes JUCE's non-owning pointers before owned content and engine members are destroyed.
@@ -58,53 +57,18 @@ void MainWindow::requestExit()
         return;
     }
 
-    if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
+    if (m_exit_callback)
     {
-        app->quit();
+        m_exit_callback();
     }
 }
 
-// Attempts to reopen the project that was loaded when the previous editor process exited.
+// Starts settings-backed project restore after the editor feature is installed in the window.
 void MainWindow::restoreLastOpenProject()
 {
-    if (m_editor == nullptr || m_settings == nullptr)
+    if (m_editor != nullptr)
     {
-        return;
-    }
-
-    const std::optional<std::filesystem::path> project_file = m_settings->lastOpenProject();
-    if (!project_file.has_value())
-    {
-        return;
-    }
-
-    std::error_code error;
-    if (!std::filesystem::is_regular_file(*project_file, error))
-    {
-        m_settings->setLastOpenProject(std::nullopt);
-        return;
-    }
-
-    m_editor->openProject(*project_file);
-    const std::optional<std::filesystem::path> opened_project = m_editor->currentProjectFile();
-    if (!opened_project.has_value() ||
-        opened_project->lexically_normal() != project_file->lexically_normal())
-    {
-        m_settings->setLastOpenProject(std::nullopt);
-    }
-}
-
-// Saves app-local restore state, then runs normal JUCE application shutdown.
-void MainWindow::closeWindow(std::optional<std::filesystem::path> project_file)
-{
-    if (m_settings != nullptr)
-    {
-        m_settings->setLastOpenProject(std::move(project_file));
-    }
-
-    if (auto* app = juce::JUCEApplicationBase::getInstance(); app != nullptr)
-    {
-        app->quit();
+        m_editor->restoreLastOpenProject();
     }
 }
 

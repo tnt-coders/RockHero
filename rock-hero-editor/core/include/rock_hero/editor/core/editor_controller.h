@@ -13,6 +13,7 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/session.h>
+#include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
@@ -21,30 +22,6 @@
 
 namespace rock_hero::editor::core
 {
-
-/*! \brief Opens an editor project package into a project context and returns the parsed song. */
-using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
-    Project& project, const std::filesystem::path& path)>;
-
-/*! \brief Imports a song source into a project context and returns the parsed song. */
-using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
-    Project& project, const std::filesystem::path& path)>;
-
-/*! \brief Saves the current song through the project context. */
-using SaveFunction = std::function<std::expected<void, std::string>(
-    Project& project, const common::core::Song& song, ProjectEditorState editor_state)>;
-
-/*! \brief Saves the current song to a chosen path through the project context. */
-using SaveAsFunction = std::function<std::expected<void, std::string>(
-    Project& project, const std::filesystem::path& path, const common::core::Song& song,
-    ProjectEditorState editor_state)>;
-
-/*! \brief Publishes the current song to a chosen native song package path. */
-using PublishFunction = std::function<std::expected<void, std::string>(
-    Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
-
-/*! \brief Requests host exit with the editor project file to restore on next launch, if any. */
-using ExitFunction = std::function<void(std::optional<std::filesystem::path> project_file)>;
 
 /*!
 \brief Concrete editor workflow coordinator.
@@ -63,6 +40,61 @@ The referenced transport and audio ports must outlive the controller.
 class EditorController final : public IEditorController, private common::audio::ITransport::Listener
 {
 public:
+    /*! \brief Opens an editor project package into a project context. */
+    using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
+        Project& project, const std::filesystem::path& path)>;
+
+    /*! \brief Imports a song source into a project context. */
+    using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
+        Project& project, const std::filesystem::path& path)>;
+
+    /*! \brief Saves the current song through the project context. */
+    using SaveFunction = std::function<std::expected<void, std::string>(
+        Project& project, const common::core::Song& song, ProjectEditorState editor_state)>;
+
+    /*! \brief Saves the current song to a chosen path through the project context. */
+    using SaveAsFunction = std::function<std::expected<void, std::string>(
+        Project& project, const std::filesystem::path& path, const common::core::Song& song,
+        ProjectEditorState editor_state)>;
+
+    /*! \brief Publishes the current song to a chosen native song package path. */
+    using PublishFunction = std::function<std::expected<void, std::string>(
+        Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
+
+    /*! \brief Requests host exit after controller-level shutdown policy has completed. */
+    using ExitFunction = std::function<void()>;
+
+    /*!
+    \brief Optional services used by the editor controller.
+
+    Default-constructed functions are replaced with production project IO behavior. Tests and app
+    composition can replace only the services they need without relying on positional callback
+    arguments.
+    */
+    struct Services final
+    {
+        /*! \brief Opens editor project packages. */
+        OpenFunction open_function{};
+
+        /*! \brief Imports song sources into editor workspaces. */
+        ImportFunction import_function{};
+
+        /*! \brief Saves the current editor project. */
+        SaveFunction save_function{};
+
+        /*! \brief Saves the current editor project to a chosen path. */
+        SaveAsFunction save_as_function{};
+
+        /*! \brief Publishes the current song as a native song package. */
+        PublishFunction publish_function{};
+
+        /*! \brief Requests host shutdown after guarded editor exit succeeds. */
+        ExitFunction exit_function{};
+
+        /*! \brief Optional settings store used for startup restore and exit persistence. */
+        EditorSettings* settings{};
+    };
+
     /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
@@ -72,18 +104,10 @@ public:
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
-    \param open_function Optional seam used to open editor project packages.
-    \param import_function Optional seam used to import song sources.
-    \param save_function Optional seam used to save to the current destination.
-    \param save_as_function Optional seam used to save to a chosen destination.
-    \param publish_function Optional seam used to publish native song packages.
-    \param exit_function Optional seam used to request application exit.
+    \param services Optional project IO, settings, and host-exit services.
     */
     EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        OpenFunction open_function = {}, ImportFunction import_function = {},
-        SaveFunction save_function = {}, SaveAsFunction save_as_function = {},
-        PublishFunction publish_function = {}, ExitFunction exit_function = {});
+        common::audio::ITransport& transport, common::audio::IAudio& audio, Services services = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -127,6 +151,9 @@ public:
     \return Current `.rhp` project path, or empty when the loaded work has no project file.
     */
     [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
+
+    /*! \brief Restores the previously open project when settings contain a still-valid path. */
+    void restoreLastOpenProject();
 
     /*!
     \brief Handles a request to open an editor project package.
@@ -288,6 +315,9 @@ private:
 
     // Requests application exit from the composition host.
     ExitFunction m_exit_function;
+
+    // Optional app-local settings used to restore startup state and persist exit state.
+    EditorSettings* m_settings;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     IEditorView* m_view{nullptr};

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
@@ -10,12 +11,19 @@
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_controller.h>
+#include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <utility>
 #include <vector>
+
+#ifndef TEST_SETTINGS_DIR
+#define TEST_SETTINGS_DIR "."
+#endif
 
 namespace rock_hero::editor::core
 {
@@ -337,21 +345,21 @@ public:
         return std::expected<void, std::string>{};
     }
 
-    [[nodiscard]] OpenFunction openFunction() noexcept
+    [[nodiscard]] EditorController::OpenFunction openFunction() noexcept
     {
         return [this](Project& project, const std::filesystem::path& file) {
             return open(project, file);
         };
     }
 
-    [[nodiscard]] ImportFunction importFunction() noexcept
+    [[nodiscard]] EditorController::ImportFunction importFunction() noexcept
     {
         return [this](Project& project, const std::filesystem::path& file) {
             return import(project, file);
         };
     }
 
-    [[nodiscard]] SaveFunction saveFunction() noexcept
+    [[nodiscard]] EditorController::SaveFunction saveFunction() noexcept
     {
         return
             [this](
@@ -360,7 +368,7 @@ public:
             };
     }
 
-    [[nodiscard]] SaveAsFunction saveAsFunction() noexcept
+    [[nodiscard]] EditorController::SaveAsFunction saveAsFunction() noexcept
     {
         return [this](
                    Project& project,
@@ -371,7 +379,7 @@ public:
         };
     }
 
-    [[nodiscard]] PublishFunction publishFunction() noexcept
+    [[nodiscard]] EditorController::PublishFunction publishFunction() noexcept
     {
         return [this](
                    Project& project,
@@ -419,6 +427,52 @@ private:
 
         return audio_asset.path;
     }
+};
+
+// Owns build-local settings and project files used by restore/exit persistence tests.
+class ScopedControllerFiles final
+{
+public:
+    explicit ScopedControllerFiles(std::string_view base_name)
+        : m_settings_file(
+              std::filesystem::path{TEST_SETTINGS_DIR} / (std::string{base_name} + ".settings"))
+        , m_project_file(
+              std::filesystem::path{TEST_SETTINGS_DIR} / (std::string{base_name} + ".rhp"))
+    {
+        removeFiles();
+    }
+
+    ~ScopedControllerFiles()
+    {
+        removeFiles();
+    }
+
+    [[nodiscard]] const std::filesystem::path& settingsFile() const noexcept
+    {
+        return m_settings_file;
+    }
+
+    [[nodiscard]] const std::filesystem::path& projectFile() const noexcept
+    {
+        return m_project_file;
+    }
+
+    void createProjectFile() const
+    {
+        std::ofstream project_file{m_project_file};
+        project_file << "test project";
+    }
+
+private:
+    void removeFiles() const
+    {
+        std::error_code error;
+        std::filesystem::remove(m_settings_file, error);
+        std::filesystem::remove(m_project_file, error);
+    }
+
+    std::filesystem::path m_settings_file;
+    std::filesystem::path m_project_file;
 };
 
 // Provides a standard loaded-content range for controller tests.
@@ -646,7 +700,9 @@ TEST_CASE("EditorController derives visible timeline range", "[core][editor-cont
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(
         controller, project_io, audio, std::filesystem::path{"a.wav"}, loadedTimelineRange(8.0));
     FakeEditorView view;
@@ -668,7 +724,9 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(controller, project_io, audio, std::filesystem::path{"a.wav"});
     FakeEditorView view;
     controller.attachView(view);
@@ -709,7 +767,9 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[core][edito
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(controller, project_io, audio, std::filesystem::path{"a.wav"});
 
     controller.onPlayPausePressed();
@@ -741,7 +801,9 @@ TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-cont
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(controller, project_io, audio, std::filesystem::path{"a.wav"});
 
     controller.onStopPressed();
@@ -763,7 +825,9 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][e
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(controller, project_io, audio, std::filesystem::path{"a.wav"});
     FakeEditorView view;
     controller.attachView(view);
@@ -789,7 +853,9 @@ TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-co
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(
         controller, project_io, audio, std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
 
@@ -809,7 +875,9 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     loadArrangement(
         controller, project_io, audio, std::filesystem::path{"a.wav"}, loadedTimelineRange(4.0));
     FakeEditorView view;
@@ -834,7 +902,9 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
     loadArrangement(
         controller,
         project_load,
@@ -868,7 +938,9 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
     FakeEditorView view;
     controller.attachView(view);
 
@@ -922,7 +994,9 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    EditorController controller{transport, audio, project_io.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_io.openFunction()}
+    };
     FakeEditorView view;
     controller.attachView(view);
 
@@ -951,35 +1025,116 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     }
 }
 
-// Exiting reports the editor project path that should be restored on next launch.
-TEST_CASE("EditorController reports project file on exit", "[core][editor-controller]")
+// Missing restore paths are cleared without asking project IO to open anything.
+TEST_CASE("EditorController clears missing restore path", "[core][editor-controller]")
 {
+    const ScopedControllerFiles files{"missing_restore_path"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
-    int exit_call_count = 0;
-    std::optional<std::filesystem::path> exit_project_file{};
     EditorController controller{
         transport,
         audio,
-        project_io.openFunction(),
-        ImportFunction{},
-        SaveFunction{},
-        SaveAsFunction{},
-        PublishFunction{},
-        [&exit_call_count, &exit_project_file](std::optional<std::filesystem::path> project_file) {
-            exit_project_file = std::move(project_file);
-            ++exit_call_count;
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .settings = &settings,
+        },
+    };
+
+    controller.restoreLastOpenProject();
+
+    CHECK(project_io.open_call_count == 0);
+    CHECK_FALSE(settings.lastOpenProject().has_value());
+}
+
+// Valid restore paths are opened and kept when the controller accepts the project.
+TEST_CASE("EditorController restores valid last project", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"valid_restore_path"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .settings = &settings,
         },
     };
 
     project_io.next_song = makeSong(std::filesystem::path{"song.wav"});
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    controller.restoreLastOpenProject();
+
+    CHECK(project_io.open_call_count == 1);
+    CHECK(project_io.last_open_file == std::optional{files.projectFile()});
+    CHECK(controller.currentProjectFile() == std::optional{files.projectFile()});
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+}
+
+// A stored project path rejected by open is removed from future startup restore state.
+TEST_CASE("EditorController clears restore path when open fails", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"failed_restore_path"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectIo project_io;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .settings = &settings,
+        },
+    };
+
+    controller.restoreLastOpenProject();
+
+    CHECK(project_io.open_call_count == 1);
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    CHECK_FALSE(settings.lastOpenProject().has_value());
+}
+
+// Exiting persists the editor project path before requesting host shutdown.
+TEST_CASE("EditorController persists project file on exit", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"persist_loaded_exit"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectIo project_io;
+    int exit_call_count = 0;
+    std::optional<std::filesystem::path> setting_seen_at_exit{};
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .exit_function =
+                [&exit_call_count, &setting_seen_at_exit, &settings] {
+                    setting_seen_at_exit = settings.lastOpenProject();
+                    ++exit_call_count;
+                },
+            .settings = &settings,
+        },
+    };
+
+    project_io.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(files.projectFile());
 
     controller.onExitRequested();
 
     CHECK(exit_call_count == 1);
-    CHECK(exit_project_file == std::optional{std::filesystem::path{"song.rhp"}});
+    CHECK(setting_seen_at_exit == std::optional{files.projectFile()});
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
     CHECK_FALSE(controller.currentProjectFile().has_value());
 }
 
@@ -992,10 +1147,11 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     EditorController controller{
         transport,
         audio,
-        project_io.openFunction(),
-        ImportFunction{},
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1033,10 +1189,11 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
     EditorController controller{
         transport,
         audio,
-        project_io.openFunction(),
-        ImportFunction{},
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1065,11 +1222,12 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     EditorController controller{
         transport,
         audio,
-        project_io.openFunction(),
-        ImportFunction{},
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
-        project_io.publishFunction(),
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+            .publish_function = project_io.publishFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1102,11 +1260,10 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
     EditorController controller{
         transport,
         audio,
-        project_io.openFunction(),
-        ImportFunction{},
-        SaveFunction{},
-        SaveAsFunction{},
-        project_io.publishFunction(),
+        EditorController::Services{
+            .open_function = project_io.openFunction(),
+            .publish_function = project_io.publishFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1135,7 +1292,12 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
     FakeAudio audio;
     FakeProjectIo project_load;
     EditorController controller{
-        transport, audio, project_load.openFunction(), project_load.importFunction()
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_load.openFunction(),
+            .import_function = project_load.importFunction(),
+        }
     };
     loadArrangement(
         controller,
@@ -1172,7 +1334,11 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, OpenFunction{}, project_load.importFunction()};
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{.import_function = project_load.importFunction()}
+    };
     FakeEditorView view;
     controller.attachView(view);
 
@@ -1229,10 +1395,11 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     EditorController controller{
         transport,
         audio,
-        OpenFunction{},
-        project_io.importFunction(),
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
+        EditorController::Services{
+            .import_function = project_io.importFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1291,10 +1458,11 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     EditorController controller{
         transport,
         audio,
-        OpenFunction{},
-        project_io.importFunction(),
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
+        EditorController::Services{
+            .import_function = project_io.importFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1338,10 +1506,11 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
     EditorController controller{
         transport,
         audio,
-        OpenFunction{},
-        project_io.importFunction(),
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
+        EditorController::Services{
+            .import_function = project_io.importFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+        },
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1381,22 +1550,22 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
 // Discarding unsaved import changes lets the pending exit request reach the host callback.
 TEST_CASE("EditorController prompts before exit with unsaved import", "[core][editor-controller]")
 {
+    const ScopedControllerFiles files{"discard_unsaved_import_exit"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_io;
     int exit_call_count = 0;
-    std::optional<std::filesystem::path> exit_project_file{std::filesystem::path{"old.rhp"}};
     EditorController controller{
         transport,
         audio,
-        OpenFunction{},
-        project_io.importFunction(),
-        project_io.saveFunction(),
-        project_io.saveAsFunction(),
-        PublishFunction{},
-        [&exit_call_count, &exit_project_file](std::optional<std::filesystem::path> project_file) {
-            exit_project_file = std::move(project_file);
-            ++exit_call_count;
+        EditorController::Services{
+            .import_function = project_io.importFunction(),
+            .save_function = project_io.saveFunction(),
+            .save_as_function = project_io.saveAsFunction(),
+            .exit_function = [&exit_call_count] { ++exit_call_count; },
+            .settings = &settings,
         },
     };
     FakeEditorView view;
@@ -1421,7 +1590,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
 
     CHECK(audio.clear_active_arrangement_call_count >= 1);
     CHECK(exit_call_count == 1);
-    CHECK_FALSE(exit_project_file.has_value());
+    CHECK_FALSE(settings.lastOpenProject().has_value());
 }
 
 // Project packages do not carry editor selection state, so the controller opens index zero.
@@ -1430,7 +1599,9 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
 
     const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
     const common::core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
@@ -1450,7 +1621,9 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
     FakeEditorView view;
     controller.attachView(view);
 
@@ -1480,7 +1653,9 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
     FakeEditorView view;
     controller.attachView(view);
     const int pushes_before_load = view.set_state_call_count;
@@ -1513,7 +1688,9 @@ TEST_CASE(
     FakeTransport transport;
     FakeAudio audio;
     FakeProjectIo project_load;
-    EditorController controller{transport, audio, project_load.openFunction()};
+    EditorController controller{
+        transport, audio, EditorController::Services{.open_function = project_load.openFunction()}
+    };
     loadArrangement(controller, project_load, audio, std::filesystem::path{"old.wav"});
     audio.next_set_active_arrangement_result = false;
     project_load.next_song = makeSong(std::filesystem::path{"new.wav"});

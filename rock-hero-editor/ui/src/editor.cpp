@@ -8,10 +8,8 @@ namespace rock_hero::editor::ui
 // Wires the controller and view after construction dependencies are available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    common::audio::IThumbnailFactory& thumbnail_factory, core::ExitFunction exit_function)
-    : m_controller(
-          transport, audio, core::OpenFunction{}, core::ImportFunction{}, core::SaveFunction{},
-          core::SaveAsFunction{}, core::PublishFunction{}, std::move(exit_function))
+    common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
+    : m_controller(transport, audio, std::move(services))
     , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);
@@ -36,6 +34,12 @@ void Editor::openProject(std::filesystem::path file)
 std::optional<std::filesystem::path> Editor::currentProjectFile() const
 {
     return m_controller.currentProjectFile();
+}
+
+// Starts settings-backed project restore after the full view/controller stack is ready.
+void Editor::restoreLastOpenProject()
+{
+    m_controller.restoreLastOpenProject();
 }
 
 // Lets the app window close button use the same unsaved-change gate as File > Exit.
