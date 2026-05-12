@@ -5,7 +5,7 @@ find_package(libzip REQUIRED)
 find_package(nlohmann_json REQUIRED)
 
 # Shared framework-free domain library for song/session state and native song package persistence.
-target_sources(rock_hero_common_core PRIVATE src/session.cpp src/song.cpp src/song_package.cpp)
+target_sources(rock_hero_common_core PRIVATE src/session.cpp src/song.cpp src/rock_song_package.cpp)
 
 target_include_directories(
     rock_hero_common_core

@@ -6,7 +6,7 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
-#include <rock_hero/common/core/song_package.h>
+#include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -188,7 +188,7 @@ std::optional<std::string> writeProjectFiles(
     const ProjectEditorState& editor_state)
 {
     const std::filesystem::path song_directory = workspace_directory / g_song_directory_name;
-    const auto song_files = common::core::writeSongPackageDirectory(song_directory, song);
+    const auto song_files = common::core::writeRockSongPackageDirectory(song_directory, song);
     if (!song_files.has_value())
     {
         return song_files.error();

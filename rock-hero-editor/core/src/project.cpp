@@ -11,7 +11,7 @@
 #include <optional>
 #include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/song_package.h>
+#include <rock_hero/common/core/rock_song_package.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <string>
 #include <system_error>
@@ -245,7 +245,7 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
         return failProjectLoad(std::move(editor_state.error()));
     }
 
-    auto loaded_song = common::core::readSongPackageDirectory(
+    auto loaded_song = common::core::readRockSongPackageDirectory(
         loaded_project.m_workspace_directory / project_io::g_song_directory_name);
     if (!loaded_song.has_value())
     {
@@ -438,7 +438,7 @@ std::expected<void, std::string> Project::publish(
         return failProjectPublish("Project workspace does not exist");
     }
 
-    if (const auto song_files = common::core::writeSongPackageDirectory(song_directory, song);
+    if (const auto song_files = common::core::writeRockSongPackageDirectory(song_directory, song);
         !song_files.has_value())
     {
         return failProjectPublish(song_files.error());
