@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 namespace
@@ -72,4 +72,4 @@ bool TracktionThumbnail::drawChannels(
     return true;
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

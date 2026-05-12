@@ -19,7 +19,7 @@ class Graphics;
 template <typename ValueType> class Rectangle;
 } // namespace juce
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
@@ -105,4 +105,4 @@ protected:
     IThumbnail& operator=(IThumbnail&&) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

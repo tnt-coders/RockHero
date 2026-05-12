@@ -3,11 +3,11 @@
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/audio/engine.h>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 namespace
@@ -375,4 +375,4 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     transport.removeListener(recorder);
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

@@ -13,7 +13,7 @@ namespace juce
 class Component;
 } // namespace juce
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 // Forward declaration of the Tracktion-free thumbnail interface created by the factory.
@@ -64,4 +64,4 @@ protected:
     IThumbnailFactory& operator=(IThumbnailFactory&&) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

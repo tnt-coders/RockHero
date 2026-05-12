@@ -6,9 +6,9 @@
 #pragma once
 
 #include <memory>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_transport.h>
 
 namespace juce
 {
@@ -19,7 +19,7 @@ class Component;
 class File;
 } // namespace juce
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 // Forward declaration of the Tracktion-free thumbnail interface returned by Engine.
@@ -29,14 +29,14 @@ class IThumbnail;
 \brief Isolation layer between Tracktion Engine and the rest of the application.
 
 All other code depends on the project-owned audio interfaces rather than on Tracktion directly.
-This boundary enables a fallback-to-raw-JUCE strategy: only rock-hero-audio implementation files
+This boundary enables a fallback-to-raw-JUCE strategy: only common/audio implementation files
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
 uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
 called on the message thread.
 
-\see rock_hero::MainWindow
+\see rock_hero::editor::ui::MainWindow
 */
 class Engine : public ITransport, public IAudio, public IThumbnailFactory
 {
@@ -155,4 +155,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

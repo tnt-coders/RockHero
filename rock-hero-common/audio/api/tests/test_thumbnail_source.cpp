@@ -1,10 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
-#include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <type_traits>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 // Verifies the public IThumbnail surface accepts the project-owned asset value directly.
@@ -27,4 +27,4 @@ TEST_CASE("IThumbnailFactory creates IThumbnail adapters", "[audio][thumbnail]")
     SUCCEED();
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

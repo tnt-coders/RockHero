@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*! \brief Message-thread snapshot of coarse transport playback state. */
@@ -23,4 +23,4 @@ struct TransportState
     friend bool operator==(const TransportState& lhs, const TransportState& rhs) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

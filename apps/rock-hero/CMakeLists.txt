@@ -19,8 +19,8 @@ target_sources(rock_hero PRIVATE main.cpp)
 # Generate JUCE's project metadata umbrella for this app target.
 rock_hero_juce_generate_juce_header(rock_hero)
 
-# Compose the game from project libraries plus the JUCE GUI wrapper needed by public headers.
-target_link_libraries(rock_hero PRIVATE rock_hero::ui rock_hero::audio rock_hero::common::core
+# App-level composition may use scope umbrellas. Libraries should link narrower targets.
+target_link_libraries(rock_hero PRIVATE rock_hero::common rock_hero::game
                                         rock_hero::juce_gui_basics rock_hero::build_policy)
 
 # Register the packaged desktop app metadata and icons.

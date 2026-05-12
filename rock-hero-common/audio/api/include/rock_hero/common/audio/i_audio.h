@@ -8,7 +8,7 @@
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/song.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
@@ -73,4 +73,4 @@ protected:
     IAudio& operator=(IAudio&&) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

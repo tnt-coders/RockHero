@@ -5,17 +5,17 @@
 
 #pragma once
 
-#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
 #include <tracktion_engine/tracktion_engine.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
 \brief Tracktion-backed adapter that satisfies the IThumbnail interface.
 
 Wraps tracktion::SmartThumbnail so that consumers of the IThumbnail port do not see Tracktion
-types. Visible only inside rock-hero-audio; callers obtain instances through the
+types. Visible only inside common/audio/impl; callers obtain instances through the
 IThumbnailFactory port.
 
 \see IThumbnail
@@ -64,4 +64,4 @@ private:
     double m_source_length_seconds{0.0};
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

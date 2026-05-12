@@ -10,11 +10,11 @@
 #include <memory>
 #include <optional>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 // Forward-declared so the editor window can own the engine without exposing its header here.
 class Engine;
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio
 
 namespace rock_hero::ui
 {
@@ -36,14 +36,14 @@ Owns the concrete audio engine and composed editor UI feature.
 The destructor clears the DocumentWindow's non-owning content pointer before member destruction
 to avoid dangling-pointer issues during teardown.
 
-\see rock_hero::audio::Engine
+\see rock_hero::common::audio::Engine
 \see rock_hero::ui::Editor
 */
 class MainWindow : public juce::DocumentWindow
 {
 public:
     /*!
-    \brief Creates the window, its audio::Engine, and editor component.
+    \brief Creates the window, its shared audio engine, and editor component.
     \param title Text shown in the title bar, typically the app name.
     */
     explicit MainWindow(const juce::String& title);
@@ -86,7 +86,7 @@ private:
     std::unique_ptr<EditorSettings> m_settings;
 
     // Owns Tracktion-backed playback for the lifetime of the editor window.
-    std::unique_ptr<rock_hero::audio::Engine> m_audio_engine;
+    std::unique_ptr<rock_hero::common::audio::Engine> m_audio_engine;
 
     // Owns the UI component tree installed into the non-owning DocumentWindow content slot.
     std::unique_ptr<rock_hero::ui::Editor> m_editor;

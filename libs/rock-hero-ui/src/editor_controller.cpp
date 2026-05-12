@@ -104,7 +104,7 @@ void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
 // Subscribes for coarse transport transitions and captures an initial derived state; no view push
 // happens here because the view binding does not exist until attachView().
 EditorController::EditorController(
-    audio::ITransport& transport, audio::IAudio& audio, OpenFunction open_function,
+    common::audio::ITransport& transport, common::audio::IAudio& audio, OpenFunction open_function,
     ImportFunction import_function, SaveFunction save_function, SaveAsFunction save_as_function,
     PublishFunction publish_function, ExitFunction exit_function)
     : m_transport(transport)
@@ -403,7 +403,7 @@ void EditorController::onPlayPausePressed()
 // transport the view considers already reset.
 void EditorController::onStopPressed()
 {
-    const audio::TransportState transport_state = m_transport.state();
+    const common::audio::TransportState transport_state = m_transport.state();
     if (!canStopTransport(transport_state))
     {
         return;
@@ -430,7 +430,7 @@ void EditorController::onWaveformClicked(double normalized_x)
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
 // derivation runs against the updated session and transport state instead of stale data.
-void EditorController::onTransportStateChanged(audio::TransportState /*state*/)
+void EditorController::onTransportStateChanged(common::audio::TransportState /*state*/)
 {
     if (m_session_load_in_progress)
     {
@@ -636,7 +636,7 @@ bool EditorController::loadSessionSong(
 // rather than a continuously pushed playhead position.
 EditorViewState EditorController::deriveViewState() const
 {
-    const audio::TransportState transport_state = m_transport.state();
+    const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
 
     EditorViewState state;
@@ -705,7 +705,7 @@ bool EditorController::hasUnsavedChanges() const noexcept
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
 // the start of the loaded timeline.
-bool EditorController::canStopTransport(const audio::TransportState& transport_state) const
+bool EditorController::canStopTransport(const common::audio::TransportState& transport_state) const
 {
     return hasLoadedArrangement() &&
            (transport_state.playing || m_transport.position() != session().timeline().start);

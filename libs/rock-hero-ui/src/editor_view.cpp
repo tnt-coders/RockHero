@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
-#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <utility>
 
@@ -113,7 +113,7 @@ class EditorView::CursorOverlay final : public juce::Component
 {
 public:
     // Starts vblank-driven cursor refresh against the injected read-only transport.
-    CursorOverlay(IEditorController& controller, const audio::ITransport& transport)
+    CursorOverlay(IEditorController& controller, const common::audio::ITransport& transport)
         : m_controller(controller)
         , m_transport(transport)
         , m_vblank_attachment(this, [this] { advanceCursor(); })
@@ -202,7 +202,7 @@ private:
     IEditorController& m_controller;
 
     // Read-only transport source sampled at vblank cadence for its live position method.
-    const audio::ITransport& m_transport;
+    const common::audio::ITransport& m_transport;
 
     // Vblank-driven callback used to keep cursor motion smooth without transport listeners.
     juce::VBlankAttachment m_vblank_attachment;
@@ -270,7 +270,7 @@ public:
     // Installs the existing waveform track and cursor overlay into viewport-owned content.
     TrackViewport(
         ArrangementView& arrangement_view, CursorOverlay& cursor_overlay,
-        const audio::ITransport& transport)
+        const common::audio::ITransport& transport)
         : m_arrangement_view(arrangement_view)
         , m_cursor_overlay(cursor_overlay)
         , m_transport(transport)
@@ -546,7 +546,7 @@ private:
     CursorOverlay& m_cursor_overlay;
 
     // Read-only transport sampled to keep the viewport near the live cursor during playback.
-    const audio::ITransport& m_transport;
+    const common::audio::ITransport& m_transport;
 
     // Zoomed canvas that holds the current waveform track and future track rows.
     Content m_content;
@@ -610,8 +610,8 @@ public:
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
 EditorView::EditorView(
-    IEditorController& controller, const audio::ITransport& transport,
-    audio::IThumbnailFactory& thumbnail_factory)
+    IEditorController& controller, const common::audio::ITransport& transport,
+    common::audio::IThumbnailFactory& thumbnail_factory)
     : m_controller(controller)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)

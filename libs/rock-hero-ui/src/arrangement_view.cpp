@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
-#include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
 
 namespace rock_hero::ui
 {
@@ -101,7 +101,7 @@ ArrangementView::ArrangementView() = default;
 ArrangementView::~ArrangementView() = default;
 
 // Stores the factory and creates the arrangement-owned thumbnail bound to this component.
-void ArrangementView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory)
+void ArrangementView::setThumbnailFactory(common::audio::IThumbnailFactory& thumbnail_factory)
 {
     m_thumbnail = thumbnail_factory.createThumbnail(*this);
     m_thumbnail_source_asset.reset();

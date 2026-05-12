@@ -9,9 +9,9 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_transport.h>
-#include <rock_hero/audio/scoped_listener.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/ui/editor_view_state.h>
@@ -62,7 +62,7 @@ visible timeline range, through EditorViewState.
 
 The referenced transport and audio ports must outlive the controller.
 */
-class EditorController final : public IEditorController, private audio::ITransport::Listener
+class EditorController final : public IEditorController, private common::audio::ITransport::Listener
 {
 public:
     /*!
@@ -82,10 +82,10 @@ public:
     \param exit_function Optional seam used to request application exit.
     */
     EditorController(
-        audio::ITransport& transport, audio::IAudio& audio, OpenFunction open_function = {},
-        ImportFunction import_function = {}, SaveFunction save_function = {},
-        SaveAsFunction save_as_function = {}, PublishFunction publish_function = {},
-        ExitFunction exit_function = {});
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        OpenFunction open_function = {}, ImportFunction import_function = {},
+        SaveFunction save_function = {}, SaveAsFunction save_as_function = {},
+        PublishFunction publish_function = {}, ExitFunction exit_function = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -216,7 +216,7 @@ private:
     };
 
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
-    void onTransportStateChanged(audio::TransportState state) override;
+    void onTransportStateChanged(common::audio::TransportState state) override;
 
     // Requests a project-level action, prompting first when unsaved changes are present.
     void requestProjectAction(PendingProjectRequest request);
@@ -262,13 +262,13 @@ private:
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
 
     // Reports whether Stop would either stop playback or reset a non-start cursor position.
-    [[nodiscard]] bool canStopTransport(const audio::TransportState& transport_state) const;
+    [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
 
     // Transport port used for control intents and coarse listener delivery.
-    audio::ITransport& m_transport;
+    common::audio::ITransport& m_transport;
 
     // Audio port used for project audio validation and selected-arrangement loading.
-    audio::IAudio& m_audio;
+    common::audio::IAudio& m_audio;
 
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
@@ -325,7 +325,8 @@ private:
     bool m_save_as_prompt_visible{false};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
-    audio::ScopedListener<audio::ITransport, audio::ITransport::Listener> m_transport_listener;
+    common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
+        m_transport_listener;
 };
 
 } // namespace rock_hero::ui

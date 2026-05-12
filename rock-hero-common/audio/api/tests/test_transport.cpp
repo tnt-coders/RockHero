@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_transport.h>
 #include <vector>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 namespace
@@ -162,4 +162,4 @@ TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transpor
     CHECK(listener.call_count == 0);
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

@@ -8,9 +8,9 @@
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/ui/editor_controller.h>
 #include <rock_hero/ui/editor_view.h>
 
@@ -35,8 +35,8 @@ public:
     \param exit_function Callback used when guarded editor exit is allowed to continue.
     */
     Editor(
-        audio::ITransport& transport, audio::IAudio& audio,
-        audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function = {});
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();

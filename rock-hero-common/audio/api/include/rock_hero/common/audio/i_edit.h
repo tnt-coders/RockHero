@@ -5,7 +5,7 @@
 
 #pragma once
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 /*!
@@ -44,4 +44,4 @@ protected:
     IEdit& operator=(IEdit&&) = default;
 };
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio

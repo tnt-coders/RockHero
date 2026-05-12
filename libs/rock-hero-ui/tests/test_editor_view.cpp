@@ -5,9 +5,9 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/ui/editor_view.h>
 #include <stdexcept>
 #include <utility>
@@ -116,7 +116,7 @@ public:
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
-class FakeTransport final : public audio::ITransport
+class FakeTransport final : public common::audio::ITransport
 {
 public:
     void play() override
@@ -130,7 +130,7 @@ public:
         current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const noexcept override
+    [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
@@ -146,13 +146,13 @@ public:
     void removeListener(Listener& /*listener*/) override
     {}
 
-    audio::TransportState current_state{};
+    common::audio::TransportState current_state{};
     common::core::TimePosition current_position{};
     mutable int position_read_count{0};
 };
 
 // Records thumbnail source updates installed through the arrangement view owned by EditorView.
-class FakeThumbnail final : public audio::IThumbnail
+class FakeThumbnail final : public common::audio::IThumbnail
 {
 public:
     void setSource(const common::core::AudioAsset& audio_asset) override
@@ -190,10 +190,10 @@ public:
 };
 
 // Creates fake thumbnails while recording the owner component passed by EditorView.
-class FakeThumbnailFactory final : public audio::IThumbnailFactory
+class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
-    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+    [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
         last_owner = &owner;

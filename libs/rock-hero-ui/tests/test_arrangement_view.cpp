@@ -4,8 +4,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/ui/arrangement_view.h>
 #include <utility>
 #include <vector>
@@ -42,7 +42,7 @@ namespace
 }
 
 // Records thumbnail source refreshes and draw requests from the arrangement view.
-class FakeThumbnail final : public audio::IThumbnail
+class FakeThumbnail final : public common::audio::IThumbnail
 {
 public:
     // Captures the new source each time the view asks the thumbnail to refresh itself.
@@ -94,10 +94,10 @@ public:
 };
 
 // Creates fake thumbnails while recording the component that requested one.
-class FakeThumbnailFactory final : public audio::IThumbnailFactory
+class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
-    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+    [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
         last_owner = &owner;
