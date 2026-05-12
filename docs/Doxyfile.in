@@ -1029,7 +1029,6 @@ WARN_LOGFILE           =
 INPUT                  = rock-hero-common \
                          rock-hero-editor \
                          rock-hero-game \
-                         apps/rock-hero \
                          README.md \
                          docs/design/index.md \
                          docs/design/architecture.md \
