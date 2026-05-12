@@ -71,7 +71,6 @@ include(CTest)
 # Libraries
 # --------------------------------------------------------------------------
 add_subdirectory(rock-hero-common)
-add_subdirectory(libs/rock-hero-audio)
 add_subdirectory(libs/rock-hero-ui)
 add_subdirectory(rock-hero-game)
 

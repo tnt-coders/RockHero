@@ -19,7 +19,7 @@ target_include_directories(
 # Export the UI library plus the JUCE wrapper needed by its public component headers.
 target_link_libraries(
     rock_hero_ui
-    PUBLIC rock_hero::audio rock_hero::common::core rock_hero::juce_gui_basics
+    PUBLIC rock_hero::common::audio::api rock_hero::common::core rock_hero::juce_gui_basics
     PRIVATE rock_hero::build_policy rock_hero::ui_resources)
 
 # Keep the module's headless controller-contract tests adjacent to the UI library.

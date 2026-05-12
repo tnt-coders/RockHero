@@ -3,10 +3,10 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/audio/i_audio.h>
-#include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/audio/i_thumbnail_factory.h>
-#include <rock_hero/audio/i_transport.h>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/ui/editor.h>
 #include <stdexcept>
 #include <vector>
@@ -18,7 +18,7 @@ namespace
 {
 
 // Records transport listeners and state so EditorController can subscribe during construction.
-class FakeTransport final : public audio::ITransport
+class FakeTransport final : public common::audio::ITransport
 {
 public:
     void play() override
@@ -42,7 +42,7 @@ public:
         current_position = position_value;
     }
 
-    [[nodiscard]] audio::TransportState state() const noexcept override
+    [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
@@ -62,13 +62,13 @@ public:
         std::erase(listeners, &listener);
     }
 
-    audio::TransportState current_state{};
+    common::audio::TransportState current_state{};
     common::core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
 };
 
 // Minimal audio port fake used by Editor construction and initial state projection.
-class FakeAudio final : public audio::IAudio
+class FakeAudio final : public common::audio::IAudio
 {
 public:
     bool prepareSong(common::core::Song& song) override
@@ -100,7 +100,7 @@ public:
 };
 
 // Records thumbnail source updates installed by the composed EditorView.
-class FakeThumbnail final : public audio::IThumbnail
+class FakeThumbnail final : public common::audio::IThumbnail
 {
 public:
     void setSource(const common::core::AudioAsset& audio_asset) override
@@ -138,10 +138,10 @@ public:
 };
 
 // Creates fake thumbnails while recording the owner component passed by Editor.
-class FakeThumbnailFactory final : public audio::IThumbnailFactory
+class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
-    [[nodiscard]] std::unique_ptr<audio::IThumbnail> createThumbnail(
+    [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
         last_owner = &owner;

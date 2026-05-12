@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/audio/i_audio.h>
+#include <rock_hero/common/audio/i_audio.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 
 namespace
@@ -133,4 +133,4 @@ TEST_CASE("IAudio clears active arrangement", "[audio][audio]")
     CHECK(audio.clear_active_arrangement_call_count == 1);
 }
 
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio
