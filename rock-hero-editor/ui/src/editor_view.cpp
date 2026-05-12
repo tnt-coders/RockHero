@@ -682,10 +682,21 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
-    presentErrorIfNeeded(m_state.last_error);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     repaint();
+}
+
+// Presents controller-reported workflow failures as one-shot dialogs.
+void EditorView::showError(const std::string& message)
+{
+    juce::NativeMessageBox::showAsync(
+        juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::WarningIcon)
+            .withTitle("Could not complete request")
+            .withMessage(juce::String{message.c_str()})
+            .withButton("OK"),
+        nullptr);
 }
 
 // Paints the background and transport strip behind child widgets.
@@ -903,7 +914,8 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
         });
 }
 
-// Opens an asynchronous file chooser and sends accepted native song package paths to the controller.
+// Opens an asynchronous file chooser and sends accepted native song package paths to the
+// controller.
 void EditorView::showPublishChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
@@ -923,30 +935,6 @@ void EditorView::showPublishChooser()
 
             m_controller.onPublishRequested(pathWithRockExtension(file));
         });
-}
-
-// Shows each distinct error once and resets the edge when the controller clears the error.
-void EditorView::presentErrorIfNeeded(const std::optional<std::string>& error)
-{
-    if (!error.has_value())
-    {
-        m_last_presented_error.reset();
-        return;
-    }
-
-    if (m_last_presented_error == error)
-    {
-        return;
-    }
-
-    m_last_presented_error = error;
-    juce::NativeMessageBox::showAsync(
-        juce::MessageBoxOptions()
-            .withIconType(juce::MessageBoxIconType::WarningIcon)
-            .withTitle("Could not complete request")
-            .withMessage(juce::String{error->c_str()})
-            .withButton("OK"),
-        nullptr);
 }
 
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.

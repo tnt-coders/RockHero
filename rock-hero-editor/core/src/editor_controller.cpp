@@ -169,7 +169,7 @@ void EditorController::openProject(const std::filesystem::path& file)
     std::expected<common::core::Song, std::string> loaded_song = m_open_function(project, file);
     if (!loaded_song.has_value())
     {
-        m_last_error = std::string{"Could not open: "} + loaded_song.error();
+        reportError(std::string{"Could not open: "} + loaded_song.error());
         deriveAndPush();
         return;
     }
@@ -179,7 +179,7 @@ void EditorController::openProject(const std::filesystem::path& file)
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
-        m_last_error = std::string{"Could not load audio from: "} + file.string();
+        reportError(std::string{"Could not load audio from: "} + file.string());
         deriveAndPush();
         return;
     }
@@ -189,7 +189,6 @@ void EditorController::openProject(const std::filesystem::path& file)
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
-    m_last_error.reset();
     clearPendingProjectAction();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
@@ -214,7 +213,7 @@ void EditorController::importSongSource(const std::filesystem::path& file)
     std::expected<common::core::Song, std::string> loaded_song = m_import_function(project, file);
     if (!loaded_song.has_value())
     {
-        m_last_error = std::string{"Could not import: "} + loaded_song.error();
+        reportError(std::string{"Could not import: "} + loaded_song.error());
         deriveAndPush();
         return;
     }
@@ -223,7 +222,7 @@ void EditorController::importSongSource(const std::filesystem::path& file)
 
     if (!loadSessionSong(std::move(song), std::nullopt))
     {
-        m_last_error = std::string{"Could not load imported audio from: "} + file.string();
+        reportError(std::string{"Could not load imported audio from: "} + file.string());
         deriveAndPush();
         return;
     }
@@ -232,7 +231,6 @@ void EditorController::importSongSource(const std::filesystem::path& file)
     m_project_file.clear();
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
-    m_last_error.reset();
     clearPendingProjectAction();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
@@ -274,7 +272,7 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
         m_save_as_function(*m_project, file, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
-        m_last_error = std::string{"Could not save as: "} + saved.error();
+        reportError(std::string{"Could not save as: "} + saved.error());
         deriveAndPush();
         return;
     }
@@ -282,7 +280,6 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
     m_save_requires_destination = false;
     m_project_file = file;
     m_has_unsaved_changes = false;
-    m_last_error.reset();
     if (m_pending_project_action.has_value())
     {
         continuePendingProjectAction();
@@ -304,12 +301,11 @@ void EditorController::onPublishRequested(std::filesystem::path file)
     const auto published = m_publish_function(*m_project, file, session().song());
     if (!published.has_value())
     {
-        m_last_error = std::string{"Could not publish: "} + published.error();
+        reportError(std::string{"Could not publish: "} + published.error());
         deriveAndPush();
         return;
     }
 
-    m_last_error.reset();
     deriveAndPush();
 }
 
@@ -544,7 +540,7 @@ bool EditorController::closeProject()
     auto closed = m_project->close();
     if (!closed.has_value())
     {
-        m_last_error = std::string{"Could not close: "} + closed.error();
+        reportError(std::string{"Could not close: "} + closed.error());
         m_project.reset();
         m_project_file.clear();
         m_save_requires_destination = false;
@@ -557,7 +553,6 @@ bool EditorController::closeProject()
     m_project_file.clear();
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
-    m_last_error.reset();
     return true;
 }
 
@@ -572,13 +567,12 @@ bool EditorController::saveProject()
     const auto saved = m_save_function(*m_project, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
-        m_last_error = std::string{"Could not save: "} + saved.error();
+        reportError(std::string{"Could not save: "} + saved.error());
         deriveAndPush();
         return false;
     }
 
     m_has_unsaved_changes = false;
-    m_last_error.reset();
     return true;
 }
 
@@ -730,7 +724,6 @@ EditorViewState EditorController::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
         };
     }
-    state.last_error = m_last_error;
     if (m_pending_project_action.has_value() && m_unsaved_changes_prompt_visible)
     {
         state.unsaved_changes_prompt =
@@ -753,6 +746,15 @@ void EditorController::deriveAndPush()
     if (m_view != nullptr)
     {
         m_view->setState(m_last_state);
+    }
+}
+
+// Sends transient workflow failures through the view effect channel rather than render state.
+void EditorController::reportError(const std::string& message)
+{
+    if (m_view != nullptr)
+    {
+        m_view->showError(message);
     }
 }
 

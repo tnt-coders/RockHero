@@ -17,6 +17,7 @@
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
 #include <rock_hero/editor/ui/transport_controls.h>
+#include <string>
 
 namespace rock_hero::editor::ui
 {
@@ -77,6 +78,12 @@ public:
     \param state State derived by the controller.
     */
     void setState(const core::EditorViewState& state) override;
+
+    /*!
+    \brief Presents a transient editor workflow error.
+    \param message User-facing error message.
+    */
+    void showError(const std::string& message) override;
 
     /*!
     \brief Paints the editor background behind child widgets.
@@ -146,9 +153,6 @@ private:
     // Opens the asynchronous publish chooser and forwards accepted selections.
     void showPublishChooser();
 
-    // Presents a new workflow error once per error value.
-    void presentErrorIfNeeded(const std::optional<std::string>& error);
-
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
         const std::optional<core::UnsavedChangesPrompt>& prompt);
@@ -194,9 +198,6 @@ private:
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
-
-    // Last error already shown to the user so repeated state pushes do not re-open dialogs.
-    std::optional<std::string> m_last_presented_error{};
 
     // Last unsaved-changes prompt already shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};
