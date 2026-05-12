@@ -8,12 +8,12 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/core/i_project_importer.h>
-#include <rock_hero/core/song.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/i_project_importer.h>
+#include <rock_hero/common/core/song.h>
+#include <rock_hero/common/core/timeline.h>
 #include <string>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -162,4 +162,4 @@ private:
     ProjectEditorState m_editor_state;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/core/arrangement.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/timeline.h>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 // Verifies an unset note event starts at zero time with no fret/string assignment.
@@ -102,4 +102,4 @@ TEST_CASE("Time value wrappers compare stored seconds", "[core][timeline]")
     CHECK_FALSE(TimeDuration{48.0} == TimeDuration{49.0});
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

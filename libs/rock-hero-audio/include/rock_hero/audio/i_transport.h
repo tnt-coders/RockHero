@@ -6,7 +6,7 @@
 #pragma once
 
 #include <rock_hero/audio/transport_state.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/timeline.h>
 
 namespace rock_hero::audio
 {
@@ -77,7 +77,7 @@ public:
     \brief Moves the transport to a new timeline position.
     \param position The target playback position.
     */
-    virtual void seek(core::TimePosition position) = 0;
+    virtual void seek(common::core::TimePosition position) = 0;
 
     /*!
     \brief Reads the current coarse transport state.
@@ -97,7 +97,7 @@ public:
 
     \return Current transport position.
     */
-    [[nodiscard]] virtual core::TimePosition position() const noexcept = 0;
+    [[nodiscard]] virtual common::core::TimePosition position() const noexcept = 0;
 
     /*!
     \brief Registers a non-owning transport listener.

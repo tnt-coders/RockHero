@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <rock_hero/core/arrangement.h>
-#include <rock_hero/core/song.h>
+#include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/song.h>
 
 namespace rock_hero::audio
 {
@@ -33,7 +33,7 @@ public:
     \param song Candidate song to prepare for session loading.
     \return True when every arrangement has usable positive-duration audio.
     */
-    [[nodiscard]] virtual bool prepareSong(core::Song& song) = 0;
+    [[nodiscard]] virtual bool prepareSong(common::core::Song& song) = 0;
 
     /*!
     \brief Makes an already-prepared arrangement active for playback.
@@ -44,7 +44,8 @@ public:
     \param arrangement Prepared arrangement to make active.
     \return True when the backend made the arrangement playable.
     */
-    [[nodiscard]] virtual bool setActiveArrangement(const core::Arrangement& arrangement) = 0;
+    [[nodiscard]] virtual bool setActiveArrangement(
+        const common::core::Arrangement& arrangement) = 0;
 
     /*! \brief Clears the active arrangement from the playback backend. */
     virtual void clearActiveArrangement() = 0;

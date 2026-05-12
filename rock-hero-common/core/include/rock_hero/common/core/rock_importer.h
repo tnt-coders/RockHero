@@ -7,10 +7,10 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/core/i_project_importer.h>
+#include <rock_hero/common/core/i_project_importer.h>
 #include <string>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -34,4 +34,4 @@ public:
         const std::filesystem::path& workspace_directory) override;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

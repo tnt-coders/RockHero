@@ -7,10 +7,10 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/core/song.h>
+#include <rock_hero/common/core/song.h>
 #include <string>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -52,4 +52,4 @@ public:
         const std::filesystem::path& workspace_directory) = 0;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

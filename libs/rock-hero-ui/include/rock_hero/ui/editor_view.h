@@ -11,7 +11,7 @@
 #include <optional>
 #include <rock_hero/audio/i_thumbnail_factory.h>
 #include <rock_hero/audio/i_transport.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/arrangement_view.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
@@ -30,7 +30,8 @@ namespace rock_hero::ui
 \return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
 */
 [[nodiscard]] std::optional<float> cursorXForTimelinePosition(
-    core::TimePosition position, core::TimeRange visible_timeline, int width) noexcept;
+    common::core::TimePosition position, common::core::TimeRange visible_timeline,
+    int width) noexcept;
 
 /*!
 \brief JUCE implementation of the editor view contract.

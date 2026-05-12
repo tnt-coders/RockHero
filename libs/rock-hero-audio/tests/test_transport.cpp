@@ -14,7 +14,8 @@ class FakeTransport final : public ITransport
 public:
     // Seeds the fake with known state and position without issuing commands.
     explicit FakeTransport(
-        TransportState initial_state = {}, rock_hero::core::TimePosition initial_position = {})
+        TransportState initial_state = {},
+        rock_hero::common::core::TimePosition initial_position = {})
         : m_state{initial_state}
         , m_position{initial_position}
     {}
@@ -37,12 +38,12 @@ public:
     void stop() override
     {
         m_state.playing = false;
-        m_position = rock_hero::core::TimePosition{};
+        m_position = rock_hero::common::core::TimePosition{};
         notifyListeners();
     }
 
     // Records seek intent through the live position channel without broadcasting coarse state.
-    void seek(rock_hero::core::TimePosition position) override
+    void seek(rock_hero::common::core::TimePosition position) override
     {
         m_position = position;
     }
@@ -54,7 +55,7 @@ public:
     }
 
     // Returns the fake's current position through the live-read transport method.
-    [[nodiscard]] rock_hero::core::TimePosition position() const noexcept override
+    [[nodiscard]] rock_hero::common::core::TimePosition position() const noexcept override
     {
         return m_position;
     }
@@ -85,7 +86,7 @@ private:
     TransportState m_state{};
 
     // Current live position returned by position(); intentionally excluded from TransportState.
-    rock_hero::core::TimePosition m_position{};
+    rock_hero::common::core::TimePosition m_position{};
 
     // Non-owning listeners registered by tests; each listener outlives its registration.
     std::vector<Listener*> m_listeners{};
@@ -117,7 +118,7 @@ TEST_CASE("ITransport fake stores state and position separately", "[audio][trans
     const TransportState expected_state{
         .playing = true,
     };
-    const auto expected_position = rock_hero::core::TimePosition{5.0};
+    const auto expected_position = rock_hero::common::core::TimePosition{5.0};
 
     const FakeTransport transport{expected_state, expected_position};
 
@@ -154,9 +155,9 @@ TEST_CASE("ITransport seek accepts a timeline position value", "[audio][transpor
 
     transport.addListener(listener);
 
-    transport.seek(rock_hero::core::TimePosition{42.0});
+    transport.seek(rock_hero::common::core::TimePosition{42.0});
 
-    CHECK(transport.position() == rock_hero::core::TimePosition{42.0});
+    CHECK(transport.position() == rock_hero::common::core::TimePosition{42.0});
     CHECK(transport.state() == TransportState{});
     CHECK(listener.call_count == 0);
 }

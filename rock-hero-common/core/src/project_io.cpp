@@ -9,8 +9,8 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
-#include <rock_hero/core/arrangement.h>
-#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/audio_asset.h>
 #include <set>
 #include <string>
 #include <string_view>
@@ -20,7 +20,7 @@
 #include <vector>
 #include <zip.h>
 
-namespace rock_hero::core::project_io
+namespace rock_hero::common::core::project_io
 {
 
 namespace
@@ -1459,4 +1459,4 @@ std::optional<std::string> writeWorkspaceToPackage(
     return std::nullopt;
 }
 
-} // namespace rock_hero::core::project_io
+} // namespace rock_hero::common::core::project_io

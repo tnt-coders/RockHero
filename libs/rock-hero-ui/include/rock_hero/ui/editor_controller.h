@@ -12,8 +12,8 @@
 #include <rock_hero/audio/i_audio.h>
 #include <rock_hero/audio/i_transport.h>
 #include <rock_hero/audio/scoped_listener.h>
-#include <rock_hero/core/project.h>
-#include <rock_hero/core/session.h>
+#include <rock_hero/common/core/project.h>
+#include <rock_hero/common/core/session.h>
 #include <rock_hero/ui/editor_view_state.h>
 #include <rock_hero/ui/i_editor_controller.h>
 #include <rock_hero/ui/i_editor_view.h>
@@ -23,25 +23,27 @@ namespace rock_hero::ui
 {
 
 /*! \brief Opens a native package into a project context and returns the parsed song. */
-using OpenFunction = std::function<std::expected<core::Song, std::string>(
-    core::Project& project, const std::filesystem::path& path)>;
+using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
+    common::core::Project& project, const std::filesystem::path& path)>;
 
 /*! \brief Imports a foreign package into a project context and returns the parsed song. */
-using ImportFunction = std::function<std::expected<core::Song, std::string>(
-    core::Project& project, const std::filesystem::path& path)>;
+using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
+    common::core::Project& project, const std::filesystem::path& path)>;
 
 /*! \brief Saves the current song through the project context. */
 using SaveFunction = std::function<std::expected<void, std::string>(
-    core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)>;
+    common::core::Project& project, const common::core::Song& song,
+    common::core::ProjectEditorState editor_state)>;
 
 /*! \brief Saves the current song to a chosen path through the project context. */
 using SaveAsFunction = std::function<std::expected<void, std::string>(
-    core::Project& project, const std::filesystem::path& path, const core::Song& song,
-    core::ProjectEditorState editor_state)>;
+    common::core::Project& project, const std::filesystem::path& path,
+    const common::core::Song& song, common::core::ProjectEditorState editor_state)>;
 
 /*! \brief Publishes the current song to a chosen package path through the project context. */
 using PublishFunction = std::function<std::expected<void, std::string>(
-    core::Project& project, const std::filesystem::path& path, const core::Song& song)>;
+    common::core::Project& project, const std::filesystem::path& path,
+    const common::core::Song& song)>;
 
 /*! \brief Requests host exit with the native project file to restore on next launch, if any. */
 using ExitFunction = std::function<void(std::optional<std::filesystem::path> project_file)>;
@@ -120,7 +122,7 @@ public:
     \brief Returns read-only access to the loaded editor session.
     \return Session state owned by this controller.
     */
-    [[nodiscard]] const core::Session& session() const noexcept;
+    [[nodiscard]] const common::core::Session& session() const noexcept;
 
     /*!
     \brief Returns the native project file that can be reopened on the next launch.
@@ -241,11 +243,11 @@ private:
     void clearPendingProjectAction() noexcept;
 
     // Builds the editor-only project state persisted by Save and Save As.
-    [[nodiscard]] core::ProjectEditorState projectEditorStateForSave() const;
+    [[nodiscard]] common::core::ProjectEditorState projectEditorStateForSave() const;
 
     // Prepares project audio, activates the selected arrangement, and commits to Session.
     [[nodiscard]] bool loadSessionSong(
-        core::Song song, const std::optional<std::string>& selected_arrangement);
+        common::core::Song song, const std::optional<std::string>& selected_arrangement);
 
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
@@ -269,7 +271,7 @@ private:
     audio::IAudio& m_audio;
 
     // Song aggregate and selected arrangement state currently loaded in the editor.
-    core::Session m_session;
+    common::core::Session m_session;
 
     // Opens .rhp packages into temporary project contexts.
     OpenFunction m_open_function;
@@ -302,7 +304,7 @@ private:
     bool m_session_load_in_progress{false};
 
     // Currently loaded or imported project context; keeps workspace files alive.
-    std::optional<core::Project> m_project{};
+    std::optional<common::core::Project> m_project{};
 
     // User-selected native project path used for project-name-derived UI suggestions.
     std::filesystem::path m_project_file{};

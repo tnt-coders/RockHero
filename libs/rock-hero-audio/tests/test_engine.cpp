@@ -25,34 +25,34 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 }
 
 // Wraps the real fixture path in the framework-free asset type used by IAudio.
-[[nodiscard]] core::AudioAsset fixtureAudioAsset()
+[[nodiscard]] common::core::AudioAsset fixtureAudioAsset()
 {
-    return core::AudioAsset{fixtureAudioPath()};
+    return common::core::AudioAsset{fixtureAudioPath()};
 }
 
 // Converts an accepted duration into the timeline range used by rendering and seeks.
-[[nodiscard]] core::TimeRange timelineRangeForDuration(core::TimeDuration duration)
+[[nodiscard]] common::core::TimeRange timelineRangeForDuration(common::core::TimeDuration duration)
 {
-    return core::TimeRange{
-        .start = core::TimePosition{},
-        .end = core::TimePosition{duration.seconds},
+    return common::core::TimeRange{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{duration.seconds},
     };
 }
 
 // Builds a minimal song that references the real fixture audio.
-[[nodiscard]] core::Song makeFixtureSong()
+[[nodiscard]] common::core::Song makeFixtureSong()
 {
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
 
-    core::Song song;
+    common::core::Song song;
     song.arrangements.push_back(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "lead",
-            .part = core::Part::Lead,
-            .difficulty = core::DifficultyRating{},
+            .part = common::core::Part::Lead,
+            .difficulty = common::core::DifficultyRating{},
             .audio_asset = audio_asset,
-            .audio_duration = core::TimeDuration{},
+            .audio_duration = common::core::TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},
         });
@@ -60,12 +60,12 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 }
 
 // Prepares and activates the fixture arrangement, failing the test if either step is rejected.
-[[nodiscard]] core::TimeDuration requireLoadedFixtureAudio(IAudio& audio)
+[[nodiscard]] common::core::TimeDuration requireLoadedFixtureAudio(IAudio& audio)
 {
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
-    const core::Arrangement& arrangement = song.arrangements.front();
+    const common::core::Arrangement& arrangement = song.arrangements.front();
     REQUIRE(audio.setActiveArrangement(arrangement));
     return arrangement.audio_duration;
 }
@@ -107,7 +107,7 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
     const auto current_state = transport.state();
 
     CHECK_FALSE(current_state.playing);
-    CHECK(transport.position() == core::TimePosition{});
+    CHECK(transport.position() == common::core::TimePosition{});
 }
 
 // Verifies the concrete engine factory returns a usable Tracktion-backed thumbnail adapter.
@@ -131,7 +131,7 @@ TEST_CASE("Engine thumbnail loads and draws fixture audio", "[audio][engine][int
     juce::Component owner;
     const auto audio_asset = fixtureAudioAsset();
     REQUIRE(std::filesystem::exists(audio_asset.path));
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(engine);
+    const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(engine);
     auto thumbnail = engine.createThumbnail(owner);
     REQUIRE(thumbnail != nullptr);
 
@@ -165,9 +165,9 @@ TEST_CASE("Engine thumbnail rejects invalid visible ranges", "[audio][engine][in
     CHECK_FALSE(thumbnail->drawChannels(
         graphics,
         image.getBounds(),
-        core::TimeRange{
-            .start = core::TimePosition{4.0},
-            .end = core::TimePosition{2.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{4.0},
+            .end = common::core::TimePosition{2.0},
         },
         1.0f));
 }
@@ -185,7 +185,7 @@ TEST_CASE("Engine thumbnail clears source for missing assets", "[audio][engine][
     thumbnail->setSource(audio_asset);
     REQUIRE(thumbnail->hasSource());
 
-    const core::AudioAsset missing_asset{
+    const common::core::AudioAsset missing_asset{
         fixtureAudioPath().parent_path() / "missing-thumbnail.wav",
     };
     thumbnail->setSource(missing_asset);
@@ -218,7 +218,7 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
     CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
-    CHECK(transport.position() == core::TimePosition{});
+    CHECK(transport.position() == common::core::TimePosition{});
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(recorder.last_transport_state == TransportState{});
 }
@@ -237,7 +237,7 @@ TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
     REQUIRE(song.arrangements.size() == 1);
     CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     CHECK(transport.state() == TransportState{});
-    CHECK(transport.position() == core::TimePosition{});
+    CHECK(transport.position() == common::core::TimePosition{});
 }
 
 // Verifies song preparation rejects missing assets without loading fallback media.
@@ -247,7 +247,7 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     IAudio& audio = harness.engine;
     auto song = makeFixtureSong();
     song.arrangements.front().audio_asset =
-        core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
+        common::core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
 
     const bool prepared = audio.prepareSong(song);
 
@@ -263,7 +263,7 @@ TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integ
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
-    const core::Arrangement& arrangement = song.arrangements.front();
+    const common::core::Arrangement& arrangement = song.arrangements.front();
 
     const bool first_audio_set = audio.setActiveArrangement(arrangement);
     const bool replacement_audio_set = audio.setActiveArrangement(arrangement);
@@ -284,19 +284,19 @@ TEST_CASE(
     [[maybe_unused]] const auto audio_duration = requireLoadedFixtureAudio(audio);
 
     const auto loaded_state = transport.state();
-    const core::AudioAsset missing_asset{
+    const common::core::AudioAsset missing_asset{
         fixtureAudioPath().parent_path() / "missing.wav",
     };
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
     const bool active_set = audio.setActiveArrangement(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "missing",
-            .part = core::Part::Lead,
-            .difficulty = core::DifficultyRating{},
+            .part = common::core::Part::Lead,
+            .difficulty = common::core::DifficultyRating{},
             .audio_asset = missing_asset,
-            .audio_duration = core::TimeDuration{1.0},
+            .audio_duration = common::core::TimeDuration{1.0},
             .tone_timeline_ref = {},
             .note_events = {},
         });
@@ -317,17 +317,17 @@ TEST_CASE("Engine seek updates live transport position", "[audio][engine][integr
     IAudio& audio = engine;
     ITransport& transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
+    const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const auto loaded_state = transport.state();
     const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.25, duration_seconds * 0.5);
-    transport.seek(core::TimePosition{target_seconds});
+    transport.seek(common::core::TimePosition{target_seconds});
 
     CHECK(transport.state() == loaded_state);
-    CHECK(transport.position() == core::TimePosition{target_seconds});
+    CHECK(transport.position() == common::core::TimePosition{target_seconds});
 }
 
 // Verifies the cursor-position read reports the post-seek position from the concrete adapter.
@@ -339,15 +339,15 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
+    const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
 
     const double target_seconds = std::min(0.3, duration_seconds * 0.5);
-    transport.seek(core::TimePosition{target_seconds});
+    transport.seek(common::core::TimePosition{target_seconds});
 
-    CHECK(read_only_transport.position() == core::TimePosition{target_seconds});
+    CHECK(read_only_transport.position() == common::core::TimePosition{target_seconds});
 }
 
 // Verifies position-only seeking remains invisible to coarse transport state listeners.
@@ -358,7 +358,7 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     IAudio& audio = engine;
     ITransport& transport = engine;
 
-    const core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
+    const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
 
     const double duration_seconds = audio_duration.seconds;
     REQUIRE(duration_seconds > 0.0);
@@ -367,10 +367,10 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
     transport.addListener(recorder);
 
     const double target_seconds = std::min(0.2, duration_seconds * 0.5);
-    transport.seek(core::TimePosition{target_seconds});
+    transport.seek(common::core::TimePosition{target_seconds});
 
     CHECK(recorder.transport_state_call_count == 0);
-    CHECK(transport.position() == core::TimePosition{target_seconds});
+    CHECK(transport.position() == common::core::TimePosition{target_seconds});
 
     transport.removeListener(recorder);
 }

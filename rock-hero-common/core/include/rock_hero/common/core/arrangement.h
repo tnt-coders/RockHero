@@ -6,13 +6,13 @@
 #pragma once
 
 #include <cstdint>
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/difficulty.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/difficulty.h>
+#include <rock_hero/common/core/timeline.h>
 #include <string>
 #include <vector>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*! \brief A single note to be played by the player. */
@@ -78,7 +78,7 @@ struct Arrangement
     /*!
     \brief Opaque serialized tone automation data.
 
-    Interpreted exclusively by rock-hero-audio; core treats it as a pass-through blob.
+    Interpreted exclusively by common/audio; core treats it as a pass-through blob.
     */
     std::string tone_timeline_ref;
 
@@ -106,4 +106,4 @@ struct Arrangement
     friend bool operator==(const Arrangement& lhs, const Arrangement& rhs) = default;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

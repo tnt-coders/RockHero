@@ -14,7 +14,7 @@ target_include_directories(
 # Depend on project-owned wrapper aliases rather than raw JUCE/Tracktion module targets.
 target_link_libraries(
     rock_hero_audio
-    PUBLIC rock_hero::core
+    PUBLIC rock_hero::common::core
     PRIVATE rock_hero::build_policy rock_hero::tracktion_core rock_hero::tracktion_engine
             rock_hero::tracktion_graph)
 

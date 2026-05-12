@@ -9,7 +9,8 @@ namespace
 {
 
 // Rejects ranges that Tracktion cannot draw safely for the currently loaded source.
-[[nodiscard]] bool isValidVisibleRange(core::TimeRange visible_range, double source_length) noexcept
+[[nodiscard]] bool isValidVisibleRange(
+    common::core::TimeRange visible_range, double source_length) noexcept
 {
     return std::isfinite(visible_range.start.seconds) && std::isfinite(visible_range.end.seconds) &&
            visible_range.start.seconds >= 0.0 &&
@@ -26,7 +27,7 @@ TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Componen
 {}
 
 // Translates the project-owned asset path into JUCE/Tracktion file types at the adapter boundary.
-void TracktionThumbnail::setSource(const core::AudioAsset& audio_asset)
+void TracktionThumbnail::setSource(const common::core::AudioAsset& audio_asset)
 {
     const auto path_text = audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
@@ -56,7 +57,7 @@ float TracktionThumbnail::getProxyProgress() const
 
 // Draws the requested visible range after validating it against the loaded source asset.
 bool TracktionThumbnail::drawChannels(
-    juce::Graphics& g, juce::Rectangle<int> bounds, core::TimeRange visible_range,
+    juce::Graphics& g, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
     float vertical_zoom)
 {
     if (!m_has_source || !isValidVisibleRange(visible_range, m_source_length_seconds))

@@ -8,13 +8,13 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/core/project.h>
-#include <rock_hero/core/song.h>
+#include <rock_hero/common/core/project.h>
+#include <rock_hero/common/core/song.h>
 #include <string>
 #include <string_view>
 #include <vector>
 
-namespace rock_hero::core::project_io
+namespace rock_hero::common::core::project_io
 {
 
 /*! \brief Fixed directory name used for runtime song content inside native projects. */
@@ -93,4 +93,4 @@ inline constexpr std::string_view g_song_directory_name{"song"};
 [[nodiscard]] std::optional<std::filesystem::path> relativeWorkspacePath(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& asset_path);
 
-} // namespace rock_hero::core::project_io
+} // namespace rock_hero::common::core::project_io

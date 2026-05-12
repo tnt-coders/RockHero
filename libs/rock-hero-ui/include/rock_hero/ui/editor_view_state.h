@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/arrangement_view_state.h>
 #include <string>
 
@@ -110,7 +110,7 @@ struct EditorViewState
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
-    core::TimeRange visible_timeline{};
+    common::core::TimeRange visible_timeline{};
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement;

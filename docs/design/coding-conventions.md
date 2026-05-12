@@ -83,7 +83,7 @@ Do not add top-level `const` to by-value parameters in public declarations. It i
 function type and adds noise to the interface:
 
 \code{.cpp}
-void seek(core::TimePosition position);
+void seek(common::core::TimePosition position);
 \endcode
 
 Prefer the same spelling in definitions unless a local implementation detail is made clearer by
@@ -102,7 +102,7 @@ Do not use broad namespace directives for project namespaces:
 
 \code{.cpp}
 using namespace rock_hero;
-using namespace rock_hero::core;
+using namespace rock_hero::common::core;
 \endcode
 
 Production `.cpp` files should usually define code inside the namespace that owns the
@@ -221,8 +221,10 @@ the wrapped value.
 Examples:
 
 \code{.cpp}
-CHECK(audio.last_audio_asset == std::optional{core::AudioAsset{std::filesystem::path{"mix.wav"}}});
-CHECK(loaded_duration == std::optional{core::TimeDuration{4.0}});
+CHECK(
+    audio.last_audio_asset ==
+    std::optional{common::core::AudioAsset{std::filesystem::path{"mix.wav"}}});
+CHECK(loaded_duration == std::optional{common::core::TimeDuration{4.0}});
 \endcode
 
 Keep explicit template arguments when CTAD would deduce the wrong type, when constructing an empty
