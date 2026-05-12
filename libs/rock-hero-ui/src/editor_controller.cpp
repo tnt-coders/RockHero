@@ -6,8 +6,8 @@
 #include <expected>
 #include <iterator>
 #include <optional>
-#include <rock_hero/core/psarc_importer.h>
-#include <rock_hero/core/rock_importer.h>
+#include <rock_hero/common/core/psarc_importer.h>
+#include <rock_hero/common/core/rock_importer.h>
 #include <string>
 #include <utility>
 
@@ -18,15 +18,15 @@ namespace
 {
 
 // Production open path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<core::Song, std::string> defaultOpen(
-    core::Project& project, const std::filesystem::path& file)
+[[nodiscard]] std::expected<common::core::Song, std::string> defaultOpen(
+    common::core::Project& project, const std::filesystem::path& file)
 {
     return project.load(file);
 }
 
 // Production import path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<core::Song, std::string> defaultImport(
-    core::Project& project, const std::filesystem::path& file)
+[[nodiscard]] std::expected<common::core::Song, std::string> defaultImport(
+    common::core::Project& project, const std::filesystem::path& file)
 {
     std::string extension = file.extension().string();
     std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
@@ -35,13 +35,13 @@ namespace
 
     if (extension == ".rock")
     {
-        core::RockImporter importer;
+        common::core::RockImporter importer;
         return project.import(file, importer);
     }
 
     if (extension == ".psarc")
     {
-        core::PsarcImporter importer;
+        common::core::PsarcImporter importer;
         return project.import(file, importer);
     }
 
@@ -52,22 +52,24 @@ namespace
 
 // Production save path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSave(
-    core::Project& project, const core::Song& song, core::ProjectEditorState editor_state)
+    common::core::Project& project, const common::core::Song& song,
+    common::core::ProjectEditorState editor_state)
 {
     return project.save(song, std::move(editor_state));
 }
 
 // Production save-as path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSaveAs(
-    core::Project& project, const std::filesystem::path& file, const core::Song& song,
-    core::ProjectEditorState editor_state)
+    common::core::Project& project, const std::filesystem::path& file,
+    const common::core::Song& song, common::core::ProjectEditorState editor_state)
 {
     return project.saveAs(file, song, std::move(editor_state));
 }
 
 // Production publish path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultPublish(
-    core::Project& project, const std::filesystem::path& file, const core::Song& song)
+    common::core::Project& project, const std::filesystem::path& file,
+    const common::core::Song& song)
 {
     return project.publish(file, song);
 }
@@ -78,7 +80,7 @@ void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
 
 // Resolves persisted arrangement IDs to the current song order, falling back to the first item.
 [[nodiscard]] std::size_t getSelectedArrangementIndex(
-    const core::Song& song, const std::optional<std::string>& selected_arrangement)
+    const common::core::Song& song, const std::optional<std::string>& selected_arrangement)
 {
     if (!selected_arrangement.has_value())
     {
@@ -86,7 +88,7 @@ void defaultExit(std::optional<std::filesystem::path> /*project_file*/)
     }
 
     const auto found = std::ranges::find_if(
-        song.arrangements, [&selected_arrangement](const core::Arrangement& arrangement) {
+        song.arrangements, [&selected_arrangement](const common::core::Arrangement& arrangement) {
             return arrangement.id == *selected_arrangement;
         });
     if (found == song.arrangements.end())
@@ -145,8 +147,8 @@ void EditorController::onOpenRequested(std::filesystem::path file)
 // Opens a package after any current project-replacement prompt has already been satisfied.
 void EditorController::openProject(const std::filesystem::path& file)
 {
-    core::Project project;
-    std::expected<core::Song, std::string> loaded_song = m_open_function(project, file);
+    common::core::Project project;
+    std::expected<common::core::Song, std::string> loaded_song = m_open_function(project, file);
     if (!loaded_song.has_value())
     {
         m_last_error = std::string{"Could not open: "} + loaded_song.error();
@@ -154,8 +156,8 @@ void EditorController::openProject(const std::filesystem::path& file)
         return;
     }
 
-    core::Song song = std::move(*loaded_song);
-    const core::ProjectEditorState editor_state = project.editorState();
+    common::core::Song song = std::move(*loaded_song);
+    const common::core::ProjectEditorState editor_state = project.editorState();
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
@@ -190,8 +192,8 @@ void EditorController::onImportRequested(std::filesystem::path file)
 // Imports a foreign package after any current project-replacement prompt has been satisfied.
 void EditorController::importProject(const std::filesystem::path& file)
 {
-    core::Project project;
-    std::expected<core::Song, std::string> loaded_song = m_import_function(project, file);
+    common::core::Project project;
+    std::expected<common::core::Song, std::string> loaded_song = m_import_function(project, file);
     if (!loaded_song.has_value())
     {
         m_last_error = std::string{"Could not import: "} + loaded_song.error();
@@ -199,7 +201,7 @@ void EditorController::importProject(const std::filesystem::path& file)
         return;
     }
 
-    core::Song song = std::move(*loaded_song);
+    common::core::Song song = std::move(*loaded_song);
 
     if (!loadSessionSong(std::move(song), std::nullopt))
     {
@@ -419,10 +421,10 @@ void EditorController::onStopPressed()
 void EditorController::onWaveformClicked(double normalized_x)
 {
     const double clamped = std::clamp(normalized_x, 0.0, 1.0);
-    const core::TimeRange timeline_range = session().timeline();
+    const common::core::TimeRange timeline_range = session().timeline();
     const double target_seconds =
         timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
-    m_transport.seek(timeline_range.clamp(core::TimePosition{target_seconds}));
+    m_transport.seek(timeline_range.clamp(common::core::TimePosition{target_seconds}));
     deriveAndPush();
 }
 
@@ -567,7 +569,7 @@ void EditorController::clearPendingProjectAction() noexcept
 }
 
 // Returns the controller-owned editor session through the read-only access boundary.
-const core::Session& EditorController::session() const noexcept
+const common::core::Session& EditorController::session() const noexcept
 {
     return m_session;
 }
@@ -584,9 +586,9 @@ std::optional<std::filesystem::path> EditorController::currentProjectFile() cons
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.
-core::ProjectEditorState EditorController::projectEditorStateForSave() const
+common::core::ProjectEditorState EditorController::projectEditorStateForSave() const
 {
-    core::ProjectEditorState editor_state{
+    common::core::ProjectEditorState editor_state{
         .cursor_position = m_transport.position(),
         .selected_arrangement = std::nullopt,
     };
@@ -602,7 +604,7 @@ core::ProjectEditorState EditorController::projectEditorStateForSave() const
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.
 bool EditorController::loadSessionSong(
-    core::Song song, const std::optional<std::string>& selected_arrangement)
+    common::core::Song song, const std::optional<std::string>& selected_arrangement)
 {
     if (song.arrangements.empty())
     {
@@ -635,7 +637,7 @@ bool EditorController::loadSessionSong(
 EditorViewState EditorController::deriveViewState() const
 {
     const audio::TransportState transport_state = m_transport.state();
-    const core::TimeRange timeline_range = session().timeline();
+    const common::core::TimeRange timeline_range = session().timeline();
 
     EditorViewState state;
     state.open_enabled = true;

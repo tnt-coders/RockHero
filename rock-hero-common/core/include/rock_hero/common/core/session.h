@@ -6,12 +6,12 @@
 #pragma once
 
 #include <cstddef>
-#include <rock_hero/core/arrangement.h>
-#include <rock_hero/core/song.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/song.h>
+#include <rock_hero/common/core/timeline.h>
 #include <vector>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*!
@@ -78,4 +78,4 @@ private:
     TimeRange m_timeline{};
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

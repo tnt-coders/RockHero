@@ -16,16 +16,16 @@ namespace
 struct WaveformDrawRequest
 {
     juce::Rectangle<int> bounds;
-    core::TimeRange visible_range;
+    common::core::TimeRange visible_range;
 };
 
 // Returns the overlapping portion of two timeline ranges.
-[[nodiscard]] std::optional<core::TimeRange> intersectRanges(
-    core::TimeRange lhs, core::TimeRange rhs) noexcept
+[[nodiscard]] std::optional<common::core::TimeRange> intersectRanges(
+    common::core::TimeRange lhs, common::core::TimeRange rhs) noexcept
 {
-    const core::TimeRange intersection{
-        .start = core::TimePosition{std::max(lhs.start.seconds, rhs.start.seconds)},
-        .end = core::TimePosition{std::min(lhs.end.seconds, rhs.end.seconds)},
+    const common::core::TimeRange intersection{
+        .start = common::core::TimePosition{std::max(lhs.start.seconds, rhs.start.seconds)},
+        .end = common::core::TimePosition{std::min(lhs.end.seconds, rhs.end.seconds)},
     };
 
     if (intersection.duration().seconds <= 0.0)
@@ -38,7 +38,7 @@ struct WaveformDrawRequest
 
 // Maps a timeline range into the visible portion of the arrangement view.
 [[nodiscard]] juce::Rectangle<int> boundsForTimelineRange(
-    core::TimeRange timeline_range, core::TimeRange visible_timeline,
+    common::core::TimeRange timeline_range, common::core::TimeRange visible_timeline,
     juce::Rectangle<int> view_bounds) noexcept
 {
     const double visible_duration = visible_timeline.duration().seconds;
@@ -68,16 +68,16 @@ struct WaveformDrawRequest
 
 // Builds the draw range and bounds for the visible portion of full-source arrangement audio.
 [[nodiscard]] std::optional<WaveformDrawRequest> waveformDrawRequest(
-    const ArrangementViewState& state, core::TimeRange visible_timeline,
+    const ArrangementViewState& state, common::core::TimeRange visible_timeline,
     juce::Rectangle<int> view_bounds) noexcept
 {
-    const core::TimeRange audio_timeline = state.audioTimelineRange();
+    const common::core::TimeRange audio_timeline = state.audioTimelineRange();
     if (audio_timeline.duration().seconds <= 0.0)
     {
         return std::nullopt;
     }
 
-    const core::TimeRange effective_visible_timeline =
+    const common::core::TimeRange effective_visible_timeline =
         visible_timeline.duration().seconds > 0.0 ? visible_timeline : audio_timeline;
     const auto visible_audio_range = intersectRanges(audio_timeline, effective_visible_timeline);
     if (!visible_audio_range.has_value())
@@ -110,7 +110,7 @@ void ArrangementView::setThumbnailFactory(audio::IThumbnailFactory& thumbnail_fa
 }
 
 // Stores the visible timeline range and redraws the appropriate waveform subsection.
-void ArrangementView::setVisibleTimeline(core::TimeRange visible_timeline)
+void ArrangementView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
     m_visible_timeline = visible_timeline;
     repaint();

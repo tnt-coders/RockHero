@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/timeline.h>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 // Verifies a range derives duration from its endpoints without introducing a new source of truth.
@@ -57,4 +57,4 @@ TEST_CASE("TimeRange clamp keeps positions inside the range", "[core][timeline]"
     CHECK(TimeRange{}.clamp(TimePosition{9.0}) == TimePosition{});
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

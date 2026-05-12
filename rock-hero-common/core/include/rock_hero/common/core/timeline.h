@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <compare>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*! \brief Position on the song timeline, measured in seconds from the start of the song. */
@@ -133,4 +133,4 @@ struct TimeRange
     friend bool operator==(const TimeRange& lhs, const TimeRange& rhs) = default;
 };
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

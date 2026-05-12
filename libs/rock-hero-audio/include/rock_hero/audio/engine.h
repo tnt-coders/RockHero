@@ -84,7 +84,7 @@ public:
     \brief Moves the transport to the given timeline position.
     \param position Target playback position on the session timeline.
     */
-    void seek(core::TimePosition position) override;
+    void seek(common::core::TimePosition position) override;
 
     /*!
     \brief Reads the current coarse transport state.
@@ -96,7 +96,7 @@ public:
     \brief Reads the current playback position used for render-cadence cursor drawing.
     \return Current playback position.
     */
-    [[nodiscard]] core::TimePosition position() const noexcept override;
+    [[nodiscard]] common::core::TimePosition position() const noexcept override;
 
     /*!
     \brief Registers a project-owned transport listener.
@@ -119,7 +119,7 @@ public:
     \param song Candidate song to prepare for session loading.
     \return True when every arrangement has usable positive-duration audio.
     */
-    [[nodiscard]] bool prepareSong(core::Song& song) override;
+    [[nodiscard]] bool prepareSong(common::core::Song& song) override;
 
     /*!
     \brief Makes an already-prepared arrangement active in the Tracktion edit.
@@ -130,7 +130,7 @@ public:
     \param arrangement Prepared arrangement to make active.
     \return True when the playback backend made the arrangement playable.
     */
-    [[nodiscard]] bool setActiveArrangement(const core::Arrangement& arrangement) override;
+    [[nodiscard]] bool setActiveArrangement(const common::core::Arrangement& arrangement) override;
 
     /*! \brief Clears the active arrangement from the Tracktion edit and resets playback state. */
     void clearActiveArrangement() override;

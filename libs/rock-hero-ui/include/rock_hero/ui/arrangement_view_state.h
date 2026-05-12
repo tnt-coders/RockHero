@@ -6,8 +6,8 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/timeline.h>
 
 namespace rock_hero::ui
 {
@@ -21,10 +21,10 @@ current stage that is one full-source waveform for the displayed arrangement.
 struct ArrangementViewState
 {
     /*! \brief Backing audio currently rendered for the arrangement, if any. */
-    std::optional<core::AudioAsset> audio_asset;
+    std::optional<common::core::AudioAsset> audio_asset;
 
     /*! \brief Full natural duration of the rendered backing audio. */
-    core::TimeDuration audio_duration;
+    common::core::TimeDuration audio_duration;
 
     /*!
     \brief Reports whether this state has playable audio assigned.
@@ -39,11 +39,11 @@ struct ArrangementViewState
     \brief Calculates the visible timeline range for the current audio.
     \return Timeline range from zero through the audio duration.
     */
-    [[nodiscard]] constexpr core::TimeRange audioTimelineRange() const noexcept
+    [[nodiscard]] constexpr common::core::TimeRange audioTimelineRange() const noexcept
     {
-        return core::TimeRange{
-            .start = core::TimePosition{},
-            .end = core::TimePosition{audio_duration.seconds},
+        return common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{audio_duration.seconds},
         };
     }
 

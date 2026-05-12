@@ -10,16 +10,16 @@ namespace
 {
 
 // Builds a minimal one-arrangement song used to exercise the framework-free audio port.
-[[nodiscard]] core::Song makeSong(std::filesystem::path audio_path)
+[[nodiscard]] common::core::Song makeSong(std::filesystem::path audio_path)
 {
-    core::Song song;
+    common::core::Song song;
     song.arrangements.push_back(
-        core::Arrangement{
+        common::core::Arrangement{
             .id = "lead",
-            .part = core::Part::Lead,
-            .difficulty = core::DifficultyRating{},
-            .audio_asset = core::AudioAsset{std::move(audio_path)},
-            .audio_duration = core::TimeDuration{},
+            .part = common::core::Part::Lead,
+            .difficulty = common::core::DifficultyRating{},
+            .audio_asset = common::core::AudioAsset{std::move(audio_path)},
+            .audio_duration = common::core::TimeDuration{},
             .tone_timeline_ref = {},
             .note_events = {},
         });
@@ -31,7 +31,7 @@ class FakeAudio final : public IAudio
 {
 public:
     // Fills arrangement durations when the fake is configured to accept preparation.
-    bool prepareSong(core::Song& song) override
+    bool prepareSong(common::core::Song& song) override
     {
         ++prepare_song_call_count;
         if (!next_prepare_result)
@@ -39,7 +39,7 @@ public:
             return false;
         }
 
-        for (core::Arrangement& arrangement : song.arrangements)
+        for (common::core::Arrangement& arrangement : song.arrangements)
         {
             arrangement.audio_duration = prepared_duration;
         }
@@ -47,7 +47,7 @@ public:
     }
 
     // Records the prepared arrangement selected for backend playback.
-    bool setActiveArrangement(const core::Arrangement& arrangement) override
+    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
     {
         last_active_audio_asset = arrangement.audio_asset;
         ++set_active_arrangement_call_count;
@@ -61,10 +61,10 @@ public:
         ++clear_active_arrangement_call_count;
     }
 
-    core::TimeDuration prepared_duration{core::TimeDuration{12.0}};
+    common::core::TimeDuration prepared_duration{common::core::TimeDuration{12.0}};
     bool next_prepare_result{true};
     bool next_set_active_result{true};
-    std::optional<core::AudioAsset> last_active_audio_asset{};
+    std::optional<common::core::AudioAsset> last_active_audio_asset{};
     int prepare_song_call_count{0};
     int set_active_arrangement_call_count{0};
     int clear_active_arrangement_call_count{0};
@@ -82,7 +82,7 @@ TEST_CASE("IAudio prepares song audio", "[audio][audio]")
 
     CHECK(prepared);
     REQUIRE(song.arrangements.size() == 1);
-    CHECK(song.arrangements.front().audio_duration == core::TimeDuration{12.0});
+    CHECK(song.arrangements.front().audio_duration == common::core::TimeDuration{12.0});
     CHECK(audio.prepare_song_call_count == 1);
     CHECK(audio.set_active_arrangement_call_count == 0);
 }
@@ -114,7 +114,7 @@ TEST_CASE("IAudio sets active arrangement", "[audio][audio]")
     CHECK(active_set);
     CHECK(
         audio.last_active_audio_asset ==
-        std::optional{core::AudioAsset{std::filesystem::path{"drums.wav"}}});
+        std::optional{common::core::AudioAsset{std::filesystem::path{"drums.wav"}}});
     CHECK(audio.set_active_arrangement_call_count == 1);
 }
 
