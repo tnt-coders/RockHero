@@ -4,15 +4,23 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
-#include <rock_hero/common/core/project.h>
-#include <rock_hero/common/core/rock_importer.h>
+#include <rock_hero/editor/core/project.h>
+#include <rock_hero/editor/core/rock_importer.h>
 #include <string>
 #include <utility>
 #include <vector>
 #include <zip.h>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
+
+using common::core::Arrangement;
+using common::core::AudioAsset;
+using common::core::DifficultyRating;
+using common::core::Part;
+using common::core::Song;
+using common::core::TimeDuration;
+using common::core::TimePosition;
 
 namespace
 {
@@ -680,4 +688,4 @@ TEST_CASE("Project save rejects unopened projects", "[core][project]")
     CHECK(saved.error().find("path") != std::string::npos);
 }
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core

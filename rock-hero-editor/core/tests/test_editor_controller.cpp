@@ -7,7 +7,6 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_controller.h>
@@ -263,7 +262,7 @@ class FakeProjectIo final
 {
 public:
     std::expected<common::core::Song, std::string> open(
-        common::core::Project& project, const std::filesystem::path& file)
+        Project& project, const std::filesystem::path& file)
     {
         (void)project;
         last_open_file = file;
@@ -279,7 +278,7 @@ public:
     }
 
     std::expected<common::core::Song, std::string> import(
-        common::core::Project& project, const std::filesystem::path& file)
+        Project& project, const std::filesystem::path& file)
     {
         (void)project;
         last_import_file = file;
@@ -295,8 +294,7 @@ public:
     }
 
     std::expected<void, std::string> save(
-        common::core::Project& project, const common::core::Song& song,
-        common::core::ProjectEditorState editor_state)
+        Project& project, const common::core::Song& song, ProjectEditorState editor_state)
     {
         (void)project;
         last_save_audio_path = firstAudioPath(song);
@@ -310,8 +308,8 @@ public:
     }
 
     std::expected<void, std::string> saveAs(
-        common::core::Project& project, const std::filesystem::path& file,
-        const common::core::Song& song, common::core::ProjectEditorState editor_state)
+        Project& project, const std::filesystem::path& file, const common::core::Song& song,
+        ProjectEditorState editor_state)
     {
         (void)project;
         last_save_as_file = file;
@@ -326,8 +324,7 @@ public:
     }
 
     std::expected<void, std::string> publish(
-        common::core::Project& project, const std::filesystem::path& file,
-        const common::core::Song& song)
+        Project& project, const std::filesystem::path& file, const common::core::Song& song)
     {
         (void)project;
         last_publish_file = file;
@@ -342,35 +339,34 @@ public:
 
     [[nodiscard]] OpenFunction openFunction() noexcept
     {
-        return [this](common::core::Project& project, const std::filesystem::path& file) {
+        return [this](Project& project, const std::filesystem::path& file) {
             return open(project, file);
         };
     }
 
     [[nodiscard]] ImportFunction importFunction() noexcept
     {
-        return [this](common::core::Project& project, const std::filesystem::path& file) {
+        return [this](Project& project, const std::filesystem::path& file) {
             return import(project, file);
         };
     }
 
     [[nodiscard]] SaveFunction saveFunction() noexcept
     {
-        return [this](
-                   common::core::Project& project,
-                   const common::core::Song& song,
-                   common::core::ProjectEditorState editor_state) {
-            return save(project, song, std::move(editor_state));
-        };
+        return
+            [this](
+                Project& project, const common::core::Song& song, ProjectEditorState editor_state) {
+                return save(project, song, std::move(editor_state));
+            };
     }
 
     [[nodiscard]] SaveAsFunction saveAsFunction() noexcept
     {
         return [this](
-                   common::core::Project& project,
+                   Project& project,
                    const std::filesystem::path& file,
                    const common::core::Song& song,
-                   common::core::ProjectEditorState editor_state) {
+                   ProjectEditorState editor_state) {
             return saveAs(project, file, song, std::move(editor_state));
         };
     }
@@ -378,7 +374,7 @@ public:
     [[nodiscard]] PublishFunction publishFunction() noexcept
     {
         return [this](
-                   common::core::Project& project,
+                   Project& project,
                    const std::filesystem::path& file,
                    const common::core::Song& song) { return publish(project, file, song); };
     }
@@ -397,8 +393,8 @@ public:
     std::optional<std::filesystem::path> last_save_audio_path{};
     std::optional<std::filesystem::path> last_save_as_audio_path{};
     std::optional<std::filesystem::path> last_publish_audio_path{};
-    std::optional<common::core::ProjectEditorState> last_save_editor_state{};
-    std::optional<common::core::ProjectEditorState> last_save_as_editor_state{};
+    std::optional<ProjectEditorState> last_save_editor_state{};
+    std::optional<ProjectEditorState> last_save_as_editor_state{};
     int open_call_count{0};
     int import_call_count{0};
     int save_call_count{0};
@@ -1016,7 +1012,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(project_io.last_save_audio_path == std::optional{audio_asset.path});
     CHECK(
         project_io.last_save_editor_state ==
-        std::optional{common::core::ProjectEditorState{
+        std::optional{ProjectEditorState{
             .cursor_position = common::core::TimePosition{1.25},
             .selected_arrangement = std::string{"lead"},
         }});
@@ -1268,7 +1264,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"saved.rhp"}});
     CHECK(
         project_io.last_save_as_editor_state ==
-        std::optional{common::core::ProjectEditorState{
+        std::optional{ProjectEditorState{
             .cursor_position = common::core::TimePosition{2.5},
             .selected_arrangement = std::string{"lead"},
         }});

@@ -10,15 +10,21 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/package_io.h>
+#include <rock_hero/common/core/song_package.h>
 #include <string>
 #include <system_error>
 #include <utility>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
 
 namespace
 {
+
+using common::core::Arrangement;
+using common::core::AudioAsset;
+using common::core::Song;
 
 // Builds a failed project-load result with a single message.
 [[nodiscard]] std::expected<Song, std::string> failProjectLoad(std::string message)
@@ -115,7 +121,7 @@ namespace
         }
 
         const auto relative_audio_path =
-            project_io::relativeWorkspacePath(workspace_directory, arrangement.audio_asset.path);
+            common::core::relativeWorkspacePath(workspace_directory, arrangement.audio_asset.path);
         if (!relative_audio_path.has_value())
         {
             return failProjectImport(
@@ -226,7 +232,7 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     loaded_project.m_workspace_directory = std::move(*workspace_directory);
 
     const auto extraction_error =
-        project_io::extractPackageToWorkspace(package_path, loaded_project.m_workspace_directory);
+        common::core::extractPackageToWorkspace(package_path, loaded_project.m_workspace_directory);
     if (extraction_error.has_value())
     {
         return failProjectLoad(*extraction_error);
@@ -238,7 +244,7 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
         return failProjectLoad(std::move(editor_state.error()));
     }
 
-    auto loaded_song = project_io::readSong(
+    auto loaded_song = common::core::readSongPackageDirectory(
         loaded_project.m_workspace_directory / project_io::g_song_directory_name);
     if (!loaded_song.has_value())
     {
@@ -332,7 +338,7 @@ std::expected<void, std::string> Project::save(const Song& song, ProjectEditorSt
     }
 
     if (const auto package_error =
-            project_io::writeWorkspaceToPackage(m_workspace_directory, m_path);
+            common::core::writeWorkspaceToPackage(m_workspace_directory, m_path);
         package_error.has_value())
     {
         return failProjectSave(*package_error);
@@ -378,7 +384,7 @@ std::expected<void, std::string> Project::saveAs(
             return failProjectSave(*write_error);
         }
 
-        if (const auto package_error = project_io::writeWorkspaceToPackage(
+        if (const auto package_error = common::core::writeWorkspaceToPackage(
                 saved_project.m_workspace_directory, saved_project.m_path);
             package_error.has_value())
         {
@@ -397,7 +403,8 @@ std::expected<void, std::string> Project::saveAs(
         return failProjectSave(*write_error);
     }
 
-    if (const auto package_error = project_io::writeWorkspaceToPackage(m_workspace_directory, path);
+    if (const auto package_error =
+            common::core::writeWorkspaceToPackage(m_workspace_directory, path);
         package_error.has_value())
     {
         return failProjectSave(*package_error);
@@ -430,13 +437,13 @@ std::expected<void, std::string> Project::publish(
         return failProjectPublish("Project workspace does not exist");
     }
 
-    if (const auto song_files = project_io::writeSongFiles(song_directory, song);
+    if (const auto song_files = common::core::writeSongPackageDirectory(song_directory, song);
         !song_files.has_value())
     {
         return failProjectPublish(song_files.error());
     }
 
-    if (const auto package_error = project_io::writeWorkspaceToPackage(song_directory, path);
+    if (const auto package_error = common::core::writeWorkspaceToPackage(song_directory, path);
         package_error.has_value())
     {
         return failProjectPublish(*package_error);
@@ -482,4 +489,4 @@ std::expected<void, std::string> Project::close()
     return std::expected<void, std::string>{};
 }
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core
