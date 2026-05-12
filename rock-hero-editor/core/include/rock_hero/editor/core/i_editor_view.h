@@ -6,15 +6,17 @@
 #pragma once
 
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
 
 /*!
-\brief Project-owned boundary for applying derived editor state to a concrete view.
+\brief Project-owned boundary for applying editor state and transient effects to a view.
 
 Concrete JUCE implementations receive an already-derived EditorViewState through this interface so
-controller tests can run headlessly without JUCE initialization.
+controller tests can run headlessly without JUCE initialization. One-shot effects, such as workflow
+errors, stay separate from durable render state.
 */
 class IEditorView
 {
@@ -27,6 +29,12 @@ public:
     \param state Fully derived editor state to render.
     */
     virtual void setState(const EditorViewState& state) = 0;
+
+    /*!
+    \brief Presents a transient workflow error to the user.
+    \param message User-facing error message.
+    */
+    virtual void showError(const std::string& message) = 0;
 
 protected:
     /*! \brief Creates the editor-view interface. */

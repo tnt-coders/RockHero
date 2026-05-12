@@ -31,7 +31,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Captures the most recent editor view state pushed through the framework-free view contract.
+// Captures editor view state and transient effects pushed through the view contract.
 class FakeEditorView final : public IEditorView
 {
 public:
@@ -42,7 +42,14 @@ public:
         set_state_call_count += 1;
     }
 
+    // Records one-shot workflow errors separately from durable render state.
+    void showError(const std::string& message) override
+    {
+        shown_errors.push_back(message);
+    }
+
     std::optional<EditorViewState> last_state{};
+    std::vector<std::string> shown_errors{};
     int set_state_call_count{0};
 };
 
@@ -575,7 +582,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.play_pause_shows_pause_icon == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
-    CHECK_FALSE(empty_state.last_error.has_value());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
@@ -599,7 +605,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .audio_asset = audio_asset,
                 .audio_duration = common::core::TimeDuration{180.0},
             },
-        .last_error = std::string{"Could not open"},
         .unsaved_changes_prompt = UnsavedChangesPrompt{.action = PendingProjectAction::Close},
         .save_as_prompt = SaveAsPrompt{.action = PendingProjectAction::Close},
     };
@@ -607,7 +612,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
-    CHECK(loaded_state.last_error == std::optional<std::string>{"Could not open"});
     CHECK(
         loaded_state.unsaved_changes_prompt ==
         std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Close}});
@@ -686,7 +690,6 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.play_pause_shows_pause_icon == false);
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
-        CHECK_FALSE(state.last_error.has_value());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
         CHECK_FALSE(state.save_as_prompt.has_value());
     }
@@ -955,11 +958,13 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.last_error == std::optional<std::string>{"Could not load audio from: new.rhp"});
+        CHECK(state.project_loaded == true);
     }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load audio from: new.rhp");
 }
 
-// A successful open stores the selected audio and clears prior error.
+// A successful open stores the selected audio without replaying a prior error.
 TEST_CASE("EditorController successful open stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -976,14 +981,8 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     project_services.next_song = makeSong(std::filesystem::path{"first.wav"});
     audio.next_set_active_arrangement_result = false;
     controller.onOpenRequested(std::filesystem::path{"first.rhp"});
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& failed_state = view.last_state.value();
-        CHECK(
-            failed_state.last_error ==
-            std::optional<std::string>{"Could not load audio from: first.rhp"});
-    }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load audio from: first.rhp");
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
@@ -1003,7 +1002,6 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK_FALSE(state.last_error.has_value());
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
@@ -1015,6 +1013,7 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
     }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
+    CHECK(view.shown_errors.size() == 1);
 }
 
 // Close stops playback, clears backend audio, and returns the view to an empty project state.
@@ -1052,7 +1051,6 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
         CHECK(state.play_pause_enabled == false);
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
-        CHECK_FALSE(state.last_error.has_value());
     }
 }
 
@@ -1203,12 +1201,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
             .cursor_position = common::core::TimePosition{1.25},
             .selected_arrangement = std::string{"lead"},
         }});
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& state = view.last_state.value();
-        CHECK_FALSE(state.last_error.has_value());
-    }
+    CHECK(view.shown_errors.empty());
 }
 
 // Save failures are surfaced without clearing the loaded session.
@@ -1236,12 +1229,8 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
     controller.onSaveRequested();
 
     CHECK(project_services.save_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& state = view.last_state.value();
-        CHECK(state.last_error == std::optional<std::string>{"Could not save: disk full"});
-    }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not save: disk full");
 }
 
 // Publish writes a native song package copy without changing save-destination state.
@@ -1278,8 +1267,8 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     {
         const EditorViewState& state = view.last_state.value();
         CHECK(state.save_requires_destination == false);
-        CHECK_FALSE(state.last_error.has_value());
     }
+    CHECK(view.shown_errors.empty());
 }
 
 // Publish failures surface an error without closing or retargeting the current project.
@@ -1312,8 +1301,9 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
         const EditorViewState& state = view.last_state.value();
         CHECK(state.publish_enabled == true);
         CHECK(state.close_enabled == true);
-        CHECK(state.last_error == std::optional<std::string>{"Could not publish: disk full"});
     }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not publish: disk full");
 }
 
 // A failed import leaves the current session unchanged and surfaces an error.
@@ -1355,11 +1345,13 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.last_error == std::optional<std::string>{"Could not import: Import failed"});
+        CHECK(state.project_loaded == true);
     }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not import: Import failed");
 }
 
-// A successful import stores the imported audio and clears prior error.
+// A successful import stores the imported audio without replaying a prior error.
 TEST_CASE("EditorController successful import stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1376,14 +1368,8 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     project_services.next_import_song = makeSong(std::filesystem::path{"first.ogg"});
     audio.next_set_active_arrangement_result = false;
     controller.onImportRequested(std::filesystem::path{"first.psarc"});
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& failed_state = view.last_state.value();
-        CHECK(
-            failed_state.last_error ==
-            std::optional<std::string>{"Could not load imported audio from: first.psarc"});
-    }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load imported audio from: first.psarc");
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
@@ -1405,7 +1391,6 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK_FALSE(state.last_error.has_value());
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
         CHECK(state.save_enabled == true);
         CHECK(state.save_as_enabled == true);
@@ -1415,6 +1400,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.save_requires_destination == true);
     }
     CHECK(view.set_state_call_count == pushes_before_success + 1);
+    CHECK(view.shown_errors.size() == 1);
 }
 
 // Imported content requires Save As before direct Save can write to a destination.
@@ -1676,10 +1662,10 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(
-            state.last_error == std::optional<std::string>{"Could not load audio from: song.rhp"});
         CHECK(state.project_loaded == false);
     }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load audio from: song.rhp");
 }
 
 // Reentrant transport notifications during in-flight arrangement activation coalesce once.
@@ -1718,9 +1704,8 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     }
 }
 
-// Later transport transitions preserve the existing workflow error until success clears it.
-TEST_CASE(
-    "EditorController preserves workflow error across transitions", "[core][editor-controller]")
+// Later transport transitions do not replay a one-shot workflow error.
+TEST_CASE("EditorController does not replay errors across transitions", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1737,26 +1722,15 @@ TEST_CASE(
     controller.attachView(view);
     controller.onOpenRequested(std::filesystem::path{"new.rhp"});
 
-    REQUIRE(view.last_state.has_value());
-    std::optional<std::string> original_error;
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& failed_state = view.last_state.value();
-        REQUIRE(failed_state.last_error.has_value());
-        original_error = failed_state.last_error;
-    }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load audio from: new.rhp");
 
     transport.setStateAndNotify(
         common::audio::TransportState{
             .playing = true,
         });
 
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& playing_state = view.last_state.value();
-        CHECK(playing_state.last_error == original_error);
-    }
+    CHECK(view.shown_errors.size() == 1);
 }
 
 } // namespace rock_hero::editor::core
