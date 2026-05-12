@@ -8,11 +8,11 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
-#include <rock_hero/ui/editor_view.h>
+#include <rock_hero/editor/ui/editor_view.h>
 #include <stdexcept>
 #include <utility>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -26,7 +26,7 @@ template <typename Value>
 }
 
 // Records editor intents emitted by EditorView child widgets.
-class FakeEditorController final : public IEditorController
+class FakeEditorController final : public core::IEditorController
 {
 public:
     void onOpenRequested(std::filesystem::path file) override
@@ -73,7 +73,7 @@ public:
         exit_request_count += 1;
     }
 
-    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
+    void onUnsavedChangesDecision(core::UnsavedChangesDecision decision) override
     {
         last_unsaved_changes_decision = decision;
         unsaved_changes_decision_count += 1;
@@ -100,7 +100,7 @@ public:
     std::optional<std::filesystem::path> last_save_as_file{};
     std::optional<std::filesystem::path> last_publish_file{};
     std::optional<double> last_normalized_x{};
-    std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
+    std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
     int open_request_count{0};
     int import_request_count{0};
     int save_request_count{0};
@@ -301,19 +301,19 @@ template <class ComponentType>
 }
 
 // Builds arrangement view state for editor-view tests that need thumbnail source propagation.
-[[nodiscard]] ArrangementViewState makeArrangementState(
+[[nodiscard]] core::ArrangementViewState makeArrangementState(
     std::filesystem::path path, double duration_seconds = 4.0)
 {
-    return ArrangementViewState{
+    return core::ArrangementViewState{
         .audio_asset = common::core::AudioAsset{std::move(path)},
         .audio_duration = common::core::TimeDuration{duration_seconds},
     };
 }
 
 // Builds a loaded editor state with a full-source timeline for viewport layout tests.
-[[nodiscard]] EditorViewState makeLoadedEditorState(double duration_seconds)
+[[nodiscard]] core::EditorViewState makeLoadedEditorState(double duration_seconds)
 {
-    return EditorViewState{
+    return core::EditorViewState{
         .open_enabled = true,
         .import_enabled = true,
         .save_enabled = true,
@@ -385,7 +385,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
 
     view.setState(
-        EditorViewState{
+        core::EditorViewState{
             .open_enabled = true,
             .import_enabled = true,
             .save_enabled = false,
@@ -433,7 +433,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     constexpr int exit_command{6};
     constexpr int publish_command{7};
 
-    view.setState(EditorViewState{});
+    view.setState(core::EditorViewState{});
 
     CHECK(menu_bar.isVisible());
     const juce::StringArray menu_names = view.getMenuBarNames();
@@ -451,7 +451,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 
     view.setState(
-        EditorViewState{
+        core::EditorViewState{
             .open_enabled = true,
             .import_enabled = true,
             .save_enabled = true,
@@ -711,7 +711,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     EditorView view{controller, transport, thumbnail_factory};
     view.setBounds(0, 0, 1600, 1000);
     view.setState(
-        EditorViewState{
+        core::EditorViewState{
             .open_enabled = true,
             .import_enabled = true,
             .save_enabled = true,
@@ -822,4 +822,4 @@ TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui
                     .has_value());
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

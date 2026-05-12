@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/ui/transport_controls.h>
+#include <rock_hero/editor/ui/transport_controls.h>
 #include <stdexcept>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -222,4 +222,4 @@ TEST_CASE("TransportControls stop click calls listener", "[ui][transport-control
     CHECK(listener.stop_press_count == 1);
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

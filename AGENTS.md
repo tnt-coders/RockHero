@@ -24,15 +24,16 @@ Before making any significant rule or architecture change in `docs/design/`, con
 that they intend to change the design rather than merely make a local implementation adjustment.
 
 ## Project Structure & Module Organization
-`apps/` contains executables (`apps/rock-hero-editor`, `apps/rock-hero`). `libs/` contains
-shared static libraries, one per module (`libs/rock-hero-audio`, `libs/rock-hero-core`,
-`libs/rock-hero-ui`). Each module maps to a matching sub-namespace (`rock_hero::audio`,
-`rock_hero::core`, `rock_hero::ui`) and a matching nested include path
-(`<rock_hero/audio/*.h>`, etc.). `docs/` holds Doxygen inputs such as `Doxyfile.in`. Third-party source
-submodules live under `external/` (`external/tracktion_engine`). `project-config/` remains a
-root-level submodule providing shared CMake presets, Conan integration, docs theming, and lint
-targets; its vendored `cmake-conan/` subtree carries its own pytest suite. Root build outputs go
-to `build/debug` and `build/release` via presets.
+Product-scope libraries live at the repository root under `rock-hero-common`, `rock-hero-editor`,
+and `rock-hero-game`. Each scope owns `core`, `audio`, and `ui` submodules only when needed, with
+matching namespaces and include paths such as `rock_hero::editor::ui` and
+`<rock_hero/editor/ui/*.h>`. Executable startup lives under the matching product `app/` folder;
+`apps/rock-hero` remains as the temporary game executable shell during migration. `docs/` holds
+Doxygen inputs such as `Doxyfile.in`. Third-party source submodules live under `external/`
+(`external/tracktion_engine`). `project-config/` remains a root-level submodule providing shared
+CMake presets, Conan integration, docs theming, and lint targets; its vendored `cmake-conan/`
+subtree carries its own pytest suite. Root build outputs go to `build/debug` and `build/release`
+via presets.
 
 ## Build, Test, and Development Commands
 Initialize submodules before configuring:
