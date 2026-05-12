@@ -730,12 +730,18 @@ private:
 {
     switch (part)
     {
-    case Part::Lead:
-        return "Lead";
-    case Part::Rhythm:
-        return "Rhythm";
-    case Part::Bass:
-        return "Bass";
+        case Part::Lead:
+        {
+            return "Lead";
+        }
+        case Part::Rhythm:
+        {
+            return "Rhythm";
+        }
+        case Part::Bass:
+        {
+            return "Bass";
+        }
     }
 
     return "Lead";
@@ -746,12 +752,18 @@ private:
 {
     switch (part)
     {
-    case Part::Lead:
-        return "lead";
-    case Part::Rhythm:
-        return "rhythm";
-    case Part::Bass:
-        return "bass";
+        case Part::Lead:
+        {
+            return "lead";
+        }
+        case Part::Rhythm:
+        {
+            return "rhythm";
+        }
+        case Part::Bass:
+        {
+            return "bass";
+        }
     }
 
     return "arrangement";

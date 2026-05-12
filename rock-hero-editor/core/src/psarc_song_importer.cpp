@@ -305,12 +305,18 @@ void applyManifestMetadata(Song& song, const Json& attributes)
 {
     switch (part)
     {
-    case Part::Lead:
-        return "lead";
-    case Part::Rhythm:
-        return "rhythm";
-    case Part::Bass:
-        return "bass";
+        case Part::Lead:
+        {
+            return "lead";
+        }
+        case Part::Rhythm:
+        {
+            return "rhythm";
+        }
+        case Part::Bass:
+        {
+            return "bass";
+        }
     }
 
     return "arrangement";
