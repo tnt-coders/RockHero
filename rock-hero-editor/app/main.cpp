@@ -3,6 +3,7 @@
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/editor/core/editor_settings.h>
+#include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
 
 namespace rock_hero::editor::app
@@ -36,15 +37,21 @@ public:
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
 
+        auto quit_callback = [this] { quit(); };
+
         // Engine implements each editor-facing audio port. Passing it for each role keeps UI code
         // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
+        auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
+            *m_audio_engine,
+            *m_audio_engine,
+            *m_audio_engine,
+            rock_hero::editor::core::EditorController::Services{
+                .exit_function = quit_callback,
+                .settings = m_editor_settings.get(),
+            });
+
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
-            getApplicationName(),
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_editor_settings,
-            [this] { quit(); });
+            getApplicationName(), std::move(editor), std::move(quit_callback));
         m_main_window->restoreLastOpenProject();
     }
 
