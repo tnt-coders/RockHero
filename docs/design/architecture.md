@@ -143,8 +143,8 @@ always reference first-party headers through the full nested path:
 #include <rock_hero/game/core/scoring.h>
 \endcode
 
-During migration, legacy includes such as `<rock_hero/audio/engine.h>` may remain until their
-owning module moves. New product-scope code should use the full nested product path.
+During migration, legacy includes such as `<rock_hero/ui/editor.h>` may remain until their owning
+module moves. New product-scope code should use the full nested product path.
 
 Each library additionally adds a **PRIVATE** include directory pointing at its own nested module
 folder (`rock-hero-<scope>/<module>/include/rock_hero/<scope>/<module>/`). This lets a library's

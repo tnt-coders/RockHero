@@ -12,14 +12,14 @@
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/arrangement_view_state.h>
 
-namespace rock_hero::audio
+namespace rock_hero::common::audio
 {
 // Forward-declared thumbnail port keeps this header independent of concrete audio adapters.
 class IThumbnail;
 
 // Forward-declared thumbnail factory keeps this header independent of concrete audio adapters.
 class IThumbnailFactory;
-} // namespace rock_hero::audio
+} // namespace rock_hero::common::audio
 
 namespace rock_hero::ui
 {
@@ -111,7 +111,7 @@ public:
 
     \param thumbnail_factory Factory used for the arrangement thumbnail.
     */
-    void setThumbnailFactory(audio::IThumbnailFactory& thumbnail_factory);
+    void setThumbnailFactory(common::audio::IThumbnailFactory& thumbnail_factory);
 
     /*!
     \brief Applies the visible timeline range used to choose the waveform span.
@@ -166,7 +166,7 @@ private:
     common::core::TimeRange m_visible_timeline{};
 
     // Arrangement-view-owned thumbnail used to render static waveform content.
-    std::unique_ptr<audio::IThumbnail> m_thumbnail;
+    std::unique_ptr<common::audio::IThumbnail> m_thumbnail;
 
     // Asset currently installed into the owned thumbnail, if any.
     std::optional<common::core::AudioAsset> m_thumbnail_source_asset{};

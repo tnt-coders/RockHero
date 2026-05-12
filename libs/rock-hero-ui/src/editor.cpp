@@ -7,8 +7,8 @@ namespace rock_hero::ui
 
 // Wires the controller and view after construction dependencies are available.
 Editor::Editor(
-    audio::ITransport& transport, audio::IAudio& audio, audio::IThumbnailFactory& thumbnail_factory,
-    ExitFunction exit_function)
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function)
     : m_controller(
           transport, audio, OpenFunction{}, ImportFunction{}, SaveFunction{}, SaveAsFunction{},
           PublishFunction{}, std::move(exit_function))
