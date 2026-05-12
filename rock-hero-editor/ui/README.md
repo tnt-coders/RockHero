@@ -2,7 +2,7 @@
 
 Editor-specific JUCE presentation belongs here.
 
-Allowed dependencies: `editor/core`, `editor/audio`, `common/audio::api`, and JUCE GUI modules when
+Allowed dependencies: `editor/core`, `editor/audio`, `common/audio`, and JUCE GUI modules when
 needed for presentation.
 
 Do not place save policy, undo/redo policy, project workflow ownership, app startup, or backend

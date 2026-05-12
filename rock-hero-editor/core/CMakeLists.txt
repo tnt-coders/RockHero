@@ -16,7 +16,7 @@ target_include_directories(
 
 target_link_libraries(
     rock_hero_editor_core
-    PUBLIC rock_hero::common::core rock_hero::common::audio::api
+    PUBLIC rock_hero::common::core rock_hero::common::audio
     PRIVATE rock_hero::build_policy nlohmann_json::nlohmann_json OpenPSARC::OpenPSARC)
 
 add_subdirectory(tests)
