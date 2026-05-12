@@ -225,7 +225,7 @@ void writeMinimalProjectPackage(const std::filesystem::path& path)
 }
 
 // Writes a minimal valid .rock package with native song content at the archive root.
-void writeMinimalSongPackage(const std::filesystem::path& path)
+void writeMinimalRockSongPackage(const std::filesystem::path& path)
 {
     writeArchive(
         path,
@@ -380,7 +380,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rock";
-    writeMinimalSongPackage(path);
+    writeMinimalRockSongPackage(path);
 
     Project project;
     RockSongImporter importer;

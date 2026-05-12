@@ -3,7 +3,7 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/archive_io.h>
-#include <rock_hero/common/core/song_package.h>
+#include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -39,7 +39,7 @@ std::expected<common::core::Song, std::string> RockSongImporter::importSong(
         return failImport("Could not extract native song package: " + *extraction_error);
     }
 
-    auto imported_song = common::core::readSongPackageDirectory(workspace_directory);
+    auto imported_song = common::core::readRockSongPackageDirectory(workspace_directory);
     if (!imported_song.has_value())
     {
         return failImport(std::move(imported_song.error()));
