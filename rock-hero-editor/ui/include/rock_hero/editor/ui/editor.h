@@ -32,11 +32,12 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param exit_function Callback used when guarded editor exit is allowed to continue.
+    \param services Controller services used by the composed editor workflow.
     */
     Editor(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IThumbnailFactory& thumbnail_factory, core::ExitFunction exit_function = {});
+        common::audio::IThumbnailFactory& thumbnail_factory,
+        core::EditorController::Services services = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();
@@ -70,6 +71,9 @@ public:
     \return Current `.rhp` project path, or empty when the loaded work has no project file.
     */
     [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
+
+    /*! \brief Restores the previously open project when settings contain a valid path. */
+    void restoreLastOpenProject();
 
     /*! \brief Requests the same guarded exit workflow used by File > Exit. */
     void requestExit();
