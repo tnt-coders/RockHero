@@ -333,7 +333,6 @@ template <class ComponentType>
                 .end = common::core::TimePosition{duration_seconds},
             },
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
-        .last_error = std::nullopt,
         .unsaved_changes_prompt = std::nullopt,
         .save_as_prompt = std::nullopt,
     };
@@ -405,7 +404,6 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                     .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
-            .last_error = std::nullopt,
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
@@ -471,7 +469,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
                     .end = common::core::TimePosition{8.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
-            .last_error = std::nullopt,
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
@@ -731,7 +728,6 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
                     .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
-            .last_error = std::nullopt,
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
