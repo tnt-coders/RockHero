@@ -13,7 +13,8 @@ find_package(PackageBuilder REQUIRED)
 
 include(PackageBuilder)
 
-package_create(PRIMARY_TARGET rock_hero)
+# Package identity and desktop shortcuts follow the shipped game; the editor is a developer tool.
+package_create(PRIMARY_TARGET rock_hero_game_exe DESKTOP_LINKS rock_hero_game_exe)
 
 # Set project-config specific options
 option(PROJECT_CONFIG_ENABLE_DOCS "Enable docs target when Doxygen is available" ON)
@@ -27,8 +28,8 @@ string(
     CONCAT _clang_tidy_regex
            # Reject any path containing a build/ segment (generated files)
            [=[^(?!.*[\\/]build[\\/])]=]
-           # Match project-owned translation units under current or migrated product folders.
-           [=[.*[\\/](apps|libs|rock-hero-common|rock-hero-editor|rock-hero-game)[\\/]]=]
+           # Match project-owned translation units under product-scope folders.
+           [=[.*[\\/](rock-hero-common|rock-hero-editor|rock-hero-game)[\\/]]=]
            # C/C++ source files only
            [=[.*\.(c|cc|cpp|cxx)$]=])
 set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
@@ -68,17 +69,10 @@ include(RockHeroExternalModules)
 include(CTest)
 
 # --------------------------------------------------------------------------
-# Libraries
+# Product scopes
 # --------------------------------------------------------------------------
 add_subdirectory(rock-hero-common)
 add_subdirectory(rock-hero-game)
-
-# --------------------------------------------------------------------------
-# Applications
-# --------------------------------------------------------------------------
 add_subdirectory(rock-hero-editor)
-add_subdirectory(apps/rock-hero)
 
-# Only the game gets a desktop icon/launcher; the editor is a developer tool.
-set(PACKAGE_BUILDER_DESKTOP_LINKS rock_hero)
 package_install()

@@ -1,7 +1,7 @@
 #include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 
-namespace rock_hero
+namespace rock_hero::game::app
 {
 
 // Temporary game shell window used until the SDL/bgfx gameplay content owns the view.
@@ -74,7 +74,7 @@ private:
     std::unique_ptr<MainWindow> m_main_window;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::game::app
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-START_JUCE_APPLICATION(rock_hero::RockHeroApplication)
+START_JUCE_APPLICATION(rock_hero::game::app::RockHeroApplication)

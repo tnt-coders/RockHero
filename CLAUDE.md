@@ -101,11 +101,10 @@ RockHero/
     audio/                  - Editor-specific audio behavior outside the shared engine
     ui/                     - Editor-specific JUCE presentation
   rock-hero-game/
+    app/                    - Game executable startup and resources
     core/                   - Game-specific pure gameplay behavior
     audio/                  - Game-specific audio analysis and gameplay plumbing
     ui/                     - Game-specific presentation and rendering
-  apps/
-    rock-hero/              - Temporary game executable shell during migration
   docs/                     - Design docs and Doxygen configuration
   external/tracktion_engine/ - Git submodule: Tracktion Engine + JUCE 8
   project-config/           - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
@@ -124,7 +123,7 @@ Key files:
 - **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow
 - **`rock-hero-editor/ui/include/rock_hero/editor/ui/`** - Editor JUCE components
 - **`rock-hero-editor/app/`** - editor executable entry point
-- **`apps/rock-hero/main.cpp`** - minimal game window entry point
+- **`rock-hero-game/app/`** - game executable entry point and packaged resources
 - **`build/debug/`**, **`build/release/`** - generated build artifacts; do not edit
 
 Dependency rules: `common` code must not depend on `editor` or `game` code. Product libraries may

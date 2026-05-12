@@ -70,8 +70,8 @@ RockHero/
   project-config/       - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 \endcode
 
-The legacy `apps/` and `libs/` folders are migration-only homes for code that has not yet moved.
-They should disappear once the product-scope layout is fully implemented.
+The legacy `apps/` and `libs/` folders no longer own project product code and should not receive
+new source during the remaining migration.
 
 Executable targets live under `app/` and should remain thin composition roots. Reusable libraries
 keep `src/` plus namespaced public headers under `include/rock_hero/<scope>/<module>/` so consumer
