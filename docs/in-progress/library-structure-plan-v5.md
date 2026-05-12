@@ -1,12 +1,11 @@
 # Library Structure Plan (v5)
 
-Status: proposed. Supersedes `library-structure-plan.md`,
+Status: accepted and in progress. Supersedes `library-structure-plan.md`,
 `library-structure-revised-plan.md`, `library-structure-plan-v3.md`, and
 `library-structure-plan-v4.md`.
 
-Do not implement until this plan is accepted as the durable direction. Once accepted, update
-`docs/design/architecture.md` and `docs/design/architectural-principles.md` before or alongside
-the implementation work.
+Keep `docs/design/architecture.md` and `docs/design/architectural-principles.md` aligned with the
+implemented structure as migration work proceeds.
 
 ## Why This Replaces v4
 
@@ -123,20 +122,14 @@ state, app settings, or product-specific workflow.
 
 Shared audio APIs and the default shared audio implementation.
 
-This layer contains an internal two-target split:
+This layer intentionally uses one target for now:
 
 ```text
-rock_hero::common::audio::api
-    Audio ports and shared audio-facing contracts.
-
-rock_hero::common::audio::impl
-    Current concrete Tracktion/JUCE-backed implementation.
-
 rock_hero::common::audio
-    INTERFACE umbrella over api + impl for app-level composition.
+    Audio ports, shared audio-facing contracts, and the default Tracktion/JUCE-backed adapter.
 ```
 
-The `api` target owns ports such as:
+The public headers own ports such as:
 
 - `ITransport`
 - `IAudio`
@@ -146,15 +139,16 @@ The `api` target owns ports such as:
 - `TransportState`
 - listener helpers such as `ScopedListener`
 
-The `impl` target owns:
+The concrete adapter side owns:
 
 - `Engine`
 - Tracktion-backed thumbnail implementation
 - Tracktion/JUCE adapter implementation files
 
-Normal libraries and most tests link `rock_hero::common::audio::api`. App executables and concrete
-adapter tests may link `rock_hero::common::audio`, which brings in the default implementation.
-Normal library code should not link `rock_hero::common::audio::impl` directly.
+Normal library code should depend on the project-owned ports by convention. App composition code
+and concrete adapter tests may construct `Engine`. This avoids a speculative public `api` /
+implementation target split until build time, dependency pressure, or a second implementation makes
+that split worth the extra structure.
 
 Tracktion headers remain private to implementation files and private implementation headers.
 Public headers expose only project-owned types and carefully chosen forward declarations.
@@ -202,8 +196,8 @@ Likely responsibilities:
 - undo/redo and command history when those exist
 - editor state machines tested without JUCE widgets
 
-This module may depend on `common/core` and `common/audio::api`. It must not depend on concrete
-JUCE components or `common/audio::impl`.
+This module may depend on `common/core` and `common/audio`. It should use the audio ports rather
+than concrete engine types, and it must not depend on concrete JUCE components.
 
 The current `EditorController` is the seed of this module.
 
@@ -214,7 +208,7 @@ Editor-specific audio behavior that is not part of the shared audio engine.
 This starts as an empty stub. Use it only for editor-only audio policy, services, or adapters that
 are not just UI drawing and not part of the shared playback engine.
 
-The current Tracktion thumbnail path remains in `common/audio::impl` because it is part of the
+The current Tracktion thumbnail path remains in `common/audio` because it is part of the
 engine-backed audio adapter path.
 
 ### `rock-hero-editor/ui`
@@ -283,7 +277,7 @@ Likely responsibilities:
 - calibration capture plumbing
 - gameplay-safe plugin-chain policy if it differs from editor practice mode
 
-This module may depend on `common/core`, `common/audio::api`, and `game/core` as needed. It does
+This module may depend on `common/core`, `common/audio`, and `game/core` as needed. It does
 not own scoring rules.
 
 ### `rock-hero-game/ui`
@@ -323,14 +317,6 @@ layer.
   include path `<rock_hero/game/audio/...>`.
 - `game/ui`: target `rock_hero_game_ui`, namespace `rock_hero::game::ui`,
   include path `<rock_hero/game/ui/...>`.
-
-`common/audio` also has nested targets:
-
-| Target | Purpose |
-|---|---|
-| `rock_hero::common::audio::api` | Audio ports and contracts |
-| `rock_hero::common::audio::impl` | Default concrete Tracktion/JUCE implementation |
-| `rock_hero::common::audio` | App-facing umbrella over `api` and `impl` |
 
 Example includes:
 
@@ -405,25 +391,24 @@ Forbidden directions:
 - `editor::*` depending on `game::*`
 - `game::*` depending on `editor::*`
 - a `core` submodule depending on a sibling `ui` submodule
-- normal library code linking `common/audio::impl` directly
+- reusable behavior depending on concrete audio engine types when ports would suffice
 - reusable behavior depending on an `app/` folder
 
 Layer guidance:
 
 ```text
 common/core       standard C++ and approved pure format dependencies
-common/audio::api common/core only, plus minimal forward declarations where needed
-common/audio::impl common/audio::api + Tracktion/JUCE audio wrappers
+common/audio      common/core + JUCE GUI in public contracts, Tracktion/JUCE wrappers privately
 common/ui         common/core + JUCE GUI only when real shared UI code exists
 
-editor/core       common/core + common/audio::api
-editor/audio      common/core + common/audio::api, plus editor-only audio dependencies as needed
-editor/ui         editor/core + common/audio::api + editor/audio + JUCE GUI
+editor/core       common/core + common/audio
+editor/audio      common/core + common/audio, plus editor-only audio dependencies as needed
+editor/ui         editor/core + common/audio + editor/audio + JUCE GUI
 editor/app        common + editor umbrellas only, plus app metadata/resources
 
 game/core         common/core
-game/audio        common/core + common/audio::api + game/core + DSP dependencies as needed
-game/ui           game/core + game/audio + common/audio::api + bgfx + SDL
+game/audio        common/core + common/audio + game/core + DSP dependencies as needed
+game/ui           game/core + game/audio + common/audio + bgfx + SDL
 game/app          common + game umbrellas only, plus app metadata/resources
 ```
 
@@ -461,8 +446,8 @@ All nine top-level library submodules are created up front. Empty submodules fol
   and expected first real use.
 - Do not create test targets for empty stubs.
 
-`common/audio` is not an empty stub. Its `api` and `impl` child targets are created as part of the
-audio migration.
+`common/audio` is not an empty stub. It owns the shared audio ports, the default Tracktion/JUCE
+implementation, and its tests directly under one module target.
 
 ## Compatibility Policy
 
@@ -499,7 +484,7 @@ Confirm this plan as the durable direction. Update durable design docs to descri
 - top-level product-scope folders
 - `app/` folders for executable startup
 - nine `core` / `audio` / `ui` library cells
-- `common/audio::api` and `common/audio::impl`
+- the single `common/audio` module target with ports and the default implementation
 - scope umbrellas and their app-level usage
 - narrow library/test linking
 - window model
@@ -556,17 +541,15 @@ This is expected to be a noisy but mostly mechanical phase.
 
 Move current audio code into `rock-hero-common/audio/`.
 
-Split the target internally:
+Keep the module as one target:
 
-- public port and contract headers into `common/audio::api`
-- `Engine`, Tracktion thumbnail implementation, and adapter `.cpp` files into
-  `common/audio::impl`
-- `common/audio` as an INTERFACE umbrella over both
+- public port and contract headers under `common/audio/include`
+- `Engine`, Tracktion thumbnail implementation, and adapter `.cpp` files under
+  `common/audio/src`
+- tests under `common/audio/tests`
 
-Update consumers:
-
-- library code that only needs ports links `common/audio::api`
-- apps and concrete adapter tests link `common/audio`
+Update consumers to link `common/audio`. Library code should still use audio ports by convention
+when it does not need app-level composition or concrete adapter behavior.
 
 ### Phase 5: Move `rock-hero-ui` Into `rock-hero-editor/ui`
 
@@ -590,7 +573,7 @@ The current `EditorController` is the main candidate. Move supporting framework-
 state with it when they are part of the workflow boundary.
 
 `editor/ui` should depend on `editor/core`, not the reverse. `editor/core` may depend on
-`common/audio::api` for transport and audio ports.
+`common/audio` for transport and audio ports.
 
 ### Phase 7: Move Editor App-Shell Code Into `rock-hero-editor/ui`
 
@@ -661,10 +644,10 @@ Expected first fills:
 
 Framework dependencies are added in the same change that adds real code requiring them.
 
-### Phase 11: Post-Migration API/Impl Split Review
+### Phase 11: Post-Migration Split Review
 
-After the full migration is implemented, briefly analyze the codebase to decide whether any other
-submodule would benefit from the same `api` / `impl` split used by `common/audio`.
+After the full migration is implemented, briefly analyze the codebase to decide whether any
+submodule, including `common/audio`, would benefit from an `api` / implementation split.
 
 Do not introduce additional splits speculatively during the initial migration.
 
@@ -676,7 +659,7 @@ The migration is complete when:
 - root-level `apps/` and `libs/` folders no longer contain project-owned product code
 - all nine scope/layer library submodules exist
 - every library submodule has a README guardrail
-- `common/audio` has `api`, `impl`, and umbrella targets
+- `common/audio` is a single target with ports, the default implementation, and tests in one module
 - parent umbrellas aggregate only their own scope
 - editor and game executable targets live under their product `app/` folders
 - executable targets link `common + editor` or `common + game`
@@ -695,4 +678,4 @@ The migration is complete when:
 - Exact placement of individual `.rhp` and `.rock` persistence files after the Phase 9 audit.
 - Whether `EditorSettings` should eventually become framework-free and move from `editor/ui` to
   `editor/core`.
-- Whether any non-audio module deserves an `api` / `impl` split after the post-migration review.
+- Whether any module deserves an `api` / implementation split after the post-migration review.

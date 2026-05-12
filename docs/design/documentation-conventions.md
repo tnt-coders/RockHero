@@ -57,8 +57,8 @@ Examples:
 \code{.cmake}
 # Depend on project-owned wrapper aliases rather than raw JUCE/Tracktion module targets.
 target_link_libraries(
-    rock_hero_common_audio_impl
-    PUBLIC rock_hero::common::audio::api
+    rock_hero_common_audio
+    PUBLIC rock_hero::common::core rock_hero::juce_gui_basics
     PRIVATE rock_hero::build_policy rock_hero::tracktion_core rock_hero::tracktion_engine
             rock_hero::tracktion_graph)
 \endcode

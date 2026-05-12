@@ -94,9 +94,10 @@ should.
 
 Audio modules own audio contracts, integration, infrastructure, and audio-adjacent policy.
 
-`rock-hero-common/audio` owns shared audio ports and the default Tracktion/JUCE implementation. Its
-`api` target contains project-owned contracts such as transport, edit, thumbnail, and playback
-ports. Its `impl` target contains the concrete Tracktion/JUCE-backed implementation.
+`rock-hero-common/audio` owns shared audio ports and the default Tracktion/JUCE implementation.
+Public headers expose project-owned contracts such as transport, edit, thumbnail, playback ports,
+and the composition-facing engine type. Tracktion headers stay private to implementation files and
+private implementation headers.
 
 `rock-hero-editor/audio` is for editor-specific audio behavior outside the shared engine.
 `rock-hero-game/audio` is for game-specific audio analysis and gameplay plumbing such as pitch
@@ -473,7 +474,7 @@ Use per-library test targets rather than one large test binary.
 Suggested shape:
 
 - `rock-hero-common/core/tests`
-- `rock-hero-common/audio/*/tests`
+- `rock-hero-common/audio/tests`
 - `rock-hero-editor/core/tests`
 - `rock-hero-editor/ui/tests` for non-GUI or narrowly scoped GUI wiring checks
 - `rock-hero-game/core/tests`, `rock-hero-game/audio/tests`, and `rock-hero-game/ui/tests`

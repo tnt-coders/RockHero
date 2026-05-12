@@ -17,9 +17,8 @@ target_include_directories(
 
 target_link_libraries(
     rock_hero_editor_ui
-    PUBLIC rock_hero::editor::core rock_hero::common::audio::api rock_hero::juce_data_structures
+    PUBLIC rock_hero::editor::core rock_hero::common::audio rock_hero::juce_data_structures
            rock_hero::juce_gui_basics
-    PRIVATE rock_hero::common::audio rock_hero::juce_audio_utils rock_hero::build_policy
-            rock_hero::editor_ui_resources)
+    PRIVATE rock_hero::juce_audio_utils rock_hero::build_policy rock_hero::editor_ui_resources)
 
 add_subdirectory(tests)

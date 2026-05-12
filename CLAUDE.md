@@ -116,8 +116,8 @@ stay underscore-separated, with aliases using the same product-scope shape such 
 `rock_hero::editor::ui`.
 
 Key files:
-- **`rock-hero-common/audio/impl/include/rock_hero/common/audio/engine.h`** /
-  **`impl/src/engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
+- **`rock-hero-common/audio/include/rock_hero/common/audio/engine.h`** /
+  **`rock-hero-common/audio/src/engine.cpp`** - Tracktion isolation; Tracktion API calls live here
 - **`rock-hero-common/core/include/rock_hero/common/core/`** - `Song`, `Arrangement` types +
   format serialization; standard C++ only
 - **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow

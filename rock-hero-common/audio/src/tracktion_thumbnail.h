@@ -15,7 +15,7 @@ namespace rock_hero::common::audio
 \brief Tracktion-backed adapter that satisfies the IThumbnail interface.
 
 Wraps tracktion::SmartThumbnail so that consumers of the IThumbnail port do not see Tracktion
-types. Visible only inside common/audio/impl; callers obtain instances through the
+types. Visible only inside the common/audio implementation; callers obtain instances through the
 IThumbnailFactory port.
 
 \see IThumbnail
