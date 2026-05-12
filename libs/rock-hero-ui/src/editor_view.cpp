@@ -4,7 +4,7 @@
 #include <cmath>
 #include <filesystem>
 #include <rock_hero/audio/i_thumbnail.h>
-#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/common/core/audio_asset.h>
 #include <utility>
 
 namespace rock_hero::ui
@@ -92,9 +92,10 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
 std::optional<float> cursorXForTimelinePosition(
-    core::TimePosition position, core::TimeRange visible_timeline, int width) noexcept
+    common::core::TimePosition position, common::core::TimeRange visible_timeline,
+    int width) noexcept
 {
-    const core::TimeDuration visible_duration = visible_timeline.duration();
+    const common::core::TimeDuration visible_duration = visible_timeline.duration();
     if (width <= 0 || visible_duration.seconds <= 0.0)
     {
         return std::nullopt;
@@ -122,7 +123,7 @@ public:
     }
 
     // Stores discrete timeline mapping data pushed by EditorView::setState().
-    void setVisibleTimelineRange(core::TimeRange visible_timeline) noexcept
+    void setVisibleTimelineRange(common::core::TimeRange visible_timeline) noexcept
     {
         m_visible_timeline = visible_timeline;
     }
@@ -207,7 +208,7 @@ private:
     juce::VBlankAttachment m_vblank_attachment;
 
     // Visible timeline range last pushed by EditorView::setState().
-    core::TimeRange m_visible_timeline{};
+    common::core::TimeRange m_visible_timeline{};
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
@@ -325,7 +326,7 @@ public:
     }
 
     // Stores the full timeline used to size zoomable content and resets zoom on range changes.
-    void setTimelineRange(core::TimeRange timeline_range)
+    void setTimelineRange(common::core::TimeRange timeline_range)
     {
         if (m_timeline_range != timeline_range)
         {
@@ -557,7 +558,7 @@ private:
     juce::VBlankAttachment m_vblank_attachment;
 
     // Full timeline range represented by the current zoomed content width.
-    core::TimeRange m_timeline_range{};
+    common::core::TimeRange m_timeline_range{};
 
     // Horizontal zoom value: how many seconds fit in the canonical track canvas width.
     double m_seconds_per_track_canvas{g_default_seconds_per_track_canvas};

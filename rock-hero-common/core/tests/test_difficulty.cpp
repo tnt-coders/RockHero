@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/core/difficulty.h>
+#include <rock_hero/common/core/difficulty.h>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 // Verifies the default difficulty rating explicitly represents an unrated arrangement.
@@ -40,4 +40,4 @@ TEST_CASE("DifficultyRating maps values to tiers", "[core][difficulty]")
     CHECK(difficultyTier(DifficultyRating{11}) == DifficultyTier::Unknown);
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

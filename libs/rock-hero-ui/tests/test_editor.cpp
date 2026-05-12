@@ -34,10 +34,10 @@ public:
     void stop() override
     {
         current_state.playing = false;
-        current_position = core::TimePosition{};
+        current_position = common::core::TimePosition{};
     }
 
-    void seek(core::TimePosition position_value) override
+    void seek(common::core::TimePosition position_value) override
     {
         current_position = position_value;
     }
@@ -47,7 +47,7 @@ public:
         return current_state;
     }
 
-    [[nodiscard]] core::TimePosition position() const noexcept override
+    [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         return current_position;
     }
@@ -63,7 +63,7 @@ public:
     }
 
     audio::TransportState current_state{};
-    core::TimePosition current_position{};
+    common::core::TimePosition current_position{};
     std::vector<Listener*> listeners{};
 };
 
@@ -71,17 +71,17 @@ public:
 class FakeAudio final : public audio::IAudio
 {
 public:
-    bool prepareSong(core::Song& song) override
+    bool prepareSong(common::core::Song& song) override
     {
         ++prepare_song_call_count;
-        for (core::Arrangement& arrangement : song.arrangements)
+        for (common::core::Arrangement& arrangement : song.arrangements)
         {
-            arrangement.audio_duration = core::TimeDuration{8.0};
+            arrangement.audio_duration = common::core::TimeDuration{8.0};
         }
         return true;
     }
 
-    bool setActiveArrangement(const core::Arrangement& arrangement) override
+    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
     {
         last_active_audio_asset = arrangement.audio_asset;
         ++set_active_arrangement_call_count;
@@ -93,7 +93,7 @@ public:
         ++clear_active_arrangement_call_count;
     }
 
-    std::optional<core::AudioAsset> last_active_audio_asset{};
+    std::optional<common::core::AudioAsset> last_active_audio_asset{};
     int prepare_song_call_count{0};
     int set_active_arrangement_call_count{0};
     int clear_active_arrangement_call_count{0};
@@ -103,7 +103,7 @@ public:
 class FakeThumbnail final : public audio::IThumbnail
 {
 public:
-    void setSource(const core::AudioAsset& audio_asset) override
+    void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
         has_source = true;
@@ -126,13 +126,13 @@ public:
     }
 
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*visible_range*/,
-        float /*vertical_zoom*/) override
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
+        common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
     {
         return true;
     }
 
-    std::optional<core::AudioAsset> last_source{};
+    std::optional<common::core::AudioAsset> last_source{};
     int set_source_call_count{0};
     bool has_source{false};
 };

@@ -125,7 +125,7 @@ public:
     {}
     void stop() override
     {}
-    void seek(core::TimePosition position_value) override
+    void seek(common::core::TimePosition position_value) override
     {
         current_position = position_value;
     }
@@ -135,7 +135,7 @@ public:
         return current_state;
     }
 
-    [[nodiscard]] core::TimePosition position() const noexcept override
+    [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         position_read_count += 1;
         return current_position;
@@ -147,7 +147,7 @@ public:
     {}
 
     audio::TransportState current_state{};
-    core::TimePosition current_position{};
+    common::core::TimePosition current_position{};
     mutable int position_read_count{0};
 };
 
@@ -155,7 +155,7 @@ public:
 class FakeThumbnail final : public audio::IThumbnail
 {
 public:
-    void setSource(const core::AudioAsset& audio_asset) override
+    void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
         has_source = true;
@@ -178,13 +178,13 @@ public:
     }
 
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/, core::TimeRange /*visible_range*/,
-        float /*vertical_zoom*/) override
+        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
+        common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
     {
         return true;
     }
 
-    std::optional<core::AudioAsset> last_source{};
+    std::optional<common::core::AudioAsset> last_source{};
     int set_source_call_count{0};
     bool has_source{false};
 };
@@ -305,8 +305,8 @@ template <class ComponentType>
     std::filesystem::path path, double duration_seconds = 4.0)
 {
     return ArrangementViewState{
-        .audio_asset = core::AudioAsset{std::move(path)},
-        .audio_duration = core::TimeDuration{duration_seconds},
+        .audio_asset = common::core::AudioAsset{std::move(path)},
+        .audio_duration = common::core::TimeDuration{duration_seconds},
     };
 }
 
@@ -327,9 +327,9 @@ template <class ComponentType>
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
         .visible_timeline =
-            core::TimeRange{
-                .start = core::TimePosition{},
-                .end = core::TimePosition{duration_seconds},
+            common::core::TimeRange{
+                .start = common::core::TimePosition{},
+                .end = common::core::TimePosition{duration_seconds},
             },
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
         .last_error = std::nullopt,
@@ -399,9 +399,9 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
             .visible_timeline =
-                core::TimeRange{
-                    .start = core::TimePosition{},
-                    .end = core::TimePosition{4.0},
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{},
+                    .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
             .last_error = std::nullopt,
@@ -465,9 +465,9 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
             .visible_timeline =
-                core::TimeRange{
-                    .start = core::TimePosition{},
-                    .end = core::TimePosition{8.0},
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{},
+                    .end = common::core::TimePosition{8.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .last_error = std::nullopt,
@@ -630,7 +630,7 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     auto state = makeLoadedEditorState(20.0);
     state.stop_enabled = true;
     state.play_pause_shows_pause_icon = true;
-    transport.current_position = core::TimePosition{5.0};
+    transport.current_position = common::core::TimePosition{5.0};
     view.setState(state);
 
     auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
@@ -645,7 +645,7 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     CHECK(viewport.getViewPositionX() == 400);
 
     state.stop_enabled = false;
-    transport.current_position = core::TimePosition{};
+    transport.current_position = common::core::TimePosition{};
     view.setState(state);
     CHECK(viewport.getViewPositionX() == 0);
 }
@@ -725,9 +725,9 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
             .visible_timeline =
-                core::TimeRange{
-                    .start = core::TimePosition{},
-                    .end = core::TimePosition{4.0},
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{},
+                    .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .last_error = std::nullopt,
@@ -769,43 +769,55 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
 TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui][editor-view]")
 {
     const auto midpoint_cursor = cursorXForTimelinePosition(
-        core::TimePosition{5.0},
-        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{10.0}},
+        common::core::TimePosition{5.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{}, .end = common::core::TimePosition{10.0}
+        },
         201);
     REQUIRE(midpoint_cursor.has_value());
     CHECK(optionalValueForApprox(midpoint_cursor) == Catch::Approx(100.0f));
 
     const auto offset_cursor = cursorXForTimelinePosition(
-        core::TimePosition{12.0},
-        core::TimeRange{.start = core::TimePosition{10.0}, .end = core::TimePosition{14.0}},
+        common::core::TimePosition{12.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{10.0}, .end = common::core::TimePosition{14.0}
+        },
         101);
     REQUIRE(offset_cursor.has_value());
     CHECK(optionalValueForApprox(offset_cursor) == Catch::Approx(50.0f));
 
     const auto fractional_cursor = cursorXForTimelinePosition(
-        core::TimePosition{1.25},
-        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        common::core::TimePosition{1.25},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
+        },
         101);
     REQUIRE(fractional_cursor.has_value());
     CHECK(optionalValueForApprox(fractional_cursor) == Catch::Approx(31.25f));
 
     const auto before_start_cursor = cursorXForTimelinePosition(
-        core::TimePosition{-1.0},
-        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        common::core::TimePosition{-1.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
+        },
         101);
     REQUIRE(before_start_cursor.has_value());
     CHECK(optionalValueForApprox(before_start_cursor) == Catch::Approx(0.0f));
 
     const auto after_end_cursor = cursorXForTimelinePosition(
-        core::TimePosition{9.0},
-        core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{4.0}},
+        common::core::TimePosition{9.0},
+        common::core::TimeRange{
+            .start = common::core::TimePosition{}, .end = common::core::TimePosition{4.0}
+        },
         101);
     REQUIRE(after_end_cursor.has_value());
     CHECK(optionalValueForApprox(after_end_cursor) == Catch::Approx(100.0f));
 
     CHECK_FALSE(cursorXForTimelinePosition(
-                    core::TimePosition{1.0},
-                    core::TimeRange{.start = core::TimePosition{}, .end = core::TimePosition{}},
+                    common::core::TimePosition{1.0},
+                    common::core::TimeRange{
+                        .start = common::core::TimePosition{}, .end = common::core::TimePosition{}
+                    },
                     101)
                     .has_value());
 }

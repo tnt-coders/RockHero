@@ -9,12 +9,12 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/core/audio_asset.h>
+#include <rock_hero/common/core/audio_asset.h>
 #include <string>
 #include <system_error>
 #include <utility>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -482,4 +482,4 @@ std::expected<void, std::string> Project::close()
     return std::expected<void, std::string>{};
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

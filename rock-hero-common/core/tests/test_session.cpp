@@ -1,11 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/session.h>
-#include <rock_hero/core/song.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/song.h>
 #include <utility>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 namespace
@@ -241,4 +241,4 @@ TEST_CASE("Session loadSong rejects invalid replacement data", "[core][session]"
                               });
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core

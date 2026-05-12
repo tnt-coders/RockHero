@@ -8,8 +8,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/core/audio_asset.h>
-#include <rock_hero/core/timeline.h>
+#include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/ui/arrangement_view_state.h>
 
 namespace rock_hero::audio
@@ -117,7 +117,7 @@ public:
     \brief Applies the visible timeline range used to choose the waveform span.
     \param visible_timeline Timeline range currently visible in the editor.
     */
-    void setVisibleTimeline(core::TimeRange visible_timeline);
+    void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
     \brief Applies the current framework-free arrangement-view state.
@@ -163,13 +163,13 @@ private:
     ArrangementViewState m_state{};
 
     // Editor-visible timeline range used to choose the waveform span.
-    core::TimeRange m_visible_timeline{};
+    common::core::TimeRange m_visible_timeline{};
 
     // Arrangement-view-owned thumbnail used to render static waveform content.
     std::unique_ptr<audio::IThumbnail> m_thumbnail;
 
     // Asset currently installed into the owned thumbnail, if any.
-    std::optional<core::AudioAsset> m_thumbnail_source_asset{};
+    std::optional<common::core::AudioAsset> m_thumbnail_source_asset{};
 
     // Local listeners notified when the arrangement view is clicked.
     juce::ListenerList<Listener> m_listeners;

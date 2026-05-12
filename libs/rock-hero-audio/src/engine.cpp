@@ -13,8 +13,8 @@ namespace
 {
 
 // Opens an asset through Tracktion only long enough to validate it and read its duration.
-[[nodiscard]] std::optional<core::TimeDuration> readAudioDuration(
-    tracktion::Engine& engine, const core::AudioAsset& audio_asset)
+[[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
+    tracktion::Engine& engine, const common::core::AudioAsset& audio_asset)
 {
     const auto path_text = audio_asset.path.wstring();
     const juce::File file{juce::String{path_text.c_str()}};
@@ -29,7 +29,7 @@ namespace
         return std::nullopt;
     }
 
-    const core::TimeDuration asset_duration{audio_file.getLength()};
+    const common::core::TimeDuration asset_duration{audio_file.getLength()};
     if (asset_duration.seconds <= 0.0)
     {
         return std::nullopt;
@@ -227,7 +227,7 @@ void Engine::pause()
 
 // Moves Tracktion transport to the requested timeline position. Position-only motion is observed
 // through position(), not through the coarse state listener surface.
-void Engine::seek(core::TimePosition position)
+void Engine::seek(common::core::TimePosition position)
 {
     const double clamped_seconds = m_impl->clampToLoadedRange(position.seconds);
     m_impl->m_edit->getTransport().setPosition(
@@ -242,7 +242,7 @@ TransportState Engine::state() const noexcept
 
 // Reads audible playback time while running so Tracktion's post-seek UI hold does not stall the
 // editor cursor for the first few frames after a live seek.
-core::TimePosition Engine::position() const noexcept
+common::core::TimePosition Engine::position() const noexcept
 {
     auto& transport = m_impl->m_edit->getTransport();
     double raw_position_seconds = transport.getPosition().inSeconds();
@@ -255,13 +255,13 @@ core::TimePosition Engine::position() const noexcept
         }
     }
 
-    return core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
+    return common::core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
 }
 
 // Validates every arrangement audio file and records the accepted backend durations.
-bool Engine::prepareSong(core::Song& song)
+bool Engine::prepareSong(common::core::Song& song)
 {
-    for (core::Arrangement& arrangement : song.arrangements)
+    for (common::core::Arrangement& arrangement : song.arrangements)
     {
         if (arrangement.audio_asset.path.empty())
         {
@@ -281,7 +281,7 @@ bool Engine::prepareSong(core::Song& song)
 }
 
 // Makes the prepared arrangement active on the single Tracktion arrangement audio track.
-bool Engine::setActiveArrangement(const core::Arrangement& arrangement)
+bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
 {
     auto* track = m_impl->currentAudioTrack();
     if (track == nullptr)

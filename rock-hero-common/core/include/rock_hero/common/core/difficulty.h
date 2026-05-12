@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <type_traits>
 
-namespace rock_hero::core
+namespace rock_hero::common::core
 {
 
 /*! \brief Display tier derived from an arrangement's numeric difficulty rating. */
@@ -102,4 +102,4 @@ static_assert(std::is_trivially_copyable_v<DifficultyRating>);
     return DifficultyTier::Unknown;
 }
 
-} // namespace rock_hero::core
+} // namespace rock_hero::common::core
