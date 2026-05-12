@@ -10,7 +10,6 @@ These rules apply to:
 - `rock-hero-common/`
 - `rock-hero-editor/`
 - `rock-hero-game/`
-- migration-only project source still under `apps/` or `libs/`
 - other project-owned source files unless a file is generated or third-party
 
 These rules do not apply to:
