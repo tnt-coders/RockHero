@@ -67,7 +67,7 @@ EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
     : m_properties(fileFromPath(settings_file), editorSettingsOptions())
 {}
 
-// Reads the last native project path stored by a previous allowed editor exit.
+// Reads the last editor project path stored by a previous allowed editor exit.
 std::optional<std::filesystem::path> EditorSettings::lastOpenProject() const
 {
     const juce::String value = m_properties.getValue(g_last_open_project_key);
@@ -79,7 +79,7 @@ std::optional<std::filesystem::path> EditorSettings::lastOpenProject() const
     return pathFromSettingsValue(value);
 }
 
-// Stores or clears the native project path to restore on the next editor launch.
+// Stores or clears the editor project path to restore on the next editor launch.
 void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> project_file)
 {
     if (project_file.has_value() && !project_file->empty())

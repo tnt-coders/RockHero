@@ -951,7 +951,7 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     }
 }
 
-// Exiting reports the native project path that should be restored on next launch.
+// Exiting reports the editor project path that should be restored on next launch.
 TEST_CASE("EditorController reports project file on exit", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1056,7 +1056,7 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
     }
 }
 
-// Publish writes a playable package copy without changing save-destination state.
+// Publish writes a native song package copy without changing save-destination state.
 TEST_CASE("EditorController publish writes package copy", "[core][editor-controller]")
 {
     FakeTransport transport;

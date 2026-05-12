@@ -22,11 +22,11 @@
 namespace rock_hero::editor::core
 {
 
-/*! \brief Opens a native package into a project context and returns the parsed song. */
+/*! \brief Opens an editor project package into a project context and returns the parsed song. */
 using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
     Project& project, const std::filesystem::path& path)>;
 
-/*! \brief Imports a foreign package into a project context and returns the parsed song. */
+/*! \brief Imports a song source into a project context and returns the parsed song. */
 using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
     Project& project, const std::filesystem::path& path)>;
 
@@ -39,11 +39,11 @@ using SaveAsFunction = std::function<std::expected<void, std::string>(
     Project& project, const std::filesystem::path& path, const common::core::Song& song,
     ProjectEditorState editor_state)>;
 
-/*! \brief Publishes the current song to a chosen package path through the project context. */
+/*! \brief Publishes the current song to a chosen native song package path. */
 using PublishFunction = std::function<std::expected<void, std::string>(
     Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
-/*! \brief Requests host exit with the native project file to restore on next launch, if any. */
+/*! \brief Requests host exit with the editor project file to restore on next launch, if any. */
 using ExitFunction = std::function<void(std::optional<std::filesystem::path> project_file)>;
 
 /*!
@@ -72,11 +72,11 @@ public:
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
-    \param open_function Optional seam used to open native packages.
-    \param import_function Optional seam used to import foreign packages.
+    \param open_function Optional seam used to open editor project packages.
+    \param import_function Optional seam used to import song sources.
     \param save_function Optional seam used to save to the current destination.
     \param save_as_function Optional seam used to save to a chosen destination.
-    \param publish_function Optional seam used to publish playable packages.
+    \param publish_function Optional seam used to publish native song packages.
     \param exit_function Optional seam used to request application exit.
     */
     EditorController(
@@ -123,15 +123,15 @@ public:
     [[nodiscard]] const common::core::Session& session() const noexcept;
 
     /*!
-    \brief Returns the native project file that can be reopened on the next launch.
-    \return Current `.rhp` project path, or empty when the loaded work has no native file.
+    \brief Returns the editor project file that can be reopened on the next launch.
+    \return Current `.rhp` project path, or empty when the loaded work has no project file.
     */
     [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
 
     /*!
-    \brief Handles a request to open a Rock Hero package.
+    \brief Handles a request to open an editor project package.
 
-    On success, the controller clears any active error and stores the package context. On failure,
+    On success, the controller clears any active error and stores the project context. On failure,
     the old session/context are preserved. Reentrant transport
     notifications received during backend arrangement activation are coalesced into one final push.
 
@@ -140,7 +140,7 @@ public:
     void onOpenRequested(std::filesystem::path file) override;
 
     /*!
-    \brief Handles a request to import a foreign package.
+    \brief Handles a request to import a song source.
 
     On success, the controller clears any active error and stores an unsaved workspace. On failure,
     the old session/context are preserved. Reentrant transport
@@ -160,7 +160,7 @@ public:
     void onSaveAsRequested(std::filesystem::path file) override;
 
     /*!
-    \brief Handles a request to publish a playable Rock Hero package.
+    \brief Handles a request to publish a native song package.
     \param file Filesystem path selected by the user.
     */
     void onPublishRequested(std::filesystem::path file) override;
@@ -222,11 +222,11 @@ private:
     // Runs a project-level action after prompts and save requirements are satisfied.
     void performProjectAction(const PendingProjectRequest& request);
 
-    // Opens a native project package without first checking unsaved-change state.
+    // Opens an editor project package without first checking unsaved-change state.
     void openProject(const std::filesystem::path& file);
 
-    // Imports a foreign project package without first checking unsaved-change state.
-    void importProject(const std::filesystem::path& file);
+    // Imports a song source without first checking unsaved-change state.
+    void importSongSource(const std::filesystem::path& file);
 
     // Closes the current project context, session, and backend audio state.
     [[nodiscard]] bool closeProject();
@@ -274,7 +274,7 @@ private:
     // Opens .rhp packages into temporary project contexts.
     OpenFunction m_open_function;
 
-    // Imports foreign packages into temporary unsaved project contexts.
+    // Imports song sources into temporary unsaved project contexts.
     ImportFunction m_import_function;
 
     // Saves the current session song to the current destination.
@@ -283,7 +283,7 @@ private:
     // Saves the current session song to a chosen destination.
     SaveAsFunction m_save_as_function;
 
-    // Publishes the current session song to a playable package destination.
+    // Publishes the current session song to a native song package destination.
     PublishFunction m_publish_function;
 
     // Requests application exit from the composition host.
@@ -304,10 +304,10 @@ private:
     // Currently loaded or imported project context; keeps workspace files alive.
     std::optional<Project> m_project{};
 
-    // User-selected native project path used for project-name-derived UI suggestions.
+    // User-selected editor project path used for project-name-derived UI suggestions.
     std::filesystem::path m_project_file{};
 
-    // True when Save must first collect a native package path, such as after import.
+    // True when Save must first collect an editor project package path, such as after import.
     bool m_save_requires_destination{false};
 
     // True once current session changes need to be saved or discarded before replacement.

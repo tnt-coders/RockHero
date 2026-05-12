@@ -11,7 +11,7 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Owns a clean temporary directory for runtime song package tests.
+// Owns a clean temporary directory for native song package tests.
 class TemporarySongPackageDirectory final
 {
 public:
@@ -54,7 +54,7 @@ private:
     std::filesystem::path m_path;
 };
 
-// Writes a tiny stand-in audio file because package persistence only needs filesystem bytes.
+// Writes a tiny stand-in audio file because song package persistence only needs filesystem bytes.
 void writeAudioFile(const std::filesystem::path& path)
 {
     std::ofstream audio_file{path, std::ios::binary};
@@ -62,12 +62,12 @@ void writeAudioFile(const std::filesystem::path& path)
     audio_file << "audio";
 }
 
-// Builds the smallest valid runtime song for package round-trip tests.
+// Builds the smallest valid native song for package round-trip tests.
 [[nodiscard]] Song makeSong(const std::filesystem::path& audio_path)
 {
     Song song;
-    song.metadata.title = "Runtime Song";
-    song.metadata.artist = "Runtime Artist";
+    song.metadata.title = "Native Song";
+    song.metadata.artist = "Native Artist";
     song.arrangements.push_back(
         Arrangement{
             .id = "lead",
@@ -83,8 +83,8 @@ void writeAudioFile(const std::filesystem::path& path)
 
 } // namespace
 
-// Verifies runtime song package directory writing can be read back as shared Song data.
-TEST_CASE("Song package directory writes runtime song data", "[core][song-package]")
+// Verifies native song package directory writing can be read back as shared Song data.
+TEST_CASE("Song package directory writes native song data", "[core][song-package]")
 {
     const TemporarySongPackageDirectory temporary_directory;
     const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
@@ -105,8 +105,8 @@ TEST_CASE("Song package directory writes runtime song data", "[core][song-packag
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->metadata.title == "Runtime Song");
-    CHECK(read_song->metadata.artist == "Runtime Artist");
+    CHECK(read_song->metadata.title == "Native Song");
+    CHECK(read_song->metadata.artist == "Native Artist");
     CHECK(read_song->arrangements.front().id == "lead");
     CHECK(
         read_song->arrangements.front().audio_asset.path == package_directory / "audio/source.wav");

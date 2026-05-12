@@ -5,7 +5,7 @@
 #include <fstream>
 #include <optional>
 #include <rock_hero/editor/core/project.h>
-#include <rock_hero/editor/core/rock_importer.h>
+#include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -25,18 +25,18 @@ using common::core::TimePosition;
 namespace
 {
 
-struct PackageEntry
+struct ArchiveEntry
 {
     std::string path;
     std::string contents;
 };
 
-// Owns a temporary directory for project package test archives.
-class TemporaryPackageDirectory final
+// Owns a temporary directory for project and song package test archives.
+class TemporaryArchiveDirectory final
 {
 public:
     // Creates a clean temp directory for one test case.
-    TemporaryPackageDirectory()
+    TemporaryArchiveDirectory()
         : m_path(
               std::filesystem::temp_directory_path() /
               std::filesystem::path{"rock-hero-project-test"})
@@ -46,7 +46,7 @@ public:
     }
 
     // Removes the temp directory without failing tests on best-effort cleanup errors.
-    ~TemporaryPackageDirectory() noexcept
+    ~TemporaryArchiveDirectory() noexcept
     {
         try
         {
@@ -59,10 +59,10 @@ public:
         }
     }
 
-    TemporaryPackageDirectory(const TemporaryPackageDirectory&) = delete;
-    TemporaryPackageDirectory& operator=(const TemporaryPackageDirectory&) = delete;
-    TemporaryPackageDirectory(TemporaryPackageDirectory&&) = delete;
-    TemporaryPackageDirectory& operator=(TemporaryPackageDirectory&&) = delete;
+    TemporaryArchiveDirectory(const TemporaryArchiveDirectory&) = delete;
+    TemporaryArchiveDirectory& operator=(const TemporaryArchiveDirectory&) = delete;
+    TemporaryArchiveDirectory(TemporaryArchiveDirectory&&) = delete;
+    TemporaryArchiveDirectory& operator=(TemporaryArchiveDirectory&&) = delete;
 
     // Returns the temp directory path used by the current test.
     [[nodiscard]] const std::filesystem::path& path() const noexcept
@@ -74,14 +74,14 @@ private:
     std::filesystem::path m_path;
 };
 
-// Writes a zip-backed .rhp archive from the supplied entries.
-void writePackage(const std::filesystem::path& path, const std::vector<PackageEntry>& entries)
+// Writes a zip-backed test archive from the supplied entries.
+void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEntry>& entries)
 {
     int error_code{};
     zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     REQUIRE(archive != nullptr);
 
-    for (const PackageEntry& entry : entries)
+    for (const ArchiveEntry& entry : entries)
     {
         zip_source_t* source =
             zip_source_buffer(archive, entry.contents.data(), entry.contents.size(), 0);
@@ -90,15 +90,15 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
         if (zip_file_add(archive, entry.path.c_str(), source, ZIP_FL_ENC_UTF_8) < 0)
         {
             zip_source_free(source);
-            FAIL("Could not add test package entry");
+            FAIL("Could not add test archive entry");
         }
     }
 
     REQUIRE(zip_close(archive) == 0);
 }
 
-// Reads archive entry names so package-layout tests can verify the public file contract.
-[[nodiscard]] std::vector<std::string> packageEntryNames(const std::filesystem::path& path)
+// Reads archive entry names so archive-layout tests can verify the public file contract.
+[[nodiscard]] std::vector<std::string> archiveEntryNames(const std::filesystem::path& path)
 {
     int error_code{};
     zip_t* archive = zip_open(path.string().c_str(), ZIP_RDONLY, &error_code);
@@ -121,8 +121,8 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
     return names;
 }
 
-// Reads one text archive entry for package serialization assertions.
-[[nodiscard]] std::string packageEntryContents(
+// Reads one text archive entry for project and song serialization assertions.
+[[nodiscard]] std::string archiveEntryContents(
     const std::filesystem::path& path, const std::string& entry_name)
 {
     int error_code{};
@@ -143,10 +143,10 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
     return contents;
 }
 
-// Returns the minimal song document shared by project package tests.
-[[nodiscard]] PackageEntry minimalSongDocumentEntry()
+// Returns the minimal nested song document shared by project package tests.
+[[nodiscard]] ArchiveEntry minimalSongDocumentEntry()
 {
-    return PackageEntry{
+    return ArchiveEntry{
         .path = "song/song.json",
         .contents =
             R"({
@@ -173,8 +173,8 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
     };
 }
 
-// Returns the native project document shared by project package tests.
-[[nodiscard]] PackageEntry projectDocumentEntry(
+// Returns the editor project document shared by project package tests.
+[[nodiscard]] ArchiveEntry projectDocumentEntry(
     const std::string& selected_arrangement = "lead", double cursor_position = 0.0)
 {
     std::string selected_arrangement_field;
@@ -186,7 +186,7 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
             selected_arrangement + R"(")";
     }
 
-    return PackageEntry{
+    return ArchiveEntry{
         .path = "project.json",
         .contents =
             R"({
@@ -200,22 +200,22 @@ void writePackage(const std::filesystem::path& path, const std::vector<PackageEn
     };
 }
 
-// Returns the flat runtime song document used by .rock package import tests.
-[[nodiscard]] PackageEntry minimalRuntimeSongDocumentEntry()
+// Returns the flat native song document used by .rock package import tests.
+[[nodiscard]] ArchiveEntry minimalNativeSongDocumentEntry()
 {
-    PackageEntry entry = minimalSongDocumentEntry();
+    ArchiveEntry entry = minimalSongDocumentEntry();
     entry.path = "song.json";
     return entry;
 }
 
 // Writes a minimal valid .rhp package for project tests.
-void writeMinimalPackage(const std::filesystem::path& path)
+void writeMinimalProjectPackage(const std::filesystem::path& path)
 {
-    writePackage(
+    writeArchive(
         path,
         std::vector{
-            PackageEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            PackageEntry{
+            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{
                 .path = "song/arrangements/lead.xml",
                 .contents = "<Arrangement formatVersion=\"1\" />"
             },
@@ -224,39 +224,39 @@ void writeMinimalPackage(const std::filesystem::path& path)
         });
 }
 
-// Writes a minimal valid .rock package with runtime content at the archive root.
-void writeMinimalRockPackage(const std::filesystem::path& path)
+// Writes a minimal valid .rock package with native song content at the archive root.
+void writeMinimalSongPackage(const std::filesystem::path& path)
 {
-    writePackage(
+    writeArchive(
         path,
         std::vector{
-            PackageEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
-            PackageEntry{
+            ArchiveEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{
                 .path = "arrangements/lead.xml", .contents = "<Arrangement formatVersion=\"1\" />"
             },
-            minimalRuntimeSongDocumentEntry(),
+            minimalNativeSongDocumentEntry(),
         });
 }
 
-// Writes a valid package with two arrangements so song-document ordering can be verified.
-void writeTwoArrangementPackage(
+// Writes a valid project package with two arrangements so song ordering can be verified.
+void writeTwoArrangementProjectPackage(
     const std::filesystem::path& path, const std::string& song_document_name = "song/song.json",
     const std::string& selected_arrangement = "lead")
 {
-    writePackage(
+    writeArchive(
         path,
         std::vector{
-            PackageEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            PackageEntry{
+            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{
                 .path = "song/arrangements/lead.xml",
                 .contents = "<Arrangement formatVersion=\"1\" />"
             },
-            PackageEntry{
+            ArchiveEntry{
                 .path = "song/arrangements/bass.xml",
                 .contents = "<Arrangement formatVersion=\"1\" />"
             },
             projectDocumentEntry(selected_arrangement),
-            PackageEntry{
+            ArchiveEntry{
                 .path = song_document_name,
                 .contents = std::string{
                     R"({
@@ -294,19 +294,19 @@ void writeTwoArrangementPackage(
 }
 
 // Writes a package whose song-document asset path should be rejected as unsafe.
-void writeUnsafeAssetPackage(
+void writeUnsafeAssetProjectPackage(
     const std::filesystem::path& path, const std::string& unsafe_path = "../outside.wav")
 {
-    writePackage(
+    writeArchive(
         path,
         std::vector{
-            PackageEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            PackageEntry{
+            ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
+            ArchiveEntry{
                 .path = "song/arrangements/lead.xml",
                 .contents = "<Arrangement formatVersion=\"1\" />"
             },
             projectDocumentEntry(),
-            PackageEntry{
+            ArchiveEntry{
                 .path = "song/song.json",
                 .contents =
                     R"({
@@ -356,9 +356,9 @@ void writeUnsafeAssetPackage(
 // Verifies a valid .rhp archive extracts to workspace and loads through Project.
 TEST_CASE("Project loads a minimal RHP package", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeMinimalPackage(path);
+    writeMinimalProjectPackage(path);
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -375,15 +375,15 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 }
 
-// Verifies .rock runtime packages import into an unsaved editor project workspace.
-TEST_CASE("Project imports a Rock runtime package", "[core][project]")
+// Verifies .rock native song packages import into an unsaved editor project workspace.
+TEST_CASE("Project imports a native song package", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rock";
-    writeMinimalRockPackage(path);
+    writeMinimalSongPackage(path);
 
     Project project;
-    RockImporter importer;
+    RockSongImporter importer;
     const std::expected<Song, std::string> result = project.import(path, importer);
 
     REQUIRE(result.has_value());
@@ -404,9 +404,9 @@ TEST_CASE("Project imports a Rock runtime package", "[core][project]")
 // Verifies explicit close reports cleanup success and clears the project context.
 TEST_CASE("Project close removes workspace and clears context", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeMinimalPackage(path);
+    writeMinimalProjectPackage(path);
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -425,27 +425,27 @@ TEST_CASE("Project close removes workspace and clears context", "[core][project]
     CHECK_FALSE(std::filesystem::exists(workspace_directory, error));
 }
 
-// Verifies package loading enforces project.json at the package root.
+// Verifies project package loading enforces project.json at the package root.
 TEST_CASE("Project rejects package wrapped in one root directory", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writePackage(
+    writeArchive(
         path,
         std::vector{
-            PackageEntry{
+            ArchiveEntry{
                 .path = "wrapped/song/audio/backing.wav",
                 .contents = "audio",
             },
-            PackageEntry{
+            ArchiveEntry{
                 .path = "wrapped/song/arrangements/lead.xml",
                 .contents = "<Arrangement formatVersion=\"1\" />",
             },
-            PackageEntry{
+            ArchiveEntry{
                 .path = "wrapped/project.json",
                 .contents = projectDocumentEntry().contents,
             },
-            PackageEntry{
+            ArchiveEntry{
                 .path = "wrapped/song/song.json",
                 .contents = minimalSongDocumentEntry().contents,
             },
@@ -461,9 +461,9 @@ TEST_CASE("Project rejects package wrapped in one root directory", "[core][proje
 // Verifies the song document reader loads metadata, assets, and arrangements in file order.
 TEST_CASE("Project loads arrangements from song.json", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeTwoArrangementPackage(path);
+    writeTwoArrangementProjectPackage(path);
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -484,9 +484,9 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
 // Verifies stale selected-arrangement IDs do not fail project loading.
 TEST_CASE("Project loads stale selected arrangement state", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeTwoArrangementPackage(path, "song/song.json", "missing");
+    writeTwoArrangementProjectPackage(path, "song/song.json", "missing");
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -498,9 +498,9 @@ TEST_CASE("Project loads stale selected arrangement state", "[core][project]")
 // Verifies project loading requires the song document under the strict song directory.
 TEST_CASE("Project rejects root song.json", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeTwoArrangementPackage(path, "song.json");
+    writeTwoArrangementProjectPackage(path, "song.json");
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -512,9 +512,9 @@ TEST_CASE("Project rejects root song.json", "[core][project]")
 // Verifies project loading rejects path traversal before extracting archive entries.
 TEST_CASE("Project rejects unsafe RHP entries", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "unsafe.rhp";
-    writePackage(path, std::vector{PackageEntry{.path = "../outside.txt", .contents = "bad"}});
+    writeArchive(path, std::vector{ArchiveEntry{.path = "../outside.txt", .contents = "bad"}});
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -526,9 +526,9 @@ TEST_CASE("Project rejects unsafe RHP entries", "[core][project]")
 // Verifies song-document asset paths cannot escape the extracted project directory.
 TEST_CASE("Project rejects unsafe asset paths", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "unsafe-asset.rhp";
-    writeUnsafeAssetPackage(path);
+    writeUnsafeAssetProjectPackage(path);
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -540,9 +540,9 @@ TEST_CASE("Project rejects unsafe asset paths", "[core][project]")
 // Verifies song-document asset paths cannot use Windows drive or stream syntax.
 TEST_CASE("Project rejects colon-separated asset paths", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "unsafe-asset.rhp";
-    writeUnsafeAssetPackage(path, "audio/backing.wav:stream");
+    writeUnsafeAssetProjectPackage(path, "audio/backing.wav:stream");
 
     Project project;
     const std::expected<Song, std::string> result = project.load(path);
@@ -554,9 +554,9 @@ TEST_CASE("Project rejects colon-separated asset paths", "[core][project]")
 // Verifies save persists the session-owned song through the open project package.
 TEST_CASE("Project saves session song metadata", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
-    writeMinimalPackage(path);
+    writeMinimalProjectPackage(path);
 
     Project project;
     auto song = project.load(path);
@@ -589,10 +589,10 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
 // Verifies save can import a session audio path that lives outside the extracted workspace.
 TEST_CASE("Project save imports external arrangement audio", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rhp";
     const std::filesystem::path external_audio_path = directory.path() / "replacement.wav";
-    writeMinimalPackage(path);
+    writeMinimalProjectPackage(path);
     {
         std::ofstream external_audio{external_audio_path, std::ios::binary};
         external_audio << "replacement bytes";
@@ -616,11 +616,11 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 
-// Verifies saveAs creates a native project package even before a package path exists.
+// Verifies saveAs creates an editor project package even before a project package path exists.
 TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
-    const std::filesystem::path package_path = directory.path() / "saved.rhp";
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path project_package_path = directory.path() / "saved.rhp";
     const std::filesystem::path audio_path = directory.path() / "backing.wav";
     {
         std::ofstream audio{audio_path, std::ios::binary};
@@ -629,14 +629,14 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
 
     Project project;
     const Song song = makeSaveableSong(audio_path);
-    const std::expected<void, std::string> saved = project.saveAs(package_path, song);
+    const std::expected<void, std::string> saved = project.saveAs(project_package_path, song);
 
     REQUIRE(saved.has_value());
-    CHECK(project.path() == package_path);
+    CHECK(project.path() == project_package_path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 
     Project reloaded_project;
-    const auto reloaded_song = reloaded_project.load(package_path);
+    const auto reloaded_song = reloaded_project.load(project_package_path);
     REQUIRE(reloaded_song.has_value());
     CHECK(reloaded_song->metadata.title == "Imported Song");
     CHECK(reloaded_song->metadata.artist == "Imported Artist");
@@ -645,13 +645,13 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 
-// Verifies publish writes runtime content at the package root without retargeting save.
+// Verifies publish writes native song content at the package root without retargeting save.
 TEST_CASE("Project publish keeps project path", "[core][project]")
 {
-    const TemporaryPackageDirectory directory;
+    const TemporaryArchiveDirectory directory;
     const std::filesystem::path project_path = directory.path() / "song.rhp";
     const std::filesystem::path publish_path = directory.path() / "song.rock";
-    writeMinimalPackage(project_path);
+    writeMinimalProjectPackage(project_path);
 
     Project project;
     auto song = project.load(project_path);
@@ -664,7 +664,7 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
     CHECK(project.path() == project_path);
     CHECK(std::filesystem::is_regular_file(publish_path));
 
-    const std::vector<std::string> entry_names = packageEntryNames(publish_path);
+    const std::vector<std::string> entry_names = archiveEntryNames(publish_path);
     CHECK(std::ranges::find(entry_names, "project.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song/song.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song.json") != entry_names.end());
@@ -674,11 +674,11 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
         return name.starts_with("song/");
     }));
     CHECK(
-        packageEntryContents(publish_path, "song.json").find("Published Title") !=
+        archiveEntryContents(publish_path, "song.json").find("Published Title") !=
         std::string::npos);
 }
 
-// Verifies save has a clear failure when no package has been opened yet.
+// Verifies save has a clear failure when no project package has been opened yet.
 TEST_CASE("Project save rejects unopened projects", "[core][project]")
 {
     Project project;

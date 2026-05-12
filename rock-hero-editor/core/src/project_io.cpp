@@ -64,7 +64,7 @@ constexpr std::string_view g_project_document_name{"project.json"};
 
 } // namespace
 
-// Reads project.json editor state from the extracted native project root.
+// Reads project.json editor state from the extracted editor project root.
 std::expected<ProjectEditorState, std::string> readProjectDocument(
     const std::filesystem::path& workspace_directory)
 {
