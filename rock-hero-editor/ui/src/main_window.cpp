@@ -1,11 +1,10 @@
 #include "main_window.h"
 
-#include "editor_settings.h"
-
 #include <rock_hero/audio/engine.h>
+#include <rock_hero/editor/ui/editor_settings.h>
 #include <rock_hero/ui/editor.h>
 
-namespace rock_hero
+namespace rock_hero::editor::ui
 {
 
 // Owns the editor runtime dependencies before creating the editor feature that stores references.
@@ -16,11 +15,11 @@ MainWindow::MainWindow(const juce::String& title)
               juce::ResizableWindow::backgroundColourId),
           juce::DocumentWindow::allButtons)
     , m_settings(std::make_unique<EditorSettings>())
-    , m_audio_engine(std::make_unique<audio::Engine>())
+    , m_audio_engine(std::make_unique<rock_hero::audio::Engine>())
 {
     // Engine implements each editor-facing audio port. Passing it for each role keeps Editor
     // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
-    m_editor = std::make_unique<ui::Editor>(
+    m_editor = std::make_unique<rock_hero::ui::Editor>(
         *m_audio_engine,
         *m_audio_engine,
         *m_audio_engine,
@@ -109,4 +108,4 @@ void MainWindow::closeWindow(std::optional<std::filesystem::path> project_file)
     }
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::ui

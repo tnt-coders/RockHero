@@ -1,8 +1,7 @@
-#include "editor_settings.h"
-
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/editor/ui/editor_settings.h>
 #include <string_view>
 #include <system_error>
 
@@ -10,7 +9,7 @@
 #define TEST_SETTINGS_DIR "."
 #endif
 
-namespace rock_hero
+namespace rock_hero::editor::ui
 {
 
 namespace
@@ -92,4 +91,4 @@ TEST_CASE("EditorSettings clears the last open project", "[editor][settings]")
     CHECK_FALSE(reloaded_settings.lastOpenProject().has_value());
 }
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::ui
