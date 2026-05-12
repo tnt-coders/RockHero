@@ -10,7 +10,6 @@
 #include <optional>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
-#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -114,9 +113,6 @@ struct EditorViewState
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement;
-
-    /*! \brief Most recent workflow error to display, if one should currently be shown. */
-    std::optional<std::string> last_error;
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
     std::optional<UnsavedChangesPrompt> unsaved_changes_prompt;

@@ -29,8 +29,8 @@ namespace rock_hero::editor::core
 Translates editor user intents into transport, audio, and project requests without exposing JUCE
 types. Subscribes to the transport listener surface for coarse transition-shaped updates and
 re-derives EditorViewState whenever a real change has occurred. The controller owns
-load-error policy, play/pause/stop gating, and seek normalization. Continuous playhead motion is
-not the controller's responsibility; the editor view pulls position from ITransport::position()
+error-reporting policy, play/pause/stop gating, and seek normalization. Continuous playhead motion
+is not the controller's responsibility; the editor view pulls position from ITransport::position()
 at its own render cadence. The controller samples position only for discrete workflow gates such
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
@@ -159,8 +159,8 @@ public:
     /*!
     \brief Handles a request to open an editor project package.
 
-    On success, the controller clears any active error and stores the project context. On failure,
-    the old session/context are preserved. Reentrant transport
+    On success, the controller stores the project context. On failure, the old session/context are
+    preserved and a transient view error is emitted. Reentrant transport
     notifications received during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
@@ -170,8 +170,8 @@ public:
     /*!
     \brief Handles a request to import a song source.
 
-    On success, the controller clears any active error and stores an unsaved workspace. On failure,
-    the old session/context are preserved. Reentrant transport
+    On success, the controller stores an unsaved workspace. On failure, the old session/context are
+    preserved and a transient view error is emitted. Reentrant transport
     notifications received during backend arrangement activation are coalesced into one final push.
 
     \param file Filesystem path selected by the user.
@@ -284,6 +284,9 @@ private:
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
     void deriveAndPush();
 
+    // Sends a one-shot workflow error to the attached view.
+    void reportError(const std::string& message);
+
     // Reports whether the controller has committed a backend-accepted arrangement.
     [[nodiscard]] bool hasLoadedArrangement() const;
 
@@ -328,9 +331,6 @@ private:
 
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
-
-    // Persisted controller-composed workflow error preserved across unrelated state transitions.
-    std::optional<std::string> m_last_error{};
 
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
     bool m_session_load_in_progress{false};
