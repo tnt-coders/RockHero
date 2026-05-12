@@ -9,7 +9,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 
-namespace rock_hero
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -58,4 +58,4 @@ private:
     juce::PropertiesFile m_properties;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::ui

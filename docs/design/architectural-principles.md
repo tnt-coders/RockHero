@@ -44,7 +44,8 @@ This is the main architectural rule for scalability.
 
 As the codebase grows, the majority of tests should remain:
 
-- unit tests over pure logic in `rock-hero-core` and future pure libraries
+- unit tests over pure logic in `rock-hero-common/core`, product `core` libraries, and future pure
+  libraries
 - adapter tests over project-owned interfaces
 - focused integration tests over a few connected components
 
@@ -63,85 +64,70 @@ tightly coupled.
 
 # Library Roles
 
-## Rock Hero Core
+## Product Scopes
 
-`rock-hero-core` should become the largest concentration of behavior in the project.
+The durable repository structure is organized by product scope:
 
-It should contain:
+- `rock-hero-common` contains behavior genuinely shared by the editor and game.
+- `rock-hero-editor` contains editor-only workflow, audio policy, presentation, and startup.
+- `rock-hero-game` contains game-only gameplay, audio analysis, presentation, and startup.
 
-- song, chart, and arrangement rules
-- validation rules
-- timing math
-- beat/second/sample conversions
-- chart transforms
-- note matching
-- scoring logic
-- calibration math
-- transport-independent gameplay rules
-- editor command logic that does not inherently require JUCE
-- data structures used by simulations and fixtures
+Common code must not depend on editor or game code. Editor code must not depend on game code. Game
+code must not depend on editor code.
 
-This code should be:
+## Core Modules
 
-- framework-free
-- synchronous
-- deterministic
-- easy to construct in tests
+Core modules are the preferred home for pure behavior.
 
-If a new feature can live here, it usually should.
+They should contain:
 
-## Rock Hero Audio
+- shared song, chart, arrangement, validation, timing, and package rules in `common/core`
+- editor workflow, command policy, session state, and undo/redo policy in `editor/core`
+- note matching, scoring, combo/streak rules, calibration math, and simulation in `game/core`
 
-`rock-hero-audio` should act as an adapter around Tracktion and JUCE audio facilities.
+Core code should be framework-free, synchronous, deterministic, and easy to construct in tests.
 
-It should contain:
+If a new feature can live in a core module without pulling in framework dependencies, it usually
+should.
 
-- Tracktion-backed transport implementation
-- backing track integration
-- plugin-host integration
-- waveform backend and proxy generation
-- audio-thread plumbing
-- lock-free cross-thread infrastructure
-- translation between project abstractions and Tracktion/JUCE types
+## Audio Modules
 
-It should **not** become a generic home for gameplay rules, scoring policy, editor behavior, or
-other business logic that merely happens to relate to audio.
+Audio modules own audio contracts, integration, infrastructure, and audio-adjacent policy.
 
-Its purpose is integration and infrastructure.
+`rock-hero-common/audio` owns shared audio ports and the default Tracktion/JUCE implementation. Its
+`api` target contains project-owned contracts such as transport, edit, thumbnail, and playback
+ports. Its `impl` target contains the concrete Tracktion/JUCE-backed implementation.
 
-## Rock Hero UI
+`rock-hero-editor/audio` is for editor-specific audio behavior outside the shared engine.
+`rock-hero-game/audio` is for game-specific audio analysis and gameplay plumbing such as pitch
+detection, onset detection, and calibration capture.
 
-`rock-hero-ui` should be presentation-focused.
+Audio modules should not become generic homes for gameplay rules, scoring policy, editor workflow,
+or other business logic that merely happens to relate to audio.
 
-It should contain:
+## UI Modules
 
-- JUCE components
+UI modules are presentation-focused.
+
+They should contain:
+
+- concrete components and views
 - rendering of already-derived state
 - gesture handling
 - intent emission to non-UI logic
 - local presentation concerns
 
-Small headless editor workflow helpers may remain in `rock-hero-ui` while they exist only to
-support the current editor feature and are not yet a real subsystem. These helpers must stay free
-of JUCE widget types and Tracktion implementation details, must depend only on project-owned
-interfaces, and must not become a miscellaneous home for editor app code. If they grow into
-undo/redo, broader project workflow, command history, or richer edit policy, extract
-that cluster into a dedicated editor workflow library instead of letting `rock-hero-ui` absorb
-business logic.
+`rock-hero-common/ui` is only for UI used by both products. `rock-hero-editor/ui` owns
+editor-specific JUCE presentation. `rock-hero-game/ui` owns game-specific presentation and
+rendering.
 
-It should **not** own:
+UI modules should not own scoring rules, chart semantics, persistence policy, transport semantics,
+or business decisions that can be expressed outside presentation code. The right bias is: if a UI
+component is getting smart, move the intelligence out.
 
-- scoring rules
-- chart semantics
-- persistence policy
-- transport semantics
-- business decisions that can be expressed outside JUCE
+## App Folders
 
-The right bias is: if a UI component is getting smart, move the intelligence out.
-
-## App Targets
-
-The app targets should mostly:
+The `app/` folders should mostly:
 
 - choose concrete implementations
 - wire dependencies together
@@ -149,7 +135,7 @@ The app targets should mostly:
 - start event loops
 - bridge platform startup concerns
 
-If core behavior lives only in an app target, it is likely too hard to test.
+If core behavior lives only in an app folder, it is likely too hard to test.
 
 # The Real Strategy: Architect for Testability
 
@@ -225,7 +211,7 @@ These validate project-owned adapters around frameworks and infrastructure.
 
 Examples:
 
-- `rock-hero-audio` behavior against Tracktion-backed implementations
+- `rock-hero-common/audio` behavior against Tracktion-backed implementations
 - waveform source/proxy handling
 - serialization adapters
 - transport adapter behavior with fakes at project-owned boundaries
@@ -419,10 +405,10 @@ highest-friction layers.
 
 ## Strongly Preferred
 
-- pure unit tests in `rock-hero-core`
+- pure unit tests in `common/core`, `editor/core`, and `game/core`
 - extracted non-UI services and command/state logic
 - hand-written fakes and stubs for project-owned interfaces
-- adapter tests around `rock-hero-audio`
+- adapter tests around `rock-hero-common/audio`
 - deterministic fixtures and builders
 - simulation-style tests for gameplay and timing
 
@@ -470,10 +456,11 @@ The project should resist the trap of creating interfaces only to satisfy mockin
 
 As the codebase evolves, favor these moves:
 
-- move scoring and gameplay systems into a dedicated non-app library
-- move editor behavior into command-style services outside JUCE components
-- keep waveform backend logic in `rock-hero-audio`, but keep drawing and interaction in
-  `rock-hero-ui`
+- move scoring and gameplay systems into `rock-hero-game/core`
+- move editor behavior into `rock-hero-editor/core` command-style services outside JUCE
+  components
+- keep waveform backend logic in `rock-hero-common/audio`, but keep drawing and interaction in
+  `rock-hero-editor/ui`
 - remove broad Tracktion escape hatches in favor of narrow abstractions
 - keep serialization policy separate from domain state where practical
 - add builders and fixtures for `Song`, `Arrangement`, and note sequences
@@ -485,10 +472,11 @@ Use per-library test targets rather than one large test binary.
 
 Suggested shape:
 
-- `libs/rock-hero-core/tests`
-- `libs/rock-hero-audio/tests`
-- `libs/rock-hero-ui/tests` for non-GUI or narrowly scoped GUI wiring checks
-- additional test targets for future pure libraries such as gameplay or editor logic libraries
+- `rock-hero-common/core/tests`
+- `rock-hero-common/audio/*/tests`
+- `rock-hero-editor/core/tests`
+- `rock-hero-editor/ui/tests` for non-GUI or narrowly scoped GUI wiring checks
+- `rock-hero-game/core/tests`, `rock-hero-game/audio/tests`, and `rock-hero-game/ui/tests`
 
 Register them with `ctest`, but keep most of them free from hardware and windowing requirements.
 
@@ -511,8 +499,8 @@ across the project's modular target structure.
 
 ## Build Policy Exception
 
-The source-level rule for `rock-hero-core` is unchanged: core must remain framework-free and must
-not include JUCE or Tracktion in its public headers or implementation.
+The source-level rule for `rock-hero-common/core` is unchanged: shared core must remain
+framework-free and must not include JUCE or Tracktion in its public headers or implementation.
 
 The build graph has one narrow exception. First-party targets link `rock_hero::build_policy`, and
 that target currently delegates to JUCE's recommended warning, configuration, and Release LTO helper

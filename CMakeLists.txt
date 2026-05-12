@@ -27,13 +27,13 @@ string(
     CONCAT _clang_tidy_regex
            # Reject any path containing a build/ segment (generated files)
            [=[^(?!.*[\\/]build[\\/])]=]
-           # Match only project-owned translation units under apps/ or libs/
-           [=[.*[\\/](apps|libs)[\\/]]=]
+           # Match project-owned translation units under current or migrated product folders.
+           [=[.*[\\/](apps|libs|rock-hero-common|rock-hero-editor|rock-hero-game)[\\/]]=]
            # C/C++ source files only
            [=[.*\.(c|cc|cpp|cxx)$]=])
 set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
     "${_clang_tidy_regex}"
-    CACHE STRING "Limit clang-tidy to project-owned C/C++ files under apps/ and libs/" FORCE)
+    CACHE STRING "Limit clang-tidy to project-owned C/C++ files" FORCE)
 
 add_subdirectory(project-config)
 
@@ -70,14 +70,16 @@ include(CTest)
 # --------------------------------------------------------------------------
 # Libraries
 # --------------------------------------------------------------------------
+add_subdirectory(rock-hero-common)
 add_subdirectory(libs/rock-hero-core)
 add_subdirectory(libs/rock-hero-audio)
 add_subdirectory(libs/rock-hero-ui)
+add_subdirectory(rock-hero-game)
 
 # --------------------------------------------------------------------------
 # Applications
 # --------------------------------------------------------------------------
-add_subdirectory(apps/rock-hero-editor)
+add_subdirectory(rock-hero-editor)
 add_subdirectory(apps/rock-hero)
 
 # Only the game gets a desktop icon/launcher; the editor is a developer tool.

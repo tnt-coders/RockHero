@@ -7,8 +7,10 @@ This document defines project-owned C++ coding rules that are not fully captured
 
 These rules apply to:
 
-- `apps/`
-- `libs/`
+- `rock-hero-common/`
+- `rock-hero-editor/`
+- `rock-hero-game/`
+- migration-only project source still under `apps/` or `libs/`
 - other project-owned C++ source files unless a file is generated or third-party
 
 These rules do not apply to:

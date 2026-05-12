@@ -7,8 +7,10 @@ code in Rock Hero.
 
 These rules apply to:
 
-- `apps/`
-- `libs/`
+- `rock-hero-common/`
+- `rock-hero-editor/`
+- `rock-hero-game/`
+- migration-only project source still under `apps/` or `libs/`
 - other project-owned source files unless a file is generated or third-party
 
 These rules do not apply to:
