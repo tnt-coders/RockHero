@@ -110,6 +110,32 @@ Module-local test `.cpp` files should also wrap their tests in the namespace of 
 test. This keeps tests close to the code they verify and avoids treating same-module tests like
 external consumers.
 
+# Switch Case Blocks
+
+Use braces around every non-empty `switch` case body. This keeps local declarations scoped to the
+case that owns them and avoids visually inconsistent switches where only declaration-heavy cases
+have blocks. Indent `case` labels one level inside the `switch` body and place the opening brace
+on the line after the `case` label, matching the project's normal brace style:
+
+\code{.cpp}
+switch (decision)
+{
+    case Decision::Accept:
+    {
+        applyDecision();
+        break;
+    }
+    case Decision::Cancel:
+    {
+        resetPrompt();
+        break;
+    }
+}
+\endcode
+
+`clang-format` enforces the case-label indentation and brace placement for scoped case blocks,
+but it does not add missing braces. Add the braces when writing or touching switch cases.
+
 # Public Header Organization
 
 Prefer one primary project-owned type per public header under `include/rock_hero/...` when that

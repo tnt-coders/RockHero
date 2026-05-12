@@ -83,14 +83,22 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 {
     switch (action)
     {
-    case core::PendingProjectAction::Close:
-        return "Save changes before closing the current project?";
-    case core::PendingProjectAction::Open:
-        return "Save changes before opening another project?";
-    case core::PendingProjectAction::Import:
-        return "Save changes before importing another project?";
-    case core::PendingProjectAction::Exit:
-        return "Save changes before exiting Rock Hero Editor?";
+        case core::PendingProjectAction::Close:
+        {
+            return "Save changes before closing the current project?";
+        }
+        case core::PendingProjectAction::Open:
+        {
+            return "Save changes before opening another project?";
+        }
+        case core::PendingProjectAction::Import:
+        {
+            return "Save changes before importing another project?";
+        }
+        case core::PendingProjectAction::Exit:
+        {
+            return "Save changes before exiting Rock Hero Editor?";
+        }
     }
 
     return "Save changes before continuing?";
@@ -756,55 +764,71 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
 {
     switch (menu_item_id)
     {
-    case g_open_command:
-        if (m_state.open_enabled)
+        case g_open_command:
         {
-            showOpenChooser();
+            if (m_state.open_enabled)
+            {
+                showOpenChooser();
+            }
+            break;
         }
-        break;
-    case g_import_command:
-        if (m_state.import_enabled)
+        case g_import_command:
         {
-            showImportChooser();
+            if (m_state.import_enabled)
+            {
+                showImportChooser();
+            }
+            break;
         }
-        break;
-    case g_save_command:
-        if (!m_state.save_enabled)
+        case g_save_command:
+        {
+            if (!m_state.save_enabled)
+            {
+                break;
+            }
+            if (m_state.save_requires_destination)
+            {
+                showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+            }
+            else
+            {
+                m_controller.onSaveRequested();
+            }
+            break;
+        }
+        case g_save_as_command:
+        {
+            if (m_state.save_as_enabled)
+            {
+                showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+            }
+            break;
+        }
+        case g_publish_command:
+        {
+            if (m_state.publish_enabled)
+            {
+                showPublishChooser();
+            }
+            break;
+        }
+        case g_close_command:
+        {
+            if (m_state.close_enabled)
+            {
+                m_controller.onCloseRequested();
+            }
+            break;
+        }
+        case g_exit_command:
+        {
+            m_controller.onExitRequested();
+            break;
+        }
+        default:
         {
             break;
         }
-        if (m_state.save_requires_destination)
-        {
-            showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
-        }
-        else
-        {
-            m_controller.onSaveRequested();
-        }
-        break;
-    case g_save_as_command:
-        if (m_state.save_as_enabled)
-        {
-            showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
-        }
-        break;
-    case g_publish_command:
-        if (m_state.publish_enabled)
-        {
-            showPublishChooser();
-        }
-        break;
-    case g_close_command:
-        if (m_state.close_enabled)
-        {
-            m_controller.onCloseRequested();
-        }
-        break;
-    case g_exit_command:
-        m_controller.onExitRequested();
-        break;
-    default:
-        break;
     }
 }
 
@@ -958,18 +982,24 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
 
             switch (button_index)
             {
-            case 0:
-                safe_this->m_controller.onUnsavedChangesDecision(
-                    core::UnsavedChangesDecision::Save);
-                break;
-            case 1:
-                safe_this->m_controller.onUnsavedChangesDecision(
-                    core::UnsavedChangesDecision::Discard);
-                break;
-            default:
-                safe_this->m_controller.onUnsavedChangesDecision(
-                    core::UnsavedChangesDecision::Cancel);
-                break;
+                case 0:
+                {
+                    safe_this->m_controller.onUnsavedChangesDecision(
+                        core::UnsavedChangesDecision::Save);
+                    break;
+                }
+                case 1:
+                {
+                    safe_this->m_controller.onUnsavedChangesDecision(
+                        core::UnsavedChangesDecision::Discard);
+                    break;
+                }
+                default:
+                {
+                    safe_this->m_controller.onUnsavedChangesDecision(
+                        core::UnsavedChangesDecision::Cancel);
+                    break;
+                }
             }
         });
 }

@@ -5,11 +5,13 @@ AccessModifierOffset: -4
 AlignAfterOpenBracket: BlockIndent
 BinPackArguments: false
 BraceWrapping:
+  AfterCaseLabel: true
   SplitEmptyFunction: false
 BreakBeforeCloseBracketFunction: false
 BreakConstructorInitializers: BeforeComma
 ColumnLimit: 100
 IncludeBlocks: Regroup
+IndentCaseLabels: true
 PackConstructorInitializers: Never
 PointerAlignment: Left
 ReflowComments: false
