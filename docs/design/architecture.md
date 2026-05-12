@@ -7,9 +7,8 @@ Rock Hero is an open-source guitar game built in C++. Players plug in a real gui
 The durable source layout is organized by product scope at the repository root:
 `rock-hero-common`, `rock-hero-editor`, and `rock-hero-game`. Each scope owns `core`, `audio`, and
 `ui` submodules when that layer is needed, and executable startup lives under the matching
-product's `app/` folder. During the migration, older `apps/` and `libs/` folders may still contain
-code that has not yet moved; new or moved code should follow the product-scope layout. No external
-DAW required. It should feel like a game, not a production tool.
+product's `app/` folder. No external DAW required. It should feel like a game, not a production
+tool.
 
 For the structural engineering rules that govern how new code should be organized, see
 \ref design_architectural_principles.
@@ -70,8 +69,8 @@ RockHero/
   project-config/       - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 \endcode
 
-The legacy `apps/` and `libs/` folders no longer own project product code and should not receive
-new source during the remaining migration.
+The old root `apps/` and `libs/` folders have been removed and should not be recreated for product
+code.
 
 Executable targets live under `app/` and should remain thin composition roots. Reusable libraries
 keep `src/` plus namespaced public headers under `include/rock_hero/<scope>/<module>/` so consumer
@@ -144,8 +143,7 @@ always reference first-party headers through the full nested path:
 #include <rock_hero/game/core/scoring.h>
 \endcode
 
-New product-scope code should use the full nested product path. During migration, any code that
-has not moved yet may keep its existing include path only until its owning module moves.
+Product-scope code should use the full nested product path.
 
 Each library additionally adds a **PRIVATE** include directory pointing at its own nested module
 folder (`rock-hero-<scope>/<module>/include/rock_hero/<scope>/<module>/`). This lets a library's
