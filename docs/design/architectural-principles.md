@@ -139,6 +139,13 @@ UI modules should not own scoring rules, chart semantics, persistence policy, tr
 or business decisions that can be expressed outside presentation code. The right bias is: if a UI
 component is getting smart, move the intelligence out.
 
+UI modules may contain thin feature composition wrappers when the wrapper's job is to pair a view
+with its product-core controller and expose one ready-to-host component. Treat those wrappers as
+watch items: if they start constructing concrete adapters, owning settings or persistence, choosing
+application callbacks, restoring sessions, starting event loops, or otherwise making
+application-shell decisions, move concrete composition to the matching `app/` folder or move
+headless policy back to product core.
+
 ## App Folders
 
 The `app/` folders should mostly:
