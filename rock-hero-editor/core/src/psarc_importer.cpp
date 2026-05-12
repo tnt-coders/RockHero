@@ -19,11 +19,18 @@
 #include <utility>
 #include <vector>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
 
 namespace
 {
+
+using common::core::Arrangement;
+using common::core::AudioAsset;
+using common::core::DifficultyRating;
+using common::core::Part;
+using common::core::Song;
+using common::core::TimeDuration;
 
 using Json = nlohmann::json;
 
@@ -540,7 +547,7 @@ void addImportedArrangement(
 } // namespace
 
 // Imports the minimal PSARC song metadata, arrangement XML, and converted backing audio.
-std::expected<Song, std::string> PsarcImporter::importProject(
+std::expected<common::core::Song, std::string> PsarcImporter::importProject(
     const std::filesystem::path& source_path, const std::filesystem::path& workspace_directory)
 {
     try
@@ -575,4 +582,4 @@ std::expected<Song, std::string> PsarcImporter::importProject(
     }
 }
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core

@@ -6,8 +6,8 @@
 #include <expected>
 #include <iterator>
 #include <optional>
-#include <rock_hero/common/core/psarc_importer.h>
-#include <rock_hero/common/core/rock_importer.h>
+#include <rock_hero/editor/core/psarc_importer.h>
+#include <rock_hero/editor/core/rock_importer.h>
 #include <string>
 #include <utility>
 
@@ -19,14 +19,14 @@ namespace
 
 // Production open path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, std::string> defaultOpen(
-    common::core::Project& project, const std::filesystem::path& file)
+    Project& project, const std::filesystem::path& file)
 {
     return project.load(file);
 }
 
 // Production import path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, std::string> defaultImport(
-    common::core::Project& project, const std::filesystem::path& file)
+    Project& project, const std::filesystem::path& file)
 {
     std::string extension = file.extension().string();
     std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
@@ -35,13 +35,13 @@ namespace
 
     if (extension == ".rock")
     {
-        common::core::RockImporter importer;
+        RockImporter importer;
         return project.import(file, importer);
     }
 
     if (extension == ".psarc")
     {
-        common::core::PsarcImporter importer;
+        PsarcImporter importer;
         return project.import(file, importer);
     }
 
@@ -52,24 +52,22 @@ namespace
 
 // Production save path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSave(
-    common::core::Project& project, const common::core::Song& song,
-    common::core::ProjectEditorState editor_state)
+    Project& project, const common::core::Song& song, ProjectEditorState editor_state)
 {
     return project.save(song, std::move(editor_state));
 }
 
 // Production save-as path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultSaveAs(
-    common::core::Project& project, const std::filesystem::path& file,
-    const common::core::Song& song, common::core::ProjectEditorState editor_state)
+    Project& project, const std::filesystem::path& file, const common::core::Song& song,
+    ProjectEditorState editor_state)
 {
     return project.saveAs(file, song, std::move(editor_state));
 }
 
 // Production publish path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<void, std::string> defaultPublish(
-    common::core::Project& project, const std::filesystem::path& file,
-    const common::core::Song& song)
+    Project& project, const std::filesystem::path& file, const common::core::Song& song)
 {
     return project.publish(file, song);
 }
@@ -147,7 +145,7 @@ void EditorController::onOpenRequested(std::filesystem::path file)
 // Opens a package after any current project-replacement prompt has already been satisfied.
 void EditorController::openProject(const std::filesystem::path& file)
 {
-    common::core::Project project;
+    Project project;
     std::expected<common::core::Song, std::string> loaded_song = m_open_function(project, file);
     if (!loaded_song.has_value())
     {
@@ -157,7 +155,7 @@ void EditorController::openProject(const std::filesystem::path& file)
     }
 
     common::core::Song song = std::move(*loaded_song);
-    const common::core::ProjectEditorState editor_state = project.editorState();
+    const ProjectEditorState editor_state = project.editorState();
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
@@ -192,7 +190,7 @@ void EditorController::onImportRequested(std::filesystem::path file)
 // Imports a foreign package after any current project-replacement prompt has been satisfied.
 void EditorController::importProject(const std::filesystem::path& file)
 {
-    common::core::Project project;
+    Project project;
     std::expected<common::core::Song, std::string> loaded_song = m_import_function(project, file);
     if (!loaded_song.has_value())
     {
@@ -586,9 +584,9 @@ std::optional<std::filesystem::path> EditorController::currentProjectFile() cons
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.
-common::core::ProjectEditorState EditorController::projectEditorStateForSave() const
+ProjectEditorState EditorController::projectEditorStateForSave() const
 {
-    common::core::ProjectEditorState editor_state{
+    ProjectEditorState editor_state{
         .cursor_position = m_transport.position(),
         .selected_arrangement = std::nullopt,
     };

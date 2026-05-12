@@ -5,9 +5,12 @@
 
 #pragma once
 
-#include <rock_hero/common/core/i_project_importer.h>
+#include <expected>
+#include <filesystem>
+#include <rock_hero/editor/core/i_project_importer.h>
+#include <string>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -26,9 +29,9 @@ public:
     \param workspace_directory Existing workspace directory to populate.
     \return Imported song data, or a failure message.
     */
-    [[nodiscard]] std::expected<Song, std::string> importProject(
+    [[nodiscard]] std::expected<common::core::Song, std::string> importProject(
         const std::filesystem::path& source_path,
         const std::filesystem::path& workspace_directory) override;
 };
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core

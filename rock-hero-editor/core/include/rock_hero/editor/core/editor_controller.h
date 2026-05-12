@@ -12,11 +12,11 @@
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
-#include <rock_hero/common/core/project.h>
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/project.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -24,26 +24,24 @@ namespace rock_hero::editor::core
 
 /*! \brief Opens a native package into a project context and returns the parsed song. */
 using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
-    common::core::Project& project, const std::filesystem::path& path)>;
+    Project& project, const std::filesystem::path& path)>;
 
 /*! \brief Imports a foreign package into a project context and returns the parsed song. */
 using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
-    common::core::Project& project, const std::filesystem::path& path)>;
+    Project& project, const std::filesystem::path& path)>;
 
 /*! \brief Saves the current song through the project context. */
 using SaveFunction = std::function<std::expected<void, std::string>(
-    common::core::Project& project, const common::core::Song& song,
-    common::core::ProjectEditorState editor_state)>;
+    Project& project, const common::core::Song& song, ProjectEditorState editor_state)>;
 
 /*! \brief Saves the current song to a chosen path through the project context. */
 using SaveAsFunction = std::function<std::expected<void, std::string>(
-    common::core::Project& project, const std::filesystem::path& path,
-    const common::core::Song& song, common::core::ProjectEditorState editor_state)>;
+    Project& project, const std::filesystem::path& path, const common::core::Song& song,
+    ProjectEditorState editor_state)>;
 
 /*! \brief Publishes the current song to a chosen package path through the project context. */
 using PublishFunction = std::function<std::expected<void, std::string>(
-    common::core::Project& project, const std::filesystem::path& path,
-    const common::core::Song& song)>;
+    Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
 /*! \brief Requests host exit with the native project file to restore on next launch, if any. */
 using ExitFunction = std::function<void(std::optional<std::filesystem::path> project_file)>;
@@ -243,7 +241,7 @@ private:
     void clearPendingProjectAction() noexcept;
 
     // Builds the editor-only project state persisted by Save and Save As.
-    [[nodiscard]] common::core::ProjectEditorState projectEditorStateForSave() const;
+    [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
 
     // Prepares project audio, activates the selected arrangement, and commits to Session.
     [[nodiscard]] bool loadSessionSong(
@@ -304,7 +302,7 @@ private:
     bool m_session_load_in_progress{false};
 
     // Currently loaded or imported project context; keeps workspace files alive.
-    std::optional<common::core::Project> m_project{};
+    std::optional<Project> m_project{};
 
     // User-selected native project path used for project-name-derived UI suggestions.
     std::filesystem::path m_project_file{};
