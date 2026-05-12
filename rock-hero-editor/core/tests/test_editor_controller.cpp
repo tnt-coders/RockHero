@@ -447,6 +447,11 @@ public:
         removeFiles();
     }
 
+    ScopedControllerFiles(const ScopedControllerFiles&) = delete;
+    ScopedControllerFiles& operator=(const ScopedControllerFiles&) = delete;
+    ScopedControllerFiles(ScopedControllerFiles&&) = delete;
+    ScopedControllerFiles& operator=(ScopedControllerFiles&&) = delete;
+
     [[nodiscard]] const std::filesystem::path& settingsFile() const noexcept
     {
         return m_settings_file;

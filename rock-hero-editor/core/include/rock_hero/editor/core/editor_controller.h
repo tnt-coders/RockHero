@@ -107,7 +107,8 @@ public:
     \param services Optional project IO, settings, and host-exit services.
     */
     EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio, Services services = {});
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        Services services = defaultServices());
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -234,6 +235,9 @@ public:
     void onWaveformClicked(double normalized_x) override;
 
 private:
+    // Supplies a named default-argument target after Services has been declared.
+    [[nodiscard]] static Services defaultServices();
+
     struct PendingProjectRequest
     {
         PendingProjectAction action{PendingProjectAction::Close};
