@@ -1,4 +1,4 @@
-#include "psarc_importer.h"
+#include "psarc_song_importer.h"
 
 #include <algorithm>
 #include <cctype>
@@ -34,7 +34,7 @@ using common::core::TimeDuration;
 
 using Json = nlohmann::json;
 
-// Builds a failed import result with one stable project-owned message.
+// Builds a failed PSARC song import result with one stable project-owned message.
 [[nodiscard]] std::expected<Song, std::string> failImport(std::string message)
 {
     return std::unexpected<std::string>{std::move(message)};
@@ -547,7 +547,7 @@ void addImportedArrangement(
 } // namespace
 
 // Imports the minimal PSARC song metadata, arrangement XML, and converted backing audio.
-std::expected<common::core::Song, std::string> PsarcImporter::importProject(
+std::expected<common::core::Song, std::string> PsarcSongImporter::importSong(
     const std::filesystem::path& source_path, const std::filesystem::path& workspace_directory)
 {
     try

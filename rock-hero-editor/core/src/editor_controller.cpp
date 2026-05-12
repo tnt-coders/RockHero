@@ -6,8 +6,8 @@
 #include <expected>
 #include <iterator>
 #include <optional>
-#include <rock_hero/editor/core/psarc_importer.h>
-#include <rock_hero/editor/core/rock_importer.h>
+#include <rock_hero/editor/core/psarc_song_importer.h>
+#include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
 #include <utility>
 
@@ -35,18 +35,18 @@ namespace
 
     if (extension == ".rock")
     {
-        RockImporter importer;
+        RockSongImporter importer;
         return project.import(file, importer);
     }
 
     if (extension == ".psarc")
     {
-        PsarcImporter importer;
+        PsarcSongImporter importer;
         return project.import(file, importer);
     }
 
     return std::unexpected<std::string>{
-        "Unsupported import package extension: " + file.extension().string()
+        "Unsupported song source extension: " + file.extension().string()
     };
 }
 
@@ -132,7 +132,7 @@ void EditorController::attachView(IEditorView& view)
     view.setState(m_last_state);
 }
 
-// Opens a package and stores the context only after audio and Session both accept the song.
+// Opens an editor project package and stores it after audio and Session both accept the song.
 void EditorController::onOpenRequested(std::filesystem::path file)
 {
     requestProjectAction(
@@ -142,7 +142,7 @@ void EditorController::onOpenRequested(std::filesystem::path file)
         });
 }
 
-// Opens a package after any current project-replacement prompt has already been satisfied.
+// Opens an editor project package after any project-replacement prompt has been satisfied.
 void EditorController::openProject(const std::filesystem::path& file)
 {
     Project project;
@@ -177,7 +177,7 @@ void EditorController::openProject(const std::filesystem::path& file)
     deriveAndPush();
 }
 
-// Imports a foreign package and stores the workspace only after audio and Session accept the song.
+// Imports a song source and stores the workspace only after audio and Session accept the song.
 void EditorController::onImportRequested(std::filesystem::path file)
 {
     requestProjectAction(
@@ -187,8 +187,8 @@ void EditorController::onImportRequested(std::filesystem::path file)
         });
 }
 
-// Imports a foreign package after any current project-replacement prompt has been satisfied.
-void EditorController::importProject(const std::filesystem::path& file)
+// Imports a song source after any current project-replacement prompt has been satisfied.
+void EditorController::importSongSource(const std::filesystem::path& file)
 {
     Project project;
     std::expected<common::core::Song, std::string> loaded_song = m_import_function(project, file);
@@ -272,7 +272,7 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
     deriveAndPush();
 }
 
-// Publishes the current project as a playable package without changing save destination or dirty
+// Publishes the current project as a native song package without changing save destination or dirty
 // state.
 void EditorController::onPublishRequested(std::filesystem::path file)
 {
@@ -473,7 +473,7 @@ void EditorController::performProjectAction(const PendingProjectRequest& request
         openProject(request.file);
         break;
     case PendingProjectAction::Import:
-        importProject(request.file);
+        importSongSource(request.file);
         break;
     case PendingProjectAction::Exit:
         const std::optional<std::filesystem::path> restorable_project_file = currentProjectFile();
@@ -572,7 +572,7 @@ const common::core::Session& EditorController::session() const noexcept
     return m_session;
 }
 
-// Returns a native project file only when the current workspace is backed by one.
+// Returns an editor project file only when the current workspace is backed by one.
 std::optional<std::filesystem::path> EditorController::currentProjectFile() const
 {
     if (!m_project.has_value() || m_project_file.empty())

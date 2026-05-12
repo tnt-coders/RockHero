@@ -24,13 +24,13 @@ public:
     virtual ~IEditorController() = default;
 
     /*!
-    \brief Handles a request to open a Rock Hero package.
+    \brief Handles a request to open an editor project package.
     \param file Filesystem path selected by the user.
     */
     virtual void onOpenRequested(std::filesystem::path file) = 0;
 
     /*!
-    \brief Handles a request to import a foreign package.
+    \brief Handles a request to import a song source.
     \param file Filesystem path selected by the user.
     */
     virtual void onImportRequested(std::filesystem::path file) = 0;
@@ -45,7 +45,7 @@ public:
     virtual void onSaveAsRequested(std::filesystem::path file) = 0;
 
     /*!
-    \brief Handles a request to publish a playable Rock Hero package.
+    \brief Handles a request to publish a native song package.
     \param file Filesystem path selected by the user.
     */
     virtual void onPublishRequested(std::filesystem::path file) = 0;

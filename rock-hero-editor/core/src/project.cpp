@@ -9,9 +9,10 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/package_io.h>
 #include <rock_hero/common/core/song_package.h>
+#include <rock_hero/common/core/workspace_paths.h>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -157,7 +158,7 @@ Project::~Project() noexcept
     }
 }
 
-// Transfers package state and workspace ownership, clearing the source paths.
+// Transfers project package state and workspace ownership, clearing the source paths.
 Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
@@ -211,7 +212,7 @@ const ProjectEditorState& Project::editorState() const noexcept
     return m_editor_state;
 }
 
-// Opens the package archive, extracts it safely, and reads the song document.
+// Opens the project package archive, extracts it safely, and reads the song document.
 std::expected<Song, std::string> Project::load(const std::filesystem::path& package_path)
 {
     std::error_code filesystem_error;
@@ -232,10 +233,10 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     loaded_project.m_workspace_directory = std::move(*workspace_directory);
 
     const auto extraction_error =
-        common::core::extractPackageToWorkspace(package_path, loaded_project.m_workspace_directory);
+        common::core::extractArchiveToWorkspace(package_path, loaded_project.m_workspace_directory);
     if (extraction_error.has_value())
     {
-        return failProjectLoad(*extraction_error);
+        return failProjectLoad("Could not extract project package: " + *extraction_error);
     }
 
     auto editor_state = project_io::readProjectDocument(loaded_project.m_workspace_directory);
@@ -265,9 +266,9 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     return song;
 }
 
-// Imports a foreign package into a new workspace without assigning a native package path.
+// Imports a song source into a new workspace without assigning a project package path.
 std::expected<Song, std::string> Project::import(
-    const std::filesystem::path& source_path, IProjectImporter& importer)
+    const std::filesystem::path& source_path, ISongImporter& importer)
 {
     std::string error_message;
     auto workspace_directory = createWorkspaceDirectory(error_message);
@@ -287,7 +288,7 @@ std::expected<Song, std::string> Project::import(
         return failProjectImport("Could not create song directory: " + create_error.message());
     }
 
-    auto imported_song = importer.importProject(source_path, song_directory);
+    auto imported_song = importer.importSong(source_path, song_directory);
     if (!imported_song.has_value())
     {
         return failProjectImport(std::move(imported_song.error()));
@@ -321,7 +322,7 @@ std::expected<void, std::string> Project::save(const Song& song, ProjectEditorSt
 {
     if (m_path.empty() || m_workspace_directory.empty())
     {
-        return failProjectSave("Cannot save before a project path has been chosen");
+        return failProjectSave("Cannot save before a project package path has been chosen");
     }
 
     std::error_code error;
@@ -338,30 +339,30 @@ std::expected<void, std::string> Project::save(const Song& song, ProjectEditorSt
     }
 
     if (const auto package_error =
-            common::core::writeWorkspaceToPackage(m_workspace_directory, m_path);
+            common::core::writeWorkspaceToArchive(m_workspace_directory, m_path);
         package_error.has_value())
     {
-        return failProjectSave(*package_error);
+        return failProjectSave("Could not write project package: " + *package_error);
     }
 
     m_editor_state = std::move(editor_state);
     return std::expected<void, std::string>{};
 }
 
-// Saves to a chosen package path, creating a workspace first when this project is unopened.
+// Saves to a chosen project package path, creating a workspace first when unopened.
 std::expected<void, std::string> Project::saveAs(
     const std::filesystem::path& path, const Song& song)
 {
     return saveAs(path, song, m_editor_state);
 }
 
-// Saves song data and editor state to a chosen package path.
+// Saves song data and editor state to a chosen project package path.
 std::expected<void, std::string> Project::saveAs(
     const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state)
 {
     if (path.empty())
     {
-        return failProjectSave("Cannot save a project without a package path");
+        return failProjectSave("Cannot save a project without a project package path");
     }
 
     if (m_workspace_directory.empty())
@@ -384,11 +385,11 @@ std::expected<void, std::string> Project::saveAs(
             return failProjectSave(*write_error);
         }
 
-        if (const auto package_error = common::core::writeWorkspaceToPackage(
+        if (const auto package_error = common::core::writeWorkspaceToArchive(
                 saved_project.m_workspace_directory, saved_project.m_path);
             package_error.has_value())
         {
-            return failProjectSave(*package_error);
+            return failProjectSave("Could not write project package: " + *package_error);
         }
 
         saved_project.m_editor_state = std::move(editor_state);
@@ -404,10 +405,10 @@ std::expected<void, std::string> Project::saveAs(
     }
 
     if (const auto package_error =
-            common::core::writeWorkspaceToPackage(m_workspace_directory, path);
+            common::core::writeWorkspaceToArchive(m_workspace_directory, path);
         package_error.has_value())
     {
-        return failProjectSave(*package_error);
+        return failProjectSave("Could not write project package: " + *package_error);
     }
 
     m_path = path;
@@ -415,13 +416,13 @@ std::expected<void, std::string> Project::saveAs(
     return std::expected<void, std::string>{};
 }
 
-// Publishes runtime song content without project metadata or retargeting future saves.
+// Publishes native song content without project metadata or retargeting future saves.
 std::expected<void, std::string> Project::publish(
     const std::filesystem::path& path, const Song& song)
 {
     if (path.empty())
     {
-        return failProjectPublish("Cannot publish a project without a package path");
+        return failProjectPublish("Cannot publish a project without a native song package path");
     }
 
     if (m_workspace_directory.empty())
@@ -443,10 +444,10 @@ std::expected<void, std::string> Project::publish(
         return failProjectPublish(song_files.error());
     }
 
-    if (const auto package_error = common::core::writeWorkspaceToPackage(song_directory, path);
+    if (const auto package_error = common::core::writeWorkspaceToArchive(song_directory, path);
         package_error.has_value())
     {
-        return failProjectPublish(*package_error);
+        return failProjectPublish("Could not write native song package: " + *package_error);
     }
 
     return std::expected<void, std::string>{};

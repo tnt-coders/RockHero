@@ -36,7 +36,7 @@ const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
 
-// Ensures saved packages use the native Rock Hero extension when the chooser returns none.
+// Ensures saved project packages use the Rock Hero project extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
 {
     std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
@@ -47,7 +47,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
     return path;
 }
 
-// Ensures published packages use the playable Rock Hero extension when the chooser returns none.
+// Ensures published song packages use the native Rock Hero song extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRockExtension(const juce::File& file)
 {
     std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
@@ -800,11 +800,11 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
     }
 }
 
-// Opens an asynchronous file chooser and sends accepted native package paths to the controller.
+// Opens an asynchronous file chooser and sends accepted project package paths to the controller.
 void EditorView::showOpenChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Open Rock Hero package",
+        "Open Rock Hero Project",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rhp");
 
@@ -826,7 +826,7 @@ void EditorView::showOpenChooser()
 void EditorView::showImportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import Rock Hero or Rocksmith package",
+        "Import Rock Hero Song or Rocksmith PSARC",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rock;*.psarc");
 
@@ -848,7 +848,7 @@ void EditorView::showImportChooser()
 void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Save Rock Hero package",
+        "Save Rock Hero Project",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rhp");
 
@@ -870,7 +870,7 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
         });
 }
 
-// Opens an asynchronous file chooser and sends accepted playable publish paths to the controller.
+// Opens an asynchronous file chooser and sends accepted native song package paths to the controller.
 void EditorView::showPublishChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(

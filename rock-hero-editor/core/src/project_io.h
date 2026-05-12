@@ -17,20 +17,20 @@
 namespace rock_hero::editor::core::project_io
 {
 
-/*! \brief Fixed directory name used for runtime song content inside native projects. */
+/*! \brief Fixed directory name used for native song content inside editor project packages. */
 inline constexpr std::string_view g_song_directory_name{"song"};
 
 /*!
-\brief Reads editor-only project state from an extracted native project root.
-\param workspace_directory Extracted native project workspace containing project.json.
+\brief Reads editor-only project state from an extracted editor project root.
+\param workspace_directory Extracted editor project workspace containing project.json.
 \return Parsed editor state, or a failure message.
 */
 [[nodiscard]] std::expected<ProjectEditorState, std::string> readProjectDocument(
     const std::filesystem::path& workspace_directory);
 
 /*!
-\brief Writes editor-only project state to an extracted native project root.
-\param workspace_directory Extracted native project workspace that receives project.json.
+\brief Writes editor-only project state to an extracted editor project root.
+\param workspace_directory Extracted editor project workspace that receives project.json.
 \param editor_state Editor-only state to persist.
 \param arrangement_ids Arrangement IDs available in the paired song document.
 \return Empty success, or a failure message.
@@ -40,8 +40,8 @@ inline constexpr std::string_view g_song_directory_name{"song"};
     const std::vector<std::string>& arrangement_ids);
 
 /*!
-\brief Writes native project files into an extracted project workspace.
-\param workspace_directory Extracted native project workspace to update.
+\brief Writes editor project files into an extracted project workspace.
+\param workspace_directory Extracted editor project workspace to update.
 \param song Song data to persist under the song directory.
 \param editor_state Editor-only project state to persist at the workspace root.
 \return Empty success, or a failure message.

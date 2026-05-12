@@ -60,14 +60,14 @@ public:
     [[nodiscard]] juce::Component& component() noexcept;
 
     /*!
-    \brief Opens a native project package through the guarded controller workflow.
+    \brief Opens an editor project package through the guarded controller workflow.
     \param file Project package path to open.
     */
     void openProject(std::filesystem::path file);
 
     /*!
-    \brief Returns the native project file that can be reopened on the next launch.
-    \return Current `.rhp` project path, or empty when the loaded work has no native file.
+    \brief Returns the editor project file that can be reopened on the next launch.
+    \return Current `.rhp` project path, or empty when the loaded work has no project file.
     */
     [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
 
