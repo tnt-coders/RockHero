@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -265,16 +266,19 @@ TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement
     FakeArrangementViewListener listener;
 
     view.addListener(listener);
-    view.setBounds(0, 0, 200, 40);
+    view.setBounds(0, 0, 253, 40);
 
-    view.mouseDown(makeMouseDownEvent(view, 50.0f, 10.0f));
+    const float click_x = std::floor(static_cast<float>(view.getWidth()) * 0.25f) + 0.5f;
+    view.mouseDown(makeMouseDownEvent(view, click_x, 10.0f));
 
     CHECK(listener.click_count == 1);
     CHECK(listener.last_view == &view);
     REQUIRE(listener.last_normalized_x.has_value());
     if (listener.last_normalized_x.has_value())
     {
-        CHECK(listener.last_normalized_x.value() == Catch::Approx(0.25));
+        const double expected_normalized_x =
+            static_cast<double>(click_x) / static_cast<double>(view.getWidth());
+        CHECK(listener.last_normalized_x.value() == Catch::Approx(expected_normalized_x));
     }
 }
 
