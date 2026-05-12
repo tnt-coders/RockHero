@@ -9,13 +9,13 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 
-namespace rock_hero::editor::ui
+namespace rock_hero::editor::core
 {
 
 /*!
-\brief Stores editor application settings that live outside project packages.
+\brief Stores editor settings that live outside project packages.
 
-EditorSettings owns the JUCE properties file used by the editor executable. These settings are
+EditorSettings owns the JUCE properties file used by the editor workflow. These settings are
 per-user application state, not `.rhp` project data and not `.rock` package data.
 */
 class EditorSettings final
@@ -25,8 +25,8 @@ public:
     EditorSettings();
 
     /*!
-    \brief Opens the editor settings file at an explicit native path.
-    \param settings_file Settings file path used instead of the app's standard per-user location.
+    \brief Opens editor settings at an explicit native path.
+    \param settings_file Settings file path used for persisted editor state.
     */
     explicit EditorSettings(const std::filesystem::path& settings_file);
 
@@ -58,4 +58,4 @@ private:
     juce::PropertiesFile m_properties;
 };
 
-} // namespace rock_hero::editor::ui
+} // namespace rock_hero::editor::core

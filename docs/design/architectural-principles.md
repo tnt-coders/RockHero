@@ -44,8 +44,8 @@ This is the main architectural rule for scalability.
 
 As the codebase grows, the majority of tests should remain:
 
-- unit tests over pure logic in `rock-hero-common/core`, product `core` libraries, and future pure
-  libraries
+- unit tests over pure and headless logic in `rock-hero-common/core`, product `core` libraries,
+  and future pure libraries
 - adapter tests over project-owned interfaces
 - focused integration tests over a few connected components
 
@@ -77,7 +77,16 @@ code must not depend on editor code.
 
 ## Core Modules
 
-Core modules are the preferred home for pure behavior.
+Core modules are the preferred home for headless behavior.
+
+`rock-hero-common/core` has the strictest contract: it is shared domain and package behavior, so it
+must remain framework-free in both public headers and implementation.
+
+Product core modules have a testability contract rather than a blanket framework ban. They should
+prefer pure standard C++ for rules, math, state transitions, and package-independent policy, but
+they may use narrow JUCE utility facilities when that keeps the product workflow simpler and still
+leaves the behavior automated-testable. Examples include `juce::File`, `juce::String`,
+`juce::PropertiesFile`, `juce::ValueTree`, and `juce::UndoManager`.
 
 They should contain:
 
@@ -85,10 +94,14 @@ They should contain:
 - editor workflow, command policy, session state, and undo/redo policy in `editor/core`
 - note matching, scoring, combo/streak rules, calibration math, and simulation in `game/core`
 
-Core code should be framework-free, synchronous, deterministic, and easy to construct in tests.
+Product core code should remain synchronous where practical, deterministic where the behavior
+allows it, and easy to construct in tests. It should not own UI widgets, drawing, message-loop
+lifecycle, audio devices, GPU resources, app startup, or Tracktion runtime integration unless a
+specific design decision justifies the exception.
 
-If a new feature can live in a core module without pulling in framework dependencies, it usually
-should.
+If a new feature can live in a core module without pulling in framework dependencies, that is still
+usually preferable. If using a small JUCE facility removes custom infrastructure and keeps the
+tests straightforward, product core may use it.
 
 ## Audio Modules
 
@@ -287,7 +300,7 @@ The stronger version is:
 That is better.
 
 For Rock Hero, the strongest path is usually not just "make the JUCE component thinner." It is
-"move behavior into a library that barely knows JUCE exists."
+"move behavior into a headless library where JUCE use is deliberate, narrow, and easy to test."
 
 # Time Must Be a Dependency
 
@@ -406,7 +419,7 @@ highest-friction layers.
 
 ## Strongly Preferred
 
-- pure unit tests in `common/core`, `editor/core`, and `game/core`
+- pure or headless unit tests in `common/core`, `editor/core`, and `game/core`
 - extracted non-UI services and command/state logic
 - hand-written fakes and stubs for project-owned interfaces
 - adapter tests around `rock-hero-common/audio`
@@ -509,11 +522,12 @@ targets. This is a pragmatic build-policy choice, not permission for core code t
 It keeps one compiler policy across Rock Hero while using defaults that already match the
 JUCE/Tracktion toolchain surface.
 
-This exception must remain contained in `cmake/RockHeroBuildPolicy.cmake`. Core CMake files should
-only mention Rock Hero policy targets such as `rock_hero::build_policy`, never raw `juce::` or
-`tracktion::` targets. If a core-only build, package, or test workflow needs to remove the
-build-time JUCE dependency later, change the implementation of the build-policy targets in that one
-file and keep first-party target call sites intact.
+This exception must remain contained in `cmake/RockHeroBuildPolicy.cmake`.
+`rock-hero-common/core` CMake should only mention Rock Hero policy targets such as
+`rock_hero::build_policy`, never raw `juce::` or `tracktion::` targets. If a core-only build,
+package, or test workflow needs to remove the build-time JUCE dependency later, change the
+implementation of the build-policy targets in that one file and keep first-party target call sites
+intact.
 
 # Decision Rules for New Code
 
