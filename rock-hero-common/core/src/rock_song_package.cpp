@@ -1,4 +1,4 @@
-#include "song_package.h"
+#include "rock_song_package.h"
 
 #include <algorithm>
 #include <array>
@@ -401,7 +401,8 @@ private:
     return true;
 }
 
-// Converts a song-package-relative path into a concrete file path inside the extracted directory.
+// Converts a Rock song package-relative path into a concrete file path inside the extracted
+// directory.
 [[nodiscard]] std::optional<std::filesystem::path> resolveExistingFile(
     const std::filesystem::path& directory, const std::string& relative_path)
 {
@@ -783,7 +784,7 @@ private:
     return file_name;
 }
 
-// Chooses a generated song-package-relative audio path that does not overwrite another asset.
+// Chooses a generated Rock song package-relative audio path that does not overwrite another asset.
 [[nodiscard]] std::filesystem::path uniqueAudioPath(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
     std::size_t asset_index)
@@ -1122,8 +1123,9 @@ std::optional<std::string> extractArchiveToWorkspace(
     return extractZipToWorkspace(*archive->get(), workspace_directory);
 }
 
-// Reads song.json and resolves song-package-relative asset references into core data.
-std::expected<Song, std::string> readSongPackageDirectory(const std::filesystem::path& directory)
+// Reads song.json and resolves Rock song package-relative asset references into core data.
+std::expected<Song, std::string> readRockSongPackageDirectory(
+    const std::filesystem::path& directory)
 {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
@@ -1187,7 +1189,7 @@ std::expected<Song, std::string> readSongPackageDirectory(const std::filesystem:
 }
 
 // Extracts a native song package and reads the root song document from the workspace.
-std::expected<Song, std::string> readSongPackage(
+std::expected<Song, std::string> readRockSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
 {
     if (const auto package_error = extractArchiveToWorkspace(package_path, workspace_directory);
@@ -1198,7 +1200,7 @@ std::expected<Song, std::string> readSongPackage(
         };
     }
 
-    return readSongPackageDirectory(workspace_directory);
+    return readRockSongPackageDirectory(workspace_directory);
 }
 
 // Resolves an asset path and reports its workspace-relative spelling.
@@ -1225,8 +1227,8 @@ std::optional<std::filesystem::path> relativeWorkspacePath(
     return relative_path;
 }
 
-// Writes native song files into a song-package content directory.
-std::expected<SongPackageWriteResult, std::string> writeSongPackageDirectory(
+// Writes native song files into a Rock song package content directory.
+std::expected<RockSongPackageWriteResult, std::string> writeRockSongPackageDirectory(
     const std::filesystem::path& song_directory, const Song& song)
 {
     auto song_files = writeSongFilesForSave(song_directory, song);
@@ -1235,7 +1237,7 @@ std::expected<SongPackageWriteResult, std::string> writeSongPackageDirectory(
         return std::unexpected<std::string>{song_files.error()};
     }
 
-    return SongPackageWriteResult{.arrangement_ids = std::move(song_files->arrangement_ids)};
+    return RockSongPackageWriteResult{.arrangement_ids = std::move(song_files->arrangement_ids)};
 }
 
 // Rewrites the archive from the current workspace.
@@ -1298,11 +1300,11 @@ std::optional<std::string> writeWorkspaceToArchive(
 }
 
 // Writes a native song directory and rewrites its song package archive.
-std::expected<void, std::string> writeSongPackage(
+std::expected<void, std::string> writeRockSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& song_directory,
     const Song& song)
 {
-    const auto song_files = writeSongPackageDirectory(song_directory, song);
+    const auto song_files = writeRockSongPackageDirectory(song_directory, song);
     if (!song_files.has_value())
     {
         return std::unexpected<std::string>{song_files.error()};

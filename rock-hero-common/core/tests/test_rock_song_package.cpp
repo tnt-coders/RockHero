@@ -2,7 +2,7 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
-#include <rock_hero/common/core/song_package.h>
+#include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 
 namespace rock_hero::common::core
@@ -11,22 +11,22 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Owns a clean temporary directory for native song package tests.
-class TemporarySongPackageDirectory final
+// Owns a clean temporary directory for native Rock Hero song package tests.
+class TemporaryRockSongPackageDirectory final
 {
 public:
     // Creates a test-local directory under the platform temp root.
-    TemporarySongPackageDirectory()
+    TemporaryRockSongPackageDirectory()
         : m_path(
               std::filesystem::temp_directory_path() /
-              std::filesystem::path{"rock-hero-song-package-test"})
+              std::filesystem::path{"rock-hero-rock-song-package-test"})
     {
         std::filesystem::remove_all(m_path);
         std::filesystem::create_directories(m_path);
     }
 
     // Removes the test directory on a best-effort basis.
-    ~TemporarySongPackageDirectory() noexcept
+    ~TemporaryRockSongPackageDirectory() noexcept
     {
         try
         {
@@ -39,10 +39,10 @@ public:
         }
     }
 
-    TemporarySongPackageDirectory(const TemporarySongPackageDirectory&) = delete;
-    TemporarySongPackageDirectory& operator=(const TemporarySongPackageDirectory&) = delete;
-    TemporarySongPackageDirectory(TemporarySongPackageDirectory&&) = delete;
-    TemporarySongPackageDirectory& operator=(TemporarySongPackageDirectory&&) = delete;
+    TemporaryRockSongPackageDirectory(const TemporaryRockSongPackageDirectory&) = delete;
+    TemporaryRockSongPackageDirectory& operator=(const TemporaryRockSongPackageDirectory&) = delete;
+    TemporaryRockSongPackageDirectory(TemporaryRockSongPackageDirectory&&) = delete;
+    TemporaryRockSongPackageDirectory& operator=(TemporaryRockSongPackageDirectory&&) = delete;
 
     // Returns the temporary root used by this test.
     [[nodiscard]] const std::filesystem::path& path() const noexcept
@@ -54,7 +54,7 @@ private:
     std::filesystem::path m_path;
 };
 
-// Writes a tiny stand-in audio file because song package persistence only needs filesystem bytes.
+// Writes a tiny stand-in audio file because package persistence only needs filesystem bytes.
 void writeAudioFile(const std::filesystem::path& path)
 {
     std::ofstream audio_file{path, std::ios::binary};
@@ -83,16 +83,16 @@ void writeAudioFile(const std::filesystem::path& path)
 
 } // namespace
 
-// Verifies native song package directory writing can be read back as shared Song data.
-TEST_CASE("Song package directory writes native song data", "[core][song-package]")
+// Verifies Rock song package directory writing can be read back as shared Song data.
+TEST_CASE("Rock song package directory writes native song data", "[core][rock-song-package]")
 {
-    const TemporarySongPackageDirectory temporary_directory;
+    const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    const std::expected<SongPackageWriteResult, std::string> written =
-        writeSongPackageDirectory(package_directory, makeSong(source_audio));
+    const std::expected<RockSongPackageWriteResult, std::string> written =
+        writeRockSongPackageDirectory(package_directory, makeSong(source_audio));
 
     REQUIRE(written.has_value());
     REQUIRE(written->arrangement_ids.size() == 1);
@@ -101,7 +101,8 @@ TEST_CASE("Song package directory writes native song data", "[core][song-package
     CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.wav"));
     CHECK(std::filesystem::is_regular_file(package_directory / "arrangements" / "lead.xml"));
 
-    const std::expected<Song, std::string> read_song = readSongPackageDirectory(package_directory);
+    const std::expected<Song, std::string> read_song =
+        readRockSongPackageDirectory(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
