@@ -358,43 +358,48 @@ void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
     m_unsaved_changes_prompt_visible = false;
     switch (decision)
     {
-    case UnsavedChangesDecision::Save:
-        if (m_save_requires_destination)
+        case UnsavedChangesDecision::Save:
         {
-            m_save_as_prompt_visible = true;
-            deriveAndPush();
-            return;
-        }
-
-        if (!saveProject())
-        {
-            clearPendingProjectAction();
-            return;
-        }
-
-        continuePendingProjectAction();
-        break;
-    case UnsavedChangesDecision::Discard: {
-        const PendingProjectRequest request = *m_pending_project_action;
-        m_has_unsaved_changes = false;
-        m_save_requires_destination = false;
-        if (request.action != PendingProjectAction::Close)
-        {
-            clearPendingProjectAction();
-            if (closeProject())
+            if (m_save_requires_destination)
             {
-                performProjectAction(request);
+                m_save_as_prompt_visible = true;
+                deriveAndPush();
+                return;
             }
-            return;
-        }
 
-        continuePendingProjectAction();
-        break;
-    }
-    case UnsavedChangesDecision::Cancel:
-        clearPendingProjectAction();
-        deriveAndPush();
-        break;
+            if (!saveProject())
+            {
+                clearPendingProjectAction();
+                return;
+            }
+
+            continuePendingProjectAction();
+            break;
+        }
+        case UnsavedChangesDecision::Discard:
+        {
+            const PendingProjectRequest request = *m_pending_project_action;
+            m_has_unsaved_changes = false;
+            m_save_requires_destination = false;
+            if (request.action != PendingProjectAction::Close)
+            {
+                clearPendingProjectAction();
+                if (closeProject())
+                {
+                    performProjectAction(request);
+                }
+                return;
+            }
+
+            continuePendingProjectAction();
+            break;
+        }
+        case UnsavedChangesDecision::Cancel:
+        {
+            clearPendingProjectAction();
+            deriveAndPush();
+            break;
+        }
     }
 }
 
@@ -482,31 +487,40 @@ void EditorController::performProjectAction(const PendingProjectRequest& request
 {
     switch (request.action)
     {
-    case PendingProjectAction::Close:
-        if (closeProject())
+        case PendingProjectAction::Close:
         {
-            clearPendingProjectAction();
-            deriveAndPush();
-        }
-        break;
-    case PendingProjectAction::Open:
-        openProject(request.file);
-        break;
-    case PendingProjectAction::Import:
-        importSongSource(request.file);
-        break;
-    case PendingProjectAction::Exit:
-        const std::optional<std::filesystem::path> restorable_project_file = currentProjectFile();
-        if (closeProject())
-        {
-            clearPendingProjectAction();
-            if (m_settings != nullptr)
+            if (closeProject())
             {
-                m_settings->setLastOpenProject(restorable_project_file);
+                clearPendingProjectAction();
+                deriveAndPush();
             }
-            m_exit_function();
+            break;
         }
-        break;
+        case PendingProjectAction::Open:
+        {
+            openProject(request.file);
+            break;
+        }
+        case PendingProjectAction::Import:
+        {
+            importSongSource(request.file);
+            break;
+        }
+        case PendingProjectAction::Exit:
+        {
+            const std::optional<std::filesystem::path> restorable_project_file =
+                currentProjectFile();
+            if (closeProject())
+            {
+                clearPendingProjectAction();
+                if (m_settings != nullptr)
+                {
+                    m_settings->setLastOpenProject(restorable_project_file);
+                }
+                m_exit_function();
+            }
+            break;
+        }
     }
 }
 
