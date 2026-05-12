@@ -736,7 +736,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
         });
 
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    const auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
