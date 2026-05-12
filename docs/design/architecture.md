@@ -242,7 +242,7 @@ of 0 represents Unknown so draft/default arrangements do not imply a fake diffic
 for playable songs should reject Unknown.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
-framework-free `Session` and displays one arrangement at a time. Core project loading validates
+framework-free `Session` and displays one arrangement at a time. Runtime package loading validates
 package structure, safe asset paths, and required arrangement audio references. Before a parsed song
 is committed to the editor session, the editor workflow validates every arrangement's audio through
 the `rock-hero-common/audio` boundary and rejects the project if any asset is unreadable or reports

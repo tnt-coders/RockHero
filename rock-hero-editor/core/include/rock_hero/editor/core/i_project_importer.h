@@ -1,6 +1,6 @@
 /*!
 \file i_project_importer.h
-\brief Project-owned boundary for importing foreign project formats.
+\brief Editor-owned boundary for importing foreign project formats.
 */
 
 #pragma once
@@ -10,7 +10,7 @@
 #include <rock_hero/common/core/song.h>
 #include <string>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -47,9 +47,9 @@ public:
     \param workspace_directory Existing workspace directory to populate.
     \return Imported song data, or a failure message.
     */
-    [[nodiscard]] virtual std::expected<Song, std::string> importProject(
+    [[nodiscard]] virtual std::expected<common::core::Song, std::string> importProject(
         const std::filesystem::path& source_path,
         const std::filesystem::path& workspace_directory) = 0;
 };
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core

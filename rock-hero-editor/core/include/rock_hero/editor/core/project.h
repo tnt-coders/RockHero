@@ -8,12 +8,12 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/i_project_importer.h>
 #include <rock_hero/common/core/song.h>
 #include <rock_hero/common/core/timeline.h>
+#include <rock_hero/editor/core/i_project_importer.h>
 #include <string>
 
-namespace rock_hero::common::core
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -25,7 +25,7 @@ and editor session state as different concerns.
 struct ProjectEditorState
 {
     /*! \brief Cursor position to restore when the project is opened. */
-    TimePosition cursor_position{};
+    common::core::TimePosition cursor_position{};
 
     /*! \brief Arrangement ID to display when the project is opened, if one was saved. */
     std::optional<std::string> selected_arrangement;
@@ -77,7 +77,8 @@ public:
     \param path Filesystem path to an .rhp archive.
     \return Parsed song data, or a failure message.
     */
-    [[nodiscard]] std::expected<Song, std::string> load(const std::filesystem::path& path);
+    [[nodiscard]] std::expected<common::core::Song, std::string> load(
+        const std::filesystem::path& path);
 
     /*!
     \brief Imports a foreign project package into a new unsaved workspace.
@@ -85,7 +86,7 @@ public:
     \param importer Importer that understands the source project format.
     \return Imported song data, or a failure message.
     */
-    [[nodiscard]] std::expected<Song, std::string> import(
+    [[nodiscard]] std::expected<common::core::Song, std::string> import(
         const std::filesystem::path& source_path, IProjectImporter& importer);
 
     /*!
@@ -93,7 +94,7 @@ public:
     \param song Song data to persist.
     \return Empty success, or a failure message.
     */
-    [[nodiscard]] std::expected<void, std::string> save(const Song& song);
+    [[nodiscard]] std::expected<void, std::string> save(const common::core::Song& song);
 
     /*!
     \brief Saves the supplied song and editor state to the currently open project package.
@@ -102,7 +103,7 @@ public:
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> save(
-        const Song& song, ProjectEditorState editor_state);
+        const common::core::Song& song, ProjectEditorState editor_state);
 
     /*!
     \brief Saves the supplied song to a package path and associates this project with it.
@@ -111,7 +112,7 @@ public:
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> saveAs(
-        const std::filesystem::path& path, const Song& song);
+        const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
     \brief Saves the supplied song and editor state to a package path and associates it.
@@ -121,7 +122,8 @@ public:
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> saveAs(
-        const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state);
+        const std::filesystem::path& path, const common::core::Song& song,
+        ProjectEditorState editor_state);
 
     /*!
     \brief Publishes the supplied song to a runtime package without changing this project path.
@@ -130,7 +132,7 @@ public:
     \return Empty success, or a failure message.
     */
     [[nodiscard]] std::expected<void, std::string> publish(
-        const std::filesystem::path& path, const Song& song);
+        const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
     \brief Closes the current project context and removes its extracted workspace.
@@ -162,4 +164,4 @@ private:
     ProjectEditorState m_editor_state;
 };
 
-} // namespace rock_hero::common::core
+} // namespace rock_hero::editor::core
