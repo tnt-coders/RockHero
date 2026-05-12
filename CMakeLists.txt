@@ -69,7 +69,7 @@ include(RockHeroExternalModules)
 include(CTest)
 
 # --------------------------------------------------------------------------
-# Product scopes
+# Modules
 # --------------------------------------------------------------------------
 add_subdirectory(rock-hero-common)
 add_subdirectory(rock-hero-game)
