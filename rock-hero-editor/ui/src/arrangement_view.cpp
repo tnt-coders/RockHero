@@ -145,7 +145,7 @@ void ArrangementView::mouseDown(const juce::MouseEvent& event)
         return;
     }
 
-    const double ratio = static_cast<double>(event.x) / static_cast<double>(getWidth());
+    const double ratio = static_cast<double>(event.position.x) / static_cast<double>(getWidth());
     const double clamped = std::clamp(ratio, 0.0, 1.0);
     m_listeners.call(&Listener::arrangementViewClicked, *this, clamped);
 }
