@@ -30,6 +30,11 @@ public:
         removeFile();
     }
 
+    ScopedSettingsFile(const ScopedSettingsFile&) = delete;
+    ScopedSettingsFile& operator=(const ScopedSettingsFile&) = delete;
+    ScopedSettingsFile(ScopedSettingsFile&&) = delete;
+    ScopedSettingsFile& operator=(ScopedSettingsFile&&) = delete;
+
     [[nodiscard]] const std::filesystem::path& path() const noexcept
     {
         return m_path;
