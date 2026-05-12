@@ -107,8 +107,14 @@ void defaultExit()
 
 } // namespace
 
-// Subscribes for coarse transport transitions and captures an initial derived state; no view push
-// happens here because the view binding does not exist until attachView().
+// Provides a default-argument target after the nested Services type is fully declared.
+EditorController::Services EditorController::defaultServices()
+{
+    return Services{};
+}
+
+// Subscribes for coarse transport transitions and captures an initial derived state, falling back
+// to production project IO where a service seam is omitted.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     EditorController::Services services)

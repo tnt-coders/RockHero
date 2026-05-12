@@ -1,5 +1,6 @@
 #include "main_window.h"
 
+#include <cassert>
 #include <rock_hero/editor/ui/editor.h>
 #include <utility>
 
@@ -17,7 +18,7 @@ MainWindow::MainWindow(
     , m_exit_callback(std::move(exit_callback))
     , m_editor(std::move(editor))
 {
-    jassert(m_editor != nullptr);
+    assert(m_editor != nullptr);
 
     setUsingNativeTitleBar(true);
     if (m_editor != nullptr)

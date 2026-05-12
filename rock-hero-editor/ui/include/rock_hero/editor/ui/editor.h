@@ -32,7 +32,7 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Controller services used by the composed editor workflow.
+    \param services Optional controller services used by the composed editor workflow.
     */
     Editor(
         common::audio::ITransport& transport, common::audio::IAudio& audio,

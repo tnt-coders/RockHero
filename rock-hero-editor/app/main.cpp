@@ -37,8 +37,6 @@ public:
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
 
-        auto quit_callback = [this] { quit(); };
-
         // Engine implements each editor-facing audio port. Passing it for each role keeps UI code
         // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
@@ -46,12 +44,12 @@ public:
             *m_audio_engine,
             *m_audio_engine,
             rock_hero::editor::core::EditorController::Services{
-                .exit_function = quit_callback,
+                .exit_function = &juce::JUCEApplicationBase::quit,
                 .settings = m_editor_settings.get(),
             });
 
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
-            getApplicationName(), std::move(editor), std::move(quit_callback));
+            getApplicationName(), std::move(editor), &juce::JUCEApplicationBase::quit);
         m_main_window->restoreLastOpenProject();
     }
 
