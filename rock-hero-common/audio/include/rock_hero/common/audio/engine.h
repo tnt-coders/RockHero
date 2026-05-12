@@ -36,7 +36,9 @@ Owns the tracktion::Engine and the single tracktion::Edit used for playback. The
 uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
 called on the message thread.
 
-\see rock_hero::editor::ui::MainWindow
+\see ITransport
+\see IAudio
+\see IThumbnailFactory
 */
 class Engine : public ITransport, public IAudio, public IThumbnailFactory
 {
