@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <limits>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <utility>
@@ -32,9 +33,16 @@ constexpr double g_default_seconds_per_track_canvas{10.0};
 constexpr double g_min_seconds_per_track_canvas{1.0};
 constexpr double g_max_seconds_per_track_canvas{120.0};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
+constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
+
+// Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
+[[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
+{
+    return std::abs(delta) > g_min_mouse_wheel_delta;
+}
 
 // Ensures saved project packages use the Rock Hero project extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
@@ -430,9 +438,9 @@ private:
     // Changes the horizontal timeline scale while keeping the same viewport center time.
     void handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
     {
-        const float wheel_delta = wheel.deltaY != 0.0f ? wheel.deltaY : wheel.deltaX;
-        if (!m_project_loaded || timelineDurationSeconds() <= 0.0 || wheel_delta == 0.0f ||
-            wheel.isInertial)
+        const float wheel_delta = hasMouseWheelDelta(wheel.deltaY) ? wheel.deltaY : wheel.deltaX;
+        if (!m_project_loaded || timelineDurationSeconds() <= 0.0 ||
+            !hasMouseWheelDelta(wheel_delta) || wheel.isInertial)
         {
             return;
         }
