@@ -56,7 +56,7 @@ TEST_CASE("EditorSettings starts without a last open project", "[editor][setting
     CHECK_FALSE(settings.lastOpenProject().has_value());
 }
 
-// The settings file preserves the native project path that should be restored on next launch.
+// The settings file preserves the editor project path that should be restored on next launch.
 TEST_CASE("EditorSettings persists the last open project", "[editor][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_project.settings"};

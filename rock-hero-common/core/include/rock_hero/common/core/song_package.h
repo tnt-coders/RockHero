@@ -1,6 +1,6 @@
 /*!
 \file song_package.h
-\brief Runtime Rock Hero song package persistence helpers.
+\brief Native Rock Hero song package persistence helpers.
 */
 
 #pragma once
@@ -14,7 +14,7 @@
 namespace rock_hero::common::core
 {
 
-/*! \brief Result of writing runtime song package files into a directory. */
+/*! \brief Result of writing native song package files into a directory. */
 struct SongPackageWriteResult
 {
     /*! \brief Arrangement IDs written into the song document, in document order. */
@@ -22,7 +22,7 @@ struct SongPackageWriteResult
 };
 
 /*!
-\brief Reads runtime song data from an extracted song package directory.
+\brief Reads native song data from an extracted song package directory.
 \param directory Directory containing song.json and the files referenced by it.
 \return Parsed song data, or a failure message.
 */
@@ -30,27 +30,27 @@ struct SongPackageWriteResult
     const std::filesystem::path& directory);
 
 /*!
-\brief Extracts and reads a runtime Rock Hero song package into an existing workspace.
-\param package_path Runtime package archive to extract.
-\param workspace_directory Existing directory that receives extracted package entries.
+\brief Extracts and reads a native Rock Hero song package into an existing workspace.
+\param package_path Native song package archive to extract.
+\param workspace_directory Existing directory that receives extracted native song archive entries.
 \return Parsed song data, or a failure message.
 */
 [[nodiscard]] std::expected<Song, std::string> readSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory);
 
 /*!
-\brief Writes runtime song files into a package-content directory.
-\param song_directory Directory that receives song.json and referenced runtime content.
+\brief Writes native song files into a song-package content directory.
+\param song_directory Directory that receives song.json and referenced native song content.
 \param song Song data to persist.
-\return Written package metadata, or a failure message.
+\return Written song package metadata, or a failure message.
 */
 [[nodiscard]] std::expected<SongPackageWriteResult, std::string> writeSongPackageDirectory(
     const std::filesystem::path& song_directory, const Song& song);
 
 /*!
-\brief Writes a runtime Rock Hero song package from a package-content directory.
-\param package_path Destination runtime package path.
-\param song_directory Directory that receives song.json and referenced runtime content.
+\brief Writes a native Rock Hero song package from a song-package content directory.
+\param package_path Destination native song package path.
+\param song_directory Directory that receives song.json and referenced native song content.
 \param song Song data to persist.
 \return Empty success, or a failure message.
 */

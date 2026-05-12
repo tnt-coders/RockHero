@@ -72,7 +72,7 @@ public:
     void requestExit();
 
 private:
-    // Restores the previous native project when the stored path still points at a file.
+    // Restores the previous editor project when the stored path still points at a file.
     void restoreLastOpenProject();
 
     // Requests normal JUCE application shutdown after saving app-local restore state.

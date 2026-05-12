@@ -134,7 +134,7 @@ private:
         PendingProjectAction,
     };
 
-    // Opens the asynchronous native package chooser and forwards accepted selections.
+    // Opens the asynchronous project package chooser and forwards accepted selections.
     void showOpenChooser();
 
     // Opens the asynchronous import chooser and forwards accepted selections.

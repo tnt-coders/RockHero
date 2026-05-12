@@ -43,13 +43,13 @@ public:
     EditorSettings& operator=(EditorSettings&&) = delete;
 
     /*!
-    \brief Reads the native project path stored by a previous allowed editor exit.
+    \brief Reads the editor project path stored by a previous allowed editor exit.
     \return Stored project path, or empty when no project should be restored.
     */
     [[nodiscard]] std::optional<std::filesystem::path> lastOpenProject() const;
 
     /*!
-    \brief Stores or clears the native project path to restore on the next editor launch.
+    \brief Stores or clears the editor project path to restore on the next editor launch.
     \param project_file Project path to restore, or empty to clear restore state.
     */
     void setLastOpenProject(std::optional<std::filesystem::path> project_file);

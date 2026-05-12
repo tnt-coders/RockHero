@@ -9,9 +9,10 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/package_io.h>
+#include <rock_hero/common/core/workspace_paths.h>
 #include <set>
 #include <string>
 #include <string_view>
@@ -202,7 +203,7 @@ private:
     return std::unexpected<std::string>{std::move(message)};
 }
 
-// Converts a libzip error object into a stable package error string.
+// Converts a libzip error object into a stable archive error string.
 [[nodiscard]] std::string zipErrorMessage(zip_error_t& error)
 {
     const char* message = zip_error_strerror(&error);
@@ -216,14 +217,14 @@ private:
 
 // Opens an archive through the platform path API while keeping libzip private to core.
 [[nodiscard]] std::optional<ZipArchive> openArchive(
-    const std::filesystem::path& package_path, std::string& error_message)
+    const std::filesystem::path& archive_path, std::string& error_message)
 {
 #if defined(_WIN32)
     zip_error_t error;
     zip_error_init(&error);
 
     ZipSource source{zip_source_win32w_create(
-        package_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
+        archive_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
     if (source.get() == nullptr)
     {
         error_message = zipErrorMessage(error);
@@ -244,7 +245,7 @@ private:
     return ZipArchive{archive};
 #else
     int error_code{};
-    zip_t* archive = zip_open(package_path.string().c_str(), ZIP_RDONLY, &error_code);
+    zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_RDONLY, &error_code);
     if (archive == nullptr)
     {
         zip_error_t error;
@@ -260,14 +261,14 @@ private:
 
 // Opens an archive for writing through the platform path API while keeping libzip private.
 [[nodiscard]] std::optional<ZipArchive> openArchiveForWriting(
-    const std::filesystem::path& package_path, std::string& error_message)
+    const std::filesystem::path& archive_path, std::string& error_message)
 {
 #if defined(_WIN32)
     zip_error_t error;
     zip_error_init(&error);
 
     ZipSource source{zip_source_win32w_create(
-        package_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
+        archive_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
     if (source.get() == nullptr)
     {
         error_message = zipErrorMessage(error);
@@ -289,7 +290,7 @@ private:
 #else
     int error_code{};
     zip_t* archive =
-        zip_open(package_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
+        zip_open(archive_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
     if (archive == nullptr)
     {
         zip_error_t error;
@@ -303,7 +304,7 @@ private:
 #endif
 }
 
-// Finds the required runtime song document in an extracted package directory.
+// Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
     const std::filesystem::path& directory)
 {
@@ -400,7 +401,7 @@ private:
     return true;
 }
 
-// Converts a package-relative path into a concrete file path inside the extracted directory.
+// Converts a song-package-relative path into a concrete file path inside the extracted directory.
 [[nodiscard]] std::optional<std::filesystem::path> resolveExistingFile(
     const std::filesystem::path& directory, const std::string& relative_path)
 {
@@ -472,7 +473,7 @@ private:
     };
 }
 
-// Reads song audio assets into an ID map keyed only inside package IO.
+// Reads song audio assets into an ID map keyed only inside song package IO.
 [[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
     const std::filesystem::path& directory, const Json& song_document, std::string& error_message)
 {
@@ -631,20 +632,20 @@ private:
     const ZipFile file{zip_fopen_index(&archive, index, ZIP_FL_UNCHANGED)};
     if (file.get() == nullptr)
     {
-        return "Could not open package entry for extraction";
+        return "Could not open archive entry for extraction";
     }
 
     std::error_code error;
     std::filesystem::create_directories(output_path.parent_path(), error);
     if (error)
     {
-        return "Could not create package output directory: " + error.message();
+        return "Could not create archive output directory: " + error.message();
     }
 
     std::ofstream output{output_path, std::ios::binary};
     if (!output.is_open())
     {
-        return "Could not write package entry: " + output_path.string();
+        return "Could not write archive entry: " + output_path.string();
     }
 
     constexpr std::size_t buffer_size = 65536;
@@ -654,7 +655,7 @@ private:
         const zip_int64_t bytes_read = zip_fread(file.get(), buffer.data(), buffer.size());
         if (bytes_read < 0)
         {
-            return "Could not read package entry";
+            return "Could not read archive entry";
         }
 
         if (bytes_read == 0)
@@ -665,7 +666,7 @@ private:
         output.write(buffer.data(), static_cast<std::streamsize>(bytes_read));
         if (!output.good())
         {
-            return "Could not write package entry: " + output_path.string();
+            return "Could not write archive entry: " + output_path.string();
         }
     }
 
@@ -679,7 +680,7 @@ private:
     const zip_int64_t entry_count = zip_get_num_entries(&archive, ZIP_FL_UNCHANGED);
     if (entry_count <= 0)
     {
-        return "Package is empty or is not a valid zip archive";
+        return "Archive is empty or is not a valid zip archive";
     }
 
     std::set<std::string> extracted_entries;
@@ -690,13 +691,13 @@ private:
         if (zip_stat_index(&archive, index, ZIP_FL_UNCHANGED, &entry_stat) != 0 ||
             entry_stat.name == nullptr)
         {
-            return "Could not read package entry metadata";
+            return "Could not read archive entry metadata";
         }
 
         const std::string entry_name{entry_stat.name};
         if (isSymlinkEntry(archive, index) || !isSafeZipEntryName(entry_name))
         {
-            return "Package contains an unsafe entry: " + entry_name;
+            return "Archive contains an unsafe entry: " + entry_name;
         }
 
         const std::string entry_path_name = zipEntryPathName(entry_name);
@@ -708,7 +709,7 @@ private:
 
         if (!extracted_entries.insert(normalized_name).second)
         {
-            return "Package contains a duplicate entry: " + entry_name;
+            return "Archive contains a duplicate entry: " + entry_name;
         }
 
         const std::filesystem::path output_path =
@@ -762,7 +763,7 @@ private:
         path, [](const std::filesystem::path& part) { return part == ".."; });
 }
 
-// Replaces path characters that would be awkward or unsafe in generated package entries.
+// Replaces path characters that would be awkward or unsafe in generated song package entries.
 [[nodiscard]] std::string sanitizeFileName(std::string file_name, std::size_t fallback_index)
 {
     if (file_name.empty() || file_name == "." || file_name == "..")
@@ -782,7 +783,7 @@ private:
     return file_name;
 }
 
-// Chooses a generated package-relative audio path that does not overwrite another asset.
+// Chooses a generated song-package-relative audio path that does not overwrite another asset.
 [[nodiscard]] std::filesystem::path uniqueAudioPath(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
     std::size_t asset_index)
@@ -809,7 +810,7 @@ private:
            ("audio-" + std::to_string(asset_index + 1) + source_path.extension().string());
 }
 
-// Copies an external audio asset into the package workspace and returns its relative path.
+// Copies an external audio asset into the song package workspace and returns its relative path.
 [[nodiscard]] std::optional<std::filesystem::path> importAudioAsset(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
     std::size_t asset_index, std::string& error_message)
@@ -836,7 +837,7 @@ private:
         source_path, output_path, std::filesystem::copy_options::overwrite_existing, error);
     if (error)
     {
-        error_message = "Could not copy audio asset into package: " + error.message();
+        error_message = "Could not copy audio asset into song package: " + error.message();
         return std::nullopt;
     }
 
@@ -1033,7 +1034,7 @@ struct WrittenSongFiles
     };
 }
 
-// Writes runtime song files and returns arrangement IDs for callers that need them.
+// Writes native song package files and returns arrangement IDs for callers that need them.
 [[nodiscard]] std::expected<WrittenSongFiles, std::string> writeSongFilesForSave(
     const std::filesystem::path& song_directory, const Song& song)
 {
@@ -1066,7 +1067,7 @@ struct WrittenSongFiles
     return WrittenSongFiles{.arrangement_ids = std::move(song_document->arrangement_ids)};
 }
 
-// Creates a libzip file source for adding a workspace file to the saved package.
+// Creates a libzip file source for adding a workspace file to the saved archive.
 [[nodiscard]] zip_source_t* createFileSource(zip_t& archive, const std::filesystem::path& path)
 {
 #if defined(_WIN32)
@@ -1076,8 +1077,8 @@ struct WrittenSongFiles
 #endif
 }
 
-// Adds one regular workspace file to the output package archive.
-[[nodiscard]] std::optional<std::string> addFileToPackage(
+// Adds one regular workspace file to the output archive.
+[[nodiscard]] std::optional<std::string> addFileToArchive(
     zip_t& archive, const std::filesystem::path& workspace_directory,
     const std::filesystem::path& file_path)
 {
@@ -1086,20 +1087,20 @@ struct WrittenSongFiles
     if (relative_path.empty() || startsWithParentTraversal(relative_path) ||
         !isSafeRelativePath(relative_path))
     {
-        return "Package workspace contains an unsafe file path";
+        return "Archive workspace contains an unsafe file path";
     }
 
     zip_source_t* source = createFileSource(archive, file_path);
     if (source == nullptr)
     {
-        return "Could not read package workspace file: " + file_path.string();
+        return "Could not read archive workspace file: " + file_path.string();
     }
 
     const std::string entry_name = relative_path.generic_string();
     if (zip_file_add(&archive, entry_name.c_str(), source, ZIP_FL_ENC_UTF_8) < 0)
     {
         zip_source_free(source);
-        return "Could not add package entry: " + entry_name;
+        return "Could not add archive entry: " + entry_name;
     }
 
     return std::nullopt;
@@ -1107,33 +1108,33 @@ struct WrittenSongFiles
 
 } // namespace
 
-// Extracts a zip package through libzip while keeping libzip handles private to this file.
-std::optional<std::string> extractPackageToWorkspace(
-    const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
+// Extracts a zip archive through libzip while keeping libzip handles private to this file.
+std::optional<std::string> extractArchiveToWorkspace(
+    const std::filesystem::path& archive_path, const std::filesystem::path& workspace_directory)
 {
     std::string error_message;
-    auto archive = openArchive(package_path, error_message);
+    auto archive = openArchive(archive_path, error_message);
     if (!archive.has_value())
     {
-        return "Could not open package: " + error_message;
+        return "Could not open archive: " + error_message;
     }
 
     return extractZipToWorkspace(*archive->get(), workspace_directory);
 }
 
-// Reads song.json and resolves package-relative asset references into core data.
+// Reads song.json and resolves song-package-relative asset references into core data.
 std::expected<Song, std::string> readSongPackageDirectory(const std::filesystem::path& directory)
 {
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
     {
-        return failSongLoad("Package directory does not exist");
+        return failSongLoad("Song package directory does not exist");
     }
 
     const auto song_document_path = findSongDocument(directory);
     if (!song_document_path.has_value())
     {
-        return failSongLoad("Package directory does not contain song.json");
+        return failSongLoad("Song package directory does not contain song.json");
     }
 
     std::ifstream song_document_file{*song_document_path};
@@ -1185,20 +1186,22 @@ std::expected<Song, std::string> readSongPackageDirectory(const std::filesystem:
     }
 }
 
-// Extracts a runtime package and reads the root song document from the extracted workspace.
+// Extracts a native song package and reads the root song document from the workspace.
 std::expected<Song, std::string> readSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
 {
-    if (const auto package_error = extractPackageToWorkspace(package_path, workspace_directory);
+    if (const auto package_error = extractArchiveToWorkspace(package_path, workspace_directory);
         package_error.has_value())
     {
-        return std::unexpected<std::string>{*package_error};
+        return std::unexpected<std::string>{
+            "Could not extract native song package: " + *package_error
+        };
     }
 
     return readSongPackageDirectory(workspace_directory);
 }
 
-// Resolves an asset path and reports its package-relative spelling when it is in the workspace.
+// Resolves an asset path and reports its workspace-relative spelling.
 std::optional<std::filesystem::path> relativeWorkspacePath(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& asset_path)
 {
@@ -1222,7 +1225,7 @@ std::optional<std::filesystem::path> relativeWorkspacePath(
     return relative_path;
 }
 
-// Writes runtime song files into a package-content directory.
+// Writes native song files into a song-package content directory.
 std::expected<SongPackageWriteResult, std::string> writeSongPackageDirectory(
     const std::filesystem::path& song_directory, const Song& song)
 {
@@ -1235,25 +1238,25 @@ std::expected<SongPackageWriteResult, std::string> writeSongPackageDirectory(
     return SongPackageWriteResult{.arrangement_ids = std::move(song_files->arrangement_ids)};
 }
 
-// Rewrites the package archive from the current extracted workspace.
-std::optional<std::string> writeWorkspaceToPackage(
-    const std::filesystem::path& workspace_directory, const std::filesystem::path& package_path)
+// Rewrites the archive from the current workspace.
+std::optional<std::string> writeWorkspaceToArchive(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& archive_path)
 {
     std::error_code error;
-    if (!package_path.parent_path().empty())
+    if (!archive_path.parent_path().empty())
     {
-        std::filesystem::create_directories(package_path.parent_path(), error);
+        std::filesystem::create_directories(archive_path.parent_path(), error);
         if (error)
         {
-            return "Could not create package directory: " + error.message();
+            return "Could not create archive directory: " + error.message();
         }
     }
 
     std::string error_message;
-    auto archive = openArchiveForWriting(package_path, error_message);
+    auto archive = openArchiveForWriting(archive_path, error_message);
     if (!archive.has_value())
     {
-        return "Could not open package for writing: " + error_message;
+        return "Could not open archive for writing: " + error_message;
     }
 
     const std::filesystem::recursive_directory_iterator directory_iterator{
@@ -1262,7 +1265,7 @@ std::optional<std::string> writeWorkspaceToPackage(
     };
     if (error)
     {
-        return "Could not enumerate package workspace: " + error.message();
+        return "Could not enumerate archive workspace: " + error.message();
     }
 
     for (const std::filesystem::directory_entry& entry : directory_iterator)
@@ -1272,13 +1275,13 @@ std::optional<std::string> writeWorkspaceToPackage(
         {
             if (error)
             {
-                return "Could not inspect package workspace file: " + error.message();
+                return "Could not inspect archive workspace file: " + error.message();
             }
             continue;
         }
 
         if (const auto add_error =
-                addFileToPackage(*archive->get(), workspace_directory, entry.path());
+                addFileToArchive(*archive->get(), workspace_directory, entry.path());
             add_error.has_value())
         {
             return add_error;
@@ -1287,14 +1290,14 @@ std::optional<std::string> writeWorkspaceToPackage(
 
     if (zip_close(archive->get()) != 0)
     {
-        return "Could not write package";
+        return "Could not write archive";
     }
     archive->release();
 
     return std::nullopt;
 }
 
-// Writes a runtime song directory and rewrites its package archive.
+// Writes a native song directory and rewrites its song package archive.
 std::expected<void, std::string> writeSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& song_directory,
     const Song& song)
@@ -1305,10 +1308,12 @@ std::expected<void, std::string> writeSongPackage(
         return std::unexpected<std::string>{song_files.error()};
     }
 
-    if (const auto package_error = writeWorkspaceToPackage(song_directory, package_path);
+    if (const auto package_error = writeWorkspaceToArchive(song_directory, package_path);
         package_error.has_value())
     {
-        return std::unexpected<std::string>{*package_error};
+        return std::unexpected<std::string>{
+            "Could not write native song package: " + *package_error
+        };
     }
 
     return std::expected<void, std::string>{};
