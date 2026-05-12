@@ -4,12 +4,12 @@
 
 Rock Hero is an open-source guitar game built in C++. Players plug in a real guitar, hear it processed through real-time VST effects, and play along to songs via a scrolling note highway — while their tone automatically shifts, sweeps, and evolves with the music.
 
-The application ships as executables built on shared static libraries, one per module, with
-`rock-hero-audio` providing the Tracktion adapter layer, `rock-hero-core` owning pure data
-and domain logic, and `rock-hero-ui` owning JUCE-facing presentation components. Each module
-maps to a sub-namespace under `rock_hero` (`rock_hero::audio`, `rock_hero::core`,
-`rock_hero::ui`) and a matching nested include path (`<rock_hero/audio/*.h>`, etc.). No external DAW
-required. It should feel like a game, not a production tool.
+The durable source layout is organized by product scope at the repository root:
+`rock-hero-common`, `rock-hero-editor`, and `rock-hero-game`. Each scope owns `core`, `audio`, and
+`ui` submodules when that layer is needed, and executable startup lives under the matching
+product's `app/` folder. During the migration, older `apps/` and `libs/` folders may still contain
+code that has not yet moved; new or moved code should follow the product-scope layout. No external
+DAW required. It should feel like a game, not a production tool.
 
 For the structural engineering rules that govern how new code should be organized, see
 \ref design_architectural_principles.
@@ -50,33 +50,44 @@ editor as unsaved projects.
 
 \code{.txt}
 RockHero/
-  apps/
-    rock-hero-editor/   — Editor executable: flat app layout while the target is small
-    rock-hero/          — Game executable: flat app layout while the target is small
-  libs/
-    rock-hero-audio/ — Tracktion Engine isolation adapter (static library)
-    rock-hero-core/     — Song data model + format serialization (static library, no JUCE)
-    rock-hero-ui/       — JUCE UI components (static library)
-  docs/                 — Doxygen configuration
+  rock-hero-common/
+    core/               - shared framework-free domain and data behavior
+    audio/              - shared audio contracts plus default implementation
+    ui/                 - shared UI used by both products when needed
+  rock-hero-editor/
+    app/                - editor executable startup and resources
+    core/               - editor-specific headless workflow and policy
+    audio/              - editor-specific audio behavior outside the shared engine
+    ui/                 - editor-specific JUCE presentation
+  rock-hero-game/
+    app/                - game executable startup and resources
+    core/               - game-specific pure gameplay behavior
+    audio/              - game-specific audio analysis and gameplay plumbing
+    ui/                 - game-specific presentation and rendering
+  docs/                 - Doxygen configuration
   external/
-    tracktion_engine/   — Git submodule: Tracktion Engine + JUCE 8
-  project-config/       — Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
+    tracktion_engine/   - Git submodule: Tracktion Engine + JUCE 8
+  project-config/       - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 \endcode
 
-App targets keep their implementation files at the target root until they grow enough to justify
-feature folders. Reusable libraries keep `src/` plus namespaced public headers under
-`include/rock_hero/<module>/` so consumer includes stay explicit and collision-resistant.
+The legacy `apps/` and `libs/` folders are migration-only homes for code that has not yet moved.
+They should disappear once the product-scope layout is fully implemented.
+
+Executable targets live under `app/` and should remain thin composition roots. Reusable libraries
+keep `src/` plus namespaced public headers under `include/rock_hero/<scope>/<module>/` so consumer
+includes stay explicit and collision-resistant.
 
 **Dependency rules:**
 
-- `libs/rock-hero-audio` depends on Tracktion and JUCE audio modules.
-- `libs/rock-hero-audio` may also depend on `libs/rock-hero-core` for project-owned value types
-  and interfaces that need to stay framework-free.
-- `libs/rock-hero-core` remains framework-free: no JUCE, no Tracktion. It may use private
-  format-specific Conan packages such as `libzip`, `nlohmann_json`, and `open-psarc`.
-- `libs/rock-hero-core` must not depend on `libs/rock-hero-audio`.
-- App executables may depend on both libraries and on `rock-hero-ui`.
-- Tracktion headers are isolated to `rock-hero-audio` implementation files.
+- `common` code must not depend on `editor` or `game` code.
+- `editor` code may depend on `common` code, but not on `game` code.
+- `game` code may depend on `common` code, but not on `editor` code.
+- `core` submodules must not depend on sibling `ui` submodules.
+- App executables may link the matching product umbrella plus the common umbrella.
+- Libraries and tests should link narrow submodule targets rather than parent umbrellas.
+- Tracktion headers are isolated to `rock-hero-common/audio` implementation files.
+- Normal library code should link `rock_hero::common::audio::api`, not the concrete audio
+  implementation target.
 
 ## JUCE and Tracktion CMake linkage
 
@@ -100,40 +111,44 @@ libraries and apps.
 This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
 interfaces may still mention JUCE types where that is the pragmatic design choice.
 
-### Build-policy exception for `rock-hero-core`
+### Build-policy exception for framework-free core modules
 
-`rock-hero-core` remains a source-level and API-level framework-free module: its public headers and
-implementation must not include JUCE or Tracktion, and its domain behavior must not depend on
-framework runtime semantics.
+`rock-hero-common/core` remains a source-level and API-level framework-free module: its public
+headers and implementation must not include JUCE or Tracktion, and its domain behavior must not
+depend on framework runtime semantics.
 
-There is one deliberate build-system exception. First-party targets, including `rock_hero_core`,
-link `rock_hero::build_policy`. That target is defined only in `cmake/RockHeroBuildPolicy.cmake`
-and currently forwards JUCE's recommended warning, configuration, and Release LTO helper targets.
-This is accepted because Rock Hero's normal configure already brings in JUCE/Tracktion before
-first-party libraries are declared, and JUCE's defaults are a practical shared compiler policy for
-the current project.
+There is one deliberate build-system exception. First-party targets, including framework-free core
+targets, link `rock_hero::build_policy`. That target is defined only in
+`cmake/RockHeroBuildPolicy.cmake` and currently forwards JUCE's recommended warning,
+configuration, and Release LTO helper targets. This is accepted because Rock Hero's normal
+configure already brings in JUCE/Tracktion before first-party libraries are declared, and JUCE's
+defaults are a practical shared compiler policy for the current project.
 
-This exception must stay localized to `cmake/RockHeroBuildPolicy.cmake`. No `rock-hero-core`
+This exception must stay localized to `cmake/RockHeroBuildPolicy.cmake`. No framework-free core
 CMake file may link JUCE targets directly, and no core source or header may include JUCE or
 Tracktion. If the build-time dependency ever blocks a core-only package, faster core-only tests, or
 a future non-JUCE build, replace the implementation of `rock_hero::build_policy` in that one file
-with project-owned flags and leave `rock_hero_core` call sites unchanged.
+with project-owned flags and leave first-party call sites unchanged.
 
 ## Include-path convention
 
 Each library exposes its public headers through a **PUBLIC** include directory at
-`libs/<lib>/include/`. External consumers — other libraries, apps, and tests — always
-reference first-party headers through the full nested path:
+`rock-hero-<scope>/<module>/include/`. External consumers - other libraries, apps, and tests -
+always reference first-party headers through the full nested path:
 
 \code{.cpp}
-#include <rock_hero/audio/engine.h>
-#include <rock_hero/core/song.h>
-#include <rock_hero/ui/editor.h>
+#include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/core/song.h>
+#include <rock_hero/editor/ui/editor_view.h>
+#include <rock_hero/game/core/scoring.h>
 \endcode
 
-Each library *additionally* adds a **PRIVATE** include directory pointing at its own nested
-module folder (`libs/<lib>/include/rock_hero/<module>/`). This lets a library's own
-translation units reach their main header by basename with a quoted include. The PRIVATE dir
+During migration, legacy includes such as `<rock_hero/audio/engine.h>` may remain until their
+owning module moves. New product-scope code should use the full nested product path.
+
+Each library additionally adds a **PRIVATE** include directory pointing at its own nested module
+folder (`rock-hero-<scope>/<module>/include/rock_hero/<scope>/<module>/`). This lets a library's
+own translation units reach their main header by basename with a quoted include. The PRIVATE dir
 is not propagated to consumers, so the short form is only visible inside the owning library.
 
 The project-wide convention for `#include` form is:
@@ -141,16 +156,16 @@ The project-wide convention for `#include` form is:
 | Form | Meaning |
 |------|---------|
 | `"foo.h"` | The **main header** of the current translation unit (same-module, short form via the PRIVATE dir). Reserving quotes for the main header lets clang-format auto-promote it to the top of the file with a blank-line separator. |
-| `<rock_hero/<module>/foo.h>` | Any other first-party header, including sibling headers in the *same* module. Keeps cross-file references uniform regardless of where they are read from. |
+| `<rock_hero/<scope>/<module>/foo.h>` | Any other first-party header, including sibling headers in the *same* module. Keeps cross-file references uniform regardless of where they are read from. |
 | `<tracktion_engine/...>`, `<juce_*/...>`, `<catch2/...>`, `<BinaryData.h>`, `<JuceHeader.h>` | Third-party. |
 | `<atomic>`, `<algorithm>`, `<filesystem>` | C++ standard library (angle-bracket, no path separator, no extension). |
 
-Example from `libs/rock-hero-audio/src/engine.cpp`:
+Example from a product-scope library source file:
 
 \code{.cpp}
 #include "engine.h"
 
-#include <rock_hero/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/i_thumbnail.h>
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -164,12 +179,11 @@ defined in `.clang-format`.
 **Architectural principles:**
 
 - Keep most behavior in pure or near-pure libraries rather than in UI or app targets.
-- Treat `rock-hero-audio` as an adapter around Tracktion/JUCE, not as a home for general
-  business logic.
-- Keep `rock-hero-ui` focused on presentation and intent emission rather than policy.
-- Permit small JUCE-free editor workflow helpers in `rock-hero-ui` only while they directly
-  support the current editor feature; extract them once they become a broader editor workflow
-  subsystem.
+- Treat `rock-hero-common/audio::impl` as an adapter around Tracktion/JUCE, not as a home for
+  general business logic.
+- Keep product `ui` submodules focused on presentation and intent emission rather than policy.
+- Put headless editor workflow in `rock-hero-editor/core` once it becomes broader than a local UI
+  helper.
 - Keep time, threading, hardware, and IO concerns at the boundary where they can be simulated or
   replaced in tests.
 - Prefer project-owned abstractions and replayable simulations over framework-heavy test strategies.
@@ -202,8 +216,8 @@ sequence managed by Tracktion Engine's `Edit` data model.
 
 # Song Data Model
 
-The `rock-hero-core` library owns all persistent song data. It remains framework-free and keeps
-format parsing/package dependencies private to the module.
+The `rock-hero-common/core` library owns shared persistent song data. It remains framework-free and
+keeps format parsing/package dependencies private to the module.
 
 \code{.txt}
 Song
@@ -214,7 +228,7 @@ Song
     difficulty    (0 Unknown, 1-10 authored rating)
     audio_asset    (required path/identifier for backing audio)
     audio_duration (full natural duration of the audio asset)
-    tone_timeline_ref (opaque blob interpreted exclusively by rock-hero-audio)
+    tone_timeline_ref (opaque blob interpreted exclusively by common/audio)
     note_events[*]
       position.seconds
       duration.seconds
@@ -231,17 +245,17 @@ for playable songs should reject Unknown.
 framework-free `Session` and displays one arrangement at a time. Core project loading validates
 package structure, safe asset paths, and required arrangement audio references. Before a parsed song
 is committed to the editor session, the editor workflow validates every arrangement's audio through
-the `rock-hero-audio` boundary and rejects the project if any asset is unreadable or reports a
-non-positive duration. When an arrangement is selected, the application passes its `audio_asset` to
-`rock-hero-audio` for playback and waveform generation, and passes `tone_timeline_ref` to
-`rock-hero-audio` as an opaque blob. The game or editor reads the arrangement notes to drive
-gameplay or authoring. `rock-hero-core` never interprets tone automation data - that belongs
-entirely to `rock-hero-audio`.
+the `rock-hero-common/audio` boundary and rejects the project if any asset is unreadable or reports
+a non-positive duration. When an arrangement is selected, the application passes its `audio_asset`
+to `rock-hero-common/audio` for playback and waveform generation, and passes `tone_timeline_ref`
+to `rock-hero-common/audio` as an opaque blob. The game or editor reads the arrangement notes to
+drive gameplay or authoring. `rock-hero-common/core` never interprets tone automation data - that
+belongs entirely to `rock-hero-common/audio`.
 
-The editor-facing audio boundary is `audio::IAudio`: it prepares loaded songs by validating
+The editor-facing audio boundary is `common::audio::IAudio`: it prepares loaded songs by validating
 arrangement audio and filling accepted durations, makes the selected arrangement active in the
-playback backend, and clears the active arrangement when the project closes. `audio::IEdit` is
-reserved for future undoable/redoable model-edit commands and should not carry project loading,
+playback backend, and clears the active arrangement when the project closes. `common::audio::IEdit`
+is reserved for future undoable/redoable model-edit commands and should not carry project loading,
 audio preparation, transport, or playback setup responsibilities.
 
 ---
@@ -278,7 +292,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  └───────────┬─────────────┘  │   │  └──────────┬──────────────┘  │
 │              │                │   │             │                 │
 │  ┌───────────┴─────────────┐  │   │  ┌──────────┴──────────────┐  │
-│  │  libs/rock-hero-audio   │  │   │  │  libs/rock-hero-audio   │  │
+│  │  common/audio           │  │   │  │  common/audio           │  │
 │  │  (Tracktion Engine)     │  │   │  │  (Tracktion Engine)     │  │
 │  │                         │  │   │  │                         │  │
 │  │  Backing Audio Lane     │  │   │  │  Backing Audio Lane     │  │
@@ -287,7 +301,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  └─────────────────────────┘  │   │  └─────────────────────────┘  │
 │                               │   │                               │
 │  ┌─────────────────────────┐  │   │  ┌─────────────────────────┐  │
-│  │  libs/rock-hero-core    │  │   │  │  libs/rock-hero-core    │  │
+│  │  common/core            │  │   │  │  common/core            │  │
 │  │    Song/Arrangement     │  │   │  │    Song/Arrangement     │  │
 │  └─────────────────────────┘  │   │  │  + Scoring logic        │  │
 │                               │   │  └─────────────────────────┘  │
@@ -301,8 +315,10 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
                                     └───────────────────────────────┘
 \endcode
 
-Both executables link `rock-hero-audio` and `rock-hero-core` as static libraries. Static
-linking avoids singleton aliasing issues and simplifies deployment.
+Both executables link scope-level umbrella targets as static libraries. The final shape is
+`rock_hero::common + rock_hero::editor` for the editor executable and
+`rock_hero::common + rock_hero::game` for the game executable. Static linking avoids singleton
+aliasing issues and simplifies deployment.
 
 ---
 
@@ -472,10 +488,12 @@ Visual polish, 3D fretboard, particles, and UI theming come after gameplay funda
 Catch2 (v3) is declared in `conanfile.txt` and integrated into the build. Per-library test targets
 live alongside each library:
 
-- `libs/rock-hero-core/tests/` — active; covers `Song` and `Arrangement` construction and field
-  access
-- `libs/rock-hero-audio/tests/` — not yet added
-- `libs/rock-hero-ui/tests/` — not yet added
+- `rock-hero-common/core/tests/` for shared domain and package behavior
+- `rock-hero-common/audio/*/tests/` for shared audio contracts and adapter behavior
+- `rock-hero-editor/core/tests/` for headless editor workflow
+- `rock-hero-editor/ui/tests/` for focused editor UI helpers and wiring
+- `rock-hero-game/core/tests/`, `rock-hero-game/audio/tests/`, and `rock-hero-game/ui/tests/`
+  for game-owned behavior as those modules gain real code
 
 Tests are registered with CTest via `catch_discover_tests`. See
 \ref design_architectural_principles for the full testing strategy.
@@ -507,6 +525,6 @@ audio playback on JUCE's primitives (`AudioProcessorGraph`, `AudioPluginFormatMa
 decisions.
 
 The architecture is designed for this: Tracktion Engine is isolated behind
-`libs/rock-hero-audio`. The game view, pitch detection, scoring, and editor UI depend on a
+`rock-hero-common/audio`. The game view, pitch detection, scoring, and editor UI depend on a
 transport position and a data model, not on Tracktion directly. Either Tracktion or a custom JUCE
 implementation can back those interfaces.

@@ -1,9 +1,8 @@
-#include "main_window.h"
-
 #include <JuceHeader.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/editor/ui/main_window.h>
 
-namespace rock_hero
+namespace rock_hero::editor::app
 {
 
 // JUCE application object that owns the editor window lifecycle.
@@ -31,7 +30,7 @@ public:
     // Creates the editor window once JUCE has entered application startup.
     void initialise(const juce::String& /*command_line*/) override
     {
-        m_main_window = std::make_unique<MainWindow>(getApplicationName());
+        m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(getApplicationName());
     }
 
     // Releases the editor window before JUCE tears down the application object.
@@ -54,10 +53,10 @@ public:
 
 private:
     // Owns the editor window after JUCE startup and releases it during shutdown.
-    std::unique_ptr<MainWindow> m_main_window;
+    std::unique_ptr<rock_hero::editor::ui::MainWindow> m_main_window;
 };
 
-} // namespace rock_hero
+} // namespace rock_hero::editor::app
 
 // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-START_JUCE_APPLICATION(rock_hero::RockHeroEditorApplication)
+START_JUCE_APPLICATION(rock_hero::editor::app::RockHeroEditorApplication)
