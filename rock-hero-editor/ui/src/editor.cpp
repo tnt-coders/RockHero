@@ -2,16 +2,16 @@
 
 #include <utility>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 // Wires the controller and view after construction dependencies are available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    common::audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function)
+    common::audio::IThumbnailFactory& thumbnail_factory, core::ExitFunction exit_function)
     : m_controller(
-          transport, audio, OpenFunction{}, ImportFunction{}, SaveFunction{}, SaveAsFunction{},
-          PublishFunction{}, std::move(exit_function))
+          transport, audio, core::OpenFunction{}, core::ImportFunction{}, core::SaveFunction{},
+          core::SaveAsFunction{}, core::PublishFunction{}, std::move(exit_function))
     , m_view(m_controller, transport, thumbnail_factory)
 {
     m_controller.attachView(m_view);
@@ -44,4 +44,4 @@ void Editor::requestExit()
     m_controller.onExitRequested();
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

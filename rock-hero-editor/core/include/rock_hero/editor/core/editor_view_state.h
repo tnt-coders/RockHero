@@ -9,10 +9,10 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/ui/arrangement_view_state.h>
+#include <rock_hero/editor/core/arrangement_view_state.h>
 #include <string>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 /*! \brief Project-level action waiting for unsaved-change confirmation. */
@@ -133,4 +133,4 @@ struct EditorViewState
     friend bool operator==(const EditorViewState& lhs, const EditorViewState& rhs) = default;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

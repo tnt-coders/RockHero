@@ -11,7 +11,7 @@
 #include <string>
 #include <utility>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 namespace
@@ -711,4 +711,4 @@ bool EditorController::canStopTransport(const common::audio::TransportState& tra
            (transport_state.playing || m_transport.position() != session().timeline().start);
 }
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

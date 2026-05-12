@@ -11,10 +11,10 @@
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
-#include <rock_hero/ui/editor_controller.h>
-#include <rock_hero/ui/editor_view.h>
+#include <rock_hero/editor/core/editor_controller.h>
+#include <rock_hero/editor/ui/editor_view.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -36,7 +36,7 @@ public:
     */
     Editor(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IThumbnailFactory& thumbnail_factory, ExitFunction exit_function = {});
+        common::audio::IThumbnailFactory& thumbnail_factory, core::ExitFunction exit_function = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();
@@ -76,10 +76,10 @@ public:
 
 private:
     // Controller must be constructed before the view so the view can safely call it.
-    EditorController m_controller;
+    core::EditorController m_controller;
 
     // Concrete view that renders controller-derived state and emits user intent.
     EditorView m_view;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui

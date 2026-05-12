@@ -91,38 +91,48 @@ cd project-config/cmake-conan && pytest -rA
 
 ```text
 RockHero/
+  rock-hero-common/
+    core/                   - Shared framework-free domain and package behavior
+    audio/                  - Shared audio ports plus Tracktion/JUCE implementation
+    ui/                     - Shared UI only when both products need it
+  rock-hero-editor/
+    app/                    - Editor executable startup
+    core/                   - Editor-specific headless workflow and policy
+    audio/                  - Editor-specific audio behavior outside the shared engine
+    ui/                     - Editor-specific JUCE presentation
+  rock-hero-game/
+    core/                   - Game-specific pure gameplay behavior
+    audio/                  - Game-specific audio analysis and gameplay plumbing
+    ui/                     - Game-specific presentation and rendering
   apps/
-    rock-hero-editor/       - Editor app (load/play controls, waveform display)
-    rock-hero/              - Game app (note highway, scoring)
-  libs/
-    rock-hero-audio/        - Tracktion Engine isolation adapter (static library)
-    rock-hero-core/         - Song/Arrangement types + serialization (static library, no JUCE)
-    rock-hero-ui/           - JUCE UI components (static library)
+    rock-hero/              - Temporary game executable shell during migration
   docs/                     - Design docs and Doxygen configuration
   external/tracktion_engine/ - Git submodule: Tracktion Engine + JUCE 8
   project-config/           - Git submodule: CMake presets, Conan 2.x, Doxygen theme, lint
 ```
 
-Each library is a module with a matching sub-namespace under `rock_hero` and a matching nested
-include path: `rock-hero-audio` ↔ `rock_hero::audio` ↔ `<rock_hero/audio/*.h>`, and so on. CMake
-target IDs stay underscore-separated (`rock_hero_audio`, `rock_hero_core`, `rock_hero_ui`).
+Each product-scope library exposes a matching nested namespace and include path, such as
+`rock-hero-editor/ui` to `rock_hero::editor::ui` to `<rock_hero/editor/ui/*.h>`. CMake target IDs
+stay underscore-separated, with aliases using the same product-scope shape such as
+`rock_hero::editor::ui`.
 
 Key files:
-- **`libs/rock-hero-audio/include/rock_hero/audio/engine.h`** /
-  **`src/engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
-- **`libs/rock-hero-core/include/rock_hero/core/`** - `Song`, `Arrangement` types +
+- **`rock-hero-common/audio/impl/include/rock_hero/common/audio/engine.h`** /
+  **`impl/src/engine.cpp`** - Tracktion isolation; all Tracktion API calls live here
+- **`rock-hero-common/core/include/rock_hero/common/core/`** - `Song`, `Arrangement` types +
   format serialization; standard C++ only
-- **`libs/rock-hero-ui/include/rock_hero/ui/`** - Waveform and transport UI components
-- **`apps/rock-hero-editor/`** - editor window and app entry point
+- **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow
+- **`rock-hero-editor/ui/include/rock_hero/editor/ui/`** - Editor JUCE components
+- **`rock-hero-editor/app/`** - editor executable entry point
 - **`apps/rock-hero/main.cpp`** - minimal game window entry point
 - **`build/debug/`**, **`build/release/`** - generated build artifacts; do not edit
 
-Dependency rules: `rock-hero-audio` owns all Tracktion headers. `rock-hero-core` depends on
-standard C++ only. Apps may depend on both libraries. Architecture and layering decisions should
-remain aligned with `docs/design/architecture.md` and `docs/design/architectural-principles.md`,
-especially around dependency boundaries, adapter design, framework isolation, and
-automated-testable structure.
-
+Dependency rules: `common` code must not depend on `editor` or `game` code. Product libraries may
+depend on `common`, but not on each other. `rock-hero-common/core` is framework-free. Tracktion
+headers stay isolated to `rock-hero-common/audio` implementation files. Architecture and layering
+decisions should remain aligned with `docs/design/architecture.md` and
+`docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,
+framework isolation, and automated-testable structure.
 JUCE and Tracktion Engine are integrated as a git submodule (`external/tracktion_engine/`), not via
 Conan. Other dependencies are declared in `conanfile.txt` and resolved automatically through
 CMake's `find_package` via the `cmake-conan` integration. Each build directory has its own

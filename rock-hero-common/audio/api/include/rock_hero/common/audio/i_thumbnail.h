@@ -9,7 +9,7 @@
 #include <rock_hero/common/core/timeline.h>
 
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
-// translation units (rock-hero-ui) already link.
+// translation units (rock-hero-editor/ui) already link.
 namespace juce
 {
 // Forward declaration for draw calls supplied by JUCE UI components.

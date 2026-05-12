@@ -9,7 +9,7 @@
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/timeline.h>
 
-namespace rock_hero::ui
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -57,4 +57,4 @@ struct ArrangementViewState
         default;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::core

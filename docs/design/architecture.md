@@ -55,7 +55,7 @@ RockHero/
     audio/              - shared audio contracts plus default implementation
     ui/                 - shared UI used by both products when needed
   rock-hero-editor/
-    app/                - editor executable startup and resources
+    app/                - editor executable startup
     core/               - editor-specific headless workflow and policy
     audio/              - editor-specific audio behavior outside the shared engine
     ui/                 - editor-specific JUCE presentation
@@ -143,8 +143,8 @@ always reference first-party headers through the full nested path:
 #include <rock_hero/game/core/scoring.h>
 \endcode
 
-During migration, legacy includes such as `<rock_hero/ui/editor.h>` may remain until their owning
-module moves. New product-scope code should use the full nested product path.
+New product-scope code should use the full nested product path. During migration, any code that
+has not moved yet may keep its existing include path only until its owning module moves.
 
 Each library additionally adds a **PRIVATE** include directory pointing at its own nested module
 folder (`rock-hero-<scope>/<module>/include/rock_hero/<scope>/<module>/`). This lets a library's

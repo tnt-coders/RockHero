@@ -10,7 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/ui/arrangement_view_state.h>
+#include <rock_hero/editor/core/arrangement_view_state.h>
 
 namespace rock_hero::common::audio
 {
@@ -21,7 +21,7 @@ class IThumbnail;
 class IThumbnailFactory;
 } // namespace rock_hero::common::audio
 
-namespace rock_hero::ui
+namespace rock_hero::editor::ui
 {
 
 /*!
@@ -126,7 +126,7 @@ public:
 
     \param state New arrangement-view state to render.
     */
-    void setState(const ArrangementViewState& state);
+    void setState(const core::ArrangementViewState& state);
 
     /*!
     \brief Adds a local click listener.
@@ -160,7 +160,7 @@ private:
     void applyCurrentAudioToThumbnailIfNeeded();
 
     // Current framework-free arrangement-view state last applied by the parent view.
-    ArrangementViewState m_state{};
+    core::ArrangementViewState m_state{};
 
     // Editor-visible timeline range used to choose the waveform span.
     common::core::TimeRange m_visible_timeline{};
@@ -175,4 +175,4 @@ private:
     juce::ListenerList<Listener> m_listeners;
 };
 
-} // namespace rock_hero::ui
+} // namespace rock_hero::editor::ui
