@@ -694,6 +694,93 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
     CHECK(controller.waveform_click_count == 0);
 }
 
+// Verifies wheel zoom uses the visible playhead cursor as the zoom center.
+TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto state = makeLoadedEditorState(20.0);
+    view.setState(state);
+
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    transport.current_position = common::core::TimePosition{10.0};
+    viewport.setViewPosition(400, 0);
+    const auto initial_cursor_x = cursorXForTimelinePosition(
+        transport.current_position, state.visible_timeline, track_content.getWidth());
+    REQUIRE(initial_cursor_x.has_value());
+    REQUIRE(*initial_cursor_x >= static_cast<float>(viewport.getViewPositionX()));
+    REQUIRE(
+        *initial_cursor_x <
+        static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
+
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f),
+        juce::MouseWheelDetails{
+            .deltaX = 0.0f,
+            .deltaY = 1.0f,
+            .isReversed = false,
+            .isSmooth = false,
+            .isInertial = false,
+        });
+
+    const auto zoomed_cursor_x = cursorXForTimelinePosition(
+        transport.current_position, state.visible_timeline, track_content.getWidth());
+    REQUIRE(zoomed_cursor_x.has_value());
+    const double zoomed_screen_x =
+        static_cast<double>(*zoomed_cursor_x) - static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        zoomed_screen_x ==
+        Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+}
+
+// Verifies wheel zoom scrolls to center the playhead cursor even when it starts offscreen.
+TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto state = makeLoadedEditorState(20.0);
+    view.setState(state);
+
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    transport.current_position = common::core::TimePosition{15.0};
+    viewport.setViewPosition(0, 0);
+    const auto cursor_x = cursorXForTimelinePosition(
+        transport.current_position, state.visible_timeline, track_content.getWidth());
+    REQUIRE(cursor_x.has_value());
+    REQUIRE(*cursor_x >= static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
+
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f),
+        juce::MouseWheelDetails{
+            .deltaX = 0.0f,
+            .deltaY = 1.0f,
+            .isReversed = false,
+            .isSmooth = false,
+            .isInertial = false,
+        });
+
+    const auto zoomed_cursor_x = cursorXForTimelinePosition(
+        transport.current_position, state.visible_timeline, track_content.getWidth());
+    REQUIRE(zoomed_cursor_x.has_value());
+    const double zoomed_screen_x =
+        static_cast<double>(*zoomed_cursor_x) - static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        zoomed_screen_x ==
+        Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+}
+
 // Verifies Stop-command state resets the horizontal viewport without treating pause as stop.
 TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-view]")
 {
