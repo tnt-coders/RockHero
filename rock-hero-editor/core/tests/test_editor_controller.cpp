@@ -48,8 +48,13 @@ public:
         shown_errors.push_back(message);
     }
 
+    // Last durable state pushed to the view.
     std::optional<EditorViewState> last_state{};
+
+    // One-shot error messages reported through the transient view-effect channel.
     std::vector<std::string> shown_errors{};
+
+    // Number of durable state pushes observed by the fake.
     int set_state_call_count{0};
 };
 
@@ -64,83 +69,129 @@ public:
         open_request_count += 1;
     }
 
+    // Captures the most recent import request made through the controller contract.
     void onImportRequested(std::filesystem::path file) override
     {
         last_import_file = std::move(file);
         import_request_count += 1;
     }
 
+    // Counts direct save intents emitted by the view contract.
     void onSaveRequested() override
     {
         save_request_count += 1;
     }
 
+    // Captures the most recent Save As destination request.
     void onSaveAsRequested(std::filesystem::path file) override
     {
         last_save_as_file = std::move(file);
         save_as_request_count += 1;
     }
 
+    // Captures the most recent publish destination request.
     void onPublishRequested(std::filesystem::path file) override
     {
         last_publish_file = std::move(file);
         publish_request_count += 1;
     }
 
+    // Counts cancelled Save As chooser flows.
     void onSaveAsCancelled() override
     {
         save_as_cancel_count += 1;
     }
 
+    // Counts close intents emitted by the view contract.
     void onCloseRequested() override
     {
         close_request_count += 1;
     }
 
+    // Counts exit intents emitted by the view contract.
     void onExitRequested() override
     {
         exit_request_count += 1;
     }
 
+    // Captures the latest unsaved-changes decision passed back from the view.
     void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
     {
         last_unsaved_changes_decision = decision;
         unsaved_changes_decision_count += 1;
     }
 
+    // Counts play/pause transport intents emitted by the view.
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
     }
 
+    // Counts stop transport intents emitted by the view.
     void onStopPressed() override
     {
         stop_press_count += 1;
     }
 
+    // Captures the latest normalized timeline click.
     void onWaveformClicked(double normalized_x) override
     {
         last_normalized_x = normalized_x;
         waveform_click_count += 1;
     }
 
+    // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
+
+    // Last file passed to onImportRequested().
     std::optional<std::filesystem::path> last_import_file{};
+
+    // Last destination passed to onSaveAsRequested().
     std::optional<std::filesystem::path> last_save_as_file{};
+
+    // Last destination passed to onPublishRequested().
     std::optional<std::filesystem::path> last_publish_file{};
+
+    // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
+
+    // Number of open intents received.
     int open_request_count{0};
+
+    // Number of import intents received.
     int import_request_count{0};
+
+    // Number of save intents received.
     int save_request_count{0};
+
+    // Number of Save As intents received.
     int save_as_request_count{0};
+
+    // Number of publish intents received.
     int publish_request_count{0};
+
+    // Number of Save As cancellation intents received.
     int save_as_cancel_count{0};
+
+    // Number of close intents received.
     int close_request_count{0};
+
+    // Number of exit intents received.
     int exit_request_count{0};
+
+    // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
+
+    // Number of play/pause intents received.
     int play_pause_press_count{0};
+
+    // Number of stop intents received.
     int stop_press_count{0};
+
+    // Number of waveform-click intents received.
     int waveform_click_count{0};
 };
 
@@ -148,16 +199,19 @@ public:
 class FakeTransport final : public common::audio::ITransport
 {
 public:
+    // Records that playback was requested without mutating state unless a test does it directly.
     void play() override
     {
         ++play_call_count;
     }
 
+    // Records that pause was requested without mutating state unless a test does it directly.
     void pause() override
     {
         ++pause_call_count;
     }
 
+    // Simulates stop semantics by clearing playback and returning to timeline start.
     void stop() override
     {
         current_state.playing = false;
@@ -173,21 +227,25 @@ public:
         ++seek_call_count;
     }
 
+    // Returns the manually controlled coarse transport state.
     [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
 
+    // Returns the manually controlled live cursor position.
     [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         return current_position;
     }
 
+    // Registers a non-owning listener pointer for manual transition notifications.
     void addListener(Listener& listener) override
     {
         listeners.push_back(&listener);
     }
 
+    // Removes a previously registered listener pointer.
     void removeListener(Listener& listener) override
     {
         std::erase(listeners, &listener);
@@ -203,13 +261,28 @@ public:
         }
     }
 
+    // Coarse transport state returned by state() and sent to listeners.
     common::audio::TransportState current_state{};
+
+    // Live cursor position returned by position().
     common::core::TimePosition current_position{};
+
+    // Non-owning listeners subscribed by the controller under test.
     std::vector<Listener*> listeners{};
+
+    // Last seek position requested through the transport port.
     std::optional<common::core::TimePosition> last_seek_position{};
+
+    // Number of play requests received.
     int play_call_count{0};
+
+    // Number of pause requests received.
     int pause_call_count{0};
+
+    // Number of stop requests received.
     int stop_call_count{0};
+
+    // Number of seek requests received.
     int seek_call_count{0};
 };
 
@@ -253,22 +326,44 @@ public:
         return next_set_active_arrangement_result;
     }
 
+    // Records that the active backend arrangement should be cleared.
     void clearActiveArrangement() override
     {
         last_active_audio_asset.reset();
         ++clear_active_arrangement_call_count;
     }
 
+    // Duration assigned to arrangements during successful preparation.
     common::core::TimeDuration next_prepared_audio_duration{common::core::TimeDuration{4.0}};
+
+    // Controls whether the next prepareSong() call accepts the project song.
     bool next_prepare_result{true};
+
+    // Controls whether the next setActiveArrangement() call accepts the arrangement.
     bool next_set_active_arrangement_result{true};
+
+    // Number of song-preparation calls received.
     int prepare_song_call_count{0};
+
+    // Number of arrangement assets visited during preparation.
     int prepared_audio_asset_count{0};
+
+    // Number of active-arrangement replacement calls received.
     int set_active_arrangement_call_count{0};
+
+    // Number of active-arrangement clear calls received.
     int clear_active_arrangement_call_count{0};
+
+    // Specific arrangement audio path that should fail during preparation.
     std::filesystem::path failed_prepare_audio_path{};
+
+    // Last arrangement audio asset observed during preparation.
     std::optional<common::core::AudioAsset> last_prepared_audio_asset{};
+
+    // Last active arrangement audio asset accepted by the fake backend.
     std::optional<common::core::AudioAsset> last_active_audio_asset{};
+
+    // Optional callback fired from setActiveArrangement() to test reentrant refreshes.
     std::function<void()> during_active_arrangement_action{};
 };
 
@@ -276,6 +371,7 @@ public:
 class FakeProjectServices final
 {
 public:
+    // Simulates opening a project package and returns either next_song or the open error.
     std::expected<common::core::Song, std::string> open(Project&, const std::filesystem::path& file)
     {
         last_open_file = file;
@@ -290,6 +386,7 @@ public:
         return song;
     }
 
+    // Simulates importing a song source and returns either next_import_song or the import error.
     std::expected<common::core::Song, std::string> import(
         Project&, const std::filesystem::path& file)
     {
@@ -305,6 +402,7 @@ public:
         return song;
     }
 
+    // Simulates saving through the current project destination.
     std::expected<void, std::string> save(
         Project&, const common::core::Song& song, ProjectEditorState editor_state)
     {
@@ -318,6 +416,7 @@ public:
         return std::expected<void, std::string>{};
     }
 
+    // Simulates Save As and records the destination that becomes the project file.
     std::expected<void, std::string> saveAs(
         Project&, const std::filesystem::path& file, const common::core::Song& song,
         ProjectEditorState editor_state)
@@ -333,6 +432,7 @@ public:
         return std::expected<void, std::string>{};
     }
 
+    // Simulates publishing a native package without changing project save state.
     std::expected<void, std::string> publish(
         Project&, const std::filesystem::path& file, const common::core::Song& song)
     {
@@ -346,6 +446,7 @@ public:
         return std::expected<void, std::string>{};
     }
 
+    // Returns the bound callback shape expected by EditorController services.
     [[nodiscard]] EditorController::OpenFunction openFunction() noexcept
     {
         return [this](Project& project, const std::filesystem::path& file) {
@@ -353,6 +454,7 @@ public:
         };
     }
 
+    // Returns the bound import callback shape expected by EditorController services.
     [[nodiscard]] EditorController::ImportFunction importFunction() noexcept
     {
         return [this](Project& project, const std::filesystem::path& file) {
@@ -360,6 +462,7 @@ public:
         };
     }
 
+    // Returns the bound save callback shape expected by EditorController services.
     [[nodiscard]] EditorController::SaveFunction saveFunction() noexcept
     {
         return
@@ -369,6 +472,7 @@ public:
             };
     }
 
+    // Returns the bound Save As callback shape expected by EditorController services.
     [[nodiscard]] EditorController::SaveAsFunction saveAsFunction() noexcept
     {
         return [this](
@@ -380,6 +484,7 @@ public:
         };
     }
 
+    // Returns the bound publish callback shape expected by EditorController services.
     [[nodiscard]] EditorController::PublishFunction publishFunction() noexcept
     {
         return [this](
@@ -388,26 +493,67 @@ public:
                    const common::core::Song& song) { return publish(project, file, song); };
     }
 
+    // Song returned by the next open call, or empty to force an open error.
     std::optional<common::core::Song> next_song{};
+
+    // Song returned by the next import call, or empty to force an import error.
     std::optional<common::core::Song> next_import_song{};
+
+    // Error returned by open() when next_song is empty.
     std::string next_error_message{"Open failed"};
+
+    // Error returned by import() when next_import_song is empty.
     std::string next_import_error_message{"Import failed"};
+
+    // Error returned by save(), when present.
     std::optional<std::string> next_save_error{};
+
+    // Error returned by saveAs(), when present.
     std::optional<std::string> next_save_as_error{};
+
+    // Error returned by publish(), when present.
     std::optional<std::string> next_publish_error{};
+
+    // Last file passed to open().
     std::optional<std::filesystem::path> last_open_file{};
+
+    // Last file passed to import().
     std::optional<std::filesystem::path> last_import_file{};
+
+    // Last destination passed to saveAs().
     std::optional<std::filesystem::path> last_save_as_file{};
+
+    // Last destination passed to publish().
     std::optional<std::filesystem::path> last_publish_file{};
+
+    // First arrangement audio path seen by save().
     std::optional<std::filesystem::path> last_save_audio_path{};
+
+    // First arrangement audio path seen by saveAs().
     std::optional<std::filesystem::path> last_save_as_audio_path{};
+
+    // First arrangement audio path seen by publish().
     std::optional<std::filesystem::path> last_publish_audio_path{};
+
+    // Editor state captured by save().
     std::optional<ProjectEditorState> last_save_editor_state{};
+
+    // Editor state captured by saveAs().
     std::optional<ProjectEditorState> last_save_as_editor_state{};
+
+    // Number of open calls received.
     int open_call_count{0};
+
+    // Number of import calls received.
     int import_call_count{0};
+
+    // Number of save calls received.
     int save_call_count{0};
+
+    // Number of Save As calls received.
     int save_as_call_count{0};
+
+    // Number of publish calls received.
     int publish_call_count{0};
 
 private:
@@ -434,6 +580,7 @@ private:
 class ScopedControllerFiles final
 {
 public:
+    // Creates paired settings/project paths and removes stale files from previous runs.
     explicit ScopedControllerFiles(std::string_view base_name)
         : m_settings_file(
               std::filesystem::path{TEST_SETTINGS_DIR} / (std::string{base_name} + ".settings"))
@@ -443,6 +590,7 @@ public:
         removeFiles();
     }
 
+    // Cleans up both files so restore tests do not leak persisted state.
     ~ScopedControllerFiles()
     {
         removeFiles();
@@ -453,16 +601,19 @@ public:
     ScopedControllerFiles(ScopedControllerFiles&&) = delete;
     ScopedControllerFiles& operator=(ScopedControllerFiles&&) = delete;
 
+    // Returns the settings file owned by this fixture.
     [[nodiscard]] const std::filesystem::path& settingsFile() const noexcept
     {
         return m_settings_file;
     }
 
+    // Returns the project file path owned by this fixture.
     [[nodiscard]] const std::filesystem::path& projectFile() const noexcept
     {
         return m_project_file;
     }
 
+    // Creates a real placeholder project file so startup restore sees an existing path.
     void createProjectFile() const
     {
         std::ofstream project_file{m_project_file};
@@ -470,6 +621,7 @@ public:
     }
 
 private:
+    // Removes both fixture files on a best-effort basis.
     void removeFiles() const
     {
         std::error_code error;
@@ -477,7 +629,10 @@ private:
         std::filesystem::remove(m_project_file, error);
     }
 
+    // Build-local settings file used by restore and exit persistence tests.
     std::filesystem::path m_settings_file;
+
+    // Build-local project file used by restore and exit persistence tests.
     std::filesystem::path m_project_file;
 };
 
