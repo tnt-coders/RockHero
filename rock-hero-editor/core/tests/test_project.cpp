@@ -25,9 +25,13 @@ using common::core::TimePosition;
 namespace
 {
 
+// Describes one in-memory archive entry written to a zip package fixture.
 struct ArchiveEntry
 {
+    // Path stored inside the test zip archive.
     std::string path;
+
+    // Text payload written to the archive entry.
     std::string contents;
 };
 
@@ -71,6 +75,7 @@ public:
     }
 
 private:
+    // Temporary root removed by the destructor after each project package test.
     std::filesystem::path m_path;
 };
 

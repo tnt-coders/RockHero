@@ -51,6 +51,7 @@ public:
     }
 
 private:
+    // Temporary root removed by the destructor after each test.
     std::filesystem::path m_path;
 };
 

@@ -30,89 +30,136 @@ template <typename Value>
 class FakeEditorController final : public core::IEditorController
 {
 public:
+    // Captures the file selected by the Open menu command.
     void onOpenRequested(std::filesystem::path file) override
     {
         last_open_file = std::move(file);
         open_request_count += 1;
     }
 
+    // Captures the file selected by the Import menu command.
     void onImportRequested(std::filesystem::path file) override
     {
         last_import_file = std::move(file);
         import_request_count += 1;
     }
 
+    // Counts Save menu command dispatches.
     void onSaveRequested() override
     {
         save_request_count += 1;
     }
 
+    // Captures the destination selected by the Save As menu flow.
     void onSaveAsRequested(std::filesystem::path file) override
     {
         last_save_as_file = std::move(file);
         save_as_request_count += 1;
     }
 
+    // Captures the destination selected by the Publish menu flow.
     void onPublishRequested(std::filesystem::path file) override
     {
         last_publish_file = std::move(file);
         publish_request_count += 1;
     }
 
+    // Counts Save As cancellation notifications from the view.
     void onSaveAsCancelled() override
     {
         save_as_cancel_count += 1;
     }
 
+    // Counts Close menu command dispatches.
     void onCloseRequested() override
     {
         close_request_count += 1;
     }
 
+    // Counts Exit menu command dispatches.
     void onExitRequested() override
     {
         exit_request_count += 1;
     }
 
+    // Captures prompt decisions selected through the unsaved-changes dialog.
     void onUnsavedChangesDecision(core::UnsavedChangesDecision decision) override
     {
         last_unsaved_changes_decision = decision;
         unsaved_changes_decision_count += 1;
     }
 
+    // Counts play/pause intents emitted by keyboard or transport controls.
     void onPlayPausePressed() override
     {
         play_pause_press_count += 1;
     }
 
+    // Counts stop intents emitted by transport controls.
     void onStopPressed() override
     {
         stop_press_count += 1;
     }
 
+    // Captures the normalized timeline click emitted by waveform hit testing.
     void onWaveformClicked(double normalized_x) override
     {
         last_normalized_x = normalized_x;
         waveform_click_count += 1;
     }
 
+    // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
+
+    // Last file passed to onImportRequested().
     std::optional<std::filesystem::path> last_import_file{};
+
+    // Last destination passed to onSaveAsRequested().
     std::optional<std::filesystem::path> last_save_as_file{};
+
+    // Last destination passed to onPublishRequested().
     std::optional<std::filesystem::path> last_publish_file{};
+
+    // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
+
+    // Number of open intents received.
     int open_request_count{0};
+
+    // Number of import intents received.
     int import_request_count{0};
+
+    // Number of save intents received.
     int save_request_count{0};
+
+    // Number of Save As intents received.
     int save_as_request_count{0};
+
+    // Number of publish intents received.
     int publish_request_count{0};
+
+    // Number of Save As cancellation intents received.
     int save_as_cancel_count{0};
+
+    // Number of close intents received.
     int close_request_count{0};
+
+    // Number of exit intents received.
     int exit_request_count{0};
+
+    // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
+
+    // Number of play/pause intents received.
     int play_pause_press_count{0};
+
+    // Number of stop intents received.
     int stop_press_count{0};
+
+    // Number of waveform-click intents received.
     int waveform_click_count{0};
 };
 
@@ -120,35 +167,52 @@ public:
 class FakeTransport final : public common::audio::ITransport
 {
 public:
+    // No-op because EditorView only reads position and never controls transport directly.
     void play() override
     {}
+
+    // No-op because EditorView only emits controller intents.
     void pause() override
     {}
+
+    // No-op because EditorView only emits controller intents.
     void stop() override
     {}
+
+    // Records a manual position for cursor mapping tests.
     void seek(common::core::TimePosition position_value) override
     {
         current_position = position_value;
     }
 
+    // Returns the manually controlled transport state.
     [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
 
+    // Counts live-position reads used by cursor rendering.
     [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         position_read_count += 1;
         return current_position;
     }
 
+    // No-op because these tests do not exercise transport listener wiring.
     void addListener(Listener& /*listener*/) override
     {}
+
+    // No-op because these tests do not exercise transport listener wiring.
     void removeListener(Listener& /*listener*/) override
     {}
 
+    // Coarse transport state returned by state().
     common::audio::TransportState current_state{};
+
+    // Live cursor position returned by position().
     common::core::TimePosition current_position{};
+
+    // Number of live-position reads performed by the view.
     mutable int position_read_count{0};
 };
 
@@ -156,6 +220,7 @@ public:
 class FakeThumbnail final : public common::audio::IThumbnail
 {
 public:
+    // Records the thumbnail source applied through EditorView state projection.
     void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
@@ -163,21 +228,25 @@ public:
         set_source_call_count += 1;
     }
 
+    // Reports whether setSource() supplied drawable source data.
     [[nodiscard]] bool hasSource() const override
     {
         return has_source;
     }
 
+    // Reports that this fake never performs asynchronous proxy generation.
     [[nodiscard]] bool isGeneratingProxy() const override
     {
         return false;
     }
 
+    // Reports fixed proxy progress for the synchronous fake.
     [[nodiscard]] float getProxyProgress() const override
     {
         return 0.0f;
     }
 
+    // Accepts draw requests so EditorView tests can focus on state and layout.
     [[nodiscard]] bool drawChannels(
         juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
         common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
@@ -185,8 +254,13 @@ public:
         return true;
     }
 
+    // Last thumbnail source supplied by the view.
     std::optional<common::core::AudioAsset> last_source{};
+
+    // Number of source assignments received.
     int set_source_call_count{0};
+
+    // Source-readiness flag returned by hasSource().
     bool has_source{false};
 };
 
@@ -194,6 +268,7 @@ public:
 class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
+    // Creates a fake thumbnail and records the component that requested it.
     [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
@@ -204,8 +279,13 @@ public:
         return thumbnail;
     }
 
+    // Last component that requested a thumbnail.
     juce::Component* last_owner{nullptr};
+
+    // Last fake thumbnail returned to the view.
     FakeThumbnail* last_thumbnail{nullptr};
+
+    // Number of thumbnails created by the factory.
     int create_call_count{0};
 };
 
