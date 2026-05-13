@@ -66,10 +66,38 @@ struct WaveformDrawRequest
     };
 }
 
-// Builds the draw range and bounds for the visible portion of full-source arrangement audio.
+// Converts local paint bounds back into the timeline range represented by those pixels.
+[[nodiscard]] common::core::TimeRange timelineRangeForBounds(
+    juce::Rectangle<int> timeline_bounds, common::core::TimeRange visible_timeline,
+    juce::Rectangle<int> view_bounds) noexcept
+{
+    const double visible_duration = visible_timeline.duration().seconds;
+    if (timeline_bounds.isEmpty() || view_bounds.isEmpty() || visible_duration <= 0.0)
+    {
+        return {};
+    }
+
+    const double view_width = static_cast<double>(view_bounds.getWidth());
+    const double start_ratio = std::clamp(
+        static_cast<double>(timeline_bounds.getX() - view_bounds.getX()) / view_width, 0.0, 1.0);
+    const double end_ratio = std::clamp(
+        static_cast<double>(timeline_bounds.getRight() - view_bounds.getX()) / view_width,
+        0.0,
+        1.0);
+    const double start_seconds =
+        visible_timeline.start.seconds + std::min(start_ratio, end_ratio) * visible_duration;
+    const double end_seconds =
+        visible_timeline.start.seconds + std::max(start_ratio, end_ratio) * visible_duration;
+    return common::core::TimeRange{
+        .start = common::core::TimePosition{start_seconds},
+        .end = common::core::TimePosition{end_seconds},
+    };
+}
+
+// Builds the draw range and bounds for the repaint-clipped portion of arrangement audio.
 [[nodiscard]] std::optional<WaveformDrawRequest> waveformDrawRequest(
     const core::ArrangementViewState& state, common::core::TimeRange visible_timeline,
-    juce::Rectangle<int> view_bounds) noexcept
+    juce::Rectangle<int> view_bounds, juce::Rectangle<int> paint_bounds) noexcept
 {
     const common::core::TimeRange audio_timeline = state.audioTimelineRange();
     if (audio_timeline.duration().seconds <= 0.0)
@@ -77,19 +105,32 @@ struct WaveformDrawRequest
         return std::nullopt;
     }
 
+    const juce::Rectangle<int> clipped_paint_bounds = paint_bounds.getIntersection(view_bounds);
+    if (clipped_paint_bounds.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    const juce::Rectangle<int> clipped_timeline_bounds{
+        clipped_paint_bounds.getX(),
+        view_bounds.getY(),
+        clipped_paint_bounds.getWidth(),
+        view_bounds.getHeight(),
+    };
     const common::core::TimeRange effective_visible_timeline =
         visible_timeline.duration().seconds > 0.0 ? visible_timeline : audio_timeline;
-    const auto visible_audio_range = intersectRanges(audio_timeline, effective_visible_timeline);
+    const common::core::TimeRange paint_timeline =
+        timelineRangeForBounds(clipped_timeline_bounds, effective_visible_timeline, view_bounds);
+    const auto visible_audio_range = intersectRanges(audio_timeline, paint_timeline);
     if (!visible_audio_range.has_value())
     {
         return std::nullopt;
     }
 
-    return WaveformDrawRequest{
-        .bounds =
-            boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, view_bounds),
-        .visible_range = *visible_audio_range,
-    };
+    const juce::Rectangle<int> draw_bounds =
+        boundsForTimelineRange(*visible_audio_range, effective_visible_timeline, view_bounds)
+            .getIntersection(clipped_timeline_bounds);
+    return WaveformDrawRequest{.bounds = draw_bounds, .visible_range = *visible_audio_range};
 }
 
 } // namespace
@@ -187,11 +228,10 @@ void ArrangementView::paint(juce::Graphics& g)
         return;
     }
 
-    const auto draw_request = waveformDrawRequest(m_state, m_visible_timeline, bounds);
+    const auto draw_request =
+        waveformDrawRequest(m_state, m_visible_timeline, bounds, g.getClipBounds());
     if (!draw_request.has_value() || draw_request->bounds.isEmpty())
     {
-        g.setColour(juce::Colours::grey);
-        g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
     }
 
