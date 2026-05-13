@@ -286,6 +286,64 @@ TEST_CASE("ArrangementView maps short audio into visible bounds", "[ui][arrangem
     CHECK(thumbnail->last_draw_bounds == std::optional{juce::Rectangle<int>{0, 0, 40, 24}});
 }
 
+// Verifies zoomed viewport repaints ask the thumbnail to draw only the clipped time slice.
+TEST_CASE("ArrangementView clips waveform drawing to paint bounds", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 1024, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{8.0},
+        });
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"}, common::core::TimeDuration{8.0}));
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const juce::Image image(juce::Image::RGB, 1024, 24, true);
+    juce::Graphics graphics{image};
+    REQUIRE(graphics.reduceClipRegion(juce::Rectangle<int>{256, 6, 128, 10}));
+
+    view.paint(graphics);
+
+    CHECK(
+        thumbnail->last_drawn_visible_range == std::optional{common::core::TimeRange{
+                                                   .start = common::core::TimePosition{2.0},
+                                                   .end = common::core::TimePosition{3.0},
+                                               }});
+    CHECK(thumbnail->last_draw_bounds == std::optional{juce::Rectangle<int>{256, 0, 128, 24}});
+}
+
+// Verifies clipped repaints outside shorter audio do not stretch the waveform into empty space.
+TEST_CASE("ArrangementView skips off-audio paint clips", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 1024, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{8.0},
+        });
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"}, common::core::TimeDuration{4.0}));
+    REQUIRE(thumbnail_factory.thumbnails.size() == 1);
+    const FakeThumbnail* const thumbnail = thumbnail_factory.thumbnails.front();
+    const juce::Image image(juce::Image::RGB, 1024, 24, true);
+    juce::Graphics graphics{image};
+    REQUIRE(graphics.reduceClipRegion(juce::Rectangle<int>{640, 0, 128, 24}));
+
+    view.paint(graphics);
+
+    CHECK_FALSE(thumbnail->last_drawn_visible_range.has_value());
+    CHECK_FALSE(thumbnail->last_draw_bounds.has_value());
+}
+
 // Verifies local hit testing emits a normalized horizontal click position.
 TEST_CASE("ArrangementView reports normalized click position", "[ui][arrangement-view]")
 {
