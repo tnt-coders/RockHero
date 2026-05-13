@@ -743,9 +743,10 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
     const auto initial_cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(initial_cursor_x.has_value());
-    REQUIRE(*initial_cursor_x >= static_cast<float>(viewport.getViewPositionX()));
+    const float initial_cursor_position = initial_cursor_x.value_or(0.0f);
+    REQUIRE(initial_cursor_position >= static_cast<float>(viewport.getViewPositionX()));
     REQUIRE(
-        *initial_cursor_x <
+        initial_cursor_position <
         static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
 
     track_content.mouseWheelMove(
@@ -761,8 +762,9 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
     const auto zoomed_cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(zoomed_cursor_x.has_value());
+    const double zoomed_cursor_position = static_cast<double>(zoomed_cursor_x.value_or(0.0f));
     const double zoomed_screen_x =
-        static_cast<double>(*zoomed_cursor_x) - static_cast<double>(viewport.getViewPositionX());
+        zoomed_cursor_position - static_cast<double>(viewport.getViewPositionX());
     CHECK(
         zoomed_screen_x ==
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
@@ -788,7 +790,10 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
     const auto cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(cursor_x.has_value());
-    REQUIRE(*cursor_x >= static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
+    const float cursor_position = cursor_x.value_or(0.0f);
+    REQUIRE(
+        cursor_position >=
+        static_cast<float>(viewport.getViewPositionX() + viewport.getViewWidth()));
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -803,8 +808,9 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
     const auto zoomed_cursor_x = cursorXForTimelinePosition(
         transport.current_position, state.visible_timeline, track_content.getWidth());
     REQUIRE(zoomed_cursor_x.has_value());
+    const double zoomed_cursor_position = static_cast<double>(zoomed_cursor_x.value_or(0.0f));
     const double zoomed_screen_x =
-        static_cast<double>(*zoomed_cursor_x) - static_cast<double>(viewport.getViewPositionX());
+        zoomed_cursor_position - static_cast<double>(viewport.getViewPositionX());
     CHECK(
         zoomed_screen_x ==
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));

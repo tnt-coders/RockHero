@@ -77,7 +77,7 @@ struct WaveformDrawRequest
         return {};
     }
 
-    const double view_width = static_cast<double>(view_bounds.getWidth());
+    const auto view_width = static_cast<double>(view_bounds.getWidth());
     const double start_ratio = std::clamp(
         static_cast<double>(timeline_bounds.getX() - view_bounds.getX()) / view_width, 0.0, 1.0);
     const double end_ratio = std::clamp(
