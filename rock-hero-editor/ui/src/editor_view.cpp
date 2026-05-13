@@ -29,9 +29,8 @@ constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
-constexpr double g_default_seconds_per_track_canvas{10.0};
-constexpr double g_min_seconds_per_track_canvas{1.0};
-constexpr double g_max_seconds_per_track_canvas{120.0};
+constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
+constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
@@ -329,7 +328,7 @@ public:
         m_project_loaded = project_loaded;
         if (!m_project_loaded)
         {
-            m_seconds_per_track_canvas = g_default_seconds_per_track_canvas;
+            m_pixels_per_second = g_default_pixels_per_second;
             m_playback_active = false;
             m_playback_start_pending = false;
             m_stop_enabled = false;
@@ -348,7 +347,7 @@ public:
         if (m_timeline_range != timeline_range)
         {
             m_timeline_range = timeline_range;
-            m_seconds_per_track_canvas = g_default_seconds_per_track_canvas;
+            m_pixels_per_second = g_default_pixels_per_second;
         }
 
         layoutScaledCanvas();
@@ -405,7 +404,7 @@ private:
         return std::max(1, defaultVisibleCanvasHeight() / g_tracks_visible_at_default_size);
     }
 
-    // Converts the current zoom level into the width of the full timeline content.
+    // Converts the current pixel density into the width of the full timeline content.
     [[nodiscard]] int scaledContentWidth() const noexcept
     {
         const double duration = timelineDurationSeconds();
@@ -414,9 +413,29 @@ private:
             return std::max(g_track_canvas_width, getWidth());
         }
 
-        const double scaled_width = std::ceil(
-            duration * static_cast<double>(g_track_canvas_width) / m_seconds_per_track_canvas);
+        const double scaled_width = std::ceil(duration * m_pixels_per_second);
         return std::max(1, static_cast<int>(scaled_width));
+    }
+
+    // Calculates the lowest pixel density needed to fit the whole timeline in view.
+    [[nodiscard]] double minPixelsPerSecond() const noexcept
+    {
+        const double duration = timelineDurationSeconds();
+        if (!m_project_loaded || duration <= 0.0)
+        {
+            return g_default_pixels_per_second;
+        }
+
+        const double view_width = static_cast<double>(std::max(1, m_viewport.getViewWidth()));
+        const double fit_pixels_per_second = view_width / duration;
+        return std::min(g_default_pixels_per_second, fit_pixels_per_second);
+    }
+
+    // Keeps the stored zoom inside the current timeline and viewport constraints.
+    void clampZoomToTimeline()
+    {
+        m_pixels_per_second =
+            std::clamp(m_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
     }
 
     // Predicts horizontal scrollbar presence so content height can leave room for it.
@@ -437,6 +456,7 @@ private:
     // Keeps vertical content responsive while horizontal content follows zoom state.
     void layoutScaledCanvas()
     {
+        clampZoomToTimeline();
         const int content_width = scaledContentWidth();
         m_content.setSize(content_width, scaledContentHeight(content_width));
         m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
@@ -457,14 +477,12 @@ private:
         const common::core::TimePosition cursor_position = m_transport.position();
         const double wheel_steps = std::max(1.0, static_cast<double>(std::abs(wheel_delta)) * 4.0);
         const double zoom_factor = std::pow(g_mouse_wheel_zoom_factor, wheel_steps);
-        const double next_seconds_per_track_canvas = wheel_delta > 0.0f
-                                                         ? m_seconds_per_track_canvas / zoom_factor
-                                                         : m_seconds_per_track_canvas * zoom_factor;
+        const double next_pixels_per_second = wheel_delta > 0.0f
+                                                  ? m_pixels_per_second * zoom_factor
+                                                  : m_pixels_per_second / zoom_factor;
 
-        m_seconds_per_track_canvas = std::clamp(
-            next_seconds_per_track_canvas,
-            g_min_seconds_per_track_canvas,
-            g_max_seconds_per_track_canvas);
+        m_pixels_per_second =
+            std::clamp(next_pixels_per_second, minPixelsPerSecond(), g_max_pixels_per_second);
         layoutScaledCanvas();
         centerViewportOnTime(cursor_position.seconds);
     }
@@ -577,8 +595,8 @@ private:
     // Full timeline range represented by the current zoomed content width.
     common::core::TimeRange m_timeline_range{};
 
-    // Horizontal zoom value: how many seconds fit in the canonical track canvas width.
-    double m_seconds_per_track_canvas{g_default_seconds_per_track_canvas};
+    // Horizontal timeline scale used to size the zoomed content canvas.
+    double m_pixels_per_second{g_default_pixels_per_second};
 
     // Tracks empty vs loaded display mode for layout and zoom gating.
     bool m_project_loaded{false};
