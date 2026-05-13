@@ -71,7 +71,7 @@ public:
     /*! \brief Starts transport playback. */
     void play() override;
 
-    /*! \brief Stops transport playback and resets the position to the beginning. */
+    /*! \brief Stops playback, clears backend playback state, and resets the position. */
     void stop() override;
 
     /*!
