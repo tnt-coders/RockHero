@@ -21,49 +21,62 @@ namespace
 class FakeTransport final : public common::audio::ITransport
 {
 public:
+    // Simulates starting playback for the composed controller.
     void play() override
     {
         current_state.playing = true;
     }
 
+    // Simulates pausing playback for the composed controller.
     void pause() override
     {
         current_state.playing = false;
     }
 
+    // Simulates stop by clearing playback and resetting the cursor position.
     void stop() override
     {
         current_state.playing = false;
         current_position = common::core::TimePosition{};
     }
 
+    // Records the latest seek target requested by the composed controller.
     void seek(common::core::TimePosition position_value) override
     {
         current_position = position_value;
     }
 
+    // Returns the manually controlled coarse state.
     [[nodiscard]] common::audio::TransportState state() const noexcept override
     {
         return current_state;
     }
 
+    // Returns the manually controlled live cursor position.
     [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         return current_position;
     }
 
+    // Registers a non-owning listener pointer during controller construction.
     void addListener(Listener& listener) override
     {
         listeners.push_back(&listener);
     }
 
+    // Removes the listener pointer registered by the controller.
     void removeListener(Listener& listener) override
     {
         std::erase(listeners, &listener);
     }
 
+    // Coarse transport state returned by state().
     common::audio::TransportState current_state{};
+
+    // Live cursor position returned by position().
     common::core::TimePosition current_position{};
+
+    // Non-owning listeners registered by the composed controller.
     std::vector<Listener*> listeners{};
 };
 
@@ -71,6 +84,7 @@ public:
 class FakeAudio final : public common::audio::IAudio
 {
 public:
+    // Accepts preparation and fills arrangement durations for controller loading paths.
     bool prepareSong(common::core::Song& song) override
     {
         ++prepare_song_call_count;
@@ -81,6 +95,7 @@ public:
         return true;
     }
 
+    // Records the active arrangement selected by the controller.
     bool setActiveArrangement(const common::core::Arrangement& arrangement) override
     {
         last_active_audio_asset = arrangement.audio_asset;
@@ -88,14 +103,22 @@ public:
         return true;
     }
 
+    // Records backend clearing when the controller closes a project.
     void clearActiveArrangement() override
     {
         ++clear_active_arrangement_call_count;
     }
 
+    // Last active arrangement selected by the controller.
     std::optional<common::core::AudioAsset> last_active_audio_asset{};
+
+    // Number of song-preparation calls received.
     int prepare_song_call_count{0};
+
+    // Number of active-arrangement replacement calls received.
     int set_active_arrangement_call_count{0};
+
+    // Number of active-arrangement clear calls received.
     int clear_active_arrangement_call_count{0};
 };
 
@@ -103,6 +126,7 @@ public:
 class FakeThumbnail final : public common::audio::IThumbnail
 {
 public:
+    // Records the thumbnail source applied by the arrangement view.
     void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
@@ -110,21 +134,25 @@ public:
         set_source_call_count += 1;
     }
 
+    // Reports whether setSource() has supplied drawable source data.
     [[nodiscard]] bool hasSource() const override
     {
         return has_source;
     }
 
+    // Reports that this fake never performs asynchronous proxy generation.
     [[nodiscard]] bool isGeneratingProxy() const override
     {
         return false;
     }
 
+    // Reports fixed proxy progress for the synchronous fake.
     [[nodiscard]] float getProxyProgress() const override
     {
         return 0.0f;
     }
 
+    // Accepts draw requests so Editor construction tests can ignore paint details.
     [[nodiscard]] bool drawChannels(
         juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
         common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
@@ -132,8 +160,13 @@ public:
         return true;
     }
 
+    // Last thumbnail source supplied by the view.
     std::optional<common::core::AudioAsset> last_source{};
+
+    // Number of source assignments received.
     int set_source_call_count{0};
+
+    // Source-readiness flag returned by hasSource().
     bool has_source{false};
 };
 
@@ -141,6 +174,7 @@ public:
 class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
+    // Creates a fake thumbnail and records the component that requested it.
     [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
@@ -151,8 +185,13 @@ public:
         return thumbnail;
     }
 
+    // Last component that requested a thumbnail.
     juce::Component* last_owner{nullptr};
+
+    // Last fake thumbnail returned to the composed view.
     FakeThumbnail* last_thumbnail{nullptr};
+
+    // Number of thumbnails created by the factory.
     int create_call_count{0};
 };
 
