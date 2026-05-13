@@ -19,12 +19,14 @@ namespace
 class ScopedSettingsFile final
 {
 public:
+    // Creates a settings-file path and removes any stale file from a prior test run.
     explicit ScopedSettingsFile(std::string_view file_name)
         : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
     {
         removeFile();
     }
 
+    // Removes the settings file so persistence tests cannot leak state into later tests.
     ~ScopedSettingsFile()
     {
         removeFile();
@@ -35,18 +37,21 @@ public:
     ScopedSettingsFile(ScopedSettingsFile&&) = delete;
     ScopedSettingsFile& operator=(ScopedSettingsFile&&) = delete;
 
+    // Returns the test-owned settings-file path.
     [[nodiscard]] const std::filesystem::path& path() const noexcept
     {
         return m_path;
     }
 
 private:
+    // Removes the settings file on a best-effort basis.
     void removeFile() const
     {
         std::error_code error;
         std::filesystem::remove(m_path, error);
     }
 
+    // Build-local settings path owned by this fixture.
     std::filesystem::path m_path;
 };
 

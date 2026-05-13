@@ -83,14 +83,31 @@ public:
         return draw_result;
     }
 
+    // Last asset assigned through setSource().
     std::optional<common::core::AudioAsset> last_source{};
+
+    // Last visible timeline range requested during paint.
     std::optional<common::core::TimeRange> last_drawn_visible_range{};
+
+    // Last target bounds requested during paint.
     std::optional<juce::Rectangle<int>> last_draw_bounds{};
+
+    // Last vertical zoom requested during paint.
     std::optional<float> last_vertical_zoom{};
+
+    // Number of source assignments received.
     int set_source_call_count{0};
+
+    // Proxy-generation state returned to the arrangement view.
     bool generating_proxy{false};
+
+    // Proxy progress returned to the arrangement view.
     float proxy_progress{0.0f};
+
+    // Source-readiness flag returned by hasSource().
     bool has_source{false};
+
+    // Draw result returned to the arrangement view.
     bool draw_result{true};
 };
 
@@ -98,6 +115,7 @@ public:
 class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
 {
 public:
+    // Creates a fake thumbnail and records the component that requested it.
     [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
         juce::Component& owner) override
     {
@@ -108,8 +126,13 @@ public:
         return thumbnail;
     }
 
+    // Last component that requested a thumbnail.
     juce::Component* last_owner{nullptr};
+
+    // Non-owning handles to thumbnails created during the current test.
     std::vector<FakeThumbnail*> thumbnails{};
+
+    // Number of thumbnails created by the factory.
     int create_call_count{0};
 };
 
@@ -125,8 +148,13 @@ public:
         click_count += 1;
     }
 
+    // Last view instance that emitted a click.
     ArrangementView* last_view{nullptr};
+
+    // Last normalized horizontal click position emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Number of click notifications received.
     int click_count{0};
 };
 

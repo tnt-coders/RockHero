@@ -61,12 +61,25 @@ public:
         ++clear_active_arrangement_call_count;
     }
 
+    // Duration assigned to every arrangement during successful preparation.
     common::core::TimeDuration prepared_duration{common::core::TimeDuration{12.0}};
+
+    // Controls whether the next prepareSong() call accepts or rejects the song.
     bool next_prepare_result{true};
+
+    // Controls whether the next setActiveArrangement() call accepts the arrangement.
     bool next_set_active_result{true};
+
+    // Last arrangement audio asset selected for backend playback.
     std::optional<common::core::AudioAsset> last_active_audio_asset{};
+
+    // Number of song-preparation requests received.
     int prepare_song_call_count{0};
+
+    // Number of active-arrangement replacement requests received.
     int set_active_arrangement_call_count{0};
+
+    // Number of active-arrangement clear requests received.
     int clear_active_arrangement_call_count{0};
 };
 

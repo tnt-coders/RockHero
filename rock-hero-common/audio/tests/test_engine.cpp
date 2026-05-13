@@ -74,13 +74,17 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 class TransportNotificationRecorder final : public ITransport::Listener
 {
 public:
+    // Captures the latest coarse transport state delivered by Engine.
     void onTransportStateChanged(TransportState state) override
     {
         last_transport_state = state;
         ++transport_state_call_count;
     }
 
+    // Latest coarse transport state delivered to this listener.
     TransportState last_transport_state{};
+
+    // Number of coarse transport callbacks received.
     int transport_state_call_count{0};
 };
 
