@@ -102,11 +102,36 @@ private:
             return;
         }
 
-        const double raw_position_seconds = m_edit->getTransport().getPosition().inSeconds();
-        if (shouldStopAtLoadedEnd(raw_position_seconds))
+        if (shouldStopAtLoadedEnd(currentBackendPosition()))
         {
             stopAndReturnToStart();
         }
+    }
+
+    // Returns the timeline position the playback backend is currently producing, in seconds.
+    //
+    // While a Tracktion playback context exists, the value is the audible-timeline time leaving
+    // the output device right now. That trails the transport head by buffer latency, and matching
+    // it is what makes the user-visible cursor and end-of-file detection agree with what the user
+    // actually hears.
+    //
+    // Audible is returned regardless of transport.isPlaying() because during a Tracktion
+    // device-list rebuild (for example, the first hardware-MIDI rescan after engine startup) the
+    // play flag flips false transiently while the context stays valid. Falling back to the
+    // transport head in that window would jump the cursor forward by buffer latency; reading
+    // audible directly keeps the cursor in sync with what is actually leaving the device.
+    //
+    // When no playback context exists, no audio is being produced, and the head equals the
+    // user-visible cursor anyway, so it is returned as the only available value.
+    [[nodiscard]] double currentBackendPosition() const
+    {
+        auto& transport = m_edit->getTransport();
+        if (auto* const playback_context = transport.getCurrentPlaybackContext();
+            playback_context != nullptr)
+        {
+            return playback_context->getAudibleTimelineTime().inSeconds();
+        }
+        return transport.getPosition().inSeconds();
     }
 
     // Keeps externally requested positions inside the current loaded file duration.
@@ -240,22 +265,12 @@ TransportState Engine::state() const noexcept
     return m_impl->currentTransportState();
 }
 
-// Reads audible playback time while running so Tracktion's post-seek UI hold does not stall the
-// editor cursor for the first few frames after a live seek.
+// Reads the timeline position for render-cadence cursor drawing. Delegates to the backend
+// position helper, which prefers the audible-timeline time when a Tracktion playback context
+// exists and rides through brief context teardowns from Tracktion device-list rebuilds.
 common::core::TimePosition Engine::position() const noexcept
 {
-    auto& transport = m_impl->m_edit->getTransport();
-    double raw_position_seconds = transport.getPosition().inSeconds();
-    if (transport.isPlaying())
-    {
-        if (auto* const playback_context = transport.getCurrentPlaybackContext();
-            playback_context != nullptr)
-        {
-            raw_position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
-        }
-    }
-
-    return common::core::TimePosition{m_impl->clampToLoadedRange(raw_position_seconds)};
+    return common::core::TimePosition{m_impl->clampToLoadedRange(m_impl->currentBackendPosition())};
 }
 
 // Validates every arrangement audio file and records the accepted backend durations.
