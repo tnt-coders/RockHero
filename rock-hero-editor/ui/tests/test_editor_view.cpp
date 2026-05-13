@@ -637,8 +637,8 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
 }
 
-// Verifies the default zoom maps ten seconds of timeline to the canonical canvas width.
-TEST_CASE("EditorView defaults zoom to ten seconds per canvas", "[ui][editor-view]")
+// Verifies the default zoom maps ten seconds of timeline to the canonical width.
+TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -692,6 +692,35 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
 
     CHECK(track_content.getWidth() > default_width);
     CHECK(controller.waveform_click_count == 0);
+}
+
+// Verifies zooming all the way out can fit a long timeline into the viewport.
+TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(makeLoadedEditorState(240.0));
+
+    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    REQUIRE(track_content.getWidth() > viewport.getViewWidth());
+
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f),
+        juce::MouseWheelDetails{
+            .deltaX = 0.0f,
+            .deltaY = -100.0f,
+            .isReversed = false,
+            .isSmooth = false,
+            .isInertial = false,
+        });
+
+    CHECK(track_content.getWidth() == viewport.getViewWidth());
 }
 
 // Verifies wheel zoom uses the visible playhead cursor as the zoom center.
