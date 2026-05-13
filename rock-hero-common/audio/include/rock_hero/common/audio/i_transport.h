@@ -70,7 +70,7 @@ public:
     /*! \brief Pauses playback without resetting the current transport position. */
     virtual void pause() = 0;
 
-    /*! \brief Stops playback and resets the current transport position. */
+    /*! \brief Stops playback and resets the current transport position to a clean start. */
     virtual void stop() = 0;
 
     /*!

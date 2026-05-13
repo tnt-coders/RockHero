@@ -159,13 +159,34 @@ private:
                raw_position_seconds >= m_loaded_length_seconds;
     }
 
+    // Stops Tracktion without discarding recording state while preserving playback nodes for
+    // pause/resume. This is intentionally not used for app-level Stop, where stale graph state
+    // should not survive the reset back to the start.
+    void pauseTransport()
+    {
+        constexpr bool discard_recordings = false;
+        constexpr bool clear_devices = false;
+        m_edit->getTransport().stop(discard_recordings, clear_devices);
+    }
+
+    // Stops Tracktion and tears down the active playback graph so buffered audio from the old
+    // playhead position cannot leak into the next playback start.
+    void stopTransport()
+    {
+        constexpr bool discard_recordings = false;
+        constexpr bool clear_devices = true;
+        auto& transport = m_edit->getTransport();
+        transport.stop(discard_recordings, clear_devices);
+        transport.freePlaybackContext();
+    }
+
     // Applies Stop-button semantics programmatically when playback reaches the loaded file end.
     // Tracktion's ChangeBroadcaster and ValueTree listeners propagate these mutations back
     // through our own callbacks; no manual listener firing needed.
     void stopAndReturnToStart()
     {
         auto& transport = m_edit->getTransport();
-        transport.stop(false, false);
+        stopTransport();
         transport.setPosition(tracktion::TimePosition{});
     }
 };
@@ -201,7 +222,7 @@ Engine::~Engine()
     {
         m_impl->m_edit->getTransport().state.removeListener(m_impl.get());
         m_impl->m_edit->getTransport().removeChangeListener(m_impl.get());
-        m_impl->m_edit->getTransport().stop(false, false);
+        m_impl->stopTransport();
     }
 
     m_impl->m_edit.reset();
@@ -244,9 +265,7 @@ void Engine::stop()
 // Pauses playback without resetting position so the user can resume from the same point.
 void Engine::pause()
 {
-    // stop(false, false): do not discard recording, do not clear recordings.
-    // Does not reset transport position; that is the semantic difference from stop().
-    m_impl->m_edit->getTransport().stop(false, false);
+    m_impl->pauseTransport();
     m_impl->updateTransportState();
 }
 
@@ -316,9 +335,9 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
         return false;
     }
 
-    // Candidate is valid; stop playback before replacing audio in Tracktion's edit graph.
+    // Candidate is valid; stop playback and clear nodes before replacing Tracktion's edit graph.
     auto& transport = m_impl->m_edit->getTransport();
-    transport.stop(false, false);
+    m_impl->stopTransport();
 
     const auto start = tracktion::TimePosition{};
     const auto length = tracktion::TimeDuration::fromSeconds(arrangement.audio_duration.seconds);
@@ -346,7 +365,7 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
 void Engine::clearActiveArrangement()
 {
     auto& transport = m_impl->m_edit->getTransport();
-    transport.stop(false, false);
+    m_impl->stopTransport();
     transport.setPosition(tracktion::TimePosition{});
 
     if (auto* track = m_impl->currentAudioTrack(); track != nullptr)
