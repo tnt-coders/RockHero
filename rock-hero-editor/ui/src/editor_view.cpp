@@ -444,7 +444,7 @@ private:
         m_cursor_overlay.toFront(false);
     }
 
-    // Changes the horizontal timeline scale while keeping the same viewport center time.
+    // Changes the horizontal timeline scale around the current transport cursor.
     void handleMouseWheelZoom(const juce::MouseWheelDetails& wheel)
     {
         const float wheel_delta = hasMouseWheelDelta(wheel.deltaY) ? wheel.deltaY : wheel.deltaX;
@@ -454,7 +454,7 @@ private:
             return;
         }
 
-        const double center_time = viewportCenterTimeSeconds();
+        const common::core::TimePosition cursor_position = m_transport.position();
         const double wheel_steps = std::max(1.0, static_cast<double>(std::abs(wheel_delta)) * 4.0);
         const double zoom_factor = std::pow(g_mouse_wheel_zoom_factor, wheel_steps);
         const double next_seconds_per_track_canvas = wheel_delta > 0.0f
@@ -466,7 +466,7 @@ private:
             g_min_seconds_per_track_canvas,
             g_max_seconds_per_track_canvas);
         layoutScaledCanvas();
-        centerViewportOnTime(center_time);
+        centerViewportOnTime(cursor_position.seconds);
     }
 
     // Finds the timeline time at the center of the currently visible viewport.
