@@ -11,6 +11,7 @@
 #include <rock_hero/common/core/song.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/i_song_importer.h>
+#include <rock_hero/editor/core/project_error.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -75,43 +76,43 @@ public:
     /*!
     \brief Loads a Rock Hero project package into this project context.
     \param path Filesystem path to an .rhp archive.
-    \return Parsed song data, or a failure message.
+    \return Parsed song data, or a typed project failure.
     */
-    [[nodiscard]] std::expected<common::core::Song, std::string> load(
+    [[nodiscard]] std::expected<common::core::Song, ProjectError> load(
         const std::filesystem::path& path);
 
     /*!
     \brief Imports a song source into a new unsaved project workspace.
     \param source_path Song source to import.
     \param importer Importer that understands the source song format.
-    \return Imported song data, or a failure message.
+    \return Imported song data, or a typed project failure.
     */
-    [[nodiscard]] std::expected<common::core::Song, std::string> import(
+    [[nodiscard]] std::expected<common::core::Song, ProjectError> import(
         const std::filesystem::path& source_path, ISongImporter& importer);
 
     /*!
     \brief Saves the supplied song to the currently open project package.
     \param song Song data to persist.
-    \return Empty success, or a failure message.
+    \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, std::string> save(const common::core::Song& song);
+    [[nodiscard]] std::expected<void, ProjectError> save(const common::core::Song& song);
 
     /*!
     \brief Saves the supplied song and editor state to the currently open project package.
     \param song Song data to persist.
     \param editor_state Editor-only project state to persist.
-    \return Empty success, or a failure message.
+    \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, std::string> save(
+    [[nodiscard]] std::expected<void, ProjectError> save(
         const common::core::Song& song, ProjectEditorState editor_state);
 
     /*!
     \brief Saves the supplied song to a project package path and associates it.
     \param path Destination `.rhp` project package path.
     \param song Song data to persist.
-    \return Empty success, or a failure message.
+    \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, std::string> saveAs(
+    [[nodiscard]] std::expected<void, ProjectError> saveAs(
         const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
@@ -119,9 +120,9 @@ public:
     \param path Destination `.rhp` project package path.
     \param song Song data to persist.
     \param editor_state Editor-only project state to persist.
-    \return Empty success, or a failure message.
+    \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, std::string> saveAs(
+    [[nodiscard]] std::expected<void, ProjectError> saveAs(
         const std::filesystem::path& path, const common::core::Song& song,
         ProjectEditorState editor_state);
 
@@ -129,16 +130,16 @@ public:
     \brief Publishes the supplied song to a native song package without changing this project path.
     \param path Destination native song package path.
     \param song Song data to publish.
-    \return Empty success, or a failure message.
+    \return Empty success, or a typed project failure.
     */
-    [[nodiscard]] std::expected<void, std::string> publish(
+    [[nodiscard]] std::expected<void, ProjectError> publish(
         const std::filesystem::path& path, const common::core::Song& song);
 
     /*!
     \brief Closes the current project context and removes its extracted workspace.
-    \return Empty success, or a failure message when workspace removal fails.
+    \return Empty success, or a typed project failure when workspace removal fails.
     */
-    [[nodiscard]] std::expected<void, std::string> close();
+    [[nodiscard]] std::expected<void, ProjectError> close();
 
     /*!
     \brief Returns the file path associated with this project.

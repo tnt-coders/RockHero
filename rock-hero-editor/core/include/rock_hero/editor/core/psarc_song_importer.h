@@ -8,7 +8,6 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/editor/core/i_song_importer.h>
-#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -27,9 +26,9 @@ public:
     \brief Imports PSARC song metadata, arrangement XML, and backing audio into a workspace.
     \param source_path PSARC package to import.
     \param workspace_directory Existing workspace directory to populate.
-    \return Imported song data, or a failure message.
+    \return Imported song data, or a typed import failure.
     */
-    [[nodiscard]] std::expected<common::core::Song, std::string> importSong(
+    [[nodiscard]] std::expected<common::core::Song, SongImportError> importSong(
         const std::filesystem::path& source_path,
         const std::filesystem::path& workspace_directory) override;
 };

@@ -19,14 +19,14 @@ namespace
 {
 
 // Production open path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<common::core::Song, std::string> defaultOpen(
+[[nodiscard]] std::expected<common::core::Song, ProjectError> defaultOpen(
     Project& project, const std::filesystem::path& file)
 {
     return project.load(file);
 }
 
 // Production import path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<common::core::Song, std::string> defaultImport(
+[[nodiscard]] std::expected<common::core::Song, ProjectError> defaultImport(
     Project& project, const std::filesystem::path& file)
 {
     std::string extension = file.extension().string();
@@ -46,20 +46,21 @@ namespace
         return project.import(file, importer);
     }
 
-    return std::unexpected<std::string>{
+    return std::unexpected{ProjectError{
+        ProjectErrorCode::SongImportFailed,
         "Unsupported song source extension: " + file.extension().string()
-    };
+    }};
 }
 
 // Production save path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<void, std::string> defaultSave(
+[[nodiscard]] std::expected<void, ProjectError> defaultSave(
     Project& project, const common::core::Song& song, ProjectEditorState editor_state)
 {
     return project.save(song, std::move(editor_state));
 }
 
 // Production save-as path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<void, std::string> defaultSaveAs(
+[[nodiscard]] std::expected<void, ProjectError> defaultSaveAs(
     Project& project, const std::filesystem::path& file, const common::core::Song& song,
     ProjectEditorState editor_state)
 {
@@ -67,7 +68,7 @@ namespace
 }
 
 // Production publish path used when tests do not provide a custom seam.
-[[nodiscard]] std::expected<void, std::string> defaultPublish(
+[[nodiscard]] std::expected<void, ProjectError> defaultPublish(
     Project& project, const std::filesystem::path& file, const common::core::Song& song)
 {
     return project.publish(file, song);
@@ -166,10 +167,10 @@ void EditorController::onOpenRequested(std::filesystem::path file)
 void EditorController::openProject(const std::filesystem::path& file)
 {
     Project project;
-    std::expected<common::core::Song, std::string> loaded_song = m_open_function(project, file);
+    std::expected<common::core::Song, ProjectError> loaded_song = m_open_function(project, file);
     if (!loaded_song.has_value())
     {
-        reportError(std::string{"Could not open: "} + loaded_song.error());
+        reportError(std::string{"Could not open: "} + loaded_song.error().message);
         deriveAndPush();
         return;
     }
@@ -210,10 +211,10 @@ void EditorController::onImportRequested(std::filesystem::path file)
 void EditorController::importSongSource(const std::filesystem::path& file)
 {
     Project project;
-    std::expected<common::core::Song, std::string> loaded_song = m_import_function(project, file);
+    std::expected<common::core::Song, ProjectError> loaded_song = m_import_function(project, file);
     if (!loaded_song.has_value())
     {
-        reportError(std::string{"Could not import: "} + loaded_song.error());
+        reportError(std::string{"Could not import: "} + loaded_song.error().message);
         deriveAndPush();
         return;
     }
@@ -272,7 +273,7 @@ void EditorController::onSaveAsRequested(std::filesystem::path file)
         m_save_as_function(*m_project, file, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
-        reportError(std::string{"Could not save as: "} + saved.error());
+        reportError(std::string{"Could not save as: "} + saved.error().message);
         deriveAndPush();
         return;
     }
@@ -301,7 +302,7 @@ void EditorController::onPublishRequested(std::filesystem::path file)
     const auto published = m_publish_function(*m_project, file, session().song());
     if (!published.has_value())
     {
-        reportError(std::string{"Could not publish: "} + published.error());
+        reportError(std::string{"Could not publish: "} + published.error().message);
         deriveAndPush();
         return;
     }
@@ -540,7 +541,7 @@ bool EditorController::closeProject()
     auto closed = m_project->close();
     if (!closed.has_value())
     {
-        reportError(std::string{"Could not close: "} + closed.error());
+        reportError(std::string{"Could not close: "} + closed.error().message);
         m_project.reset();
         m_project_file.clear();
         m_save_requires_destination = false;
@@ -567,7 +568,7 @@ bool EditorController::saveProject()
     const auto saved = m_save_function(*m_project, session().song(), projectEditorStateForSave());
     if (!saved.has_value())
     {
-        reportError(std::string{"Could not save: "} + saved.error());
+        reportError(std::string{"Could not save: "} + saved.error().message);
         deriveAndPush();
         return false;
     }

@@ -92,18 +92,16 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    const std::expected<RockSongPackageWriteResult, std::string> written =
-        writeRockSongPackageDirectory(package_directory, makeSong(source_audio));
+    const auto written = writeRockSongPackageDirectory(package_directory, makeSong(source_audio));
 
     REQUIRE(written.has_value());
-    REQUIRE(written->arrangement_ids.size() == 1);
-    CHECK(written->arrangement_ids.front() == "lead");
+    REQUIRE(written->size() == 1);
+    CHECK(written->front() == "lead");
     CHECK(std::filesystem::is_regular_file(package_directory / "song.json"));
     CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.wav"));
     CHECK(std::filesystem::is_regular_file(package_directory / "arrangements" / "lead.xml"));
 
-    const std::expected<Song, std::string> read_song =
-        readRockSongPackageDirectory(package_directory);
+    const auto read_song = readRockSongPackageDirectory(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
