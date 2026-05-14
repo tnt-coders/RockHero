@@ -41,24 +41,24 @@ class EditorController final : public IEditorController, private common::audio::
 {
 public:
     /*! \brief Opens an editor project package into a project context. */
-    using OpenFunction = std::function<std::expected<common::core::Song, std::string>(
+    using OpenFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path)>;
 
     /*! \brief Imports a song source into a project context. */
-    using ImportFunction = std::function<std::expected<common::core::Song, std::string>(
+    using ImportFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path)>;
 
     /*! \brief Saves the current song through the project context. */
-    using SaveFunction = std::function<std::expected<void, std::string>(
+    using SaveFunction = std::function<std::expected<void, ProjectError>(
         Project& project, const common::core::Song& song, ProjectEditorState editor_state)>;
 
     /*! \brief Saves the current song to a chosen path through the project context. */
-    using SaveAsFunction = std::function<std::expected<void, std::string>(
+    using SaveAsFunction = std::function<std::expected<void, ProjectError>(
         Project& project, const std::filesystem::path& path, const common::core::Song& song,
         ProjectEditorState editor_state)>;
 
     /*! \brief Publishes the current song to a chosen native song package path. */
-    using PublishFunction = std::function<std::expected<void, std::string>(
+    using PublishFunction = std::function<std::expected<void, ProjectError>(
         Project& project, const std::filesystem::path& path, const common::core::Song& song)>;
 
     /*! \brief Requests host exit after controller-level shutdown policy has completed. */

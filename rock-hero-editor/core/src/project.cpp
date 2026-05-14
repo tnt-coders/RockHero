@@ -27,36 +27,6 @@ using common::core::Arrangement;
 using common::core::AudioAsset;
 using common::core::Song;
 
-// Builds a failed project-load result with a single message.
-[[nodiscard]] std::expected<Song, std::string> failProjectLoad(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
-// Builds a failed project-import result with a single message.
-[[nodiscard]] std::expected<Song, std::string> failProjectImport(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
-// Builds a failed project-save result with a single message.
-[[nodiscard]] std::expected<void, std::string> failProjectSave(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
-// Builds a failed project-publish result with a single message.
-[[nodiscard]] std::expected<void, std::string> failProjectPublish(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
-// Builds a failed project-close result with a single message.
-[[nodiscard]] std::expected<void, std::string> failProjectClose(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
 // Creates one workspace directory under the platform temp directory for an open project.
 [[nodiscard]] std::optional<std::filesystem::path> createWorkspaceDirectory(
     std::string& error_message)
@@ -106,34 +76,42 @@ using common::core::Song;
 }
 
 // Resolves imported arrangement audio into the workspace owned by the imported project.
-[[nodiscard]] std::expected<Song, std::string> normalizeImportedSong(
+[[nodiscard]] std::expected<Song, ProjectError> normalizeImportedSong(
     const std::filesystem::path& workspace_directory, Song song)
 {
     if (song.arrangements.empty())
     {
-        return failProjectImport("Imported project must contain at least one arrangement");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidImportedSong,
+            "Imported project must contain at least one arrangement",
+        }};
     }
 
     for (Arrangement& arrangement : song.arrangements)
     {
         if (arrangement.audio_asset.path.empty())
         {
-            return failProjectImport("Imported arrangements must reference audio");
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::InvalidImportedSong,
+                "Imported arrangements must reference audio",
+            }};
         }
 
         const auto relative_audio_path =
             common::core::relativeWorkspacePath(workspace_directory, arrangement.audio_asset.path);
         if (!relative_audio_path.has_value())
         {
-            return failProjectImport(
-                "Imported arrangement audio is missing or outside the project workspace");
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::InvalidImportedSong,
+                "Imported arrangement audio is missing or outside the project workspace",
+            }};
         }
 
         arrangement.audio_asset =
             AudioAsset{(workspace_directory / *relative_audio_path).lexically_normal()};
     }
 
-    return std::expected<Song, std::string>{std::in_place, std::move(song)};
+    return std::expected<Song, ProjectError>{std::in_place, std::move(song)};
 }
 
 } // namespace
@@ -213,19 +191,25 @@ const ProjectEditorState& Project::editorState() const noexcept
 }
 
 // Opens the project package archive, extracts it safely, and reads the song document.
-std::expected<Song, std::string> Project::load(const std::filesystem::path& package_path)
+std::expected<Song, ProjectError> Project::load(const std::filesystem::path& package_path)
 {
     std::error_code filesystem_error;
     if (!std::filesystem::is_regular_file(package_path, filesystem_error))
     {
-        return failProjectLoad("Project package does not exist: " + package_path.string());
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::MissingProjectPackage,
+            "Project package does not exist: " + package_path.string(),
+        }};
     }
 
     std::string error_message;
     auto workspace_directory = createWorkspaceDirectory(error_message);
     if (!workspace_directory.has_value())
     {
-        return failProjectLoad(error_message);
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::WorkspaceCreationFailed,
+            std::move(error_message),
+        }};
     }
 
     Project loaded_project;
@@ -234,22 +218,28 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
 
     const auto extraction_error =
         common::core::extractArchiveToWorkspace(package_path, loaded_project.m_workspace_directory);
-    if (extraction_error.has_value())
+    if (!extraction_error.has_value())
     {
-        return failProjectLoad("Could not extract project package: " + *extraction_error);
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotExtractPackage,
+            "Could not extract project package: " + extraction_error.error().message,
+        }};
     }
 
     auto editor_state = project_io::readProjectDocument(loaded_project.m_workspace_directory);
     if (!editor_state.has_value())
     {
-        return failProjectLoad(std::move(editor_state.error()));
+        return std::unexpected{std::move(editor_state.error())};
     }
 
     auto loaded_song = common::core::readRockSongPackageDirectory(
         loaded_project.m_workspace_directory / project_io::g_song_directory_name);
     if (!loaded_song.has_value())
     {
-        return failProjectLoad(std::move(loaded_song.error()));
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidSongPackage,
+            std::move(loaded_song.error().message),
+        }};
     }
 
     Song song = std::move(*loaded_song);
@@ -258,7 +248,7 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
     // arrangement ID; EditorController currently falls back to the first arrangement silently.
     if (auto close_result = close(); !close_result.has_value())
     {
-        return failProjectLoad(std::move(close_result.error()));
+        return std::unexpected{std::move(close_result.error())};
     }
 
     *this = std::move(loaded_project);
@@ -267,14 +257,17 @@ std::expected<Song, std::string> Project::load(const std::filesystem::path& pack
 }
 
 // Imports a song source into a new workspace without assigning a project package path.
-std::expected<Song, std::string> Project::import(
+std::expected<Song, ProjectError> Project::import(
     const std::filesystem::path& source_path, ISongImporter& importer)
 {
     std::string error_message;
     auto workspace_directory = createWorkspaceDirectory(error_message);
     if (!workspace_directory.has_value())
     {
-        return failProjectImport(error_message);
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::WorkspaceCreationFailed,
+            std::move(error_message),
+        }};
     }
 
     Project imported_project;
@@ -285,25 +278,31 @@ std::expected<Song, std::string> Project::import(
     std::filesystem::create_directories(song_directory, create_error);
     if (create_error)
     {
-        return failProjectImport("Could not create song directory: " + create_error.message());
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::WorkspaceCreationFailed,
+            "Could not create song directory: " + create_error.message(),
+        }};
     }
 
     auto imported_song = importer.importSong(source_path, song_directory);
     if (!imported_song.has_value())
     {
-        return failProjectImport(std::move(imported_song.error()));
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::SongImportFailed,
+            std::move(imported_song.error().message),
+        }};
     }
 
     auto normalized_song = normalizeImportedSong(song_directory, std::move(*imported_song));
     if (!normalized_song.has_value())
     {
-        return failProjectImport(std::move(normalized_song.error()));
+        return std::unexpected{std::move(normalized_song.error())};
     }
 
     Song song = std::move(*normalized_song);
     if (auto close_result = close(); !close_result.has_value())
     {
-        return failProjectImport(std::move(close_result.error()));
+        return std::unexpected{std::move(close_result.error())};
     }
 
     *this = std::move(imported_project);
@@ -312,57 +311,68 @@ std::expected<Song, std::string> Project::import(
 }
 
 // Writes the current session song to the open project workspace and package.
-std::expected<void, std::string> Project::save(const Song& song)
+std::expected<void, ProjectError> Project::save(const Song& song)
 {
     return save(song, m_editor_state);
 }
 
 // Writes the current session song and editor state to the open project workspace and package.
-std::expected<void, std::string> Project::save(const Song& song, ProjectEditorState editor_state)
+std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorState editor_state)
 {
     if (m_path.empty() || m_workspace_directory.empty())
     {
-        return failProjectSave("Cannot save before a project package path has been chosen");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::SavePathRequired,
+            "Cannot save before a project package path has been chosen",
+        }};
     }
 
     std::error_code error;
     if (!std::filesystem::is_directory(m_workspace_directory, error))
     {
-        return failProjectSave("Project workspace does not exist");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::MissingWorkspace,
+            "Project workspace does not exist",
+        }};
     }
 
-    if (const auto write_error =
-            project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
-        write_error.has_value())
+    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
+        !write_error.has_value())
     {
-        return failProjectSave(*write_error);
+        return std::unexpected{std::move(write_error.error())};
     }
 
     if (const auto package_error =
             common::core::writeWorkspaceToArchive(m_workspace_directory, m_path);
-        package_error.has_value())
+        !package_error.has_value())
     {
-        return failProjectSave("Could not write project package: " + *package_error);
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotWritePackage,
+            "Could not write project package: " + package_error.error().message,
+        }};
     }
 
     m_editor_state = std::move(editor_state);
-    return std::expected<void, std::string>{};
+    return std::expected<void, ProjectError>{};
 }
 
 // Saves to a chosen project package path, creating a workspace first when unopened.
-std::expected<void, std::string> Project::saveAs(
+std::expected<void, ProjectError> Project::saveAs(
     const std::filesystem::path& path, const Song& song)
 {
     return saveAs(path, song, m_editor_state);
 }
 
 // Saves song data and editor state to a chosen project package path.
-std::expected<void, std::string> Project::saveAs(
+std::expected<void, ProjectError> Project::saveAs(
     const std::filesystem::path& path, const Song& song, ProjectEditorState editor_state)
 {
     if (path.empty())
     {
-        return failProjectSave("Cannot save a project without a project package path");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::SavePathRequired,
+            "Cannot save a project without a project package path",
+        }};
     }
 
     if (m_workspace_directory.empty())
@@ -371,63 +381,77 @@ std::expected<void, std::string> Project::saveAs(
         auto workspace_directory = createWorkspaceDirectory(error_message);
         if (!workspace_directory.has_value())
         {
-            return failProjectSave(error_message);
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::WorkspaceCreationFailed,
+                std::move(error_message),
+            }};
         }
 
         Project saved_project;
         saved_project.m_path = path;
         saved_project.m_workspace_directory = std::move(*workspace_directory);
 
-        if (const auto write_error = project_io::writeProjectFiles(
+        if (auto write_error = project_io::writeProjectFiles(
                 saved_project.m_workspace_directory, song, editor_state);
-            write_error.has_value())
+            !write_error.has_value())
         {
-            return failProjectSave(*write_error);
+            return std::unexpected{std::move(write_error.error())};
         }
 
         if (const auto package_error = common::core::writeWorkspaceToArchive(
                 saved_project.m_workspace_directory, saved_project.m_path);
-            package_error.has_value())
+            !package_error.has_value())
         {
-            return failProjectSave("Could not write project package: " + *package_error);
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::CouldNotWritePackage,
+                "Could not write project package: " + package_error.error().message,
+            }};
         }
 
         saved_project.m_editor_state = std::move(editor_state);
         *this = std::move(saved_project);
-        return std::expected<void, std::string>{};
+        return std::expected<void, ProjectError>{};
     }
 
-    if (const auto write_error =
-            project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
-        write_error.has_value())
+    if (auto write_error = project_io::writeProjectFiles(m_workspace_directory, song, editor_state);
+        !write_error.has_value())
     {
-        return failProjectSave(*write_error);
+        return std::unexpected{std::move(write_error.error())};
     }
 
     if (const auto package_error =
             common::core::writeWorkspaceToArchive(m_workspace_directory, path);
-        package_error.has_value())
+        !package_error.has_value())
     {
-        return failProjectSave("Could not write project package: " + *package_error);
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotWritePackage,
+            "Could not write project package: " + package_error.error().message,
+        }};
     }
 
     m_path = path;
     m_editor_state = std::move(editor_state);
-    return std::expected<void, std::string>{};
+    return std::expected<void, ProjectError>{};
 }
 
 // Publishes native song content without project metadata or retargeting future saves.
-std::expected<void, std::string> Project::publish(
+std::expected<void, ProjectError> Project::publish(
     const std::filesystem::path& path, const Song& song)
 {
     if (path.empty())
     {
-        return failProjectPublish("Cannot publish a project without a native song package path");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::PublishPathRequired,
+            "Cannot publish a project without a native song package path",
+        }};
     }
 
     if (m_workspace_directory.empty())
     {
-        return failProjectPublish("Cannot publish before a project workspace exists");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::MissingWorkspace,
+            "Cannot publish before a project workspace exists",
+        }};
     }
 
     const std::filesystem::path song_directory =
@@ -435,32 +459,32 @@ std::expected<void, std::string> Project::publish(
     std::error_code error;
     if (!std::filesystem::is_directory(m_workspace_directory, error))
     {
-        return failProjectPublish("Project workspace does not exist");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::MissingWorkspace,
+            "Project workspace does not exist",
+        }};
     }
 
-    if (const auto song_files = common::core::writeRockSongPackageDirectory(song_directory, song);
-        !song_files.has_value())
+    if (const auto publish_result = common::core::writeRockSongPackage(path, song_directory, song);
+        !publish_result.has_value())
     {
-        return failProjectPublish(song_files.error());
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotPublishSong,
+            publish_result.error().message,
+        }};
     }
 
-    if (const auto package_error = common::core::writeWorkspaceToArchive(song_directory, path);
-        package_error.has_value())
-    {
-        return failProjectPublish("Could not write native song package: " + *package_error);
-    }
-
-    return std::expected<void, std::string>{};
+    return std::expected<void, ProjectError>{};
 }
 
 // Reports workspace cleanup failure for callers that explicitly close a project.
-std::expected<void, std::string> Project::close()
+std::expected<void, ProjectError> Project::close()
 {
     if (m_workspace_directory.empty())
     {
         m_path.clear();
         m_editor_state = ProjectEditorState{};
-        return std::expected<void, std::string>{};
+        return std::expected<void, ProjectError>{};
     }
 
     std::error_code error;
@@ -472,22 +496,31 @@ std::expected<void, std::string> Project::close()
     {
         std::string message = "Could not remove project workspace: ";
         message += exception.what();
-        return failProjectClose(std::move(message));
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotCloseWorkspace,
+            std::move(message),
+        }};
     }
     catch (...)
     {
-        return failProjectClose("Could not remove project workspace");
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotCloseWorkspace,
+            "Could not remove project workspace",
+        }};
     }
 
     if (error)
     {
-        return failProjectClose("Could not remove project workspace: " + error.message());
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotCloseWorkspace,
+            "Could not remove project workspace: " + error.message(),
+        }};
     }
 
     m_path.clear();
     m_workspace_directory.clear();
     m_editor_state = ProjectEditorState{};
-    return std::expected<void, std::string>{};
+    return std::expected<void, ProjectError>{};
 }
 
 } // namespace rock_hero::editor::core

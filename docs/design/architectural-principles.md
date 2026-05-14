@@ -191,6 +191,15 @@ fakes or deterministic stubs.
 
 This is preferable to mocking third-party frameworks directly.
 
+## Typed Boundary Errors
+
+Recoverable failures that cross a project-owned API boundary should use a domain-owned typed error
+value rather than raw string text. The boundary owns the vocabulary for its failure domain and
+converts lower-level library, framework, or filesystem failures into that vocabulary.
+
+This keeps callers testable and branchable without parsing display text, while still allowing UI
+and logs to use the error message carried by the domain error value.
+
 ## Why This Matters
 
 Mocking JUCE or Tracktion directly is the wrong abstraction level:

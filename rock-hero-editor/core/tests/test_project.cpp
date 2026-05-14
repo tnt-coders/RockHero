@@ -366,7 +366,7 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     writeMinimalProjectPackage(path);
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -389,7 +389,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
 
     Project project;
     RockSongImporter importer;
-    const std::expected<Song, std::string> result = project.import(path, importer);
+    const auto result = project.import(path, importer);
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -414,13 +414,13 @@ TEST_CASE("Project close removes workspace and clears context", "[core][project]
     writeMinimalProjectPackage(path);
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
     REQUIRE(result.has_value());
 
     const std::filesystem::path workspace_directory = project.workspaceDirectory();
     REQUIRE(std::filesystem::is_directory(workspace_directory));
 
-    const std::expected<void, std::string> closed = project.close();
+    const auto closed = project.close();
 
     REQUIRE(closed.has_value());
     CHECK(project.path().empty());
@@ -457,10 +457,11 @@ TEST_CASE("Project rejects package wrapped in one root directory", "[core][proje
         });
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     CHECK_FALSE(result.has_value());
-    CHECK(result.error().find("project.json") != std::string::npos);
+    CHECK(result.error().code == ProjectErrorCode::MissingProjectDocument);
+    CHECK(result.error().message.find("project.json") != std::string::npos);
 }
 
 // Verifies the song document reader loads metadata, assets, and arrangements in file order.
@@ -471,7 +472,7 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     writeTwoArrangementProjectPackage(path);
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -494,7 +495,7 @@ TEST_CASE("Project loads stale selected arrangement state", "[core][project]")
     writeTwoArrangementProjectPackage(path, "song/song.json", "missing");
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     REQUIRE(result.has_value());
     CHECK(project.editorState().selected_arrangement == std::optional<std::string>{"missing"});
@@ -508,10 +509,11 @@ TEST_CASE("Project rejects root song.json", "[core][project]")
     writeTwoArrangementProjectPackage(path, "song.json");
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     CHECK_FALSE(result.has_value());
-    CHECK(result.error().find("song.json") != std::string::npos);
+    CHECK(result.error().code == ProjectErrorCode::InvalidSongPackage);
+    CHECK(result.error().message.find("song.json") != std::string::npos);
 }
 
 // Verifies project loading rejects path traversal before extracting archive entries.
@@ -522,10 +524,11 @@ TEST_CASE("Project rejects unsafe RHP entries", "[core][project]")
     writeArchive(path, std::vector{ArchiveEntry{.path = "../outside.txt", .contents = "bad"}});
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     CHECK_FALSE(result.has_value());
-    CHECK(result.error().find("unsafe") != std::string::npos);
+    CHECK(result.error().code == ProjectErrorCode::CouldNotExtractPackage);
+    CHECK(result.error().message.find("unsafe") != std::string::npos);
 }
 
 // Verifies song-document asset paths cannot escape the extracted project directory.
@@ -536,10 +539,11 @@ TEST_CASE("Project rejects unsafe asset paths", "[core][project]")
     writeUnsafeAssetProjectPackage(path);
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     CHECK_FALSE(result.has_value());
-    CHECK(result.error().find("unsafe") != std::string::npos);
+    CHECK(result.error().code == ProjectErrorCode::InvalidSongPackage);
+    CHECK(result.error().message.find("unsafe") != std::string::npos);
 }
 
 // Verifies song-document asset paths cannot use Windows drive or stream syntax.
@@ -550,10 +554,11 @@ TEST_CASE("Project rejects colon-separated asset paths", "[core][project]")
     writeUnsafeAssetProjectPackage(path, "audio/backing.wav:stream");
 
     Project project;
-    const std::expected<Song, std::string> result = project.load(path);
+    const auto result = project.load(path);
 
     CHECK_FALSE(result.has_value());
-    CHECK(result.error().find("unsafe") != std::string::npos);
+    CHECK(result.error().code == ProjectErrorCode::InvalidSongPackage);
+    CHECK(result.error().message.find("unsafe") != std::string::npos);
 }
 
 // Verifies save persists the session-owned song through the open project package.
@@ -571,7 +576,7 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     song->metadata.album = "Updated Album";
     song->metadata.year = 2026;
 
-    const std::expected<void, std::string> saved = project.save(
+    const auto saved = project.save(
         *song,
         ProjectEditorState{
             .cursor_position = TimePosition{4.5},
@@ -609,7 +614,7 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     REQUIRE(song->arrangements.size() == 1);
     song->arrangements.front().audio_asset = AudioAsset{external_audio_path};
 
-    const std::expected<void, std::string> saved = project.save(*song);
+    const auto saved = project.save(*song);
     REQUIRE(saved.has_value());
 
     Project reloaded_project;
@@ -634,7 +639,7 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
 
     Project project;
     const Song song = makeSaveableSong(audio_path);
-    const std::expected<void, std::string> saved = project.saveAs(project_package_path, song);
+    const auto saved = project.saveAs(project_package_path, song);
 
     REQUIRE(saved.has_value());
     CHECK(project.path() == project_package_path);
@@ -663,7 +668,7 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
     REQUIRE(song.has_value());
     song->metadata.title = "Published Title";
 
-    const std::expected<void, std::string> published = project.publish(publish_path, *song);
+    const auto published = project.publish(publish_path, *song);
 
     REQUIRE(published.has_value());
     CHECK(project.path() == project_path);
@@ -687,10 +692,11 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
 TEST_CASE("Project save rejects unopened projects", "[core][project]")
 {
     Project project;
-    const std::expected<void, std::string> saved = project.save(Song{});
+    const auto saved = project.save(Song{});
 
     CHECK_FALSE(saved.has_value());
-    CHECK(saved.error().find("path") != std::string::npos);
+    CHECK(saved.error().code == ProjectErrorCode::SavePathRequired);
+    CHECK(saved.error().message.find("path") != std::string::npos);
 }
 
 } // namespace rock_hero::editor::core

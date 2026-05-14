@@ -217,6 +217,86 @@ static_assert(std::is_trivially_copyable_v<TimePosition>);
 If a value type grows beyond these limits, revisit call sites and prefer `const&` for read-only
 parameters.
 
+# Recoverable Error Returns
+
+Use `std::expected<T, DomainError>` for public project-owned APIs that can fail with a recoverable
+reason the caller may need to display, log, test, or branch on.
+
+Each public failure domain should own:
+
+- an enum named `<Subject>ErrorCode`
+- a value type named `<Subject>Error`
+- a `code` member for stable program behavior
+- a `message` member for UI display or logs
+
+The enum code is the stable contract. Tests should normally assert `error.code`; assert exact
+message text only when the message itself is part of the behavior under test.
+
+Error value types should use constructors for default and contextual messages:
+
+\code{.cpp}
+enum class ProjectErrorCode
+{
+    MissingProjectPackage,
+};
+
+struct ProjectError
+{
+    ProjectErrorCode code{};
+    std::string message;
+
+    explicit ProjectError(ProjectErrorCode error_code);
+    ProjectError(ProjectErrorCode error_code, std::string message_text);
+};
+\endcode
+
+Failure returns should construct the domain error directly at the return site and rely on class
+template argument deduction for `std::unexpected` unless deduction would be incorrect:
+
+\code{.cpp}
+return std::unexpected{ProjectError{
+    ProjectErrorCode::MissingWorkspace,
+    "Project workspace does not exist",
+}};
+
+return std::unexpected{ProjectError{ProjectErrorCode::MissingProjectDocument}};
+\endcode
+
+Propagate same-domain failures by moving the existing error value:
+
+\code{.cpp}
+return std::unexpected{std::move(result.error())};
+\endcode
+
+Translate cross-domain failures explicitly at the boundary:
+
+\code{.cpp}
+return std::unexpected{ProjectError{
+    ProjectErrorCode::CouldNotPublishSong,
+    package_result.error().message,
+}};
+\endcode
+
+Do not add helper functions that only wrap `std::unexpected` construction. Keep helpers only when
+they perform real policy or cross-domain translation.
+
+Add structured fields only when callers need the context programmatically. Otherwise, keep runtime
+context in `message` so the error type stays simple.
+
+Raw `std::string` errors are acceptable for private helpers when the caller immediately converts
+them to the owning public domain error. Do not add durable public APIs that expose
+`std::expected<T, std::string>` or `std::optional<std::string>` as an error channel.
+
+Bare error enums are acceptable only when every failure reason maps cleanly to one fixed message
+and no runtime context is useful. This should be uncommon for public boundaries.
+
+Do not introduce a global project-wide error enum, `AnyError` variant, or polymorphic error
+hierarchy unless cross-layer propagation becomes a demonstrated maintenance problem. Prefer small
+domain-owned errors near the API that returns them.
+
+Catch third-party or standard-library exceptions at adapter and IO boundaries, then convert them
+to the owning project error type before returning across a project-owned API.
+
 # Catch2 Assertions
 
 Use `REQUIRE` only when the assertion is a precondition for the rest of the test case. Typical
