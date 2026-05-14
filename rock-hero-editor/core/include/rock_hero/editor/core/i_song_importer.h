@@ -8,7 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/song.h>
-#include <string>
+#include <rock_hero/editor/core/song_import_error.h>
 
 namespace rock_hero::editor::core
 {
@@ -45,9 +45,9 @@ public:
     \brief Imports a song source into an existing workspace directory.
     \param source_path Song source to read.
     \param workspace_directory Existing workspace directory to populate.
-    \return Imported song data, or a failure message.
+    \return Imported song data, or a typed import failure.
     */
-    [[nodiscard]] virtual std::expected<common::core::Song, std::string> importSong(
+    [[nodiscard]] virtual std::expected<common::core::Song, SongImportError> importSong(
         const std::filesystem::path& source_path,
         const std::filesystem::path& workspace_directory) = 0;
 };

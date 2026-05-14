@@ -34,12 +34,6 @@ using common::core::TimeDuration;
 
 using Json = nlohmann::json;
 
-// Builds a failed PSARC song import result with one stable project-owned message.
-[[nodiscard]] std::expected<Song, std::string> failImport(std::string message)
-{
-    return std::unexpected<std::string>{std::move(message)};
-}
-
 // Converts file names and manifest values for case-insensitive matching.
 [[nodiscard]] std::string toLower(std::string value)
 {
@@ -415,7 +409,7 @@ void addImportedArrangement(
 }
 
 // Converts the PSARC audio payload and copies the selected backing file into native layout.
-[[nodiscard]] std::expected<AudioAsset, std::string> importAudio(
+[[nodiscard]] std::expected<AudioAsset, SongImportError> importAudio(
     PsarcFile& psarc, const std::filesystem::path& workspace_directory)
 {
     const std::filesystem::path audio_staging = workspace_directory / ".psarc-audio";
@@ -424,9 +418,10 @@ void addImportedArrangement(
     std::filesystem::create_directories(audio_staging, error);
     if (error)
     {
-        return std::unexpected<std::string>{
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::AudioImportFailed,
             "Could not create PSARC audio staging directory: " + error.message()
-        };
+        }};
     }
 
     psarc.ConvertAudio(audio_staging.string());
@@ -434,7 +429,10 @@ void addImportedArrangement(
     const auto converted_audio = findConvertedAudio(audio_staging);
     if (!converted_audio.has_value())
     {
-        return std::unexpected<std::string>{"PSARC did not produce convertible arrangement audio"};
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::AudioConversionFailed,
+            "PSARC did not produce convertible arrangement audio"
+        }};
     }
 
     const std::filesystem::path imported_audio_path =
@@ -442,7 +440,10 @@ void addImportedArrangement(
     std::filesystem::create_directories(imported_audio_path.parent_path(), error);
     if (error)
     {
-        return std::unexpected<std::string>{"Could not create audio directory: " + error.message()};
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::AudioImportFailed,
+            "Could not create audio directory: " + error.message()
+        }};
     }
 
     std::filesystem::copy_file(
@@ -452,7 +453,10 @@ void addImportedArrangement(
         error);
     if (error)
     {
-        return std::unexpected<std::string>{"Could not import PSARC audio: " + error.message()};
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::AudioImportFailed,
+            "Could not import PSARC audio: " + error.message()
+        }};
     }
 
     std::filesystem::remove_all(audio_staging, error);
@@ -553,9 +557,18 @@ void addImportedArrangement(
 } // namespace
 
 // Imports the minimal PSARC song metadata, arrangement XML, and converted backing audio.
-std::expected<common::core::Song, std::string> PsarcSongImporter::importSong(
+std::expected<common::core::Song, SongImportError> PsarcSongImporter::importSong(
     const std::filesystem::path& source_path, const std::filesystem::path& workspace_directory)
 {
+    std::error_code filesystem_error;
+    if (!std::filesystem::is_regular_file(source_path, filesystem_error))
+    {
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::MissingSource,
+            "PSARC package does not exist: " + source_path.string(),
+        }};
+    }
+
     try
     {
         PsarcFile psarc{source_path.string()};
@@ -563,28 +576,37 @@ std::expected<common::core::Song, std::string> PsarcSongImporter::importSong(
 
         Song song;
         const auto parts_by_stem = readManifestParts(psarc, song);
-        const auto audio_asset = importAudio(psarc, workspace_directory);
+        auto audio_asset = importAudio(psarc, workspace_directory);
         if (!audio_asset.has_value())
         {
-            return failImport(audio_asset.error());
+            return std::unexpected{std::move(audio_asset.error())};
         }
 
         song.arrangements =
             importArrangements(psarc, parts_by_stem, *audio_asset, workspace_directory);
         if (song.arrangements.empty())
         {
-            return failImport("PSARC did not contain supported arrangement XML files");
+            return std::unexpected{SongImportError{
+                SongImportErrorCode::NoPlayableArrangement,
+                "PSARC did not contain supported arrangement XML files",
+            }};
         }
 
-        return std::expected<Song, std::string>{std::in_place, std::move(song)};
+        return std::expected<Song, SongImportError>{std::in_place, std::move(song)};
     }
     catch (const PsarcException& exception)
     {
-        return failImport(std::string{"Could not import PSARC: "} + exception.what());
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::ExternalImportFailed,
+            std::string{"Could not import PSARC: "} + exception.what(),
+        }};
     }
     catch (const std::filesystem::filesystem_error& exception)
     {
-        return failImport(std::string{"Could not write imported PSARC files: "} + exception.what());
+        return std::unexpected{SongImportError{
+            SongImportErrorCode::FilesystemFailure,
+            std::string{"Could not write imported PSARC files: "} + exception.what(),
+        }};
     }
 }
 
