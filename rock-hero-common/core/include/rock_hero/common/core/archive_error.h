@@ -56,8 +56,13 @@ enum class ArchiveErrorCode
     WriteFailed,
 };
 
-/*! \brief Archive helper error with a stable code and diagnostic message. */
-struct ArchiveError
+/*!
+\brief Archive helper error with a stable code and diagnostic message.
+
+Archive helpers report safe ZIP operations without package-format knowledge. Public package APIs
+that call archive helpers should translate archive failures into the package API's error domain.
+*/
+struct [[nodiscard]] ArchiveError
 {
     /*! \brief Stable reason for the archive failure. */
     ArchiveErrorCode code{};
@@ -77,14 +82,6 @@ struct ArchiveError
     \param message_text Human-readable diagnostic text.
     */
     ArchiveError(ArchiveErrorCode error_code, std::string message_text);
-
-    /*!
-    \brief Compares archive errors by stored code and message.
-    \param lhs Left-hand archive error.
-    \param rhs Right-hand archive error.
-    \return True when both errors have equal fields.
-    */
-    friend bool operator==(const ArchiveError& lhs, const ArchiveError& rhs) = default;
 };
 
 } // namespace rock_hero::common::core

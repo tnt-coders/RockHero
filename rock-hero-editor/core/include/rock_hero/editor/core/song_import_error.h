@@ -42,7 +42,7 @@ enum class SongImportErrorCode
 };
 
 /*! \brief Editor song import error with a stable code and diagnostic message. */
-struct SongImportError
+struct [[nodiscard]] SongImportError
 {
     /*! \brief Stable reason for the song import failure. */
     SongImportErrorCode code{};
@@ -62,14 +62,6 @@ struct SongImportError
     \param message_text Human-readable diagnostic text.
     */
     SongImportError(SongImportErrorCode error_code, std::string message_text);
-
-    /*!
-    \brief Compares song import errors by stored code and message.
-    \param lhs Left-hand song import error.
-    \param rhs Right-hand song import error.
-    \return True when both errors have equal fields.
-    */
-    friend bool operator==(const SongImportError& lhs, const SongImportError& rhs) = default;
 };
 
 } // namespace rock_hero::editor::core
