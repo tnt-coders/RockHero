@@ -1026,17 +1026,17 @@ WARN_LOGFILE           =
 # spaces. See also FILE_PATTERNS and EXTENSION_MAPPING
 # Note: If this tag is empty the current directory is searched.
 
-INPUT                  = rock-hero-common \
-                         rock-hero-editor \
-                         rock-hero-game \
-                         README.md \
-                         docs/design/index.md \
-                         docs/design/architecture.md \
-                         docs/design/architectural-principles.md \
-                         docs/design/coding-conventions.md \
-                         docs/design/documentation-conventions.md \
-                         docs/user/index.md \
-                         docs/user/difficulty-ratings.md
+INPUT                  = @CMAKE_SOURCE_DIR@/README.md \
+                         @CMAKE_SOURCE_DIR@/rock-hero-common \
+                         @CMAKE_SOURCE_DIR@/rock-hero-editor \
+                         @CMAKE_SOURCE_DIR@/rock-hero-game \
+                         @CMAKE_SOURCE_DIR@/docs/design/index.md \
+                         @CMAKE_SOURCE_DIR@/docs/design/architecture.md \
+                         @CMAKE_SOURCE_DIR@/docs/design/architectural-principles.md \
+                         @CMAKE_SOURCE_DIR@/docs/design/coding-conventions.md \
+                         @CMAKE_SOURCE_DIR@/docs/design/documentation-conventions.md \
+                         @CMAKE_SOURCE_DIR@/docs/user/index.md \
+                         @CMAKE_SOURCE_DIR@/docs/user/difficulty-ratings.md
 
 # This tag can be used to specify the character encoding of the source files
 # that Doxygen parses. Internally Doxygen uses the UTF-8 encoding. Doxygen uses
@@ -1208,7 +1208,7 @@ FILTER_SOURCE_PATTERNS =
 # (index.html). This can be useful if you have a project on for instance GitHub
 # and want to reuse the introduction page also for the Doxygen output.
 
-USE_MDFILE_AS_MAINPAGE = README.md
+USE_MDFILE_AS_MAINPAGE = @CMAKE_SOURCE_DIR@/README.md
 
 # If the IMPLICIT_DIR_DOCS tag is set to YES, any README.md file found in sub-
 # directories of the project's root, is used as the documentation for that sub-
