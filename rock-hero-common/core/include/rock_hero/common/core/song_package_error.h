@@ -44,8 +44,13 @@ enum class SongPackageErrorCode
     CouldNotWritePackage,
 };
 
-/*! \brief Native song package error with a stable code and diagnostic message. */
-struct SongPackageError
+/*!
+\brief Native song package error with a stable code and diagnostic message.
+
+Native song package APIs translate lower-level archive failures into package-level codes so
+callers can branch on package operations rather than ZIP implementation details.
+*/
+struct [[nodiscard]] SongPackageError
 {
     /*! \brief Stable reason for the song package failure. */
     SongPackageErrorCode code{};
@@ -65,14 +70,6 @@ struct SongPackageError
     \param message_text Human-readable diagnostic text.
     */
     SongPackageError(SongPackageErrorCode error_code, std::string message_text);
-
-    /*!
-    \brief Compares song package errors by stored code and message.
-    \param lhs Left-hand song package error.
-    \param rhs Right-hand song package error.
-    \return True when both errors have equal fields.
-    */
-    friend bool operator==(const SongPackageError& lhs, const SongPackageError& rhs) = default;
 };
 
 } // namespace rock_hero::common::core

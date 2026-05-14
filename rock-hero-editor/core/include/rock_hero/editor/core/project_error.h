@@ -60,7 +60,7 @@ enum class ProjectErrorCode
 };
 
 /*! \brief Editor project error with a stable code and diagnostic message. */
-struct ProjectError
+struct [[nodiscard]] ProjectError
 {
     /*! \brief Stable reason for the project workflow failure. */
     ProjectErrorCode code{};
@@ -80,14 +80,6 @@ struct ProjectError
     \param message_text Human-readable diagnostic text.
     */
     ProjectError(ProjectErrorCode error_code, std::string message_text);
-
-    /*!
-    \brief Compares project errors by stored code and message.
-    \param lhs Left-hand project error.
-    \param rhs Right-hand project error.
-    \return True when both errors have equal fields.
-    */
-    friend bool operator==(const ProjectError& lhs, const ProjectError& rhs) = default;
 };
 
 } // namespace rock_hero::editor::core
