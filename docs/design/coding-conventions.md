@@ -232,6 +232,10 @@ Each public failure domain should own:
 The enum code is the stable contract. Tests should normally assert `error.code`; assert exact
 message text only when the message itself is part of the behavior under test.
 
+Mark public error value types `[[nodiscard]]`. Do not define `operator==` for error value types
+unless the error has structured fields that genuinely need equality. Callers should compare
+`error.code` explicitly so diagnostic message text does not accidentally become program behavior.
+
 Error value types should use constructors for default and contextual messages:
 
 \code{.cpp}
@@ -240,7 +244,7 @@ enum class ProjectErrorCode
     MissingProjectPackage,
 };
 
-struct ProjectError
+struct [[nodiscard]] ProjectError
 {
     ProjectErrorCode code{};
     std::string message;
@@ -277,6 +281,17 @@ return std::unexpected{ProjectError{
 }};
 \endcode
 
+Cross-domain translation should usually expose the receiving API's coarser operation-level code
+and preserve lower-level detail in the message. For example, a project publish failure should
+return `ProjectErrorCode::CouldNotPublishSong` rather than leaking every native package or archive
+failure mode through the project API. Add nested causes or mirrored code sets only after callers
+demonstrably need to branch on the lower-level reason across that boundary.
+
+Lower-level reusable helpers may have their own error domains when the lower-level operation is a
+real public boundary. For example, archive helpers report `ArchiveError`, while native song
+package APIs translate archive failures into `SongPackageError` before returning to package
+callers.
+
 Do not add helper functions that only wrap `std::unexpected` construction. Keep helpers only when
 they perform real policy or cross-domain translation.
 
@@ -287,6 +302,10 @@ Raw `std::string` errors are acceptable for private helpers when the caller imme
 them to the owning public domain error. Do not add durable public APIs that expose
 `std::expected<T, std::string>` or `std::optional<std::string>` as an error channel.
 
+Use `[[nodiscard]]` on public functions returning `std::expected`, including virtual interface
+methods and concrete API members. Private helpers should also use `[[nodiscard]]` when ignoring
+the result would be a likely bug.
+
 Bare error enums are acceptable only when every failure reason maps cleanly to one fixed message
 and no runtime context is useful. This should be uncommon for public boundaries.
 
@@ -294,8 +313,16 @@ Do not introduce a global project-wide error enum, `AnyError` variant, or polymo
 hierarchy unless cross-layer propagation becomes a demonstrated maintenance problem. Prefer small
 domain-owned errors near the API that returns them.
 
-Catch third-party or standard-library exceptions at adapter and IO boundaries, then convert them
-to the owning project error type before returning across a project-owned API.
+Catch specific third-party or standard-library exception types at adapter and IO boundaries when
+practical, then convert them to the owning project error type before returning across a
+project-owned API. Choose the error code that names the project operation that failed, and include
+the external exception text in a project-owned message prefix when it is useful for diagnosis.
+Use catch-all handlers only at broad cleanup or boundary points where the operation can fail in
+implementation-defined ways.
+
+`std::expected<std::optional<T>, Error>` is acceptable when absence is a valid result but
+retrieving or parsing that result can still fail. Use it sparingly and prefer a named result type
+if the double wrapper starts to obscure the API.
 
 # Catch2 Assertions
 
