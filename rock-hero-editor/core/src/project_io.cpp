@@ -24,7 +24,7 @@ using Json = nlohmann::json;
 constexpr std::string_view g_project_document_name{"project.json"};
 
 // Reads an optional string property while rejecting non-string values.
-[[nodiscard]] std::expected<std::optional<std::string>, std::string> readOptionalString(
+[[nodiscard]] std::expected<std::optional<std::string>, ProjectError> readOptionalString(
     const Json& object, const char* property_name)
 {
     const auto value = object.find(property_name);
@@ -35,9 +35,10 @@ constexpr std::string_view g_project_document_name{"project.json"};
 
     if (!value->is_string())
     {
-        return std::unexpected<std::string>{
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidProjectDocument,
             std::string{property_name} + " must be a string when present"
-        };
+        }};
     }
 
     return std::optional<std::string>{value->get<std::string>()};
@@ -65,7 +66,7 @@ constexpr std::string_view g_project_document_name{"project.json"};
 } // namespace
 
 // Reads project.json editor state from the extracted editor project root.
-std::expected<ProjectEditorState, std::string> readProjectDocument(
+std::expected<ProjectEditorState, ProjectError> readProjectDocument(
     const std::filesystem::path& workspace_directory)
 {
     const std::filesystem::path project_document_path =
@@ -73,13 +74,16 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
     std::error_code error;
     if (!std::filesystem::is_regular_file(project_document_path, error))
     {
-        return std::unexpected<std::string>{"Project directory does not contain project.json"};
+        return std::unexpected{ProjectError{ProjectErrorCode::MissingProjectDocument}};
     }
 
     std::ifstream project_document_file{project_document_path};
     if (!project_document_file.is_open())
     {
-        return std::unexpected<std::string>{"Could not open project.json"};
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidProjectDocument,
+            "Could not open project.json",
+        }};
     }
 
     Json project_document;
@@ -89,16 +93,19 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
     }
     catch (const Json::parse_error& exception)
     {
-        return std::unexpected<std::string>{
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidProjectDocument,
             std::string{"Could not parse project.json: "} + exception.what()
-        };
+        }};
     }
 
     try
     {
         if (!project_document.is_object() || project_document.value("formatVersion", 0) != 1)
         {
-            return std::unexpected<std::string>{"Unsupported project.json formatVersion"};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::InvalidProjectDocument, "Unsupported project.json formatVersion"
+            }};
         }
 
         ProjectEditorState editor_state;
@@ -110,7 +117,10 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
 
         if (!editor_state_json->is_object())
         {
-            return std::unexpected<std::string>{"project.json editorState must be an object"};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::InvalidProjectDocument,
+                "project.json editorState must be an object"
+            }};
         }
 
         const auto cursor_position_json = editor_state_json->find("cursorPosition");
@@ -118,7 +128,9 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
         {
             if (!cursor_position_json->is_number())
             {
-                return std::unexpected<std::string>{"cursorPosition must be a number"};
+                return std::unexpected{ProjectError{
+                    ProjectErrorCode::InvalidProjectDocument, "cursorPosition must be a number"
+                }};
             }
 
             editor_state.cursor_position =
@@ -128,7 +140,7 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
         auto selected_arrangement = readOptionalString(*editor_state_json, "selectedArrangement");
         if (!selected_arrangement.has_value())
         {
-            return std::unexpected<std::string>{std::move(selected_arrangement.error())};
+            return std::unexpected{std::move(selected_arrangement.error())};
         }
 
         std::optional<std::string> selected_arrangement_value = std::move(*selected_arrangement);
@@ -141,14 +153,15 @@ std::expected<ProjectEditorState, std::string> readProjectDocument(
     }
     catch (const Json::exception& exception)
     {
-        return std::unexpected<std::string>{
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::InvalidProjectDocument,
             std::string{"Invalid project.json: "} + exception.what()
-        };
+        }};
     }
 }
 
 // Writes project.json into the extracted project workspace root.
-std::optional<std::string> writeProjectDocument(
+std::expected<void, ProjectError> writeProjectDocument(
     const std::filesystem::path& workspace_directory, const ProjectEditorState& editor_state,
     const std::vector<std::string>& arrangement_ids)
 {
@@ -170,20 +183,24 @@ std::optional<std::string> writeProjectDocument(
     std::ofstream project_document_file{workspace_directory / g_project_document_name};
     if (!project_document_file.is_open())
     {
-        return "Could not write project.json";
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotWriteProjectFiles, "Could not write project.json"
+        }};
     }
 
     project_document_file << project_document.dump(4) << '\n';
     if (!project_document_file.good())
     {
-        return "Could not write project.json";
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotWriteProjectFiles, "Could not write project.json"
+        }};
     }
 
-    return std::nullopt;
+    return std::expected<void, ProjectError>{};
 }
 
 // Writes project.json and song/song.json into the extracted workspace.
-std::optional<std::string> writeProjectFiles(
+std::expected<void, ProjectError> writeProjectFiles(
     const std::filesystem::path& workspace_directory, const common::core::Song& song,
     const ProjectEditorState& editor_state)
 {
@@ -191,17 +208,19 @@ std::optional<std::string> writeProjectFiles(
     const auto song_files = common::core::writeRockSongPackageDirectory(song_directory, song);
     if (!song_files.has_value())
     {
-        return song_files.error();
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::CouldNotWriteProjectFiles,
+            song_files.error().message,
+        }};
     }
 
-    if (const auto write_error =
-            writeProjectDocument(workspace_directory, editor_state, song_files->arrangement_ids);
-        write_error.has_value())
+    if (auto write_error = writeProjectDocument(workspace_directory, editor_state, *song_files);
+        !write_error.has_value())
     {
-        return write_error;
+        return std::unexpected{std::move(write_error.error())};
     }
 
-    return std::nullopt;
+    return std::expected<void, ProjectError>{};
 }
 
 } // namespace rock_hero::editor::core::project_io

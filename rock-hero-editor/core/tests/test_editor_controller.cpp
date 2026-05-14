@@ -372,13 +372,17 @@ class FakeProjectServices final
 {
 public:
     // Simulates opening a project package and returns either next_song or the open error.
-    std::expected<common::core::Song, std::string> open(Project&, const std::filesystem::path& file)
+    std::expected<common::core::Song, ProjectError> open(
+        Project&, const std::filesystem::path& file)
     {
         last_open_file = file;
         ++open_call_count;
         if (!next_song.has_value())
         {
-            return std::unexpected<std::string>{next_error_message};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::MissingProjectPackage,
+                next_error_message,
+            }};
         }
 
         common::core::Song song = std::move(*next_song);
@@ -387,14 +391,17 @@ public:
     }
 
     // Simulates importing a song source and returns either next_import_song or the import error.
-    std::expected<common::core::Song, std::string> import(
+    std::expected<common::core::Song, ProjectError> import(
         Project&, const std::filesystem::path& file)
     {
         last_import_file = file;
         ++import_call_count;
         if (!next_import_song.has_value())
         {
-            return std::unexpected<std::string>{next_import_error_message};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::SongImportFailed,
+                next_import_error_message,
+            }};
         }
 
         common::core::Song song = std::move(*next_import_song);
@@ -403,7 +410,7 @@ public:
     }
 
     // Simulates saving through the current project destination.
-    std::expected<void, std::string> save(
+    std::expected<void, ProjectError> save(
         Project&, const common::core::Song& song, ProjectEditorState editor_state)
     {
         last_save_audio_path = firstAudioPath(song);
@@ -411,13 +418,16 @@ public:
         ++save_call_count;
         if (next_save_error.has_value())
         {
-            return std::unexpected<std::string>{*next_save_error};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::CouldNotWriteProjectFiles,
+                *next_save_error,
+            }};
         }
-        return std::expected<void, std::string>{};
+        return std::expected<void, ProjectError>{};
     }
 
     // Simulates Save As and records the destination that becomes the project file.
-    std::expected<void, std::string> saveAs(
+    std::expected<void, ProjectError> saveAs(
         Project&, const std::filesystem::path& file, const common::core::Song& song,
         ProjectEditorState editor_state)
     {
@@ -427,13 +437,16 @@ public:
         ++save_as_call_count;
         if (next_save_as_error.has_value())
         {
-            return std::unexpected<std::string>{*next_save_as_error};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::CouldNotWritePackage,
+                *next_save_as_error,
+            }};
         }
-        return std::expected<void, std::string>{};
+        return std::expected<void, ProjectError>{};
     }
 
     // Simulates publishing a native package without changing project save state.
-    std::expected<void, std::string> publish(
+    std::expected<void, ProjectError> publish(
         Project&, const std::filesystem::path& file, const common::core::Song& song)
     {
         last_publish_file = file;
@@ -441,9 +454,12 @@ public:
         ++publish_call_count;
         if (next_publish_error.has_value())
         {
-            return std::unexpected<std::string>{*next_publish_error};
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::CouldNotPublishSong,
+                *next_publish_error,
+            }};
         }
-        return std::expected<void, std::string>{};
+        return std::expected<void, ProjectError>{};
     }
 
     // Returns the bound callback shape expected by EditorController services.

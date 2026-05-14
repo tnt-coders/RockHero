@@ -7,8 +7,14 @@ find_package(OpenPSARC REQUIRED)
 # Headless editor workflow and project persistence stay testable without owning JUCE widgets.
 target_sources(
     rock_hero_editor_core
-    PRIVATE src/editor_controller.cpp src/project.cpp src/project_io.cpp
-            src/psarc_song_importer.cpp src/rock_song_importer.cpp src/editor_settings.cpp)
+    PRIVATE src/editor_controller.cpp
+            src/project.cpp
+            src/project_io.cpp
+            src/project_error.cpp
+            src/psarc_song_importer.cpp
+            src/rock_song_importer.cpp
+            src/song_import_error.cpp
+            src/editor_settings.cpp)
 
 target_include_directories(
     rock_hero_editor_core
