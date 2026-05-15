@@ -7,8 +7,14 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
                "${CMAKE_CURRENT_BINARY_DIR}/test-data/drum_loop.wav" COPYONLY)
 
 # Keep audio-port contract tests and concrete Engine adapter coverage in one audio test target.
-add_executable(rock_hero_common_audio_tests test_audio.cpp test_edit.cpp test_thumbnail_source.cpp
-                                            test_transport.cpp test_engine.cpp)
+add_executable(
+    rock_hero_common_audio_tests
+    test_audio.cpp test_edit.cpp test_thumbnail_source.cpp test_transport.cpp test_engine.cpp
+    test_tracktion_live_wave_device_mapping.cpp)
+
+# Let focused adapter tests include private implementation helpers without making them public API.
+target_include_directories(rock_hero_common_audio_tests
+                           PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 # Link the common audio module plus Catch2's generated main for headless and adapter tests.
 target_link_libraries(
