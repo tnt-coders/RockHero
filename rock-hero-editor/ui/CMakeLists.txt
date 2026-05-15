@@ -7,8 +7,9 @@ add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)
 
 # JUCE editor presentation owns concrete widgets and the top-level editor window shell.
 target_sources(
-    rock_hero_editor_ui PRIVATE src/arrangement_view.cpp src/editor.cpp src/editor_view.cpp
-                                src/main_window.cpp src/transport_controls.cpp)
+    rock_hero_editor_ui
+    PRIVATE src/arrangement_view.cpp src/audio_device_settings_dialog.cpp src/editor.cpp
+            src/editor_view.cpp src/main_window.cpp src/transport_controls.cpp)
 
 target_include_directories(
     rock_hero_editor_ui
