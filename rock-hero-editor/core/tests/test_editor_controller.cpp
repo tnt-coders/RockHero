@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -140,6 +141,27 @@ public:
         waveform_click_count += 1;
     }
 
+    // Captures the latest ASIO device selection emitted by the view.
+    void onGuitarInputDeviceSelected(std::string device_name) override
+    {
+        last_guitar_input_device_name = std::move(device_name);
+        guitar_input_device_select_count += 1;
+    }
+
+    // Captures the latest ASIO input channel selection emitted by the view.
+    void onGuitarInputChannelSelected(std::size_t input_channel_index) override
+    {
+        last_guitar_input_channel_index = input_channel_index;
+        guitar_input_channel_select_count += 1;
+    }
+
+    // Captures the latest live guitar monitoring toggle intent.
+    void onGuitarMonitoringToggled(bool enabled) override
+    {
+        last_guitar_monitoring_enabled = enabled;
+        guitar_monitoring_toggle_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -154,6 +176,15 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last ASIO device name emitted by the view.
+    std::optional<std::string> last_guitar_input_device_name{};
+
+    // Last ASIO input channel index emitted by the view.
+    std::optional<std::size_t> last_guitar_input_channel_index{};
+
+    // Last live guitar monitoring toggle state emitted by the view.
+    std::optional<bool> last_guitar_monitoring_enabled{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -193,6 +224,15 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
+
+    // Number of ASIO device selection intents received.
+    int guitar_input_device_select_count{0};
+
+    // Number of ASIO input channel selection intents received.
+    int guitar_input_channel_select_count{0};
+
+    // Number of live guitar monitoring toggle intents received.
+    int guitar_monitoring_toggle_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -365,6 +405,86 @@ public:
 
     // Optional callback fired from setActiveArrangement() to test reentrant refreshes.
     std::function<void()> during_active_arrangement_action{};
+};
+
+// Configurable IGuitarInput fake used by controller tests without real ASIO hardware.
+class FakeGuitarInput final : public common::audio::IGuitarInput
+{
+public:
+    // Returns the preconfigured ASIO devices and records that the picker was refreshed.
+    [[nodiscard]] std::vector<common::audio::GuitarInputDevice> availableAsioInputDevices() override
+    {
+        available_call_count += 1;
+        return devices;
+    }
+
+    // Records the selected ASIO input and optionally returns a configured failure.
+    [[nodiscard]] std::expected<void, common::audio::AudioDeviceError> selectAsioInput(
+        const common::audio::GuitarInputSelection& selection) override
+    {
+        last_selection = selection;
+        select_call_count += 1;
+        if (next_select_error.has_value())
+        {
+            return std::unexpected{*next_select_error};
+        }
+
+        return std::expected<void, common::audio::AudioDeviceError>{};
+    }
+
+    // Enables fake monitoring unless a configured failure is waiting.
+    [[nodiscard]] std::expected<void, common::audio::AudioDeviceError> enableGuitarMonitoring()
+        override
+    {
+        enable_call_count += 1;
+        if (next_enable_error.has_value())
+        {
+            return std::unexpected{*next_enable_error};
+        }
+
+        monitoring_enabled = true;
+        return std::expected<void, common::audio::AudioDeviceError>{};
+    }
+
+    // Disables fake monitoring so view-state derivation can observe the transition.
+    void disableGuitarMonitoring() override
+    {
+        monitoring_enabled = false;
+        disable_call_count += 1;
+    }
+
+    // Reports the fake monitoring flag controlled by enable/disable calls.
+    [[nodiscard]] bool isGuitarMonitoringEnabled() const noexcept override
+    {
+        return monitoring_enabled;
+    }
+
+    // ASIO devices returned by availableAsioInputDevices().
+    std::vector<common::audio::GuitarInputDevice> devices{};
+
+    // Optional failure returned by selectAsioInput().
+    std::optional<common::audio::AudioDeviceError> next_select_error{};
+
+    // Optional failure returned by enableGuitarMonitoring().
+    std::optional<common::audio::AudioDeviceError> next_enable_error{};
+
+    // Last validated ASIO selection received.
+    std::optional<common::audio::GuitarInputSelection> last_selection{};
+
+    // Number of device-list refreshes received.
+    int available_call_count{0};
+
+    // Number of ASIO selection calls received.
+    int select_call_count{0};
+
+    // Number of monitoring-enable calls received.
+    int enable_call_count{0};
+
+    // Number of monitoring-disable calls received.
+    int disable_call_count{0};
+
+    // Current fake monitoring flag.
+    bool monitoring_enabled{false};
 };
 
 // Provides controller-facing project service callbacks without touching the filesystem.
@@ -751,6 +871,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
+    CHECK(empty_state.guitar_input_devices.empty());
+    CHECK_FALSE(empty_state.selected_guitar_input.has_value());
+    CHECK(empty_state.guitar_monitoring_enabled == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
@@ -770,6 +893,19 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
+        .guitar_input_devices =
+            {
+                common::audio::GuitarInputDevice{
+                    .name = "ASIO Driver",
+                    .input_channels = {"Input 1", "Input 2"},
+                },
+            },
+        .selected_guitar_input =
+            common::audio::GuitarInputSelection{
+                .device_name = "ASIO Driver",
+                .input_channel_index = 1,
+            },
+        .guitar_monitoring_enabled = true,
         .visible_timeline = loadedTimelineRange(180.0),
         .arrangement =
             ArrangementViewState{
@@ -781,6 +917,14 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     };
 
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
+    REQUIRE(loaded_state.guitar_input_devices.size() == 1);
+    CHECK(loaded_state.guitar_input_devices.front().name == "ASIO Driver");
+    CHECK(
+        loaded_state.selected_guitar_input == std::optional{common::audio::GuitarInputSelection{
+                                                  .device_name = "ASIO Driver",
+                                                  .input_channel_index = 1,
+                                              }});
+    CHECK(loaded_state.guitar_monitoring_enabled);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
     CHECK(
@@ -812,6 +956,9 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
+    controller.onGuitarInputDeviceSelected("ASIO Driver");
+    controller.onGuitarInputChannelSelected(1);
+    controller.onGuitarMonitoringToggled(true);
 
     CHECK(controller.open_request_count == 1);
     CHECK(controller.last_open_file == std::optional{open_file});
@@ -832,6 +979,87 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
     CHECK(controller.last_normalized_x == std::optional{0.75});
+    CHECK(controller.guitar_input_device_select_count == 1);
+    CHECK(controller.last_guitar_input_device_name == std::optional<std::string>{"ASIO Driver"});
+    CHECK(controller.guitar_input_channel_select_count == 1);
+    CHECK(controller.last_guitar_input_channel_index == std::optional<std::size_t>{1});
+    CHECK(controller.guitar_monitoring_toggle_count == 1);
+    CHECK(controller.last_guitar_monitoring_enabled == std::optional{true});
+}
+
+// Verifies the controller publishes ASIO picker data supplied by the guitar input port.
+TEST_CASE("EditorController publishes ASIO input devices", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeGuitarInput guitar_input;
+    guitar_input.devices = {
+        common::audio::GuitarInputDevice{
+            .name = "Interface A",
+            .input_channels = {"Inst 1", "Inst 2"},
+        },
+        common::audio::GuitarInputDevice{
+            .name = "Interface B",
+            .input_channels = {"Guitar"},
+        },
+    };
+    EditorController controller{transport, audio, guitar_input};
+    FakeEditorView view;
+
+    controller.attachView(view);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->guitar_input_devices == guitar_input.devices);
+    CHECK_FALSE(view.last_state->selected_guitar_input.has_value());
+    CHECK_FALSE(view.last_state->guitar_monitoring_enabled);
+    CHECK(guitar_input.available_call_count == 1);
+}
+
+// Verifies ASIO selection and monitoring intents route through the guitar input port.
+TEST_CASE("EditorController toggles live guitar monitoring", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeGuitarInput guitar_input;
+    guitar_input.devices = {
+        common::audio::GuitarInputDevice{
+            .name = "Interface A",
+            .input_channels = {"Inst 1", "Inst 2"},
+        },
+    };
+    EditorController controller{transport, audio, guitar_input};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onGuitarInputDeviceSelected("Interface A");
+
+    CHECK(guitar_input.select_call_count == 1);
+    CHECK(
+        guitar_input.last_selection == std::optional{common::audio::GuitarInputSelection{
+                                           .device_name = "Interface A",
+                                           .input_channel_index = 0,
+                                       }});
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->selected_guitar_input == guitar_input.last_selection);
+
+    controller.onGuitarInputChannelSelected(1);
+    controller.onGuitarMonitoringToggled(true);
+
+    CHECK(guitar_input.select_call_count == 2);
+    CHECK(
+        guitar_input.last_selection == std::optional{common::audio::GuitarInputSelection{
+                                           .device_name = "Interface A",
+                                           .input_channel_index = 1,
+                                       }});
+    CHECK(guitar_input.enable_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->guitar_monitoring_enabled);
+
+    controller.onGuitarMonitoringToggled(false);
+
+    CHECK(guitar_input.disable_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->guitar_monitoring_enabled);
 }
 
 // Confirms attachView immediately delivers the controller's cached arrangement state.
@@ -859,6 +1087,9 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.play_pause_enabled == false);
         CHECK(state.stop_enabled == false);
         CHECK(state.play_pause_shows_pause_icon == false);
+        CHECK(state.guitar_input_devices.empty());
+        CHECK_FALSE(state.selected_guitar_input.has_value());
+        CHECK_FALSE(state.guitar_monitoring_enabled);
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());

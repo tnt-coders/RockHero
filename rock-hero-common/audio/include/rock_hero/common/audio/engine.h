@@ -5,10 +5,14 @@
 
 #pragma once
 
+#include <expected>
 #include <memory>
+#include <rock_hero/common/audio/audio_device_error.h>
 #include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <vector>
 
 namespace juce
 {
@@ -33,20 +37,23 @@ This boundary enables a fallback-to-raw-JUCE strategy: only common/audio impleme
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
-uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
-called on the message thread.
+uses one Tracktion audio track for the currently displayed arrangement. Live guitar monitoring
+opens a selected ASIO input and mixes a dry monitor signal through JUCE's shared device callback.
+All public methods must be called on the message thread.
 
 \see ITransport
 \see IAudio
+\see IGuitarInput
 \see IThumbnailFactory
 */
-class Engine : public ITransport, public IAudio, public IThumbnailFactory
+class Engine : public ITransport, public IAudio, public IGuitarInput, public IThumbnailFactory
 {
 public:
     /*!
     \brief Creates the Tracktion Engine instance and a single-track Edit for playback.
 
-    Initialises the device manager with stereo output only.
+    Initialises the device manager with stereo output only. ASIO input is opened only after the
+    user selects an input and enables guitar monitoring.
     */
     Engine();
 
@@ -136,6 +143,35 @@ public:
 
     /*! \brief Clears the active arrangement from the Tracktion edit and resets playback state. */
     void clearActiveArrangement() override;
+
+    /*!
+    \brief Lists currently available ASIO devices and their input channels.
+    \return ASIO devices known to the audio backend, or an empty list when ASIO is unavailable.
+    */
+    [[nodiscard]] std::vector<GuitarInputDevice> availableAsioInputDevices() override;
+
+    /*!
+    \brief Stores the ASIO input selection that future monitoring should use.
+    \param selection Device and channel to validate and remember.
+    \return Empty success or a typed failure explaining why the selection was rejected.
+    */
+    [[nodiscard]] std::expected<void, AudioDeviceError> selectAsioInput(
+        const GuitarInputSelection& selection) override;
+
+    /*!
+    \brief Opens the selected ASIO input and routes it into live dry monitoring.
+    \return Empty success or a typed failure explaining why monitoring could not start.
+    */
+    [[nodiscard]] std::expected<void, AudioDeviceError> enableGuitarMonitoring() override;
+
+    /*! \brief Disables live guitar monitoring without clearing the selected input. */
+    void disableGuitarMonitoring() override;
+
+    /*!
+    \brief Reports whether live guitar monitoring is currently enabled.
+    \return True when selected ASIO input is being routed to the audio output.
+    */
+    [[nodiscard]] bool isGuitarMonitoringEnabled() const noexcept override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

@@ -114,13 +114,29 @@ EditorController::Services EditorController::defaultServices()
     return Services{};
 }
 
+// Subscribes for coarse transport transitions and captures an initial derived state with live
+// guitar input available.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IGuitarInput& guitar_input, EditorController::Services services)
+    : EditorController(transport, audio, &guitar_input, std::move(services))
+{}
+
+// Builds a controller for tests and temporary hosts that do not yet provide live guitar input.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    EditorController::Services services)
+    : EditorController(transport, audio, nullptr, std::move(services))
+{}
+
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where a service seam is omitted.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    EditorController::Services services)
+    common::audio::IGuitarInput* guitar_input, EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
+    , m_guitar_input(guitar_input)
     , m_open_function(
           services.open_function ? std::move(services.open_function) : OpenFunction{defaultOpen})
     , m_import_function(
@@ -139,6 +155,7 @@ EditorController::EditorController(
     , m_settings(services.settings)
     , m_transport_listener(transport, *this)
 {
+    refreshGuitarInputDevices();
     m_last_state = deriveViewState();
 }
 
@@ -448,6 +465,112 @@ void EditorController::onWaveformClicked(double normalized_x)
     deriveAndPush();
 }
 
+// Stores the selected ASIO device and defaults to its first input channel.
+void EditorController::onGuitarInputDeviceSelected(std::string device_name)
+{
+    if (m_guitar_input == nullptr)
+    {
+        reportError("Live guitar input is unavailable.");
+        deriveAndPush();
+        return;
+    }
+
+    const auto selected_device = std::ranges::find_if(
+        m_guitar_input_devices, [&device_name](const common::audio::GuitarInputDevice& device) {
+            return device.name == device_name;
+        });
+    if (selected_device == m_guitar_input_devices.end() || selected_device->input_channels.empty())
+    {
+        reportError("Selected ASIO device is not available.");
+        deriveAndPush();
+        return;
+    }
+
+    common::audio::GuitarInputSelection selection{
+        .device_name = std::move(device_name),
+        .input_channel_index = 0,
+    };
+
+    const auto selected = m_guitar_input->selectAsioInput(selection);
+    if (!selected.has_value())
+    {
+        reportError(std::string{"Could not select ASIO input: "} + selected.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    m_selected_guitar_input = std::move(selection);
+    deriveAndPush();
+}
+
+// Stores the selected ASIO channel for the current guitar input device.
+void EditorController::onGuitarInputChannelSelected(std::size_t input_channel_index)
+{
+    if (m_guitar_input == nullptr)
+    {
+        reportError("Live guitar input is unavailable.");
+        deriveAndPush();
+        return;
+    }
+
+    if (!m_selected_guitar_input.has_value())
+    {
+        reportError("Select an ASIO device before choosing an input channel.");
+        deriveAndPush();
+        return;
+    }
+
+    common::audio::GuitarInputSelection selection = *m_selected_guitar_input;
+    selection.input_channel_index = input_channel_index;
+
+    const auto selected = m_guitar_input->selectAsioInput(selection);
+    if (!selected.has_value())
+    {
+        reportError(std::string{"Could not select ASIO input: "} + selected.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    m_selected_guitar_input = std::move(selection);
+    deriveAndPush();
+}
+
+// Toggles dry live monitoring for the currently selected ASIO input.
+void EditorController::onGuitarMonitoringToggled(bool enabled)
+{
+    if (m_guitar_input == nullptr)
+    {
+        reportError("Live guitar input is unavailable.");
+        deriveAndPush();
+        return;
+    }
+
+    if (!enabled)
+    {
+        m_guitar_input->disableGuitarMonitoring();
+        deriveAndPush();
+        return;
+    }
+
+    if (!m_selected_guitar_input.has_value())
+    {
+        reportError("Select an ASIO input before enabling live guitar.");
+        deriveAndPush();
+        return;
+    }
+
+    const auto monitoring_enabled = m_guitar_input->enableGuitarMonitoring();
+    if (!monitoring_enabled.has_value())
+    {
+        reportError(
+            std::string{"Could not enable live guitar: "} + monitoring_enabled.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    deriveAndPush();
+}
+
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
 // derivation runs against the updated session and transport state instead of stale data.
 void EditorController::onTransportStateChanged(common::audio::TransportState /*state*/)
@@ -716,6 +839,10 @@ EditorViewState EditorController::deriveViewState() const
     state.play_pause_enabled = hasLoadedArrangement();
     state.stop_enabled = canStopTransport(transport_state);
     state.play_pause_shows_pause_icon = transport_state.playing;
+    state.guitar_input_devices = m_guitar_input_devices;
+    state.selected_guitar_input = m_selected_guitar_input;
+    state.guitar_monitoring_enabled =
+        m_guitar_input != nullptr && m_guitar_input->isGuitarMonitoringEnabled();
     state.visible_timeline = timeline_range;
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
@@ -737,6 +864,19 @@ EditorViewState EditorController::deriveViewState() const
     }
 
     return state;
+}
+
+// Pulls the ASIO picker data from the audio backend once during controller startup.
+void EditorController::refreshGuitarInputDevices()
+{
+    m_guitar_input_devices.clear();
+    m_selected_guitar_input.reset();
+    if (m_guitar_input == nullptr)
+    {
+        return;
+    }
+
+    m_guitar_input_devices = m_guitar_input->availableAsioInputDevices();
 }
 
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the

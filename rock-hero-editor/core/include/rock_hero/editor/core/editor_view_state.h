@@ -8,8 +8,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -105,6 +107,15 @@ struct EditorViewState
 
     /*! \brief Selects whether the play/pause control should render a pause icon. */
     bool play_pause_shows_pause_icon{false};
+
+    /*! \brief ASIO devices available for live guitar input selection. */
+    std::vector<common::audio::GuitarInputDevice> guitar_input_devices;
+
+    /*! \brief Currently selected live guitar input, if the user has chosen one. */
+    std::optional<common::audio::GuitarInputSelection> selected_guitar_input;
+
+    /*! \brief Selects whether live guitar monitoring is currently enabled. */
+    bool guitar_monitoring_enabled{false};
 
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.

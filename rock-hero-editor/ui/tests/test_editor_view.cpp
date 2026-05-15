@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <cstddef>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
@@ -11,6 +12,7 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/ui/editor_view.h>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -108,6 +110,27 @@ public:
         waveform_click_count += 1;
     }
 
+    // Captures selected ASIO device intents from the live guitar controls.
+    void onGuitarInputDeviceSelected(std::string device_name) override
+    {
+        last_guitar_input_device_name = std::move(device_name);
+        guitar_input_device_select_count += 1;
+    }
+
+    // Captures selected ASIO channel intents from the live guitar controls.
+    void onGuitarInputChannelSelected(std::size_t input_channel_index) override
+    {
+        last_guitar_input_channel_index = input_channel_index;
+        guitar_input_channel_select_count += 1;
+    }
+
+    // Captures live guitar monitoring toggle intents from the view.
+    void onGuitarMonitoringToggled(bool enabled) override
+    {
+        last_guitar_monitoring_enabled = enabled;
+        guitar_monitoring_toggle_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -122,6 +145,15 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last ASIO device name emitted by the view.
+    std::optional<std::string> last_guitar_input_device_name{};
+
+    // Last ASIO input channel index emitted by the view.
+    std::optional<std::size_t> last_guitar_input_channel_index{};
+
+    // Last live guitar monitoring state emitted by the view.
+    std::optional<bool> last_guitar_monitoring_enabled{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -161,6 +193,15 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
+
+    // Number of ASIO device selection intents received.
+    int guitar_input_device_select_count{0};
+
+    // Number of ASIO input channel selection intents received.
+    int guitar_input_channel_select_count{0};
+
+    // Number of live guitar monitoring toggle intents received.
+    int guitar_monitoring_toggle_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -572,6 +613,52 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 }
 
+// Verifies the live guitar controls emit controller intents from user selections.
+TEST_CASE("EditorView forwards live guitar control intents", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+    core::EditorViewState state;
+    state.guitar_input_devices = {
+        common::audio::GuitarInputDevice{
+            .name = "Interface A",
+            .input_channels = {"Inst 1", "Inst 2"},
+        },
+        common::audio::GuitarInputDevice{
+            .name = "Interface B",
+            .input_channels = {"Guitar"},
+        },
+    };
+
+    view.setState(state);
+    auto& device_combo = findRequiredChild<juce::ComboBox>(view, "asio_device_combo");
+    auto& channel_combo = findRequiredChild<juce::ComboBox>(view, "guitar_input_channel_combo");
+    auto& live_toggle = findRequiredChild<juce::ToggleButton>(view, "live_guitar_toggle");
+
+    device_combo.setSelectedId(2, juce::sendNotificationSync);
+
+    CHECK(controller.guitar_input_device_select_count == 1);
+    CHECK(controller.last_guitar_input_device_name == std::optional<std::string>{"Interface B"});
+
+    state.selected_guitar_input = common::audio::GuitarInputSelection{
+        .device_name = "Interface A",
+        .input_channel_index = 0,
+    };
+    view.setState(state);
+
+    channel_combo.setSelectedId(2, juce::sendNotificationSync);
+    live_toggle.setToggleState(true, juce::dontSendNotification);
+    live_toggle.onClick();
+
+    CHECK(controller.guitar_input_channel_select_count == 1);
+    CHECK(controller.last_guitar_input_channel_index == std::optional<std::size_t>{1});
+    CHECK(controller.guitar_monitoring_toggle_count == 1);
+    CHECK(controller.last_guitar_monitoring_enabled == std::optional{true});
+}
+
 // Verifies the File menu occupies the top application strip instead of an inset control frame.
 TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][editor-view]")
 {
@@ -603,7 +690,13 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    CHECK(controls.getBounds() == juce::Rectangle<int>{8, 24, 484, 40});
+    auto& device_combo = findRequiredChild<juce::ComboBox>(view, "asio_device_combo");
+    auto& channel_combo = findRequiredChild<juce::ComboBox>(view, "guitar_input_channel_combo");
+    auto& live_toggle = findRequiredChild<juce::ToggleButton>(view, "live_guitar_toggle");
+    CHECK(controls.getBounds() == juce::Rectangle<int>{8, 28, 96, 32});
+    CHECK(device_combo.getBounds() == juce::Rectangle<int>{112, 28, 240, 32});
+    CHECK(channel_combo.getBounds() == juce::Rectangle<int>{360, 28, 132, 32});
+    CHECK(live_toggle.getWidth() == 0);
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
     CHECK(
         arrangement_view.getBounds() ==

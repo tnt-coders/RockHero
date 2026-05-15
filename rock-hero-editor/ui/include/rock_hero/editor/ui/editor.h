@@ -9,6 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/core/editor_controller.h>
@@ -21,14 +22,29 @@ namespace rock_hero::editor::ui
 \brief Owns the editor controller and view as one fully wired feature.
 
 Editor is the composition boundary for the editor UI. It prevents app code from constructing a
-controller, view, audio port, and thumbnail callback as separate half-wired objects. The referenced
-transport, audio port, and thumbnail-factory dependencies must outlive the editor.
+controller, view, audio ports, and thumbnail callback as separate half-wired objects. The
+referenced transport, audio port, guitar input port, and thumbnail-factory dependencies must
+outlive the editor when provided.
 */
 class Editor final
 {
 public:
     /*!
     \brief Creates the editor feature and immediately pushes initial state to the view.
+    \param transport Transport used by the controller and read by the view cursor overlay.
+    \param audio Audio port used by the controller for song preparation and arrangement activation.
+    \param guitar_input Guitar input port used for ASIO selection and live monitoring.
+    \param thumbnail_factory Factory used during view construction for arrangement waveform.
+    \param services Optional controller services used by the composed editor workflow.
+    */
+    Editor(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IGuitarInput& guitar_input,
+        common::audio::IThumbnailFactory& thumbnail_factory,
+        core::EditorController::Services services = {});
+
+    /*!
+    \brief Creates the editor feature without a live guitar input backend.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
