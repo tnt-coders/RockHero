@@ -5,22 +5,22 @@
 
 #pragma once
 
-#include <expected>
 #include <memory>
-#include <rock_hero/common/audio/audio_device_error.h>
+#include <optional>
 #include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
-#include <vector>
+#include <string>
 
 namespace juce
 {
 // Forward declaration for UI owners that request engine-created thumbnail adapters.
 class Component;
 
-// Forward declaration for file loading without including JUCE headers in this public adapter.
-class File;
+// Forward declaration for the audio device manager exposed through the configuration port.
+class AudioDeviceManager;
 } // namespace juce
 
 namespace rock_hero::common::audio
@@ -38,7 +38,7 @@ include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
 uses one Tracktion audio track for the currently displayed arrangement. Live guitar monitoring
-opens a selected ASIO input and mixes a dry monitor signal through JUCE's shared device callback.
+adds a dry monitor signal of the currently open input through JUCE's shared device callback.
 All public methods must be called on the message thread.
 
 \see ITransport
@@ -46,14 +46,18 @@ All public methods must be called on the message thread.
 \see IGuitarInput
 \see IThumbnailFactory
 */
-class Engine : public ITransport, public IAudio, public IGuitarInput, public IThumbnailFactory
+class Engine : public ITransport,
+               public IAudio,
+               public IAudioDeviceConfiguration,
+               public IGuitarInput,
+               public IThumbnailFactory
 {
 public:
     /*!
     \brief Creates the Tracktion Engine instance and a single-track Edit for playback.
 
-    Initialises the device manager with stereo output only. ASIO input is opened only after the
-    user selects an input and enables guitar monitoring.
+    Initialises the device manager with stereo output only. The selected ASIO input/output route is
+    opened after the user chooses an app-local audio-device configuration.
     */
     Engine();
 
@@ -145,31 +149,38 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Lists currently available ASIO devices and their input channels.
-    \return ASIO devices known to the audio backend, or an empty list when ASIO is unavailable.
+    \brief Returns the JUCE audio device manager backing the engine.
+    \return Reference to the live device manager owned by the audio backend.
     */
-    [[nodiscard]] std::vector<GuitarInputDevice> availableAsioInputDevices() override;
+    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
 
     /*!
-    \brief Stores the ASIO input selection that future monitoring should use.
-    \param selection Device and channel to validate and remember.
-    \return Empty success or a typed failure explaining why the selection was rejected.
+    \brief Returns the name of the currently open audio device, if any.
+    \return Current device name, or empty when no device is open.
     */
-    [[nodiscard]] std::expected<void, AudioDeviceError> selectAsioInput(
-        const GuitarInputSelection& selection) override;
+    [[nodiscard]] std::optional<std::string> currentDeviceName() const override;
 
     /*!
-    \brief Opens the selected ASIO input and routes it into live dry monitoring.
-    \return Empty success or a typed failure explaining why monitoring could not start.
+    \brief Registers a listener notified after audio device configuration changes.
+    \param listener Listener that should be notified until it is removed.
     */
-    [[nodiscard]] std::expected<void, AudioDeviceError> enableGuitarMonitoring() override;
+    void addListener(IAudioDeviceConfiguration::Listener& listener) override;
 
-    /*! \brief Disables live guitar monitoring without clearing the selected input. */
+    /*!
+    \brief Removes a previously registered audio-device-configuration listener.
+    \param listener Listener previously registered with addListener().
+    */
+    void removeListener(IAudioDeviceConfiguration::Listener& listener) override;
+
+    /*! \brief Enables live monitoring of the currently configured input. */
+    void enableGuitarMonitoring() override;
+
+    /*! \brief Disables live monitoring without affecting device configuration. */
     void disableGuitarMonitoring() override;
 
     /*!
     \brief Reports whether live guitar monitoring is currently enabled.
-    \return True when selected ASIO input is being routed to the audio output.
+    \return True when the configured input is being routed to the audio output.
     */
     [[nodiscard]] bool isGuitarMonitoringEnabled() const noexcept override;
 

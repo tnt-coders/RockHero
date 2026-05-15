@@ -12,6 +12,9 @@ guitar audio:
 - future left/right effect differences are handled by the plugin routing, not by opening two
   unrelated hardware input channels
 
+The Tracktion guitar-track route is the chosen direction for normal plugin FX monitoring. See
+`docs/in-progress/tracktion-guitar-track-plugin-chain-plan.md` for the implementation plan.
+
 The current working behavior is acceptable for now:
 
 ```text
