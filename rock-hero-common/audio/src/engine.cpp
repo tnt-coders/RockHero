@@ -35,14 +35,30 @@ public:
         return m_enabled.load(std::memory_order_acquire);
     }
 
-    // Adds the input signal to the stereo output buffer when enabled.
+    // Writes the input signal into the output buffer when enabled. JUCE invokes secondary
+    // callbacks with a scratch buffer that is NOT zeroed between invocations and sums the result
+    // into the accumulating output, so this callback must always write a deterministic value
+    // across every channel and sample to keep stale memory out of the mix.
     void audioDeviceIOCallbackWithContext(
         const float* const* input_channel_data, int num_input_channels,
         float* const* output_channel_data, int num_output_channels, int num_samples,
         const juce::AudioIODeviceCallbackContext& /*context*/) override
     {
+        if (output_channel_data == nullptr)
+        {
+            return;
+        }
+
+        for (int channel = 0; channel < num_output_channels; ++channel)
+        {
+            if (float* const output = output_channel_data[channel]; output != nullptr)
+            {
+                std::fill_n(output, num_samples, 0.0F);
+            }
+        }
+
         if (!m_enabled.load(std::memory_order_acquire) || input_channel_data == nullptr ||
-            output_channel_data == nullptr || num_input_channels <= 0)
+            num_input_channels <= 0)
         {
             return;
         }
@@ -65,7 +81,7 @@ public:
 
             for (int sample = 0; sample < num_samples; ++sample)
             {
-                output[sample] += source[sample] * g_live_monitor_gain;
+                output[sample] = source[sample] * g_live_monitor_gain;
             }
         }
     }
