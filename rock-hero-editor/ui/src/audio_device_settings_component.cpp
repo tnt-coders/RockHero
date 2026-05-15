@@ -17,15 +17,25 @@ constexpr int g_row_gap{8};
 constexpr int g_button_width{96};
 constexpr int g_utility_button_width{116};
 constexpr int g_error_height{32};
-constexpr int g_max_control_rows{7};
+constexpr int g_min_control_rows{6};
 constexpr int g_max_dialog_width{1000};
 constexpr int g_max_dialog_height{760};
 
-// Returns a derived height that fits the largest settings layout without clipping controls.
-[[nodiscard]] int derivedDialogHeight() noexcept
+// Returns the vertical space occupied by a visible form row set.
+[[nodiscard]] int formRowsHeight(int row_count) noexcept
 {
-    const int controls_height =
-        (g_max_control_rows * g_row_height) + ((g_max_control_rows - 1) * g_row_gap);
+    if (row_count <= 0)
+    {
+        return 0;
+    }
+
+    return (row_count * g_row_height) + ((row_count - 1) * g_row_gap);
+}
+
+// Returns a derived height that fits the requested row count without clipping controls.
+[[nodiscard]] int dialogHeightForRows(int row_count) noexcept
+{
+    const int controls_height = formRowsHeight(row_count);
     return (g_content_inset * 2) + controls_height + g_row_gap + g_error_height + g_row_gap +
            g_row_height;
 }
@@ -158,7 +168,6 @@ AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(juce::AudioDeviceMana
     configureControls();
     m_device_manager.addChangeListener(this);
     refreshControls();
-    setSize(preferredWidth(), preferredHeight());
 }
 
 // Disconnects from the device manager without altering the live route on dialog close.
@@ -173,22 +182,17 @@ int AudioDeviceSettingsComponent::preferredWidth() noexcept
     return g_preferred_width;
 }
 
-// Returns a derived default height from the maximum number of visible rows.
-int AudioDeviceSettingsComponent::preferredHeight() noexcept
+// Returns a derived height from the rows visible for the currently selected driver type.
+int AudioDeviceSettingsComponent::preferredContentHeight() const noexcept
 {
-    return derivedDialogHeight();
+    const int visible_rows = g_min_control_rows + (m_input_device_combo.isVisible() ? 1 : 0);
+    return dialogHeightForRows(visible_rows);
 }
 
 // Keeps the route selectors usable without requiring the initial window to be very wide.
 int AudioDeviceSettingsComponent::minimumWidth() noexcept
 {
     return 520;
-}
-
-// Prevents resizing below the content-derived control height.
-int AudioDeviceSettingsComponent::minimumHeight() noexcept
-{
-    return derivedDialogHeight();
 }
 
 // Caps dialog resizing at a useful settings-panel width.
@@ -227,8 +231,8 @@ void AudioDeviceSettingsComponent::resized()
     layoutRow(m_device_label, m_device_combo, area);
     layoutRow(m_output_device_label, m_output_device_combo, area);
     layoutRow(m_input_device_label, m_input_device_combo, area);
-    layoutRow(m_input_channel_label, m_input_channel_combo, area);
     layoutRow(m_output_pair_label, m_output_pair_combo, area);
+    layoutRow(m_input_channel_label, m_input_channel_combo, area);
     layoutRow(m_sample_rate_label, m_sample_rate_combo, area);
     layoutRow(m_buffer_size_label, m_buffer_size_combo, area);
 }
@@ -249,10 +253,10 @@ void AudioDeviceSettingsComponent::configureControls()
 
     m_device_type_label.setText("Audio system", juce::dontSendNotification);
     m_device_label.setText("Device", juce::dontSendNotification);
-    m_input_device_label.setText("Input device", juce::dontSendNotification);
     m_output_device_label.setText("Output device", juce::dontSendNotification);
-    m_input_channel_label.setText("Live input", juce::dontSendNotification);
-    m_output_pair_label.setText("Main output", juce::dontSendNotification);
+    m_input_device_label.setText("Input device", juce::dontSendNotification);
+    m_output_pair_label.setText("Output", juce::dontSendNotification);
+    m_input_channel_label.setText("Input", juce::dontSendNotification);
     m_sample_rate_label.setText("Sample rate", juce::dontSendNotification);
     m_buffer_size_label.setText("Buffer size", juce::dontSendNotification);
 
@@ -370,7 +374,22 @@ void AudioDeviceSettingsComponent::refreshControls()
     refreshSampleRateChoices();
     refreshBufferSizeChoices();
     refreshControlEnablement();
+    syncDialogHeightToContent();
     resized();
+}
+
+// Keeps the native dialog height in sync when the backend switches row shape.
+void AudioDeviceSettingsComponent::syncDialogHeightToContent()
+{
+    const int content_height = preferredContentHeight();
+
+    if (auto* dialog = findParentComponentOfClass<juce::DialogWindow>())
+    {
+        dialog->setResizeLimits(minimumWidth(), content_height, maximumWidth(), maximumHeight());
+    }
+
+    const int content_width = getWidth() > 0 ? getWidth() : preferredWidth();
+    setSize(content_width, content_height);
 }
 
 // Populates the audio backend type selector from JUCE's registered device types.
@@ -385,6 +404,7 @@ void AudioDeviceSettingsComponent::refreshDeviceTypes()
         type_names.add(device_type->getTypeName());
     }
 
+    type_names.sort(true);
     populateStringCombo(
         m_device_type_combo, type_names, m_staged_device_type, "No audio systems found");
 }
