@@ -25,6 +25,7 @@ target_include_directories(
 target_link_libraries(
     rock_hero_editor_core
     PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::juce_data_structures
-    PRIVATE rock_hero::build_policy nlohmann_json::nlohmann_json Opensource-package::Opensource-package)
+    PRIVATE rock_hero::build_policy rock_hero::juce_audio_devices nlohmann_json::nlohmann_json
+            Opensource-package::Opensource-package)
 
 add_subdirectory(tests)

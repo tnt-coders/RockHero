@@ -8,20 +8,21 @@ namespace rock_hero::editor::ui
 // Wires the controller and view after construction dependencies are available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IGuitarInput& guitar_input, common::audio::IThumbnailFactory& thumbnail_factory,
     core::EditorController::Services services)
-    : m_controller(transport, audio, guitar_input, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory)
+    : m_controller(transport, audio, audio_devices, guitar_input, std::move(services))
+    , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
 {
     m_controller.attachView(m_view);
 }
 
-// Wires the controller and view when no live guitar backend is available.
+// Wires the controller and view when no live audio-device backend is available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory)
+    , m_view(m_controller, transport, thumbnail_factory, nullptr)
 {
     m_controller.attachView(m_view);
 }

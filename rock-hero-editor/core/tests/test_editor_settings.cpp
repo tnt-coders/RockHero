@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/editor/core/editor_settings.h>
+#include <string>
 #include <string_view>
 #include <system_error>
 
@@ -64,6 +65,7 @@ TEST_CASE("EditorSettings starts without a last open project", "[core][settings]
     const EditorSettings settings{settings_file.path()};
 
     CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.audioDeviceState().has_value());
 }
 
 // The settings file preserves the editor project path that should be restored on next launch.
@@ -99,6 +101,41 @@ TEST_CASE("EditorSettings clears the last open project", "[core][settings]")
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK_FALSE(reloaded_settings.lastOpenProject().has_value());
+}
+
+// The settings file preserves the serialized audio-device manager state across launches.
+TEST_CASE("EditorSettings persists the audio device state", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_audio_device.settings"};
+    const std::string xml_state{
+        "<DEVICESETUP deviceType=\"ASIO\" audioOutputDeviceName=\"ASIO Interface\"/>"
+    };
+
+    {
+        EditorSettings settings{settings_file.path()};
+        settings.setAudioDeviceState(xml_state);
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK(reloaded_settings.audioDeviceState() == std::optional{xml_state});
+}
+
+// Clearing audio state removes the persisted device-manager XML from the settings file.
+TEST_CASE("EditorSettings clears the audio device state", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"clears_audio_device.settings"};
+    const std::string xml_state{"<DEVICESETUP deviceType=\"ASIO\"/>"};
+
+    {
+        EditorSettings settings{settings_file.path()};
+        settings.setAudioDeviceState(xml_state);
+        settings.setAudioDeviceState(std::nullopt);
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK_FALSE(reloaded_settings.audioDeviceState().has_value());
 }
 
 } // namespace rock_hero::editor::core

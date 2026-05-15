@@ -7,6 +7,7 @@ namespace
 {
 
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
+constexpr const char* g_audio_device_state_key{"audioDeviceState"};
 
 // Converts a stored JUCE string into the platform-native filesystem path type.
 [[nodiscard]] std::filesystem::path pathFromSettingsValue(const juce::String& value)
@@ -89,6 +90,33 @@ void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> pro
     else
     {
         m_properties.removeValue(g_last_open_project_key);
+    }
+
+    m_properties.saveIfNeeded();
+}
+
+// Reads the serialized audio-device manager state stored by a previous editor session.
+std::optional<std::string> EditorSettings::audioDeviceState() const
+{
+    const juce::String value = m_properties.getValue(g_audio_device_state_key);
+    if (value.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    return value.toStdString();
+}
+
+// Stores or clears the serialized audio-device manager state.
+void EditorSettings::setAudioDeviceState(std::optional<std::string> xml_state)
+{
+    if (xml_state.has_value() && !xml_state->empty())
+    {
+        m_properties.setValue(g_audio_device_state_key, juce::String{xml_state->c_str()});
+    }
+    else
+    {
+        m_properties.removeValue(g_audio_device_state_key);
     }
 
     m_properties.saveIfNeeded();
