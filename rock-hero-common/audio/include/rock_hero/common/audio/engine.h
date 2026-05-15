@@ -35,9 +35,9 @@ All other code depends on the project-owned audio interfaces rather than on Trac
 This boundary enables a fallback-to-raw-JUCE strategy: only common/audio implementation files
 include Tracktion headers.
 
-Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
-uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
-called on the message thread.
+Owns the tracktion::Engine and the tracktion::Edit used for playback. The current adapter keeps a
+backing track for the displayed arrangement and a live instrument track for the selected mono
+input. All public methods must be called on the message thread.
 
 \see ITransport
 \see IAudio
@@ -50,10 +50,10 @@ class Engine : public ITransport,
 {
 public:
     /*!
-    \brief Creates the Tracktion Engine instance and a single-track Edit for playback.
+    \brief Creates the Tracktion Engine instance and two-track Edit for playback.
 
-    Initialises the device manager with stereo output only. The selected ASIO input/output route is
-    opened after the user chooses an app-local audio-device configuration.
+    Initialises the device manager with one live input and stereo output. The selected app-local
+    audio-device route is rebound to the live instrument track whenever device settings change.
     */
     Engine();
 
@@ -133,8 +133,8 @@ public:
     /*!
     \brief Makes an already-prepared arrangement active in the Tracktion edit.
 
-    The current adapter supports one Tracktion audio track and replaces its media with the
-    arrangement's full-source asset.
+    The current adapter replaces media only on the Tracktion backing track. The live instrument
+    track and its input assignment remain separate.
 
     \param arrangement Prepared arrangement to make active.
     \return True when the playback backend made the arrangement playable.
