@@ -12,6 +12,7 @@ void AudioDeviceSettingsDialog::show(
     juce::AudioDeviceManager& device_manager, juce::Component& anchor)
 {
     auto content = std::make_unique<AudioDeviceSettingsComponent>(device_manager);
+    const int content_height = content->preferredContentHeight();
 
     juce::DialogWindow::LaunchOptions options;
     options.dialogTitle = "Audio Device Settings";
@@ -25,7 +26,7 @@ void AudioDeviceSettingsDialog::show(
     auto* window = options.launchAsync();
     window->setResizeLimits(
         AudioDeviceSettingsComponent::minimumWidth(),
-        AudioDeviceSettingsComponent::minimumHeight(),
+        content_height,
         AudioDeviceSettingsComponent::maximumWidth(),
         AudioDeviceSettingsComponent::maximumHeight());
 }
