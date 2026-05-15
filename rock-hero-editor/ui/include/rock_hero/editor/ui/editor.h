@@ -10,7 +10,6 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/core/editor_controller.h>
@@ -24,8 +23,8 @@ namespace rock_hero::editor::ui
 
 Editor is the composition boundary for the editor UI. It prevents app code from constructing a
 controller, view, audio ports, and thumbnail callback as separate half-wired objects. The
-referenced transport, audio port, audio-device port, live input port, and thumbnail-factory
-dependencies must outlive the editor when provided.
+referenced transport, audio port, audio-device port, and thumbnail-factory dependencies must
+outlive the editor when provided.
 */
 class Editor final
 {
@@ -35,14 +34,12 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param audio_devices Audio-device port used for ASIO input/output routing.
-    \param guitar_input Live input port used for monitoring.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
     */
     Editor(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IGuitarInput& guitar_input,
         common::audio::IThumbnailFactory& thumbnail_factory,
         core::EditorController::Services services = {});
 

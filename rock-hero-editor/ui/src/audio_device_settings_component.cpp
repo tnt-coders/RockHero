@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -17,8 +16,8 @@ constexpr int g_row_height{28};
 constexpr int g_row_gap{8};
 constexpr int g_button_width{96};
 constexpr int g_utility_button_width{116};
-constexpr int g_error_height{44};
-constexpr int g_max_control_rows{9};
+constexpr int g_error_height{32};
+constexpr int g_max_control_rows{7};
 constexpr int g_max_dialog_width{1000};
 constexpr int g_max_dialog_height{760};
 
@@ -151,15 +150,10 @@ void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int
 } // namespace
 
 // Creates the settings surface and captures the initial state used for Cancel/native close.
-AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(
-    juce::AudioDeviceManager& device_manager, bool direct_monitoring_enabled,
-    MonitoringChangedFunction monitoring_changed)
+AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(juce::AudioDeviceManager& device_manager)
     : m_device_manager(device_manager)
     , m_staged_setup(device_manager.getAudioDeviceSetup())
     , m_staged_device_type(device_manager.getCurrentAudioDeviceType())
-    , m_monitoring_changed(std::move(monitoring_changed))
-    , m_initial_direct_monitoring_enabled(direct_monitoring_enabled)
-    , m_staged_direct_monitoring_enabled(direct_monitoring_enabled)
 {
     configureControls();
     m_device_manager.addChangeListener(this);
@@ -237,10 +231,6 @@ void AudioDeviceSettingsComponent::resized()
     layoutRow(m_output_pair_label, m_output_pair_combo, area);
     layoutRow(m_sample_rate_label, m_sample_rate_combo, area);
     layoutRow(m_buffer_size_label, m_buffer_size_combo, area);
-
-    auto monitor_row = area.removeFromTop(std::min(g_row_height, area.getHeight()));
-    monitor_row.removeFromLeft(std::min(g_label_width + g_row_gap, monitor_row.getWidth()));
-    m_monitor_toggle.setBounds(monitor_row);
 }
 
 // Refreshes controls after the device manager reports an external route change.
@@ -274,16 +264,12 @@ void AudioDeviceSettingsComponent::configureControls()
     m_output_pair_combo.setComponentID("audio_settings_output_pair");
     m_sample_rate_combo.setComponentID("audio_settings_sample_rate");
     m_buffer_size_combo.setComponentID("audio_settings_buffer_size");
-    m_monitor_toggle.setComponentID("audio_settings_monitor_toggle");
     m_error_label.setComponentID("audio_settings_error");
     m_test_button.setComponentID("audio_settings_test_button");
     m_control_panel_button.setComponentID("audio_settings_control_panel_button");
     m_ok_button.setComponentID("audio_settings_ok_button");
     m_cancel_button.setComponentID("audio_settings_cancel_button");
 
-    m_monitor_toggle.setButtonText("Direct Monitor");
-    m_monitor_toggle.setToggleState(
-        m_initial_direct_monitoring_enabled, juce::dontSendNotification);
     m_error_label.setColour(juce::Label::textColourId, juce::Colours::lightsalmon);
     m_error_label.setJustificationType(juce::Justification::centredLeft);
     m_test_button.setButtonText("Test Output");
@@ -339,7 +325,6 @@ void AudioDeviceSettingsComponent::configureControls()
             handleAudioFormatChanged();
         }
     };
-    m_monitor_toggle.onClick = [this] { handleMonitoringChanged(); };
     m_test_button.onClick = [this] { m_device_manager.playTestSound(); };
     m_control_panel_button.onClick = [this] {
         if (auto* device = m_device_manager.getCurrentAudioDevice(); device != nullptr)
@@ -367,7 +352,6 @@ void AudioDeviceSettingsComponent::configureControls()
     addAndMakeVisible(m_sample_rate_combo);
     addAndMakeVisible(m_buffer_size_label);
     addAndMakeVisible(m_buffer_size_combo);
-    addAndMakeVisible(m_monitor_toggle);
     addAndMakeVisible(m_error_label);
     addAndMakeVisible(m_test_button);
     addAndMakeVisible(m_control_panel_button);
@@ -649,12 +633,6 @@ void AudioDeviceSettingsComponent::handleAudioFormatChanged()
     applySelectedRoute();
 }
 
-// Stages direct-monitoring changes until the user accepts the dialog.
-void AudioDeviceSettingsComponent::handleMonitoringChanged()
-{
-    m_staged_direct_monitoring_enabled = m_monitor_toggle.getToggleState();
-}
-
 // Applies the staged settings and closes the dialog on success.
 void AudioDeviceSettingsComponent::acceptAndClose()
 {
@@ -733,12 +711,6 @@ void AudioDeviceSettingsComponent::applyAcceptedSetup()
         m_error_label.setText(error, juce::dontSendNotification);
         refreshControls();
         return;
-    }
-
-    if (m_staged_direct_monitoring_enabled != m_initial_direct_monitoring_enabled &&
-        m_monitoring_changed)
-    {
-        m_monitoring_changed(m_staged_direct_monitoring_enabled);
     }
 
     closeDialog();

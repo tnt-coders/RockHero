@@ -110,13 +110,6 @@ public:
         waveform_click_count += 1;
     }
 
-    // Captures live monitoring toggle intents from the view.
-    void onLiveMonitoringToggled(bool enabled) override
-    {
-        last_live_monitoring_enabled = enabled;
-        live_monitoring_toggle_count += 1;
-    }
-
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -131,9 +124,6 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
-
-    // Last live monitoring state emitted by the view.
-    std::optional<bool> last_live_monitoring_enabled{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -173,9 +163,6 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
-
-    // Number of live monitoring toggle intents received.
-    int live_monitoring_toggle_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -610,7 +597,6 @@ TEST_CASE("EditorView projects audio device button state", "[ui][editor-view]")
     CHECK(audio_button.getButtonText() == "Audio Device");
 
     state.current_audio_device_name = std::string{"Interface A"};
-    state.live_monitoring_enabled = true;
     view.setState(state);
 
     CHECK(audio_button.isEnabled());

@@ -3,7 +3,6 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
-#include <atomic>
 #include <memory>
 #include <optional>
 #include <string>
@@ -14,90 +13,6 @@ namespace rock_hero::common::audio
 
 namespace
 {
-
-constexpr float g_live_monitor_gain{1.0F};
-constexpr int g_live_monitor_output_channels{2};
-
-// Adds the currently open input's first channel to the main output when enabled. Configuration of
-// the actual device, channel selection, and buffer size lives in juce::AudioDeviceManager.
-class LiveGuitarMonitor final : public juce::AudioIODeviceCallback
-{
-public:
-    // Enables or disables dry monitoring without reallocating or touching the device graph.
-    void setEnabled(bool enabled) noexcept
-    {
-        m_enabled.store(enabled, std::memory_order_release);
-    }
-
-    // Reports the audio-thread-visible monitoring flag for message-thread state derivation.
-    [[nodiscard]] bool isEnabled() const noexcept
-    {
-        return m_enabled.load(std::memory_order_acquire);
-    }
-
-    // Writes the input signal into the output buffer when enabled. JUCE invokes secondary
-    // callbacks with a scratch buffer that is NOT zeroed between invocations and sums the result
-    // into the accumulating output, so this callback must always write a deterministic value
-    // across every channel and sample to keep stale memory out of the mix.
-    void audioDeviceIOCallbackWithContext(
-        const float* const* input_channel_data, int num_input_channels,
-        float* const* output_channel_data, int num_output_channels, int num_samples,
-        const juce::AudioIODeviceCallbackContext& /*context*/) override
-    {
-        if (output_channel_data == nullptr)
-        {
-            return;
-        }
-
-        for (int channel = 0; channel < num_output_channels; ++channel)
-        {
-            if (float* const output = output_channel_data[channel]; output != nullptr)
-            {
-                std::fill_n(output, num_samples, 0.0F);
-            }
-        }
-
-        if (!m_enabled.load(std::memory_order_acquire) || input_channel_data == nullptr ||
-            num_input_channels <= 0)
-        {
-            return;
-        }
-
-        const float* const source = input_channel_data[0];
-        if (source == nullptr)
-        {
-            return;
-        }
-
-        const int monitored_output_channels =
-            std::min(num_output_channels, g_live_monitor_output_channels);
-        for (int output_channel = 0; output_channel < monitored_output_channels; ++output_channel)
-        {
-            float* const output = output_channel_data[output_channel];
-            if (output == nullptr)
-            {
-                continue;
-            }
-
-            for (int sample = 0; sample < num_samples; ++sample)
-            {
-                output[sample] = source[sample] * g_live_monitor_gain;
-            }
-        }
-    }
-
-    // The monitor has no sample-rate-dependent state to initialize.
-    void audioDeviceAboutToStart(juce::AudioIODevice* /*device*/) override
-    {}
-
-    // The monitor keeps its enabled flag across device restarts.
-    void audioDeviceStopped() override
-    {}
-
-private:
-    // Read directly on the audio thread; writes happen on the message thread.
-    std::atomic<bool> m_enabled{false};
-};
 
 // Opens an asset through Tracktion only long enough to validate it and read its duration.
 [[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
@@ -132,9 +47,6 @@ struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Liste
 {
 private:
     friend class Engine;
-
-    // Dry monitoring callback registered with JUCE's audio-device manager.
-    LiveGuitarMonitor m_live_guitar_monitor;
 
     // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
@@ -300,7 +212,6 @@ Engine::Engine()
     m_impl->m_engine->getDeviceManager().initialise(1, 2);
 
     auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
-    device_manager.addAudioCallback(&m_impl->m_live_guitar_monitor);
     device_manager.addChangeListener(m_impl.get());
 
     // createSingleTrackEdit already provides one AudioTrack ready for media.
@@ -332,7 +243,6 @@ Engine::~Engine()
     {
         auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
         device_manager.removeChangeListener(m_impl.get());
-        device_manager.removeAudioCallback(&m_impl->m_live_guitar_monitor);
     }
 
     m_impl->m_edit.reset();
@@ -529,24 +439,6 @@ void Engine::addListener(IAudioDeviceConfiguration::Listener& listener)
 void Engine::removeListener(IAudioDeviceConfiguration::Listener& listener)
 {
     m_impl->m_audio_device_listeners.remove(&listener);
-}
-
-// Enables the dry monitor callback against whatever device is currently configured.
-void Engine::enableGuitarMonitoring()
-{
-    m_impl->m_live_guitar_monitor.setEnabled(true);
-}
-
-// Stops the dry monitoring callback while leaving the device configuration untouched.
-void Engine::disableGuitarMonitoring()
-{
-    m_impl->m_live_guitar_monitor.setEnabled(false);
-}
-
-// Returns the dry monitor flag without querying JUCE or Tracktion device state.
-bool Engine::isGuitarMonitoringEnabled() const noexcept
-{
-    return m_impl->m_live_guitar_monitor.isEnabled();
 }
 
 // Creates an IThumbnail wrapper without exposing Tracktion types through public UI-facing headers.

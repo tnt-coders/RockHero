@@ -205,7 +205,7 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Opens app-local ASIO device, input, output, and monitoring controls.
+    // Opens app-local ASIO device, input, and output controls.
     juce::TextButton m_audio_device_button;
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
