@@ -10,6 +10,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/session.h>
@@ -19,6 +20,7 @@
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/core/project.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -35,7 +37,7 @@ at its own render cadence. The controller samples position only for discrete wor
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced transport and audio ports must outlive the controller.
+The referenced transport, audio, and optional guitar input ports must outlive the controller.
 */
 class EditorController final : public IEditorController, private common::audio::ITransport::Listener
 {
@@ -101,6 +103,21 @@ public:
     The owned session starts empty until the user opens a project. The controller does not push
     state during construction because no view is attached yet. The initial cached state becomes the
     first push delivered to attachView().
+
+    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
+    \param audio Audio port used to validate and load arrangement audio.
+    \param services Optional project IO, settings, and host-exit services.
+    */
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IGuitarInput& guitar_input, Services services = defaultServices());
+
+    /*!
+    \brief Builds the controller without a live guitar input backend.
+
+    This overload is used by tests and temporary hosts that do not expose live input. The view
+    state will contain an empty ASIO device list and live monitoring intents will report
+    unavailable input instead of touching hardware.
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
@@ -234,9 +251,32 @@ public:
     */
     void onWaveformClicked(double normalized_x) override;
 
+    /*!
+    \brief Handles a user-selected ASIO device for live guitar input.
+    \param device_name User-facing ASIO device name selected by the view.
+    */
+    void onGuitarInputDeviceSelected(std::string device_name) override;
+
+    /*!
+    \brief Handles a user-selected ASIO input channel for live guitar input.
+    \param input_channel_index Zero-based input channel index selected by the view.
+    */
+    void onGuitarInputChannelSelected(std::size_t input_channel_index) override;
+
+    /*!
+    \brief Handles a request to enable or disable live guitar monitoring.
+    \param enabled True to enable monitoring; false to disable it.
+    */
+    void onGuitarMonitoringToggled(bool enabled) override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
+
+    // Shared constructor body used by public overloads.
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IGuitarInput* guitar_input, Services services);
 
     struct PendingProjectRequest
     {
@@ -281,6 +321,9 @@ private:
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
 
+    // Refreshes the ASIO device list when a guitar-input backend is available.
+    void refreshGuitarInputDevices();
+
     // Derives a fresh state, caches it, and pushes it to the attached view if any.
     void deriveAndPush();
 
@@ -302,8 +345,17 @@ private:
     // Audio port used for project audio validation and selected-arrangement loading.
     common::audio::IAudio& m_audio;
 
+    // Optional guitar input port used for ASIO device selection and dry monitoring.
+    common::audio::IGuitarInput* m_guitar_input{};
+
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
+
+    // Cached ASIO device list displayed by the editor view.
+    std::vector<common::audio::GuitarInputDevice> m_guitar_input_devices;
+
+    // Last validated ASIO input selection, if any.
+    std::optional<common::audio::GuitarInputSelection> m_selected_guitar_input{};
 
     // Opens .rhp packages into temporary project contexts.
     OpenFunction m_open_function;

@@ -163,6 +163,18 @@ private:
     // Returns the editor area assigned to the scrollable track viewport.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
+    // Applies ASIO device, channel, and monitoring state to the live guitar controls.
+    void updateGuitarInputControls();
+
+    // Emits selected ASIO device changes to the controller.
+    void handleGuitarInputDeviceChanged();
+
+    // Emits selected ASIO input channel changes to the controller.
+    void handleGuitarInputChannelChanged();
+
+    // Emits live guitar monitoring toggle changes to the controller.
+    void handleGuitarMonitoringToggled();
+
     // Queues editor startup focus once JUCE has attached it to a visible peer.
     void requestInitialKeyboardFocusIfReady();
 
@@ -187,6 +199,15 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
+    // ASIO device picker for live guitar input.
+    juce::ComboBox m_guitar_device_combo;
+
+    // ASIO input-channel picker for the selected live guitar device.
+    juce::ComboBox m_guitar_channel_combo;
+
+    // Toggle that enables or disables dry guitar monitoring.
+    juce::ToggleButton m_guitar_monitoring_toggle;
+
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
 
@@ -204,6 +225,9 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
+
+    // True while setState() is updating combo boxes without emitting controller intents.
+    bool m_updating_guitar_controls{false};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

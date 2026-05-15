@@ -173,6 +173,8 @@ rock_hero_add_external_juce_module_wrapper(rock_hero_juce_audio_basics juce::juc
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_audio_devices juce::juce_audio_devices PUBLIC_DEPS rock_hero::juce_audio_basics
     rock_hero::juce_events)
+target_compile_definitions(rock_hero_juce_audio_devices
+                           PUBLIC $<$<PLATFORM_ID:Windows>:JUCE_ASIO=1>)
 
 # JUCE module declaration and docs:
 # https://github.com/juce-framework/JUCE/blob/master/modules/juce_audio_formats/juce_audio_formats.h
