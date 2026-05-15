@@ -35,14 +35,11 @@ public:
     /*! \brief Returns the default dialog width for the current control set. */
     [[nodiscard]] static int preferredWidth() noexcept;
 
-    /*! \brief Returns the default dialog height for the current control set. */
-    [[nodiscard]] static int preferredHeight() noexcept;
+    /*! \brief Returns the preferred dialog height for the currently visible controls. */
+    [[nodiscard]] int preferredContentHeight() const noexcept;
 
     /*! \brief Returns the minimum usable dialog width. */
     [[nodiscard]] static int minimumWidth() noexcept;
-
-    /*! \brief Returns the minimum usable dialog height. */
-    [[nodiscard]] static int minimumHeight() noexcept;
 
     /*! \brief Returns the maximum useful dialog width. */
     [[nodiscard]] static int maximumWidth() noexcept;
@@ -85,6 +82,9 @@ private:
 
     // Enables controls only when their backing choices exist.
     void refreshControlEnablement();
+
+    // Resizes the component and host dialog to match the current form rows.
+    void syncDialogHeightToContent();
 
     void handleDeviceTypeChanged();
     void handleDeviceChanged();
