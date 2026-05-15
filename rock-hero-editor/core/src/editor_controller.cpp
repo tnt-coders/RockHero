@@ -116,32 +116,29 @@ EditorController::Services EditorController::defaultServices()
     return Services{};
 }
 
-// Subscribes for coarse transport transitions and captures an initial derived state with live
+// Subscribes for coarse transport transitions and captures an initial derived state with
 // audio-device routing available.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    common::audio::IAudioDeviceConfiguration& audio_devices,
-    common::audio::IGuitarInput& guitar_input, EditorController::Services services)
-    : EditorController(transport, audio, &audio_devices, &guitar_input, std::move(services))
+    common::audio::IAudioDeviceConfiguration& audio_devices, EditorController::Services services)
+    : EditorController(transport, audio, &audio_devices, std::move(services))
 {}
 
-// Builds a controller for tests and temporary hosts that do not yet provide live input.
+// Builds a controller for tests and temporary hosts that do not provide audio-device routing.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     EditorController::Services services)
-    : EditorController(transport, audio, nullptr, nullptr, std::move(services))
+    : EditorController(transport, audio, nullptr, std::move(services))
 {}
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where a service seam is omitted.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    common::audio::IAudioDeviceConfiguration* audio_devices,
-    common::audio::IGuitarInput* guitar_input, EditorController::Services services)
+    common::audio::IAudioDeviceConfiguration* audio_devices, EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
     , m_audio_devices(audio_devices)
-    , m_guitar_input(guitar_input)
     , m_open_function(
           services.open_function ? std::move(services.open_function) : OpenFunction{defaultOpen})
     , m_import_function(
@@ -478,28 +475,6 @@ void EditorController::onWaveformClicked(double normalized_x)
     deriveAndPush();
 }
 
-// Toggles live monitoring through the guitar-input port without touching device configuration.
-void EditorController::onLiveMonitoringToggled(bool enabled)
-{
-    if (m_guitar_input == nullptr)
-    {
-        reportError("Live input monitoring is unavailable.");
-        deriveAndPush();
-        return;
-    }
-
-    if (enabled)
-    {
-        m_guitar_input->enableGuitarMonitoring();
-    }
-    else
-    {
-        m_guitar_input->disableGuitarMonitoring();
-    }
-
-    deriveAndPush();
-}
-
 // Persists the new device manager state and re-derives view state after a configuration change.
 void EditorController::onAudioDeviceConfigurationChanged()
 {
@@ -778,8 +753,6 @@ EditorViewState EditorController::deriveViewState() const
     state.audio_devices_available = m_audio_devices != nullptr;
     state.current_audio_device_name =
         m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
-    state.live_monitoring_enabled =
-        m_guitar_input != nullptr && m_guitar_input->isGuitarMonitoringEnabled();
     state.visible_timeline = timeline_range;
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)

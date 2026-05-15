@@ -12,7 +12,6 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/session.h>
@@ -38,8 +37,8 @@ at its own render cadence. The controller samples position only for discrete wor
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced transport, audio, optional audio-device configuration, and optional guitar input
-ports must outlive the controller.
+The referenced transport, audio, and optional audio-device configuration ports must outlive the
+controller.
 */
 class EditorController final : public IEditorController,
                                private common::audio::ITransport::Listener,
@@ -111,20 +110,18 @@ public:
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
     \param audio_devices Audio-device configuration port used for ASIO input/output routing.
-    \param guitar_input Live input port used to enable or disable monitoring.
     \param services Optional project IO, settings, and host-exit services.
     */
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IGuitarInput& guitar_input, Services services = defaultServices());
+        Services services = defaultServices());
 
     /*!
     \brief Builds the controller without a live audio-device backend.
 
-    This overload is used by tests and temporary hosts that do not expose live input. The view state
-    will contain an empty ASIO device list and live monitoring intents will report unavailable input
-    instead of touching hardware.
+    This overload is used by tests and temporary hosts that do not expose audio-device
+    configuration.
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
@@ -258,12 +255,6 @@ public:
     */
     void onWaveformClicked(double normalized_x) override;
 
-    /*!
-    \brief Handles a request to enable or disable live instrument monitoring.
-    \param enabled True to enable monitoring; false to disable it.
-    */
-    void onLiveMonitoringToggled(bool enabled) override;
-
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
@@ -271,8 +262,7 @@ private:
     // Shared constructor body used by public overloads.
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration* audio_devices,
-        common::audio::IGuitarInput* guitar_input, Services services);
+        common::audio::IAudioDeviceConfiguration* audio_devices, Services services);
 
     struct PendingProjectRequest
     {
@@ -349,9 +339,6 @@ private:
 
     // Optional audio-device port used for ASIO input/output routing.
     common::audio::IAudioDeviceConfiguration* m_audio_devices{};
-
-    // Optional live input port used for dry monitoring.
-    common::audio::IGuitarInput* m_guitar_input{};
 
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;

@@ -77,12 +77,6 @@ public:
     */
     virtual void onWaveformClicked(double normalized_x) = 0;
 
-    /*!
-    \brief Handles a request to enable or disable live instrument monitoring.
-    \param enabled True to enable monitoring; false to disable it.
-    */
-    virtual void onLiveMonitoringToggled(bool enabled) = 0;
-
 protected:
     /*! \brief Creates the editor-controller interface. */
     IEditorController() = default;

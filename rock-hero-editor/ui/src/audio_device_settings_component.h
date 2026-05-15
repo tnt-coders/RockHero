@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -24,18 +23,11 @@ live device untouched.
 class AudioDeviceSettingsComponent final : public juce::Component, private juce::ChangeListener
 {
 public:
-    /*! \brief Callback invoked when the user toggles direct monitoring. */
-    using MonitoringChangedFunction = std::function<void(bool monitoring_enabled)>;
-
     /*!
     \brief Creates the audio settings component around the shared device manager.
     \param device_manager Device manager owned by the audio backend.
-    \param direct_monitoring_enabled Initial direct-monitoring state.
-    \param monitoring_changed Callback invoked when the direct-monitoring state changes.
     */
-    AudioDeviceSettingsComponent(
-        juce::AudioDeviceManager& device_manager, bool direct_monitoring_enabled,
-        MonitoringChangedFunction monitoring_changed);
+    explicit AudioDeviceSettingsComponent(juce::AudioDeviceManager& device_manager);
 
     /*! \brief Removes device-change listeners without mutating the live audio route. */
     ~AudioDeviceSettingsComponent() override;
@@ -98,7 +90,6 @@ private:
     void handleDeviceChanged();
     void handleRouteChanged();
     void handleAudioFormatChanged();
-    void handleMonitoringChanged();
     void acceptAndClose();
     void cancelAndClose();
 
@@ -138,7 +129,6 @@ private:
     juce::AudioDeviceManager& m_device_manager;
     juce::AudioDeviceManager::AudioDeviceSetup m_staged_setup;
     juce::String m_staged_device_type;
-    MonitoringChangedFunction m_monitoring_changed;
     std::unique_ptr<juce::AudioIODevice> m_staged_device;
     std::vector<double> m_sample_rates;
     std::vector<int> m_buffer_sizes;
@@ -160,15 +150,12 @@ private:
     juce::ComboBox m_sample_rate_combo;
     juce::Label m_buffer_size_label;
     juce::ComboBox m_buffer_size_combo;
-    juce::ToggleButton m_monitor_toggle;
     juce::Label m_error_label;
     juce::TextButton m_test_button;
     juce::TextButton m_control_panel_button;
     juce::TextButton m_ok_button;
     juce::TextButton m_cancel_button;
 
-    bool m_initial_direct_monitoring_enabled{};
-    bool m_staged_direct_monitoring_enabled{};
     bool m_refreshing_controls{false};
 };
 
