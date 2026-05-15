@@ -22,7 +22,7 @@
 
 namespace juce
 {
-// Forward declaration so the dialog can host the stock selector without a public dependency.
+// Forward declaration so the settings dialog can stay out of this public header.
 class AudioDeviceManager;
 } // namespace juce
 
