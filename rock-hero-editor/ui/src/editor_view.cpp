@@ -1087,18 +1087,7 @@ void EditorView::showAudioDeviceSettingsDialog()
         m_controller.onPlayPausePressed();
     }
 
-    const juce::Component::SafePointer<EditorView> safe_this{this};
-    AudioDeviceSettingsDialog::show(
-        *m_audio_device_manager,
-        m_state.live_monitoring_enabled,
-        m_audio_device_button,
-        [safe_this](bool monitoring_enabled) {
-            if (safe_this == nullptr)
-            {
-                return;
-            }
-            safe_this->m_controller.onLiveMonitoringToggled(monitoring_enabled);
-        });
+    AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
 }
 
 // Mirrors resized() layout so the track viewport occupies the editor content area.

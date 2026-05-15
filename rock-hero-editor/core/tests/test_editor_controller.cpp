@@ -6,7 +6,6 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
@@ -142,13 +141,6 @@ public:
         waveform_click_count += 1;
     }
 
-    // Captures the latest live monitoring toggle intent.
-    void onLiveMonitoringToggled(bool enabled) override
-    {
-        last_live_monitoring_enabled = enabled;
-        live_monitoring_toggle_count += 1;
-    }
-
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -163,9 +155,6 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
-
-    // Last live monitoring toggle state emitted by the view.
-    std::optional<bool> last_live_monitoring_enabled{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -205,9 +194,6 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
-
-    // Number of live monitoring toggle intents received.
-    int live_monitoring_toggle_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -431,40 +417,6 @@ public:
 
     // Number of current-device-name reads received.
     mutable int current_call_count{0};
-};
-
-// Minimal guitar-input fake that toggles its monitoring flag without touching real hardware.
-class FakeGuitarInput final : public common::audio::IGuitarInput
-{
-public:
-    // Enables fake monitoring so view-state derivation can observe the transition.
-    void enableGuitarMonitoring() override
-    {
-        monitoring_enabled = true;
-        enable_call_count += 1;
-    }
-
-    // Disables fake monitoring so view-state derivation can observe the transition.
-    void disableGuitarMonitoring() override
-    {
-        monitoring_enabled = false;
-        disable_call_count += 1;
-    }
-
-    // Reports the fake monitoring flag controlled by enable/disable calls.
-    [[nodiscard]] bool isGuitarMonitoringEnabled() const noexcept override
-    {
-        return monitoring_enabled;
-    }
-
-    // Number of monitoring-enable calls received.
-    int enable_call_count{0};
-
-    // Number of monitoring-disable calls received.
-    int disable_call_count{0};
-
-    // Current fake monitoring flag.
-    bool monitoring_enabled{false};
 };
 
 // Provides controller-facing project service callbacks without touching the filesystem.
@@ -853,7 +805,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.play_pause_shows_pause_icon == false);
     CHECK_FALSE(empty_state.current_audio_device_name.has_value());
     CHECK(empty_state.audio_devices_available == false);
-    CHECK(empty_state.live_monitoring_enabled == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
@@ -875,7 +826,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .play_pause_shows_pause_icon = true,
         .current_audio_device_name = std::string{"ASIO Driver"},
         .audio_devices_available = true,
-        .live_monitoring_enabled = true,
         .visible_timeline = loadedTimelineRange(180.0),
         .arrangement =
             ArrangementViewState{
@@ -889,7 +839,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.current_audio_device_name == std::optional<std::string>{"ASIO Driver"});
     CHECK(loaded_state.audio_devices_available);
-    CHECK(loaded_state.live_monitoring_enabled);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
     CHECK(
@@ -921,7 +870,6 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
-    controller.onLiveMonitoringToggled(true);
 
     CHECK(controller.open_request_count == 1);
     CHECK(controller.last_open_file == std::optional{open_file});
@@ -942,8 +890,6 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
     CHECK(controller.last_normalized_x == std::optional{0.75});
-    CHECK(controller.live_monitoring_toggle_count == 1);
-    CHECK(controller.last_live_monitoring_enabled == std::optional{true});
 }
 
 // Verifies the controller publishes the current audio-device name through view state.
@@ -952,9 +898,8 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     FakeTransport transport;
     FakeAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
-    FakeGuitarInput guitar_input;
     audio_devices.current_name = std::string{"Interface A"};
-    EditorController controller{transport, audio, audio_devices, guitar_input};
+    EditorController controller{transport, audio, audio_devices};
     FakeEditorView view;
 
     controller.attachView(view);
@@ -962,31 +907,6 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     REQUIRE(view.last_state.has_value());
     CHECK(view.last_state->audio_devices_available);
     CHECK(view.last_state->current_audio_device_name == std::optional<std::string>{"Interface A"});
-    CHECK_FALSE(view.last_state->live_monitoring_enabled);
-}
-
-// Toggling monitoring routes through the guitar-input port without touching device config.
-TEST_CASE("EditorController toggles live monitoring", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    FakeAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakeGuitarInput guitar_input;
-    EditorController controller{transport, audio, audio_devices, guitar_input};
-    FakeEditorView view;
-    controller.attachView(view);
-
-    controller.onLiveMonitoringToggled(true);
-
-    CHECK(guitar_input.enable_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->live_monitoring_enabled);
-
-    controller.onLiveMonitoringToggled(false);
-
-    CHECK(guitar_input.disable_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->live_monitoring_enabled);
 }
 
 // Device-manager change notifications re-derive view state through the listener relay.
@@ -995,8 +915,7 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     FakeTransport transport;
     FakeAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
-    FakeGuitarInput guitar_input;
-    EditorController controller{transport, audio, audio_devices, guitar_input};
+    EditorController controller{transport, audio, audio_devices};
     FakeEditorView view;
     controller.attachView(view);
     const int baseline_pushes = view.set_state_call_count;
@@ -1036,7 +955,6 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.play_pause_shows_pause_icon == false);
         CHECK_FALSE(state.audio_devices_available);
         CHECK_FALSE(state.current_audio_device_name.has_value());
-        CHECK_FALSE(state.live_monitoring_enabled);
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
