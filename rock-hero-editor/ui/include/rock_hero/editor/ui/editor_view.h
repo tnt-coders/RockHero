@@ -9,6 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/timeline.h>
@@ -18,6 +19,12 @@
 #include <rock_hero/editor/ui/arrangement_view.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
+
+namespace juce
+{
+// Forward declaration so the dialog can host the stock selector without a public dependency.
+class AudioDeviceManager;
+} // namespace juce
 
 namespace rock_hero::editor::ui
 {
@@ -53,10 +60,12 @@ public:
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by cursor drawing and viewport following.
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
+    \param audio_devices Optional device-configuration port hosted by the settings dialog.
     */
     EditorView(
         core::IEditorController& controller, const common::audio::ITransport& transport,
-        common::audio::IThumbnailFactory& thumbnail_factory);
+        common::audio::IThumbnailFactory& thumbnail_factory,
+        common::audio::IAudioDeviceConfiguration* audio_devices = nullptr);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -163,17 +172,11 @@ private:
     // Returns the editor area assigned to the scrollable track viewport.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
-    // Applies ASIO device, channel, and monitoring state to the live guitar controls.
-    void updateGuitarInputControls();
+    // Applies ASIO routing state to the toolbar audio-device button.
+    void updateAudioDeviceButton();
 
-    // Emits selected ASIO device changes to the controller.
-    void handleGuitarInputDeviceChanged();
-
-    // Emits selected ASIO input channel changes to the controller.
-    void handleGuitarInputChannelChanged();
-
-    // Emits live guitar monitoring toggle changes to the controller.
-    void handleGuitarMonitoringToggled();
+    // Opens the app-local audio-device configuration dialog.
+    void showAudioDeviceSettingsDialog();
 
     // Queues editor startup focus once JUCE has attached it to a visible peer.
     void requestInitialKeyboardFocusIfReady();
@@ -187,6 +190,9 @@ private:
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 
+    // Audio device manager hosted by the settings dialog; null when no backend was provided.
+    juce::AudioDeviceManager* m_audio_device_manager{nullptr};
+
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
 
@@ -199,14 +205,8 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // ASIO device picker for live guitar input.
-    juce::ComboBox m_guitar_device_combo;
-
-    // ASIO input-channel picker for the selected live guitar device.
-    juce::ComboBox m_guitar_channel_combo;
-
-    // Toggle that enables or disables dry guitar monitoring.
-    juce::ToggleButton m_guitar_monitoring_toggle;
+    // Opens app-local ASIO device, input, output, and monitoring controls.
+    juce::TextButton m_audio_device_button;
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
@@ -225,9 +225,6 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
-
-    // True while setState() is updating combo boxes without emitting controller intents.
-    bool m_updating_guitar_controls{false};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

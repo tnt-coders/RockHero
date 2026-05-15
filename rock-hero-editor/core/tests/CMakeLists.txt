@@ -9,8 +9,9 @@ add_executable(rock_hero_editor_core_tests test_editor_controller.cpp test_proje
 
 # Link libzip for project package fixtures while keeping tests on the editor-core boundary.
 target_link_libraries(
-    rock_hero_editor_core_tests PRIVATE rock_hero::editor::core rock_hero::build_policy libzip::zip
-                                        Catch2::Catch2WithMain)
+    rock_hero_editor_core_tests
+    PRIVATE rock_hero::editor::core rock_hero::build_policy rock_hero::juce_audio_devices
+            libzip::zip Catch2::Catch2WithMain)
 
 # Keep persisted editor-settings files inside the build tree.
 target_compile_definitions(rock_hero_editor_core_tests
