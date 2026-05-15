@@ -3,8 +3,10 @@
 #include <concepts>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/common/audio/audio_device_error.h>
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 
 namespace rock_hero::common::audio
@@ -16,6 +18,7 @@ namespace
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IAudio>);
+static_assert(std::derived_from<Engine, IGuitarInput>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
@@ -101,17 +104,34 @@ public:
 
 } // namespace
 
+// Verifies the live audio-device error type carries stable branchable codes.
+TEST_CASE("AudioDeviceError carries code and message", "[audio][engine]")
+{
+    const AudioDeviceError default_error{AudioDeviceErrorCode::AsioUnavailable};
+    const AudioDeviceError contextual_error{
+        AudioDeviceErrorCode::AudioDeviceOpenFailed,
+        "Driver rejected the requested channel",
+    };
+
+    CHECK(default_error.code == AudioDeviceErrorCode::AsioUnavailable);
+    CHECK_FALSE(default_error.message.empty());
+    CHECK(contextual_error.code == AudioDeviceErrorCode::AudioDeviceOpenFailed);
+    CHECK(contextual_error.message == "Driver rejected the requested channel");
+}
+
 // Verifies the concrete engine starts with empty state and a zero live position.
 TEST_CASE("Engine starts with empty transport state", "[audio][engine][integration]")
 {
     const EngineTestHarness harness;
     const Engine& engine = harness.engine;
     ITransport const& transport = engine;
+    const IGuitarInput& guitar_input = engine;
 
     const auto current_state = transport.state();
 
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == common::core::TimePosition{});
+    CHECK_FALSE(guitar_input.isGuitarMonitoringEnabled());
 }
 
 // Verifies the concrete engine factory returns a usable Tracktion-backed thumbnail adapter.

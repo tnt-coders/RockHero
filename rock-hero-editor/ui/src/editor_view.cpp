@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <iterator>
 #include <limits>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
@@ -26,6 +27,10 @@ constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
+constexpr int g_transport_controls_width{96};
+constexpr int g_guitar_device_combo_width{240};
+constexpr int g_guitar_channel_combo_width{180};
+constexpr int g_guitar_monitoring_toggle_width{112};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
@@ -660,12 +665,26 @@ EditorView::EditorView(
     m_menu_bar.setComponentID("file_menu_bar");
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
+    m_guitar_device_combo.setComponentID("asio_device_combo");
+    m_guitar_device_combo.setTextWhenNothingSelected("ASIO Device");
+    m_guitar_device_combo.setTextWhenNoChoicesAvailable("No ASIO Devices");
+    m_guitar_device_combo.onChange = [this] { handleGuitarInputDeviceChanged(); };
+    m_guitar_channel_combo.setComponentID("guitar_input_channel_combo");
+    m_guitar_channel_combo.setTextWhenNothingSelected("Input Channel");
+    m_guitar_channel_combo.setTextWhenNoChoicesAvailable("No Inputs");
+    m_guitar_channel_combo.onChange = [this] { handleGuitarInputChannelChanged(); };
+    m_guitar_monitoring_toggle.setComponentID("live_guitar_toggle");
+    m_guitar_monitoring_toggle.setButtonText("Live Guitar");
+    m_guitar_monitoring_toggle.onClick = [this] { handleGuitarMonitoringToggled(); };
     m_arrangement_view.setComponentID("arrangement_view");
 
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
+    addAndMakeVisible(m_guitar_device_combo);
+    addAndMakeVisible(m_guitar_channel_combo);
+    addAndMakeVisible(m_guitar_monitoring_toggle);
     addAndMakeVisible(*m_track_viewport);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
@@ -695,6 +714,7 @@ void EditorView::setState(const core::EditorViewState& state)
             .stop_enabled = m_state.stop_enabled,
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
+    updateGuitarInputControls();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -733,8 +753,30 @@ void EditorView::resized()
     auto top_area = getLocalBounds();
     m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
     auto transport_row = top_area.removeFromTop(g_transport_bar_height);
+    auto control_row =
+        transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset);
+    control_row = control_row.withSizeKeepingCentre(
+        control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
+
+    const auto take_control_bounds =
+        [](juce::Rectangle<int>& row, int preferred_width, bool remove_gap) {
+            const int width = std::min(preferred_width, row.getWidth());
+            auto bounds = row.removeFromLeft(width);
+            if (remove_gap)
+            {
+                row.removeFromLeft(std::min(g_control_gap, row.getWidth()));
+            }
+            return bounds;
+        };
+
     m_transport_controls.setBounds(
-        transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset));
+        take_control_bounds(control_row, g_transport_controls_width, true));
+    m_guitar_device_combo.setBounds(
+        take_control_bounds(control_row, g_guitar_device_combo_width, true));
+    m_guitar_channel_combo.setBounds(
+        take_control_bounds(control_row, g_guitar_channel_combo_width, true));
+    m_guitar_monitoring_toggle.setBounds(
+        take_control_bounds(control_row, g_guitar_monitoring_toggle_width, false));
     m_track_viewport->setBounds(area);
 }
 
@@ -1027,6 +1069,111 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
 
     m_last_presented_save_as_prompt = prompt;
     showSaveAsChooser(SaveAsChooserPurpose::PendingProjectAction);
+}
+
+// Applies controller-derived ASIO picker state without emitting selection callbacks.
+void EditorView::updateGuitarInputControls()
+{
+    const juce::ScopedValueSetter<bool> updating{m_updating_guitar_controls, true};
+
+    m_guitar_device_combo.clear(juce::dontSendNotification);
+    for (std::size_t index = 0; index < m_state.guitar_input_devices.size(); ++index)
+    {
+        m_guitar_device_combo.addItem(
+            juce::String{m_state.guitar_input_devices[index].name.c_str()},
+            static_cast<int>(index + 1));
+    }
+
+    std::optional<std::size_t> selected_device_index{};
+    if (m_state.selected_guitar_input.has_value())
+    {
+        const auto selected_device = std::ranges::find_if(
+            m_state.guitar_input_devices, [this](const common::audio::GuitarInputDevice& device) {
+                return device.name == m_state.selected_guitar_input->device_name;
+            });
+        if (selected_device != m_state.guitar_input_devices.end())
+        {
+            selected_device_index = static_cast<std::size_t>(
+                std::distance(m_state.guitar_input_devices.begin(), selected_device));
+        }
+    }
+
+    m_guitar_device_combo.setSelectedId(
+        selected_device_index.has_value() ? static_cast<int>(*selected_device_index + 1) : 0,
+        juce::dontSendNotification);
+    m_guitar_device_combo.setEnabled(!m_state.guitar_input_devices.empty());
+
+    m_guitar_channel_combo.clear(juce::dontSendNotification);
+    if (selected_device_index.has_value())
+    {
+        const auto& channels = m_state.guitar_input_devices[*selected_device_index].input_channels;
+        for (std::size_t index = 0; index < channels.size(); ++index)
+        {
+            m_guitar_channel_combo.addItem(
+                juce::String{channels[index].c_str()}, static_cast<int>(index + 1));
+        }
+    }
+
+    const bool selected_channel_is_valid =
+        selected_device_index.has_value() && m_state.selected_guitar_input.has_value() &&
+        m_state.selected_guitar_input->input_channel_index <
+            m_state.guitar_input_devices[*selected_device_index].input_channels.size();
+    m_guitar_channel_combo.setSelectedId(
+        selected_channel_is_valid
+            ? static_cast<int>(m_state.selected_guitar_input->input_channel_index + 1)
+            : 0,
+        juce::dontSendNotification);
+    m_guitar_channel_combo.setEnabled(selected_device_index.has_value());
+
+    m_guitar_monitoring_toggle.setToggleState(
+        m_state.guitar_monitoring_enabled, juce::dontSendNotification);
+    m_guitar_monitoring_toggle.setEnabled(m_state.selected_guitar_input.has_value());
+}
+
+// Forwards a newly selected ASIO device to the controller by stable device name.
+void EditorView::handleGuitarInputDeviceChanged()
+{
+    if (m_updating_guitar_controls)
+    {
+        return;
+    }
+
+    const int selected_id = m_guitar_device_combo.getSelectedId();
+    if (selected_id <= 0 || selected_id > static_cast<int>(m_state.guitar_input_devices.size()))
+    {
+        return;
+    }
+
+    m_controller.onGuitarInputDeviceSelected(
+        m_state.guitar_input_devices[static_cast<std::size_t>(selected_id - 1)].name);
+}
+
+// Forwards a newly selected ASIO input channel to the controller by zero-based index.
+void EditorView::handleGuitarInputChannelChanged()
+{
+    if (m_updating_guitar_controls)
+    {
+        return;
+    }
+
+    const int selected_id = m_guitar_channel_combo.getSelectedId();
+    if (selected_id <= 0)
+    {
+        return;
+    }
+
+    m_controller.onGuitarInputChannelSelected(static_cast<std::size_t>(selected_id - 1));
+}
+
+// Forwards dry monitoring toggle changes to the controller.
+void EditorView::handleGuitarMonitoringToggled()
+{
+    if (m_updating_guitar_controls)
+    {
+        return;
+    }
+
+    m_controller.onGuitarMonitoringToggled(m_guitar_monitoring_toggle.getToggleState());
 }
 
 // Mirrors resized() layout so the track viewport occupies the editor content area.

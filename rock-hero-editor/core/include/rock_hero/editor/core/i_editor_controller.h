@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -76,6 +78,24 @@ public:
     \param normalized_x Click position normalized to the interval [0, 1].
     */
     virtual void onWaveformClicked(double normalized_x) = 0;
+
+    /*!
+    \brief Handles a user-selected ASIO device for live guitar input.
+    \param device_name User-facing ASIO device name selected by the view.
+    */
+    virtual void onGuitarInputDeviceSelected(std::string device_name) = 0;
+
+    /*!
+    \brief Handles a user-selected ASIO input channel for live guitar input.
+    \param input_channel_index Zero-based input channel index selected by the view.
+    */
+    virtual void onGuitarInputChannelSelected(std::size_t input_channel_index) = 0;
+
+    /*!
+    \brief Handles a request to enable or disable live guitar monitoring.
+    \param enabled True to enable monitoring; false to disable it.
+    */
+    virtual void onGuitarMonitoringToggled(bool enabled) = 0;
 
 protected:
     /*! \brief Creates the editor-controller interface. */
