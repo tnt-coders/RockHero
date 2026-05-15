@@ -9,9 +9,8 @@ namespace rock_hero::editor::ui
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
-    common::audio::IGuitarInput& guitar_input, common::audio::IThumbnailFactory& thumbnail_factory,
-    core::EditorController::Services services)
-    : m_controller(transport, audio, audio_devices, guitar_input, std::move(services))
+    common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
+    : m_controller(transport, audio, audio_devices, std::move(services))
     , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
 {
     m_controller.attachView(m_view);

@@ -9,7 +9,6 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <string>
@@ -37,19 +36,16 @@ This boundary enables a fallback-to-raw-JUCE strategy: only common/audio impleme
 include Tracktion headers.
 
 Owns the tracktion::Engine and the single tracktion::Edit used for playback. The current adapter
-uses one Tracktion audio track for the currently displayed arrangement. Live guitar monitoring
-adds a dry monitor signal of the currently open input through JUCE's shared device callback.
-All public methods must be called on the message thread.
+uses one Tracktion audio track for the currently displayed arrangement. All public methods must be
+called on the message thread.
 
 \see ITransport
 \see IAudio
-\see IGuitarInput
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
                public IAudio,
                public IAudioDeviceConfiguration,
-               public IGuitarInput,
                public IThumbnailFactory
 {
 public:
@@ -171,18 +167,6 @@ public:
     \param listener Listener previously registered with addListener().
     */
     void removeListener(IAudioDeviceConfiguration::Listener& listener) override;
-
-    /*! \brief Enables live monitoring of the currently configured input. */
-    void enableGuitarMonitoring() override;
-
-    /*! \brief Disables live monitoring without affecting device configuration. */
-    void disableGuitarMonitoring() override;
-
-    /*!
-    \brief Reports whether live guitar monitoring is currently enabled.
-    \return True when the configured input is being routed to the audio output.
-    */
-    [[nodiscard]] bool isGuitarMonitoringEnabled() const noexcept override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

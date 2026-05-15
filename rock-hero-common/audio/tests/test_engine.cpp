@@ -6,7 +6,6 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_guitar_input.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 
 namespace rock_hero::common::audio
@@ -19,7 +18,6 @@ namespace
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
-static_assert(std::derived_from<Engine, IGuitarInput>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
@@ -111,13 +109,11 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
     const EngineTestHarness harness;
     const Engine& engine = harness.engine;
     ITransport const& transport = engine;
-    const IGuitarInput& guitar_input = engine;
 
     const auto current_state = transport.state();
 
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == common::core::TimePosition{});
-    CHECK_FALSE(guitar_input.isGuitarMonitoringEnabled());
 }
 
 // Verifies the concrete engine factory returns a usable Tracktion-backed thumbnail adapter.

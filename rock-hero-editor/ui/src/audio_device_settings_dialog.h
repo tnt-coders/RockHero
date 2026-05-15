@@ -5,7 +5,6 @@
 
 #pragma once
 
-#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 
 namespace juce
@@ -25,19 +24,12 @@ adds cancelable preview semantics around hardware route changes.
 class AudioDeviceSettingsDialog final
 {
 public:
-    /*! \brief Callback invoked when the user toggles direct monitoring. */
-    using MonitoringChangedFunction = std::function<void(bool monitoring_enabled)>;
-
     /*!
     \brief Opens the modal dialog around the requesting component.
     \param device_manager Device manager hosted by the settings component; must outlive the dialog.
-    \param direct_monitoring_enabled Initial state of the direct-monitoring toggle.
     \param anchor Component used to center the dialog.
-    \param monitoring_changed Callback invoked when the user toggles direct monitoring.
     */
-    static void show(
-        juce::AudioDeviceManager& device_manager, bool direct_monitoring_enabled,
-        juce::Component& anchor, MonitoringChangedFunction monitoring_changed);
+    static void show(juce::AudioDeviceManager& device_manager, juce::Component& anchor);
 
 private:
     AudioDeviceSettingsDialog() = default;

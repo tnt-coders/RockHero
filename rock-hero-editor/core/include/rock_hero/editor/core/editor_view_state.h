@@ -113,9 +113,6 @@ struct EditorViewState
     /*! \brief True when the controller has an audio-device backend available. */
     bool audio_devices_available{false};
 
-    /*! \brief Selects whether live instrument monitoring is currently enabled. */
-    bool live_monitoring_enabled{false};
-
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
