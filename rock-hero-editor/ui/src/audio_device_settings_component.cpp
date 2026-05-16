@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -117,7 +118,7 @@ void populateStringCombo(
 // Finds the first sample-rate choice that matches the current device rate closely enough.
 [[nodiscard]] int selectedSampleRateId(const std::vector<double>& sample_rates, double current_rate)
 {
-    for (int index = 0; index < static_cast<int>(sample_rates.size()); ++index)
+    for (int index = 0; std::cmp_less(index, sample_rates.size()); ++index)
     {
         if (std::abs(sample_rates[static_cast<std::size_t>(index)] - current_rate) < 0.001)
         {
@@ -131,7 +132,7 @@ void populateStringCombo(
 // Finds the first buffer-size choice that matches the current device buffer size.
 [[nodiscard]] int selectedBufferSizeId(const std::vector<int>& buffer_sizes, int current_size)
 {
-    for (int index = 0; index < static_cast<int>(buffer_sizes.size()); ++index)
+    for (int index = 0; std::cmp_less(index, buffer_sizes.size()); ++index)
     {
         if (buffer_sizes[static_cast<std::size_t>(index)] == current_size)
         {
@@ -507,7 +508,7 @@ void AudioDeviceSettingsComponent::refreshChannelChoices()
     }
 
     int selected_output_pair_id = m_output_pairs.empty() ? 0 : 1;
-    for (int index = 0; index < static_cast<int>(m_output_pairs.size()); ++index)
+    for (int index = 0; std::cmp_less(index, m_output_pairs.size()); ++index)
     {
         const auto pair = m_output_pairs[static_cast<std::size_t>(index)];
         if (m_staged_setup.outputChannels[pair.left_channel] &&
@@ -726,8 +727,7 @@ void AudioDeviceSettingsComponent::applyAcceptedSetup()
             m_device_manager.setCurrentAudioDeviceType(previous_device_type, true);
         }
 
-        auto setup = previous_setup;
-        m_device_manager.setAudioDeviceSetup(setup, true);
+        m_device_manager.setAudioDeviceSetup(previous_setup, true);
         m_error_label.setText(error, juce::dontSendNotification);
         refreshControls();
         return;

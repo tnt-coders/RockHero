@@ -1,6 +1,8 @@
 #include "tracktion_live_wave_device_mapping.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <stdexcept>
+#include <utility>
 
 namespace rock_hero::common::audio
 {
@@ -12,7 +14,7 @@ namespace
 [[nodiscard]] juce::BigInteger channelMask(std::initializer_list<int> channels)
 {
     juce::BigInteger mask;
-    for (int channel : channels)
+    for (const int channel : channels)
     {
         mask.setBit(channel);
     }
@@ -23,7 +25,8 @@ namespace
 // Builds live-route descriptions for the common valid test route.
 [[nodiscard]] std::optional<LiveInstrumentWaveDeviceDescriptions> describeRoute(
     std::initializer_list<int> input_channels, std::initializer_list<int> output_channels,
-    juce::StringArray input_channel_names = {}, juce::StringArray output_channel_names = {})
+    const juce::StringArray& input_channel_names = {},
+    const juce::StringArray& output_channel_names = {})
 {
     return createTracktionLiveWaveDeviceDescriptions(
         "Example ASIO Device",
@@ -33,59 +36,67 @@ namespace
         output_channel_names);
 }
 
+// Extracts a valid route while keeping optional precondition checks visible to clang-tidy.
+[[nodiscard]] LiveInstrumentWaveDeviceDescriptions requireRoute(
+    std::optional<LiveInstrumentWaveDeviceDescriptions> route)
+{
+    if (!route.has_value())
+    {
+        throw std::logic_error{"Expected a live route description"};
+    }
+
+    return std::move(route).value();
+}
+
 } // namespace
 
 // Verifies the first physical input is exposed as the first compact callback channel.
 TEST_CASE("Live route maps first input to compact mono", "[audio][live-route]")
 {
-    const std::optional<LiveInstrumentWaveDeviceDescriptions> route = describeRoute({0}, {0, 1});
+    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {0, 1}));
 
-    REQUIRE(route.has_value());
-    CHECK(route->route_mask.input_physical_channel == 0);
-    REQUIRE(route->input.channels.size() == 1);
-    CHECK(route->input.channels[0].compact_device_channel == 0);
-    CHECK(route->input.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.route_mask.input_physical_channel == 0);
+    REQUIRE(route.input.channels.size() == 1);
+    CHECK(route.input.channels[0].compact_device_channel == 0);
+    CHECK(route.input.channels[0].role == LiveInstrumentChannelRole::Left);
 }
 
 // Verifies non-first physical inputs still map to Tracktion's compact mono channel.
 TEST_CASE("Live route maps non-first input compactly", "[audio][live-route]")
 {
-    const std::optional<LiveInstrumentWaveDeviceDescriptions> route = describeRoute({3}, {0, 1});
+    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({3}, {0, 1}));
 
-    REQUIRE(route.has_value());
-    CHECK(route->route_mask.input_physical_channel == 3);
-    REQUIRE(route->input.channels.size() == 1);
-    CHECK(route->input.channels[0].compact_device_channel == 0);
-    CHECK(route->input.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.route_mask.input_physical_channel == 3);
+    REQUIRE(route.input.channels.size() == 1);
+    CHECK(route.input.channels[0].compact_device_channel == 0);
+    CHECK(route.input.channels[0].role == LiveInstrumentChannelRole::Left);
 }
 
 // Verifies non-first physical output pairs become compact stereo output channels.
 TEST_CASE("Live route maps non-first output compactly", "[audio][live-route]")
 {
-    const std::optional<LiveInstrumentWaveDeviceDescriptions> route = describeRoute({0}, {6, 7});
+    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {6, 7}));
 
-    REQUIRE(route.has_value());
-    CHECK(route->route_mask.output_left_physical_channel == 6);
-    CHECK(route->route_mask.output_right_physical_channel == 7);
-    REQUIRE(route->output.channels.size() == 2);
-    CHECK(route->output.channels[0].compact_device_channel == 0);
-    CHECK(route->output.channels[0].role == LiveInstrumentChannelRole::Left);
-    CHECK(route->output.channels[1].compact_device_channel == 1);
-    CHECK(route->output.channels[1].role == LiveInstrumentChannelRole::Right);
+    CHECK(route.route_mask.output_left_physical_channel == 6);
+    CHECK(route.route_mask.output_right_physical_channel == 7);
+    REQUIRE(route.output.channels.size() == 2);
+    CHECK(route.output.channels[0].compact_device_channel == 0);
+    CHECK(route.output.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.output.channels[1].compact_device_channel == 1);
+    CHECK(route.output.channels[1].role == LiveInstrumentChannelRole::Right);
 }
 
 // Verifies generated Tracktion names carry hardware and physical channel identity.
 TEST_CASE("Live route names include hardware and channels", "[audio][live-route]")
 {
-    const std::optional<LiveInstrumentWaveDeviceDescriptions> route = describeRoute(
+    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute(
         {3},
         {6, 7},
         juce::StringArray{"Input 0", "Input 1", "Input 2", "Hi-Z"},
-        juce::StringArray{"Out 0", "Out 1", "Out 2", "Out 3", "Out 4", "Out 5", "L", "R"});
+        juce::StringArray{"Out 0", "Out 1", "Out 2", "Out 3", "Out 4", "Out 5", "L", "R"}));
 
-    REQUIRE(route.has_value());
-    CHECK(route->input.name == "Example ASIO Device Input 3 - Hi-Z");
-    CHECK(route->output.name == "Example ASIO Device Output 6-7 - L / R");
+    CHECK(route.input.name == "Example ASIO Device Input 3 - Hi-Z");
+    CHECK(route.output.name == "Example ASIO Device Output 6-7 - L / R");
 }
 
 // Verifies the route contract rejects a missing input channel.
