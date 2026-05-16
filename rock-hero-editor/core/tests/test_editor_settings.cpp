@@ -108,7 +108,7 @@ TEST_CASE("EditorSettings persists the audio device state", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_audio_device.settings"};
     const std::string xml_state{
-        "<DEVICESETUP deviceType=\"ASIO\" audioOutputDeviceName=\"ASIO Interface\"/>"
+        R"(<DEVICESETUP deviceType="ASIO" audioOutputDeviceName="ASIO Interface"/>)"
     };
 
     {

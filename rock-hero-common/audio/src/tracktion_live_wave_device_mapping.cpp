@@ -41,7 +41,7 @@ namespace
 // Uses the hardware name as part of Tracktion device identity, with a stable fallback for tests.
 [[nodiscard]] juce::String normalizedDeviceName(const juce::String& hardware_device_name)
 {
-    const juce::String trimmed_name = hardware_device_name.trim();
+    juce::String trimmed_name = hardware_device_name.trim();
     if (trimmed_name.isNotEmpty())
     {
         return trimmed_name;
