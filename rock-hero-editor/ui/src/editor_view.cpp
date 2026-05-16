@@ -674,6 +674,7 @@ EditorView::EditorView(
     m_audio_device_button.setButtonText("Audio Device");
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsDialog(); };
     m_arrangement_view.setComponentID("arrangement_view");
+    m_busy_overlay.setComponentID("busy_overlay");
 
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
@@ -682,6 +683,10 @@ EditorView::EditorView(
     addAndMakeVisible(m_audio_device_button);
     addAndMakeVisible(m_signal_chain_panel);
     addAndMakeVisible(*m_track_viewport);
+    // BusyOverlay is added last so it lands on top of the editor child stack. It also calls
+    // toFront() on activation, but adding it here as the final child means the initial Z-order
+    // is already correct before the first push.
+    addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
     setSize(1280, 800);
@@ -719,6 +724,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    m_busy_overlay.setBusyState(m_state.busy);
     repaint();
 }
 
@@ -785,6 +791,7 @@ void EditorView::resized()
     }
     m_track_viewport->setBounds(bottom_area);
     m_signal_chain_panel.setBounds(signal_chain_panel_bounds);
+    m_busy_overlay.setBounds(getLocalBounds());
 }
 
 // Retries the startup focus request if this component is explicitly shown later.

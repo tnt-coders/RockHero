@@ -1120,4 +1120,50 @@ TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui
                     .has_value());
 }
 
+// EditorView reveals the busy overlay when state.busy is present and hides it again when busy
+// clears. The overlay is identified by its componentID so the test does not depend on the
+// concrete BusyOverlay type.
+TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, transport, thumbnail_factory};
+
+    juce::Component* const overlay = view.findChildWithID("busy_overlay");
+    REQUIRE(overlay != nullptr);
+    CHECK_FALSE(overlay->isVisible());
+
+    view.setState(
+        core::EditorViewState{
+            .visible_timeline =
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{}, .end = common::core::TimePosition{}
+                },
+            .arrangement = makeArrangementState(std::filesystem::path{}),
+            .signal_chain = core::SignalChainViewState{},
+            .busy = core::BusyViewState{
+                .operation = core::BusyOperation::OpeningProject,
+                .message = "Opening project...",
+                .cancel_enabled = false,
+            },
+        });
+
+    CHECK(overlay->isVisible());
+
+    view.setState(
+        core::EditorViewState{
+            .visible_timeline =
+                common::core::TimeRange{
+                    .start = common::core::TimePosition{}, .end = common::core::TimePosition{}
+                },
+            .arrangement = makeArrangementState(std::filesystem::path{}),
+            .signal_chain = core::SignalChainViewState{},
+        });
+
+    CHECK_FALSE(overlay->isVisible());
+}
+
 } // namespace rock_hero::editor::ui

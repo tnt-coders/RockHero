@@ -17,6 +17,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
+#include <rock_hero/editor/ui/busy_overlay.h>
 #include <rock_hero/editor/ui/signal_chain_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
@@ -230,6 +231,9 @@ private:
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
+
+    // Editor-wide busy overlay rendered on top of the editor content during slow operations.
+    BusyOverlay m_busy_overlay;
 
     // Last unsaved-changes prompt already shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};

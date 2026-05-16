@@ -3,6 +3,7 @@
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/editor/core/editor_settings.h>
+#include <rock_hero/editor/core/juce_editor_task_runner.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
 
@@ -36,6 +37,7 @@ public:
     {
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
+        m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
 
         // Engine implements each editor-facing audio port. Passing it for each role keeps UI code
         // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
@@ -48,6 +50,7 @@ public:
             rock_hero::editor::core::EditorController::Services{
                 .exit_function = &juce::JUCEApplicationBase::quit,
                 .settings = m_editor_settings.get(),
+                .task_runner = m_editor_task_runner.get(),
             });
 
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
@@ -55,10 +58,13 @@ public:
         m_main_window->restoreLastOpenProject();
     }
 
-    // Releases the editor window before JUCE tears down the application object.
+    // Releases the editor window before JUCE tears down the application object. The task runner
+    // is reset after the editor so its destructor joins any outstanding worker before the
+    // audio engine teardown begins.
     void shutdown() override
     {
         m_main_window.reset();
+        m_editor_task_runner.reset();
         m_editor_settings.reset();
         m_audio_engine.reset();
     }
@@ -81,6 +87,10 @@ private:
 
     // Owns app-local editor settings persistence used by controller restore policy.
     std::unique_ptr<rock_hero::editor::core::EditorSettings> m_editor_settings;
+
+    // Owns the JUCE-backed editor task runner used for background project IO. Outlives the
+    // editor so the controller's task_runner pointer remains valid for the editor's lifetime.
+    std::unique_ptr<rock_hero::editor::core::JuceEditorTaskRunner> m_editor_task_runner;
 
     // Owns the editor window after JUCE startup and releases it during shutdown.
     std::unique_ptr<rock_hero::editor::ui::MainWindow> m_main_window;
