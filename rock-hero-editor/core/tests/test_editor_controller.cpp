@@ -6,6 +6,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
@@ -141,6 +142,13 @@ public:
         waveform_click_count += 1;
     }
 
+    // Captures plugin files selected through the controller contract.
+    void onAddLivePluginRequested(std::filesystem::path file) override
+    {
+        last_live_plugin_file = std::move(file);
+        add_live_plugin_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -155,6 +163,9 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last plugin file selected through the controller contract.
+    std::optional<std::filesystem::path> last_live_plugin_file{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -194,6 +205,9 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
+
+    // Number of add-plugin intents received.
+    int add_live_plugin_request_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -366,6 +380,76 @@ public:
 
     // Optional callback fired from setActiveArrangement() to test reentrant refreshes.
     std::function<void()> during_active_arrangement_action{};
+};
+
+// Configurable plugin-host fake that records scanning and live-chain mutation.
+class FakePluginHost final : public common::audio::IPluginHost
+{
+public:
+    // Returns the configured scan candidates or scan error.
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+    scanPluginFile(const std::filesystem::path& plugin_path) override
+    {
+        last_scanned_file = plugin_path;
+        scan_call_count += 1;
+        if (next_scan_error.has_value())
+        {
+            return std::unexpected{*next_scan_error};
+        }
+
+        return next_candidates;
+    }
+
+    // Returns the configured insertion handle or insertion error.
+    [[nodiscard]] std::expected<common::audio::LivePluginHandle, common::audio::PluginHostError>
+    addLiveInstrumentPlugin(const std::string& plugin_id) override
+    {
+        last_added_plugin_id = plugin_id;
+        add_call_count += 1;
+        if (next_add_error.has_value())
+        {
+            return std::unexpected{*next_add_error};
+        }
+
+        common::audio::LivePluginHandle handle = next_handle;
+        handle.plugin_id = plugin_id;
+        return handle;
+    }
+
+    // Candidates returned by the next successful scan.
+    std::vector<common::audio::PluginCandidate> next_candidates{common::audio::PluginCandidate{
+        .id = "plugin-id",
+        .name = "Amp Sim",
+        .manufacturer = "Example Audio",
+        .format_name = "VST3",
+        .file_path = std::filesystem::path{"amp.vst3"},
+    }};
+
+    // Handle returned by the next successful plugin insertion.
+    common::audio::LivePluginHandle next_handle{
+        .instance_id = "instance-id",
+        .plugin_id = {},
+        .chain_index = 0,
+    };
+
+    // Optional scan error returned instead of candidates.
+    std::optional<common::audio::PluginHostError> next_scan_error{};
+
+    // Optional insertion error returned instead of a handle.
+    std::optional<common::audio::PluginHostError> next_add_error{};
+
+    // Last plugin file passed to scanPluginFile().
+    std::optional<std::filesystem::path> last_scanned_file{};
+
+    // Last candidate ID passed to addLiveInstrumentPlugin().
+    std::optional<std::string> last_added_plugin_id{};
+
+    // Number of scan calls received.
+    int scan_call_count{0};
+
+    // Number of insertion calls received.
+    int add_call_count{0};
 };
 
 // Minimal audio-device-configuration fake exposing a real juce::AudioDeviceManager.
@@ -807,6 +891,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
+    CHECK(empty_state.live_instrument.add_plugin_enabled == false);
+    CHECK(empty_state.live_instrument.plugins.empty());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
@@ -832,6 +918,21 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .audio_asset = audio_asset,
                 .audio_duration = common::core::TimeDuration{180.0},
             },
+        .live_instrument =
+            LiveInstrumentViewState{
+                .add_plugin_enabled = true,
+                .plugins =
+                    {
+                        LivePluginViewState{
+                            .instance_id = "instance",
+                            .plugin_id = "plugin",
+                            .name = "Amp Sim",
+                            .manufacturer = "Example Audio",
+                            .format_name = "VST3",
+                            .chain_index = 0,
+                        },
+                    },
+            },
         .unsaved_changes_prompt = UnsavedChangesPrompt{.action = PendingProjectAction::Close},
         .save_as_prompt = SaveAsPrompt{.action = PendingProjectAction::Close},
     };
@@ -841,6 +942,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.audio_devices_available);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
+    CHECK(loaded_state.live_instrument.add_plugin_enabled);
+    REQUIRE(loaded_state.live_instrument.plugins.size() == 1);
+    CHECK(loaded_state.live_instrument.plugins[0].name == "Amp Sim");
     CHECK(
         loaded_state.unsaved_changes_prompt ==
         std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Close}});
@@ -870,6 +974,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
+    controller.onAddLivePluginRequested(std::filesystem::path{"amp.vst3"});
 
     CHECK(controller.open_request_count == 1);
     CHECK(controller.last_open_file == std::optional{open_file});
@@ -890,6 +995,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
     CHECK(controller.last_normalized_x == std::optional{0.75});
+    CHECK(controller.add_live_plugin_request_count == 1);
+    CHECK(controller.last_live_plugin_file == std::optional{std::filesystem::path{"amp.vst3"}});
 }
 
 // Verifies the controller publishes the current audio-device name through view state.
@@ -911,6 +1018,114 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
         CHECK(state.audio_devices_available);
         CHECK(state.current_audio_device_name == std::optional<std::string>{"Interface A"});
     }
+}
+
+// A loaded arrangement with a plugin host enables the live add command.
+TEST_CASE("EditorController enables live plugin add after load", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& initial_state = view.last_state.value();
+        CHECK_FALSE(initial_state.live_instrument.add_plugin_enabled);
+    }
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& loaded_state = view.last_state.value();
+        CHECK(loaded_state.live_instrument.add_plugin_enabled);
+        CHECK(loaded_state.live_instrument.plugins.empty());
+    }
+}
+
+// Adding a live plugin scans the selected file and publishes the inserted chain item.
+TEST_CASE("EditorController adds a live instrument plugin", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    controller.onAddLivePluginRequested(std::filesystem::path{"amp.vst3"});
+
+    CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.last_scanned_file == std::optional{std::filesystem::path{"amp.vst3"}});
+    CHECK(plugin_host.add_call_count == 1);
+    CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"plugin-id"});
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const auto& live_state = view.last_state.value().live_instrument;
+        CHECK(live_state.add_plugin_enabled);
+        REQUIRE(live_state.plugins.size() == 1);
+        CHECK(live_state.plugins[0].instance_id == "instance-id");
+        CHECK(live_state.plugins[0].plugin_id == "plugin-id");
+        CHECK(live_state.plugins[0].name == "Amp Sim");
+        CHECK(live_state.plugins[0].manufacturer == "Example Audio");
+        CHECK(live_state.plugins[0].format_name == "VST3");
+        CHECK(live_state.plugins[0].chain_index == 0);
+    }
+    CHECK(view.shown_errors.empty());
+}
+
+// Plugin-host failures surface as transient errors without adding a chain item.
+TEST_CASE("EditorController reports live plugin add errors", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    plugin_host.next_add_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginLoadFailed,
+        "plugin rejected",
+    };
+
+    controller.onAddLivePluginRequested(std::filesystem::path{"broken.vst3"});
+
+    CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.add_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.live_instrument.plugins.empty());
+    }
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
 }
 
 // Device-manager change notifications re-derive view state through the listener relay.
@@ -965,6 +1180,8 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK_FALSE(state.current_audio_device_name.has_value());
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
+        CHECK_FALSE(state.live_instrument.add_plugin_enabled);
+        CHECK(state.live_instrument.plugins.empty());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
         CHECK_FALSE(state.save_as_prompt.has_value());
     }

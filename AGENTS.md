@@ -7,11 +7,14 @@
   `docs/design/documentation-conventions.md`, and make design, refactoring, layering, coding-style,
   testing, and documentation decisions with those documents in mind unless a higher-priority
   runtime instruction overrides them.
-- Treat files in `.claude/agents/*.md` as task-specific playbooks that Codex may apply directly when relevant.
-- Current playbooks:
-- `.claude/agents/tracktion-engine-expert.md` for Tracktion/JUCE integration, audio-thread safety, engine architecture, and related CMake/submodule work.
-- `.claude/agents/doxygen-audio-docs.md` for Doxygen comment authoring/review in audio and engine-facing C++ code.
-- These playbooks are guidance artifacts, not executable agent definitions in Codex.
+- Treat files in `.codex/agents/*.toml` as Codex subagent profiles that may be used when
+  their specialty is relevant.
+- Current Codex subagents:
+  - `.codex/agents/tracktion-engine-expert.toml` for Tracktion Engine integration, plugin
+    hosting, live input routing, automation, engine architecture, and audio-thread safety.
+  - `.codex/agents/juce-expert.toml` for JUCE UI, device management, message-thread behavior,
+    plugin-hosting primitives, CMake/module integration, and JUCE best practices.
+- These profiles are guidance and delegation configuration for Codex.
 
 ## Documentation Maintenance Rules
 Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design

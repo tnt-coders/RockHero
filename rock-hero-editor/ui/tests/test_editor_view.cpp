@@ -110,6 +110,13 @@ public:
         waveform_click_count += 1;
     }
 
+    // Captures plugin files selected through the live instrument panel.
+    void onAddLivePluginRequested(std::filesystem::path file) override
+    {
+        last_live_plugin_file = std::move(file);
+        add_live_plugin_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -124,6 +131,9 @@ public:
 
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
+
+    // Last plugin file selected through the live instrument panel.
+    std::optional<std::filesystem::path> last_live_plugin_file{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -163,6 +173,9 @@ public:
 
     // Number of waveform-click intents received.
     int waveform_click_count{0};
+
+    // Number of add-plugin intents received.
+    int add_live_plugin_request_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -417,6 +430,11 @@ template <class ComponentType>
                 .end = common::core::TimePosition{duration_seconds},
             },
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
+        .live_instrument =
+            core::LiveInstrumentViewState{
+                .add_plugin_enabled = true,
+                .plugins = {},
+            },
         .unsaved_changes_prompt = std::nullopt,
         .save_as_prompt = std::nullopt,
     };
@@ -490,6 +508,11 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
                     .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
+            .live_instrument =
+                core::LiveInstrumentViewState{
+                    .add_plugin_enabled = false,
+                    .plugins = {},
+                },
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
@@ -513,6 +536,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    auto& live_panel = findRequiredChild<LiveInstrumentPanel>(view, "live_instrument_panel");
+    auto& add_plugin_button = findRequiredChild<juce::TextButton>(view, "add_live_plugin_button");
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
@@ -533,6 +558,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(track_content.isVisible());
     CHECK_FALSE(arrangement_view.isVisible());
     CHECK_FALSE(cursor_overlay.isVisible());
+    CHECK(live_panel.isVisible());
+    CHECK_FALSE(add_plugin_button.isEnabled());
     CHECK(transport.position_read_count == 0);
 
     view.setState(
@@ -557,6 +584,21 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
                     .end = common::core::TimePosition{8.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
+            .live_instrument =
+                core::LiveInstrumentViewState{
+                    .add_plugin_enabled = true,
+                    .plugins =
+                        {
+                            core::LivePluginViewState{
+                                .instance_id = "instance",
+                                .plugin_id = "plugin",
+                                .name = "Amp Sim",
+                                .manufacturer = "Example Audio",
+                                .format_name = "VST3",
+                                .chain_index = 0,
+                            },
+                        },
+                },
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
@@ -574,6 +616,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.exit_request_count == 1);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
+    CHECK(add_plugin_button.isEnabled());
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
@@ -640,10 +683,12 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    auto& live_panel = findRequiredChild<LiveInstrumentPanel>(view, "live_instrument_panel");
     auto& audio_button = findRequiredChild<juce::TextButton>(view, "audio_device_button");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 28, 96, 32});
     CHECK(audio_button.getBounds() == juce::Rectangle<int>{112, 28, 260, 32});
-    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 120});
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
+    CHECK(live_panel.getBounds() == juce::Rectangle<int>{8, 160, 484, 32});
     CHECK(
         arrangement_view.getBounds() ==
         juce::Rectangle<int>{0, 0, 1264, defaultTrackHeight(viewport)});
@@ -668,8 +713,12 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 720});
-    CHECK(track_content.getBounds() == juce::Rectangle<int>{0, 0, 1264, 720});
+    auto& live_panel = findRequiredChild<LiveInstrumentPanel>(view, "live_instrument_panel");
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 472});
+    CHECK(live_panel.getBounds() == juce::Rectangle<int>{8, 552, 1264, 240});
+    CHECK(
+        track_content.getBounds() ==
+        juce::Rectangle<int>{0, 0, 1264, defaultUsableTrackViewportHeight(viewport)});
     CHECK(
         arrangement_view.getBounds() ==
         juce::Rectangle<int>{0, 0, 1264, defaultTrackHeight(viewport)});
@@ -700,8 +749,8 @@ TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
         arrangement_view.getBounds() ==
         juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
     CHECK(cursor_overlay.getBounds() == track_content.getLocalBounds());
-    CHECK(viewport.getViewWidth() == track_viewport.getWidth());
-    CHECK(viewport.getViewHeight() == track_content.getHeight());
+    CHECK(viewport.getViewWidth() <= track_viewport.getWidth());
+    CHECK(viewport.getViewHeight() < track_content.getHeight());
 }
 
 // Verifies mouse wheel zoom scales the timeline content instead of seeking transport.
@@ -908,7 +957,7 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1000, 500);
 
-    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 420});
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 984, 252});
     CHECK(track_content.getBounds() == content_bounds);
     CHECK(arrangement_view.getBounds() == track_bounds);
 }
@@ -930,10 +979,12 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 920});
+    auto& live_panel = findRequiredChild<LiveInstrumentPanel>(view, "live_instrument_panel");
+    CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 652});
+    CHECK(live_panel.getBounds() == juce::Rectangle<int>{8, 732, 1584, 260});
     CHECK(
         track_content.getBounds() ==
-        juce::Rectangle<int>{0, 0, 2528, 920 - viewport.getScrollBarThickness()});
+        juce::Rectangle<int>{0, 0, 2528, defaultUsableTrackViewportHeight(viewport)});
     CHECK(
         arrangement_view.getBounds() ==
         juce::Rectangle<int>{0, 0, 2528, defaultTrackHeight(viewport)});
@@ -971,6 +1022,11 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
                     .end = common::core::TimePosition{4.0},
                 },
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
+            .live_instrument =
+                core::LiveInstrumentViewState{
+                    .add_plugin_enabled = true,
+                    .plugins = {},
+                },
             .unsaved_changes_prompt = std::nullopt,
             .save_as_prompt = std::nullopt,
         });
