@@ -9,8 +9,13 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
 # Keep audio-port contract tests and concrete Engine adapter coverage in one audio test target.
 add_executable(
     rock_hero_common_audio_tests
-    test_audio.cpp test_edit.cpp test_thumbnail_source.cpp test_transport.cpp test_engine.cpp
-    test_tracktion_live_wave_device_mapping.cpp)
+    test_audio.cpp
+    test_edit.cpp
+    test_thumbnail_source.cpp
+    test_transport.cpp
+    test_engine.cpp
+    test_tracktion_live_wave_device_mapping.cpp
+    test_plugin_host.cpp)
 
 # Let focused adapter tests include private implementation helpers without making them public API.
 target_include_directories(rock_hero_common_audio_tests

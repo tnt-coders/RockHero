@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <string>
@@ -41,11 +42,13 @@ input. All public methods must be called on the message thread.
 
 \see ITransport
 \see IAudio
+\see IPluginHost
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
                public IAudio,
                public IAudioDeviceConfiguration,
+               public IPluginHost,
                public IThumbnailFactory
 {
 public:
@@ -143,6 +146,26 @@ public:
 
     /*! \brief Clears the active arrangement from the Tracktion edit and resets playback state. */
     void clearActiveArrangement() override;
+
+    /*!
+    \brief Scans one plugin file or bundle for candidates loadable by the live chain.
+    \param plugin_path Path to a plugin file or plugin bundle.
+    \return Discovered plugin candidates, or a typed failure.
+    */
+    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginFile(
+        const std::filesystem::path& plugin_path) override;
+
+    /*!
+    \brief Appends a previously scanned plugin candidate to the live instrument Tracktion track.
+
+    The adapter stops and rebuilds backend graph state around the mutation. The live input route
+    is rebound afterward so monitoring continues through the updated plugin chain.
+
+    \param plugin_id Opaque candidate ID returned by scanPluginFile().
+    \return Handle for the inserted plugin instance, or a typed failure.
+    */
+    [[nodiscard]] std::expected<LivePluginHandle, PluginHostError> addLiveInstrumentPlugin(
+        const std::string& plugin_id) override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.
