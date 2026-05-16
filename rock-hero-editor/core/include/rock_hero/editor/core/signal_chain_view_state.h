@@ -1,6 +1,6 @@
 /*!
-\file instrument_view_state.h
-\brief Framework-free state rendered by the instrument control panel.
+\file signal_chain_view_state.h
+\brief Framework-free state rendered by the signal-chain panel.
 */
 
 #pragma once
@@ -42,8 +42,8 @@ struct PluginViewState
     friend bool operator==(const PluginViewState& lhs, const PluginViewState& rhs) = default;
 };
 
-/*! \brief State rendered by the instrument panel. */
-struct InstrumentViewState
+/*! \brief State rendered by the signal-chain panel. */
+struct SignalChainViewState
 {
     /*! \brief Enables or disables the add-plugin command. */
     bool add_plugin_enabled{false};
@@ -52,12 +52,12 @@ struct InstrumentViewState
     std::vector<PluginViewState> plugins;
 
     /*!
-    \brief Compares two instrument view states by their stored values.
-    \param lhs Left-hand instrument view state.
-    \param rhs Right-hand instrument view state.
-    \return True when both instrument view states store equal values.
+    \brief Compares two signal-chain view states by their stored values.
+    \param lhs Left-hand signal-chain view state.
+    \param rhs Right-hand signal-chain view state.
+    \return True when both signal-chain view states store equal values.
     */
-    friend bool operator==(const InstrumentViewState& lhs, const InstrumentViewState& rhs) =
+    friend bool operator==(const SignalChainViewState& lhs, const SignalChainViewState& rhs) =
         default;
 };
 
