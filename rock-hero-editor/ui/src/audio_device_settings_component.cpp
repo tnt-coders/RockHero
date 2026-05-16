@@ -171,7 +171,7 @@ AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(juce::AudioDeviceMana
     refreshControls();
 }
 
-// Disconnects from the device manager without altering the live route on dialog close.
+// Disconnects from the device manager without altering the instrument route on dialog close.
 AudioDeviceSettingsComponent::~AudioDeviceSettingsComponent()
 {
     m_device_manager.removeChangeListener(this);
@@ -364,7 +364,7 @@ void AudioDeviceSettingsComponent::configureControls()
     addAndMakeVisible(m_cancel_button);
 }
 
-// Rebuilds UI choices from the live manager after each route or hardware change.
+// Rebuilds UI choices from the active manager after each route or hardware change.
 void AudioDeviceSettingsComponent::refreshControls()
 {
     const juce::ScopedValueSetter<bool> refreshing{m_refreshing_controls, true};
@@ -596,7 +596,7 @@ void AudioDeviceSettingsComponent::refreshBufferSizeChoices()
 void AudioDeviceSettingsComponent::refreshControlEnablement()
 {
     auto* device = m_device_manager.getCurrentAudioDevice();
-    const bool can_use_live_device_buttons = stagedRouteMatchesLiveRoute();
+    const bool can_use_active_device_buttons = stagedRouteMatchesActiveRoute();
     m_device_type_combo.setEnabled(m_device_type_combo.getNumItems() > 0);
     m_device_combo.setEnabled(m_device_combo.isVisible() && m_device_combo.getNumItems() > 0);
     m_input_device_combo.setEnabled(
@@ -607,9 +607,9 @@ void AudioDeviceSettingsComponent::refreshControlEnablement()
     m_output_pair_combo.setEnabled(m_output_pair_combo.getNumItems() > 0);
     m_sample_rate_combo.setEnabled(m_sample_rate_combo.getNumItems() > 0);
     m_buffer_size_combo.setEnabled(m_buffer_size_combo.getNumItems() > 0);
-    m_test_button.setEnabled(can_use_live_device_buttons && device != nullptr);
+    m_test_button.setEnabled(can_use_active_device_buttons && device != nullptr);
     m_control_panel_button.setEnabled(
-        can_use_live_device_buttons && device != nullptr && device->hasControlPanel());
+        can_use_active_device_buttons && device != nullptr && device->hasControlPanel());
 }
 
 // Switches the current JUCE device type and lets the manager pick that type's current route.
@@ -706,7 +706,7 @@ void AudioDeviceSettingsComponent::applySelectedRoute()
     refreshControlEnablement();
 }
 
-// Applies the staged route to the live device manager only when the user accepts the dialog.
+// Applies the staged route to the active device manager only when the user accepts the dialog.
 void AudioDeviceSettingsComponent::applyAcceptedSetup()
 {
     const auto previous_setup = m_device_manager.getAudioDeviceSetup();
@@ -745,7 +745,7 @@ void AudioDeviceSettingsComponent::closeDialog()
     }
 }
 
-// Chooses a staged audio system from the live device manager's available types.
+// Chooses a staged audio system from the active device manager's available types.
 void AudioDeviceSettingsComponent::ensureStagedDeviceType()
 {
     const auto& device_types = m_device_manager.getAvailableDeviceTypes();
@@ -758,12 +758,12 @@ void AudioDeviceSettingsComponent::ensureStagedDeviceType()
         }
     }
 
-    const juce::String live_device_type = m_device_manager.getCurrentAudioDeviceType();
+    const juce::String active_device_type = m_device_manager.getCurrentAudioDeviceType();
     for (const auto* type : device_types)
     {
-        if (type->getTypeName() == live_device_type)
+        if (type->getTypeName() == active_device_type)
         {
-            m_staged_device_type = live_device_type;
+            m_staged_device_type = active_device_type;
             return;
         }
     }
@@ -772,7 +772,7 @@ void AudioDeviceSettingsComponent::ensureStagedDeviceType()
         device_types.isEmpty() ? juce::String{} : device_types.getUnchecked(0)->getTypeName();
 }
 
-// Keeps staged device names valid for the selected audio system without opening the live route.
+// Keeps staged device names valid for the selected audio system without opening the instrument route.
 void AudioDeviceSettingsComponent::ensureStagedDeviceNames()
 {
     auto* type = currentDeviceType();
@@ -857,8 +857,8 @@ std::unique_ptr<juce::AudioIODevice> AudioDeviceSettingsComponent::createStagedD
         m_staged_setup.outputDeviceName, m_staged_setup.inputDeviceName)};
 }
 
-// Reports whether live-device-only buttons apply to the currently staged route.
-bool AudioDeviceSettingsComponent::stagedRouteMatchesLiveRoute() const
+// Reports whether active-device-only buttons apply to the currently staged route.
+bool AudioDeviceSettingsComponent::stagedRouteMatchesActiveRoute() const
 {
     return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
            m_staged_setup == m_device_manager.getAudioDeviceSetup();

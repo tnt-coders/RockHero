@@ -1,6 +1,6 @@
 /*!
-\file tracktion_live_wave_device_mapping.h
-\brief Testable mapping from JUCE active channel masks to Tracktion live wave descriptions.
+\file tracktion_instrument_wave_device_mapping.h
+\brief Testable mapping from JUCE active channel masks to Tracktion wave-device descriptions.
 */
 
 #pragma once
@@ -13,7 +13,7 @@ namespace rock_hero::common::audio
 {
 
 /*! \brief Semantic role of one compact channel in a generated wave-device description. */
-enum class LiveInstrumentChannelRole
+enum class InstrumentChannelRole
 {
     /*! \brief Left or mono-left channel. */
     Left,
@@ -23,21 +23,21 @@ enum class LiveInstrumentChannelRole
 };
 
 /*!
-\brief One compact callback channel exposed to Tracktion for the live-instrument route.
+\brief One compact callback channel exposed to Tracktion for the instrument route.
 */
-struct LiveInstrumentChannelDescription
+struct InstrumentChannelDescription
 {
     /*! \brief Index in JUCE's compact selected-channel callback buffer. */
     int compact_device_channel{};
 
     /*! \brief Channel role used to build Tracktion's AudioChannelSet. */
-    LiveInstrumentChannelRole role{LiveInstrumentChannelRole::Left};
+    InstrumentChannelRole role{InstrumentChannelRole::Left};
 };
 
 /*!
-\brief Physical device channels selected by the project-level live route.
+\brief Physical device channels selected by the project-level instrument route.
 */
-struct LiveInstrumentRouteMask
+struct InstrumentRouteMask
 {
     /*! \brief Selected physical mono input channel bit. */
     int input_physical_channel{};
@@ -52,32 +52,32 @@ struct LiveInstrumentRouteMask
 /*!
 \brief Project-owned description of one generated Tracktion wave input or output.
 */
-struct LiveInstrumentWaveDescription
+struct InstrumentWaveDescription
 {
     /*! \brief Stable hardware-qualified name used for Tracktion wave-device identity. */
     juce::String name;
 
     /*! \brief Compact callback channels that make up this generated wave device. */
-    std::vector<LiveInstrumentChannelDescription> channels;
+    std::vector<InstrumentChannelDescription> channels;
 };
 
 /*!
-\brief Generated mono input and stereo output descriptions for the active live route.
+\brief Generated mono input and stereo output descriptions for the active instrument route.
 */
-struct LiveInstrumentWaveDeviceDescriptions
+struct InstrumentWaveDeviceDescriptions
 {
     /*! \brief Physical channel mask selected by the user-facing audio settings. */
-    LiveInstrumentRouteMask route_mask;
+    InstrumentRouteMask route_mask;
 
-    /*! \brief Compact mono input description for the live instrument track. */
-    LiveInstrumentWaveDescription input;
+    /*! \brief Compact mono input description for the instrument track. */
+    InstrumentWaveDescription input;
 
     /*! \brief Compact stereo output description for the full mix output. */
-    LiveInstrumentWaveDescription output;
+    InstrumentWaveDescription output;
 };
 
 /*!
-\brief Builds compact live-instrument wave-device descriptions from current JUCE masks.
+\brief Builds compact instrument wave-device descriptions from current JUCE masks.
 
 \param hardware_device_name Name reported by the current JUCE audio device.
 \param active_input_channels Active physical input-channel mask.
@@ -86,8 +86,8 @@ struct LiveInstrumentWaveDeviceDescriptions
 \param output_channel_names Physical output channel names reported by the current device.
 \return Generated descriptions, or empty when the masks do not match the app contract.
 */
-[[nodiscard]] std::optional<LiveInstrumentWaveDeviceDescriptions>
-createTracktionLiveWaveDeviceDescriptions(
+[[nodiscard]] std::optional<InstrumentWaveDeviceDescriptions>
+createTracktionInstrumentWaveDeviceDescriptions(
     const juce::String& hardware_device_name, const juce::BigInteger& active_input_channels,
     const juce::BigInteger& active_output_channels, const juce::StringArray& input_channel_names,
     const juce::StringArray& output_channel_names);

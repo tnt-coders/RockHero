@@ -1,6 +1,6 @@
 /*!
 \file i_plugin_host.h
-\brief Tracktion-free live instrument plugin-host port.
+\brief Tracktion-free plugin-host port.
 */
 
 #pragma once
@@ -23,7 +23,7 @@ the selected plugin, but callers should not parse it or depend on Tracktion/JUCE
 */
 struct [[nodiscard]] PluginCandidate
 {
-    /*! \brief Opaque candidate ID used by addLiveInstrumentPlugin(). */
+    /*! \brief Opaque candidate ID used by addPlugin(). */
     std::string id;
 
     /*! \brief Plugin display name reported by the plugin scanner. */
@@ -40,13 +40,13 @@ struct [[nodiscard]] PluginCandidate
 };
 
 /*!
-\brief Handle returned after a plugin is appended to the live instrument chain.
+\brief Handle returned after a plugin is appended to the hosted chain.
 
 The instance ID is opaque to callers and identifies the concrete inserted plugin in the current
-backend edit. The chain index describes the current linear live-chain insertion position; future
+backend edit. The chain index describes the current linear chain insertion position; future
 parallel or rack-based tone graphs may add richer addressing without changing candidate scanning.
 */
-struct [[nodiscard]] LivePluginHandle
+struct [[nodiscard]] PluginHandle
 {
     /*! \brief Opaque ID for the concrete plugin instance in the current backend edit. */
     std::string instance_id;
@@ -54,12 +54,12 @@ struct [[nodiscard]] LivePluginHandle
     /*! \brief Opaque ID of the plugin candidate used to create this instance. */
     std::string plugin_id;
 
-    /*! \brief Zero-based index of the inserted plugin in the current live chain. */
+    /*! \brief Zero-based index of the inserted plugin in the current chain. */
     std::size_t chain_index{};
 };
 
 /*!
-\brief Project-owned facade for live instrument plugin discovery and chain mutation.
+\brief Project-owned facade for plugin discovery and chain mutation.
 
 All methods are message-thread operations. Implementations may scan plugin files, load plugin
 instances, and rebuild backend playback graphs; callers must never invoke this interface from the
@@ -80,15 +80,15 @@ public:
     scanPluginFile(const std::filesystem::path& plugin_path) = 0;
 
     /*!
-    \brief Appends a previously scanned plugin candidate to the live instrument chain.
+    \brief Appends a previously scanned plugin candidate to the hosted chain.
 
-    The first implementation appends to the linear Tracktion plugin list owned by the live
-    instrument track. It stops and rebuilds backend playback graph state as needed.
+    The first implementation appends to the linear Tracktion plugin list owned by the instrument
+    track. It stops and rebuilds backend playback graph state as needed.
 
     \param plugin_id Opaque candidate ID returned by scanPluginFile().
     \return Handle for the inserted plugin instance, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<LivePluginHandle, PluginHostError> addLiveInstrumentPlugin(
+    [[nodiscard]] virtual std::expected<PluginHandle, PluginHostError> addPlugin(
         const std::string& plugin_id) = 0;
 
 protected:

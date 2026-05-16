@@ -14,7 +14,7 @@ add_executable(
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp
-    test_tracktion_live_wave_device_mapping.cpp
+    test_tracktion_instrument_wave_device_mapping.cpp
     test_plugin_host.cpp)
 
 # Let focused adapter tests include private implementation helpers without making them public API.

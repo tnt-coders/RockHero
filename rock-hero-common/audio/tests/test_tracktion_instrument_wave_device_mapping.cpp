@@ -1,4 +1,4 @@
-#include "tracktion_live_wave_device_mapping.h"
+#include "tracktion_instrument_wave_device_mapping.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <stdexcept>
@@ -22,13 +22,13 @@ namespace
     return mask;
 }
 
-// Builds live-route descriptions for the common valid test route.
-[[nodiscard]] std::optional<LiveInstrumentWaveDeviceDescriptions> describeRoute(
+// Builds instrument-route descriptions for the common valid test route.
+[[nodiscard]] std::optional<InstrumentWaveDeviceDescriptions> describeRoute(
     std::initializer_list<int> input_channels, std::initializer_list<int> output_channels,
     const juce::StringArray& input_channel_names = {},
     const juce::StringArray& output_channel_names = {})
 {
-    return createTracktionLiveWaveDeviceDescriptions(
+    return createTracktionInstrumentWaveDeviceDescriptions(
         "Example ASIO Device",
         channelMask(input_channels),
         channelMask(output_channels),
@@ -37,12 +37,12 @@ namespace
 }
 
 // Extracts a valid route while keeping optional precondition checks visible to clang-tidy.
-[[nodiscard]] LiveInstrumentWaveDeviceDescriptions requireRoute(
-    std::optional<LiveInstrumentWaveDeviceDescriptions> route)
+[[nodiscard]] InstrumentWaveDeviceDescriptions requireRoute(
+    std::optional<InstrumentWaveDeviceDescriptions> route)
 {
     if (!route.has_value())
     {
-        throw std::logic_error{"Expected a live route description"};
+        throw std::logic_error{"Expected an instrument route description"};
     }
 
     return std::move(route).value();
@@ -51,45 +51,45 @@ namespace
 } // namespace
 
 // Verifies the first physical input is exposed as the first compact callback channel.
-TEST_CASE("Live route maps first input to compact mono", "[audio][live-route]")
+TEST_CASE("Instrument route maps first input to compact mono", "[audio][instrument-route]")
 {
-    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {0, 1}));
+    const InstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {0, 1}));
 
     CHECK(route.route_mask.input_physical_channel == 0);
     REQUIRE(route.input.channels.size() == 1);
     CHECK(route.input.channels[0].compact_device_channel == 0);
-    CHECK(route.input.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.input.channels[0].role == InstrumentChannelRole::Left);
 }
 
 // Verifies non-first physical inputs still map to Tracktion's compact mono channel.
-TEST_CASE("Live route maps non-first input compactly", "[audio][live-route]")
+TEST_CASE("Instrument route maps non-first input compactly", "[audio][instrument-route]")
 {
-    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({3}, {0, 1}));
+    const InstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({3}, {0, 1}));
 
     CHECK(route.route_mask.input_physical_channel == 3);
     REQUIRE(route.input.channels.size() == 1);
     CHECK(route.input.channels[0].compact_device_channel == 0);
-    CHECK(route.input.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.input.channels[0].role == InstrumentChannelRole::Left);
 }
 
 // Verifies non-first physical output pairs become compact stereo output channels.
-TEST_CASE("Live route maps non-first output compactly", "[audio][live-route]")
+TEST_CASE("Instrument route maps non-first output compactly", "[audio][instrument-route]")
 {
-    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {6, 7}));
+    const InstrumentWaveDeviceDescriptions route = requireRoute(describeRoute({0}, {6, 7}));
 
     CHECK(route.route_mask.output_left_physical_channel == 6);
     CHECK(route.route_mask.output_right_physical_channel == 7);
     REQUIRE(route.output.channels.size() == 2);
     CHECK(route.output.channels[0].compact_device_channel == 0);
-    CHECK(route.output.channels[0].role == LiveInstrumentChannelRole::Left);
+    CHECK(route.output.channels[0].role == InstrumentChannelRole::Left);
     CHECK(route.output.channels[1].compact_device_channel == 1);
-    CHECK(route.output.channels[1].role == LiveInstrumentChannelRole::Right);
+    CHECK(route.output.channels[1].role == InstrumentChannelRole::Right);
 }
 
 // Verifies generated Tracktion names carry hardware and physical channel identity.
-TEST_CASE("Live route names include hardware and channels", "[audio][live-route]")
+TEST_CASE("Instrument route names include hardware and channels", "[audio][instrument-route]")
 {
-    const LiveInstrumentWaveDeviceDescriptions route = requireRoute(describeRoute(
+    const InstrumentWaveDeviceDescriptions route = requireRoute(describeRoute(
         {3},
         {6, 7},
         juce::StringArray{"Input 0", "Input 1", "Input 2", "Hi-Z"},
@@ -100,37 +100,37 @@ TEST_CASE("Live route names include hardware and channels", "[audio][live-route]
 }
 
 // Verifies the route contract rejects a missing input channel.
-TEST_CASE("Live route rejects missing input", "[audio][live-route]")
+TEST_CASE("Instrument route rejects missing input", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({}, {0, 1}).has_value());
 }
 
 // Verifies the route contract rejects multiple input channels.
-TEST_CASE("Live route rejects multiple inputs", "[audio][live-route]")
+TEST_CASE("Instrument route rejects multiple inputs", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({0, 1}, {0, 1}).has_value());
 }
 
 // Verifies the route contract rejects a missing output pair.
-TEST_CASE("Live route rejects missing output", "[audio][live-route]")
+TEST_CASE("Instrument route rejects missing output", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({0}, {}).has_value());
 }
 
 // Verifies the route contract rejects non-adjacent output channel selections.
-TEST_CASE("Live route rejects non-adjacent output", "[audio][live-route]")
+TEST_CASE("Instrument route rejects non-adjacent output", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({0}, {0, 2}).has_value());
 }
 
 // Verifies the route contract rejects adjacent channels that are not a UI stereo pair.
-TEST_CASE("Live route rejects offset adjacent output", "[audio][live-route]")
+TEST_CASE("Instrument route rejects offset adjacent output", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({0}, {1, 2}).has_value());
 }
 
 // Verifies the route contract rejects more than one stereo output pair.
-TEST_CASE("Live route rejects multiple output pairs", "[audio][live-route]")
+TEST_CASE("Instrument route rejects multiple output pairs", "[audio][instrument-route]")
 {
     CHECK_FALSE(describeRoute({0}, {0, 1, 2, 3}).has_value());
 }

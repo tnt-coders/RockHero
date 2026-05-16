@@ -10,7 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
-#include <rock_hero/editor/core/live_instrument_view_state.h>
+#include <rock_hero/editor/core/instrument_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -122,8 +122,8 @@ struct EditorViewState
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement;
 
-    /*! \brief Current live instrument control-panel state. */
-    LiveInstrumentViewState live_instrument;
+    /*! \brief Current instrument control-panel state. */
+    InstrumentViewState instrument;
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
     std::optional<UnsavedChangesPrompt> unsaved_changes_prompt;
