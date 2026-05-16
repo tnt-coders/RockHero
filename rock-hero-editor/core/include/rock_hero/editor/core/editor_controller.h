@@ -316,10 +316,91 @@ private:
         common::audio::IAudioDeviceConfiguration* audio_devices,
         common::audio::IPluginHost* plugin_host, Services services);
 
-    struct PendingProjectRequest
+    class ProjectCommand final
     {
-        PendingProjectAction action{PendingProjectAction::Close};
-        std::filesystem::path file;
+    public:
+        [[nodiscard]] static ProjectCommand open(std::filesystem::path file);
+        [[nodiscard]] static ProjectCommand importSong(std::filesystem::path file);
+        [[nodiscard]] static ProjectCommand close() noexcept;
+        [[nodiscard]] static ProjectCommand exit() noexcept;
+
+        [[nodiscard]] ProjectCommandId id() const noexcept;
+        [[nodiscard]] std::filesystem::path takeFile() noexcept;
+
+    private:
+        explicit ProjectCommand(ProjectCommandId id) noexcept;
+        ProjectCommand(ProjectCommandId id, std::filesystem::path file);
+
+        ProjectCommandId m_id{ProjectCommandId::Close};
+        std::filesystem::path m_file{};
+    };
+
+    // Controller action value used by the private dispatch policy and action router.
+    class EditorAction final
+    {
+    public:
+        enum class Id : std::uint8_t
+        {
+            OpenProject,
+            RestoreProject,
+            ImportProject,
+            SaveProject,
+            SaveProjectAs,
+            PublishProject,
+            CloseProject,
+            ExitApplication,
+            ResolveUnsavedChangesPrompt,
+            CancelSaveAsPrompt,
+            PlayPause,
+            Stop,
+            SeekWaveform,
+            AddPlugin,
+        };
+
+        [[nodiscard]] static EditorAction openProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction restoreProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction importProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction saveProject() noexcept;
+        [[nodiscard]] static EditorAction saveProjectAs(std::filesystem::path file);
+        [[nodiscard]] static EditorAction publishProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction closeProject() noexcept;
+        [[nodiscard]] static EditorAction exitApplication() noexcept;
+        [[nodiscard]] static EditorAction resolveUnsavedChangesPrompt(
+            UnsavedChangesDecision decision) noexcept;
+        [[nodiscard]] static EditorAction cancelSaveAsPrompt() noexcept;
+        [[nodiscard]] static EditorAction playPause() noexcept;
+        [[nodiscard]] static EditorAction stop() noexcept;
+        [[nodiscard]] static EditorAction seekWaveform(double normalized_x) noexcept;
+        [[nodiscard]] static EditorAction addPlugin(std::filesystem::path file);
+
+        [[nodiscard]] Id id() const noexcept;
+        [[nodiscard]] UnsavedChangesDecision decision() const noexcept;
+        [[nodiscard]] double normalizedX() const noexcept;
+        [[nodiscard]] std::filesystem::path takeFile() noexcept;
+
+    private:
+        explicit EditorAction(Id id) noexcept;
+        EditorAction(Id id, std::filesystem::path file);
+        EditorAction(Id id, UnsavedChangesDecision decision) noexcept;
+        EditorAction(Id id, double normalized_x) noexcept;
+
+        Id m_id{Id::SaveProject};
+        std::filesystem::path m_file{};
+        UnsavedChangesDecision m_decision{UnsavedChangesDecision::Cancel};
+        double m_normalized_x{};
+    };
+
+    // Busy policy for actions that enter through the controller action gate.
+    enum class ActionBusyPolicy : std::uint8_t
+    {
+        // Normal mutating actions are blocked until the active busy operation finishes.
+        BlockedByBusy,
+
+        // Superseding actions intentionally invalidate the active busy operation before running.
+        SupersedesBusy,
+
+        // Cooperative actions may run during busy without clearing or invalidating it.
+        AllowedWhileBusy,
     };
 
     // Forward-declared per-operation task states; full definitions live in the .cpp file because
@@ -333,21 +414,39 @@ private:
     // Audio-device listener entry point; called after the device manager state changes.
     void onAudioDeviceConfigurationChanged() override;
 
-    // Requests a project-level action, prompting first when unsaved changes are present.
-    void requestProjectAction(PendingProjectRequest request);
+    // Runs a controller action after applying the shared action gate.
+    void runAction(EditorAction action);
 
-    // Runs a project-level action after prompts and save requirements are satisfied.
-    void performProjectAction(const PendingProjectRequest& request);
+    // Applies controller availability and busy policy before an action body runs.
+    [[nodiscard]] bool prepareAction(EditorAction::Id action);
+
+    // Executes an accepted controller action.
+    void performAction(EditorAction action);
+
+    // Reports whether the action is available in the current controller state.
+    [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
+
+    // Reports whether an action is available before applying any busy-state override.
+    [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
+
+    // Returns how the action interacts with active busy state.
+    [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
+
+    // Requests a project-level command, prompting first when unsaved changes are present.
+    void requestProjectCommand(ProjectCommand command);
+
+    // Runs a project-level command after prompts and save requirements are satisfied.
+    void runProjectCommand(ProjectCommand command);
 
     // Opens an editor project package without first checking unsaved-change state. Begins busy,
     // dispatches package IO to the task runner, and returns immediately. Final commit happens
     // in completeOpenProject() on the message thread.
-    void openProject(const std::filesystem::path& file);
+    void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
 
     // Message-thread completion for openProject(). Honors the busy-generation token: a stale
     // completion (token != current generation) returns without touching session, project, or
     // busy state because Close, Exit, or a superseding operation already owns the live state.
-    void completeOpenProject(std::uint64_t token, std::shared_ptr<OpenTaskState> state);
+    void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
 
     // Imports a song source without first checking unsaved-change state. Begins busy, dispatches
     // import IO to the task runner, and returns immediately. Final commit happens in
@@ -356,7 +455,8 @@ private:
 
     // Message-thread completion for importSongSource(). Same stale-generation semantics as
     // completeOpenProject().
-    void completeImportSongSource(std::uint64_t token, std::shared_ptr<ImportTaskState> state);
+    void completeImportSongSource(
+        std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
 
     // Closes the current project context, session, and backend audio state.
     [[nodiscard]] bool closeProject();
@@ -364,11 +464,11 @@ private:
     // Saves to the current destination and updates dirty tracking on success.
     [[nodiscard]] bool saveProject();
 
-    // Continues the stored pending action after a successful prompted save.
-    void continuePendingProjectAction();
+    // Continues the stored deferred command after a successful prompted save.
+    void continueDeferredProjectCommand();
 
     // Clears any in-progress unsaved-change or Save As prompt.
-    void clearPendingProjectAction() noexcept;
+    void clearDeferredProjectCommand() noexcept;
 
     // Builds the editor-only project state persisted by Save and Save As.
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
@@ -388,10 +488,14 @@ private:
     // superseded completion can be detected and discarded.
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
 
-    // Clears the busy state and advances the generation token so any in-flight worker's
-    // completion sees a mismatch and discards itself. Close and Exit also call this to supersede
-    // an in-flight open/import. Must not be called from a stale completion: the live busy state
-    // belongs to whichever operation superseded the stale one.
+    // Finishes the active busy operation after its matching completion commits or fails.
+    void finishBusyOperation();
+
+    // Invalidates an in-flight busy operation before a superseding action runs.
+    void supersedeBusyOperation();
+
+    // Low-level busy-state primitive shared by the semantic finish/supersede helpers. Stale
+    // completions must never call this: the live busy state belongs to the newer operation.
     void endBusy();
 
     // Restores the saved audio-device manager state on startup when a backend is available.
@@ -475,13 +579,13 @@ private:
     // True once current session changes need to be saved or discarded before replacement.
     bool m_has_unsaved_changes{false};
 
-    // Action waiting for either unsaved-change confirmation or a prompted Save As path.
-    std::optional<PendingProjectRequest> m_pending_project_action{};
+    // Project command waiting for either unsaved-change confirmation or a prompted Save As path.
+    std::optional<ProjectCommand> m_pending_project_command{};
 
     // True while the view should present an unsaved-changes prompt.
     bool m_unsaved_changes_prompt_visible{false};
 
-    // True while the view should present a Save As chooser for a pending action.
+    // True while the view should present a Save As chooser for a deferred command.
     bool m_save_as_prompt_visible{false};
 
     // Active busy state pushed to the view; empty while no slow operation is in flight.

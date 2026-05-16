@@ -149,8 +149,8 @@ private:
 
     enum class SaveAsChooserPurpose : std::uint8_t
     {
-        UserCommand,
-        PendingProjectAction,
+        UserSaveAs,
+        DeferredProjectCommand,
     };
 
     // Opens the asynchronous project package chooser and forwards accepted selections.
