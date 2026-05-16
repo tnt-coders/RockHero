@@ -105,7 +105,7 @@ public:
 
 } // namespace
 
-// Verifies the concrete engine starts with empty state and a zero live position.
+// Verifies the concrete engine starts with empty state and a zero current position.
 TEST_CASE("Engine starts with empty transport state", "[audio][engine][integration]")
 {
     const EngineTestHarness harness;
@@ -282,7 +282,7 @@ TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][inte
     IPluginHost& plugin_host = harness.engine;
     const ITransport& transport = harness.engine;
 
-    const auto handle = plugin_host.addLiveInstrumentPlugin("missing-plugin-id");
+    const auto handle = plugin_host.addPlugin("missing-plugin-id");
 
     REQUIRE_FALSE(handle.has_value());
     CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
@@ -345,8 +345,8 @@ TEST_CASE(
     CHECK(recorder.last_transport_state == TransportState{});
 }
 
-// Verifies direct ITransport seek commands update the live position without mutating state.
-TEST_CASE("Engine seek updates live transport position", "[audio][engine][integration]")
+// Verifies direct ITransport seek commands update the current position without mutating state.
+TEST_CASE("Engine seek updates current transport position", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;

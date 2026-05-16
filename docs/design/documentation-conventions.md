@@ -170,7 +170,7 @@ Example for a top-level declaration:
 /*!
 \brief Reads the current transport position for render-cadence cursor drawing.
 
-Like state(), this method is a live message-thread-only read and is not thread-safe. Listener
+Like state(), this method is a current message-thread-only read and is not thread-safe. Listener
 callbacks report only TransportState changes and do not carry position. UI code that needs smooth
 cursor motion should call position() at its own render cadence.
 
@@ -186,7 +186,7 @@ Example for an indented member declaration:
 \brief Creates the concrete editor view and installs the arrangement thumbnail.
 
     \param controller Controller that receives all user intents emitted by this view.
-    \param transport Read-only transport used by the cursor overlay for live position reads.
+    \param transport Read-only transport used by the cursor overlay for current position reads.
     \param thumbnail_factory Factory used immediately to create the initial row thumbnail.
     */
     EditorView(

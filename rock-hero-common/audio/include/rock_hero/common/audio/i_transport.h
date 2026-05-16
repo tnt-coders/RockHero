@@ -18,7 +18,7 @@ The current contract is message-thread-only. Callers must invoke control methods
 position(), addListener(), and removeListener() from the message thread. Listener callbacks are
 also delivered on the message thread.
 
-state() and position() are live reads. Listener callbacks are reserved for coarse TransportState
+state() and position() are current reads. Listener callbacks are reserved for coarse TransportState
 changes such as play/pause/stop; they do not carry position and are not emitted for every playhead
 movement. UI code that needs smooth cursor motion should call position() at its own render cadence.
 */
@@ -91,7 +91,7 @@ public:
     /*!
     \brief Reads the current transport position for render-cadence cursor drawing.
 
-    Like state(), this method is a live message-thread-only read and is not thread-safe. Listener
+    Like state(), this method is a current message-thread-only read and is not thread-safe. Listener
     callbacks report only TransportState changes and do not carry position. UI code that needs
     smooth cursor motion should call position() at its own render cadence.
 

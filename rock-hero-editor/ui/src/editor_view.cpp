@@ -33,8 +33,8 @@ constexpr int g_audio_device_button_width{260};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
-constexpr int g_live_panel_min_height{160};
-constexpr int g_live_panel_max_height{260};
+constexpr int g_instrument_panel_min_height{160};
+constexpr int g_instrument_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
@@ -130,7 +130,7 @@ std::optional<float> cursorXForTimelinePosition(
     return static_cast<float>(clamped_position * max_x);
 }
 
-// Handles editor-wide timeline interaction and draws the cursor from live transport position.
+// Handles editor-wide timeline interaction and draws the cursor from current transport position.
 class EditorView::CursorOverlay final : public juce::Component
 {
 public:
@@ -224,7 +224,7 @@ private:
     // Controller receives editor-level timeline seek intent.
     core::IEditorController& m_controller;
 
-    // Read-only transport source sampled at vblank cadence for its live position method.
+    // Read-only transport source sampled at vblank cadence for its current position method.
     const common::audio::ITransport& m_transport;
 
     // Vblank-driven callback used to keep cursor motion smooth without transport listeners.
@@ -527,7 +527,7 @@ private:
         setViewportLeft(next_x);
     }
 
-    // Keeps playback visible using controller-pushed state plus live position reads.
+    // Keeps playback visible using controller-pushed state plus current position reads.
     void updatePlaybackFollow()
     {
         if (!m_project_loaded || !m_playback_active || timelineDurationSeconds() <= 0.0)
@@ -587,7 +587,7 @@ private:
     // Full-canvas cursor and click overlay.
     CursorOverlay& m_cursor_overlay;
 
-    // Read-only transport sampled to keep the viewport near the live cursor during playback.
+    // Read-only transport sampled to keep the viewport near the current cursor during playback.
     const common::audio::ITransport& m_transport;
 
     // Zoomed canvas that holds the current waveform track and future track rows.
@@ -660,7 +660,7 @@ EditorView::EditorView(
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
-    , m_live_instrument_panel(*this)
+    , m_instrument_panel(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
     , m_track_viewport(
           std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
@@ -680,7 +680,7 @@ EditorView::EditorView(
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_audio_device_button);
-    addAndMakeVisible(m_live_instrument_panel);
+    addAndMakeVisible(m_instrument_panel);
     addAndMakeVisible(*m_track_viewport);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
@@ -711,7 +711,7 @@ void EditorView::setState(const core::EditorViewState& state)
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
     updateAudioDeviceButton();
-    m_live_instrument_panel.setState(m_state.live_instrument);
+    m_instrument_panel.setState(m_state.instrument);
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -743,7 +743,7 @@ void EditorView::paint(juce::Graphics& g)
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
 }
 
-// Keeps the control strip above the timeline viewport and live instrument panel.
+// Keeps the control strip above the timeline viewport and instrument panel.
 void EditorView::resized()
 {
     auto top_area = getLocalBounds();
@@ -770,18 +770,19 @@ void EditorView::resized()
     m_audio_device_button.setBounds(
         take_control_bounds(control_row, g_audio_device_button_width, false));
     auto bottom_area = trackViewportBounds();
-    const int target_live_panel_height =
-        std::clamp(bottom_area.getHeight() / 3, g_live_panel_min_height, g_live_panel_max_height);
-    const int max_live_panel_height =
+    const int target_instrument_panel_height = std::clamp(
+        bottom_area.getHeight() / 3, g_instrument_panel_min_height, g_instrument_panel_max_height);
+    const int max_instrument_panel_height =
         std::max(0, bottom_area.getHeight() - g_control_gap - g_track_viewport_min_height);
-    const int live_panel_height = std::min(target_live_panel_height, max_live_panel_height);
-    auto live_panel_bounds = bottom_area.removeFromBottom(live_panel_height);
-    if (live_panel_height > 0)
+    const int instrument_panel_height =
+        std::min(target_instrument_panel_height, max_instrument_panel_height);
+    auto instrument_panel_bounds = bottom_area.removeFromBottom(instrument_panel_height);
+    if (instrument_panel_height > 0)
     {
         bottom_area.removeFromBottom(std::min(g_control_gap, bottom_area.getHeight()));
     }
     m_track_viewport->setBounds(bottom_area);
-    m_live_instrument_panel.setBounds(live_panel_bounds);
+    m_instrument_panel.setBounds(instrument_panel_bounds);
 }
 
 // Retries the startup focus request if this component is explicitly shown later.
@@ -1002,7 +1003,7 @@ void EditorView::showPublishChooser()
 }
 
 // Opens an asynchronous VST3 chooser and sends the selected plugin path to the controller.
-void EditorView::showAddLivePluginChooser()
+void EditorView::showAddPluginChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
         "Add VST3 Plugin", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.vst3");
@@ -1017,7 +1018,7 @@ void EditorView::showAddLivePluginChooser()
                 return;
             }
 
-            m_controller.onAddLivePluginRequested(
+            m_controller.onAddPluginRequested(
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
@@ -1128,7 +1129,7 @@ void EditorView::showAudioDeviceSettingsDialog()
     AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
 }
 
-// Returns the area shared by the track viewport and bottom live instrument panel.
+// Returns the area shared by the track viewport and bottom instrument panel.
 juce::Rectangle<int> EditorView::trackViewportBounds() const
 {
     auto area = getLocalBounds();
@@ -1180,14 +1181,14 @@ void EditorView::onStopPressed()
 }
 
 // Opens the plugin chooser through the owner so file-dialog lifetime stays centralized.
-void EditorView::onAddLivePluginPressed()
+void EditorView::onAddPluginPressed()
 {
-    if (!m_state.live_instrument.add_plugin_enabled)
+    if (!m_state.instrument.add_plugin_enabled)
     {
         return;
     }
 
-    showAddLivePluginChooser();
+    showAddPluginChooser();
 }
 
 } // namespace rock_hero::editor::ui

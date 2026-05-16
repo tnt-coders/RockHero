@@ -1,4 +1,4 @@
-#include "live_instrument_panel.h"
+#include "instrument_panel.h"
 
 #include <algorithm>
 #include <string>
@@ -21,8 +21,8 @@ const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_plugin_row_background{juce::Colours::darkgrey.darker(0.12f)};
 const juce::Colour g_plugin_row_border{juce::Colours::black.withAlpha(0.35f)};
 
-// Builds the compact slot label shown in the linear live chain.
-[[nodiscard]] juce::String pluginLabel(const core::LivePluginViewState& plugin)
+// Builds the compact slot label shown in the linear plugin chain.
+[[nodiscard]] juce::String pluginLabel(const core::PluginViewState& plugin)
 {
     juce::String label{std::to_string(plugin.chain_index + 1)};
     label += ". ";
@@ -47,30 +47,30 @@ const juce::Colour g_plugin_row_border{juce::Colours::black.withAlpha(0.35f)};
 } // namespace
 
 // Creates the panel controls and routes the add command through the owner.
-LiveInstrumentPanel::LiveInstrumentPanel(Listener& listener)
+InstrumentPanel::InstrumentPanel(Listener& listener)
     : m_listener(listener)
 {
-    setComponentID("live_instrument_panel");
-    m_add_plugin_button.setComponentID("add_live_plugin_button");
+    setComponentID("instrument_panel");
+    m_add_plugin_button.setComponentID("add_plugin_button");
     m_add_plugin_button.setButtonText("Add Plugin");
-    m_add_plugin_button.onClick = [this] { m_listener.onAddLivePluginPressed(); };
+    m_add_plugin_button.onClick = [this] { m_listener.onAddPluginPressed(); };
     addAndMakeVisible(m_add_plugin_button);
-    setState(core::LiveInstrumentViewState{});
+    setState(core::InstrumentViewState{});
 }
 
 // Uses default destruction for JUCE child controls owned by value.
-LiveInstrumentPanel::~LiveInstrumentPanel() = default;
+InstrumentPanel::~InstrumentPanel() = default;
 
 // Stores the render state and updates controls whose enabledness is derived outside the view.
-void LiveInstrumentPanel::setState(const core::LiveInstrumentViewState& state)
+void InstrumentPanel::setState(const core::InstrumentViewState& state)
 {
     m_state = state;
     m_add_plugin_button.setEnabled(m_state.add_plugin_enabled);
     repaint();
 }
 
-// Draws a compact live-chain panel without introducing plugin-host policy into the widget.
-void LiveInstrumentPanel::paint(juce::Graphics& g)
+// Draws a compact plugin-chain panel without introducing plugin-host policy into the widget.
+void InstrumentPanel::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
     g.fillAll(g_panel_background);
@@ -85,7 +85,7 @@ void LiveInstrumentPanel::paint(juce::Graphics& g)
     g.fillRect(header);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
-    g.drawFittedText("Live Instrument", header.reduced(8, 0), juce::Justification::centredLeft, 1);
+    g.drawFittedText("Instrument", header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
     area.removeFromTop(g_panel_inset);
     if (m_state.plugins.empty())
@@ -97,7 +97,7 @@ void LiveInstrumentPanel::paint(juce::Graphics& g)
     }
 
     g.setFont(juce::FontOptions{14.0f});
-    for (const core::LivePluginViewState& plugin : m_state.plugins)
+    for (const core::PluginViewState& plugin : m_state.plugins)
     {
         if (area.getHeight() < g_plugin_row_height)
         {
@@ -117,7 +117,7 @@ void LiveInstrumentPanel::paint(juce::Graphics& g)
 }
 
 // Keeps the add button in the header area while leaving the body for chain rendering.
-void LiveInstrumentPanel::resized()
+void InstrumentPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
     auto header = area.removeFromTop(g_header_height);

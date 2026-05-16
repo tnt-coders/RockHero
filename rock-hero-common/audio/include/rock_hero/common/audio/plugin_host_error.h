@@ -1,6 +1,6 @@
 /*!
 \file plugin_host_error.h
-\brief Typed errors returned by the live plugin-host boundary.
+\brief Typed errors returned by the plugin-host boundary.
 */
 
 #pragma once
@@ -10,7 +10,7 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Stable failure reasons for plugin discovery and live-chain mutation. */
+/*! \brief Stable failure reasons for plugin discovery and chain mutation. */
 enum class PluginHostErrorCode
 {
     /*! \brief The requested plugin file path is empty or does not exist. */
@@ -28,8 +28,8 @@ enum class PluginHostErrorCode
     /*! \brief A plugin-host operation was invoked from the wrong thread. */
     MessageThreadRequired,
 
-    /*! \brief The live instrument track was not available in the backend edit. */
-    LiveInstrumentTrackMissing,
+    /*! \brief The target track was not available in the backend edit. */
+    TrackMissing,
 
     /*! \brief The backend could not create a plugin object for the selected candidate. */
     PluginCreationFailed,
@@ -37,7 +37,7 @@ enum class PluginHostErrorCode
     /*! \brief The backend created the plugin but the plugin reported a load failure. */
     PluginLoadFailed,
 
-    /*! \brief The backend could not append the plugin to the live instrument chain. */
+    /*! \brief The backend could not append the plugin to the hosted chain. */
     PluginInsertionFailed,
 };
 

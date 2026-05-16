@@ -78,10 +78,10 @@ public:
     virtual void onWaveformClicked(double normalized_x) = 0;
 
     /*!
-    \brief Handles a request to add a plugin file to the live instrument chain.
+    \brief Handles a request to add a plugin file to the plugin chain.
     \param file Filesystem path selected by the user.
     */
-    virtual void onAddLivePluginRequested(std::filesystem::path file) = 0;
+    virtual void onAddPluginRequested(std::filesystem::path file) = 0;
 
 protected:
     /*! \brief Creates the editor-controller interface. */
