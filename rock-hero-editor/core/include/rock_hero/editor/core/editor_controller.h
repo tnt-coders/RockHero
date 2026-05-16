@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -16,6 +17,7 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/session.h>
+#include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
@@ -348,6 +350,20 @@ private:
     // Builds a fresh EditorViewState from the current session and transport state.
     [[nodiscard]] EditorViewState deriveViewState() const;
 
+    // Reports whether a busy operation is currently active.
+    [[nodiscard]] bool isBusy() const noexcept;
+
+    // Stores a new busy state, increments the generation token, and fills the default message.
+    // Every operation captures the returned token and compares it before committing state so a
+    // superseded completion can be detected and discarded.
+    [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
+
+    // Clears the busy state and advances the generation token so any in-flight worker's
+    // completion sees a mismatch and discards itself. Close and Exit also call this to supersede
+    // an in-flight open/import. Must not be called from a stale completion: the live busy state
+    // belongs to whichever operation superseded the stale one.
+    void endBusy();
+
     // Restores the saved audio-device manager state on startup when a backend is available.
     void restoreAudioDeviceState();
 
@@ -437,6 +453,14 @@ private:
 
     // True while the view should present a Save As chooser for a pending action.
     bool m_save_as_prompt_visible{false};
+
+    // Active busy state pushed to the view; empty while no slow operation is in flight.
+    std::optional<BusyViewState> m_busy{};
+
+    // Monotonic token incremented at every beginBusy(). Operations capture this value at start
+    // and compare against the live generation on completion so stale completions can be
+    // discarded without disturbing whichever operation superseded them.
+    std::uint64_t m_busy_generation{0};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
