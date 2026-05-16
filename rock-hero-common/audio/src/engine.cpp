@@ -168,22 +168,28 @@ private:
         m_edit = tracktion::Edit::createSingleTrackEdit(*m_engine);
         auto audio_tracks = tracktion::getAudioTracks(*m_edit);
         tracktion::AudioTrack* const backing_track = audio_tracks.getFirst();
-        jassert(backing_track != nullptr);
 
         if (backing_track != nullptr)
         {
             backing_track->setName("Backing");
             m_backing_track_id = backing_track->itemID;
         }
+        else
+        {
+            logLiveInstrumentMonitoringFailure("backing track was not created");
+        }
 
         const tracktion::AudioTrack::Ptr live_track = m_edit->insertNewAudioTrack(
             tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr);
-        jassert(live_track != nullptr);
 
         if (live_track != nullptr)
         {
             live_track->setName("Live Instrument");
             m_live_instrument_track_id = live_track->itemID;
+        }
+        else
+        {
+            logLiveInstrumentMonitoringFailure("live instrument track was not created");
         }
 
         m_edit->playInStopEnabled = true;
@@ -357,9 +363,14 @@ private:
     // Binds the selected app-local mono input to the live instrument Tracktion track.
     void applyLiveInstrumentMonitoringRoute()
     {
-        jassert(juce::MessageManager::getInstance()->isThisTheMessageThread());
+        if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+        {
+            logLiveInstrumentMonitoringFailure(
+                "live route binding was requested off the message thread");
+            return;
+        }
 
-        tracktion::AudioTrack* const live_track = liveInstrumentTrack();
+        const tracktion::AudioTrack* const live_track = liveInstrumentTrack();
         if (live_track == nullptr)
         {
             logLiveInstrumentMonitoringFailure("live instrument track is missing");

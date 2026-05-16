@@ -905,8 +905,12 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     controller.attachView(view);
 
     REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->audio_devices_available);
-    CHECK(view.last_state->current_audio_device_name == std::optional<std::string>{"Interface A"});
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.audio_devices_available);
+        CHECK(state.current_audio_device_name == std::optional<std::string>{"Interface A"});
+    }
 }
 
 // Device-manager change notifications re-derive view state through the listener relay.
@@ -925,7 +929,11 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
 
     REQUIRE(view.last_state.has_value());
     CHECK(view.set_state_call_count == baseline_pushes + 1);
-    CHECK(view.last_state->current_audio_device_name == std::optional<std::string>{"Interface B"});
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& state = view.last_state.value();
+        CHECK(state.current_audio_device_name == std::optional<std::string>{"Interface B"});
+    }
 }
 
 // Confirms attachView immediately delivers the controller's cached arrangement state.

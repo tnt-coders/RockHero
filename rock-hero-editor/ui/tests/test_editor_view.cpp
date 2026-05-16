@@ -409,6 +409,8 @@ template <class ComponentType>
         .play_pause_enabled = true,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
+        .current_audio_device_name = std::nullopt,
+        .audio_devices_available = false,
         .visible_timeline =
             common::core::TimeRange{
                 .start = common::core::TimePosition{},
@@ -480,6 +482,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
+            .current_audio_device_name = std::nullopt,
+            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},
@@ -545,6 +549,8 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
+            .current_audio_device_name = std::nullopt,
+            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},
@@ -957,6 +963,8 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
+            .current_audio_device_name = std::nullopt,
+            .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
                     .start = common::core::TimePosition{},
