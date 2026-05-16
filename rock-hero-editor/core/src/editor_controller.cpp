@@ -630,8 +630,13 @@ void EditorController::performProjectAction(const PendingProjectRequest& request
 }
 
 // Closes the current editor document across transport, backend audio, session, and workspace.
+// Always supersedes any in-flight busy operation so closing or exiting during an open/import
+// invalidates the worker's generation token; the worker's completion then sees a mismatch and
+// discards itself rather than committing on top of a now-empty session.
 bool EditorController::closeProject()
 {
+    endBusy();
+
     if (!m_project.has_value())
     {
         m_audio.clearActiveArrangement();
@@ -854,6 +859,26 @@ EditorViewState EditorController::deriveViewState() const
         state.save_as_prompt = SaveAsPrompt{.action = m_pending_project_action->action};
     }
 
+    state.busy = m_busy;
+
+    // Busy overrides command affordances regardless of feature availability. Each *_enabled
+    // boolean above retains its natural "available when not busy" meaning; this single block is
+    // the only place that knows about the busy override, so command-availability logic does not
+    // need to be sprinkled with isBusy() checks. close_enabled stays at its non-busy value
+    // because Close supersedes an in-flight operation through endBusy() rather than being
+    // blocked by it.
+    if (isBusy())
+    {
+        state.open_enabled = false;
+        state.import_enabled = false;
+        state.save_enabled = false;
+        state.save_as_enabled = false;
+        state.publish_enabled = false;
+        state.play_pause_enabled = false;
+        state.stop_enabled = false;
+        state.signal_chain.add_plugin_enabled = false;
+    }
+
     return state;
 }
 
@@ -923,6 +948,36 @@ void EditorController::reportError(const std::string& message)
 bool EditorController::hasLoadedArrangement() const
 {
     return session().currentArrangement() != nullptr;
+}
+
+// Reports whether a busy operation is currently active.
+bool EditorController::isBusy() const noexcept
+{
+    return m_busy.has_value();
+}
+
+// Begins a busy operation, advances the generation token, and fills the default message from the
+// central busyMessage() helper so every entry point produces consistent overlay copy.
+std::uint64_t EditorController::beginBusy(BusyOperation operation)
+{
+    m_busy_generation += 1;
+    m_busy = BusyViewState{
+        .operation = operation,
+        .message = busyMessage(operation),
+        .cancel_enabled = false,
+    };
+    return m_busy_generation;
+}
+
+// Clears the busy state and advances the generation token so any in-flight worker's completion
+// sees a mismatch and discards itself. Successful completions call this when their commit
+// finishes; Close and Exit also call it to supersede an in-flight open/import. Stale completions
+// must not call this themselves: the live busy state belongs to whichever operation superseded
+// the stale one.
+void EditorController::endBusy()
+{
+    m_busy.reset();
+    m_busy_generation += 1;
 }
 
 // Treat imported unsaved projects and future session edits as requiring confirmation.

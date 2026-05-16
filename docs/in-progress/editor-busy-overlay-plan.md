@@ -77,26 +77,60 @@ we add cancellable operations later.
   local progress in the dialog while the editor-wide busy overlay blocks the rest of the app.
 - The plugin-loading slice means "Tracktion accepted the plugin into the edit." Warmed and
   seamless-ready plugin state belongs to the tone system work, not this busy-overlay feature.
+- Close and Exit are always honored, even during busy. Both supersede the in-flight operation
+  through `endBusy()` so the user always has a clean in-app escape hatch. The earlier
+  "no escape hatch in Slice 1" decision was the lazy choice and is replaced by this design.
+- Controller-level intent handlers do not add `isBusy()` guards. The view is the source of truth
+  for what is reachable: disabled `*_enabled` booleans hide commands from the menu and toolbar,
+  and `BusyOverlay` intercepts mouse and keyboard input from the EditorView child tree. Paths
+  that bypass EditorView (Close/Exit) are handled by supersede semantics, not gating.
 
 ## Busy Semantics
 
-When `busy` is present:
+When `busy` is present, the controller applies a single override block at the end of
+`deriveViewState()` that forces every command boolean to false except `close_enabled`:
 
-- File commands are disabled.
+- `open_enabled`, `import_enabled`, `save_enabled`, `save_as_enabled`, `publish_enabled` are
+  forced to false.
+- `play_pause_enabled`, `stop_enabled` are forced to false.
+- `signal_chain.add_plugin_enabled` is forced to false.
+
+`close_enabled` stays at its non-busy value because Close supersedes an in-flight busy operation
+through `endBusy()` rather than being blocked by it. See [Close and Exit
+Supersede](#close-and-exit-supersede) below.
+
+The override-block approach means feature-availability logic in `deriveViewState()` does not need
+to know about busy state. Each `*_enabled` boolean continues to encode "is this feature available
+when not busy"; the override is the single place that knows about the busy interaction. The view
+honors `state.busy` to render the overlay, and the `*_enabled` booleans are already disabled, so
+controller-level intent handlers do not need defensive `isBusy()` guards.
+
+User-visible behavior while busy:
+
+- File commands are disabled (Open, Import, Save, Save As, Publish; Close remains available).
 - Transport controls are disabled.
 - Waveform seek gestures are ignored.
 - Signal-chain add/remove/reorder actions are disabled.
 - The audio-device button is disabled unless the current busy operation is the device dialog
   itself and we intentionally allow that dialog to remain interactive.
-- Keyboard shortcuts that trigger editor commands are ignored.
-- Existing modal prompts should not be opened for new operations.
+- Keyboard shortcuts that trigger editor commands are ignored through `BusyOverlay`'s focus and
+  `keyPressed()` consumption.
+- Existing modal prompts are not opened for new operations. Prompts already onscreen before busy
+  began stay onscreen until resolved.
 - Existing content remains visible so the app does not look like it has unloaded the project.
 
-The controller should derive these disabled command flags from `busy` rather than requiring every
-caller to remember to set all individual booleans manually.
+## Close and Exit Supersede
 
-Intents listed in the ignore list are dropped when `isBusy()` is already true at intent receipt.
-Intents that themselves begin a busy operation do so on entry when `isBusy()` is false.
+Close and Exit are intentionally not blocked while busy. Both call `closeProject()`, which calls
+`endBusy()` at the top. `endBusy()` advances `m_busy_generation` as well as clearing `m_busy`, so
+any in-flight worker's eventual completion sees a generation mismatch and discards itself rather
+than committing on top of a now-empty session.
+
+- **Close during busy:** cancels the in-flight operation and returns the editor to whatever
+  project state existed before the open or import began.
+- **Exit during busy:** cancels the in-flight operation, then proceeds with normal exit. The
+  editor task runner's destructor joins outstanding workers before the app shuts down so the
+  worker thread finishes cleanly even if its result is no longer wanted.
 
 ## View Overlay
 
@@ -117,8 +151,10 @@ Keep it presentation-only. It should not know what opening, saving, publishing, 
 device changing means. It only renders the message and optional cancel affordance supplied by
 core state.
 
-Controller-level command gates are still required even with an intercepting overlay. Some intents,
-such as native window close requests, do not originate from child-component input.
+The overlay handles input from the EditorView child component tree. Intents that bypass that
+tree, such as native window close (`onCloseRequested`) and Alt+F4 (`onExitRequested`), are not
+gated by the overlay; they are handled by [Close and Exit Supersede](#close-and-exit-supersede)
+above rather than by controller-level `isBusy()` guards.
 
 ## Paint Fence
 
@@ -222,28 +258,46 @@ void endBusy();
 It also fills `m_busy->message` with `busyMessage(operation)` and leaves
 `m_busy->cancel_enabled` false unless a later cancellable operation explicitly opts in.
 
+`endBusy()` clears `m_busy` *and* advances `m_busy_generation`. The advance ensures that any
+in-flight worker captured an older generation token and will see a mismatch on completion. This
+is what makes Close and Exit during busy work: both call `closeProject()`, which calls
+`endBusy()` at the top, and the worker's stale completion discards itself.
+
 Every operation captures the token returned by `beginBusy()` and compares it with the current
 controller generation before committing state, regardless of whether completion happens on a
 background task, a message-thread continuation, or a paint-fence callback. A mismatched generation
 means the completion is stale and must be discarded. A stale completion does not call `endBusy()`;
 the live busy state belongs to the operation that superseded it.
 
-Update intent handlers to ignore new requests while busy:
+Intent handlers do not gate on `isBusy()`. The view is the source of truth for what is reachable
+through the editor's component tree: disabled `*_enabled` booleans hide commands from the menu
+and toolbar, and `BusyOverlay` intercepts mouse and keyboard input. `onCloseRequested` and
+`onExitRequested` are deliberately ungated because both supersede the in-flight operation through
+`endBusy()` rather than being blocked by it.
 
-- `onOpenRequested`
-- `onImportRequested`
-- `onSaveRequested`
-- `onSaveAsRequested`
-- `onPublishRequested`
-- `onCloseRequested`
-- `onExitRequested`
-- `onPlayPausePressed`
-- `onStopPressed`
-- `onWaveformClicked`
-- `onAddPluginRequested`
+`deriveViewState()` applies a single override block when `isBusy()`:
 
-`deriveViewState()` should gate command booleans with `!isBusy()` rather than relying only on
-project-loaded and transport state.
+```cpp
+if (isBusy())
+{
+    state.open_enabled = false;
+    state.import_enabled = false;
+    state.save_enabled = false;
+    state.save_as_enabled = false;
+    state.publish_enabled = false;
+    state.play_pause_enabled = false;
+    state.stop_enabled = false;
+    state.signal_chain.add_plugin_enabled = false;
+}
+```
+
+`close_enabled` is intentionally left at its non-busy value because Close supersedes rather than
+blocks. The override block is the single place that knows about the busy override; the per-feature
+availability logic above it stays free of `isBusy()` checks.
+
+`closeProject()` calls `endBusy()` at the top so every Close and Exit path supersedes a pending
+open or import. If no busy state was active, `endBusy()` is a generation-advance plus a no-op on
+`m_busy`, which is harmless.
 
 ## Project Loading First Slice
 
@@ -255,7 +309,8 @@ Project loading slice scope:
 
 - add `BusyViewState` and `EditorViewState::busy`
 - add `BusyOverlay` and editor-wide input blocking
-- add controller busy gates for all existing intents
+- apply the busy override block in `deriveViewState()` so menus and toolbars disable themselves
+- wire `closeProject()` to call `endBusy()` at the top so Close and Exit supersede
 - add default messages for `OpeningProject` and `ImportingProject`
 - add the editor-only task runner
 - move only open/import package IO behind the task runner
@@ -264,8 +319,9 @@ Project loading slice scope:
   activation on the message thread
 - clear busy before reporting load/import errors
 
-This slice should not change save, publish, plugin loading, or audio-device apply behavior except
-that those intents are ignored while an open/import operation is busy.
+This slice should not change save, publish, plugin loading, or audio-device apply behavior. The
+override block disables their commands while busy; Close and Exit remain available and supersede
+the in-flight operation.
 
 When moving project IO to background work, avoid sharing mutable `Project` or `Session` objects
 across threads. Prefer creating a temporary project context inside the background task, returning a
@@ -279,12 +335,16 @@ Known project-loading slice limitation: after background project IO completes,
 `IAudio::prepareSong()` can still freeze the spinner because it must run during the message-thread
 commit stage with the current Tracktion-backed audio adapter. That freeze is acceptable for the
 first busy-overlay pass and should be revisited only if large projects make the commit stage
-noticeably slow.
+noticeably slow. Close and Exit during this freeze still work in principle because the override
+block leaves `close_enabled` true and the BusyOverlay does not consume window-level inputs, but
+the visible UI cannot redraw until the message thread is unblocked.
 
-Known Slice 1 UX limitation: close, exit, and cancellation are ignored while project open/import is
-busy. If an open/import stalls, the user has no clean in-app escape hatch in this slice. Accept
-that limitation for the first implementation and revisit it when adding real cancellation or a
-deliberate terminate-and-discard path.
+Slice 1 does not include real cooperative cancellation; that lands in Slice 5. Close and Exit are
+the only escape hatches and they work by supersede (discarding the worker's result on
+completion) rather than by interrupting the worker thread. For background IO this is fine because
+the worker finishes quickly and its result is discarded; for the prepareSong freeze it means the
+user may need to wait for prepareSong to complete before Close or Exit becomes visually
+responsive.
 
 ## Save And Publish Slice
 
@@ -389,20 +449,25 @@ validated without taking on the whole busy-overlay design at once.
 Project-loading slice tests:
 
 - open/import sets `busy` with the expected operation and message before work starts
-- while open/import is busy, other intents do not call underlying services
+- while busy, the derived `EditorViewState` reports `open_enabled`, `import_enabled`,
+  `save_enabled`, `save_as_enabled`, `publish_enabled`, `play_pause_enabled`, `stop_enabled`, and
+  `signal_chain.add_plugin_enabled` as false
+- while busy, `close_enabled` remains at its non-busy value so Close stays reachable
 - successful open/import clears busy and publishes the final derived view state
 - failed open/import clears busy before reporting the existing error
-- unsaved-change prompts are not newly opened while busy
 - stale open/import completions are ignored when their busy generation no longer matches
 - stale open/import completions do not call `endBusy()`
-- close, exit, and cancellation are unavailable during the first project-loading slice
+- Close during busy supersedes the in-flight operation: `closeProject()` calls `endBusy()`, the
+  worker's completion sees a generation mismatch, and the loaded result is not committed
+- Exit during busy supersedes the in-flight operation through the same path
 - `IAudio::prepareSong()` remains in the message-thread commit stage
 
 Project-loading UI tests:
 
 - `EditorView` shows the overlay when `state.busy` is present
 - the overlay renders `BusyViewState::message`
-- menu items are disabled while busy
+- menu items reflect the override block's disabled state while busy, with the File > Close item
+  remaining enabled
 - transport, waveform, and signal-chain actions are disabled or ignored while busy
 - overlay hides and stops intercepting input when `state.busy` clears
 
@@ -438,16 +503,19 @@ Audio-device apply slice tests:
 
 - Add `busy_view_state.h`.
 - Include `BusyViewState` in `EditorViewState`.
-- Add controller `m_busy` helpers and `m_busy_generation`.
+- Add controller `m_busy` helpers and `m_busy_generation`. `endBusy()` advances the generation.
 - Add default messages for `OpeningProject` and `ImportingProject`.
 - Populate busy messages inside `beginBusy(BusyOperation)` through the default message helper.
-- Gate derived command booleans while busy.
+- Apply the override block in `deriveViewState()` so busy disables the right commands.
+- Wire `closeProject()` to call `endBusy()` at the top so Close and Exit supersede.
 - Add `BusyOverlay` to `EditorView`.
-- Add the editor-only task runner.
+- Add the editor-only task runner; its destructor joins outstanding workers before allowing the
+  app to shut down.
 - Move only open/import package IO through the task runner.
 - Recheck the busy generation before committing task results.
 - Commit loaded project/session/audio state on the message thread.
-- Add controller and UI tests for the project-loading slice.
+- Add controller and UI tests for the project-loading slice, including Close-during-busy and
+  Exit-during-busy supersede tests.
 
 This slice is the first implementation target. It should leave save, publish, plugin loading, and
 audio-device apply behavior otherwise unchanged.
