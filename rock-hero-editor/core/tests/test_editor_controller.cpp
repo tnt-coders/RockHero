@@ -1851,8 +1851,48 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
     controller.onSaveRequested();
 
     CHECK(project_services.save_call_count == 1);
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not save: disk full");
+}
+
+// Save As failures clear busy before reporting the error and keep the loaded project.
+TEST_CASE("EditorController save as failure clears busy first", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    project_services.next_save_as_error = std::string{"disk full"};
+
+    controller.onSaveAsRequested(std::filesystem::path{"renamed.rhp"});
+
+    CHECK(project_services.save_as_call_count == 1);
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
+    CHECK(error_state->project_loaded == true);
+    CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"song.rhp"}});
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not save as: disk full");
 }
 
 // Publish writes a native song package copy without changing save-destination state.
@@ -1924,6 +1964,11 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
         CHECK(state.publish_enabled == true);
         CHECK(state.close_enabled == true);
     }
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not publish: disk full");
 }
@@ -2418,6 +2463,108 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     CHECK(busy->message == "Importing project...");
 }
 
+// Save sets busy=SavingProject before the deferred write completion restores normal state.
+TEST_CASE("EditorController save begins busy with default message", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runPendingCompletions();
+
+    controller.onSaveRequested();
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const BusyViewState* busy = busyOrNull(*state);
+    REQUIRE(busy != nullptr);
+    CHECK(busy->operation == BusyOperation::SavingProject);
+    CHECK(busy->message == "Saving project...");
+    CHECK(project_services.save_call_count == 1);
+}
+
+// Save As sets busy=SavingProjectAs before the deferred write completion commits the path.
+TEST_CASE("EditorController save as begins busy with default message", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runPendingCompletions();
+
+    controller.onSaveAsRequested(std::filesystem::path{"renamed.rhp"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const BusyViewState* busy = busyOrNull(*state);
+    REQUIRE(busy != nullptr);
+    CHECK(busy->operation == BusyOperation::SavingProjectAs);
+    CHECK(busy->message == "Saving project...");
+    CHECK(project_services.save_as_call_count == 1);
+}
+
+// Publish sets busy=PublishingProject before the deferred package completion restores state.
+TEST_CASE("EditorController publish begins busy with default message", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .publish_function = project_services.publishFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runPendingCompletions();
+
+    controller.onPublishRequested(std::filesystem::path{"song.rock"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const BusyViewState* busy = busyOrNull(*state);
+    REQUIRE(busy != nullptr);
+    CHECK(busy->operation == BusyOperation::PublishingProject);
+    CHECK(busy->message == "Publishing project...");
+    CHECK(project_services.publish_call_count == 1);
+}
+
 // While busy, action routing disables ordinary commands and keeps Close available to supersede.
 TEST_CASE("EditorController busy routing disables ordinary commands", "[core][editor-controller]")
 {
@@ -2693,6 +2840,95 @@ TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-co
     CHECK_FALSE(final_state->busy.has_value());
     CHECK(final_state->project_loaded == false);
     CHECK(audio.set_active_arrangement_call_count == 0);
+}
+
+// Close during a busy save invalidates the deferred completion so it cannot restore the project.
+TEST_CASE("EditorController close during busy save supersedes write", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runPendingCompletions();
+
+    controller.onSaveRequested();
+    const EditorViewState* busy_state = stateOrNull(view.last_state);
+    REQUIRE(busy_state != nullptr);
+    REQUIRE(busy_state->busy.has_value());
+
+    controller.onCloseRequested();
+    const EditorViewState* closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->busy.has_value());
+    CHECK(closed_state->project_loaded == false);
+
+    runner.runPendingCompletions();
+
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    CHECK(final_state->project_loaded == false);
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    CHECK(transport.stop_call_count == 1);
+    CHECK(view.shown_errors.empty());
+}
+
+// Exiting during a busy save still remembers the current project path before closing the session.
+TEST_CASE("EditorController exit during busy save persists file", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"busy_save_exit"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    int exit_call_count = 0;
+    std::optional<std::filesystem::path> setting_seen_at_exit{};
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+            .exit_function =
+                [&exit_call_count, &setting_seen_at_exit, &settings] {
+                    setting_seen_at_exit = settings.lastOpenProject();
+                    ++exit_call_count;
+                },
+            .settings = &settings,
+            .task_runner = &runner,
+        },
+    };
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(files.projectFile());
+    runner.runPendingCompletions();
+
+    controller.onSaveRequested();
+    controller.onExitRequested();
+
+    CHECK(exit_call_count == 1);
+    CHECK(setting_seen_at_exit == std::optional{files.projectFile()});
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+
+    runner.runPendingCompletions();
+
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
 }
 
 // A stale completion (generation no longer matches) does not finish busy state: if another

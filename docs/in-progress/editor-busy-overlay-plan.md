@@ -3,7 +3,12 @@
 ## Goal
 
 Add one generalized editor-wide busy mechanism for operations that can visibly pause the app:
-opening/importing projects, saving, publishing, loading plugins, and changing audio devices.
+opening/importing projects, saving, publishing, and loading plugins.
+
+Audio-device switching is intentionally different. Slice 4 is not a commitment to add an
+editor-wide busy overlay for device changes. It is first a performance investigation and
+optimization slice. Only add device-change busy UI after measurements show that normal device
+switching still takes long enough to need it.
 
 The user experience should be consistent:
 
@@ -73,8 +78,12 @@ we add cancellable operations later.
   be made artificially slower unless real flicker shows up during testing.
 - Keep the task runner editor-only. Game startup loading has different lifetime and threading
   constraints, so designing a shared runner now would be speculative.
-- During audio-device apply, keep the settings dialog open. Disable its Apply button and show
-  local progress in the dialog while the editor-wide busy overlay blocks the rest of the app.
+- Do not implement an audio-device busy overlay until the device-change path has been measured and
+  optimized. REAPER's behavior suggests normal device switches should usually complete quickly
+  enough that a blocking editor-wide loading state is unnecessary.
+- If measurement still proves audio-device busy UI is needed, keep the settings dialog open.
+  Disable its Apply button and show local progress in the dialog while the editor-wide busy
+  overlay blocks the rest of the app.
 - The plugin-loading slice means "Tracktion accepted the plugin into the edit." Warmed and
   seamless-ready plugin state belongs to the tone system work, not this busy-overlay feature.
 - Close and Exit are always honored, even during busy. The action router routes both through the
@@ -212,10 +221,16 @@ factory style:
 ```cpp
 requestProjectCommand(ProjectCommand::open(std::move(file)));
 requestProjectCommand(ProjectCommand::close());
+runProjectCommand(ProjectCommand::save());
+runProjectCommand(ProjectCommand::saveAs(std::move(file)));
+runProjectCommand(ProjectCommand::publish(std::move(file)));
 ```
 
 Prompt view state should expose only `ProjectCommandId`, because the view needs the identity for
-copy and not the path payload.
+copy and not the path payload. Save, Save As, and Publish should also be represented as
+`ProjectCommand` values even when they are not deferred through unsaved-changes prompts. That keeps
+project command routing and write-task completion policy in one vocabulary instead of splitting
+the controller into separate save/publish helper paths.
 
 ## Close and Exit Supersede
 
@@ -527,15 +542,20 @@ Possible later split:
 
 Do not mark the project dirty for runtime-only plugin changes until tone persistence exists.
 
-## Audio Device Apply Slice
+## Audio Device Change Investigation Slice
 
-Audio-device changes need special handling because the current settings UI hosts the device manager
-directly. The controller receives `onAudioDeviceConfigurationChanged()` after the device has
-already changed, which is too late to show a busy overlay before the slow work starts.
+Audio-device changes need special handling and should not be treated as just another busy-overlay
+operation yet. This slice is explicitly a measurement and optimization slice first. The desired
+outcome is that ordinary device switches become fast enough that no editor-wide loading state is
+needed.
+
+The current settings UI hosts the device manager directly. The controller receives
+`onAudioDeviceConfigurationChanged()` after the device has already changed, which is too late to
+show a busy overlay before slow work starts.
 
 The current notification path is useful for persistence and state refresh, but it is post-facto.
 It does not cover slow driver open/restart work and should not be considered a complete busy
-solution.
+solution if a busy solution is eventually needed.
 
 Recommended direction:
 
@@ -549,19 +569,20 @@ Recommended direction:
 - avoid opening an intermediate default device when switching device type if the final setup is
   already known
 - reduce Tracktion context rebuild work to the minimum needed after a committed route change
-- route device changes through a project-owned audio-device command surface instead of exposing
-  direct mutation through the dialog
-- let the UI emit "apply device setup" intents to the controller
-- have the controller set `ChangingAudioDevice` before applying the setup through the audio
-  backend
-- keep the settings dialog open, disable its Apply button, and show local apply progress while the
-  editor-wide busy overlay blocks the rest of the app
+- only if the optimized path still visibly stalls, route device changes through a project-owned
+  audio-device command surface instead of exposing direct mutation through the dialog
+- only in that measured-busy case, let the UI emit "apply device setup" intents to the controller
+- only in that measured-busy case, have the controller set `ChangingAudioDevice` before applying
+  the setup through the audio backend
+- only in that measured-busy case, keep the settings dialog open, disable its Apply button, and
+  show local apply progress while the editor-wide busy overlay blocks the rest of the app
 - pause or stop transport before applying device setup until live reconfiguration is proven safe
 - keep the settings component as presentation of available devices, inputs, outputs, sample rates,
   and buffer sizes
 
-This command-surface work should stay isolated in its own slice. It is the only way to guarantee
-the overlay appears before a slow driver reconfiguration begins.
+This command-surface work should stay isolated behind the measurement result. It is the only way to
+guarantee an overlay appears before a slow driver reconfiguration begins, but it should not be
+built unless the optimized path still needs that user-visible blocking state.
 
 ## Error Handling
 
@@ -662,13 +683,17 @@ Plugin-loading slice tests:
   error
 - project dirty state does not change for runtime-only plugin changes
 
-Audio-device apply slice tests:
+Audio-device change investigation checks:
 
-- applying a device setup sets `ChangingAudioDevice` before backend mutation begins
-- the settings dialog Apply action is disabled while apply is active
-- editor-wide commands behind the dialog are blocked while apply is active
-- transport is paused or stopped before device setup changes
-- failure clears busy and publishes the non-busy state before reporting the existing device error
+- add timing probes or logs around JUCE device-type/setup changes, settings-dialog refresh work,
+  and Tracktion route/context rebuild work
+- verify ordinary combo refreshes do not repeatedly rescan or create staged devices when cached
+  data is enough
+- verify device-type switches avoid opening an unnecessary intermediate default device when the
+  final setup is already known
+- verify Tracktion route/context rebuild work is no broader than the committed setup change needs
+- only add busy-overlay tests for `ChangingAudioDevice` if measurement proves that a device-change
+  busy UI is still necessary after optimization
 
 ## Implementation Slices
 
@@ -718,6 +743,9 @@ the same mechanism is reused by more operations.
 
 - Add default messages for `SavingProject`, `SavingProjectAs`, and `PublishingProject`.
 - Route Save, Save As, Publish, and any Save As prompt continuation through action routing.
+- Extend `ProjectCommand` with Save, Save As, and Publish command factories.
+- Run all package writes through one project-write command path rather than separate
+  save/save-as/publish task-runner submissions.
 - Move package write IO through the same editor task runner.
 - Reuse the same generation-token stale-completion handling.
 - Keep prompt handling and final state commits on the message thread.
@@ -736,17 +764,18 @@ the same mechanism is reused by more operations.
 - Push final non-busy state before reporting plugin-load errors.
 - Add focused controller/UI tests for the fence and busy clearing behavior.
 
-### Slice 4: Audio Device Apply Busy State
+### Slice 4: Audio Device Change Performance Investigation
 
-- Replace direct device-manager mutation from the settings dialog with controller-owned apply
-  intents.
-- Route audio-device apply through action routing.
-- Add audio-device command methods to the project-owned audio-device boundary.
-- Show `ChangingAudioDevice` before applying setup.
-- Keep the settings dialog open with its Apply button disabled and a local progress indicator.
-- Pause or stop transport before device setup changes until live reconfiguration is proven safe.
-- Keep the existing direct `juce::AudioDeviceManager` access only if still needed for read-only
-  enumeration or transitional compatibility.
+- Instrument and measure the current device-change path before adding any busy UI.
+- Time JUCE device-type/setup calls, settings-dialog refresh work, and Tracktion route/context
+  rebuild work separately.
+- Remove avoidable repeated scans, staged device creation, unnecessary intermediate default-device
+  opens, and broader-than-needed Tracktion rebuilds.
+- Decide from measurement whether normal device switching still needs `ChangingAudioDevice` busy
+  state. Do not add the overlay path if optimized switches are acceptably quick.
+- If measurement proves a busy state is still necessary, split the command-surface/busy-overlay
+  work into a later slice with controller-owned apply intents, action routing, disabled Apply
+  state, local dialog progress, and the editor-wide overlay.
 
 ### Slice 5: Optional Progress And Cancellation
 

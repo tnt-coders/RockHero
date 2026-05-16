@@ -101,6 +101,18 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         {
             return "Save changes before importing another project?";
         }
+        case core::ProjectCommandId::Save:
+        {
+            return "Save changes before saving the current project?";
+        }
+        case core::ProjectCommandId::SaveAs:
+        {
+            return "Save changes before saving a copy of the current project?";
+        }
+        case core::ProjectCommandId::Publish:
+        {
+            return "Save changes before publishing the current project?";
+        }
         case core::ProjectCommandId::Exit:
         {
             return "Save changes before exiting Rock Hero Editor?";

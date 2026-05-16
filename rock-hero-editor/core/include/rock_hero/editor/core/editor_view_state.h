@@ -20,9 +20,25 @@ namespace rock_hero::editor::core
 /*! \brief Identity for a project-level command waiting on editor prompts. */
 enum class ProjectCommandId : std::uint8_t
 {
+    /*! \brief Closes the current editor project. */
     Close,
+
+    /*! \brief Opens an editor project package from disk. */
     Open,
+
+    /*! \brief Imports a song source into a new unsaved editor project. */
     Import,
+
+    /*! \brief Saves the current editor project to its existing package path. */
+    Save,
+
+    /*! \brief Saves the current editor project to a selected package path. */
+    SaveAs,
+
+    /*! \brief Publishes the current editor project as a native song package. */
+    Publish,
+
+    /*! \brief Exits the editor application. */
     Exit,
 };
 
