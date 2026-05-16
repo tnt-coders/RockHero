@@ -3,11 +3,21 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <cstdint>
 #include <expected>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/scoped_listener.h>
+#include <rock_hero/editor/core/busy_view_state.h>
+#include <rock_hero/editor/core/editor_settings.h>
+#include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/inline_editor_task_runner.h>
 #include <rock_hero/editor/core/psarc_song_importer.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
@@ -125,10 +135,256 @@ void defaultExit()
 
 } // namespace
 
+// Owns every implementation detail that does not need to be part of the public controller type.
+struct EditorController::Impl final : private common::audio::ITransport::Listener,
+                                      private common::audio::IAudioDeviceConfiguration::Listener
+{
+    // Project command value used while resolving unsaved-change and Save As prompts.
+    class ProjectCommand final
+    {
+    public:
+        [[nodiscard]] static ProjectCommand open(std::filesystem::path file);
+        [[nodiscard]] static ProjectCommand importSong(std::filesystem::path file);
+        [[nodiscard]] static ProjectCommand close() noexcept;
+        [[nodiscard]] static ProjectCommand exit() noexcept;
+
+        [[nodiscard]] ProjectCommandId id() const noexcept;
+        [[nodiscard]] std::filesystem::path takeFile() noexcept;
+
+    private:
+        explicit ProjectCommand(ProjectCommandId id) noexcept;
+        ProjectCommand(ProjectCommandId id, std::filesystem::path file);
+
+        ProjectCommandId m_id{ProjectCommandId::Close};
+        std::filesystem::path m_file{};
+    };
+
+    // Controller action value used by the private dispatch policy and action router.
+    class EditorAction final
+    {
+    public:
+        enum class Id : std::uint8_t
+        {
+            OpenProject,
+            RestoreProject,
+            ImportProject,
+            SaveProject,
+            SaveProjectAs,
+            PublishProject,
+            CloseProject,
+            ExitApplication,
+            ResolveUnsavedChangesPrompt,
+            CancelSaveAsPrompt,
+            PlayPause,
+            Stop,
+            SeekWaveform,
+            AddPlugin,
+        };
+
+        [[nodiscard]] static EditorAction openProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction restoreProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction importProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction saveProject() noexcept;
+        [[nodiscard]] static EditorAction saveProjectAs(std::filesystem::path file);
+        [[nodiscard]] static EditorAction publishProject(std::filesystem::path file);
+        [[nodiscard]] static EditorAction closeProject() noexcept;
+        [[nodiscard]] static EditorAction exitApplication() noexcept;
+        [[nodiscard]] static EditorAction resolveUnsavedChangesPrompt(
+            UnsavedChangesDecision decision) noexcept;
+        [[nodiscard]] static EditorAction cancelSaveAsPrompt() noexcept;
+        [[nodiscard]] static EditorAction playPause() noexcept;
+        [[nodiscard]] static EditorAction stop() noexcept;
+        [[nodiscard]] static EditorAction seekWaveform(double normalized_x) noexcept;
+        [[nodiscard]] static EditorAction addPlugin(std::filesystem::path file);
+
+        [[nodiscard]] Id id() const noexcept;
+        [[nodiscard]] UnsavedChangesDecision decision() const noexcept;
+        [[nodiscard]] double normalizedX() const noexcept;
+        [[nodiscard]] std::filesystem::path takeFile() noexcept;
+
+    private:
+        explicit EditorAction(Id id) noexcept;
+        EditorAction(Id id, std::filesystem::path file);
+        EditorAction(Id id, UnsavedChangesDecision decision) noexcept;
+        EditorAction(Id id, double normalized_x) noexcept;
+
+        Id m_id{Id::SaveProject};
+        std::filesystem::path m_file{};
+        UnsavedChangesDecision m_decision{UnsavedChangesDecision::Cancel};
+        double m_normalized_x{};
+    };
+
+    // Busy policy for actions that enter through the controller action gate.
+    enum class ActionBusyPolicy : std::uint8_t
+    {
+        // Normal mutating actions are blocked until the active busy operation finishes.
+        BlockedByBusy,
+
+        // Superseding actions intentionally invalidate the active busy operation before running.
+        SupersedesBusy,
+
+        // Cooperative actions may run during busy without clearing or invalidating it.
+        AllowedWhileBusy,
+    };
+
+    struct OpenTaskState;
+    struct ImportTaskState;
+
+    Impl(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IAudioDeviceConfiguration* audio_devices,
+        common::audio::IPluginHost* plugin_host, EditorController::Services services);
+    ~Impl() override;
+
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
+
+    void attachView(IEditorView& view);
+    [[nodiscard]] const common::core::Session& session() const noexcept;
+    [[nodiscard]] std::optional<std::filesystem::path> currentProjectFile() const;
+    void restoreLastOpenProject();
+    void onOpenRequested(std::filesystem::path file);
+    void onImportRequested(std::filesystem::path file);
+    void onSaveRequested();
+    void onSaveAsRequested(std::filesystem::path file);
+    void onPublishRequested(std::filesystem::path file);
+    void onSaveAsCancelled();
+    void onCloseRequested();
+    void onExitRequested();
+    void onUnsavedChangesDecision(UnsavedChangesDecision decision);
+    void onPlayPausePressed();
+    void onStopPressed();
+    void onWaveformClicked(double normalized_x);
+    void onAddPluginRequested(std::filesystem::path file);
+    void onTransportStateChanged(common::audio::TransportState state) override;
+    void onAudioDeviceConfigurationChanged() override;
+
+    void runAction(EditorAction action);
+    [[nodiscard]] bool prepareAction(EditorAction::Id action);
+    void performAction(EditorAction action);
+    [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
+    [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
+    [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
+
+    void requestProjectCommand(ProjectCommand command);
+    void runProjectCommand(ProjectCommand command);
+    void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
+    void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
+    void importSongSource(const std::filesystem::path& file);
+    void completeImportSongSource(
+        std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
+    [[nodiscard]] bool closeProject();
+    [[nodiscard]] bool saveProject();
+    void continueDeferredProjectCommand();
+    void clearDeferredProjectCommand() noexcept;
+    [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
+    [[nodiscard]] bool loadSessionSong(
+        common::core::Song song, const std::optional<std::string>& selected_arrangement);
+    [[nodiscard]] EditorViewState deriveViewState() const;
+    [[nodiscard]] bool isBusy() const noexcept;
+    [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
+    void finishBusyOperation();
+    void supersedeBusyOperation();
+    void endBusy();
+    void restoreAudioDeviceState();
+    void persistAudioDeviceState();
+    void deriveAndPush();
+    void reportError(const std::string& message);
+    [[nodiscard]] bool hasLoadedArrangement() const;
+    [[nodiscard]] bool hasUnsavedChanges() const noexcept;
+    [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
+
+    // Transport port used for control intents and coarse listener delivery.
+    common::audio::ITransport& m_transport;
+
+    // Audio port used for project audio validation and selected-arrangement loading.
+    common::audio::IAudio& m_audio;
+
+    // Optional audio-device port used for ASIO input/output routing.
+    common::audio::IAudioDeviceConfiguration* m_audio_devices{};
+
+    // Optional plugin-host port used to mutate the processing chain.
+    common::audio::IPluginHost* m_plugin_host{};
+
+    // Song aggregate and selected arrangement state currently loaded in the editor.
+    common::core::Session m_session;
+
+    // Project IO and host-exit seams supplied by production composition or tests.
+    EditorController::OpenFunction m_open_function;
+    EditorController::ImportFunction m_import_function;
+    EditorController::SaveFunction m_save_function;
+    EditorController::SaveAsFunction m_save_as_function;
+    EditorController::PublishFunction m_publish_function;
+    EditorController::ExitFunction m_exit_function;
+
+    // Optional app-local settings used to restore startup state and persist exit state.
+    EditorSettings* m_settings;
+
+    // Non-owning view binding installed by attachView(); null before the first attachment.
+    IEditorView* m_view{nullptr};
+
+    // Most recently derived view state used as the seed push at view attachment.
+    EditorViewState m_last_state{};
+
+    // Runtime plugin chain shown by the view until durable tone persistence is introduced.
+    std::vector<PluginViewState> m_plugins;
+
+    // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
+    bool m_session_load_in_progress{false};
+
+    // Currently loaded or imported project context; keeps workspace files alive.
+    std::optional<Project> m_project{};
+
+    // User-selected editor project path used for project-name-derived UI suggestions.
+    std::filesystem::path m_project_file{};
+
+    // True when Save must first collect an editor project package path, such as after import.
+    bool m_save_requires_destination{false};
+
+    // True once current session changes need to be saved or discarded before replacement.
+    bool m_has_unsaved_changes{false};
+
+    // Project command waiting for either unsaved-change confirmation or a prompted Save As path.
+    std::optional<ProjectCommand> m_pending_project_command{};
+
+    // True while the view should present an unsaved-changes prompt.
+    bool m_unsaved_changes_prompt_visible{false};
+
+    // True while the view should present a Save As chooser for a deferred command.
+    bool m_save_as_prompt_visible{false};
+
+    // Active busy state pushed to the view; empty while no slow operation is in flight.
+    std::optional<BusyViewState> m_busy{};
+
+    // Monotonic token used by async completions to reject stale work.
+    std::uint64_t m_busy_generation{0};
+
+    // Reset during destruction so queued completions can detect that the controller is gone.
+    std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
+
+    // Fallback task runner used when Services::task_runner is null.
+    InlineEditorTaskRunner m_inline_task_runner{};
+
+    // Non-owning pointer to the active task runner.
+    IEditorTaskRunner* m_task_runner{};
+
+    // Declared near the end so callback registration is detached before controller state dies.
+    common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
+        m_transport_listener;
+
+    // Optional audio-device-configuration listener registration.
+    std::unique_ptr<common::audio::ScopedListener<
+        common::audio::IAudioDeviceConfiguration,
+        common::audio::IAudioDeviceConfiguration::Listener>>
+        m_audio_device_listener;
+};
+
 // Per-operation worker state for openProject(). The worker thread writes the result; the
 // message-thread completion reads it. Held through a shared_ptr captured by both lambdas so the
 // Project's workspace files stay alive until either side is done with them.
-struct EditorController::OpenTaskState
+struct EditorController::Impl::OpenTaskState
 {
     std::filesystem::path file{};
     bool clear_last_open_project_on_failure{false};
@@ -138,7 +394,7 @@ struct EditorController::OpenTaskState
 
 // Per-operation worker state for importSongSource(). Same shared_ptr ownership pattern as
 // OpenTaskState.
-struct EditorController::ImportTaskState
+struct EditorController::Impl::ImportTaskState
 {
     std::filesystem::path file{};
     Project project{};
@@ -146,187 +402,192 @@ struct EditorController::ImportTaskState
 };
 
 // Builds an open-project action carrying the chosen package path.
-EditorController::EditorAction EditorController::EditorAction::openProject(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::openProject(
     std::filesystem::path file)
 {
     return EditorAction{Id::OpenProject, std::move(file)};
 }
 
 // Builds a startup-restore action carrying the persisted package path.
-EditorController::EditorAction EditorController::EditorAction::restoreProject(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::restoreProject(
     std::filesystem::path file)
 {
     return EditorAction{Id::RestoreProject, std::move(file)};
 }
 
 // Builds an import action carrying the chosen source path.
-EditorController::EditorAction EditorController::EditorAction::importProject(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::importProject(
     std::filesystem::path file)
 {
     return EditorAction{Id::ImportProject, std::move(file)};
 }
 
 // Builds a direct save action.
-EditorController::EditorAction EditorController::EditorAction::saveProject() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::saveProject() noexcept
 {
     return EditorAction{Id::SaveProject};
 }
 
 // Builds a Save As action carrying the chosen package path.
-EditorController::EditorAction EditorController::EditorAction::saveProjectAs(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::saveProjectAs(
     std::filesystem::path file)
 {
     return EditorAction{Id::SaveProjectAs, std::move(file)};
 }
 
 // Builds a publish action carrying the chosen native song package path.
-EditorController::EditorAction EditorController::EditorAction::publishProject(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::publishProject(
     std::filesystem::path file)
 {
     return EditorAction{Id::PublishProject, std::move(file)};
 }
 
 // Builds a close-project action.
-EditorController::EditorAction EditorController::EditorAction::closeProject() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::closeProject() noexcept
 {
     return EditorAction{Id::CloseProject};
 }
 
 // Builds an exit-application action.
-EditorController::EditorAction EditorController::EditorAction::exitApplication() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::
+    exitApplication() noexcept
 {
     return EditorAction{Id::ExitApplication};
 }
 
 // Builds an unsaved-changes prompt resolution action.
-EditorController::EditorAction EditorController::EditorAction::resolveUnsavedChangesPrompt(
-    UnsavedChangesDecision decision) noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::
+    resolveUnsavedChangesPrompt(UnsavedChangesDecision decision) noexcept
 {
     return EditorAction{Id::ResolveUnsavedChangesPrompt, decision};
 }
 
 // Builds a Save As cancellation action for a controller-requested chooser.
-EditorController::EditorAction EditorController::EditorAction::cancelSaveAsPrompt() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::
+    cancelSaveAsPrompt() noexcept
 {
     return EditorAction{Id::CancelSaveAsPrompt};
 }
 
 // Builds a transport play/pause action.
-EditorController::EditorAction EditorController::EditorAction::playPause() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::playPause() noexcept
 {
     return EditorAction{Id::PlayPause};
 }
 
 // Builds a transport stop action.
-EditorController::EditorAction EditorController::EditorAction::stop() noexcept
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::stop() noexcept
 {
     return EditorAction{Id::Stop};
 }
 
 // Builds a waveform seek action carrying the normalized click coordinate.
-EditorController::EditorAction EditorController::EditorAction::seekWaveform(
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::seekWaveform(
     double normalized_x) noexcept
 {
     return EditorAction{Id::SeekWaveform, normalized_x};
 }
 
 // Builds an add-plugin action carrying the chosen plugin path.
-EditorController::EditorAction EditorController::EditorAction::addPlugin(std::filesystem::path file)
+EditorController::Impl::EditorAction EditorController::Impl::EditorAction::addPlugin(
+    std::filesystem::path file)
 {
     return EditorAction{Id::AddPlugin, std::move(file)};
 }
 
 // Stores the action id for payload-free actions.
-EditorController::EditorAction::EditorAction(Id id) noexcept
+EditorController::Impl::EditorAction::EditorAction(Id id) noexcept
     : m_id(id)
 {}
 
 // Stores the action id and path payload.
-EditorController::EditorAction::EditorAction(Id id, std::filesystem::path file)
+EditorController::Impl::EditorAction::EditorAction(Id id, std::filesystem::path file)
     : m_id(id)
     , m_file(std::move(file))
 {}
 
 // Stores the action id and unsaved-changes decision payload.
-EditorController::EditorAction::EditorAction(Id id, UnsavedChangesDecision decision) noexcept
+EditorController::Impl::EditorAction::EditorAction(Id id, UnsavedChangesDecision decision) noexcept
     : m_id(id)
     , m_decision(decision)
 {}
 
 // Stores the action id and normalized waveform coordinate payload.
-EditorController::EditorAction::EditorAction(Id id, double normalized_x) noexcept
+EditorController::Impl::EditorAction::EditorAction(Id id, double normalized_x) noexcept
     : m_id(id)
     , m_normalized_x(normalized_x)
 {}
 
 // Returns the action identity used by controller policy.
-EditorController::EditorAction::Id EditorController::EditorAction::id() const noexcept
+EditorController::Impl::EditorAction::Id EditorController::Impl::EditorAction::id() const noexcept
 {
     return m_id;
 }
 
 // Returns the prompt decision payload for ResolveUnsavedChangesPrompt.
-UnsavedChangesDecision EditorController::EditorAction::decision() const noexcept
+UnsavedChangesDecision EditorController::Impl::EditorAction::decision() const noexcept
 {
     return m_decision;
 }
 
 // Returns the normalized waveform coordinate payload for SeekWaveform.
-double EditorController::EditorAction::normalizedX() const noexcept
+double EditorController::Impl::EditorAction::normalizedX() const noexcept
 {
     return m_normalized_x;
 }
 
 // Moves the path payload out of file-backed actions.
-std::filesystem::path EditorController::EditorAction::takeFile() noexcept
+std::filesystem::path EditorController::Impl::EditorAction::takeFile() noexcept
 {
     return std::move(m_file);
 }
 
 // Builds an open-project command carrying the package path.
-EditorController::ProjectCommand EditorController::ProjectCommand::open(std::filesystem::path file)
+EditorController::Impl::ProjectCommand EditorController::Impl::ProjectCommand::open(
+    std::filesystem::path file)
 {
     return ProjectCommand{ProjectCommandId::Open, std::move(file)};
 }
 
 // Builds an import command carrying the source path.
-EditorController::ProjectCommand EditorController::ProjectCommand::importSong(
+EditorController::Impl::ProjectCommand EditorController::Impl::ProjectCommand::importSong(
     std::filesystem::path file)
 {
     return ProjectCommand{ProjectCommandId::Import, std::move(file)};
 }
 
 // Builds a close-project command.
-EditorController::ProjectCommand EditorController::ProjectCommand::close() noexcept
+EditorController::Impl::ProjectCommand EditorController::Impl::ProjectCommand::close() noexcept
 {
     return ProjectCommand{ProjectCommandId::Close};
 }
 
 // Builds an exit-application command.
-EditorController::ProjectCommand EditorController::ProjectCommand::exit() noexcept
+EditorController::Impl::ProjectCommand EditorController::Impl::ProjectCommand::exit() noexcept
 {
     return ProjectCommand{ProjectCommandId::Exit};
 }
 
 // Stores the project command id for payload-free commands.
-EditorController::ProjectCommand::ProjectCommand(ProjectCommandId id) noexcept
+EditorController::Impl::ProjectCommand::ProjectCommand(ProjectCommandId id) noexcept
     : m_id(id)
 {}
 
 // Stores the project command id and path payload.
-EditorController::ProjectCommand::ProjectCommand(ProjectCommandId id, std::filesystem::path file)
+EditorController::Impl::ProjectCommand::ProjectCommand(
+    ProjectCommandId id, std::filesystem::path file)
     : m_id(id)
     , m_file(std::move(file))
 {}
 
 // Returns the command identity used by prompt state and controller routing.
-ProjectCommandId EditorController::ProjectCommand::id() const noexcept
+ProjectCommandId EditorController::Impl::ProjectCommand::id() const noexcept
 {
     return m_id;
 }
 
 // Moves the path payload out of file-backed commands.
-std::filesystem::path EditorController::ProjectCommand::takeFile() noexcept
+std::filesystem::path EditorController::Impl::ProjectCommand::takeFile() noexcept
 {
     return std::move(m_file);
 }
@@ -374,25 +635,126 @@ EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration* audio_devices,
     common::audio::IPluginHost* plugin_host, EditorController::Services services)
+    : m_impl(
+          std::make_unique<Impl>(transport, audio, audio_devices, plugin_host, std::move(services)))
+{}
+
+// Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
+EditorController::~EditorController() = default;
+
+void EditorController::attachView(IEditorView& view)
+{
+    m_impl->attachView(view);
+}
+
+const common::core::Session& EditorController::session() const noexcept
+{
+    return m_impl->session();
+}
+
+std::optional<std::filesystem::path> EditorController::currentProjectFile() const
+{
+    return m_impl->currentProjectFile();
+}
+
+void EditorController::restoreLastOpenProject()
+{
+    m_impl->restoreLastOpenProject();
+}
+
+void EditorController::onOpenRequested(std::filesystem::path file)
+{
+    m_impl->onOpenRequested(std::move(file));
+}
+
+void EditorController::onImportRequested(std::filesystem::path file)
+{
+    m_impl->onImportRequested(std::move(file));
+}
+
+void EditorController::onSaveRequested()
+{
+    m_impl->onSaveRequested();
+}
+
+void EditorController::onSaveAsRequested(std::filesystem::path file)
+{
+    m_impl->onSaveAsRequested(std::move(file));
+}
+
+void EditorController::onPublishRequested(std::filesystem::path file)
+{
+    m_impl->onPublishRequested(std::move(file));
+}
+
+void EditorController::onSaveAsCancelled()
+{
+    m_impl->onSaveAsCancelled();
+}
+
+void EditorController::onCloseRequested()
+{
+    m_impl->onCloseRequested();
+}
+
+void EditorController::onExitRequested()
+{
+    m_impl->onExitRequested();
+}
+
+void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
+{
+    m_impl->onUnsavedChangesDecision(decision);
+}
+
+void EditorController::onPlayPausePressed()
+{
+    m_impl->onPlayPausePressed();
+}
+
+void EditorController::onStopPressed()
+{
+    m_impl->onStopPressed();
+}
+
+void EditorController::onWaveformClicked(double normalized_x)
+{
+    m_impl->onWaveformClicked(normalized_x);
+}
+
+void EditorController::onAddPluginRequested(std::filesystem::path file)
+{
+    m_impl->onAddPluginRequested(std::move(file));
+}
+
+// Subscribes for coarse transport transitions and captures an initial derived state, falling back
+// to production project IO where a service seam is omitted.
+EditorController::Impl::Impl(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IAudioDeviceConfiguration* audio_devices,
+    common::audio::IPluginHost* plugin_host, EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
     , m_audio_devices(audio_devices)
     , m_plugin_host(plugin_host)
     , m_open_function(
-          services.open_function ? std::move(services.open_function) : OpenFunction{defaultOpen})
+          services.open_function ? std::move(services.open_function)
+                                 : EditorController::OpenFunction{defaultOpen})
     , m_import_function(
           services.import_function ? std::move(services.import_function)
-                                   : ImportFunction{defaultImport})
+                                   : EditorController::ImportFunction{defaultImport})
     , m_save_function(
-          services.save_function ? std::move(services.save_function) : SaveFunction{defaultSave})
+          services.save_function ? std::move(services.save_function)
+                                 : EditorController::SaveFunction{defaultSave})
     , m_save_as_function(
           services.save_as_function ? std::move(services.save_as_function)
-                                    : SaveAsFunction{defaultSaveAs})
+                                    : EditorController::SaveAsFunction{defaultSaveAs})
     , m_publish_function(
           services.publish_function ? std::move(services.publish_function)
-                                    : PublishFunction{defaultPublish})
+                                    : EditorController::PublishFunction{defaultPublish})
     , m_exit_function(
-          services.exit_function ? std::move(services.exit_function) : ExitFunction{defaultExit})
+          services.exit_function ? std::move(services.exit_function)
+                                 : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
     , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
     , m_transport_listener(transport, *this)
@@ -413,21 +775,21 @@ EditorController::EditorController(
 // sees weak_ptr.expired() and skips touching now-destroyed members. JUCE's single-threaded
 // message manager already serializes destruction with completion dispatch, so the window of
 // concern is between this destructor returning and the MessageManager itself being torn down.
-EditorController::~EditorController()
+EditorController::Impl::~Impl()
 {
     m_alive.reset();
 }
 
 // Stores the new view binding and immediately satisfies the "first push at attachment" contract
 // using whatever state the controller has cached up to this point.
-void EditorController::attachView(IEditorView& view)
+void EditorController::Impl::attachView(IEditorView& view)
 {
     m_view = &view;
     view.setState(m_last_state);
 }
 
 // Opens an editor project package and stores it after audio and Session both accept the song.
-void EditorController::onOpenRequested(std::filesystem::path file)
+void EditorController::Impl::onOpenRequested(std::filesystem::path file)
 {
     runAction(EditorAction::openProject(std::move(file)));
 }
@@ -436,7 +798,7 @@ void EditorController::onOpenRequested(std::filesystem::path file)
 // Pushes busy state, dispatches package IO to the task runner, and returns immediately. The
 // final commit runs in completeOpenProject() on the message thread once the worker reports the
 // result.
-void EditorController::openProject(
+void EditorController::Impl::openProject(
     const std::filesystem::path& file, bool clear_last_open_project_on_failure)
 {
     auto state = std::make_shared<OpenTaskState>();
@@ -446,7 +808,7 @@ void EditorController::openProject(
     deriveAndPush();
 
     std::weak_ptr<bool> alive_weak = m_alive;
-    OpenFunction open_function = m_open_function;
+    EditorController::OpenFunction open_function = m_open_function;
     m_task_runner->submit(
         [state, open_function = std::move(open_function)]() mutable {
             state->result = open_function(state->project, state->file);
@@ -463,7 +825,7 @@ void EditorController::openProject(
 // Applies the worker's open result on the message thread. Discards stale completions whose
 // generation no longer matches the controller; otherwise commits the loaded song into the
 // session and clears busy.
-void EditorController::completeOpenProject(
+void EditorController::Impl::completeOpenProject(
     std::uint64_t token, const std::shared_ptr<OpenTaskState>& state)
 {
     if (token != m_busy_generation)
@@ -513,14 +875,14 @@ void EditorController::completeOpenProject(
 }
 
 // Imports a song source and stores the workspace only after audio and Session accept the song.
-void EditorController::onImportRequested(std::filesystem::path file)
+void EditorController::Impl::onImportRequested(std::filesystem::path file)
 {
     runAction(EditorAction::importProject(std::move(file)));
 }
 
 // Imports a song source after any current project-replacement prompt has been satisfied. Same
 // shape as openProject(): busy + worker dispatch here, commit in completeImportSongSource().
-void EditorController::importSongSource(const std::filesystem::path& file)
+void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
@@ -528,7 +890,7 @@ void EditorController::importSongSource(const std::filesystem::path& file)
     deriveAndPush();
 
     std::weak_ptr<bool> alive_weak = m_alive;
-    ImportFunction import_function = m_import_function;
+    EditorController::ImportFunction import_function = m_import_function;
     m_task_runner->submit(
         [state, import_function = std::move(import_function)]() mutable {
             state->result = import_function(state->project, state->file);
@@ -544,7 +906,7 @@ void EditorController::importSongSource(const std::filesystem::path& file)
 
 // Applies the worker's import result on the message thread. Discards stale completions; on
 // success commits the imported song into the session and marks the workspace unsaved.
-void EditorController::completeImportSongSource(
+void EditorController::Impl::completeImportSongSource(
     std::uint64_t token, const std::shared_ptr<ImportTaskState>& state)
 {
     if (token != m_busy_generation)
@@ -584,85 +946,85 @@ void EditorController::completeImportSongSource(
 }
 
 // Saves to the current destination when one exists; Save As is responsible for destination choice.
-void EditorController::onSaveRequested()
+void EditorController::Impl::onSaveRequested()
 {
     runAction(EditorAction::saveProject());
 }
 
 // Saves to a chosen destination and promotes future Save commands to direct saves.
-void EditorController::onSaveAsRequested(std::filesystem::path file)
+void EditorController::Impl::onSaveAsRequested(std::filesystem::path file)
 {
     runAction(EditorAction::saveProjectAs(std::move(file)));
 }
 
 // Publishes the current project as a native song package without changing save destination or
 // dirty state.
-void EditorController::onPublishRequested(std::filesystem::path file)
+void EditorController::Impl::onPublishRequested(std::filesystem::path file)
 {
     runAction(EditorAction::publishProject(std::move(file)));
 }
 
 // Cancels only a Save As chooser that was opened to continue a deferred project command.
-void EditorController::onSaveAsCancelled()
+void EditorController::Impl::onSaveAsCancelled()
 {
     runAction(EditorAction::cancelSaveAsPrompt());
 }
 
 // Closes the current project after prompting for unsaved changes when needed.
-void EditorController::onCloseRequested()
+void EditorController::Impl::onCloseRequested()
 {
     runAction(EditorAction::closeProject());
 }
 
 // Exits through the composition host after prompting for unsaved changes when needed.
-void EditorController::onExitRequested()
+void EditorController::Impl::onExitRequested()
 {
     runAction(EditorAction::exitApplication());
 }
 
 // Applies the user's unsaved-changes choice to the stored deferred project command.
-void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
+void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision decision)
 {
     runAction(EditorAction::resolveUnsavedChangesPrompt(decision));
 }
 
 // Ignores the intent until audio activation has committed an arrangement, otherwise toggles
 // playback.
-void EditorController::onPlayPausePressed()
+void EditorController::Impl::onPlayPausePressed()
 {
     runAction(EditorAction::playPause());
 }
 
 // Mirrors the published stop_enabled gate so the keyboard or alternate input paths cannot stop a
 // transport the view considers already reset.
-void EditorController::onStopPressed()
+void EditorController::Impl::onStopPressed()
 {
     runAction(EditorAction::stop());
 }
 
 // Clamps the normalized input and converts it through the session timeline so the seek target
 // stays inside the loaded content even when the view emits out-of-range values.
-void EditorController::onWaveformClicked(double normalized_x)
+void EditorController::Impl::onWaveformClicked(double normalized_x)
 {
     runAction(EditorAction::seekWaveform(normalized_x));
 }
 
 // Handles the first plugin UI flow: scan one selected VST3 file, append the first discovered
 // candidate, and publish enough state for the panel to show the linear chain.
-void EditorController::onAddPluginRequested(std::filesystem::path file)
+void EditorController::Impl::onAddPluginRequested(std::filesystem::path file)
 {
     runAction(EditorAction::addPlugin(std::move(file)));
 }
 
 // Persists the new device manager state and re-derives view state after a configuration change.
-void EditorController::onAudioDeviceConfigurationChanged()
+void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
     persistAudioDeviceState();
     deriveAndPush();
 }
 
 // Applies the central action gate and routes the accepted action.
-void EditorController::runAction(EditorAction action)
+void EditorController::Impl::runAction(EditorAction action)
 {
     if (!prepareAction(action.id()))
     {
@@ -673,7 +1035,7 @@ void EditorController::runAction(EditorAction action)
 }
 
 // Applies availability and busy policy before an action mutates state or schedules work.
-bool EditorController::prepareAction(EditorAction::Id action)
+bool EditorController::Impl::prepareAction(EditorAction::Id action)
 {
     if (!canRunAction(action))
     {
@@ -691,7 +1053,7 @@ bool EditorController::prepareAction(EditorAction::Id action)
 
 // Executes an accepted action. Payload access stays centralized here so controller entry points
 // stay readable and do not hand-roll action bodies.
-void EditorController::performAction(EditorAction action)
+void EditorController::Impl::performAction(EditorAction action)
 {
     switch (action.id())
     {
@@ -948,7 +1310,7 @@ void EditorController::performAction(EditorAction action)
 }
 
 // Combines natural action availability with the action's busy-state policy.
-bool EditorController::canRunAction(EditorAction::Id action) const
+bool EditorController::Impl::canRunAction(EditorAction::Id action) const
 {
     const ActionBusyPolicy busy_policy = actionBusyPolicy(action);
     if (isBusy())
@@ -974,7 +1336,7 @@ bool EditorController::canRunAction(EditorAction::Id action) const
 }
 
 // Keeps action availability in one policy table instead of relying on the view to hide actions.
-bool EditorController::actionAvailableWhenIdle(EditorAction::Id action) const
+bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) const
 {
     switch (action)
     {
@@ -1019,7 +1381,7 @@ bool EditorController::actionAvailableWhenIdle(EditorAction::Id action) const
 }
 
 // Encodes the small set of actions that intentionally do not follow normal busy blocking.
-EditorController::ActionBusyPolicy EditorController::actionBusyPolicy(
+EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolicy(
     EditorAction::Id action) noexcept
 {
     switch (action)
@@ -1051,7 +1413,7 @@ EditorController::ActionBusyPolicy EditorController::actionBusyPolicy(
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
 // derivation runs against the updated session and transport state instead of stale data.
-void EditorController::onTransportStateChanged(common::audio::TransportState /*state*/)
+void EditorController::Impl::onTransportStateChanged(common::audio::TransportState /*state*/)
 {
     if (m_session_load_in_progress)
     {
@@ -1061,7 +1423,7 @@ void EditorController::onTransportStateChanged(common::audio::TransportState /*s
 }
 
 // Starts a project-level command or asks the view to confirm unsaved changes first.
-void EditorController::requestProjectCommand(ProjectCommand command)
+void EditorController::Impl::requestProjectCommand(ProjectCommand command)
 {
     if (hasUnsavedChanges())
     {
@@ -1076,7 +1438,7 @@ void EditorController::requestProjectCommand(ProjectCommand command)
 }
 
 // Runs a project-level command once dirty-state gates have been satisfied.
-void EditorController::runProjectCommand(ProjectCommand command)
+void EditorController::Impl::runProjectCommand(ProjectCommand command)
 {
     switch (command.id())
     {
@@ -1124,7 +1486,7 @@ void EditorController::runProjectCommand(ProjectCommand command)
 // Always supersedes any in-flight busy operation so closing or exiting during an open/import
 // invalidates the worker's generation token; the worker's completion then sees a mismatch and
 // discards itself rather than committing on top of a now-empty session.
-bool EditorController::closeProject()
+bool EditorController::Impl::closeProject()
 {
     if (!m_project.has_value())
     {
@@ -1162,7 +1524,7 @@ bool EditorController::closeProject()
 }
 
 // Saves through the current destination and clears dirty state only after persistence succeeds.
-bool EditorController::saveProject()
+bool EditorController::Impl::saveProject()
 {
     if (!m_project.has_value())
     {
@@ -1182,7 +1544,7 @@ bool EditorController::saveProject()
 }
 
 // Resumes a deferred command after Save or Save As has successfully protected user changes.
-void EditorController::continueDeferredProjectCommand()
+void EditorController::Impl::continueDeferredProjectCommand()
 {
     if (!m_pending_project_command.has_value())
     {
@@ -1196,7 +1558,7 @@ void EditorController::continueDeferredProjectCommand()
 }
 
 // Clears all prompt-related state without changing the currently loaded project.
-void EditorController::clearDeferredProjectCommand() noexcept
+void EditorController::Impl::clearDeferredProjectCommand() noexcept
 {
     m_pending_project_command.reset();
     m_unsaved_changes_prompt_visible = false;
@@ -1204,13 +1566,13 @@ void EditorController::clearDeferredProjectCommand() noexcept
 }
 
 // Returns the controller-owned editor session through the read-only access boundary.
-const common::core::Session& EditorController::session() const noexcept
+const common::core::Session& EditorController::Impl::session() const noexcept
 {
     return m_session;
 }
 
 // Returns an editor project file only when the current workspace is backed by one.
-std::optional<std::filesystem::path> EditorController::currentProjectFile() const
+std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile() const
 {
     if (!m_project.has_value() || m_project_file.empty())
     {
@@ -1221,7 +1583,7 @@ std::optional<std::filesystem::path> EditorController::currentProjectFile() cons
 }
 
 // Restores a settings-backed project and clears stale restore state when the path cannot load.
-void EditorController::restoreLastOpenProject()
+void EditorController::Impl::restoreLastOpenProject()
 {
     if (m_settings == nullptr)
     {
@@ -1244,7 +1606,7 @@ void EditorController::restoreLastOpenProject()
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.
-ProjectEditorState EditorController::projectEditorStateForSave() const
+ProjectEditorState EditorController::Impl::projectEditorStateForSave() const
 {
     ProjectEditorState editor_state{
         .cursor_position = m_transport.position(),
@@ -1261,7 +1623,7 @@ ProjectEditorState EditorController::projectEditorStateForSave() const
 }
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.
-bool EditorController::loadSessionSong(
+bool EditorController::Impl::loadSessionSong(
     common::core::Song song, const std::optional<std::string>& selected_arrangement)
 {
     if (song.arrangements.empty())
@@ -1293,7 +1655,7 @@ bool EditorController::loadSessionSong(
 // Builds the message-thread view state from the session and transport state. Current cursor
 // position is only sampled to derive stop enabledness; the view receives discrete mapping state
 // rather than a continuously pushed playhead position.
-EditorViewState EditorController::deriveViewState() const
+EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
@@ -1348,7 +1710,7 @@ EditorViewState EditorController::deriveViewState() const
 }
 
 // Applies the serialized audio-device state stored by a previous editor session, if any.
-void EditorController::restoreAudioDeviceState()
+void EditorController::Impl::restoreAudioDeviceState()
 {
     if (m_audio_devices == nullptr || m_settings == nullptr)
     {
@@ -1372,7 +1734,7 @@ void EditorController::restoreAudioDeviceState()
 }
 
 // Stores the current device manager state so the next launch can restore the user's selection.
-void EditorController::persistAudioDeviceState()
+void EditorController::Impl::persistAudioDeviceState()
 {
     if (m_audio_devices == nullptr || m_settings == nullptr)
     {
@@ -1391,7 +1753,7 @@ void EditorController::persistAudioDeviceState()
 
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the
 // currently attached view if any.
-void EditorController::deriveAndPush()
+void EditorController::Impl::deriveAndPush()
 {
     m_last_state = deriveViewState();
     if (m_view != nullptr)
@@ -1401,7 +1763,7 @@ void EditorController::deriveAndPush()
 }
 
 // Sends transient workflow failures through the view effect channel rather than render state.
-void EditorController::reportError(const std::string& message)
+void EditorController::Impl::reportError(const std::string& message)
 {
     if (m_view != nullptr)
     {
@@ -1410,20 +1772,20 @@ void EditorController::reportError(const std::string& message)
 }
 
 // Answers the "has loading committed a usable arrangement" question used by intent gates.
-bool EditorController::hasLoadedArrangement() const
+bool EditorController::Impl::hasLoadedArrangement() const
 {
     return session().currentArrangement() != nullptr;
 }
 
 // Reports whether a busy operation is currently active.
-bool EditorController::isBusy() const noexcept
+bool EditorController::Impl::isBusy() const noexcept
 {
     return m_busy.has_value();
 }
 
 // Begins a busy operation, advances the generation token, and fills the default message from the
 // central busyMessage() helper so every entry point produces consistent overlay copy.
-std::uint64_t EditorController::beginBusy(BusyOperation operation)
+std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
 {
     m_busy_generation += 1;
     m_busy = BusyViewState{
@@ -1436,34 +1798,35 @@ std::uint64_t EditorController::beginBusy(BusyOperation operation)
 
 // Semantic wrapper for normal operation completion. Completion paths call this only after their
 // captured busy generation has already matched the current controller generation.
-void EditorController::finishBusyOperation()
+void EditorController::Impl::finishBusyOperation()
 {
     endBusy();
 }
 
 // Semantic wrapper for Close/Exit-style commands that intentionally take over the busy lifecycle.
-void EditorController::supersedeBusyOperation()
+void EditorController::Impl::supersedeBusyOperation()
 {
     endBusy();
 }
 
 // Clears busy state and advances the generation token. The generation advance makes any in-flight
 // worker completion stale whether this is a normal finish or a superseding action takeover.
-void EditorController::endBusy()
+void EditorController::Impl::endBusy()
 {
     m_busy.reset();
     m_busy_generation += 1;
 }
 
 // Treat imported unsaved projects and future session edits as requiring confirmation.
-bool EditorController::hasUnsavedChanges() const noexcept
+bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
     return m_project.has_value() && (m_has_unsaved_changes || m_save_requires_destination);
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
 // the start of the loaded timeline.
-bool EditorController::canStopTransport(const common::audio::TransportState& transport_state) const
+bool EditorController::Impl::canStopTransport(
+    const common::audio::TransportState& transport_state) const
 {
     return hasLoadedArrangement() &&
            (transport_state.playing || m_transport.position() != session().timeline().start);
