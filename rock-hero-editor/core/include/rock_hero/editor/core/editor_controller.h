@@ -120,12 +120,12 @@ public:
         Services services = defaultServices());
 
     /*!
-    \brief Builds the controller with a live plugin-host backend.
+    \brief Builds the controller with a plugin-host backend.
 
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
     \param audio_devices Audio-device configuration port used for ASIO input/output routing.
-    \param plugin_host Plugin-host port used to mutate the live instrument chain.
+    \param plugin_host Plugin-host port used to mutate the plugin chain.
     \param services Optional project IO, settings, and host-exit services.
     */
     EditorController(
@@ -134,7 +134,7 @@ public:
         common::audio::IPluginHost& plugin_host, Services services = defaultServices());
 
     /*!
-    \brief Builds the controller without a live audio-device backend.
+    \brief Builds the controller without an audio-device backend.
 
     This overload is used by tests and temporary hosts that do not expose audio-device
     configuration.
@@ -151,7 +151,7 @@ public:
     \brief Builds the controller with plugin hosting but without audio-device settings UI.
     \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
     \param audio Audio port used to validate and load arrangement audio.
-    \param plugin_host Plugin-host port used to mutate the live instrument chain.
+    \param plugin_host Plugin-host port used to mutate the plugin chain.
     \param services Optional project IO, settings, and host-exit services.
     */
     EditorController(
@@ -283,14 +283,14 @@ public:
     void onWaveformClicked(double normalized_x) override;
 
     /*!
-    \brief Scans a plugin file and appends the first candidate to the live instrument chain.
+    \brief Scans a plugin file and appends the first candidate to the plugin chain.
 
     The initial UI path intentionally handles the common one-candidate VST3 case. Future chooser
     state can branch on multiple scanned candidates without changing the controller/view boundary.
 
     \param file Filesystem path selected by the user.
     */
-    void onAddLivePluginRequested(std::filesystem::path file) override;
+    void onAddPluginRequested(std::filesystem::path file) override;
 
 private:
     // Supplies a named default-argument target after Services has been declared.
@@ -378,7 +378,7 @@ private:
     // Optional audio-device port used for ASIO input/output routing.
     common::audio::IAudioDeviceConfiguration* m_audio_devices{};
 
-    // Optional plugin-host port used to mutate the live instrument processing chain.
+    // Optional plugin-host port used to mutate the processing chain.
     common::audio::IPluginHost* m_plugin_host{};
 
     // Song aggregate and selected arrangement state currently loaded in the editor.
@@ -411,8 +411,8 @@ private:
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
 
-    // Runtime live chain shown by the view until durable tone persistence is introduced.
-    std::vector<LivePluginViewState> m_live_plugins;
+    // Runtime plugin chain shown by the view until durable tone persistence is introduced.
+    std::vector<PluginViewState> m_plugins;
 
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
     bool m_session_load_in_progress{false};

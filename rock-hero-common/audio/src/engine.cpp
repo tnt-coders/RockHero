@@ -1,6 +1,6 @@
 #include "engine.h"
 
-#include "tracktion_live_wave_device_mapping.h"
+#include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
@@ -19,10 +19,11 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Records recoverable live-route failures without turning an internal bind into a public error.
-void logLiveInstrumentMonitoringFailure(const juce::String& message)
+// Records recoverable instrument-route failures without turning an internal bind into a public
+// error.
+void logInstrumentMonitoringFailure(const juce::String& message)
 {
-    juce::Logger::writeToLog("Rock Hero live instrument monitoring: " + message);
+    juce::Logger::writeToLog("Rock Hero instrument monitoring: " + message);
 }
 
 // Converts a standard filesystem path into the JUCE file type required by Tracktion/JUCE APIs.
@@ -47,15 +48,15 @@ void logLiveInstrumentMonitoringFailure(const juce::String& message)
 
 // Converts the project-owned compact channel role into the Tracktion channel identifier.
 [[nodiscard]] juce::AudioChannelSet::ChannelType toTracktionChannelRole(
-    LiveInstrumentChannelRole role) noexcept
+    InstrumentChannelRole role) noexcept
 {
     switch (role)
     {
-        case LiveInstrumentChannelRole::Left:
+        case InstrumentChannelRole::Left:
         {
             return juce::AudioChannelSet::left;
         }
-        case LiveInstrumentChannelRole::Right:
+        case InstrumentChannelRole::Right:
         {
             return juce::AudioChannelSet::right;
         }
@@ -66,12 +67,12 @@ void logLiveInstrumentMonitoringFailure(const juce::String& message)
 
 // Converts the testable Rock Hero route description into Tracktion's wave-device type.
 [[nodiscard]] tracktion::WaveDeviceDescription toTracktionWaveDeviceDescription(
-    const LiveInstrumentWaveDescription& description)
+    const InstrumentWaveDescription& description)
 {
     std::vector<tracktion::ChannelIndex> channels;
     channels.reserve(description.channels.size());
 
-    for (const LiveInstrumentChannelDescription& channel : description.channels)
+    for (const InstrumentChannelDescription& channel : description.channels)
     {
         channels.emplace_back(channel.compact_device_channel, toTracktionChannelRole(channel.role));
     }
@@ -81,7 +82,7 @@ void logLiveInstrumentMonitoringFailure(const juce::String& message)
     };
 }
 
-// Describes the single live input and stereo output that Rock Hero exposes to Tracktion.
+// Describes the single instrument input and stereo output that Rock Hero exposes to Tracktion.
 class RockHeroEngineBehaviour final : public tracktion::EngineBehaviour
 {
 public:
@@ -102,8 +103,8 @@ public:
         std::vector<tracktion::WaveDeviceDescription>& descriptions, juce::AudioIODevice& device,
         bool is_input) override
     {
-        const std::optional<LiveInstrumentWaveDeviceDescriptions> wave_descriptions =
-            createTracktionLiveWaveDeviceDescriptions(
+        const std::optional<InstrumentWaveDeviceDescriptions> wave_descriptions =
+            createTracktionInstrumentWaveDeviceDescriptions(
                 device.getName(),
                 device.getActiveInputChannels(),
                 device.getActiveOutputChannels(),
@@ -155,14 +156,14 @@ private:
     // Tracktion runtime root that owns device and plugin infrastructure.
     std::unique_ptr<tracktion::Engine> m_engine;
 
-    // Two-track edit used for backing playback and live instrument monitoring.
+    // Two-track edit used for backing playback and instrument monitoring.
     std::unique_ptr<tracktion::Edit> m_edit;
 
     // Stable ID for the Tracktion track that owns arrangement backing clips.
     tracktion::EditItemID m_backing_track_id;
 
-    // Stable ID for the Tracktion track that owns live input and future plugin FX.
-    tracktion::EditItemID m_live_instrument_track_id;
+    // Stable ID for the Tracktion track that owns instrument input and future plugin FX.
+    tracktion::EditItemID m_instrument_track_id;
 
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
@@ -198,20 +199,20 @@ private:
         }
         else
         {
-            logLiveInstrumentMonitoringFailure("backing track was not created");
+            logInstrumentMonitoringFailure("backing track was not created");
         }
 
-        const tracktion::AudioTrack::Ptr live_track = m_edit->insertNewAudioTrack(
+        const tracktion::AudioTrack::Ptr instrument_track = m_edit->insertNewAudioTrack(
             tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr);
 
-        if (live_track != nullptr)
+        if (instrument_track != nullptr)
         {
-            live_track->setName("Live Instrument");
-            m_live_instrument_track_id = live_track->itemID;
+            instrument_track->setName("Instrument");
+            m_instrument_track_id = instrument_track->itemID;
         }
         else
         {
-            logLiveInstrumentMonitoringFailure("live instrument track was not created");
+            logInstrumentMonitoringFailure("instrument track was not created");
         }
 
         m_edit->playInStopEnabled = true;
@@ -239,7 +240,7 @@ private:
     {
         if (source == &m_engine->getDeviceManager().deviceManager)
         {
-            applyLiveInstrumentMonitoringRoute();
+            applyInstrumentMonitoringRoute();
             m_audio_device_listeners.call(
                 &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
             return;
@@ -266,7 +267,7 @@ private:
     // Returns the timeline position the playback backend is currently producing, in seconds.
     //
     // During playback, the audible-timeline time trails the transport head by buffer latency and
-    // best matches what leaves the output device. While stopped, live monitoring can keep a
+    // best matches what leaves the output device. While stopped, instrument monitoring can keep a
     // Tracktion context allocated, so stopped reads must use the transport head instead of treating
     // the mere presence of a context as evidence of backing-track playback.
     [[nodiscard]] double currentBackendPosition() const
@@ -300,10 +301,10 @@ private:
         return tracktion::findAudioTrackForID(*m_edit, m_backing_track_id);
     }
 
-    // Returns the Tracktion audio track that receives the selected live input.
-    [[nodiscard]] tracktion::AudioTrack* liveInstrumentTrack() const
+    // Returns the Tracktion audio track that receives the selected instrument input.
+    [[nodiscard]] tracktion::AudioTrack* instrumentTrack() const
     {
-        return tracktion::findAudioTrackForID(*m_edit, m_live_instrument_track_id);
+        return tracktion::findAudioTrackForID(*m_edit, m_instrument_track_id);
     }
 
     // Looks up a previously scanned plugin candidate without exposing JUCE descriptions publicly.
@@ -329,7 +330,8 @@ private:
         m_edit->getTransport().stop(discard_recordings, clear_devices);
     }
 
-    // Stops backing playback for the Stop button while keeping live monitoring graph state alive.
+    // Stops backing playback for the Stop button while keeping instrument monitoring graph state
+    // alive.
     void stopTransportForPlaybackReset()
     {
         constexpr bool discard_recordings = false;
@@ -347,21 +349,22 @@ private:
         transport.freePlaybackContext();
     }
 
-    // Removes live input assignments on the live track from the current playback context.
-    void clearLiveInstrumentInputAssignments()
+    // Removes instrument input assignments on the instrument track from the current playback
+    // context.
+    void clearInstrumentInputAssignments()
     {
-        tracktion::AudioTrack* const live_track = liveInstrumentTrack();
-        if (live_track == nullptr)
+        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
         {
             return;
         }
 
-        m_edit->getEditInputDevices().clearAllInputs(*live_track, nullptr);
+        m_edit->getEditInputDevices().clearAllInputs(*instrument_track, nullptr);
     }
 
     // Finds the generated Tracktion wave input that corresponds to the selected JUCE mono input.
-    [[nodiscard]] tracktion::WaveInputDevice* findLiveInstrumentWaveInput(
-        const LiveInstrumentWaveDescription& description) const
+    [[nodiscard]] tracktion::WaveInputDevice* findInstrumentWaveInput(
+        const InstrumentWaveDescription& description) const
     {
         const std::vector<tracktion::WaveInputDevice*> wave_inputs =
             m_engine->getDeviceManager().getWaveInputDevices();
@@ -379,31 +382,32 @@ private:
         return *matching_input;
     }
 
-    // Clears any live route that can be reached through the current Tracktion playback context.
-    void detachLiveInstrumentMonitoringRoute(const juce::String& reason)
+    // Clears any instrument route that can be reached through the current Tracktion playback
+    // context.
+    void detachInstrumentMonitoringRoute(const juce::String& reason)
     {
-        logLiveInstrumentMonitoringFailure(reason);
+        logInstrumentMonitoringFailure(reason);
 
         m_engine->getDeviceManager().dispatchPendingUpdates();
         m_edit->getTransport().ensureContextAllocated(true);
-        clearLiveInstrumentInputAssignments();
+        clearInstrumentInputAssignments();
         m_edit->getTransport().ensureContextAllocated(true);
     }
 
-    // Binds the selected app-local mono input to the live instrument Tracktion track.
-    void applyLiveInstrumentMonitoringRoute()
+    // Binds the selected app-local mono input to the instrument Tracktion track.
+    void applyInstrumentMonitoringRoute()
     {
         if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
         {
-            logLiveInstrumentMonitoringFailure(
-                "live route binding was requested off the message thread");
+            logInstrumentMonitoringFailure(
+                "instrument route binding was requested off the message thread");
             return;
         }
 
-        const tracktion::AudioTrack* const live_track = liveInstrumentTrack();
-        if (live_track == nullptr)
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
         {
-            logLiveInstrumentMonitoringFailure("live instrument track is missing");
+            logInstrumentMonitoringFailure("instrument track is missing");
             return;
         }
 
@@ -412,12 +416,12 @@ private:
             tracktion_device_manager.deviceManager.getCurrentAudioDevice();
         if (current_device == nullptr)
         {
-            detachLiveInstrumentMonitoringRoute("no current audio device");
+            detachInstrumentMonitoringRoute("no current audio device");
             return;
         }
 
-        const std::optional<LiveInstrumentWaveDeviceDescriptions> wave_descriptions =
-            createTracktionLiveWaveDeviceDescriptions(
+        const std::optional<InstrumentWaveDeviceDescriptions> wave_descriptions =
+            createTracktionInstrumentWaveDeviceDescriptions(
                 current_device->getName(),
                 current_device->getActiveInputChannels(),
                 current_device->getActiveOutputChannels(),
@@ -425,7 +429,7 @@ private:
                 current_device->getOutputChannelNames());
         if (!wave_descriptions.has_value())
         {
-            detachLiveInstrumentMonitoringRoute(
+            detachInstrumentMonitoringRoute(
                 "selected route is not one mono input and one stereo output pair");
             return;
         }
@@ -434,13 +438,13 @@ private:
 
         auto& transport = m_edit->getTransport();
         transport.ensureContextAllocated(true);
-        clearLiveInstrumentInputAssignments();
+        clearInstrumentInputAssignments();
 
         tracktion::WaveInputDevice* const wave_input =
-            findLiveInstrumentWaveInput(wave_descriptions->input);
+            findInstrumentWaveInput(wave_descriptions->input);
         if (wave_input == nullptr)
         {
-            logLiveInstrumentMonitoringFailure("selected mono input is not available to Tracktion");
+            logInstrumentMonitoringFailure("selected mono input is not available to Tracktion");
             transport.ensureContextAllocated(true);
             return;
         }
@@ -451,22 +455,22 @@ private:
             m_edit->getCurrentInstanceForInputDevice(wave_input);
         if (input_instance == nullptr)
         {
-            logLiveInstrumentMonitoringFailure("selected mono input has no playback instance");
+            logInstrumentMonitoringFailure("selected mono input has no playback instance");
             transport.ensureContextAllocated(true);
             return;
         }
 
-        const auto target_result =
-            input_instance->setTarget(live_track->itemID, true, nullptr, std::optional<int>{0});
+        const auto target_result = input_instance->setTarget(
+            instrument_track->itemID, true, nullptr, std::optional<int>{0});
         if (!target_result)
         {
-            logLiveInstrumentMonitoringFailure(
-                "could not assign live input to track: " + target_result.error());
+            logInstrumentMonitoringFailure(
+                "could not assign instrument input to track: " + target_result.error());
             transport.ensureContextAllocated(true);
             return;
         }
 
-        input_instance->setRecordingEnabled(live_track->itemID, false);
+        input_instance->setRecordingEnabled(instrument_track->itemID, false);
         wave_input->setMonitorMode(tracktion::InputDevice::MonitorMode::on);
         transport.ensureContextAllocated(true);
     }
@@ -481,15 +485,16 @@ private:
         transport.setPosition(tracktion::TimePosition{});
     }
 
-    // Restores the live monitoring context after plugin-list graph mutation or failed insertion.
-    void rebuildLiveMonitoringGraph()
+    // Restores the instrument monitoring context after plugin-list graph mutation or failed
+    // insertion.
+    void rebuildInstrumentMonitoringGraph()
     {
-        applyLiveInstrumentMonitoringRoute();
+        applyInstrumentMonitoringRoute();
         updateTransportState();
     }
 };
 
-// Creates the Tracktion engine and a minimal two-track edit for playback and live monitoring.
+// Creates the Tracktion engine and a minimal two-track edit for playback and instrument monitoring.
 Engine::Engine()
     : m_impl(std::make_unique<Impl>())
 {
@@ -499,9 +504,10 @@ Engine::Engine()
     // createSingleTrackEdit already provides one AudioTrack ready for media.
     m_impl->createEdit();
 
-    // Start with one live input and stereo output; the dialog can reconfigure either at runtime.
+    // Start with one instrument input and stereo output; the dialog can reconfigure either at
+    // runtime.
     m_impl->m_engine->getDeviceManager().initialise(1, 2);
-    m_impl->applyLiveInstrumentMonitoringRoute();
+    m_impl->applyInstrumentMonitoringRoute();
 
     auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
     device_manager.addChangeListener(m_impl.get());
@@ -510,7 +516,7 @@ Engine::Engine()
     // state change; Impl::changeListenerCallback filters to genuine play/pause transitions.
     m_impl->m_edit->getTransport().addChangeListener(m_impl.get());
 
-    // Tracktion mirrors live playhead position into this public ValueTree property from its
+    // Tracktion mirrors current playhead position into this public ValueTree property from its
     // transport loop. Listening here keeps the adapter event-driven from the UI perspective.
     m_impl->m_edit->getTransport().state.addListener(m_impl.get());
 
@@ -657,7 +663,7 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, wave_clip_position, true);
     if (wave_clip == nullptr)
     {
-        m_impl->applyLiveInstrumentMonitoringRoute();
+        m_impl->applyInstrumentMonitoringRoute();
         m_impl->updateTransportState();
         return false;
     }
@@ -665,7 +671,7 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
     m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
-    m_impl->applyLiveInstrumentMonitoringRoute();
+    m_impl->applyInstrumentMonitoringRoute();
     m_impl->updateTransportState();
     return true;
 }
@@ -690,7 +696,7 @@ void Engine::clearActiveArrangement()
     }
 
     m_impl->m_loaded_length_seconds = 0.0;
-    m_impl->applyLiveInstrumentMonitoringRoute();
+    m_impl->applyInstrumentMonitoringRoute();
     m_impl->updateTransportState();
 }
 
@@ -779,19 +785,18 @@ std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginF
     }
 }
 
-// Appends a selected known VST3 candidate to the live instrument track's plugin list.
-std::expected<LivePluginHandle, PluginHostError> Engine::addLiveInstrumentPlugin(
-    const std::string& plugin_id)
+// Appends a selected known VST3 candidate to the instrument track's plugin list.
+std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string& plugin_id)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    tracktion::AudioTrack* const live_track = m_impl->liveInstrumentTrack();
-    if (live_track == nullptr)
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
     {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::LiveInstrumentTrackMissing}};
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
     }
 
     const std::unique_ptr<juce::PluginDescription> description = m_impl->findKnownPlugin(plugin_id);
@@ -802,7 +807,7 @@ std::expected<LivePluginHandle, PluginHostError> Engine::addLiveInstrumentPlugin
         }};
     }
 
-    if (!live_track->pluginList.canInsertPlugin())
+    if (!instrument_track->pluginList.canInsertPlugin())
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
@@ -813,7 +818,7 @@ std::expected<LivePluginHandle, PluginHostError> Engine::addLiveInstrumentPlugin
         tracktion::ExternalPlugin::xmlTypeName, *description);
     if (plugin == nullptr)
     {
-        m_impl->rebuildLiveMonitoringGraph();
+        m_impl->rebuildInstrumentMonitoringGraph();
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginCreationFailed,
             "Could not create plugin: " + description->name.toStdString()
@@ -826,23 +831,23 @@ std::expected<LivePluginHandle, PluginHostError> Engine::addLiveInstrumentPlugin
         const juce::String load_error = external_plugin->getLoadError();
         if (load_error.isNotEmpty())
         {
-            m_impl->rebuildLiveMonitoringGraph();
+            m_impl->rebuildInstrumentMonitoringGraph();
             return std::unexpected{
                 PluginHostError{PluginHostErrorCode::PluginLoadFailed, load_error.toStdString()}
             };
         }
     }
 
-    live_track->pluginList.insertPlugin(plugin, -1, nullptr);
-    const int inserted_index = live_track->pluginList.indexOf(plugin.get());
+    instrument_track->pluginList.insertPlugin(plugin, -1, nullptr);
+    const int inserted_index = instrument_track->pluginList.indexOf(plugin.get());
     if (inserted_index < 0)
     {
-        m_impl->rebuildLiveMonitoringGraph();
+        m_impl->rebuildInstrumentMonitoringGraph();
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
-    m_impl->rebuildLiveMonitoringGraph();
-    return LivePluginHandle{
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return PluginHandle{
         .instance_id = plugin->itemID.toString().toStdString(),
         .plugin_id = plugin_id,
         .chain_index = static_cast<std::size_t>(inserted_index),

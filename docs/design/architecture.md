@@ -211,7 +211,7 @@ audition and author that route:
 will share the same backing audio across arrangements, but the model permits arrangement-specific
 audio so a route can override the shared asset when needed.
 
-**Guitar input/effects lane**: Receives live guitar through ASIO and routes it through VST
+**Guitar input/effects lane**: Receives real-time guitar through ASIO and routes it through VST
 plugins. Automation envelopes drive plugin parameters over the arrangement duration: bypass,
 wet/dry mix, wah position, and any other exposed parameter. Mid-song tone changes are achieved by
 loading multiple plugins and automating their bypass and mix parameters, with short ramps
@@ -268,14 +268,14 @@ playback backend, and clears the active arrangement when the project closes. `co
 is reserved for future undoable/redoable model-edit commands and should not carry project loading,
 audio preparation, transport, or playback setup responsibilities.
 
-The live instrument plugin boundary is `common::audio::IPluginHost`. It scans plugin files into
-project-owned candidate descriptions, then appends a selected candidate to the live instrument
+The plugin-host boundary is `common::audio::IPluginHost`. It scans plugin files into
+project-owned candidate descriptions, then appends a selected candidate to the instrument
 chain without exposing Tracktion or JUCE plugin descriptions through public application code. The
-first implementation mutates the linear Tracktion plugin list on the live instrument track. Longer
+first implementation mutates the linear Tracktion plugin list on the instrument track. Longer
 term tone graphs can add richer addressing for racks, containers, and parallel blended chains while
 keeping plugin discovery and mutation behind the same audio adapter boundary.
 
-The editor presents live instrument operations in a bottom control panel separate from the
+The editor presents instrument operations in a bottom control panel separate from the
 scrollable arrangement viewport. The first panel is intentionally minimal: it shows the current
 linear runtime plugin chain and lets the user select a VST3 file to append to that chain. Future
 rack, container, and parallel blend editing should evolve this panel's state model rather than
@@ -430,7 +430,7 @@ The editor (`rock-hero-editor`) consists of:
 
 - **Waveform display**: `juce::AudioThumbnail` showing the backing track with a playhead overlay.
 - **Plugin chain view**: Horizontal row of loaded effects with add/remove/reorder controls.
-- **Live instrument panel**: Bottom control area for live input routing and plugin-chain edits.
+- **Instrument panel**: Bottom control area for instrument input routing and plugin-chain edits.
 - **Automation area**: Shares the waveform's horizontal time axis and zoom/scroll state. Breakpoint envelopes control plugin parameters over the song's duration.
 - **Transport controls**: Play, stop, seek.
 

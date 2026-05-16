@@ -17,7 +17,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
-#include <rock_hero/editor/ui/live_instrument_panel.h>
+#include <rock_hero/editor/ui/instrument_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
 
@@ -54,7 +54,7 @@ class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
                          private TransportControls::Listener,
-                         private LiveInstrumentPanel::Listener
+                         private InstrumentPanel::Listener
 {
 public:
     /*!
@@ -102,7 +102,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the menu, transport controls, timeline viewport, and live panel. */
+    /*! \brief Lays out the menu, transport controls, timeline viewport, and instrument panel. */
     void resized() override;
 
     /*! \brief Requests startup keyboard focus when the editor becomes visible. */
@@ -165,7 +165,7 @@ private:
     void showPublishChooser();
 
     // Opens the asynchronous VST3 plugin chooser and forwards accepted selections.
-    void showAddLivePluginChooser();
+    void showAddPluginChooser();
 
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
@@ -192,8 +192,8 @@ private:
     // TransportControls::Listener implementation.
     void onStopPressed() override;
 
-    // LiveInstrumentPanel::Listener implementation.
-    void onAddLivePluginPressed() override;
+    // InstrumentPanel::Listener implementation.
+    void onAddPluginPressed() override;
 
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
@@ -216,8 +216,8 @@ private:
     // Opens app-local ASIO device, input, and output controls.
     juce::TextButton m_audio_device_button;
 
-    // Bottom control panel for the live instrument plugin chain.
-    LiveInstrumentPanel m_live_instrument_panel;
+    // Bottom control panel for the plugin chain.
+    InstrumentPanel m_instrument_panel;
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;

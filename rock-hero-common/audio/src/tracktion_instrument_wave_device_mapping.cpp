@@ -1,4 +1,4 @@
-#include "tracktion_live_wave_device_mapping.h"
+#include "tracktion_instrument_wave_device_mapping.h"
 
 #include <array>
 
@@ -131,7 +131,7 @@ namespace
 } // namespace
 
 // Converts the app's physical one-input/one-output-pair contract to compact Tracktion devices.
-std::optional<LiveInstrumentWaveDeviceDescriptions> createTracktionLiveWaveDeviceDescriptions(
+std::optional<InstrumentWaveDeviceDescriptions> createTracktionInstrumentWaveDeviceDescriptions(
     const juce::String& hardware_device_name, const juce::BigInteger& active_input_channels,
     const juce::BigInteger& active_output_channels, const juce::StringArray& input_channel_names,
     const juce::StringArray& output_channel_names)
@@ -144,35 +144,35 @@ std::optional<LiveInstrumentWaveDeviceDescriptions> createTracktionLiveWaveDevic
         return std::nullopt;
     }
 
-    return LiveInstrumentWaveDeviceDescriptions{
+    return InstrumentWaveDeviceDescriptions{
         .route_mask =
-            LiveInstrumentRouteMask{
+            InstrumentRouteMask{
                 .input_physical_channel = *input_channel,
                 .output_left_physical_channel = (*output_pair)[0],
                 .output_right_physical_channel = (*output_pair)[1],
             },
         .input =
-            LiveInstrumentWaveDescription{
+            InstrumentWaveDescription{
                 .name = makeInputName(hardware_device_name, *input_channel, input_channel_names),
                 .channels =
                     {
-                        LiveInstrumentChannelDescription{
+                        InstrumentChannelDescription{
                             .compact_device_channel = 0,
-                            .role = LiveInstrumentChannelRole::Left,
+                            .role = InstrumentChannelRole::Left,
                         },
                     },
             },
-        .output = LiveInstrumentWaveDescription{
+        .output = InstrumentWaveDescription{
             .name = makeOutputName(
                 hardware_device_name, (*output_pair)[0], (*output_pair)[1], output_channel_names),
             .channels = {
-                LiveInstrumentChannelDescription{
+                InstrumentChannelDescription{
                     .compact_device_channel = 0,
-                    .role = LiveInstrumentChannelRole::Left,
+                    .role = InstrumentChannelRole::Left,
                 },
-                LiveInstrumentChannelDescription{
+                InstrumentChannelDescription{
                     .compact_device_channel = 1,
-                    .role = LiveInstrumentChannelRole::Right,
+                    .role = InstrumentChannelRole::Right,
                 },
             },
         },

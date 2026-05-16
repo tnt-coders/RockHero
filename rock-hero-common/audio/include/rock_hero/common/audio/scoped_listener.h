@@ -13,7 +13,7 @@ namespace rock_hero::common::audio
 
 Constructs with (broadcaster, listener) and calls broadcaster.addListener(listener). The
 destructor calls broadcaster.removeListener(listener). Non-copyable and non-movable so that each
-instance represents exactly one live registration.
+instance represents exactly one active registration.
 
 Declare a ScopedListener member after the listener's dependent state so that its destructor runs
 before that state is destroyed.

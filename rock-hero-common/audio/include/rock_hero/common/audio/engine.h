@@ -37,7 +37,7 @@ This boundary enables a fallback-to-raw-JUCE strategy: only common/audio impleme
 include Tracktion headers.
 
 Owns the tracktion::Engine and the tracktion::Edit used for playback. The current adapter keeps a
-backing track for the displayed arrangement and a live instrument track for the selected mono
+backing track for the displayed arrangement and an instrument track for the selected mono
 input. All public methods must be called on the message thread.
 
 \see ITransport
@@ -55,8 +55,9 @@ public:
     /*!
     \brief Creates the Tracktion Engine instance and two-track Edit for playback.
 
-    Initialises the device manager with one live input and stereo output. The selected app-local
-    audio-device route is rebound to the live instrument track whenever device settings change.
+    Initialises the device manager with one instrument input and stereo output. The selected
+    app-local audio-device route is rebound to the instrument track whenever device settings
+    change.
     */
     Engine();
 
@@ -136,7 +137,7 @@ public:
     /*!
     \brief Makes an already-prepared arrangement active in the Tracktion edit.
 
-    The current adapter replaces media only on the Tracktion backing track. The live instrument
+    The current adapter replaces media only on the Tracktion backing track. The instrument
     track and its input assignment remain separate.
 
     \param arrangement Prepared arrangement to make active.
@@ -148,7 +149,7 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Scans one plugin file or bundle for candidates loadable by the live chain.
+    \brief Scans one plugin file or bundle for candidates loadable by the plugin chain.
     \param plugin_path Path to a plugin file or plugin bundle.
     \return Discovered plugin candidates, or a typed failure.
     */
@@ -156,20 +157,20 @@ public:
         const std::filesystem::path& plugin_path) override;
 
     /*!
-    \brief Appends a previously scanned plugin candidate to the live instrument Tracktion track.
+    \brief Appends a previously scanned plugin candidate to the hosted Tracktion chain.
 
-    The adapter stops and rebuilds backend graph state around the mutation. The live input route
-    is rebound afterward so monitoring continues through the updated plugin chain.
+    The adapter stops and rebuilds backend graph state around the mutation. The instrument input
+    route is rebound afterward so monitoring continues through the updated plugin chain.
 
     \param plugin_id Opaque candidate ID returned by scanPluginFile().
     \return Handle for the inserted plugin instance, or a typed failure.
     */
-    [[nodiscard]] std::expected<LivePluginHandle, PluginHostError> addLiveInstrumentPlugin(
+    [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPlugin(
         const std::string& plugin_id) override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.
-    \return Reference to the live device manager owned by the audio backend.
+    \return Reference to the active device manager owned by the audio backend.
     */
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
 

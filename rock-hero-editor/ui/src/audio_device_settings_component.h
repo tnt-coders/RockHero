@@ -18,7 +18,7 @@ namespace rock_hero::editor::ui
 
 The component stages hardware route changes locally while the dialog is open. Pressing OK applies
 the selected route through juce::AudioDeviceManager; Cancel, Escape, and native close leave the
-live device untouched.
+active device untouched.
 */
 class AudioDeviceSettingsComponent final : public juce::Component, private juce::ChangeListener
 {
@@ -29,7 +29,7 @@ public:
     */
     explicit AudioDeviceSettingsComponent(juce::AudioDeviceManager& device_manager);
 
-    /*! \brief Removes device-change listeners without mutating the live audio route. */
+    /*! \brief Removes device-change listeners without mutating the active audio route. */
     ~AudioDeviceSettingsComponent() override;
 
     /*! \brief Returns the default dialog width for the current control set. */
@@ -62,7 +62,7 @@ private:
     // Sets labels, button text, component IDs, and static presentation properties.
     void configureControls();
 
-    // Rebuilds all controls from the live device-manager state.
+    // Rebuilds all controls from the active device-manager state.
     void refreshControls();
 
     // Rebuilds driver type choices from the device manager.
@@ -99,7 +99,7 @@ private:
     // Stages channel, sample-rate, and buffer-size selections against the chosen devices.
     void applySelectedRoute();
 
-    // Applies the staged route to the live device manager and reports any failure.
+    // Applies the staged route to the active device manager and reports any failure.
     void applyAcceptedSetup();
 
     // Closes the containing DialogWindow, if the component is currently hosted by one.
@@ -117,7 +117,7 @@ private:
     [[nodiscard]] juce::AudioIODeviceType* currentDeviceType() const;
     [[nodiscard]] bool currentTypeUsesSeparateDevices() const;
     [[nodiscard]] std::unique_ptr<juce::AudioIODevice> createStagedDevice() const;
-    [[nodiscard]] bool stagedRouteMatchesLiveRoute() const;
+    [[nodiscard]] bool stagedRouteMatchesActiveRoute() const;
     [[nodiscard]] bool copySelectedDeviceNames(
         juce::AudioDeviceManager::AudioDeviceSetup& setup) const;
 

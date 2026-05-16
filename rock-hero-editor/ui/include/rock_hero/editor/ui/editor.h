@@ -35,7 +35,7 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param audio_devices Audio-device port used for ASIO input/output routing.
-    \param plugin_host Plugin-host port used for live instrument plugin insertion.
+    \param plugin_host Plugin-host port used for plugin insertion.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
     */
@@ -47,7 +47,7 @@ public:
         core::EditorController::Services services = {});
 
     /*!
-    \brief Creates the editor feature without a live plugin-host backend.
+    \brief Creates the editor feature without a plugin-host backend.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param audio_devices Audio-device port used for ASIO input/output routing.
@@ -61,10 +61,10 @@ public:
         core::EditorController::Services services = {});
 
     /*!
-    \brief Creates the editor feature without a live audio-device backend.
+    \brief Creates the editor feature without an audio-device backend.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param plugin_host Plugin-host port used for live instrument plugin insertion.
+    \param plugin_host Plugin-host port used for plugin insertion.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
     */

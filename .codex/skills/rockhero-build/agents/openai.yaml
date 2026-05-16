@@ -1,0 +1,4 @@
+interface:
+  display_name: "RockHero Build"
+  short_description: "Build and test RockHero on Windows"
+  default_prompt: "Use $rockhero-build to configure, build, and run focused RockHero tests."

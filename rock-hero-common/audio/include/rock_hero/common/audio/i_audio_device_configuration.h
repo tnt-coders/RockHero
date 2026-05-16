@@ -64,7 +64,7 @@ public:
 
     /*!
     \brief Returns the JUCE audio device manager backing this port.
-    \return Reference to the live device manager owned by the audio backend.
+    \return Reference to the active device manager owned by the audio backend.
     */
     [[nodiscard]] virtual juce::AudioDeviceManager& deviceManager() noexcept = 0;
 

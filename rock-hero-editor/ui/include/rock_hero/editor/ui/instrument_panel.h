@@ -1,35 +1,35 @@
 /*!
-\file live_instrument_panel.h
-\brief JUCE control panel for the live instrument plugin chain.
+\file instrument_panel.h
+\brief JUCE control panel for the plugin chain on the instrument route.
 */
 
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/core/live_instrument_view_state.h>
+#include <rock_hero/editor/core/instrument_view_state.h>
 
 namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Displays the current live instrument plugin chain and emits panel intents.
+\brief Displays the current plugin chain and emits panel intents.
 
 The panel is intentionally linear for the first plugin-host UI. It renders project-owned state and
 emits add-plugin intent through Listener so future rack or parallel-chain models can replace the
 state shape without exposing Tracktion or JUCE plugin descriptions to the view.
 */
-class LiveInstrumentPanel final : public juce::Component
+class InstrumentPanel final : public juce::Component
 {
 public:
-    /*! \brief Listener for user intents emitted by the live instrument panel. */
+    /*! \brief Listener for user intents emitted by the instrument panel. */
     class Listener
     {
     public:
         /*! \brief Destroys the listener interface. */
         virtual ~Listener() = default;
 
-        /*! \brief Called when the user requests a plugin file for the live chain. */
-        virtual void onAddLivePluginPressed() = 0;
+        /*! \brief Called when the user requests a plugin file for the chain. */
+        virtual void onAddPluginPressed() = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -58,28 +58,28 @@ public:
     \brief Creates the panel and stores the listener that receives user intent.
     \param listener Listener that receives panel actions.
     */
-    explicit LiveInstrumentPanel(Listener& listener);
+    explicit InstrumentPanel(Listener& listener);
 
     /*! \brief Releases child controls. */
-    ~LiveInstrumentPanel() override;
+    ~InstrumentPanel() override;
 
     /*! \brief Copying is disabled because JUCE component ownership is not copyable. */
-    LiveInstrumentPanel(const LiveInstrumentPanel&) = delete;
+    InstrumentPanel(const InstrumentPanel&) = delete;
 
     /*! \brief Copy assignment is disabled because JUCE component ownership is not copyable. */
-    LiveInstrumentPanel& operator=(const LiveInstrumentPanel&) = delete;
+    InstrumentPanel& operator=(const InstrumentPanel&) = delete;
 
     /*! \brief Moving is disabled because child component registrations are not movable. */
-    LiveInstrumentPanel(LiveInstrumentPanel&&) = delete;
+    InstrumentPanel(InstrumentPanel&&) = delete;
 
     /*! \brief Move assignment is disabled because child registrations are not movable. */
-    LiveInstrumentPanel& operator=(LiveInstrumentPanel&&) = delete;
+    InstrumentPanel& operator=(InstrumentPanel&&) = delete;
 
     /*!
-    \brief Applies the current live instrument render state.
+    \brief Applies the current instrument render state.
     \param state State derived by the editor controller.
     */
-    void setState(const core::LiveInstrumentViewState& state);
+    void setState(const core::InstrumentViewState& state);
 
     /*!
     \brief Paints the panel background, title, and plugin chain.
@@ -95,7 +95,7 @@ private:
     Listener& m_listener;
 
     // Last render state pushed by the editor controller.
-    core::LiveInstrumentViewState m_state{};
+    core::InstrumentViewState m_state{};
 
     // Button that opens plugin selection through the owning editor view.
     juce::TextButton m_add_plugin_button;

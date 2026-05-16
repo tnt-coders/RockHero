@@ -109,11 +109,11 @@ void defaultExit()
     return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
 }
 
-// Converts scanner metadata into stable, framework-free state for the live panel.
-[[nodiscard]] LivePluginViewState makeLivePluginViewState(
-    const common::audio::PluginCandidate& candidate, const common::audio::LivePluginHandle& handle)
+// Converts scanner metadata into stable, framework-free state for the instrument panel.
+[[nodiscard]] PluginViewState makePluginViewState(
+    const common::audio::PluginCandidate& candidate, const common::audio::PluginHandle& handle)
 {
-    return LivePluginViewState{
+    return PluginViewState{
         .instance_id = handle.instance_id,
         .plugin_id = handle.plugin_id,
         .name = candidate.name,
@@ -508,9 +508,9 @@ void EditorController::onWaveformClicked(double normalized_x)
     deriveAndPush();
 }
 
-// Handles the first live-plugin UI flow: scan one selected VST3 file, append the first discovered
+// Handles the first plugin UI flow: scan one selected VST3 file, append the first discovered
 // candidate, and publish enough state for the panel to show the linear chain.
-void EditorController::onAddLivePluginRequested(std::filesystem::path file)
+void EditorController::onAddPluginRequested(std::filesystem::path file)
 {
     if (m_plugin_host == nullptr || !hasLoadedArrangement())
     {
@@ -534,8 +534,8 @@ void EditorController::onAddLivePluginRequested(std::filesystem::path file)
     }
 
     const common::audio::PluginCandidate& candidate = candidates->front();
-    std::expected<common::audio::LivePluginHandle, common::audio::PluginHostError> handle =
-        m_plugin_host->addLiveInstrumentPlugin(candidate.id);
+    std::expected<common::audio::PluginHandle, common::audio::PluginHostError> handle =
+        m_plugin_host->addPlugin(candidate.id);
     if (!handle.has_value())
     {
         reportError(std::string{"Could not add plugin: "} + handle.error().message);
@@ -545,7 +545,7 @@ void EditorController::onAddLivePluginRequested(std::filesystem::path file)
 
     // Tone persistence is not implemented yet, so the panel tracks the runtime chain without
     // marking the project dirty for data Save cannot currently restore.
-    m_live_plugins.push_back(makeLivePluginViewState(candidate, *handle));
+    m_plugins.push_back(makePluginViewState(candidate, *handle));
     deriveAndPush();
 }
 
@@ -636,7 +636,7 @@ bool EditorController::closeProject()
     {
         m_audio.clearActiveArrangement();
         m_session.reset();
-        m_live_plugins.clear();
+        m_plugins.clear();
         m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
@@ -646,7 +646,7 @@ bool EditorController::closeProject()
     m_transport.stop();
     m_audio.clearActiveArrangement();
     m_session.reset();
-    m_live_plugins.clear();
+    m_plugins.clear();
 
     auto closed = m_project->close();
     if (!closed.has_value())
@@ -795,7 +795,7 @@ bool EditorController::loadSessionSong(
     {
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
-        m_live_plugins.clear();
+        m_plugins.clear();
     }
     m_session_load_in_progress = false;
 
@@ -831,9 +831,9 @@ EditorViewState EditorController::deriveViewState() const
     state.current_audio_device_name =
         m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
     state.visible_timeline = timeline_range;
-    state.live_instrument = LiveInstrumentViewState{
+    state.instrument = InstrumentViewState{
         .add_plugin_enabled = m_plugin_host != nullptr && hasLoadedArrangement(),
-        .plugins = m_live_plugins,
+        .plugins = m_plugins,
     };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)

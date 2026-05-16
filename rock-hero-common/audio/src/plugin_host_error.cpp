@@ -33,9 +33,9 @@ namespace
         {
             return "Plugin-host operation must run on the message thread";
         }
-        case PluginHostErrorCode::LiveInstrumentTrackMissing:
+        case PluginHostErrorCode::TrackMissing:
         {
-            return "Live instrument track is not available";
+            return "Plugin host track is not available";
         }
         case PluginHostErrorCode::PluginCreationFailed:
         {
@@ -47,7 +47,7 @@ namespace
         }
         case PluginHostErrorCode::PluginInsertionFailed:
         {
-            return "Could not append plugin to the live instrument chain";
+            return "Could not append plugin to the hosted chain";
         }
     }
 
