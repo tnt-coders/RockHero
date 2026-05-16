@@ -17,7 +17,7 @@ Editor::Editor(
     m_controller.attachView(m_view);
 }
 
-// Wires the controller and view when no live plugin-host backend is available.
+// Wires the controller and view when no plugin-host backend is available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
@@ -28,7 +28,7 @@ Editor::Editor(
     m_controller.attachView(m_view);
 }
 
-// Wires the controller and view when no live audio-device or plugin-host backend is available.
+// Wires the controller and view when no audio-device or plugin-host backend is available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
@@ -39,7 +39,7 @@ Editor::Editor(
     m_controller.attachView(m_view);
 }
 
-// Wires the controller and view when no live audio-device backend is available.
+// Wires the controller and view when no audio-device backend is available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)

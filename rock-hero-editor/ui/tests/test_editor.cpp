@@ -52,7 +52,7 @@ public:
         return current_state;
     }
 
-    // Returns the manually controlled live cursor position.
+    // Returns the manually controlled current cursor position.
     [[nodiscard]] common::core::TimePosition position() const noexcept override
     {
         return current_position;
@@ -73,7 +73,7 @@ public:
     // Coarse transport state returned by state().
     common::audio::TransportState current_state{};
 
-    // Live cursor position returned by position().
+    // Current cursor position returned by position().
     common::core::TimePosition current_position{};
 
     // Non-owning listeners registered by the composed controller.

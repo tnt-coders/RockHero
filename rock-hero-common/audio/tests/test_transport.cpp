@@ -42,7 +42,7 @@ public:
         notifyListeners();
     }
 
-    // Records seek intent through the live position channel without broadcasting coarse state.
+    // Records seek intent through the current position channel without broadcasting coarse state.
     void seek(rock_hero::common::core::TimePosition position) override
     {
         m_position = position;
@@ -54,7 +54,7 @@ public:
         return m_state;
     }
 
-    // Returns the fake's current position through the live-read transport method.
+    // Returns the fake's current position through the current-position transport method.
     [[nodiscard]] rock_hero::common::core::TimePosition position() const noexcept override
     {
         return m_position;
@@ -85,7 +85,7 @@ private:
     // Current coarse state returned by state() and sent through listener callbacks.
     TransportState m_state{};
 
-    // Current live position returned by position(); intentionally excluded from TransportState.
+    // Current current position returned by position(); intentionally excluded from TransportState.
     rock_hero::common::core::TimePosition m_position{};
 
     // Non-owning listeners registered by tests; each listener outlives its registration.

@@ -32,8 +32,7 @@ public:
     }
 
     // Records the selected candidate ID and returns the configured handle or add failure.
-    std::expected<LivePluginHandle, PluginHostError> addLiveInstrumentPlugin(
-        const std::string& plugin_id) override
+    std::expected<PluginHandle, PluginHostError> addPlugin(const std::string& plugin_id) override
     {
         last_added_plugin_id = plugin_id;
         ++add_call_count;
@@ -43,7 +42,7 @@ public:
             return std::unexpected{*next_add_error};
         }
 
-        return next_add_handle;
+        return next_handle;
     }
 
     // Candidate list returned by successful scans.
@@ -61,7 +60,7 @@ public:
     std::optional<PluginHostError> next_scan_error{};
 
     // Handle returned by successful add requests.
-    LivePluginHandle next_add_handle{
+    PluginHandle next_handle{
         .instance_id = "1",
         .plugin_id = "vst3:amp",
         .chain_index = 0,
@@ -73,7 +72,7 @@ public:
     // Last path passed to scanPluginFile().
     std::optional<std::filesystem::path> last_scan_path{};
 
-    // Last candidate ID passed to addLiveInstrumentPlugin().
+    // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
     // Number of scan requests received.
@@ -102,11 +101,11 @@ TEST_CASE("IPluginHost scans plugin candidates", "[audio][plugin-host]")
 }
 
 // Verifies selected plugin candidates are appended through an opaque returned instance handle.
-TEST_CASE("IPluginHost adds a live instrument plugin", "[audio][plugin-host]")
+TEST_CASE("IPluginHost adds a plugin", "[audio][plugin-host]")
 {
     FakePluginHost plugin_host;
 
-    const auto handle = plugin_host.addLiveInstrumentPlugin("vst3:amp");
+    const auto handle = plugin_host.addPlugin("vst3:amp");
 
     REQUIRE(handle.has_value());
     CHECK(handle->instance_id == "1");
@@ -122,7 +121,7 @@ TEST_CASE("IPluginHost add can fail with a typed error", "[audio][plugin-host]")
     FakePluginHost plugin_host;
     plugin_host.next_add_error = PluginHostError{PluginHostErrorCode::PluginNotFound};
 
-    const auto handle = plugin_host.addLiveInstrumentPlugin("missing");
+    const auto handle = plugin_host.addPlugin("missing");
 
     REQUIRE_FALSE(handle.has_value());
     CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
