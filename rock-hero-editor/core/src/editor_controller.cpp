@@ -125,6 +125,25 @@ void defaultExit()
 
 } // namespace
 
+// Per-operation worker state for openProject(). The worker thread writes the result; the
+// message-thread completion reads it. Held through a shared_ptr captured by both lambdas so the
+// Project's workspace files stay alive until either side is done with them.
+struct EditorController::OpenTaskState
+{
+    std::filesystem::path file{};
+    Project project{};
+    std::expected<common::core::Song, ProjectError> result{};
+};
+
+// Per-operation worker state for importSongSource(). Same shared_ptr ownership pattern as
+// OpenTaskState.
+struct EditorController::ImportTaskState
+{
+    std::filesystem::path file{};
+    Project project{};
+    std::expected<common::core::Song, ProjectError> result{};
+};
+
 // Provides a default-argument target after the nested Services type is fully declared.
 EditorController::Services EditorController::defaultServices()
 {
@@ -188,6 +207,7 @@ EditorController::EditorController(
     , m_exit_function(
           services.exit_function ? std::move(services.exit_function) : ExitFunction{defaultExit})
     , m_settings(services.settings)
+    , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
     , m_transport_listener(transport, *this)
 {
     if (m_audio_devices != nullptr)
@@ -202,8 +222,14 @@ EditorController::EditorController(
     m_last_state = deriveViewState();
 }
 
-// Uses ScopedListener member teardown to detach before controller state is destroyed.
-EditorController::~EditorController() = default;
+// Resets the liveness flag first so any background task completion that fires after this point
+// sees weak_ptr.expired() and skips touching now-destroyed members. JUCE's single-threaded
+// message manager already serializes destruction with completion dispatch, so the window of
+// concern is between this destructor returning and the MessageManager itself being torn down.
+EditorController::~EditorController()
+{
+    m_alive.reset();
+}
 
 // Stores the new view binding and immediately satisfies the "first push at attachment" contract
 // using whatever state the controller has cached up to this point.
@@ -224,33 +250,69 @@ void EditorController::onOpenRequested(std::filesystem::path file)
 }
 
 // Opens an editor project package after any project-replacement prompt has been satisfied.
+// Pushes busy state, dispatches package IO to the task runner, and returns immediately. The
+// final commit runs in completeOpenProject() on the message thread once the worker reports the
+// result.
 void EditorController::openProject(const std::filesystem::path& file)
 {
-    Project project;
-    std::expected<common::core::Song, ProjectError> loaded_song = m_open_function(project, file);
-    if (!loaded_song.has_value())
+    auto state = std::make_shared<OpenTaskState>();
+    state->file = file;
+    const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
+    deriveAndPush();
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    OpenFunction open_function = m_open_function;
+    m_task_runner->submit(
+        [state, open_function = std::move(open_function)]() mutable {
+            state->result = open_function(state->project, state->file);
+        },
+        [this, state, token, alive_weak = std::move(alive_weak)]() {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            completeOpenProject(token, state);
+        });
+}
+
+// Applies the worker's open result on the message thread. Discards stale completions whose
+// generation no longer matches the controller; otherwise commits the loaded song into the
+// session and clears busy.
+void EditorController::completeOpenProject(
+    std::uint64_t token, std::shared_ptr<OpenTaskState> state)
+{
+    if (token != m_busy_generation)
     {
-        reportError(std::string{"Could not open: "} + loaded_song.error().message);
+        return;
+    }
+
+    if (!state->result.has_value())
+    {
+        const std::string message = state->result.error().message;
+        endBusy();
+        reportError(std::string{"Could not open: "} + message);
         deriveAndPush();
         return;
     }
 
-    common::core::Song song = std::move(*loaded_song);
-    const ProjectEditorState editor_state = project.editorState();
+    common::core::Song song = std::move(*state->result);
+    const ProjectEditorState editor_state = state->project.editorState();
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
-        reportError(std::string{"Could not load audio from: "} + file.string());
+        endBusy();
+        reportError(std::string{"Could not load audio from: "} + state->file.string());
         deriveAndPush();
         return;
     }
 
-    m_project = std::move(project);
-    m_project_file = file;
+    m_project = std::move(state->project);
+    m_project_file = state->file;
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
     clearPendingProjectAction();
+    endBusy();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
     // have arrived during the load window.
@@ -267,32 +329,65 @@ void EditorController::onImportRequested(std::filesystem::path file)
         });
 }
 
-// Imports a song source after any current project-replacement prompt has been satisfied.
+// Imports a song source after any current project-replacement prompt has been satisfied. Same
+// shape as openProject(): busy + worker dispatch here, commit in completeImportSongSource().
 void EditorController::importSongSource(const std::filesystem::path& file)
 {
-    Project project;
-    std::expected<common::core::Song, ProjectError> loaded_song = m_import_function(project, file);
-    if (!loaded_song.has_value())
+    auto state = std::make_shared<ImportTaskState>();
+    state->file = file;
+    const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
+    deriveAndPush();
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    ImportFunction import_function = m_import_function;
+    m_task_runner->submit(
+        [state, import_function = std::move(import_function)]() mutable {
+            state->result = import_function(state->project, state->file);
+        },
+        [this, state, token, alive_weak = std::move(alive_weak)]() {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            completeImportSongSource(token, state);
+        });
+}
+
+// Applies the worker's import result on the message thread. Discards stale completions; on
+// success commits the imported song into the session and marks the workspace unsaved.
+void EditorController::completeImportSongSource(
+    std::uint64_t token, std::shared_ptr<ImportTaskState> state)
+{
+    if (token != m_busy_generation)
     {
-        reportError(std::string{"Could not import: "} + loaded_song.error().message);
+        return;
+    }
+
+    if (!state->result.has_value())
+    {
+        const std::string message = state->result.error().message;
+        endBusy();
+        reportError(std::string{"Could not import: "} + message);
         deriveAndPush();
         return;
     }
 
-    common::core::Song song = std::move(*loaded_song);
+    common::core::Song song = std::move(*state->result);
 
     if (!loadSessionSong(std::move(song), std::nullopt))
     {
-        reportError(std::string{"Could not load imported audio from: "} + file.string());
+        endBusy();
+        reportError(std::string{"Could not load imported audio from: "} + state->file.string());
         deriveAndPush();
         return;
     }
 
-    m_project = std::move(project);
+    m_project = std::move(state->project);
     m_project_file.clear();
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
     clearPendingProjectAction();
+    endBusy();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
     // have arrived during the load window.
@@ -570,7 +665,10 @@ void EditorController::onTransportStateChanged(common::audio::TransportState /*s
 // Starts a project-level action or asks the view to confirm unsaved changes first.
 void EditorController::requestProjectAction(PendingProjectRequest request)
 {
-    if (request.action == PendingProjectAction::Close && !m_project.has_value())
+    // Close with no project and no busy operation has nothing to do. While busy, however, Close
+    // must still proceed so closeProject() can supersede the in-flight open or import through
+    // endBusy(). Same logic for Exit: a stuck open should not block exit.
+    if (request.action == PendingProjectAction::Close && !m_project.has_value() && !isBusy())
     {
         return;
     }

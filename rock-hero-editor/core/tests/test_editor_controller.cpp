@@ -16,6 +16,7 @@
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
 #include <string_view>
@@ -868,6 +869,47 @@ void loadArrangement(
     return view.last_state->stop_enabled;
 }
 
+// Task runner fake that lets tests defer completions to simulate async behavior. submit() runs
+// work synchronously (no real worker thread) and stores completion for later. Tests fire stored
+// completions through runPendingCompletions() so they can assert state between begin and end of
+// a busy operation, including stale-completion scenarios.
+class DeferredEditorTaskRunner final : public IEditorTaskRunner
+{
+public:
+    void submit(std::function<void()> work, std::function<void()> completion) override
+    {
+        if (work)
+        {
+            work();
+        }
+        m_pending.push_back(std::move(completion));
+    }
+
+    // Fires every stored completion in submission order. Captures are moved out first so a
+    // completion that submits new work does not re-enter the active vector.
+    void runPendingCompletions()
+    {
+        std::vector<std::function<void()>> to_run;
+        to_run.swap(m_pending);
+        for (auto& fn : to_run)
+        {
+            if (fn)
+            {
+                fn();
+            }
+        }
+    }
+
+    // Reports how many completions are waiting to run.
+    [[nodiscard]] std::size_t pendingCount() const noexcept
+    {
+        return m_pending.size();
+    }
+
+private:
+    std::vector<std::function<void()>> m_pending{};
+};
+
 } // namespace
 
 // Verifies editor state represents a single displayed arrangement without extra identity.
@@ -1504,7 +1546,9 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.save_requires_destination == false);
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
     }
-    CHECK(view.set_state_call_count == pushes_before_success + 1);
+    // Each open now produces two pushes: one when busy state begins, one when the task
+    // completion commits or fails. The inline default task runner runs both synchronously.
+    CHECK(view.set_state_call_count == pushes_before_success + 2);
     CHECK(view.shown_errors.size() == 1);
 }
 
@@ -1891,7 +1935,9 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.project_loaded == true);
         CHECK(state.save_requires_destination == true);
     }
-    CHECK(view.set_state_call_count == pushes_before_success + 1);
+    // Each import produces two pushes: one when busy state begins, one when the task completion
+    // commits or fails. The inline default task runner runs both synchronously.
+    CHECK(view.set_state_call_count == pushes_before_success + 2);
     CHECK(view.shown_errors.size() == 1);
 }
 
@@ -2223,6 +2269,348 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
         });
 
     CHECK(view.shown_errors.size() == 1);
+}
+
+// Open sets busy=OpeningProject with the default message before the worker's completion runs.
+TEST_CASE("EditorController open begins busy with default message", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"first.wav"});
+    controller.onOpenRequested(std::filesystem::path{"first.rhp"});
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+    CHECK(view.last_state->busy->operation == BusyOperation::OpeningProject);
+    CHECK(view.last_state->busy->message == "Opening project...");
+    CHECK(view.last_state->busy->cancel_enabled == false);
+}
+
+// Import sets busy=ImportingProject with the default message before the worker's completion runs.
+TEST_CASE("EditorController import begins busy with default message", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .import_function = project_services.importFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_import_song = makeSong(std::filesystem::path{"first.ogg"});
+    controller.onImportRequested(std::filesystem::path{"first.psarc"});
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+    CHECK(view.last_state->busy->operation == BusyOperation::ImportingProject);
+    CHECK(view.last_state->busy->message == "Importing project...");
+}
+
+// While busy, the override block forces every command boolean to false except close_enabled.
+TEST_CASE(
+    "EditorController busy override disables commands except close", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    REQUIRE(view.last_state.has_value());
+    const EditorViewState& state = view.last_state.value();
+    CHECK(state.open_enabled == false);
+    CHECK(state.import_enabled == false);
+    CHECK(state.save_enabled == false);
+    CHECK(state.save_as_enabled == false);
+    CHECK(state.publish_enabled == false);
+    CHECK(state.play_pause_enabled == false);
+    CHECK(state.stop_enabled == false);
+    CHECK(state.signal_chain.add_plugin_enabled == false);
+    // close_enabled mirrors its non-busy value. No project is loaded yet, so close is false here;
+    // the next test exercises the case where a project is loaded before the open begins.
+    CHECK(state.close_enabled == false);
+}
+
+// Verifies the close_enabled "stays at its non-busy value" rule when a project is loaded already.
+TEST_CASE(
+    "EditorController busy keeps close enabled when project already loaded",
+    "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"loaded.wav"});
+    controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE_FALSE(view.last_state->busy.has_value());
+    CHECK(view.last_state->close_enabled == true);
+
+    project_services.next_song = makeSong(std::filesystem::path{"second.wav"});
+    controller.onOpenRequested(std::filesystem::path{"second.rhp"});
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+    CHECK(view.last_state->close_enabled == true);
+}
+
+// Completion of a successful open clears busy and publishes the final committed state.
+TEST_CASE("EditorController open completion clears busy and commits", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
+    CHECK(view.last_state->project_loaded == true);
+    CHECK(view.shown_errors.empty());
+}
+
+// A failed open clears busy first, then reports the error through the existing one-shot path.
+TEST_CASE(
+    "EditorController failed open clears busy then reports error", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_error_message = "missing package";
+    controller.onOpenRequested(std::filesystem::path{"missing.rhp"});
+
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not open: missing package");
+}
+
+// Close during a busy open supersedes the in-flight operation: closeProject() advances the
+// generation through endBusy(), the worker's deferred completion sees a mismatch on dispatch,
+// and the loaded song is never committed.
+TEST_CASE("EditorController close during busy supersedes open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"superseded.wav"});
+    controller.onOpenRequested(std::filesystem::path{"superseded.rhp"});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+
+    controller.onCloseRequested();
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
+
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
+    CHECK(view.last_state->project_loaded == false);
+    CHECK(audio.set_active_arrangement_call_count == 0);
+    CHECK(view.shown_errors.empty());
+}
+
+// Exit during a busy open follows the same supersede path through closeProject() and triggers
+// the composition host's exit callback.
+TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    int exit_call_count = 0;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .exit_function = [&exit_call_count]() { ++exit_call_count; },
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"never_committed.wav"});
+    controller.onOpenRequested(std::filesystem::path{"never_committed.rhp"});
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+
+    controller.onExitRequested();
+    CHECK(exit_call_count == 1);
+
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
+    CHECK(view.last_state->project_loaded == false);
+    CHECK(audio.set_active_arrangement_call_count == 0);
+}
+
+// A stale completion (generation no longer matches) does not call endBusy(): if another
+// operation is busy when the stale completion fires, the live busy state is preserved.
+TEST_CASE(
+    "EditorController stale completion preserves live busy state", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"first.wav"});
+    controller.onOpenRequested(std::filesystem::path{"first.rhp"});
+
+    // Supersede the first open by closing, then start a second open. The first open's pending
+    // completion is now stale. The second open's busy state must survive the stale completion.
+    controller.onCloseRequested();
+    project_services.next_song = makeSong(std::filesystem::path{"second.wav"});
+    controller.onOpenRequested(std::filesystem::path{"second.rhp"});
+
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->busy.has_value());
+
+    runner.runPendingCompletions();
+
+    REQUIRE(view.last_state.has_value());
+    // The second open's completion fires after the first (stale) one. The first's discard does
+    // not clear busy; the second's successful commit does. project_loaded should reflect the
+    // second song only.
+    CHECK_FALSE(view.last_state->busy.has_value());
+    CHECK(view.last_state->project_loaded == true);
+    CHECK(audio.set_active_arrangement_call_count == 1);
+    CHECK(audio.last_active_audio_asset->path == std::filesystem::path{"second.wav"});
+}
+
+// Stop on the message thread is not required by the task runner contract, but the controller
+// must still call IAudio::prepareSong() during the message-thread commit stage rather than the
+// worker. The deferred runner exposes this: prepareSong is not called until completion runs.
+TEST_CASE(
+    "EditorController prepareSong runs on message-thread completion stage",
+    "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    // After submit, work has run (open_function called) but completion is deferred.
+    CHECK(project_services.open_call_count == 1);
+    CHECK(audio.prepare_song_call_count == 0);
+
+    runner.runPendingCompletions();
+
+    CHECK(audio.prepare_song_call_count == 1);
 }
 
 } // namespace rock_hero::editor::core

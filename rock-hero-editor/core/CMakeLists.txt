@@ -8,6 +8,8 @@ target_sources(
     rock_hero_editor_core
     PRIVATE src/busy_view_state.cpp
             src/editor_controller.cpp
+            src/inline_editor_task_runner.cpp
+            src/juce_editor_task_runner.cpp
             src/project.cpp
             src/project_io.cpp
             src/project_error.cpp
