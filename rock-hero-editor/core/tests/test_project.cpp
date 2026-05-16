@@ -1,15 +1,17 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <juce_core/juce_core.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/editor/core/project.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
 #include <utility>
 #include <vector>
-#include <zip.h>
 
 namespace rock_hero::editor::core
 {
@@ -43,7 +45,10 @@ public:
     TemporaryArchiveDirectory()
         : m_path(
               std::filesystem::temp_directory_path() /
-              std::filesystem::path{"rock-hero-project-test"})
+              std::filesystem::path{
+                  "rock-hero-project-test-" +
+                  std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+              })
     {
         std::filesystem::remove_all(m_path);
         std::filesystem::create_directories(m_path);
@@ -79,50 +84,59 @@ private:
     std::filesystem::path m_path;
 };
 
+// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
+[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
+{
+#if defined(_WIN32)
+    return juce::File{juce::String{path.wstring().c_str()}};
+#else
+    return juce::File{juce::String::fromUTF8(path.string().c_str())};
+#endif
+}
+
 // Writes a zip-backed test archive from the supplied entries.
 void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEntry>& entries)
 {
-    int error_code{};
-    zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
-    REQUIRE(archive != nullptr);
+    juce::ZipFile::Builder archive_builder;
 
     for (const ArchiveEntry& entry : entries)
     {
-        zip_source_t* source =
-            zip_source_buffer(archive, entry.contents.data(), entry.contents.size(), 0);
-        REQUIRE(source != nullptr);
-
-        if (zip_file_add(archive, entry.path.c_str(), source, ZIP_FL_ENC_UTF_8) < 0)
-        {
-            zip_source_free(source);
-            FAIL("Could not add test archive entry");
-        }
+        auto input_stream = std::make_unique<juce::MemoryInputStream>(
+            entry.contents.data(), entry.contents.size(), true);
+        archive_builder.addEntry(
+            // JUCE's ZipFile::Builder takes ownership of the stream pointer.
+            input_stream.release(), // NOLINT(cppcoreguidelines-owning-memory)
+            9,
+            juce::String::fromUTF8(entry.path.c_str()),
+            juce::Time::getCurrentTime());
     }
 
-    REQUIRE(zip_close(archive) == 0);
+    juce::FileOutputStream output_stream{juceFileFromPath(path)};
+    REQUIRE(output_stream.openedOk());
+    REQUIRE(output_stream.setPosition(0));
+    REQUIRE(output_stream.truncate().wasOk());
+    REQUIRE(archive_builder.writeToStream(output_stream, nullptr));
+    output_stream.flush();
+    REQUIRE(output_stream.getStatus().wasOk());
 }
 
 // Reads archive entry names so archive-layout tests can verify the public file contract.
 [[nodiscard]] std::vector<std::string> archiveEntryNames(const std::filesystem::path& path)
 {
-    int error_code{};
-    zip_t* archive = zip_open(path.string().c_str(), ZIP_RDONLY, &error_code);
-    REQUIRE(archive != nullptr);
+    const juce::ZipFile archive{juceFileFromPath(path)};
 
-    const zip_int64_t entry_count = zip_get_num_entries(archive, 0);
+    const int entry_count = archive.getNumEntries();
     REQUIRE(entry_count >= 0);
 
     std::vector<std::string> names;
     names.reserve(static_cast<std::size_t>(entry_count));
-    for (zip_uint64_t index = 0; std::cmp_less(index, entry_count); ++index)
+    for (int index = 0; index < entry_count; ++index)
     {
-        zip_stat_t stat{};
-        REQUIRE(zip_stat_index(archive, index, 0, &stat) == 0);
-        REQUIRE(stat.name != nullptr);
-        names.emplace_back(stat.name);
+        const juce::ZipFile::ZipEntry* const entry = archive.getEntry(index);
+        REQUIRE(entry != nullptr);
+        names.push_back(entry->filename.toStdString());
     }
 
-    REQUIRE(zip_close(archive) == 0);
     return names;
 }
 
@@ -130,22 +144,13 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
 [[nodiscard]] std::string archiveEntryContents(
     const std::filesystem::path& path, const std::string& entry_name)
 {
-    int error_code{};
-    zip_t* archive = zip_open(path.string().c_str(), ZIP_RDONLY, &error_code);
-    REQUIRE(archive != nullptr);
+    juce::ZipFile archive{juceFileFromPath(path)};
+    const int entry_index = archive.getIndexOfFileName(juce::String::fromUTF8(entry_name.c_str()));
+    REQUIRE(entry_index >= 0);
 
-    zip_stat_t stat{};
-    REQUIRE(zip_stat(archive, entry_name.c_str(), 0, &stat) == 0);
-    std::string contents;
-    contents.resize(static_cast<std::size_t>(stat.size));
-
-    zip_file_t* file = zip_fopen(archive, entry_name.c_str(), 0);
-    REQUIRE(file != nullptr);
-    const zip_int64_t bytes_read = zip_fread(file, contents.data(), contents.size());
-    REQUIRE(std::cmp_equal(bytes_read, contents.size()));
-    REQUIRE(zip_fclose(file) == 0);
-    REQUIRE(zip_close(archive) == 0);
-    return contents;
+    std::unique_ptr<juce::InputStream> input_stream{archive.createStreamForEntry(entry_index)};
+    REQUIRE(input_stream != nullptr);
+    return input_stream->readEntireStreamAsString().toStdString();
 }
 
 // Returns the minimal nested song document shared by project package tests.

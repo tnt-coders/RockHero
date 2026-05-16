@@ -92,7 +92,7 @@ cd project-config/cmake-conan && pytest -rA
 ```text
 RockHero/
   rock-hero-common/
-    core/                   - Shared framework-free domain and package behavior
+    core/                   - Shared headless domain and package behavior
     audio/                  - Shared audio ports plus Tracktion/JUCE implementation
     ui/                     - Shared UI only when both products need it
   rock-hero-editor/
@@ -119,7 +119,7 @@ Key files:
 - **`rock-hero-common/audio/include/rock_hero/common/audio/engine.h`** /
   **`rock-hero-common/audio/src/engine.cpp`** - Tracktion isolation; Tracktion API calls live here
 - **`rock-hero-common/core/include/rock_hero/common/core/`** - `Song`, `Arrangement` types +
-  format serialization; standard C++ only
+  format serialization; headless code may use narrow JUCE core utilities
 - **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow
 - **`rock-hero-editor/ui/include/rock_hero/editor/ui/`** - Editor JUCE components
 - **`rock-hero-editor/app/`** - editor executable entry point
@@ -127,9 +127,11 @@ Key files:
 - **`build/debug/`**, **`build/release/`** - generated build artifacts; do not edit
 
 Dependency rules: `common` code must not depend on `editor` or `game` code. Product libraries may
-depend on `common`, but not on each other. `rock-hero-common/core` is framework-free. Tracktion
-headers stay isolated to `rock-hero-common/audio` implementation files. Architecture and layering
-decisions should remain aligned with `docs/design/architecture.md` and
+depend on `common`, but not on each other. `rock-hero-common/core` may use narrow `juce_core`
+utilities for package, file, JSON, ZIP, string, and result-handling behavior while remaining
+headless and automated-testable. Tracktion headers stay isolated to `rock-hero-common/audio`
+implementation files. Architecture and layering decisions should remain aligned with
+`docs/design/architecture.md` and
 `docs/design/architectural-principles.md`, especially around dependency boundaries, adapter design,
 framework isolation, and automated-testable structure.
 JUCE and Tracktion Engine are integrated as a git submodule (`external/tracktion_engine/`), not via
