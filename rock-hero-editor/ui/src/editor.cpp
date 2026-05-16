@@ -9,9 +9,32 @@ namespace rock_hero::editor::ui
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
+    common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
+    core::EditorController::Services services)
+    : m_controller(transport, audio, audio_devices, plugin_host, std::move(services))
+    , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
+{
+    m_controller.attachView(m_view);
+}
+
+// Wires the controller and view when no live plugin-host backend is available.
+Editor::Editor(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, std::move(services))
     , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
+{
+    m_controller.attachView(m_view);
+}
+
+// Wires the controller and view when no live audio-device or plugin-host backend is available.
+Editor::Editor(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
+    core::EditorController::Services services)
+    : m_controller(transport, audio, plugin_host, std::move(services))
+    , m_view(m_controller, transport, thumbnail_factory, nullptr)
 {
     m_controller.attachView(m_view);
 }

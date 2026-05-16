@@ -17,6 +17,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
+#include <rock_hero/editor/ui/live_instrument_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
 
@@ -52,7 +53,8 @@ position is not part of the derived editor state.
 class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
-                         private TransportControls::Listener
+                         private TransportControls::Listener,
+                         private LiveInstrumentPanel::Listener
 {
 public:
     /*!
@@ -100,7 +102,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the menu, transport controls, track viewport, and timeline overlay. */
+    /*! \brief Lays out the menu, transport controls, timeline viewport, and live panel. */
     void resized() override;
 
     /*! \brief Requests startup keyboard focus when the editor becomes visible. */
@@ -162,6 +164,9 @@ private:
     // Opens the asynchronous publish chooser and forwards accepted selections.
     void showPublishChooser();
 
+    // Opens the asynchronous VST3 plugin chooser and forwards accepted selections.
+    void showAddLivePluginChooser();
+
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
         const std::optional<core::UnsavedChangesPrompt>& prompt);
@@ -169,7 +174,7 @@ private:
     // Presents a Save As chooser once per controller-requested prompt.
     void presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt);
 
-    // Returns the editor area assigned to the scrollable track viewport.
+    // Returns the editor content area below the menu and transport strips.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
     // Applies ASIO routing state to the toolbar audio-device button.
@@ -186,6 +191,9 @@ private:
 
     // TransportControls::Listener implementation.
     void onStopPressed() override;
+
+    // LiveInstrumentPanel::Listener implementation.
+    void onAddLivePluginPressed() override;
 
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
@@ -207,6 +215,9 @@ private:
 
     // Opens app-local ASIO device, input, and output controls.
     juce::TextButton m_audio_device_button;
+
+    // Bottom control panel for the live instrument plugin chain.
+    LiveInstrumentPanel m_live_instrument_panel;
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;

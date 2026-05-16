@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/core/editor_controller.h>
@@ -34,6 +35,22 @@ public:
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param audio_devices Audio-device port used for ASIO input/output routing.
+    \param plugin_host Plugin-host port used for live instrument plugin insertion.
+    \param thumbnail_factory Factory used during view construction for arrangement waveform.
+    \param services Optional controller services used by the composed editor workflow.
+    */
+    Editor(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IAudioDeviceConfiguration& audio_devices,
+        common::audio::IPluginHost& plugin_host,
+        common::audio::IThumbnailFactory& thumbnail_factory,
+        core::EditorController::Services services = {});
+
+    /*!
+    \brief Creates the editor feature without a live plugin-host backend.
+    \param transport Transport used by the controller and read by the view cursor overlay.
+    \param audio Audio port used by the controller for song preparation and arrangement activation.
+    \param audio_devices Audio-device port used for ASIO input/output routing.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
     */
@@ -45,6 +62,20 @@ public:
 
     /*!
     \brief Creates the editor feature without a live audio-device backend.
+    \param transport Transport used by the controller and read by the view cursor overlay.
+    \param audio Audio port used by the controller for song preparation and arrangement activation.
+    \param plugin_host Plugin-host port used for live instrument plugin insertion.
+    \param thumbnail_factory Factory used during view construction for arrangement waveform.
+    \param services Optional controller services used by the composed editor workflow.
+    */
+    Editor(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IPluginHost& plugin_host,
+        common::audio::IThumbnailFactory& thumbnail_factory,
+        core::EditorController::Services services = {});
+
+    /*!
+    \brief Creates the editor feature without audio-device or plugin-host backends.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.

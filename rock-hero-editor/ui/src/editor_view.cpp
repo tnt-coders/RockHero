@@ -33,6 +33,9 @@ constexpr int g_audio_device_button_width{260};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
+constexpr int g_live_panel_min_height{160};
+constexpr int g_live_panel_max_height{260};
+constexpr int g_track_viewport_min_height{80};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
@@ -657,6 +660,7 @@ EditorView::EditorView(
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
+    , m_live_instrument_panel(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
     , m_track_viewport(
           std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
@@ -676,6 +680,7 @@ EditorView::EditorView(
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_audio_device_button);
+    addAndMakeVisible(m_live_instrument_panel);
     addAndMakeVisible(*m_track_viewport);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
@@ -706,6 +711,7 @@ void EditorView::setState(const core::EditorViewState& state)
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
     updateAudioDeviceButton();
+    m_live_instrument_panel.setState(m_state.live_instrument);
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -737,10 +743,9 @@ void EditorView::paint(juce::Graphics& g)
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
 }
 
-// Keeps the control strip above the track viewport and its zoomed content canvas.
+// Keeps the control strip above the timeline viewport and live instrument panel.
 void EditorView::resized()
 {
-    auto area = trackViewportBounds();
     auto top_area = getLocalBounds();
     m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
     auto transport_row = top_area.removeFromTop(g_transport_bar_height);
@@ -764,7 +769,19 @@ void EditorView::resized()
         take_control_bounds(control_row, g_transport_controls_width, true));
     m_audio_device_button.setBounds(
         take_control_bounds(control_row, g_audio_device_button_width, false));
-    m_track_viewport->setBounds(area);
+    auto bottom_area = trackViewportBounds();
+    const int target_live_panel_height =
+        std::clamp(bottom_area.getHeight() / 3, g_live_panel_min_height, g_live_panel_max_height);
+    const int max_live_panel_height =
+        std::max(0, bottom_area.getHeight() - g_control_gap - g_track_viewport_min_height);
+    const int live_panel_height = std::min(target_live_panel_height, max_live_panel_height);
+    auto live_panel_bounds = bottom_area.removeFromBottom(live_panel_height);
+    if (live_panel_height > 0)
+    {
+        bottom_area.removeFromBottom(std::min(g_control_gap, bottom_area.getHeight()));
+    }
+    m_track_viewport->setBounds(bottom_area);
+    m_live_instrument_panel.setBounds(live_panel_bounds);
 }
 
 // Retries the startup focus request if this component is explicitly shown later.
@@ -984,6 +1001,27 @@ void EditorView::showPublishChooser()
         });
 }
 
+// Opens an asynchronous VST3 chooser and sends the selected plugin path to the controller.
+void EditorView::showAddLivePluginChooser()
+{
+    m_file_chooser = std::make_unique<juce::FileChooser>(
+        "Add VST3 Plugin", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.vst3");
+
+    m_file_chooser->launchAsync(
+        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles |
+            juce::FileBrowserComponent::canSelectDirectories,
+        [this](const juce::FileChooser& chooser) {
+            const auto file = chooser.getResult();
+            if (!file.exists())
+            {
+                return;
+            }
+
+            m_controller.onAddLivePluginRequested(
+                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
+        });
+}
+
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.
 void EditorView::presentUnsavedChangesPromptIfNeeded(
     const std::optional<core::UnsavedChangesPrompt>& prompt)
@@ -1090,7 +1128,7 @@ void EditorView::showAudioDeviceSettingsDialog()
     AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
 }
 
-// Mirrors resized() layout so the track viewport occupies the editor content area.
+// Returns the area shared by the track viewport and bottom live instrument panel.
 juce::Rectangle<int> EditorView::trackViewportBounds() const
 {
     auto area = getLocalBounds();
@@ -1139,6 +1177,17 @@ void EditorView::onPlayPausePressed()
 void EditorView::onStopPressed()
 {
     m_controller.onStopPressed();
+}
+
+// Opens the plugin chooser through the owner so file-dialog lifetime stays centralized.
+void EditorView::onAddLivePluginPressed()
+{
+    if (!m_state.live_instrument.add_plugin_enabled)
+    {
+        return;
+    }
+
+    showAddLivePluginChooser();
 }
 
 } // namespace rock_hero::editor::ui

@@ -13,6 +13,7 @@
 #include <string>
 #include <system_error>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -108,6 +109,20 @@ void defaultExit()
     return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
 }
 
+// Converts scanner metadata into stable, framework-free state for the live panel.
+[[nodiscard]] LivePluginViewState makeLivePluginViewState(
+    const common::audio::PluginCandidate& candidate, const common::audio::LivePluginHandle& handle)
+{
+    return LivePluginViewState{
+        .instance_id = handle.instance_id,
+        .plugin_id = handle.plugin_id,
+        .name = candidate.name,
+        .manufacturer = candidate.manufacturer,
+        .format_name = candidate.format_name,
+        .chain_index = handle.chain_index,
+    };
+}
+
 } // namespace
 
 // Provides a default-argument target after the nested Services type is fully declared.
@@ -121,24 +136,42 @@ EditorController::Services EditorController::defaultServices()
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices, EditorController::Services services)
-    : EditorController(transport, audio, &audio_devices, std::move(services))
+    : EditorController(transport, audio, &audio_devices, nullptr, std::move(services))
+{}
+
+// Subscribes for coarse transport transitions and captures an initial derived state with plugin
+// hosting available.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IAudioDeviceConfiguration& audio_devices,
+    common::audio::IPluginHost& plugin_host, EditorController::Services services)
+    : EditorController(transport, audio, &audio_devices, &plugin_host, std::move(services))
 {}
 
 // Builds a controller for tests and temporary hosts that do not provide audio-device routing.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     EditorController::Services services)
-    : EditorController(transport, audio, nullptr, std::move(services))
+    : EditorController(transport, audio, nullptr, nullptr, std::move(services))
+{}
+
+// Builds a controller for hosts that expose plugin hosting but not audio-device settings UI.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IPluginHost& plugin_host, EditorController::Services services)
+    : EditorController(transport, audio, nullptr, &plugin_host, std::move(services))
 {}
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where a service seam is omitted.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
-    common::audio::IAudioDeviceConfiguration* audio_devices, EditorController::Services services)
+    common::audio::IAudioDeviceConfiguration* audio_devices,
+    common::audio::IPluginHost* plugin_host, EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
     , m_audio_devices(audio_devices)
+    , m_plugin_host(plugin_host)
     , m_open_function(
           services.open_function ? std::move(services.open_function) : OpenFunction{defaultOpen})
     , m_import_function(
@@ -475,6 +508,47 @@ void EditorController::onWaveformClicked(double normalized_x)
     deriveAndPush();
 }
 
+// Handles the first live-plugin UI flow: scan one selected VST3 file, append the first discovered
+// candidate, and publish enough state for the panel to show the linear chain.
+void EditorController::onAddLivePluginRequested(std::filesystem::path file)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+        candidates = m_plugin_host->scanPluginFile(file);
+    if (!candidates.has_value())
+    {
+        reportError(std::string{"Could not scan plugin: "} + candidates.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    if (candidates->empty())
+    {
+        reportError("Could not scan plugin: no compatible plugin was found");
+        deriveAndPush();
+        return;
+    }
+
+    const common::audio::PluginCandidate& candidate = candidates->front();
+    std::expected<common::audio::LivePluginHandle, common::audio::PluginHostError> handle =
+        m_plugin_host->addLiveInstrumentPlugin(candidate.id);
+    if (!handle.has_value())
+    {
+        reportError(std::string{"Could not add plugin: "} + handle.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    // Tone persistence is not implemented yet, so the panel tracks the runtime chain without
+    // marking the project dirty for data Save cannot currently restore.
+    m_live_plugins.push_back(makeLivePluginViewState(candidate, *handle));
+    deriveAndPush();
+}
+
 // Persists the new device manager state and re-derives view state after a configuration change.
 void EditorController::onAudioDeviceConfigurationChanged()
 {
@@ -562,6 +636,7 @@ bool EditorController::closeProject()
     {
         m_audio.clearActiveArrangement();
         m_session.reset();
+        m_live_plugins.clear();
         m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
@@ -571,6 +646,7 @@ bool EditorController::closeProject()
     m_transport.stop();
     m_audio.clearActiveArrangement();
     m_session.reset();
+    m_live_plugins.clear();
 
     auto closed = m_project->close();
     if (!closed.has_value())
@@ -719,6 +795,7 @@ bool EditorController::loadSessionSong(
     {
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
+        m_live_plugins.clear();
     }
     m_session_load_in_progress = false;
 
@@ -754,6 +831,10 @@ EditorViewState EditorController::deriveViewState() const
     state.current_audio_device_name =
         m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
     state.visible_timeline = timeline_range;
+    state.live_instrument = LiveInstrumentViewState{
+        .add_plugin_enabled = m_plugin_host != nullptr && hasLoadedArrangement(),
+        .plugins = m_live_plugins,
+    };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {

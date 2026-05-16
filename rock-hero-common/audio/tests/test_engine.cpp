@@ -6,6 +6,7 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 
 namespace rock_hero::common::audio
@@ -18,6 +19,7 @@ namespace
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
+static_assert(std::derived_from<Engine, IPluginHost>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
@@ -258,6 +260,34 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     const bool prepared = audio.prepareSong(song);
 
     CHECK_FALSE(prepared);
+}
+
+// Verifies plugin scanning rejects missing plugin paths without touching Tracktion graph state.
+TEST_CASE("Engine plugin host rejects missing plugin files", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+
+    const auto candidates =
+        plugin_host.scanPluginFile(fixtureAudioPath().parent_path() / "missing.vst3");
+
+    REQUIRE_FALSE(candidates.has_value());
+    CHECK(candidates.error().code == PluginHostErrorCode::MissingPluginFile);
+}
+
+// Verifies plugin insertion reports unknown candidate IDs as a typed boundary failure.
+TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+    const ITransport& transport = harness.engine;
+
+    const auto handle = plugin_host.addLiveInstrumentPlugin("missing-plugin-id");
+
+    REQUIRE_FALSE(handle.has_value());
+    CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
+    CHECK(transport.state() == TransportState{});
+    CHECK(transport.position() == common::core::TimePosition{});
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

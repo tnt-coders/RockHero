@@ -4,6 +4,9 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
+#include <exception>
+#include <expected>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +23,26 @@ namespace
 void logLiveInstrumentMonitoringFailure(const juce::String& message)
 {
     juce::Logger::writeToLog("Rock Hero live instrument monitoring: " + message);
+}
+
+// Converts a standard filesystem path into the JUCE file type required by Tracktion/JUCE APIs.
+[[nodiscard]] juce::File toJuceFile(const std::filesystem::path& path)
+{
+    const auto path_text = path.wstring();
+    return juce::File{juce::String{path_text.c_str()}};
+}
+
+// Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
+[[nodiscard]] PluginCandidate makePluginCandidate(
+    const juce::PluginDescription& description, const std::filesystem::path& plugin_path)
+{
+    return PluginCandidate{
+        .id = description.createIdentifierString().toStdString(),
+        .name = description.name.toStdString(),
+        .manufacturer = description.manufacturerName.toStdString(),
+        .format_name = description.pluginFormatName.toStdString(),
+        .file_path = plugin_path,
+    };
 }
 
 // Converts the project-owned compact channel role into the Tracktion channel identifier.
@@ -100,8 +123,7 @@ public:
 [[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
     tracktion::Engine& engine, const common::core::AudioAsset& audio_asset)
 {
-    const auto path_text = audio_asset.path.wstring();
-    const juce::File file{juce::String{path_text.c_str()}};
+    const juce::File file = toJuceFile(audio_asset.path);
     if (!file.existsAsFile())
     {
         return std::nullopt;
@@ -284,6 +306,14 @@ private:
         return tracktion::findAudioTrackForID(*m_edit, m_live_instrument_track_id);
     }
 
+    // Looks up a previously scanned plugin candidate without exposing JUCE descriptions publicly.
+    [[nodiscard]] std::unique_ptr<juce::PluginDescription> findKnownPlugin(
+        const std::string& plugin_id) const
+    {
+        return m_engine->getPluginManager().knownPluginList.getTypeForIdentifierString(
+            juce::String{plugin_id});
+    }
+
     // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
     [[nodiscard]] bool shouldStopAtLoadedEnd(double raw_position_seconds) const
     {
@@ -450,6 +480,13 @@ private:
         stopTransportForPlaybackReset();
         transport.setPosition(tracktion::TimePosition{});
     }
+
+    // Restores the live monitoring context after plugin-list graph mutation or failed insertion.
+    void rebuildLiveMonitoringGraph()
+    {
+        applyLiveInstrumentMonitoringRoute();
+        updateTransportState();
+    }
 };
 
 // Creates the Tracktion engine and a minimal two-track edit for playback and live monitoring.
@@ -599,8 +636,7 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
         return false;
     }
 
-    const auto path_text = arrangement.audio_asset.path.wstring();
-    const juce::File file{juce::String{path_text.c_str()}};
+    const juce::File file = toJuceFile(arrangement.audio_asset.path);
     if (!file.existsAsFile())
     {
         return false;
@@ -656,6 +692,161 @@ void Engine::clearActiveArrangement()
     m_impl->m_loaded_length_seconds = 0.0;
     m_impl->applyLiveInstrumentMonitoringRoute();
     m_impl->updateTransportState();
+}
+
+// Scans one plugin file through Tracktion's JUCE-backed known-plugin list.
+std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginFile(
+    const std::filesystem::path& plugin_path)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    const juce::File plugin_file = toJuceFile(plugin_path);
+    if (plugin_path.empty() || !plugin_file.exists())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::MissingPluginFile,
+            "Plugin file does not exist: " + plugin_path.string()
+        }};
+    }
+
+    try
+    {
+        constexpr auto* vst3_format_name = "VST3";
+        auto& plugin_manager = m_impl->m_engine->getPluginManager();
+        const juce::String& file_or_identifier = plugin_file.getFullPathName();
+        juce::OwnedArray<juce::PluginDescription> found_descriptions;
+        bool has_vst3_format = false;
+
+        for (juce::AudioPluginFormat* const format :
+             plugin_manager.pluginFormatManager.getFormats())
+        {
+            if (format == nullptr || format->getName() != vst3_format_name)
+            {
+                continue;
+            }
+
+            has_vst3_format = true;
+            if (!format->fileMightContainThisPluginType(file_or_identifier))
+            {
+                continue;
+            }
+
+            plugin_manager.knownPluginList.scanAndAddFile(
+                file_or_identifier, true, found_descriptions, *format);
+        }
+
+        if (!has_vst3_format)
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginScanFailed,
+                "VST3 plugin hosting is not enabled in this build"
+            }};
+        }
+
+        plugin_manager.knownPluginList.scanFinished();
+
+        std::vector<PluginCandidate> candidates;
+        candidates.reserve(static_cast<std::size_t>(found_descriptions.size()));
+
+        for (const juce::PluginDescription* description : found_descriptions)
+        {
+            if (description != nullptr && description->pluginFormatName == vst3_format_name)
+            {
+                candidates.push_back(makePluginCandidate(*description, plugin_path));
+            }
+        }
+
+        if (candidates.empty())
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::NoCompatiblePlugin,
+                "No VST3 plugin was found in: " + plugin_path.string()
+            }};
+        }
+
+        return candidates;
+    }
+    catch (const std::exception& error)
+    {
+        m_impl->m_engine->getPluginManager().knownPluginList.scanFinished();
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginScanFailed,
+            std::string{"Plugin scan failed: "} + error.what()
+        }};
+    }
+}
+
+// Appends a selected known VST3 candidate to the live instrument track's plugin list.
+std::expected<LivePluginHandle, PluginHostError> Engine::addLiveInstrumentPlugin(
+    const std::string& plugin_id)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    tracktion::AudioTrack* const live_track = m_impl->liveInstrumentTrack();
+    if (live_track == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::LiveInstrumentTrackMissing}};
+    }
+
+    const std::unique_ptr<juce::PluginDescription> description = m_impl->findKnownPlugin(plugin_id);
+    if (description == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginNotFound, "Plugin candidate was not found: " + plugin_id
+        }};
+    }
+
+    if (!live_track->pluginList.canInsertPlugin())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+
+    const tracktion::Plugin::Ptr plugin = m_impl->m_edit->getPluginCache().createNewPlugin(
+        tracktion::ExternalPlugin::xmlTypeName, *description);
+    if (plugin == nullptr)
+    {
+        m_impl->rebuildLiveMonitoringGraph();
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginCreationFailed,
+            "Could not create plugin: " + description->name.toStdString()
+        }};
+    }
+
+    if (auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
+        external_plugin != nullptr)
+    {
+        const juce::String load_error = external_plugin->getLoadError();
+        if (load_error.isNotEmpty())
+        {
+            m_impl->rebuildLiveMonitoringGraph();
+            return std::unexpected{
+                PluginHostError{PluginHostErrorCode::PluginLoadFailed, load_error.toStdString()}
+            };
+        }
+    }
+
+    live_track->pluginList.insertPlugin(plugin, -1, nullptr);
+    const int inserted_index = live_track->pluginList.indexOf(plugin.get());
+    if (inserted_index < 0)
+    {
+        m_impl->rebuildLiveMonitoringGraph();
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
+    }
+
+    m_impl->rebuildLiveMonitoringGraph();
+    return LivePluginHandle{
+        .instance_id = plugin->itemID.toString().toStdString(),
+        .plugin_id = plugin_id,
+        .chain_index = static_cast<std::size_t>(inserted_index),
+    };
 }
 
 // Exposes the JUCE device manager so settings UI can host the stock device selector directly.

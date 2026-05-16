@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/session.h>
@@ -21,6 +22,7 @@
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/core/project.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -37,8 +39,8 @@ at its own render cadence. The controller samples position only for discrete wor
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced transport, audio, and optional audio-device configuration ports must outlive the
-controller.
+The referenced transport, audio, optional audio-device configuration, and optional plugin-host
+ports must outlive the controller.
 */
 class EditorController final : public IEditorController,
                                private common::audio::ITransport::Listener,
@@ -118,6 +120,20 @@ public:
         Services services = defaultServices());
 
     /*!
+    \brief Builds the controller with a live plugin-host backend.
+
+    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
+    \param audio Audio port used to validate and load arrangement audio.
+    \param audio_devices Audio-device configuration port used for ASIO input/output routing.
+    \param plugin_host Plugin-host port used to mutate the live instrument chain.
+    \param services Optional project IO, settings, and host-exit services.
+    */
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IAudioDeviceConfiguration& audio_devices,
+        common::audio::IPluginHost& plugin_host, Services services = defaultServices());
+
+    /*!
     \brief Builds the controller without a live audio-device backend.
 
     This overload is used by tests and temporary hosts that do not expose audio-device
@@ -130,6 +146,17 @@ public:
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         Services services = defaultServices());
+
+    /*!
+    \brief Builds the controller with plugin hosting but without audio-device settings UI.
+    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
+    \param audio Audio port used to validate and load arrangement audio.
+    \param plugin_host Plugin-host port used to mutate the live instrument chain.
+    \param services Optional project IO, settings, and host-exit services.
+    */
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IPluginHost& plugin_host, Services services = defaultServices());
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -255,6 +282,16 @@ public:
     */
     void onWaveformClicked(double normalized_x) override;
 
+    /*!
+    \brief Scans a plugin file and appends the first candidate to the live instrument chain.
+
+    The initial UI path intentionally handles the common one-candidate VST3 case. Future chooser
+    state can branch on multiple scanned candidates without changing the controller/view boundary.
+
+    \param file Filesystem path selected by the user.
+    */
+    void onAddLivePluginRequested(std::filesystem::path file) override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
@@ -262,7 +299,8 @@ private:
     // Shared constructor body used by public overloads.
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration* audio_devices, Services services);
+        common::audio::IAudioDeviceConfiguration* audio_devices,
+        common::audio::IPluginHost* plugin_host, Services services);
 
     struct PendingProjectRequest
     {
@@ -340,6 +378,9 @@ private:
     // Optional audio-device port used for ASIO input/output routing.
     common::audio::IAudioDeviceConfiguration* m_audio_devices{};
 
+    // Optional plugin-host port used to mutate the live instrument processing chain.
+    common::audio::IPluginHost* m_plugin_host{};
+
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
 
@@ -369,6 +410,9 @@ private:
 
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
+
+    // Runtime live chain shown by the view until durable tone persistence is introduced.
+    std::vector<LivePluginViewState> m_live_plugins;
 
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
     bool m_session_load_in_progress{false};
