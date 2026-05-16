@@ -13,7 +13,7 @@ target_sources(
             src/audio_device_settings_dialog.cpp
             src/editor.cpp
             src/editor_view.cpp
-            src/instrument_panel.cpp
+            src/signal_chain_panel.cpp
             src/main_window.cpp
             src/transport_controls.cpp)
 

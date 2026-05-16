@@ -1,4 +1,4 @@
-#include "instrument_panel.h"
+#include "signal_chain_panel.h"
 
 #include <algorithm>
 #include <string>
@@ -47,22 +47,22 @@ const juce::Colour g_plugin_row_border{juce::Colours::black.withAlpha(0.35f)};
 } // namespace
 
 // Creates the panel controls and routes the add command through the owner.
-InstrumentPanel::InstrumentPanel(Listener& listener)
+SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
 {
-    setComponentID("instrument_panel");
+    setComponentID("signal_chain_panel");
     m_add_plugin_button.setComponentID("add_plugin_button");
     m_add_plugin_button.setButtonText("Add Plugin");
     m_add_plugin_button.onClick = [this] { m_listener.onAddPluginPressed(); };
     addAndMakeVisible(m_add_plugin_button);
-    setState(core::InstrumentViewState{});
+    setState(core::SignalChainViewState{});
 }
 
 // Uses default destruction for JUCE child controls owned by value.
-InstrumentPanel::~InstrumentPanel() = default;
+SignalChainPanel::~SignalChainPanel() = default;
 
 // Stores the render state and updates controls whose enabledness is derived outside the view.
-void InstrumentPanel::setState(const core::InstrumentViewState& state)
+void SignalChainPanel::setState(const core::SignalChainViewState& state)
 {
     m_state = state;
     m_add_plugin_button.setEnabled(m_state.add_plugin_enabled);
@@ -70,7 +70,7 @@ void InstrumentPanel::setState(const core::InstrumentViewState& state)
 }
 
 // Draws a compact plugin-chain panel without introducing plugin-host policy into the widget.
-void InstrumentPanel::paint(juce::Graphics& g)
+void SignalChainPanel::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
     g.fillAll(g_panel_background);
@@ -85,7 +85,7 @@ void InstrumentPanel::paint(juce::Graphics& g)
     g.fillRect(header);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{16.0f, juce::Font::bold});
-    g.drawFittedText("Instrument", header.reduced(8, 0), juce::Justification::centredLeft, 1);
+    g.drawFittedText("Signal Chain", header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
     area.removeFromTop(g_panel_inset);
     if (m_state.plugins.empty())
@@ -117,7 +117,7 @@ void InstrumentPanel::paint(juce::Graphics& g)
 }
 
 // Keeps the add button in the header area while leaving the body for chain rendering.
-void InstrumentPanel::resized()
+void SignalChainPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
     auto header = area.removeFromTop(g_header_height);

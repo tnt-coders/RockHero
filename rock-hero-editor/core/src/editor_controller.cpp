@@ -109,7 +109,7 @@ void defaultExit()
     return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
 }
 
-// Converts scanner metadata into stable, framework-free state for the instrument panel.
+// Converts scanner metadata into stable, framework-free state for the signal-chain panel.
 [[nodiscard]] PluginViewState makePluginViewState(
     const common::audio::PluginCandidate& candidate, const common::audio::PluginHandle& handle)
 {
@@ -831,7 +831,7 @@ EditorViewState EditorController::deriveViewState() const
     state.current_audio_device_name =
         m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
     state.visible_timeline = timeline_range;
-    state.instrument = InstrumentViewState{
+    state.signal_chain = SignalChainViewState{
         .add_plugin_enabled = m_plugin_host != nullptr && hasLoadedArrangement(),
         .plugins = m_plugins,
     };

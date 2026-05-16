@@ -33,8 +33,8 @@ constexpr int g_audio_device_button_width{260};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
-constexpr int g_instrument_panel_min_height{160};
-constexpr int g_instrument_panel_max_height{260};
+constexpr int g_signal_chain_panel_min_height{160};
+constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
@@ -660,7 +660,7 @@ EditorView::EditorView(
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
-    , m_instrument_panel(*this)
+    , m_signal_chain_panel(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
     , m_track_viewport(
           std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
@@ -680,7 +680,7 @@ EditorView::EditorView(
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_audio_device_button);
-    addAndMakeVisible(m_instrument_panel);
+    addAndMakeVisible(m_signal_chain_panel);
     addAndMakeVisible(*m_track_viewport);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
@@ -711,7 +711,7 @@ void EditorView::setState(const core::EditorViewState& state)
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
         });
     updateAudioDeviceButton();
-    m_instrument_panel.setState(m_state.instrument);
+    m_signal_chain_panel.setState(m_state.signal_chain);
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -743,7 +743,7 @@ void EditorView::paint(juce::Graphics& g)
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
 }
 
-// Keeps the control strip above the timeline viewport and instrument panel.
+// Keeps the control strip above the timeline viewport and signal-chain panel.
 void EditorView::resized()
 {
     auto top_area = getLocalBounds();
@@ -770,19 +770,21 @@ void EditorView::resized()
     m_audio_device_button.setBounds(
         take_control_bounds(control_row, g_audio_device_button_width, false));
     auto bottom_area = trackViewportBounds();
-    const int target_instrument_panel_height = std::clamp(
-        bottom_area.getHeight() / 3, g_instrument_panel_min_height, g_instrument_panel_max_height);
-    const int max_instrument_panel_height =
+    const int target_signal_chain_panel_height = std::clamp(
+        bottom_area.getHeight() / 3,
+        g_signal_chain_panel_min_height,
+        g_signal_chain_panel_max_height);
+    const int max_signal_chain_panel_height =
         std::max(0, bottom_area.getHeight() - g_control_gap - g_track_viewport_min_height);
-    const int instrument_panel_height =
-        std::min(target_instrument_panel_height, max_instrument_panel_height);
-    auto instrument_panel_bounds = bottom_area.removeFromBottom(instrument_panel_height);
-    if (instrument_panel_height > 0)
+    const int signal_chain_panel_height =
+        std::min(target_signal_chain_panel_height, max_signal_chain_panel_height);
+    auto signal_chain_panel_bounds = bottom_area.removeFromBottom(signal_chain_panel_height);
+    if (signal_chain_panel_height > 0)
     {
         bottom_area.removeFromBottom(std::min(g_control_gap, bottom_area.getHeight()));
     }
     m_track_viewport->setBounds(bottom_area);
-    m_instrument_panel.setBounds(instrument_panel_bounds);
+    m_signal_chain_panel.setBounds(signal_chain_panel_bounds);
 }
 
 // Retries the startup focus request if this component is explicitly shown later.
@@ -1129,7 +1131,7 @@ void EditorView::showAudioDeviceSettingsDialog()
     AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
 }
 
-// Returns the area shared by the track viewport and bottom instrument panel.
+// Returns the area shared by the track viewport and bottom signal-chain panel.
 juce::Rectangle<int> EditorView::trackViewportBounds() const
 {
     auto area = getLocalBounds();
@@ -1183,7 +1185,7 @@ void EditorView::onStopPressed()
 // Opens the plugin chooser through the owner so file-dialog lifetime stays centralized.
 void EditorView::onAddPluginPressed()
 {
-    if (!m_state.instrument.add_plugin_enabled)
+    if (!m_state.signal_chain.add_plugin_enabled)
     {
         return;
     }
