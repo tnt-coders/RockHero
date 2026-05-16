@@ -1,12 +1,12 @@
 /*!
-\file instrument_panel.h
+\file signal_chain_panel.h
 \brief JUCE control panel for the plugin chain on the instrument route.
 */
 
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/core/instrument_view_state.h>
+#include <rock_hero/editor/core/signal_chain_view_state.h>
 
 namespace rock_hero::editor::ui
 {
@@ -18,10 +18,10 @@ The panel is intentionally linear for the first plugin-host UI. It renders proje
 emits add-plugin intent through Listener so future rack or parallel-chain models can replace the
 state shape without exposing Tracktion or JUCE plugin descriptions to the view.
 */
-class InstrumentPanel final : public juce::Component
+class SignalChainPanel final : public juce::Component
 {
 public:
-    /*! \brief Listener for user intents emitted by the instrument panel. */
+    /*! \brief Listener for user intents emitted by the signal-chain panel. */
     class Listener
     {
     public:
@@ -58,28 +58,28 @@ public:
     \brief Creates the panel and stores the listener that receives user intent.
     \param listener Listener that receives panel actions.
     */
-    explicit InstrumentPanel(Listener& listener);
+    explicit SignalChainPanel(Listener& listener);
 
     /*! \brief Releases child controls. */
-    ~InstrumentPanel() override;
+    ~SignalChainPanel() override;
 
     /*! \brief Copying is disabled because JUCE component ownership is not copyable. */
-    InstrumentPanel(const InstrumentPanel&) = delete;
+    SignalChainPanel(const SignalChainPanel&) = delete;
 
     /*! \brief Copy assignment is disabled because JUCE component ownership is not copyable. */
-    InstrumentPanel& operator=(const InstrumentPanel&) = delete;
+    SignalChainPanel& operator=(const SignalChainPanel&) = delete;
 
     /*! \brief Moving is disabled because child component registrations are not movable. */
-    InstrumentPanel(InstrumentPanel&&) = delete;
+    SignalChainPanel(SignalChainPanel&&) = delete;
 
     /*! \brief Move assignment is disabled because child registrations are not movable. */
-    InstrumentPanel& operator=(InstrumentPanel&&) = delete;
+    SignalChainPanel& operator=(SignalChainPanel&&) = delete;
 
     /*!
-    \brief Applies the current instrument render state.
+    \brief Applies the current signal-chain render state.
     \param state State derived by the editor controller.
     */
-    void setState(const core::InstrumentViewState& state);
+    void setState(const core::SignalChainViewState& state);
 
     /*!
     \brief Paints the panel background, title, and plugin chain.
@@ -95,7 +95,7 @@ private:
     Listener& m_listener;
 
     // Last render state pushed by the editor controller.
-    core::InstrumentViewState m_state{};
+    core::SignalChainViewState m_state{};
 
     // Button that opens plugin selection through the owning editor view.
     juce::TextButton m_add_plugin_button;

@@ -17,7 +17,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
-#include <rock_hero/editor/ui/instrument_panel.h>
+#include <rock_hero/editor/ui/signal_chain_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
 
@@ -54,7 +54,7 @@ class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
                          private TransportControls::Listener,
-                         private InstrumentPanel::Listener
+                         private SignalChainPanel::Listener
 {
 public:
     /*!
@@ -102,7 +102,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the menu, transport controls, timeline viewport, and instrument panel. */
+    /*! \brief Lays out the menu, transport controls, timeline viewport, and signal-chain panel. */
     void resized() override;
 
     /*! \brief Requests startup keyboard focus when the editor becomes visible. */
@@ -192,7 +192,7 @@ private:
     // TransportControls::Listener implementation.
     void onStopPressed() override;
 
-    // InstrumentPanel::Listener implementation.
+    // SignalChainPanel::Listener implementation.
     void onAddPluginPressed() override;
 
     // Controller that owns editor workflow policy.
@@ -217,7 +217,7 @@ private:
     juce::TextButton m_audio_device_button;
 
     // Bottom control panel for the plugin chain.
-    InstrumentPanel m_instrument_panel;
+    SignalChainPanel m_signal_chain_panel;
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;

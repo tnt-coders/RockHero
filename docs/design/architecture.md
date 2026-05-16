@@ -275,7 +275,7 @@ first implementation mutates the linear Tracktion plugin list on the instrument 
 term tone graphs can add richer addressing for racks, containers, and parallel blended chains while
 keeping plugin discovery and mutation behind the same audio adapter boundary.
 
-The editor presents instrument operations in a bottom control panel separate from the
+The editor presents signal-chain operations in a bottom control panel separate from the
 scrollable arrangement viewport. The first panel is intentionally minimal: it shows the current
 linear runtime plugin chain and lets the user select a VST3 file to append to that chain. Future
 rack, container, and parallel blend editing should evolve this panel's state model rather than
@@ -309,7 +309,7 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 │  │    (JUCE Components)    │  │   │  │    (SDL3 + bgfx)        │  │
 │  │                         │  │   │  │                         │  │
 │  │  • Waveform display     │  │   │  │  • 3D note highway      │  │
-│  │  • Plugin chain view    │  │   │  │  • Score display        │  │
+│  │  • Signal chain panel   │  │   │  │  • Score display        │  │
 │  │  • Automation envelopes │  │   │  │  • Hit feedback/effects │  │
 │  │  • Transport controls   │  │   │  │  • Fretboard view       │  │
 │  └───────────┬─────────────┘  │   │  └──────────┬──────────────┘  │
@@ -429,8 +429,8 @@ Built with JUCE components — the same framework Waveform (the DAW built on Tra
 The editor (`rock-hero-editor`) consists of:
 
 - **Waveform display**: `juce::AudioThumbnail` showing the backing track with a playhead overlay.
-- **Plugin chain view**: Horizontal row of loaded effects with add/remove/reorder controls.
-- **Instrument panel**: Bottom control area for instrument input routing and plugin-chain edits.
+- **Signal chain panel**: Horizontal row of loaded effects with add/remove/reorder controls.
+- **Signal chain panel**: Bottom control area for loaded plugins and future routing edits.
 - **Automation area**: Shares the waveform's horizontal time axis and zoom/scroll state. Breakpoint envelopes control plugin parameters over the song's duration.
 - **Transport controls**: Play, stop, seek.
 

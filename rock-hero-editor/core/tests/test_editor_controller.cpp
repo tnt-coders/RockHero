@@ -891,8 +891,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
-    CHECK(empty_state.instrument.add_plugin_enabled == false);
-    CHECK(empty_state.instrument.plugins.empty());
+    CHECK(empty_state.signal_chain.add_plugin_enabled == false);
+    CHECK(empty_state.signal_chain.plugins.empty());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
@@ -918,8 +918,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .audio_asset = audio_asset,
                 .audio_duration = common::core::TimeDuration{180.0},
             },
-        .instrument =
-            InstrumentViewState{
+        .signal_chain =
+            SignalChainViewState{
                 .add_plugin_enabled = true,
                 .plugins =
                     {
@@ -942,9 +942,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.audio_devices_available);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
-    CHECK(loaded_state.instrument.add_plugin_enabled);
-    REQUIRE(loaded_state.instrument.plugins.size() == 1);
-    CHECK(loaded_state.instrument.plugins[0].name == "Amp Sim");
+    CHECK(loaded_state.signal_chain.add_plugin_enabled);
+    REQUIRE(loaded_state.signal_chain.plugins.size() == 1);
+    CHECK(loaded_state.signal_chain.plugins[0].name == "Amp Sim");
     CHECK(
         loaded_state.unsaved_changes_prompt ==
         std::optional{UnsavedChangesPrompt{.action = PendingProjectAction::Close}});
@@ -1020,7 +1020,7 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     }
 }
 
-// A loaded arrangement with a plugin host enables the instrument add command.
+// A loaded arrangement with a plugin host enables the add-plugin command.
 TEST_CASE("EditorController enables plugin add after load", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1040,7 +1040,7 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     if (view.last_state.has_value())
     {
         const EditorViewState& initial_state = view.last_state.value();
-        CHECK_FALSE(initial_state.instrument.add_plugin_enabled);
+        CHECK_FALSE(initial_state.signal_chain.add_plugin_enabled);
     }
 
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
@@ -1049,8 +1049,8 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     if (view.last_state.has_value())
     {
         const EditorViewState& loaded_state = view.last_state.value();
-        CHECK(loaded_state.instrument.add_plugin_enabled);
-        CHECK(loaded_state.instrument.plugins.empty());
+        CHECK(loaded_state.signal_chain.add_plugin_enabled);
+        CHECK(loaded_state.signal_chain.plugins.empty());
     }
 }
 
@@ -1080,15 +1080,15 @@ TEST_CASE("EditorController adds a plugin", "[core][editor-controller]")
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
-        const auto& instrument_state = view.last_state.value().instrument;
-        CHECK(instrument_state.add_plugin_enabled);
-        REQUIRE(instrument_state.plugins.size() == 1);
-        CHECK(instrument_state.plugins[0].instance_id == "instance-id");
-        CHECK(instrument_state.plugins[0].plugin_id == "plugin-id");
-        CHECK(instrument_state.plugins[0].name == "Amp Sim");
-        CHECK(instrument_state.plugins[0].manufacturer == "Example Audio");
-        CHECK(instrument_state.plugins[0].format_name == "VST3");
-        CHECK(instrument_state.plugins[0].chain_index == 0);
+        const auto& signal_chain_state = view.last_state.value().signal_chain;
+        CHECK(signal_chain_state.add_plugin_enabled);
+        REQUIRE(signal_chain_state.plugins.size() == 1);
+        CHECK(signal_chain_state.plugins[0].instance_id == "instance-id");
+        CHECK(signal_chain_state.plugins[0].plugin_id == "plugin-id");
+        CHECK(signal_chain_state.plugins[0].name == "Amp Sim");
+        CHECK(signal_chain_state.plugins[0].manufacturer == "Example Audio");
+        CHECK(signal_chain_state.plugins[0].format_name == "VST3");
+        CHECK(signal_chain_state.plugins[0].chain_index == 0);
     }
     CHECK(view.shown_errors.empty());
 }
@@ -1122,7 +1122,7 @@ TEST_CASE("EditorController reports plugin add errors", "[core][editor-controlle
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.instrument.plugins.empty());
+        CHECK(state.signal_chain.plugins.empty());
     }
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
@@ -1180,8 +1180,8 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK_FALSE(state.current_audio_device_name.has_value());
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
-        CHECK_FALSE(state.instrument.add_plugin_enabled);
-        CHECK(state.instrument.plugins.empty());
+        CHECK_FALSE(state.signal_chain.add_plugin_enabled);
+        CHECK(state.signal_chain.plugins.empty());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
         CHECK_FALSE(state.save_as_prompt.has_value());
     }
