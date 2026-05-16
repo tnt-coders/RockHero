@@ -84,24 +84,24 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
     return juce::File{juce::String{native_path.c_str()}};
 }
 
-// Gives the unsaved-changes prompt enough context for the action that triggered it.
-[[nodiscard]] juce::String unsavedChangesPromptMessage(core::PendingProjectAction action)
+// Gives the unsaved-changes prompt enough context for the command that triggered it.
+[[nodiscard]] juce::String unsavedChangesPromptMessage(core::ProjectCommandId command)
 {
-    switch (action)
+    switch (command)
     {
-        case core::PendingProjectAction::Close:
+        case core::ProjectCommandId::Close:
         {
             return "Save changes before closing the current project?";
         }
-        case core::PendingProjectAction::Open:
+        case core::ProjectCommandId::Open:
         {
             return "Save changes before opening another project?";
         }
-        case core::PendingProjectAction::Import:
+        case core::ProjectCommandId::Import:
         {
             return "Save changes before importing another project?";
         }
-        case core::PendingProjectAction::Exit:
+        case core::ProjectCommandId::Exit:
         {
             return "Save changes before exiting Rock Hero Editor?";
         }
@@ -614,7 +614,7 @@ private:
     // True for one follow tick after playback starts so the viewport can reveal the cursor.
     bool m_playback_start_pending{false};
 
-    // Previous stop-button enabled state, used to identify a Stop-command reset.
+    // Previous stop-button enabled state, used to identify a Stop action reset.
     bool m_stop_enabled{false};
 };
 
@@ -874,7 +874,7 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
             }
             if (m_state.save_requires_destination)
             {
-                showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+                showSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
             }
             else
             {
@@ -886,7 +886,7 @@ void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/
         {
             if (m_state.save_as_enabled)
             {
-                showSaveAsChooser(SaveAsChooserPurpose::UserCommand);
+                showSaveAsChooser(SaveAsChooserPurpose::UserSaveAs);
             }
             break;
         }
@@ -977,7 +977,7 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
             const auto file = chooser.getResult();
             if (file.getFullPathName().isEmpty())
             {
-                if (purpose == SaveAsChooserPurpose::PendingProjectAction)
+                if (purpose == SaveAsChooserPurpose::DeferredProjectCommand)
                 {
                     m_controller.onSaveAsCancelled();
                 }
@@ -1053,7 +1053,7 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::QuestionIcon)
             .withTitle("Unsaved changes")
-            .withMessage(unsavedChangesPromptMessage(prompt->action))
+            .withMessage(unsavedChangesPromptMessage(prompt->command))
             .withButton("Save")
             .withButton("Discard")
             .withButton("Cancel")
@@ -1103,7 +1103,7 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
     }
 
     m_last_presented_save_as_prompt = prompt;
-    showSaveAsChooser(SaveAsChooserPurpose::PendingProjectAction);
+    showSaveAsChooser(SaveAsChooserPurpose::DeferredProjectCommand);
 }
 
 // Applies controller-derived ASIO routing state to the toolbar button.

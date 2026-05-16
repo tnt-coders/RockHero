@@ -17,8 +17,8 @@
 namespace rock_hero::editor::core
 {
 
-/*! \brief Project-level action waiting for unsaved-change confirmation. */
-enum class PendingProjectAction : std::uint8_t
+/*! \brief Identity for a project-level command waiting on editor prompts. */
+enum class ProjectCommandId : std::uint8_t
 {
     Close,
     Open,
@@ -37,8 +37,8 @@ enum class UnsavedChangesDecision : std::uint8_t
 /*! \brief Describes the unsaved-changes prompt the view should present. */
 struct UnsavedChangesPrompt
 {
-    /*! \brief Action that will continue if the user saves or discards changes. */
-    PendingProjectAction action{PendingProjectAction::Close};
+    /*! \brief Command that will continue if the user saves or discards changes. */
+    ProjectCommandId command{ProjectCommandId::Close};
 
     /*!
     \brief Compares two prompt requests by their stored values.
@@ -53,8 +53,8 @@ struct UnsavedChangesPrompt
 /*! \brief Describes a controller-requested Save As chooser. */
 struct SaveAsPrompt
 {
-    /*! \brief Action that will continue after the user selects a save destination. */
-    PendingProjectAction action{PendingProjectAction::Close};
+    /*! \brief Command that will continue after the user selects a save destination. */
+    ProjectCommandId command{ProjectCommandId::Close};
 
     /*!
     \brief Compares two Save As prompt requests by their stored values.

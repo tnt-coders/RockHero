@@ -77,33 +77,30 @@ we add cancellable operations later.
   local progress in the dialog while the editor-wide busy overlay blocks the rest of the app.
 - The plugin-loading slice means "Tracktion accepted the plugin into the edit." Warmed and
   seamless-ready plugin state belongs to the tone system work, not this busy-overlay feature.
-- Close and Exit are always honored, even during busy. Both supersede the in-flight operation
-  through `endBusy()` so the user always has a clean in-app escape hatch. The earlier
-  "no escape hatch in Slice 1" decision was the lazy choice and is replaced by this design.
-- Controller-level intent handlers do not add `isBusy()` guards. The view is the source of truth
-  for what is reachable: disabled `*_enabled` booleans hide commands from the menu and toolbar,
-  and `BusyOverlay` intercepts mouse and keyboard input from the EditorView child tree. Paths
-  that bypass EditorView (Close/Exit) are handled by supersede semantics, not gating.
+- Close and Exit are always honored, even during busy. The action router routes both through the
+  supersede path so the user always has a clean in-app escape hatch. Supersede invalidates
+  completion and clears UI busy state; it does not interrupt a worker thread that is already
+  running.
+- Add a small controller-side action router before adding more busy operations. Disabled
+  `*_enabled` booleans and `BusyOverlay` remain the presentation layer, but controller action
+  routing is the authoritative execution gate for direct calls, shortcuts, and delayed UI
+  callbacks.
 
 ## Busy Semantics
 
-When `busy` is present, the controller applies a single override block at the end of
-`deriveViewState()` that forces every command boolean to false except `close_enabled`:
+When `busy` is present, the controller action router applies each action's busy policy.
+`deriveViewState()` projects that same routing policy into the view-state booleans:
 
 - `open_enabled`, `import_enabled`, `save_enabled`, `save_as_enabled`, `publish_enabled` are
-  forced to false.
-- `play_pause_enabled`, `stop_enabled` are forced to false.
-- `signal_chain.add_plugin_enabled` is forced to false.
+  false because those commands use `BlockedByBusy`.
+- `play_pause_enabled`, `stop_enabled`, and `signal_chain.add_plugin_enabled` are false for the
+  same reason.
+- `close_enabled` is true while busy because Close uses `SupersedesBusy`, even during the first
+  open before a project has committed.
 
-`close_enabled` stays at its non-busy value because Close supersedes an in-flight busy operation
-through `endBusy()` rather than being blocked by it. See [Close and Exit
-Supersede](#close-and-exit-supersede) below.
-
-The override-block approach means feature-availability logic in `deriveViewState()` does not need
-to know about busy state. Each `*_enabled` boolean continues to encode "is this feature available
-when not busy"; the override is the single place that knows about the busy interaction. The view
-honors `state.busy` to render the overlay, and the `*_enabled` booleans are already disabled, so
-controller-level intent handlers do not need defensive `isBusy()` guards.
+The view reflects command availability and intercepts normal input, but the controller owns the
+rule for whether a command may start. This keeps direct controller calls, menu shortcuts, delayed
+file chooser continuations, and rendered UI affordances aligned.
 
 User-visible behavior while busy:
 
@@ -119,18 +116,124 @@ User-visible behavior while busy:
   began stay onscreen until resolved.
 - Existing content remains visible so the app does not look like it has unloaded the project.
 
+## Action Routing Policy
+
+Use a small private action router in `EditorController`, not scattered `if (isBusy()) return;`
+checks and not view-only gating.
+
+The router should be the single controller-side entry point for actions that can mutate
+editor state, schedule work, or disrupt an in-flight operation. That includes direct controller
+calls from tests, menu shortcuts, file chooser continuations, and normal component intents.
+
+Use one private action value that carries the action id and any payload:
+
+```cpp
+class EditorAction
+{
+public:
+    enum class Id
+    {
+        OpenProject,
+        ImportProject,
+        SaveProject,
+        SaveProjectAs,
+        PublishProject,
+        CloseProject,
+        ExitApplication,
+        PlayPause,
+        Stop,
+        SeekWaveform,
+        AddPlugin,
+        ApplyAudioDevice,
+    };
+
+    [[nodiscard]] static EditorAction openProject(std::filesystem::path file);
+    [[nodiscard]] static EditorAction saveProject();
+    [[nodiscard]] Id id() const noexcept;
+};
+
+enum class ActionBusyPolicy
+{
+    // Normal mutating actions are blocked until the active busy operation finishes.
+    BlockedByBusy,
+
+    // Superseding actions intentionally invalidate the active busy operation before running.
+    SupersedesBusy,
+
+    // Cooperative actions may run during busy without clearing or invalidating it.
+    AllowedWhileBusy,
+};
+```
+
+This does not need to become a public framework yet. Keep it inside `EditorController` until a
+second module needs the same command vocabulary.
+
+Action policy should answer two related questions from one source:
+
+- Is the action available in the current non-busy editor state?
+- What happens to this action when `busy` is present?
+
+`deriveViewState()` should project the same policy into `*_enabled` booleans using
+`EditorAction::Id`. `runAction(EditorAction)` should use the ID for policy, then route the action
+body internally only when the policy allows it. This prevents UI enablement and
+controller execution from drifting apart.
+
+Busy policy by action:
+
+- Normal mutating commands use `BlockedByBusy`: Open, Import, Save, Save As, Publish, Play/Pause,
+  Stop, waveform seek, Add Plugin, and Apply Audio Device.
+- Close and Exit use `SupersedesBusy`: they call the supersede path that clears busy state and
+  advances the generation token.
+- `AllowedWhileBusy` should be rare and explicit. Use it only for passive observations or future
+  cancel/progress commands that are designed to operate during busy state.
+
+The router gives us the useful part of `isBusy()` checks without duplicating them everywhere:
+the checks live in one action policy table/helper, and intent handlers become thin wrappers that
+build a named `EditorAction`.
+
+Do not introduce a separate `EditorCommand`, `EditorCommandDispatcher`, or duplicated command-state
+snapshot until the controller has enough behavior to justify the extra object model. The current
+simple shape is easier to read: `runAction(EditorAction::openProject(std::move(file)))`,
+`canRunAction(id)`, `actionAvailableWhenIdle(id)`, and `actionBusyPolicy(id)`.
+
+The router should not infer which actions belong on a background thread. It runs accepted action
+bodies on the controller/message thread. Operation-specific helpers such as `openProject()`
+or a future `runBusyTask(...)` helper own the split between background work and message-thread
+commit, because project IO, plugin loading, Tracktion mutation, and audio-device changes have
+different thread-affinity rules.
+
+File chooser and prompt continuations must also re-enter through the action router before starting work.
+For example, a file chooser opened before busy began might complete after another operation has
+started; that continuation should be blocked by the router instead of relying on the overlay.
+
+Deferred project replacement uses a separate private `ProjectCommand` value object with the same
+factory style:
+
+```cpp
+requestProjectCommand(ProjectCommand::open(std::move(file)));
+requestProjectCommand(ProjectCommand::close());
+```
+
+Prompt view state should expose only `ProjectCommandId`, because the view needs the identity for
+copy and not the path payload.
+
 ## Close and Exit Supersede
 
-Close and Exit are intentionally not blocked while busy. Both call `closeProject()`, which calls
-`endBusy()` at the top. `endBusy()` advances `m_busy_generation` as well as clearing `m_busy`, so
-any in-flight worker's eventual completion sees a generation mismatch and discards itself rather
-than committing on top of a now-empty session.
+Close and Exit are intentionally not blocked while busy. The action router detects their
+`SupersedesBusy` policy, calls `supersedeBusyOperation()` before running the action body, and
+then proceeds through normal close or exit behavior. The supersede path advances
+`m_busy_generation` as well as clearing `m_busy`, so any in-flight worker's eventual completion
+sees a generation mismatch and discards itself rather than committing on top of changed state.
 
-- **Close during busy:** cancels the in-flight operation and returns the editor to whatever
+- **Close during busy:** supersedes the in-flight operation and returns the editor to whatever
   project state existed before the open or import began.
-- **Exit during busy:** cancels the in-flight operation, then proceeds with normal exit. The
-  editor task runner's destructor joins outstanding workers before the app shuts down so the
-  worker thread finishes cleanly even if its result is no longer wanted.
+- **Exit during busy:** supersedes the in-flight operation, then proceeds with normal exit. The
+  editor task runner's destructor joins outstanding workers before the app shuts down, so exit may
+  still wait for a worker even though the worker's result is no longer wanted.
+
+Do not describe this as true cancellation. True cancellation requires a cancellation token or a
+runner/API that can cooperatively interrupt long work. Until then, Close and Exit are best
+understood as "discard the result and clear the UI state."
 
 ## View Overlay
 
@@ -166,7 +269,8 @@ Concrete shape:
 1. Controller begins busy and pushes `EditorViewState`.
 2. Controller asks the view to run a callback after the busy overlay has painted once.
 3. `EditorView` stores the callback until `BusyOverlay::paint()` renders the busy state.
-4. After that first paint, `EditorView` posts the callback with `juce::MessageManager::callAsync()`.
+4. After that first paint, `EditorView` posts the callback with
+   `juce::MessageManager::callAsync()`.
 5. The blocking message-thread work starts from that callback.
 
 The callback is single-shot. The view must clear the stored callback before or while posting it so
@@ -183,7 +287,7 @@ should not use it because the overlay can animate while the worker thread runs.
 
 Every operation that can take visible time should follow the same high-level lifecycle:
 
-1. Validate that no busy operation is active.
+1. Route the action and validate that action policy allows it to start.
 2. Set `m_busy` in `EditorController`.
 3. Derive and push `EditorViewState` so the overlay can repaint.
 4. Start or schedule the work.
@@ -232,6 +336,12 @@ For unavoidable message-thread operations, a busy overlay can communicate that w
 but it cannot keep animating while the message thread is blocked. Prefer moving true IO work to
 the task runner before relying on a synchronous fallback.
 
+The Slice 1 `JuceEditorTaskRunner` shape is intentionally transitional. It owns one worker and
+joins any prior worker from `submit()`. That is only acceptable while the action router
+guarantees that normal busy-blocked actions cannot submit overlapping background work. Before any
+slice allows concurrent submissions, real cancellation, or command queuing, replace this with a
+runner that queues work or rejects overlapping submissions without blocking the message thread.
+
 Tracktion graph mutations should preserve the current adapter policy: stop and release the
 playback context, mutate plugin/clip/tone graph state, dispatch pending device updates when
 needed, reallocate playback context, and rebind instrument monitoring. Busy state should span this
@@ -251,53 +361,53 @@ Add helpers:
 ```cpp
 [[nodiscard]] bool isBusy() const noexcept;
 [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
+void finishBusyOperation();
+void supersedeBusyOperation();
 void endBusy();
 ```
+
+Add private action-routing helpers:
+
+```cpp
+void runAction(EditorAction action);
+void performAction(EditorAction action);
+[[nodiscard]] bool prepareAction(EditorAction::Id action);
+[[nodiscard]] bool canRunAction(EditorAction::Id action) const;
+[[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
+[[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
+```
+
+Intent handlers should construct a named `EditorAction` and pass it to `runAction(...)` directly.
+Do not add a dispatcher class until the policy grows beyond this controller. The simple helper is
+enough to keep controller execution and view-state availability aligned.
 
 `beginBusy()` increments `m_busy_generation`, stores `m_busy`, and returns the generation token.
 It also fills `m_busy->message` with `busyMessage(operation)` and leaves
 `m_busy->cancel_enabled` false unless a later cancellable operation explicitly opts in.
 
-`endBusy()` clears `m_busy` *and* advances `m_busy_generation`. The advance ensures that any
-in-flight worker captured an older generation token and will see a mismatch on completion. This
-is what makes Close and Exit during busy work: both call `closeProject()`, which calls
-`endBusy()` at the top, and the worker's stale completion discards itself.
+`finishBusyOperation()` clears `m_busy` and advances `m_busy_generation` after the matching
+completion commits or fails. `supersedeBusyOperation()` does the same generation advance before a
+superseding action body runs. Both call the same low-level primitive because both make older
+in-flight completions stale; the separate names keep normal completion and command takeover clear.
 
 Every operation captures the token returned by `beginBusy()` and compares it with the current
 controller generation before committing state, regardless of whether completion happens on a
 background task, a message-thread continuation, or a paint-fence callback. A mismatched generation
-means the completion is stale and must be discarded. A stale completion does not call `endBusy()`;
+means the completion is stale and must be discarded. A stale completion does not finish busy state;
 the live busy state belongs to the operation that superseded it.
 
-Intent handlers do not gate on `isBusy()`. The view is the source of truth for what is reachable
-through the editor's component tree: disabled `*_enabled` booleans hide commands from the menu
-and toolbar, and `BusyOverlay` intercepts mouse and keyboard input. `onCloseRequested` and
-`onExitRequested` are deliberately ungated because both supersede the in-flight operation through
-`endBusy()` rather than being blocked by it.
+Intent handlers should not each hand-roll `isBusy()` checks. They should construct an
+`EditorAction` and pass it through the private action router. `onCloseRequested`
+and `onExitRequested` remain reachable during busy because their action policy is
+`SupersedesBusy`; normal actions are blocked while busy by the same action policy that feeds
+the view-state booleans.
 
-`deriveViewState()` applies a single override block when `isBusy()`:
+`deriveViewState()` should call the same action-availability helper used by routing when filling
+command booleans. Do not maintain a separate busy override block in the view-state path; that
+would let UI enablement and direct command execution drift apart.
 
-```cpp
-if (isBusy())
-{
-    state.open_enabled = false;
-    state.import_enabled = false;
-    state.save_enabled = false;
-    state.save_as_enabled = false;
-    state.publish_enabled = false;
-    state.play_pause_enabled = false;
-    state.stop_enabled = false;
-    state.signal_chain.add_plugin_enabled = false;
-}
-```
-
-`close_enabled` is intentionally left at its non-busy value because Close supersedes rather than
-blocks. The override block is the single place that knows about the busy override; the per-feature
-availability logic above it stays free of `isBusy()` checks.
-
-`closeProject()` calls `endBusy()` at the top so every Close and Exit path supersedes a pending
-open or import. If no busy state was active, `endBusy()` is a generation-advance plus a no-op on
-`m_busy`, which is harmless.
+The action router calls `supersedeBusyOperation()` before running Close and Exit bodies when busy is
+active. `closeProject()` should not call the low-level busy primitive directly.
 
 ## Project Loading First Slice
 
@@ -309,19 +419,20 @@ Project loading slice scope:
 
 - add `BusyViewState` and `EditorViewState::busy`
 - add `BusyOverlay` and editor-wide input blocking
-- apply the busy override block in `deriveViewState()` so menus and toolbars disable themselves
-- wire `closeProject()` to call `endBusy()` at the top so Close and Exit supersede
+- add the private action router and route open/import entry points through it
+- derive command booleans from the same action policy used by direct controller calls
+- wire routing to supersede busy state before running Close and Exit bodies
 - add default messages for `OpeningProject` and `ImportingProject`
 - add the editor-only task runner
 - move only open/import package IO behind the task runner
 - add `m_busy_generation` stale-completion handling
 - commit loaded `Project`, `Session`, transport seek, `IAudio::prepareSong()`, and arrangement
   activation on the message thread
-- clear busy before reporting load/import errors
+- clear busy and push the final non-busy state before reporting load/import errors
 
-This slice should not change save, publish, plugin loading, or audio-device apply behavior. The
-override block disables their commands while busy; Close and Exit remain available and supersede
-the in-flight operation.
+This slice should not change save, publish, plugin loading, or audio-device apply behavior. Their
+commands are blocked while busy through action policy; Close and Exit remain available and
+supersede the in-flight operation.
 
 When moving project IO to background work, avoid sharing mutable `Project` or `Session` objects
 across threads. Prefer creating a temporary project context inside the background task, returning a
@@ -345,6 +456,31 @@ completion) rather than by interrupting the worker thread. For background IO thi
 the worker finishes quickly and its result is discarded; for the prepareSong freeze it means the
 user may need to wait for prepareSong to complete before Close or Exit becomes visually
 responsive.
+
+## Startup Restore After Async Open
+
+Startup restore needs a small follow-up because project open is now asynchronous.
+
+`restoreLastOpenProject()` must not call `currentProjectFile()` immediately after scheduling
+`onOpenRequested()`. At that point, the open request has only begun; the current project may still
+be empty or may still be the previous session.
+
+Recommended shape:
+
+- If the saved project path no longer exists, clear `lastOpenProject` immediately and do not start
+  an open.
+- If the saved path exists, start a restore-specific open request and leave `lastOpenProject`
+  untouched while the async work is pending.
+- Let the open completion decide restore cleanup. On successful restore, normal project
+  persistence keeps the setting correct. On failed restore, clear the setting only after the
+  failure has completed if the intended policy is still "do not show the same failed restore every
+  launch."
+- Keep manual Open behavior separate from startup restore policy. A failed manual Open should not
+  implicitly clear the user's saved startup project unless the user actually opened a different
+  project.
+
+This likely means adding either a private `openProjectFromStartupRestore()` helper or a small
+operation-source flag captured by the open task state.
 
 ## Save And Publish Slice
 
@@ -403,6 +539,16 @@ solution.
 
 Recommended direction:
 
+- first instrument and optimize the existing path before assuming a busy overlay is necessary for
+  normal device switches; REAPER's behavior suggests a typical switch should not feel long
+- time the JUCE calls (`setCurrentAudioDeviceType()`, `setAudioDeviceSetup()`), settings-dialog
+  refresh work (`scanForDevices()`, staged `createDevice()`), and Tracktion route rebuild work
+  (`dispatchPendingUpdates()`, `ensureContextAllocated()`, input rebinding)
+- avoid repeated device scans and staged device creation during ordinary combo refreshes when
+  cached data or current-device capabilities are sufficient
+- avoid opening an intermediate default device when switching device type if the final setup is
+  already known
+- reduce Tracktion context rebuild work to the minimum needed after a committed route change
 - route device changes through a project-owned audio-device command surface instead of exposing
   direct mutation through the dialog
 - let the UI emit "apply device setup" intents to the controller
@@ -422,8 +568,13 @@ the overlay appears before a slow driver reconfiguration begins.
 Busy state should clear before showing the final error dialog. That keeps the app from displaying
 an error dialog above a stale "Loading..." overlay.
 
-The required order is: capture the result, clear busy, push final state, then call
+The required order is: capture the result, finish busy, push final state, then call
 `IEditorView::showError()` if the result failed.
+
+In controller code, that should look like `finishBusyOperation()`, then `deriveAndPush()`, then
+`reportError(...)`. Do not call `reportError()` between finishing busy state and
+`deriveAndPush()`: native dialogs can run a modal message loop, and the user should not see or
+interact with the error while the last pushed editor state still says the app is busy.
 
 Use the existing `IEditorView::showError()` one-shot path for failures. Do not put error text in
 `BusyViewState`; busy state describes active work, not completed failure.
@@ -441,6 +592,10 @@ Cancellation becomes useful later for operations that can cooperatively stop:
 Do not add a Cancel button until the underlying operation can actually respect it. A fake cancel
 button would create ambiguous state and more test burden.
 
+Close and Exit during busy are supersede operations, not cancellation. They invalidate the pending
+completion and clear the view state, but a running worker can still run to completion. With the
+Slice 1 runner, app shutdown may wait in the runner destructor for that worker to finish.
+
 ## Testing Strategy
 
 Keep tests aligned with the vertical slices so each slice can be implemented, reviewed, and
@@ -452,22 +607,38 @@ Project-loading slice tests:
 - while busy, the derived `EditorViewState` reports `open_enabled`, `import_enabled`,
   `save_enabled`, `save_as_enabled`, `publish_enabled`, `play_pause_enabled`, `stop_enabled`, and
   `signal_chain.add_plugin_enabled` as false
-- while busy, `close_enabled` remains at its non-busy value so Close stays reachable
+- while busy, `close_enabled` is true so Close can supersede the in-flight operation
 - successful open/import clears busy and publishes the final derived view state
-- failed open/import clears busy before reporting the existing error
+- failed open/import clears busy and publishes the non-busy state before reporting the existing
+  error
+- the fake view records a non-busy last state at the moment `showError()` is called
 - stale open/import completions are ignored when their busy generation no longer matches
-- stale open/import completions do not call `endBusy()`
-- Close during busy supersedes the in-flight operation: `closeProject()` calls `endBusy()`, the
-  worker's completion sees a generation mismatch, and the loaded result is not committed
+- stale open/import completions do not finish busy state
+- Close during busy supersedes the in-flight operation through routing, the worker's completion
+  sees a generation mismatch, and the loaded result is not committed
 - Exit during busy supersedes the in-flight operation through the same path
 - `IAudio::prepareSong()` remains in the message-thread commit stage
+- startup restore does not clear `lastOpenProject` immediately after scheduling an async open
+- startup restore clears missing-file settings synchronously without starting an open
+- startup restore success or failure performs any setting cleanup from the async completion path,
+  not from the scheduling path
+
+Action-routing tests:
+
+- normal actions are blocked by the router while busy even when the controller method is
+  called directly
+- Close and Exit are routed as superseding actions while busy
+- file chooser and prompt continuations re-enter through routing and cannot start a normal
+  mutating command after another busy operation has begun
+- the action router and `deriveViewState()` agree on command availability for representative loaded,
+  unloaded, dirty, clean, and busy states
+- overlapping task submissions cannot be reached through normal action routing while busy
 
 Project-loading UI tests:
 
 - `EditorView` shows the overlay when `state.busy` is present
 - the overlay renders `BusyViewState::message`
-- menu items reflect the override block's disabled state while busy, with the File > Close item
-  remaining enabled
+- menu items reflect the action policy while busy, with the File > Close item remaining enabled
 - transport, waveform, and signal-chain actions are disabled or ignored while busy
 - overlay hides and stops intercepting input when `state.busy` clears
 
@@ -476,7 +647,8 @@ Save and publish slice tests:
 - save/save-as/publish set the expected busy operation and message
 - package write completions commit on the message thread
 - success clears busy and updates dirty/project-path state correctly
-- failure clears busy before reporting the existing save or publish error
+- failure clears busy and publishes the non-busy state before reporting the existing save or
+  publish error
 - save-as prompt continuation still works after the busy operation completes
 - stale write completions are ignored
 
@@ -484,9 +656,10 @@ Plugin-loading slice tests:
 
 - add-plugin sets `LoadingPlugin` and waits for the overlay paint fence before scan/add starts
 - current scan/add calls remain on the message thread
-- stale paint-fence callbacks do not scan, add, commit state, or call `endBusy()`
+- stale paint-fence callbacks do not scan, add, commit state, or finish busy state
 - success means the plugin was accepted into the Tracktion edit
-- failure clears busy before reporting the existing plugin-load error
+- failure clears busy and publishes the non-busy state before reporting the existing plugin-load
+  error
 - project dirty state does not change for runtime-only plugin changes
 
 Audio-device apply slice tests:
@@ -495,7 +668,7 @@ Audio-device apply slice tests:
 - the settings dialog Apply action is disabled while apply is active
 - editor-wide commands behind the dialog are blocked while apply is active
 - transport is paused or stopped before device setup changes
-- failure clears busy before reporting the existing device error
+- failure clears busy and publishes the non-busy state before reporting the existing device error
 
 ## Implementation Slices
 
@@ -503,45 +676,71 @@ Audio-device apply slice tests:
 
 - Add `busy_view_state.h`.
 - Include `BusyViewState` in `EditorViewState`.
-- Add controller `m_busy` helpers and `m_busy_generation`. `endBusy()` advances the generation.
+- Add controller `m_busy` helpers and `m_busy_generation`. The shared busy-end primitive advances
+  the generation.
 - Add default messages for `OpeningProject` and `ImportingProject`.
 - Populate busy messages inside `beginBusy(BusyOperation)` through the default message helper.
-- Apply the override block in `deriveViewState()` so busy disables the right commands.
-- Wire `closeProject()` to call `endBusy()` at the top so Close and Exit supersede.
+- Add the private action router and route open/import entry points through it.
+- Fill `deriveViewState()` command booleans from action policy.
+- Wire routing to call `supersedeBusyOperation()` before Close and Exit bodies when busy.
 - Add `BusyOverlay` to `EditorView`.
 - Add the editor-only task runner; its destructor joins outstanding workers before allowing the
   app to shut down.
 - Move only open/import package IO through the task runner.
 - Recheck the busy generation before committing task results.
 - Commit loaded project/session/audio state on the message thread.
+- Push final non-busy state before reporting open/import errors.
 - Add controller and UI tests for the project-loading slice, including Close-during-busy and
   Exit-during-busy supersede tests.
 
 This slice is the first implementation target. It should leave save, publish, plugin loading, and
 audio-device apply behavior otherwise unchanged.
 
+### Slice 1A: Hardening Before More Busy Operations
+
+Do this cleanup before moving on to save/publish, plugin loading, or audio-device apply:
+
+- Replace view-only busy gating assumptions with the private action router.
+- Route current controller entry points and delayed file/prompt continuations through routing.
+- Fix startup restore so `restoreLastOpenProject()` does not inspect `currentProjectFile()`
+  immediately after scheduling async open.
+- Make every open/import failure path call `finishBusyOperation()`, `deriveAndPush()`, then
+  `reportError()`.
+- Keep the current single-worker `JuceEditorTaskRunner` only under the explicit invariant that
+  action routing prevents overlapping normal submissions.
+- Update comments and tests to say Close and Exit supersede in-flight work; they do not cancel or
+  interrupt the worker.
+
+This hardening slice is small but important. It makes the first busy operation trustworthy before
+the same mechanism is reused by more operations.
+
 ### Slice 2: Save/Save As/Publish Busy State
 
 - Add default messages for `SavingProject`, `SavingProjectAs`, and `PublishingProject`.
+- Route Save, Save As, Publish, and any Save As prompt continuation through action routing.
 - Move package write IO through the same editor task runner.
 - Reuse the same generation-token stale-completion handling.
 - Keep prompt handling and final state commits on the message thread.
+- Push final non-busy state before reporting save/publish errors.
 - Add save/save-as/publish controller tests.
 
 ### Slice 3: Plugin Loading Busy State
 
 - Add the `LoadingPlugin` default message.
 - Wrap the current add-plugin flow in busy begin/end.
+- Route Add Plugin and the file chooser continuation through action routing.
 - Use the paint-callback-triggered fence before starting scan/add.
 - Recheck the busy generation before starting or committing the fenced work.
 - Keep `IPluginHost::scanPluginFile()` and `IPluginHost::addPlugin()` on the message thread.
 - Preserve the contract that success means Tracktion accepted the plugin into the edit.
+- Push final non-busy state before reporting plugin-load errors.
 - Add focused controller/UI tests for the fence and busy clearing behavior.
 
 ### Slice 4: Audio Device Apply Busy State
 
 - Replace direct device-manager mutation from the settings dialog with controller-owned apply
   intents.
+- Route audio-device apply through action routing.
 - Add audio-device command methods to the project-owned audio-device boundary.
 - Show `ChangingAudioDevice` before applying setup.
 - Keep the settings dialog open with its Apply button disabled and a local progress indicator.
