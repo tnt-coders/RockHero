@@ -194,6 +194,7 @@ target_link_libraries(rock_hero_juce_audio_formats PUBLIC Ogg::ogg Vorbis::vorbi
 rock_hero_add_external_juce_module_wrapper(
     rock_hero_juce_audio_processors_headless juce::juce_audio_processors_headless PUBLIC_DEPS
     rock_hero::juce_audio_basics rock_hero::juce_events)
+target_compile_definitions(rock_hero_juce_audio_processors_headless PUBLIC JUCE_PLUGINHOST_VST3=1)
 
 # JUCE module declaration and docs: Source header:
 # external/tracktion_engine/modules/juce_audio_processors/juce_audio_processors.h
