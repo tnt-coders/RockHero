@@ -11,6 +11,7 @@ target_sources(
     PRIVATE src/arrangement_view.cpp
             src/audio_device_settings_component.cpp
             src/audio_device_settings_dialog.cpp
+            src/busy_overlay.cpp
             src/editor.cpp
             src/editor_view.cpp
             src/signal_chain_panel.cpp

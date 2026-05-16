@@ -21,7 +21,9 @@
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/inline_editor_task_runner.h>
 #include <rock_hero/editor/core/project.h>
 #include <string>
 #include <vector>
@@ -102,6 +104,16 @@ public:
 
         /*! \brief Optional settings store used for startup restore and exit persistence. */
         EditorSettings* settings{};
+
+        /*!
+        \brief Optional task runner for off-thread project IO.
+
+        When null, the controller falls back to an inline runner that executes work and
+        completion synchronously on the message thread. Production composition supplies the
+        JUCE-backed runner so open and import complete off-thread; tests typically pass null and
+        rely on the inline default.
+        */
+        IEditorTaskRunner* task_runner{};
     };
 
     /*!
@@ -310,6 +322,11 @@ private:
         std::filesystem::path file;
     };
 
+    // Forward-declared per-operation task states; full definitions live in the .cpp file because
+    // they are private implementation details of the open/import paths.
+    struct OpenTaskState;
+    struct ImportTaskState;
+
     // Transport listener entry point; receives only coarse transition-shaped callbacks.
     void onTransportStateChanged(common::audio::TransportState state) override;
 
@@ -322,11 +339,24 @@ private:
     // Runs a project-level action after prompts and save requirements are satisfied.
     void performProjectAction(const PendingProjectRequest& request);
 
-    // Opens an editor project package without first checking unsaved-change state.
+    // Opens an editor project package without first checking unsaved-change state. Begins busy,
+    // dispatches package IO to the task runner, and returns immediately. Final commit happens
+    // in completeOpenProject() on the message thread.
     void openProject(const std::filesystem::path& file);
 
-    // Imports a song source without first checking unsaved-change state.
+    // Message-thread completion for openProject(). Honors the busy-generation token: a stale
+    // completion (token != current generation) returns without touching session, project, or
+    // busy state because Close, Exit, or a superseding operation already owns the live state.
+    void completeOpenProject(std::uint64_t token, std::shared_ptr<OpenTaskState> state);
+
+    // Imports a song source without first checking unsaved-change state. Begins busy, dispatches
+    // import IO to the task runner, and returns immediately. Final commit happens in
+    // completeImportSongSource() on the message thread.
     void importSongSource(const std::filesystem::path& file);
+
+    // Message-thread completion for importSongSource(). Same stale-generation semantics as
+    // completeOpenProject().
+    void completeImportSongSource(std::uint64_t token, std::shared_ptr<ImportTaskState> state);
 
     // Closes the current project context, session, and backend audio state.
     [[nodiscard]] bool closeProject();
@@ -461,6 +491,19 @@ private:
     // and compare against the live generation on completion so stale completions can be
     // discarded without disturbing whichever operation superseded them.
     std::uint64_t m_busy_generation{0};
+
+    // Liveness flag reset by the controller destructor so background task completions running
+    // after teardown can detect that the controller is gone and skip touching dangling state.
+    // Each submit captures a weak_ptr to this and checks it before doing anything else.
+    std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
+
+    // Fallback task runner used when Services::task_runner is null. Synchronous so headless
+    // tests do not start worker threads.
+    InlineEditorTaskRunner m_inline_task_runner{};
+
+    // Non-owning pointer to the active task runner. Points at the Services-supplied runner when
+    // provided, otherwise at m_inline_task_runner.
+    IEditorTaskRunner* m_task_runner{};
 
     // Declared last so transport callbacks are detached before controller state is destroyed.
     common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
