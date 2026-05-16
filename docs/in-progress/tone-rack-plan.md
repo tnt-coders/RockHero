@@ -76,7 +76,7 @@ The domain-facing API should describe requested tone operations, not Tracktion o
 
 ## Editor UI Direction
 
-The editor should keep the bottom instrument panel as the control surface for this feature.
+The editor should keep the bottom signal-chain panel as the control surface for this feature.
 The first UI can be minimal:
 
 - List tone slots.
