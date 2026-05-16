@@ -1,6 +1,6 @@
 /*!
 \file editor_view_state.h
-\brief Framework-free editor view state used by the controller and view contracts.
+\brief Headless editor view state used by the controller and view contracts.
 */
 
 #pragma once
