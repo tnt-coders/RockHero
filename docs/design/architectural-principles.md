@@ -79,13 +79,17 @@ code must not depend on editor code.
 
 Core modules are the preferred home for headless behavior.
 
-`rock-hero-common/core` has the strictest contract: it is shared domain and package behavior, so it
-must remain framework-free in both public headers and implementation.
+`rock-hero-common/core` has the broadest reuse contract: it owns shared domain and package behavior
+used by both products. It should stay headless and automated-testable, but it is not required to be
+JUCE-free. It may use narrow `juce_core` utility facilities when that avoids duplicate
+infrastructure and keeps the behavior testable without windows, audio devices, GPUs, Tracktion
+runtime state, or the full application shell. Examples include `juce::File`, `juce::String`,
+`juce::JSON`, `juce::ZipFile`, and `juce::Result` translated into project-owned errors.
 
-Product core modules have a testability contract rather than a blanket framework ban. They should
-prefer pure standard C++ for rules, math, state transitions, and package-independent policy, but
-they may use narrow JUCE utility facilities when that keeps the product workflow simpler and still
-leaves the behavior automated-testable. Examples include `juce::File`, `juce::String`,
+Product core modules follow the same testability contract rather than a blanket framework ban. They
+should prefer pure standard C++ for rules, math, state transitions, and package-independent policy,
+but they may use narrow JUCE utility facilities when that keeps the product workflow simpler and
+still leaves the behavior automated-testable. Examples include `juce::File`, `juce::String`,
 `juce::PropertiesFile`, `juce::ValueTree`, and `juce::UndoManager`.
 
 They should contain:
@@ -101,7 +105,7 @@ specific design decision justifies the exception.
 
 If a new feature can live in a core module without pulling in framework dependencies, that is still
 usually preferable. If using a small JUCE facility removes custom infrastructure and keeps the
-tests straightforward, product core may use it.
+tests straightforward, core code may use it.
 
 ## Audio Modules
 
@@ -527,23 +531,19 @@ behind a project-owned wrapper layer:
 This keeps the dependency graph explicit while avoiding repeated third-party module compilation
 across the project's modular target structure.
 
-## Build Policy Exception
+## Core JUCE Utility Use
 
-The source-level rule for `rock-hero-common/core` is unchanged: shared core must remain
-framework-free and must not include JUCE or Tracktion in its public headers or implementation.
+The source-level rule for `rock-hero-common/core` is now testability-first rather than JUCE-free.
+Common core may include and link narrow `juce_core` utilities for package, file, JSON, ZIP, string,
+and result-handling behavior when doing so keeps the project simpler. This is not permission to
+move UI, message-loop ownership, audio-device ownership, GPU behavior, app startup, plugin
+scanning, or Tracktion runtime integration into common core.
 
-The build graph has one narrow exception. First-party targets link `rock_hero::build_policy`, and
-that target currently delegates to JUCE's recommended warning, configuration, and Release LTO helper
-targets. This is a pragmatic build-policy choice, not permission for core code to depend on JUCE.
-It keeps one compiler policy across Rock Hero while using defaults that already match the
-JUCE/Tracktion toolchain surface.
-
-This exception must remain contained in `cmake/RockHeroBuildPolicy.cmake`.
-`rock-hero-common/core` CMake should only mention Rock Hero policy targets such as
-`rock_hero::build_policy`, never raw `juce::` or `tracktion::` targets. If a core-only build,
-package, or test workflow needs to remove the build-time JUCE dependency later, change the
-implementation of the build-policy targets in that one file and keep first-party target call sites
-intact.
+`rock-hero-common/core` and other first-party targets still link project-owned wrapper aliases,
+such as `rock_hero::juce_core`, rather than raw `juce::` module targets. Tracktion module targets
+remain behind the audio adapter layer. Recoverable errors crossing project-owned APIs should still
+be translated into domain-owned error values rather than leaking raw framework diagnostics as the
+branchable contract.
 
 # Decision Rules for New Code
 
@@ -553,9 +553,10 @@ When adding a new class, function, or subsystem, ask:
 2. Can it take data in and return data out?
 3. Can its dependencies be replaced with fakes?
 4. Can it run without a message loop, audio device, filesystem, or GPU?
-5. Does it really need to know about JUCE or Tracktion?
-6. Is it mixing policy with side effects?
-7. Is it mixing threading concerns with domain rules?
+5. Does it need JUCE utility behavior, and can that stay headless and easy to test?
+6. Does it touch Tracktion or runtime framework behavior that belongs in an adapter?
+7. Is it mixing policy with side effects?
+8. Is it mixing threading concerns with domain rules?
 
 If the answer points away from purity or replaceability, treat that as a design warning and justify
 it explicitly.

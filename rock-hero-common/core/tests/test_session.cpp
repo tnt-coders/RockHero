@@ -11,7 +11,7 @@ namespace rock_hero::common::core
 namespace
 {
 
-// Builds the framework-free asset value used by session audio tests.
+// Builds the project-owned asset value used by session audio tests.
 [[nodiscard]] AudioAsset makeAudioAsset(std::filesystem::path path)
 {
     return AudioAsset{std::move(path)};

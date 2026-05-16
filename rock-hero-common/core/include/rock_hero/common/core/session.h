@@ -17,10 +17,10 @@ namespace rock_hero::common::core
 /*!
 \brief Editable in-memory session state.
 
-Session owns the Song currently loaded into the editor workflow. It is deliberately framework-free
-so controllers and tests can exercise session behavior without JUCE or Tracktion. The current
-editor presents one arrangement at a time; before a project is opened, the session contains no
-arrangements.
+Session owns the Song currently loaded into the editor workflow. It is deliberately headless so
+controllers and tests can exercise session behavior without UI, audio devices, or Tracktion. The
+current editor presents one arrangement at a time; before a project is opened, the session contains
+no arrangements.
 */
 class Session
 {

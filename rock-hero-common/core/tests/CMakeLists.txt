@@ -1,8 +1,8 @@
-# Catch2 powers the fast pure-core tests for session and song behavior.
+# Catch2 powers fast headless tests for session, song, and package behavior.
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
-# Keep framework-free domain tests separate from adapter-heavy audio coverage.
+# Keep shared domain and package tests separate from adapter-heavy audio coverage.
 add_executable(
     rock_hero_common_core_tests test_session.cpp test_song.cpp test_arrangement.cpp
                                 test_difficulty.cpp test_timeline.cpp test_rock_song_package.cpp)
