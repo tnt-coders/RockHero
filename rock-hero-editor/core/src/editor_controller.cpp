@@ -24,6 +24,7 @@
 #include <rock_hero/editor/core/psarc_song_importer.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -136,6 +137,91 @@ void defaultExit()
     };
 }
 
+// Identifies project commands that perform package writes on the task runner.
+[[nodiscard]] bool isProjectWriteCommand(ProjectCommandId command) noexcept
+{
+    switch (command)
+    {
+        case ProjectCommandId::Save:
+        case ProjectCommandId::SaveAs:
+        case ProjectCommandId::Publish:
+        {
+            return true;
+        }
+        case ProjectCommandId::Close:
+        case ProjectCommandId::Open:
+        case ProjectCommandId::Import:
+        case ProjectCommandId::Exit:
+        {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// Maps write commands to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(ProjectCommandId command) noexcept
+{
+    switch (command)
+    {
+        case ProjectCommandId::Save:
+        {
+            return BusyOperation::SavingProject;
+        }
+        case ProjectCommandId::SaveAs:
+        {
+            return BusyOperation::SavingProjectAs;
+        }
+        case ProjectCommandId::Publish:
+        {
+            return BusyOperation::PublishingProject;
+        }
+        case ProjectCommandId::Close:
+        case ProjectCommandId::Open:
+        case ProjectCommandId::Import:
+        case ProjectCommandId::Exit:
+        {
+            assert(false);
+            return BusyOperation::SavingProject;
+        }
+    }
+
+    assert(false);
+    return BusyOperation::SavingProject;
+}
+
+// Keeps write failure prefixes coupled to the command identity rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(ProjectCommandId command) noexcept
+{
+    switch (command)
+    {
+        case ProjectCommandId::Save:
+        {
+            return "Could not save: ";
+        }
+        case ProjectCommandId::SaveAs:
+        {
+            return "Could not save as: ";
+        }
+        case ProjectCommandId::Publish:
+        {
+            return "Could not publish: ";
+        }
+        case ProjectCommandId::Close:
+        case ProjectCommandId::Open:
+        case ProjectCommandId::Import:
+        case ProjectCommandId::Exit:
+        {
+            assert(false);
+            return "Could not write project: ";
+        }
+    }
+
+    assert(false);
+    return "Could not write project: ";
+}
+
 } // namespace
 
 // Owns every implementation detail that does not need to be part of the public controller type.
@@ -157,6 +243,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     struct OpenTaskState;
     struct ImportTaskState;
+    struct ProjectWriteTaskState;
 
     Impl(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
@@ -204,7 +291,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeImportSongSource(
         std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
     [[nodiscard]] bool closeProject();
-    [[nodiscard]] bool saveProject();
+    [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
+        ProjectCommand command);
+    void runProjectWriteCommand(ProjectCommand command);
+    void completeProjectWriteCommand(
+        std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
     void continueDeferredProjectCommand();
     void clearDeferredProjectCommand() noexcept;
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
@@ -327,6 +418,22 @@ struct EditorController::Impl::ImportTaskState
     std::filesystem::path file{};
     Project project{};
     std::expected<common::core::Song, ProjectError> result{};
+};
+
+// Per-operation worker state for project package writes. The Project is moved out of the
+// controller before worker execution so background save/publish code never shares mutable project
+// ownership with message-thread controller actions.
+struct EditorController::Impl::ProjectWriteTaskState
+{
+    explicit ProjectWriteTaskState(ProjectCommand command_value)
+        : command(std::move(command_value))
+    {}
+
+    ProjectCommand command;
+    Project project{};
+    common::core::Song song{};
+    ProjectEditorState editor_state{};
+    std::expected<void, ProjectError> result{};
 };
 
 // Provides a default-argument target after the nested Services type is fully declared.
@@ -817,66 +924,17 @@ void EditorController::Impl::performAction(EditorAction action)
                 return;
             }
 
-            if (!saveProject())
-            {
-                return;
-            }
-
-            if (m_pending_project_command.has_value())
-            {
-                continueDeferredProjectCommand();
-                return;
-            }
-
-            deriveAndPush();
+            runProjectCommand(ProjectCommand::save());
             break;
         }
         case EditorAction::Id::SaveProjectAs:
         {
-            if (!m_project.has_value())
-            {
-                return;
-            }
-
-            std::filesystem::path file = action.takeFile();
-            const auto saved =
-                m_save_as_function(*m_project, file, session().song(), projectEditorStateForSave());
-            if (!saved.has_value())
-            {
-                reportError(std::string{"Could not save as: "} + saved.error().message);
-                deriveAndPush();
-                return;
-            }
-
-            m_save_requires_destination = false;
-            m_project_file = std::move(file);
-            m_has_unsaved_changes = false;
-            if (m_pending_project_command.has_value())
-            {
-                continueDeferredProjectCommand();
-                return;
-            }
-
-            deriveAndPush();
+            runProjectCommand(ProjectCommand::saveAs(action.takeFile()));
             break;
         }
         case EditorAction::Id::PublishProject:
         {
-            if (!m_project.has_value())
-            {
-                return;
-            }
-
-            const std::filesystem::path file = action.takeFile();
-            const auto published = m_publish_function(*m_project, file, session().song());
-            if (!published.has_value())
-            {
-                reportError(std::string{"Could not publish: "} + published.error().message);
-                deriveAndPush();
-                return;
-            }
-
-            deriveAndPush();
+            runProjectCommand(ProjectCommand::publish(action.takeFile()));
             break;
         }
         case EditorAction::Id::CloseProject:
@@ -910,13 +968,7 @@ void EditorController::Impl::performAction(EditorAction action)
                         return;
                     }
 
-                    if (!saveProject())
-                    {
-                        clearDeferredProjectCommand();
-                        return;
-                    }
-
-                    continueDeferredProjectCommand();
+                    runProjectCommand(ProjectCommand::saveBeforeDeferredCommand());
                     break;
                 }
                 case UnsavedChangesDecision::Discard:
@@ -1200,6 +1252,13 @@ void EditorController::Impl::runProjectCommand(ProjectCommand command)
             importSongSource(file);
             break;
         }
+        case ProjectCommandId::Save:
+        case ProjectCommandId::SaveAs:
+        case ProjectCommandId::Publish:
+        {
+            runProjectWriteCommand(std::move(command));
+            break;
+        }
         case ProjectCommandId::Exit:
         {
             const std::optional<std::filesystem::path> restorable_project_file =
@@ -1220,13 +1279,17 @@ void EditorController::Impl::runProjectCommand(ProjectCommand command)
 }
 
 // Closes the current editor document across transport, backend audio, session, and workspace.
-// Always supersedes any in-flight busy operation so closing or exiting during an open/import
+// Always supersedes any in-flight busy operation so closing or exiting during background work
 // invalidates the worker's generation token; the worker's completion then sees a mismatch and
 // discards itself rather than committing on top of a now-empty session.
 bool EditorController::Impl::closeProject()
 {
     if (!m_project.has_value())
     {
+        if (hasLoadedArrangement())
+        {
+            m_transport.stop();
+        }
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
@@ -1260,24 +1323,152 @@ bool EditorController::Impl::closeProject()
     return true;
 }
 
-// Saves through the current destination and clears dirty state only after persistence succeeds.
-bool EditorController::Impl::saveProject()
+// Snapshots message-thread state and transfers Project ownership to a write task so worker-side
+// package IO cannot race with controller-owned Project mutation.
+auto EditorController::Impl::takeProjectForWrite(ProjectCommand command)
+    -> std::shared_ptr<ProjectWriteTaskState>
 {
     if (!m_project.has_value())
     {
-        return false;
+        return {};
     }
 
-    const auto saved = m_save_function(*m_project, session().song(), projectEditorStateForSave());
-    if (!saved.has_value())
+    auto state = std::make_shared<ProjectWriteTaskState>(std::move(command));
+    state->project = std::move(*m_project);
+    state->song = session().song();
+    state->editor_state = projectEditorStateForSave();
+    m_project.reset();
+    return state;
+}
+
+// Runs project write commands through one task-runner path so busy lifetime, stale completion
+// checks, and project restoration stay consistent across save, save-as, and publish.
+void EditorController::Impl::runProjectWriteCommand(ProjectCommand command)
+{
+    assert(isProjectWriteCommand(command.id()));
+
+    auto state = takeProjectForWrite(std::move(command));
+    if (state == nullptr)
     {
-        reportError(std::string{"Could not save: "} + saved.error().message);
-        deriveAndPush();
-        return false;
+        return;
     }
 
-    m_has_unsaved_changes = false;
-    return true;
+    const std::uint64_t token = beginBusy(busyOperationForProjectWrite(state->command.id()));
+    deriveAndPush();
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    EditorController::SaveFunction save_function = m_save_function;
+    EditorController::SaveAsFunction save_as_function = m_save_as_function;
+    EditorController::PublishFunction publish_function = m_publish_function;
+    m_task_runner->submit(
+        [state,
+         save_function = std::move(save_function),
+         save_as_function = std::move(save_as_function),
+         publish_function = std::move(publish_function)]() mutable {
+            switch (state->command.id())
+            {
+                case ProjectCommandId::Save:
+                {
+                    state->result = save_function(state->project, state->song, state->editor_state);
+                    break;
+                }
+                case ProjectCommandId::SaveAs:
+                {
+                    state->result = save_as_function(
+                        state->project, state->command.file(), state->song, state->editor_state);
+                    break;
+                }
+                case ProjectCommandId::Publish:
+                {
+                    state->result =
+                        publish_function(state->project, state->command.file(), state->song);
+                    break;
+                }
+                case ProjectCommandId::Close:
+                case ProjectCommandId::Open:
+                case ProjectCommandId::Import:
+                case ProjectCommandId::Exit:
+                {
+                    assert(false);
+                    state->result = std::unexpected{ProjectError{
+                        ProjectErrorCode::CouldNotWriteProjectFiles,
+                        "Unsupported project write command"
+                    }};
+                    break;
+                }
+            }
+        },
+        [this, state, token, alive_weak = std::move(alive_weak)]() {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            completeProjectWriteCommand(token, state);
+        });
+}
+
+// Restores the Project context, clears busy before errors, and applies the successful write's
+// command-specific state transition on the message thread.
+void EditorController::Impl::completeProjectWriteCommand(
+    std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state)
+{
+    if (token != m_busy_generation)
+    {
+        return;
+    }
+
+    const ProjectCommandId command_id = state->command.id();
+    m_project = std::move(state->project);
+    if (!state->result.has_value())
+    {
+        const std::string message = state->result.error().message;
+        if (state->command.clearsDeferredCommandOnFailure())
+        {
+            clearDeferredProjectCommand();
+        }
+        finishBusyOperation();
+        deriveAndPush();
+        reportError(std::string{projectWriteErrorPrefix(command_id)} + message);
+        return;
+    }
+
+    switch (command_id)
+    {
+        case ProjectCommandId::Save:
+        {
+            m_has_unsaved_changes = false;
+            break;
+        }
+        case ProjectCommandId::SaveAs:
+        {
+            m_save_requires_destination = false;
+            m_project_file = state->command.file();
+            m_has_unsaved_changes = false;
+            break;
+        }
+        case ProjectCommandId::Publish:
+        {
+            break;
+        }
+        case ProjectCommandId::Close:
+        case ProjectCommandId::Open:
+        case ProjectCommandId::Import:
+        case ProjectCommandId::Exit:
+        {
+            assert(false);
+            break;
+        }
+    }
+
+    finishBusyOperation();
+    if ((command_id == ProjectCommandId::Save || command_id == ProjectCommandId::SaveAs) &&
+        m_pending_project_command.has_value())
+    {
+        continueDeferredProjectCommand();
+        return;
+    }
+
+    deriveAndPush();
 }
 
 // Resumes a deferred command after Save or Save As has successfully protected user changes.
@@ -1311,7 +1502,7 @@ const common::core::Session& EditorController::Impl::session() const noexcept
 // Returns an editor project file only when the current workspace is backed by one.
 std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile() const
 {
-    if (!m_project.has_value() || m_project_file.empty())
+    if (m_project_file.empty() || !hasLoadedArrangement())
     {
         return std::nullopt;
     }
