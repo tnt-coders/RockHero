@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <expected>
 #include <filesystem>
 #include <fstream>
@@ -19,7 +20,10 @@ public:
     TemporaryRockSongPackageDirectory()
         : m_path(
               std::filesystem::temp_directory_path() /
-              std::filesystem::path{"rock-hero-rock-song-package-test"})
+              std::filesystem::path{
+                  "rock-hero-rock-song-package-test-" +
+                  std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+              })
     {
         std::filesystem::remove_all(m_path);
         std::filesystem::create_directories(m_path);
@@ -110,6 +114,34 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     CHECK(read_song->arrangements.front().id == "lead");
     CHECK(
         read_song->arrangements.front().audio_asset.path == package_directory / "audio/source.wav");
+}
+
+// Verifies Rock song package archive writing uses a readable native ZIP package.
+TEST_CASE("Rock song package archive round-trips native song data", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written =
+        writeRockSongPackage(package_archive, package_directory, makeSong(source_audio));
+
+    REQUIRE(written.has_value());
+    CHECK(std::filesystem::is_regular_file(package_archive));
+
+    const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
+    const auto read_song = readRockSongPackage(package_archive, extracted_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->metadata.title == "Native Song");
+    CHECK(read_song->metadata.artist == "Native Artist");
+    CHECK(read_song->arrangements.front().id == "lead");
+    CHECK(
+        read_song->arrangements.front().audio_asset.path ==
+        extracted_directory / "audio/source.wav");
 }
 
 } // namespace rock_hero::common::core

@@ -33,7 +33,7 @@ For the structural engineering rules that govern how new code should be organize
 | Audio framework | JUCE | ASIO device management, audio primitives, UI components |
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
-| Rock Hero package formats | libzip + nlohmann_json | `.rhp` editor project packages; `.rock` native song packages |
+| Rock Hero package formats | JUCE JSON + ZIP utilities | `.rhp` editor project packages; `.rock` native song packages |
 | Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
@@ -50,7 +50,7 @@ editor as unsaved projects.
 \code{.txt}
 RockHero/
   rock-hero-common/
-    core/               - shared framework-free domain and data behavior
+    core/               - shared headless domain and package behavior
     audio/              - shared audio contracts plus default implementation
     ui/                 - shared UI used by both products when needed
   rock-hero-editor/
@@ -84,6 +84,8 @@ includes stay explicit and collision-resistant.
 - `core` submodules must not depend on sibling `ui` submodules.
 - App executables may link the matching product umbrella plus the common umbrella.
 - Libraries and tests should link narrow submodule targets rather than parent umbrellas.
+- `rock-hero-common/core` may use narrow `juce_core` utility facilities for package, file,
+  string, JSON, and ZIP behavior when that keeps project infrastructure simple and headless.
 - Tracktion headers are isolated to `rock-hero-common/audio` implementation files and private
   implementation headers.
 - Normal library code should use project-owned audio ports from `rock_hero::common::audio`; app
@@ -111,32 +113,32 @@ libraries and apps.
 This is still a build-system rule, not a blanket ban on JUCE in public headers. Some public
 interfaces may still mention JUCE types where that is the pragmatic design choice.
 
-### Build-policy exception for framework-free common core
+### JUCE utility dependency in core modules
 
-`rock-hero-common/core` remains a source-level and API-level framework-free module: its public
-headers and implementation must not include JUCE or Tracktion, and its domain behavior must not
-depend on framework runtime semantics.
+`rock-hero-common/core` is a headless shared module, not a framework-free island. JUCE is the
+project's foundational application framework, so common core may use narrow `juce_core` facilities
+where they reduce duplicate infrastructure and still preserve automated testability. Current
+examples include JSON parsing/serialization, ZIP archive reading/writing, files, strings, and
+typed framework results that are immediately translated into project-owned errors.
 
-There is one deliberate build-system exception. First-party targets, including
-`rock-hero-common/core`, link `rock_hero::build_policy`. That target is defined only in
-`cmake/RockHeroBuildPolicy.cmake` and currently forwards JUCE's recommended warning,
-configuration, and Release LTO helper targets. This is accepted because Rock Hero's normal
-configure already brings in JUCE/Tracktion before first-party libraries are declared, and JUCE's
-defaults are a practical shared compiler policy for the current project.
+This permission is intentionally narrow:
 
-This exception must stay localized to `cmake/RockHeroBuildPolicy.cmake`. `rock-hero-common/core`
-CMake must not link JUCE targets directly, and no `common/core` source or header may include JUCE
-or Tracktion. If the build-time dependency ever blocks a core-only package, faster core-only tests,
-or a future non-JUCE build, replace the implementation of `rock_hero::build_policy` in that one
-file with project-owned flags and leave first-party call sites unchanged.
+- Common core links project-owned wrapper aliases such as `rock_hero::juce_core`, not raw
+  `juce::juce_*` module targets.
+- Common core keeps public domain boundaries project-owned unless a JUCE type is the pragmatic
+  contract for the feature.
+- Common core must not own UI widgets, drawing, message-loop lifecycle, audio devices, GPU
+  resources, app startup, plugin scanning, or Tracktion runtime integration.
+- Tracktion remains isolated to `rock-hero-common/audio` implementation files and private
+  implementation headers.
 
-Product core modules use a different rule. `rock-hero-editor/core` and `rock-hero-game/core`
-should remain headless and automated-testable, but they are not required to be JUCE-free. They may
-use narrow JUCE utility facilities such as files, strings, settings, value trees, or undo support
-when that keeps product workflow code simpler and the behavior remains testable without windows,
-audio devices, GPUs, or the full application shell. UI widgets, drawing, message-loop ownership,
-device ownership, and Tracktion runtime integration still belong outside product core unless a
-specific design decision says otherwise.
+Product core modules follow the same testability rule. `rock-hero-editor/core` and
+`rock-hero-game/core` should remain headless and automated-testable, but they may use narrow JUCE
+utility facilities such as files, strings, settings, value trees, or undo support when that keeps
+workflow code simpler and the behavior remains testable without windows, audio devices, GPUs, or
+the full application shell. UI widgets, drawing, message-loop ownership, device ownership, and
+Tracktion runtime integration still belong outside product core unless a specific design decision
+says otherwise.
 
 ## Include-path convention
 
@@ -223,8 +225,8 @@ sequence managed by Tracktion Engine's `Edit` data model.
 
 # Song Data Model
 
-The `rock-hero-common/core` library owns shared persistent song data. It remains framework-free and
-keeps format parsing/package dependencies private to the module.
+The `rock-hero-common/core` library owns shared persistent song data. It remains headless and keeps
+format parsing/package details private to the module.
 
 \code{.txt}
 Song
@@ -249,7 +251,7 @@ of 0 represents Unknown so draft/default arrangements do not imply a fake diffic
 for playable songs should reject Unknown.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
-framework-free `Session` and displays one arrangement at a time. Native song package loading
+headless `Session` and displays one arrangement at a time. Native song package loading
 validates archive structure, safe asset paths, and required arrangement audio references. Before a
 parsed song is committed to the editor session, the editor workflow validates every arrangement's
 audio through the `rock-hero-common/audio` boundary and rejects the project if any asset is

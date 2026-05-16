@@ -7,7 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
-#include <nlohmann/json.hpp>
+#include <juce_core/juce_core.h>
 #include <open-psarc/psarc_file.h>
 #include <optional>
 #include <rock_hero/common/core/arrangement.h>
@@ -31,8 +31,6 @@ using common::core::DifficultyRating;
 using common::core::Part;
 using common::core::Song;
 using common::core::TimeDuration;
-
-using Json = nlohmann::json;
 
 // Converts file names and manifest values for case-insensitive matching.
 [[nodiscard]] std::string toLower(std::string value)
@@ -71,7 +69,7 @@ using Json = nlohmann::json;
 }
 
 // Parses a JSON document while tolerating a UTF-8 BOM.
-[[nodiscard]] std::optional<Json> parseJsonDocument(std::string_view text)
+[[nodiscard]] std::optional<juce::var> parseJsonDocument(std::string_view text)
 {
     constexpr std::string_view utf8_bom{"\xEF\xBB\xBF"};
     if (text.starts_with(utf8_bom))
@@ -79,31 +77,39 @@ using Json = nlohmann::json;
         text.remove_prefix(utf8_bom.size());
     }
 
-    try
-    {
-        return Json::parse(text);
-    }
-    catch (const Json::exception&)
+    juce::var document;
+    const juce::String json_text =
+        juce::String::fromUTF8(text.data(), static_cast<int>(text.size()));
+    const juce::Result result = juce::JSON::parse(json_text, document);
+    if (result.failed())
     {
         return std::nullopt;
     }
+
+    return document;
+}
+
+// Converts manifest key spellings into JUCE identifiers for object property lookup.
+[[nodiscard]] juce::Identifier jsonIdentifier(std::string_view key)
+{
+    return juce::Identifier{juce::String::fromUTF8(key.data(), static_cast<int>(key.size()))};
 }
 
 // Finds one of several equivalent Rocksmith manifest keys.
-[[nodiscard]] const Json* findJsonValue(
-    const Json& object, std::initializer_list<std::string_view> keys)
+[[nodiscard]] const juce::var* findJsonValue(
+    const juce::var& object, std::initializer_list<std::string_view> keys)
 {
-    if (!object.is_object())
+    if (!object.isObject())
     {
         return nullptr;
     }
 
     for (const std::string_view key : keys)
     {
-        const auto value = object.find(std::string{key});
-        if (value != object.end())
+        const juce::Identifier identifier = jsonIdentifier(key);
+        if (object.hasProperty(identifier))
         {
-            return &*value;
+            return &object[identifier];
         }
     }
 
@@ -111,42 +117,48 @@ using Json = nlohmann::json;
 }
 
 // Rocksmith manifests wrap the relevant attributes under the first Entries object.
-[[nodiscard]] const Json* manifestAttributes(const Json& document)
+[[nodiscard]] const juce::var* manifestAttributes(const juce::var& document)
 {
-    const Json* entries = findJsonValue(document, {"Entries", "entries"});
-    if (entries == nullptr || !entries->is_object() || entries->empty())
+    const juce::var* entries = findJsonValue(document, {"Entries", "entries"});
+    if (entries == nullptr || !entries->isObject())
     {
         return nullptr;
     }
 
-    const Json& first_entry = entries->begin().value();
+    const juce::DynamicObject* const entries_object = entries->getDynamicObject();
+    if (entries_object == nullptr || entries_object->getProperties().isEmpty())
+    {
+        return nullptr;
+    }
+
+    const juce::var& first_entry = entries_object->getProperties().getValueAt(0);
     return findJsonValue(first_entry, {"Attributes", "attributes"});
 }
 
 // Reads a string attribute from a manifest object when it exists.
 [[nodiscard]] std::optional<std::string> readString(
-    const Json& object, std::initializer_list<std::string_view> keys)
+    const juce::var& object, std::initializer_list<std::string_view> keys)
 {
-    const Json* value = findJsonValue(object, keys);
-    if (value == nullptr || !value->is_string())
+    const juce::var* value = findJsonValue(object, keys);
+    if (value == nullptr || !value->isString())
     {
         return std::nullopt;
     }
 
-    return value->get<std::string>();
+    return value->toString().toStdString();
 }
 
 // Reads a numeric integer attribute from a manifest object when it exists.
 [[nodiscard]] std::optional<int> readInt(
-    const Json& object, std::initializer_list<std::string_view> keys)
+    const juce::var& object, std::initializer_list<std::string_view> keys)
 {
-    const Json* value = findJsonValue(object, keys);
-    if (value == nullptr || !value->is_number())
+    const juce::var* value = findJsonValue(object, keys);
+    if (value == nullptr || (!value->isInt() && !value->isInt64() && !value->isDouble()))
     {
         return std::nullopt;
     }
 
-    return value->get<int>();
+    return static_cast<int>(*value);
 }
 
 // Maps Rocksmith arrangement names to Rock Hero arrangement parts.
@@ -172,7 +184,7 @@ using Json = nlohmann::json;
 }
 
 // Reads the arrangement part from Rocksmith manifest attributes.
-[[nodiscard]] std::optional<Part> partFromManifest(const Json& attributes)
+[[nodiscard]] std::optional<Part> partFromManifest(const juce::var& attributes)
 {
     const auto arrangement_name = readString(attributes, {"ArrangementName", "arrangementName"});
     if (arrangement_name.has_value())
@@ -183,13 +195,13 @@ using Json = nlohmann::json;
         }
     }
 
-    const Json* properties = findJsonValue(attributes, {"ArrangementProperties"});
+    const juce::var* properties = findJsonValue(attributes, {"ArrangementProperties"});
     if (properties == nullptr)
     {
         properties = findJsonValue(attributes, {"arrangementProperties"});
     }
 
-    if (properties != nullptr && properties->is_object())
+    if (properties != nullptr && properties->isObject())
     {
         if (readInt(*properties, {"pathBass"}).value_or(0) != 0)
         {
@@ -211,7 +223,7 @@ using Json = nlohmann::json;
 }
 
 // Applies the minimal song metadata required for the native song model.
-void applyManifestMetadata(Song& song, const Json& attributes)
+void applyManifestMetadata(Song& song, const juce::var& attributes)
 {
     if (song.metadata.title.empty())
     {
@@ -252,7 +264,7 @@ void applyManifestMetadata(Song& song, const Json& attributes)
             continue;
         }
 
-        const Json* attributes = manifestAttributes(*json_document);
+        const juce::var* attributes = manifestAttributes(*json_document);
         if (attributes == nullptr)
         {
             continue;
