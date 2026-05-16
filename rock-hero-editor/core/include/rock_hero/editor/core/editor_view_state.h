@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
+#include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
 
@@ -130,6 +131,14 @@ struct EditorViewState
 
     /*! \brief Save As chooser request to present, if the controller needs a destination. */
     std::optional<SaveAsPrompt> save_as_prompt;
+
+    /*!
+    \brief Active editor-wide busy state, if any.
+
+    When set, the view displays the busy overlay, blocks input, and the controller drops new
+    intents until the operation completes or is superseded.
+    */
+    std::optional<BusyViewState> busy;
 
     /*!
     \brief Compares two editor view states by their stored values.
