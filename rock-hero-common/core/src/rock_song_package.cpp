@@ -7,7 +7,8 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
-#include <nlohmann/json.hpp>
+#include <juce_core/juce_core.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/arrangement.h>
@@ -20,7 +21,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include <zip.h>
 
 namespace rock_hero::common::core
 {
@@ -28,274 +28,79 @@ namespace rock_hero::common::core
 namespace
 {
 
-using Json = nlohmann::json;
-
 constexpr std::string_view g_song_document_name{"song.json"};
+constexpr int g_zip_compression_level = 9;
 
-// Owns a libzip source until archive-opening code transfers or frees it.
-class ZipSource final
+// Pairs a JSON object property name with the value written for that property.
+struct JsonProperty
 {
-public:
-    // Takes ownership of a libzip source until it is transferred to an archive.
-    explicit ZipSource(zip_source_t* source) noexcept
-        : m_source(source)
+    JsonProperty(const char* property_name, juce::var property_value)
+        : name(property_name)
+        , value(std::move(property_value))
     {}
 
-    // Frees the source when zip_open_from_source() did not take ownership.
-    ~ZipSource()
-    {
-        if (m_source != nullptr)
-        {
-            zip_source_free(m_source);
-        }
-    }
-
-    ZipSource(const ZipSource&) = delete;
-    ZipSource& operator=(const ZipSource&) = delete;
-
-    // Transfers the source pointer and clears the moved-from owner.
-    ZipSource(ZipSource&& other) noexcept
-        : m_source(std::exchange(other.m_source, nullptr))
-    {}
-
-    // Releases any old source before taking ownership from another source owner.
-    ZipSource& operator=(ZipSource&& other) noexcept
-    {
-        if (this != &other)
-        {
-            if (m_source != nullptr)
-            {
-                zip_source_free(m_source);
-            }
-            m_source = std::exchange(other.m_source, nullptr);
-        }
-
-        return *this;
-    }
-
-    // Returns the raw source pointer for libzip calls.
-    [[nodiscard]] zip_source_t* get() const noexcept
-    {
-        return m_source;
-    }
-
-    // Transfers ownership to libzip after a successful open-from-source call.
-    zip_source_t* release() noexcept
-    {
-        return std::exchange(m_source, nullptr);
-    }
-
-private:
-    zip_source_t* m_source{};
+    const char* name{};
+    juce::var value;
 };
 
-// Owns a libzip archive handle and discards it unless a successful close releases it.
-class ZipArchive final
-{
-public:
-    // Takes ownership of a libzip archive handle.
-    explicit ZipArchive(zip_t* archive) noexcept
-        : m_archive(archive)
-    {}
-
-    // Closes the read-only archive without attempting to write changes.
-    ~ZipArchive()
-    {
-        if (m_archive != nullptr)
-        {
-            zip_discard(m_archive);
-        }
-    }
-
-    ZipArchive(const ZipArchive&) = delete;
-    ZipArchive& operator=(const ZipArchive&) = delete;
-
-    // Transfers the archive handle and clears the moved-from owner.
-    ZipArchive(ZipArchive&& other) noexcept
-        : m_archive(std::exchange(other.m_archive, nullptr))
-    {}
-
-    // Releases any old archive before taking ownership from another archive owner.
-    ZipArchive& operator=(ZipArchive&& other) noexcept
-    {
-        if (this != &other)
-        {
-            if (m_archive != nullptr)
-            {
-                zip_discard(m_archive);
-            }
-            m_archive = std::exchange(other.m_archive, nullptr);
-        }
-
-        return *this;
-    }
-
-    // Returns the raw archive handle for libzip calls.
-    [[nodiscard]] zip_t* get() const noexcept
-    {
-        return m_archive;
-    }
-
-    // Releases ownership after libzip closes the archive successfully.
-    zip_t* release() noexcept
-    {
-        return std::exchange(m_archive, nullptr);
-    }
-
-private:
-    zip_t* m_archive{};
-};
-
-// Owns a libzip entry stream during extraction and closes it on scope exit.
-class ZipFile final
-{
-public:
-    // Takes ownership of an opened archive entry.
-    explicit ZipFile(zip_file_t* file) noexcept
-        : m_file(file)
-    {}
-
-    // Closes the entry stream when extraction leaves scope.
-    ~ZipFile()
-    {
-        if (m_file != nullptr)
-        {
-            zip_fclose(m_file);
-        }
-    }
-
-    ZipFile(const ZipFile&) = delete;
-    ZipFile& operator=(const ZipFile&) = delete;
-
-    // Transfers the entry handle and clears the moved-from owner.
-    ZipFile(ZipFile&& other) noexcept
-        : m_file(std::exchange(other.m_file, nullptr))
-    {}
-
-    // Releases any old entry before taking ownership from another entry owner.
-    ZipFile& operator=(ZipFile&& other) noexcept
-    {
-        if (this != &other)
-        {
-            if (m_file != nullptr)
-            {
-                zip_fclose(m_file);
-            }
-            m_file = std::exchange(other.m_file, nullptr);
-        }
-
-        return *this;
-    }
-
-    // Returns the raw entry handle for libzip calls.
-    [[nodiscard]] zip_file_t* get() const noexcept
-    {
-        return m_file;
-    }
-
-private:
-    zip_file_t* m_file{};
-};
-
-// Converts a libzip error object into a stable archive error string.
-[[nodiscard]] std::string zipErrorMessage(zip_error_t& error)
-{
-    const char* message = zip_error_strerror(&error);
-    if (message == nullptr)
-    {
-        return "Unknown zip error";
-    }
-
-    return message;
-}
-
-// Opens an archive through the platform path API while keeping libzip private to core.
-[[nodiscard]] std::optional<ZipArchive> openArchive(
-    const std::filesystem::path& archive_path, std::string& error_message)
+// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
+[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
 {
 #if defined(_WIN32)
-    zip_error_t error;
-    zip_error_init(&error);
-
-    ZipSource source{zip_source_win32w_create(
-        archive_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
-    if (source.get() == nullptr)
-    {
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
-    }
-
-    zip_t* archive = zip_open_from_source(source.get(), ZIP_RDONLY, &error);
-    if (archive == nullptr)
-    {
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
-    }
-
-    source.release();
-    zip_error_fini(&error);
-    return ZipArchive{archive};
+    return juce::File{juce::String{path.wstring().c_str()}};
 #else
-    int error_code{};
-    zip_t* archive = zip_open(archive_path.string().c_str(), ZIP_RDONLY, &error_code);
-    if (archive == nullptr)
-    {
-        zip_error_t error;
-        zip_error_init_with_code(&error, error_code);
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
-    }
-
-    return ZipArchive{archive};
+    return juce::File{juce::String::fromUTF8(path.string().c_str())};
 #endif
 }
 
-// Opens an archive for writing through the platform path API while keeping libzip private.
-[[nodiscard]] std::optional<ZipArchive> openArchiveForWriting(
-    const std::filesystem::path& archive_path, std::string& error_message)
+// Stores UTF-8 project strings in the JUCE JSON representation.
+[[nodiscard]] juce::var makeJsonString(const std::string& value)
 {
-#if defined(_WIN32)
-    zip_error_t error;
-    zip_error_init(&error);
+    return juce::var{juce::String::fromUTF8(value.c_str())};
+}
 
-    ZipSource source{zip_source_win32w_create(
-        archive_path.wstring().c_str(), 0, ZIP_LENGTH_TO_END, &error)};
-    if (source.get() == nullptr)
+// Creates a JUCE JSON array value for package documents.
+[[nodiscard]] juce::var makeJsonArray()
+{
+    return juce::var{juce::Array<juce::var>{}};
+}
+
+// Creates a JUCE dynamic object value with the supplied properties.
+[[nodiscard]] juce::var makeJsonObject(std::initializer_list<JsonProperty> properties)
+{
+    juce::var object{new juce::DynamicObject{}};
+    juce::DynamicObject* const dynamic_object = object.getDynamicObject();
+    for (const JsonProperty& property : properties)
     {
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
+        dynamic_object->setProperty(juce::Identifier{property.name}, property.value);
     }
 
-    zip_t* archive = zip_open_from_source(source.get(), ZIP_CREATE | ZIP_TRUNCATE, &error);
-    if (archive == nullptr)
+    return object;
+}
+
+// Appends to an existing JUCE JSON array created by makeJsonArray().
+void appendJsonArray(juce::var& array, const juce::var& value)
+{
+    array.append(value);
+}
+
+// Reads a JSON property from an object value without throwing on malformed JSON.
+[[nodiscard]] const juce::var& jsonProperty(const juce::var& object, const char* property_name)
+{
+    return object[juce::Identifier{property_name}];
+}
+
+// Parses JSON text while preserving JUCE's parse diagnostic for the package error.
+[[nodiscard]] std::expected<juce::var, std::string> parseJsonDocument(const juce::String& text)
+{
+    juce::var document;
+    const juce::Result result = juce::JSON::parse(text, document);
+    if (result.failed())
     {
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
+        return std::unexpected{result.getErrorMessage().toStdString()};
     }
 
-    source.release();
-    zip_error_fini(&error);
-    return ZipArchive{archive};
-#else
-    int error_code{};
-    zip_t* archive =
-        zip_open(archive_path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &error_code);
-    if (archive == nullptr)
-    {
-        zip_error_t error;
-        zip_error_init_with_code(&error, error_code);
-        error_message = zipErrorMessage(error);
-        zip_error_fini(&error);
-        return std::nullopt;
-    }
-
-    return ZipArchive{archive};
-#endif
+    return document;
 }
 
 // Finds the required native song document in an extracted song package directory.
@@ -419,15 +224,40 @@ private:
 
 // Reads a required string property from a song-document object.
 [[nodiscard]] std::optional<std::string> readRequiredString(
-    const Json& object, const char* property_name)
+    const juce::var& object, const char* property_name)
 {
-    const auto value = object.find(property_name);
-    if (value == object.end() || !value->is_string())
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isString())
     {
         return std::nullopt;
     }
 
-    return value->get<std::string>();
+    return value.toString().toStdString();
+}
+
+// Reads an optional string property and falls back when the field is absent or not a string.
+[[nodiscard]] std::string readOptionalString(
+    const juce::var& object, const char* property_name, const std::string& fallback)
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isString())
+    {
+        return fallback;
+    }
+
+    return value.toString().toStdString();
+}
+
+// Reads an optional integer property and falls back when the field is absent or malformed.
+[[nodiscard]] int readOptionalInt(const juce::var& object, const char* property_name, int fallback)
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isInt() && !value.isInt64())
+    {
+        return fallback;
+    }
+
+    return static_cast<int>(value);
 }
 
 // Translates song-document part names into the current core enum.
@@ -452,38 +282,39 @@ private:
 }
 
 // Reads song metadata while treating missing descriptive fields as blank draft values.
-[[nodiscard]] SongMetadata readMetadata(const Json& song_document)
+[[nodiscard]] SongMetadata readMetadata(const juce::var& song_document)
 {
-    const auto metadata = song_document.find("metadata");
-    if (metadata == song_document.end() || !metadata->is_object())
+    const juce::var& metadata = jsonProperty(song_document, "metadata");
+    if (!metadata.isObject())
     {
         return {};
     }
 
     return SongMetadata{
-        .title = metadata->value("title", std::string{}),
-        .artist = metadata->value("artist", std::string{}),
-        .album = metadata->value("album", std::string{}),
-        .year = metadata->value("year", 0),
+        .title = readOptionalString(metadata, "title", {}),
+        .artist = readOptionalString(metadata, "artist", {}),
+        .album = readOptionalString(metadata, "album", {}),
+        .year = readOptionalInt(metadata, "year", 0),
     };
 }
 
 // Reads song audio assets into an ID map keyed only inside song package IO.
 [[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
-    const std::filesystem::path& directory, const Json& song_document, std::string& error_message)
+    const std::filesystem::path& directory, const juce::var& song_document,
+    std::string& error_message)
 {
-    const auto audio_assets_json = song_document.find("audioAssets");
-    if (audio_assets_json == song_document.end() || !audio_assets_json->is_array() ||
-        audio_assets_json->empty())
+    const juce::var& audio_assets_json = jsonProperty(song_document, "audioAssets");
+    if (!audio_assets_json.isArray() || audio_assets_json.size() == 0)
     {
         error_message = "song.json must contain at least one audio asset";
         return std::nullopt;
     }
 
     std::unordered_map<std::string, AudioAsset> audio_assets;
-    for (const Json& asset_json : *audio_assets_json)
+    const juce::Array<juce::var>* const audio_asset_array = audio_assets_json.getArray();
+    for (const juce::var& asset_json : *audio_asset_array)
     {
-        if (!asset_json.is_object())
+        if (!asset_json.isObject())
         {
             error_message = "audioAssets entries must be objects";
             return std::nullopt;
@@ -516,26 +347,26 @@ private:
     return audio_assets;
 }
 
-// Reads arrangements from song-document entries into framework-free core values.
+// Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::optional<std::vector<Arrangement>> readArrangements(
-    const std::filesystem::path& directory, const Json& song_document,
+    const std::filesystem::path& directory, const juce::var& song_document,
     const std::unordered_map<std::string, AudioAsset>& audio_assets, std::string& error_message)
 {
-    const auto arrangements_json = song_document.find("arrangements");
-    if (arrangements_json == song_document.end() || !arrangements_json->is_array() ||
-        arrangements_json->empty())
+    const juce::var& arrangements_json = jsonProperty(song_document, "arrangements");
+    if (!arrangements_json.isArray() || arrangements_json.size() == 0)
     {
         error_message = "song.json must contain at least one arrangement";
         return std::nullopt;
     }
 
     std::vector<Arrangement> arrangements;
-    arrangements.reserve(arrangements_json->size());
+    arrangements.reserve(static_cast<std::size_t>(arrangements_json.size()));
     std::set<std::string> arrangement_ids;
 
-    for (const Json& arrangement_json : *arrangements_json)
+    const juce::Array<juce::var>* const arrangement_array = arrangements_json.getArray();
+    for (const juce::var& arrangement_json : *arrangement_array)
     {
-        if (!arrangement_json.is_object())
+        if (!arrangement_json.isObject())
         {
             error_message = "arrangement entries must be objects";
             return std::nullopt;
@@ -600,32 +431,12 @@ private:
     return !entry_path_name.empty() && entry_path_name.back() == '/';
 }
 
-// Reports whether a ZIP entry carries Unix symlink metadata.
-[[nodiscard]] bool isSymlinkEntry(zip_t& archive, zip_uint64_t index)
-{
-    zip_uint8_t operating_system{};
-    zip_uint32_t attributes{};
-    if (zip_file_get_external_attributes(
-            &archive, index, ZIP_FL_UNCHANGED, &operating_system, &attributes) != 0)
-    {
-        return false;
-    }
-
-    constexpr zip_uint8_t unix_operating_system = ZIP_OPSYS_UNIX;
-    constexpr zip_uint32_t unix_mode_shift = 16U;
-    constexpr zip_uint32_t unix_file_type_mask = 0170000U;
-    constexpr zip_uint32_t unix_symlink_file_type = 0120000U;
-
-    return operating_system == unix_operating_system &&
-           (((attributes >> unix_mode_shift) & unix_file_type_mask) == unix_symlink_file_type);
-}
-
 // Extracts one regular entry stream into the already-resolved output path.
 [[nodiscard]] std::expected<void, ArchiveError> extractFileEntry(
-    zip_t& archive, zip_uint64_t index, const std::filesystem::path& output_path)
+    juce::ZipFile& archive, int index, const std::filesystem::path& output_path)
 {
-    const ZipFile file{zip_fopen_index(&archive, index, ZIP_FL_UNCHANGED)};
-    if (file.get() == nullptr)
+    const std::unique_ptr<juce::InputStream> input_stream{archive.createStreamForEntry(index)};
+    if (input_stream == nullptr)
     {
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::EntryOpenFailed,
@@ -652,11 +463,14 @@ private:
         }};
     }
 
+    // Fixed buffer keeps each read well under juce::InputStream::read's INT_MAX return ceiling.
+    // Do not replace this loop with a single full-entry read: that would silently truncate
+    // entries larger than 2 GiB.
     constexpr std::size_t buffer_size = 65536;
     std::array<char, buffer_size> buffer{};
     while (true)
     {
-        const zip_int64_t bytes_read = zip_fread(file.get(), buffer.data(), buffer.size());
+        const int bytes_read = input_stream->read(buffer.data(), static_cast<int>(buffer.size()));
         if (bytes_read < 0)
         {
             return std::unexpected{ArchiveError{
@@ -685,9 +499,9 @@ private:
 
 // Extracts all safe, regular ZIP entries into a newly-created workspace directory.
 [[nodiscard]] std::expected<void, ArchiveError> extractZipToWorkspace(
-    zip_t& archive, const std::filesystem::path& workspace_directory)
+    juce::ZipFile& archive, const std::filesystem::path& workspace_directory)
 {
-    const zip_int64_t entry_count = zip_get_num_entries(&archive, ZIP_FL_UNCHANGED);
+    const int entry_count = archive.getNumEntries();
     if (entry_count <= 0)
     {
         return std::unexpected{ArchiveError{
@@ -697,12 +511,10 @@ private:
     }
 
     std::set<std::string> extracted_entries;
-    for (zip_uint64_t index = 0; std::cmp_less(index, entry_count); ++index)
+    for (int index = 0; index < entry_count; ++index)
     {
-        zip_stat_t entry_stat;
-        zip_stat_init(&entry_stat);
-        if (zip_stat_index(&archive, index, ZIP_FL_UNCHANGED, &entry_stat) != 0 ||
-            entry_stat.name == nullptr)
+        const juce::ZipFile::ZipEntry* const entry = archive.getEntry(index);
+        if (entry == nullptr)
         {
             return std::unexpected{ArchiveError{
                 ArchiveErrorCode::UnsafeEntry,
@@ -710,8 +522,8 @@ private:
             }};
         }
 
-        const std::string entry_name{entry_stat.name};
-        if (isSymlinkEntry(archive, index) || !isSafeZipEntryName(entry_name))
+        const std::string entry_name = entry->filename.toStdString();
+        if (entry->isSymbolicLink || !isSafeZipEntryName(entry_name))
         {
             return std::unexpected{ArchiveError{
                 ArchiveErrorCode::UnsafeEntry,
@@ -924,7 +736,7 @@ private:
 // Pairs the generated song document with arrangement IDs useful to callers.
 struct SongDocumentForSave
 {
-    Json document;
+    juce::var document;
     std::vector<std::string> arrangement_ids;
 };
 
@@ -967,8 +779,8 @@ struct SongDocumentForSave
         return std::nullopt;
     }
 
-    Json audio_assets = Json::array();
-    Json arrangements = Json::array();
+    juce::var audio_assets = makeJsonArray();
+    juce::var arrangements = makeJsonArray();
     std::unordered_map<std::string, std::string> audio_ids_by_path;
     std::unordered_map<std::string, int> part_counts;
     std::unordered_map<std::string, int> id_counts;
@@ -1009,11 +821,12 @@ struct SongDocumentForSave
         {
             const std::string generated_id =
                 "audio-" + std::to_string(audio_ids_by_path.size() + 1);
-            audio_assets.push_back(
-                Json{
-                    {"id", generated_id},
-                    {"path", relative_audio_name},
-                });
+            appendJsonArray(
+                audio_assets,
+                makeJsonObject({
+                    {"id", makeJsonString(generated_id)},
+                    {"path", makeJsonString(relative_audio_name)},
+                }));
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
@@ -1034,30 +847,30 @@ struct SongDocumentForSave
             return std::nullopt;
         }
 
-        arrangements.push_back(
-            Json{
-                {"id", *arrangement_id},
-                {"part", partName(arrangement.part)},
-                {"file", arrangement_file.generic_string()},
-                {"audio", audio_id->second},
-            });
+        appendJsonArray(
+            arrangements,
+            makeJsonObject({
+                {"id", makeJsonString(*arrangement_id)},
+                {"part", makeJsonString(partName(arrangement.part))},
+                {"file", makeJsonString(arrangement_file.generic_string())},
+                {"audio", makeJsonString(audio_id->second)},
+            }));
         arrangement_ids.push_back(*arrangement_id);
     }
 
     return SongDocumentForSave{
-        .document =
-            Json{
-                {"formatVersion", 1},
-                {"metadata",
-                 Json{
-                     {"title", song.metadata.title},
-                     {"artist", song.metadata.artist},
-                     {"album", song.metadata.album},
-                     {"year", song.metadata.year},
-                 }},
-                {"audioAssets", audio_assets},
-                {"arrangements", arrangements},
-            },
+        .document = makeJsonObject({
+            {"formatVersion", juce::var{1}},
+            {"metadata",
+             makeJsonObject({
+                 {"title", makeJsonString(song.metadata.title)},
+                 {"artist", makeJsonString(song.metadata.artist)},
+                 {"album", makeJsonString(song.metadata.album)},
+                 {"year", juce::var{song.metadata.year}},
+             })},
+            {"audioAssets", audio_assets},
+            {"arrangements", arrangements},
+        }),
         .arrangement_ids = std::move(arrangement_ids),
     };
 }
@@ -1094,7 +907,7 @@ struct SongDocumentForSave
         }};
     }
 
-    song_document_file << song_document->document.dump(4) << '\n';
+    song_document_file << juce::JSON::toString(song_document->document).toStdString() << '\n';
     if (!song_document_file.good())
     {
         return std::unexpected{SongPackageError{
@@ -1105,19 +918,9 @@ struct SongDocumentForSave
     return std::move(song_document->arrangement_ids);
 }
 
-// Creates a libzip file source for adding a workspace file to the saved archive.
-[[nodiscard]] zip_source_t* createFileSource(zip_t& archive, const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return zip_source_win32w(&archive, path.wstring().c_str(), 0, ZIP_LENGTH_TO_END);
-#else
-    return zip_source_file(&archive, path.string().c_str(), 0, ZIP_LENGTH_TO_END);
-#endif
-}
-
 // Adds one regular workspace file to the output archive.
 [[nodiscard]] std::expected<void, ArchiveError> addFileToArchive(
-    zip_t& archive, const std::filesystem::path& workspace_directory,
+    juce::ZipFile::Builder& archive_builder, const std::filesystem::path& workspace_directory,
     const std::filesystem::path& file_path)
 {
     const std::filesystem::path relative_path =
@@ -1131,8 +934,8 @@ struct SongDocumentForSave
         }};
     }
 
-    zip_source_t* source = createFileSource(archive, file_path);
-    if (source == nullptr)
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(file_path, error))
     {
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::WorkspaceFileReadFailed,
@@ -1141,35 +944,31 @@ struct SongDocumentForSave
     }
 
     const std::string entry_name = relative_path.generic_string();
-    if (zip_file_add(&archive, entry_name.c_str(), source, ZIP_FL_ENC_UTF_8) < 0)
-    {
-        zip_source_free(source);
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::EntryAddFailed,
-            "Could not add archive entry: " + entry_name,
-        }};
-    }
+    archive_builder.addFile(
+        juceFileFromPath(file_path),
+        g_zip_compression_level,
+        juce::String::fromUTF8(entry_name.c_str()));
 
     return std::expected<void, ArchiveError>{};
 }
 
 } // namespace
 
-// Extracts a zip archive through libzip while keeping libzip handles private to this file.
+// Extracts a zip archive through JUCE while preserving project-owned safety checks.
 std::expected<void, ArchiveError> extractArchiveToWorkspace(
     const std::filesystem::path& archive_path, const std::filesystem::path& workspace_directory)
 {
-    std::string error_message;
-    auto archive = openArchive(archive_path, error_message);
-    if (!archive.has_value())
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(archive_path, error))
     {
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::OpenFailed,
-            "Could not open archive: " + error_message,
+            "Archive file does not exist: " + archive_path.string(),
         }};
     }
 
-    return extractZipToWorkspace(*archive->get(), workspace_directory);
+    juce::ZipFile archive{juceFileFromPath(archive_path)};
+    return extractZipToWorkspace(archive, workspace_directory);
 }
 
 // Reads song.json and resolves Rock song package-relative asset references into core data.
@@ -1194,71 +993,60 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         }};
     }
 
-    std::ifstream song_document_file{*song_document_path};
-    if (!song_document_file.is_open())
+    juce::FileInputStream song_document_file{juceFileFromPath(*song_document_path)};
+    if (song_document_file.failedToOpen())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::CouldNotOpenSongDocument,
-            "Could not open song.json",
+            "Could not open song.json: " +
+                song_document_file.getStatus().getErrorMessage().toStdString(),
         }};
     }
 
-    Json song_document;
-    try
-    {
-        song_document = Json::parse(song_document_file);
-    }
-    catch (const Json::parse_error& exception)
+    const juce::String document_text = song_document_file.readEntireStreamAsString();
+    auto parsed_document = parseJsonDocument(document_text);
+    if (!parsed_document.has_value())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            std::string{"Could not parse song.json: "} + exception.what(),
+            "Could not parse song.json: " + parsed_document.error(),
         }};
     }
 
-    try
-    {
-        if (!song_document.is_object() || song_document.value("formatVersion", 0) != 1)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidSongDocument,
-                "Unsupported song.json formatVersion",
-            }};
-        }
-
-        std::string error_message;
-        const auto audio_assets = readAudioAssets(directory, song_document, error_message);
-        if (!audio_assets.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidAudioAsset,
-                std::move(error_message),
-            }};
-        }
-
-        auto arrangements =
-            readArrangements(directory, song_document, *audio_assets, error_message);
-        if (!arrangements.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                std::move(error_message),
-            }};
-        }
-
-        Song song;
-        song.metadata = readMetadata(song_document);
-        song.arrangements = std::move(*arrangements);
-
-        return std::expected<Song, SongPackageError>{std::in_place, std::move(song)};
-    }
-    catch (const Json::exception& exception)
+    const juce::var song_document = std::move(*parsed_document);
+    const auto format_version = readOptionalInt(song_document, "formatVersion", 0);
+    if (!song_document.isObject() || format_version != 1)
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            std::string{"Invalid song.json: "} + exception.what(),
+            "Unsupported song.json formatVersion",
         }};
     }
+
+    std::string error_message;
+    const auto audio_assets = readAudioAssets(directory, song_document, error_message);
+    if (!audio_assets.has_value())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidAudioAsset,
+            std::move(error_message),
+        }};
+    }
+
+    auto arrangements = readArrangements(directory, song_document, *audio_assets, error_message);
+    if (!arrangements.has_value())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            std::move(error_message),
+        }};
+    }
+
+    Song song;
+    song.metadata = readMetadata(song_document);
+    song.arrangements = std::move(*arrangements);
+
+    return std::expected<Song, SongPackageError>{std::in_place, std::move(song)};
 }
 
 // Extracts a native song package and reads the root song document from the workspace.
@@ -1331,16 +1119,6 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
         }
     }
 
-    std::string error_message;
-    auto archive = openArchiveForWriting(archive_path, error_message);
-    if (!archive.has_value())
-    {
-        return std::unexpected{ArchiveError{
-            ArchiveErrorCode::OpenForWritingFailed,
-            "Could not open archive for writing: " + error_message,
-        }};
-    }
-
     const std::filesystem::recursive_directory_iterator directory_iterator{
         workspace_directory,
         error,
@@ -1353,6 +1131,7 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
         }};
     }
 
+    juce::ZipFile::Builder archive_builder;
     for (const std::filesystem::directory_entry& entry : directory_iterator)
     {
         error.clear();
@@ -1368,21 +1147,56 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
             continue;
         }
 
-        if (auto add_error = addFileToArchive(*archive->get(), workspace_directory, entry.path());
+        if (auto add_error = addFileToArchive(archive_builder, workspace_directory, entry.path());
             !add_error.has_value())
         {
             return std::unexpected{std::move(add_error.error())};
         }
     }
 
-    if (zip_close(archive->get()) != 0)
+    juce::FileOutputStream output_stream{juceFileFromPath(archive_path)};
+    if (output_stream.failedToOpen())
+    {
+        return std::unexpected{ArchiveError{
+            ArchiveErrorCode::OpenForWritingFailed,
+            "Could not open archive for writing: " +
+                output_stream.getStatus().getErrorMessage().toStdString(),
+        }};
+    }
+
+    if (!output_stream.setPosition(0))
+    {
+        return std::unexpected{ArchiveError{
+            ArchiveErrorCode::OpenForWritingFailed,
+            "Could not seek archive for writing",
+        }};
+    }
+
+    const juce::Result truncate_result = output_stream.truncate();
+    if (truncate_result.failed())
+    {
+        return std::unexpected{ArchiveError{
+            ArchiveErrorCode::OpenForWritingFailed,
+            "Could not truncate archive for writing: " +
+                truncate_result.getErrorMessage().toStdString(),
+        }};
+    }
+
+    if (!archive_builder.writeToStream(output_stream, nullptr))
     {
         return std::unexpected{ArchiveError{
             ArchiveErrorCode::WriteFailed,
             "Could not write archive",
         }};
     }
-    archive->release();
+    output_stream.flush();
+    if (output_stream.getStatus().failed())
+    {
+        return std::unexpected{ArchiveError{
+            ArchiveErrorCode::WriteFailed,
+            "Could not flush archive: " + output_stream.getStatus().getErrorMessage().toStdString(),
+        }};
+    }
 
     return std::expected<void, ArchiveError>{};
 }

@@ -115,11 +115,39 @@ configure_file(
 const juce::String getApplicationName() override;
 \endcode
 
-- For inline implementation comments, comment non-obvious blocks or lines. If it is questionable
-  whether something might need clarification, add a useful comment rather than leaving behavior
-  potentially unclear.
-- Avoid useless comments only when they are clearly useless; bias toward documentation whenever
-  clarity is not certain.
+- For inline implementation comments, comment non-obvious blocks or lines. See
+  [When in Doubt, Comment](#when-in-doubt-comment) for how to apply this in practice.
+
+# When in Doubt, Comment
+
+The bar for "non-obvious" in this project is deliberately low. If a future reader would have to
+read surrounding code, trace through types, check framework documentation, or run the program to
+understand *why* something is the way it is, that is non-obvious enough to warrant a comment. Do
+not require a comment to clear some high subjective threshold of cleverness before it earns its
+place.
+
+Specific situations where a comment is expected even when the code looks short or innocuous:
+
+- A constant, buffer size, or loop shape is load-bearing for correctness (for example, it keeps a
+  return value inside a smaller type's range, or it prevents a third-party API from misbehaving).
+- A seemingly reasonable refactor would silently break the code. Name the dangerous refactor and
+  why it would break, so the next author does not attempt it.
+- A type, cast, or conversion exists to bridge two libraries with different size, ownership, or
+  threading conventions.
+- An invariant is enforced elsewhere in the file or module and the local code depends on it.
+- A piece of behavior is surprising relative to the function's name or surrounding code.
+- The code looks like dead code, an oversight, or an off-by-one, but is intentional.
+
+What still does not deserve a comment:
+
+- Mechanical restatements of what the code does when the names already make it clear.
+- References to the current task, ticket, PR, or recent change. Those belong in commit messages.
+- Defensive narration of straightforward control flow.
+
+When the call is close, write the comment. The cost of a comment that later becomes stale is
+small; the cost of a missing comment that costs someone a debugging session, or that invites a
+plausible-looking but wrong refactor, is large. Bias toward commenting whenever clarity is not
+certain.
 
 # Doxygen Block Format
 
