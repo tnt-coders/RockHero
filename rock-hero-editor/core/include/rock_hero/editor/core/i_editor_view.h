@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <string>
 
@@ -35,6 +36,17 @@ public:
     \param message User-facing error message.
     */
     virtual void showError(const std::string& message) = 0;
+
+    /*!
+    \brief Runs a callback after the busy overlay has painted once.
+
+    Message-thread-only operations that would otherwise block repaint can use this fence after
+    pushing busy state. Concrete views should call the callback asynchronously after the first
+    busy-overlay paint, not directly from the paint callback itself.
+
+    \param callback Callback to run after the busy overlay paints.
+    */
+    virtual void runAfterBusyOverlayPainted(std::function<void()> callback) = 0;
 
 protected:
     /*! \brief Creates the editor-view interface. */

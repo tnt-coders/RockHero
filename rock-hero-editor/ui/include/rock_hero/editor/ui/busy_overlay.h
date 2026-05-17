@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/editor/core/busy_view_state.h>
@@ -15,11 +16,11 @@ namespace rock_hero::editor::ui
 /*!
 \brief Translucent overlay shown over the editor while a slow operation is in flight.
 
-BusyOverlay is a presentation-only child of EditorView. It renders an indeterminate spinner and
-the message supplied by BusyViewState, dims the editor underneath, and intercepts mouse and
-keyboard input so the user cannot drive disabled editor commands through the EditorView child
-component tree. It is not a JUCE modal component; its visibility is driven entirely by
-EditorViewState::busy.
+BusyOverlay is a presentation-only child of EditorView. It renders indeterminate progress,
+determinate percentage progress, or static blocking text with the message supplied by
+BusyViewState, dims the editor underneath, and intercepts mouse and keyboard input so the user
+cannot drive disabled editor commands through the EditorView child component tree. It is not a
+JUCE modal component; its visibility is driven entirely by EditorViewState::busy.
 */
 class BusyOverlay final : public juce::Component
 {
@@ -56,12 +57,23 @@ public:
     void setBusyState(const std::optional<core::BusyViewState>& busy);
 
     /*!
+    \brief Installs a callback fired after the overlay paints its busy surface.
+
+    EditorView uses this as a paint fence for message-thread-only work. The callback may fire on
+    every busy overlay paint; the owner remains responsible for making any operation callback
+    single-shot.
+
+    \param callback Callback notified from paint().
+    */
+    void setPaintCallback(std::function<void()> callback);
+
+    /*!
     \brief Paints the dim layer and centered progress surface.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the centered progress surface, spinner, and message label. */
+    /*! \brief Lays out the centered progress surface, progress bar, and message label. */
     void resized() override;
 
     /*!
@@ -72,15 +84,18 @@ public:
     bool keyPressed(const juce::KeyPress& key) override;
 
 private:
-    // Indeterminate spinner value. JUCE renders ProgressBar in indeterminate mode when the
-    // backing value is negative; the spinner animates while the overlay is visible.
+    // JUCE renders ProgressBar in indeterminate mode when the backing value is negative. A
+    // non-negative value renders determinate percentage progress.
     double m_progress{-1.0};
 
-    // Indeterminate progress spinner rendered above the message.
+    // Progress indicator rendered above the message when the busy state requests it.
     juce::ProgressBar m_progress_bar{m_progress};
 
     // User-facing message supplied by BusyViewState::message.
     juce::Label m_message_label;
+
+    // Optional owner callback used by EditorView to implement its busy-overlay paint fence.
+    std::function<void()> m_paint_callback;
 };
 
 } // namespace rock_hero::editor::ui

@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -43,10 +44,27 @@ enum class BusyOperation : std::uint8_t
 };
 
 /*!
+\brief Visual treatment for the active busy operation.
+
+Animated presentation is for operations whose work runs away from the message thread, letting JUCE
+repaint normally. Blocking presentation is for operations that intentionally occupy the message
+thread, where animated controls would freeze and misrepresent progress.
+*/
+enum class BusyPresentation : std::uint8_t
+{
+    /*! \brief Show a live progress bar while the message thread can repaint. */
+    Animated,
+
+    /*! \brief Show only static blocking text while the message thread may be occupied. */
+    Blocking,
+};
+
+/*!
 \brief Editor-wide busy state pushed to the view through EditorViewState.
 
 The controller sets this state through beginBusy() and clears it through endBusy(). The view
-renders an indeterminate spinner, blocks input, and displays message.
+renders the requested presentation, blocks input, displays message, and uses progress when a
+workflow has entered a determinate phase.
 */
 struct BusyViewState
 {
@@ -55,6 +73,18 @@ struct BusyViewState
 
     /*! \brief Canonical user-facing text rendered by the view. */
     std::string message;
+
+    /*! \brief Visual treatment used by the view for this busy state. */
+    BusyPresentation presentation{BusyPresentation::Animated};
+
+    /*!
+    \brief Optional determinate progress value from 0.0 to 1.0.
+
+    When present, the view renders a percentage bar instead of an indeterminate animation. The
+    open-project flow should set this only after it enters a countable phase such as restoring
+    multiple plugins.
+    */
+    std::optional<double> progress{};
 
     /*! \brief Reserved for future cancellable operations; always false in the first pass. */
     bool cancel_enabled{false};
@@ -79,5 +109,13 @@ same text without each call site retyping it.
 \return Default message for the operation.
 */
 [[nodiscard]] std::string busyMessage(BusyOperation operation);
+
+/*!
+\brief Returns the default visual treatment for an operation.
+
+\param operation Operation whose default presentation should be returned.
+\return Default presentation for the operation.
+*/
+[[nodiscard]] BusyPresentation busyPresentation(BusyOperation operation) noexcept;
 
 } // namespace rock_hero::editor::core
