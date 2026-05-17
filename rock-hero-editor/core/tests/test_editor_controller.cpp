@@ -876,7 +876,7 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(path)},
             .audio_duration = timeline_range.duration(),
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
 
@@ -895,7 +895,7 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(lead_path)},
             .audio_duration = common::core::TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
     song.arrangements.push_back(
@@ -905,7 +905,7 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(bass_path)},
             .audio_duration = common::core::TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
 

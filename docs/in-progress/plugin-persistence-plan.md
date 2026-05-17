@@ -13,8 +13,8 @@ plugins, racks, branch gains, and automation.
 
 ## Current State
 
-- `common/core::Arrangement` already has `tone_timeline_ref`, but package IO currently leaves it
-  empty.
+- `common/core::Arrangement` uses `tone_document_ref` because the referenced file will contain
+  tone slots, plugin chain state, tone clips, and future automation rather than only a timeline.
 - Native song packages write `song.json`, audio assets, and placeholder arrangement XML. They do
   not persist plugin or tone files yet.
 - `.rhp` projects store native song content under `song/`; `.rock` packages store the same native
@@ -30,8 +30,8 @@ plugins, racks, branch gains, and automation.
 
 Persist tone data as native song data, not as editor-only `project.json` data.
 
-Use `Arrangement::tone_timeline_ref` as the arrangement's pointer to a package-relative tone
-document. For example:
+Use `Arrangement::tone_document_ref` as the arrangement's pointer to a package-relative tone
+document. The JSON field should be `toneDocument`. For example:
 
 ```json
 {
@@ -39,7 +39,7 @@ document. For example:
   "part": "Lead",
   "file": "arrangements/lead.xml",
   "audio": "backing",
-  "toneTimeline": "tones/lead.tone.json"
+  "toneDocument": "tones/lead.tone.json"
 }
 ```
 
@@ -64,7 +64,7 @@ song/tones/lead.tone.json
 song/tones/state/lead/plugin-1.bin
 ```
 
-`rock-hero-common/core` should validate the `toneTimeline` reference as a safe package-relative
+`rock-hero-common/core` should validate the `toneDocument` reference as a safe package-relative
 path and preserve it, but it should not parse the tone document. `rock-hero-common/audio` owns the
 tone document schema, plugin identity resolution, Tracktion plugin state, and compilation into the
 runtime signal chain.
@@ -88,12 +88,20 @@ Suggested v1 shape:
       "chain": [
         {
           "id": "plugin-1",
-          "format": "VST3",
-          "candidateId": "opaque-host-candidate-id",
-          "name": "Amp",
-          "manufacturer": "Vendor",
-          "filePath": "C:/Program Files/Common Files/VST3/Amp.vst3",
-          "state": "tones/state/lead/plugin-1.bin"
+          "identity": {
+            "format": "VST3",
+            "name": "Amp",
+            "descriptiveName": "Amp",
+            "manufacturer": "Vendor",
+            "version": "1.2.3",
+            "uniqueId": "7f3a21c0",
+            "deprecatedUid": "7f3a21c0",
+            "isInstrument": false,
+            "originalFileOrIdentifier": "C:/Program Files/Common Files/VST3/Amp.vst3",
+            "juceIdentifierHint": "VST3-Amp-...",
+            "tracktionIdentifierHint": "VST3-Amp-..."
+          },
+          "tracktionState": "tones/state/lead/plugin-1.tracktion-plugin"
         }
       ]
     }
@@ -117,12 +125,23 @@ Rules for v1:
 
 - Do not persist Tracktion plugin instance IDs. They are runtime IDs and must be regenerated when a
   project or song package is loaded.
-- Persist enough plugin identity to resolve the same plugin later: format, stable candidate ID when
-  available, display metadata, and the file or bundle path that produced the candidate.
-- Persist plugin state chunks separately from the JSON document so binary state does not bloat
-  `song.json` or the tone manifest.
+- Do not treat the current `PluginCandidate::id` as durable package identity. It is a useful
+  lookup hint, but it may be derived from path-sensitive JUCE or Tracktion identifier strings.
+- Persist structured plugin identity: format, name, descriptive name, manufacturer, version,
+  `uniqueId`, `deprecatedUid`, instrument flag, and original file or identifier. Store JUCE and
+  Tracktion identifier strings only as non-authoritative hints.
+- Treat absolute plugin file paths as machine-local restore hints. Do not validate them as package
+  paths, and do not copy plugin binaries into `.rhp` or `.rock` packages by default.
+- Persist Tracktion-aware plugin state separately from the JSON document so binary or framework
+  state does not bloat `song.json` or the tone manifest. A v1 implementation should either store a
+  Tracktion-private serialized plugin `ValueTree` sidecar owned by `common/audio`, or store a
+  project-owned state object that includes raw processor bytes plus required host fields such as
+  enabled/bypass, wet/dry, program number, bus layout, and custom host properties.
 - Treat plugin state as the static base state for the slot. Future automation curves override
   parameters over time rather than replacing the base state.
+- Validate every tone-document sidecar path inside `rock-hero-common/audio`: safe relative path,
+  no root, no colon, no `.` or `..`, and preferably constrained under
+  `tones/state/<arrangement-id>/`.
 - Leave `automation` empty in the first pass, but keep the field so the document shape already
   matches the automation-track direction.
 - `endSeconds: null` means the default tone clip extends through the active arrangement duration.
@@ -131,15 +150,15 @@ Rules for v1:
 
 ## Core Package Work
 
-1. Extend native song package IO to read and write optional arrangement `toneTimeline` fields.
-2. Validate the field with the same safe-relative-path rules used for audio and arrangement files.
-3. On load, reject an unsafe tone reference. For a missing tone file, prefer a typed package error
+1. Rename `Arrangement::tone_timeline_ref` to `tone_document_ref`.
+2. Extend native song package IO to read and write optional arrangement `toneDocument` fields.
+3. Validate the field with the same safe-relative-path rules used for audio and arrangement files.
+4. On load, reject an unsafe tone reference. For a missing tone file, prefer a typed package error
    for published `.rock` packages rather than silently loading a different signal chain.
-4. On save, include `toneTimeline` only when the arrangement has a non-empty
-   `tone_timeline_ref`.
-5. Preserve existing behavior for packages with no tone data so old fixtures and imported songs
+5. On save, include `toneDocument` only when the arrangement has a non-empty `tone_document_ref`.
+6. Preserve existing behavior for packages with no tone data so old fixtures and imported songs
    still load.
-6. Add package tests that verify both directory and archive round trips keep the tone reference and
+7. Add package tests that verify both directory and archive round trips keep the tone reference and
    include the tone files in the resulting package.
 
 This work belongs in `rock-hero-common/core` because it is package structure, path safety, and
@@ -153,25 +172,33 @@ a small interface beside `IPluginHost`, rather than growing `IPluginHost` into a
 
 ```text
 IToneRuntime
-  captureActiveToneTimeline(request) -> ToneTimelineSnapshot
-  loadToneTimeline(request) -> ToneLoadResult
-  clearToneTimeline()
+  captureActiveToneDocument(request) -> ToneDocumentSnapshot
+  loadToneDocument(request) -> ToneLoadResult
+  clearToneDocument()
 ```
 
 The concrete Tracktion-backed implementation should:
 
-1. Capture the current runtime plugin chain into a v1 tone document.
-2. Ask each external plugin for its state chunk and write the state chunks under
-   `tones/state/<arrangement-id>/`.
-3. Restore a tone document by resolving each plugin reference through the known plugin list or by
-   scanning the stored file path.
-4. Recreate plugins in document order, restore their state chunks, and return fresh runtime
+1. Stop transport and release the playback context before capture or restore.
+2. Capture the current runtime plugin chain into a v1 tone document.
+3. Flush each external plugin through Tracktion's state path before reading plugin state. Do not
+   call raw plugin state APIs in a way that bypasses Tracktion's host-level fields.
+4. Write Tracktion-aware state sidecars under `tones/state/<arrangement-id>/`.
+5. Restore a tone document by resolving each plugin reference through structured identity first,
+   original file path second, and candidate or framework identifier hints last.
+6. If the stored path must be scanned, do that before playback, on the message thread.
+7. Recreate plugins in document order, restore their state sidecars, and return fresh runtime
    handles for editor view state.
-5. Fail with typed audio errors when a required plugin or state file cannot be loaded.
-6. Keep all Tracktion `Plugin`, `ExternalPlugin`, `Edit`, `RackType`, and state-chunk details
+8. Fail with typed audio errors when a required plugin, state file, or unambiguous plugin match
+   cannot be loaded.
+9. Rebuild monitoring/playback context after capture or restore.
+10. Keep all Tracktion `Plugin`, `ExternalPlugin`, `Edit`, `RackType`, and state details
    private to the adapter.
 
-For the first pass, `loadToneTimeline()` can compile the default tone slot into the current linear
+No plugin scanning, state capture, state restore, rack creation, or plugin-list mutation may happen
+on the audio callback.
+
+For the first pass, `loadToneDocument()` can compile the default tone slot into the current linear
 instrument chain. Later, the same loaded document can compile into the RackType-backed tone slots
 described in `tone-rack-plan.md`.
 
@@ -182,20 +209,24 @@ described in `tone-rack-plan.md`.
 2. When a plugin is removed successfully, update the runtime chain, reindex the display state, and
    mark the project dirty.
 3. Before Save, Save As, or Publish moves project IO to the worker task, capture the active
-   arrangement's tone timeline on the message thread.
+   arrangement's tone document on the message thread while transport is stopped and playback
+   context has been released.
 4. Write or stage the returned tone document and plugin state files under the native song workspace.
-5. Save a `Song` snapshot whose active arrangement has `tone_timeline_ref` set to the generated
+5. Save a `Song` snapshot whose active arrangement has `tone_document_ref` set to the generated
    `tones/<arrangement-id>.tone.json` path.
-6. Keep the project dirty if tone capture fails and report the typed failure before starting the
+6. Preserve existing tone document refs and sidecars for inactive arrangements until arrangement
+   switching and per-arrangement tone editing exist.
+7. Keep the project dirty if tone capture fails and report the typed failure before starting the
    package write.
-7. On project open or `.rock` import, after audio preparation and active arrangement selection,
-   load the active arrangement's tone timeline through the audio runtime before deriving the signal
+8. On project open or `.rock` import, after audio preparation and active arrangement selection,
+   load the active arrangement's tone document through the audio runtime before deriving the signal
    chain panel state.
-8. Clear runtime plugin/tone state on project close and arrangement replacement.
+9. Clear runtime plugin/tone state on project close and arrangement replacement.
 
-The save path should capture plugin state on the message thread because the current plugin-host
-operations are message-thread operations. Package writing can still remain on the worker once the
-tone files and `Song` snapshot are ready.
+The save path should capture plugin state on the stopped message thread because the current
+plugin-host operations are message-thread operations and Tracktion plugin-state flushing is not an
+audio-thread operation. Package writing can still remain on the worker once the tone files and
+`Song` snapshot are ready.
 
 ## Game Workflow Work
 
@@ -203,7 +234,7 @@ The game should not have a separate signal-chain format.
 
 When the game loads a `.rock` package, it should use the same native song package reader and pass
 the selected arrangement to `rock-hero-common/audio`. The audio runtime should load
-`tone_timeline_ref` and compile the chain before gameplay playback starts. Missing plugins should
+`tone_document_ref` and compile the chain before gameplay playback starts. Missing plugins should
 be reported as a load failure or a deliberate safe-mode fallback, not silently ignored.
 
 The first game integration can be minimal:
@@ -235,10 +266,11 @@ native song package contract.
 
 Add tests in layers:
 
-- `common/core` package tests for reading, writing, publishing, and importing `toneTimeline` refs.
+- `common/core` package tests for reading, writing, publishing, and importing `toneDocument` refs.
 - `common/core` safety tests for unsafe tone paths and missing referenced tone files.
 - `common/audio` unit tests for v1 tone document parse/serialize using fake plugin descriptors and
-  fake state bytes.
+  fake state sidecars.
+- `common/audio` safety tests for unsafe tone-document sidecar paths.
 - `common/audio` adapter tests for restore failure paths without requiring a real third-party
   plugin.
 - `editor/core` controller tests with a fake tone runtime that verify add/remove marks dirty, save
@@ -253,8 +285,9 @@ plugin installation.
 
 ### Slice 1: Persist The Reference
 
-- Add optional `toneTimeline` read/write support to `rock_song_package.cpp`.
-- Preserve `Arrangement::tone_timeline_ref` through package directory and archive round trips.
+- Rename `Arrangement::tone_timeline_ref` to `tone_document_ref`.
+- Add optional `toneDocument` read/write support to `rock_song_package.cpp`.
+- Preserve `Arrangement::tone_document_ref` through package directory and archive round trips.
 - Add tests for `.rhp` save and `.rock` publish layout.
 
 This slice can land without restoring plugins yet. It establishes the package contract.
@@ -263,12 +296,13 @@ This slice can land without restoring plugins yet. It establishes the package co
 
 - Add v1 tone document values and JSON parse/serialize helpers in `rock-hero-common/audio`.
 - Keep the model project-owned and free of Tracktion types.
-- Add tests for linear-chain round trips, state file references, unknown fields, and bad schemas.
+- Add tests for linear-chain round trips, structured plugin identity, state file references,
+  unknown fields, and bad schemas.
 
 ### Slice 3: Capture Runtime Plugins On Save
 
 - Add the audio runtime capture API.
-- Capture plugin identity and state chunks from the current chain.
+- Capture structured plugin identity and Tracktion-aware state sidecars from the current chain.
 - Generate `tones/<arrangement-id>.tone.json` and state files in the song workspace.
 - Mark plugin add/remove as dirty once Save can restore them.
 
@@ -291,7 +325,7 @@ This slice can land without restoring plugins yet. It establishes the package co
   silent/safe fallback for gameplay?
 - Should plugin file paths be stored as absolute machine-local paths only, or should we also store
   a project-local copied plugin reference for user-supplied plugins where licensing permits it?
-- Which VST3 identity fields are stable enough to expose in `PluginCandidate` so persisted
-  `candidateId` is not just a Tracktion/JUCE cache key?
+- Should `PluginCandidate` expose the full structured identity immediately, or should
+  `IToneRuntime` own the richer identity until plugin search UX needs it?
 - Should save capture tone state for every arrangement immediately, or only the currently selected
   arrangement until arrangement switching exists in the editor?
