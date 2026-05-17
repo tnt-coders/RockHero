@@ -1,6 +1,7 @@
 #include "editor_controller.h"
 
 #include "editor_action.h"
+#include "project_io.h"
 
 #include <algorithm>
 #include <cassert>
@@ -13,6 +14,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
@@ -102,6 +104,13 @@ void defaultExit()
     return std::filesystem::is_regular_file(project_file, error);
 }
 
+// Resolves the extracted native-song directory owned by an editor project workspace.
+[[nodiscard]] std::filesystem::path songDirectoryForProject(const Project& project)
+{
+    return project.workspaceDirectory() /
+           std::filesystem::path{std::string{project_io::g_song_directory_name}};
+}
+
 // Resolves persisted arrangement IDs to the current song order, falling back to the first item.
 [[nodiscard]] std::size_t getSelectedArrangementIndex(
     const common::core::Song& song, const std::optional<std::string>& selected_arrangement)
@@ -135,6 +144,33 @@ void defaultExit()
         .format_name = candidate.format_name,
         .chain_index = handle.chain_index,
     };
+}
+
+// Converts restored or captured live rig state into the signal-chain panel's view model.
+[[nodiscard]] PluginViewState makePluginViewState(const common::audio::LiveRigPlugin& plugin)
+{
+    return PluginViewState{
+        .instance_id = plugin.instance_id,
+        .plugin_id = plugin.plugin_id,
+        .name = plugin.name,
+        .manufacturer = plugin.manufacturer,
+        .format_name = plugin.format_name,
+        .chain_index = plugin.chain_index,
+    };
+}
+
+// Converts a full live rig result vector into editor view state in one place.
+[[nodiscard]] std::vector<PluginViewState> makePluginViewStates(
+    const std::vector<common::audio::LiveRigPlugin>& plugins)
+{
+    std::vector<PluginViewState> states;
+    states.reserve(plugins.size());
+    for (const common::audio::LiveRigPlugin& plugin : plugins)
+    {
+        states.push_back(makePluginViewState(plugin));
+    }
+
+    return states;
 }
 
 // Maps write actions to the busy operation shown while the worker owns Project IO.
@@ -213,7 +249,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     Impl(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IAudioDeviceConfiguration* audio_devices,
-        common::audio::IPluginHost* plugin_host, EditorController::Services services);
+        common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
+        EditorController::Services services);
     ~Impl() override;
 
     Impl(const Impl&) = delete;
@@ -274,6 +311,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
+    [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(common::core::Song& song);
+    [[nodiscard]] std::expected<void, std::string> loadRigFromSession(
+        const std::filesystem::path& song_directory);
+    void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction action);
     void completeProjectWriteAction(
         std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
@@ -308,6 +349,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Optional plugin-host port used to mutate the processing chain.
     common::audio::IPluginHost* m_plugin_host{};
 
+    // Optional live rig port used to persist and restore arrangement-owned plugin state.
+    common::audio::ILiveRig* m_live_rig{};
+
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
 
@@ -328,7 +372,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
 
-    // Runtime plugin chain shown by the view until durable tone persistence is introduced.
+    // Runtime plugin chain shown by the view and refreshed from the live rig boundary.
     std::vector<PluginViewState> m_plugins;
 
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
@@ -428,7 +472,7 @@ EditorController::Services EditorController::defaultServices()
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices, EditorController::Services services)
-    : EditorController(transport, audio, &audio_devices, nullptr, std::move(services))
+    : EditorController(transport, audio, &audio_devices, nullptr, nullptr, std::move(services))
 {}
 
 // Subscribes for coarse transport transitions and captures an initial derived state with plugin
@@ -437,21 +481,39 @@ EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IPluginHost& plugin_host, EditorController::Services services)
-    : EditorController(transport, audio, &audio_devices, &plugin_host, std::move(services))
+    : EditorController(transport, audio, &audio_devices, &plugin_host, nullptr, std::move(services))
+{}
+
+// Subscribes with plugin hosting and persistent tone storage available.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IAudioDeviceConfiguration& audio_devices,
+    common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+    EditorController::Services services)
+    : EditorController(
+          transport, audio, &audio_devices, &plugin_host, &live_rig, std::move(services))
 {}
 
 // Builds a controller for tests and temporary hosts that do not provide audio-device routing.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     EditorController::Services services)
-    : EditorController(transport, audio, nullptr, nullptr, std::move(services))
+    : EditorController(transport, audio, nullptr, nullptr, nullptr, std::move(services))
 {}
 
 // Builds a controller for hosts that expose plugin hosting but not audio-device settings UI.
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IPluginHost& plugin_host, EditorController::Services services)
-    : EditorController(transport, audio, nullptr, &plugin_host, std::move(services))
+    : EditorController(transport, audio, nullptr, &plugin_host, nullptr, std::move(services))
+{}
+
+// Builds a controller for hosts that expose plugin hosting and tone storage without device UI.
+EditorController::EditorController(
+    common::audio::ITransport& transport, common::audio::IAudio& audio,
+    common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+    EditorController::Services services)
+    : EditorController(transport, audio, nullptr, &plugin_host, &live_rig, std::move(services))
 {}
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
@@ -459,9 +521,11 @@ EditorController::EditorController(
 EditorController::EditorController(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration* audio_devices,
-    common::audio::IPluginHost* plugin_host, EditorController::Services services)
+    common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
+    EditorController::Services services)
     : m_impl(
-          std::make_unique<Impl>(transport, audio, audio_devices, plugin_host, std::move(services)))
+          std::make_unique<Impl>(
+              transport, audio, audio_devices, plugin_host, live_rig, std::move(services)))
 {}
 
 // Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
@@ -562,11 +626,13 @@ void EditorController::onRemovePluginRequested(std::string instance_id)
 EditorController::Impl::Impl(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IAudioDeviceConfiguration* audio_devices,
-    common::audio::IPluginHost* plugin_host, EditorController::Services services)
+    common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
+    EditorController::Services services)
     : m_transport(transport)
     , m_audio(audio)
     , m_audio_devices(audio_devices)
     , m_plugin_host(plugin_host)
+    , m_live_rig(live_rig)
     , m_open_function(
           services.open_function ? std::move(services.open_function)
                                  : EditorController::OpenFunction{defaultOpen})
@@ -691,6 +757,25 @@ void EditorController::Impl::completeOpenProject(
         return;
     }
 
+    if (const auto rig_loaded = loadRigFromSession(songDirectoryForProject(state->project));
+        !rig_loaded.has_value())
+    {
+        m_transport.stop();
+        m_audio.clearActiveArrangement();
+        m_session.reset();
+        m_plugins.clear();
+        finishBusyOperation();
+        deriveAndPush();
+        if (state->clear_last_open_project_on_failure && m_settings != nullptr)
+        {
+            m_settings->setLastOpenProject(std::nullopt);
+        }
+        reportError(
+            std::string{"Could not load live rig from: "} + state->file.string() + ": " +
+            rig_loaded.error());
+        return;
+    }
+
     m_project = std::move(state->project);
     m_project_file = state->file;
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
@@ -760,6 +845,21 @@ void EditorController::Impl::completeImportSongSource(
         finishBusyOperation();
         deriveAndPush();
         reportError(std::string{"Could not load imported audio from: "} + state->file.string());
+        return;
+    }
+
+    if (const auto rig_loaded = loadRigFromSession(songDirectoryForProject(state->project));
+        !rig_loaded.has_value())
+    {
+        m_transport.stop();
+        m_audio.clearActiveArrangement();
+        m_session.reset();
+        m_plugins.clear();
+        finishBusyOperation();
+        deriveAndPush();
+        reportError(
+            std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
+            rig_loaded.error());
         return;
     }
 
@@ -1078,9 +1178,11 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         return;
     }
 
-    // Tone persistence is not implemented yet, so the panel tracks the runtime chain without
-    // marking the project dirty for data Save cannot currently restore.
     m_plugins.push_back(makePluginViewState(candidate, *handle));
+    if (m_live_rig != nullptr)
+    {
+        m_has_unsaved_changes = true;
+    }
     deriveAndPush();
 }
 
@@ -1111,6 +1213,10 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     for (std::size_t index = 0; index < m_plugins.size(); ++index)
     {
         m_plugins[index].chain_index = index;
+    }
+    if (m_live_rig != nullptr)
+    {
+        m_has_unsaved_changes = true;
     }
     deriveAndPush();
 }
@@ -1319,6 +1425,7 @@ bool EditorController::Impl::closeProject()
         {
             m_transport.stop();
         }
+        clearLiveRig();
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
@@ -1329,6 +1436,7 @@ bool EditorController::Impl::closeProject()
     }
 
     m_transport.stop();
+    clearLiveRig();
     m_audio.clearActiveArrangement();
     m_session.reset();
     m_plugins.clear();
@@ -1363,11 +1471,110 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
     }
 
     auto state = std::make_shared<ProjectWriteTaskState>(std::move(action));
+    common::core::Song song = session().song();
+    if (const auto rig_captured = captureLiveRigIntoSong(song); !rig_captured.has_value())
+    {
+        reportError(std::string{"Could not capture live rig: "} + rig_captured.error());
+        return {};
+    }
+
     state->project = std::move(*m_project);
-    state->song = session().song();
+    state->song = std::move(song);
     state->editor_state = projectEditorStateForSave();
     m_project.reset();
     return state;
+}
+
+// Captures the selected arrangement's live rig state into song files before Project IO leaves the
+// message thread.
+std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
+    common::core::Song& song)
+{
+    if (m_live_rig == nullptr)
+    {
+        return {};
+    }
+
+    if (!m_project.has_value())
+    {
+        return std::unexpected{std::string{"project workspace is not available"}};
+    }
+
+    const common::core::Arrangement* const current_arrangement = session().currentArrangement();
+    if (current_arrangement == nullptr)
+    {
+        return {};
+    }
+
+    auto arrangement = std::ranges::find_if(
+        song.arrangements, [current_arrangement](const common::core::Arrangement& item) {
+            return item.id == current_arrangement->id;
+        });
+    if (arrangement == song.arrangements.end())
+    {
+        return std::unexpected{std::string{"current arrangement is missing from the song"}};
+    }
+
+    auto snapshot = m_live_rig->captureActiveRig(
+        common::audio::LiveRigCaptureRequest{
+            .song_directory = songDirectoryForProject(*m_project),
+            .arrangement_id = arrangement->id,
+            .existing_tone_document_ref = arrangement->tone_document_ref,
+        });
+    if (!snapshot.has_value())
+    {
+        return std::unexpected{snapshot.error().message};
+    }
+
+    arrangement->tone_document_ref = snapshot->tone_document_ref;
+    m_plugins = makePluginViewStates(snapshot->plugins);
+    return {};
+}
+
+// Restores the selected arrangement's saved tone document after the backing audio is active.
+std::expected<void, std::string> EditorController::Impl::loadRigFromSession(
+    const std::filesystem::path& song_directory)
+{
+    if (m_live_rig == nullptr)
+    {
+        m_plugins.clear();
+        return {};
+    }
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        m_plugins.clear();
+        return {};
+    }
+
+    auto loaded = m_live_rig->loadRig(
+        common::audio::LiveRigLoadRequest{
+            .song_directory = song_directory,
+            .tone_document_ref = arrangement->tone_document_ref,
+        });
+    if (!loaded.has_value())
+    {
+        return std::unexpected{loaded.error().message};
+    }
+
+    m_plugins = makePluginViewStates(loaded->plugins);
+    return {};
+}
+
+// Clears the audio backend's live rig chain as part of project teardown.
+void EditorController::Impl::clearLiveRig()
+{
+    if (m_live_rig == nullptr)
+    {
+        return;
+    }
+
+    const auto cleared = m_live_rig->clearRig();
+    if (!cleared.has_value())
+    {
+        reportError(std::string{"Could not clear live rig: "} + cleared.error().message);
+    }
 }
 
 // Runs project write actions through one task-runner path so busy lifetime, stale completion

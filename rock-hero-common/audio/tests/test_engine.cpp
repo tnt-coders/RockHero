@@ -6,6 +6,7 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 
@@ -20,6 +21,7 @@ static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
 static_assert(std::derived_from<Engine, IPluginHost>);
+static_assert(std::derived_from<Engine, ILiveRig>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
 // Returns the build-tree copy of the audio fixture that the real Engine loads in tests.
@@ -303,6 +305,29 @@ TEST_CASE("Engine plugin host rejects unknown plugin instances", "[audio][engine
     CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
     CHECK(transport.state() == TransportState{});
     CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Verifies clearing an empty live rig uses the same message-thread adapter path.
+TEST_CASE("Engine live rig clears empty chain", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto result = live_rig.clearRig();
+
+    CHECK(result.has_value());
+}
+
+// Verifies an empty tone document reference is treated as a request to clear the chain.
+TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto result = live_rig.loadRig(common::audio::LiveRigLoadRequest{});
+
+    REQUIRE(result.has_value());
+    CHECK(result->plugins.empty());
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

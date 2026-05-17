@@ -6,6 +6,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/transport_state.h>
@@ -519,6 +520,104 @@ public:
     int remove_call_count{0};
 };
 
+// Configurable live rig fake that records project-boundary save and restore requests.
+class FakeLiveRig final : public common::audio::ILiveRig
+{
+public:
+    // Returns the configured capture snapshot or error while recording the save request.
+    [[nodiscard]] std::expected<common::audio::LiveRigSnapshot, common::audio::LiveRigError>
+    captureActiveRig(const common::audio::LiveRigCaptureRequest& request) override
+    {
+        last_capture_request = request;
+        capture_call_count += 1;
+        if (next_capture_error.has_value())
+        {
+            return std::unexpected{*next_capture_error};
+        }
+
+        return next_capture_snapshot;
+    }
+
+    // Returns the configured load result or error while recording the open/import request.
+    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+    loadRig(const common::audio::LiveRigLoadRequest& request) override
+    {
+        last_load_request = request;
+        load_call_count += 1;
+        if (next_load_error.has_value())
+        {
+            return std::unexpected{*next_load_error};
+        }
+
+        return next_load_result;
+    }
+
+    // Records explicit clear requests made during project teardown.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> clearRig() override
+    {
+        clear_call_count += 1;
+        if (next_clear_error.has_value())
+        {
+            return std::unexpected{*next_clear_error};
+        }
+
+        return {};
+    }
+
+    // Snapshot returned by the next successful capture.
+    common::audio::LiveRigSnapshot next_capture_snapshot{
+        .tone_document_ref = "tones/lead.tone.json",
+        .plugins = {
+            common::audio::LiveRigPlugin{
+                .instance_id = "captured-instance",
+                .plugin_id = "captured-plugin",
+                .name = "Captured Amp",
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = 0,
+            },
+        },
+    };
+
+    // Result returned by the next successful load.
+    common::audio::LiveRigLoadResult next_load_result{
+        .plugins = {
+            common::audio::LiveRigPlugin{
+                .instance_id = "loaded-instance",
+                .plugin_id = "loaded-plugin",
+                .name = "Loaded Amp",
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = 0,
+            },
+        },
+    };
+
+    // Optional capture error returned instead of the configured snapshot.
+    std::optional<common::audio::LiveRigError> next_capture_error{};
+
+    // Optional load error returned instead of the configured load result.
+    std::optional<common::audio::LiveRigError> next_load_error{};
+
+    // Optional clear error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_clear_error{};
+
+    // Last capture request observed by the fake.
+    std::optional<common::audio::LiveRigCaptureRequest> last_capture_request{};
+
+    // Last load request observed by the fake.
+    std::optional<common::audio::LiveRigLoadRequest> last_load_request{};
+
+    // Number of capture calls received.
+    int capture_call_count{0};
+
+    // Number of load calls received.
+    int load_call_count{0};
+
+    // Number of clear calls received.
+    int clear_call_count{0};
+};
+
 // Minimal audio-device-configuration fake exposing a real juce::AudioDeviceManager.
 class FakeAudioDeviceConfiguration final : public common::audio::IAudioDeviceConfiguration
 {
@@ -617,6 +716,7 @@ public:
         Project&, const common::core::Song& song, ProjectEditorState editor_state)
     {
         last_save_audio_path = firstAudioPath(song);
+        last_save_tone_document_ref = firstToneDocumentRef(song);
         last_save_editor_state = std::move(editor_state);
         ++save_call_count;
         if (next_save_error.has_value())
@@ -636,6 +736,7 @@ public:
     {
         last_save_as_file = file;
         last_save_as_audio_path = firstAudioPath(song);
+        last_save_as_tone_document_ref = firstToneDocumentRef(song);
         last_save_as_editor_state = std::move(editor_state);
         ++save_as_call_count;
         if (next_save_as_error.has_value())
@@ -654,6 +755,7 @@ public:
     {
         last_publish_file = file;
         last_publish_audio_path = firstAudioPath(song);
+        last_publish_tone_document_ref = firstToneDocumentRef(song);
         ++publish_call_count;
         if (next_publish_error.has_value())
         {
@@ -754,6 +856,15 @@ public:
     // First arrangement audio path seen by publish().
     std::optional<std::filesystem::path> last_publish_audio_path{};
 
+    // First arrangement tone document reference seen by save().
+    std::optional<std::string> last_save_tone_document_ref{};
+
+    // First arrangement tone document reference seen by saveAs().
+    std::optional<std::string> last_save_as_tone_document_ref{};
+
+    // First arrangement tone document reference seen by publish().
+    std::optional<std::string> last_publish_tone_document_ref{};
+
     // Editor state captured by save().
     std::optional<ProjectEditorState> last_save_editor_state{};
 
@@ -792,6 +903,18 @@ private:
         }
 
         return audio_asset.path;
+    }
+
+    // Returns the first arrangement tone reference so tests can verify persisted song content.
+    [[nodiscard]] static std::optional<std::string> firstToneDocumentRef(
+        const common::core::Song& song)
+    {
+        if (song.arrangements.empty())
+        {
+            return std::nullopt;
+        }
+
+        return song.arrangements.front().tone_document_ref;
     }
 };
 
@@ -866,7 +989,8 @@ private:
 
 // Builds song data with one arrangement.
 [[nodiscard]] common::core::Song makeSong(
-    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
+    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange(),
+    std::string tone_document_ref = {})
 {
     common::core::Song song;
     song.arrangements.push_back(
@@ -876,7 +1000,7 @@ private:
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(path)},
             .audio_duration = timeline_range.duration(),
-            .tone_document_ref = {},
+            .tone_document_ref = std::move(tone_document_ref),
             .note_events = {},
         });
 
@@ -1207,6 +1331,120 @@ TEST_CASE("EditorController adds a plugin", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(view.shown_errors.empty());
+}
+
+// Opening a project restores the selected arrangement's tone document through the live rig port.
+TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    CHECK(live_rig.load_call_count == 1);
+    REQUIRE(live_rig.last_load_request.has_value());
+    CHECK(live_rig.last_load_request->song_directory == std::filesystem::path{"song"});
+    CHECK(live_rig.last_load_request->tone_document_ref == "tones/lead.tone.json");
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->signal_chain.plugins.size() == 1);
+    CHECK(state->signal_chain.plugins[0].instance_id == "loaded-instance");
+    CHECK(state->signal_chain.plugins[0].name == "Loaded Amp");
+}
+
+// Saving captures the active live rig and writes its document reference into the song.
+TEST_CASE("EditorController captures live rig before save", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    controller.onSaveRequested();
+
+    CHECK(live_rig.capture_call_count == 1);
+    REQUIRE(live_rig.last_capture_request.has_value());
+    CHECK(live_rig.last_capture_request->song_directory == std::filesystem::path{"song"});
+    CHECK(live_rig.last_capture_request->arrangement_id == "lead");
+    CHECK(live_rig.last_capture_request->existing_tone_document_ref.empty());
+    CHECK(project_services.save_call_count == 1);
+    CHECK(
+        project_services.last_save_tone_document_ref ==
+        std::optional<std::string>{"tones/lead.tone.json"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->signal_chain.plugins.size() == 1);
+    CHECK(state->signal_chain.plugins[0].instance_id == "captured-instance");
+    CHECK(state->signal_chain.plugins[0].name == "Captured Amp");
+}
+
+// Once tone persistence is available, plugin mutations become unsaved project changes.
+TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    controller.onCloseRequested();
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    REQUIRE(state->unsaved_changes_prompt.has_value());
+    CHECK(state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
 }
 
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.

@@ -9,6 +9,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
@@ -43,12 +44,14 @@ input. All public methods must be called on the message thread.
 \see ITransport
 \see IAudio
 \see IPluginHost
+\see ILiveRig
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
                public IAudio,
                public IAudioDeviceConfiguration,
                public IPluginHost,
+               public ILiveRig,
                public IThumbnailFactory
 {
 public:
@@ -179,6 +182,28 @@ public:
     */
     [[nodiscard]] std::expected<void, PluginHostError> removePlugin(
         const std::string& instance_id) override;
+
+    /*!
+    \brief Captures the active live rig chain into a package-relative tone document.
+    \param request Song workspace and arrangement identity for the capture.
+    \return Written tone document reference and display chain, or a typed failure.
+    */
+    [[nodiscard]] std::expected<LiveRigSnapshot, LiveRigError> captureActiveRig(
+        const LiveRigCaptureRequest& request) override;
+
+    /*!
+    \brief Loads a package-relative tone document into the active live rig chain.
+    \param request Song workspace and package-relative tone document reference.
+    \return Restored display chain, or a typed failure.
+    */
+    [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> loadRig(
+        const LiveRigLoadRequest& request) override;
+
+    /*!
+    \brief Clears the active live rig chain.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> clearRig() override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.

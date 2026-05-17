@@ -20,6 +20,7 @@ namespace rock_hero::common::audio
 {
 class IAudio;
 class IAudioDeviceConfiguration;
+class ILiveRig;
 class IPluginHost;
 class ITransport;
 } // namespace rock_hero::common::audio
@@ -146,6 +147,22 @@ public:
         common::audio::IPluginHost& plugin_host, Services services = defaultServices());
 
     /*!
+    \brief Builds the controller with plugin hosting and persistent live rig storage.
+
+    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
+    \param audio Audio port used to validate and load arrangement audio.
+    \param audio_devices Audio-device configuration port used for ASIO input/output routing.
+    \param plugin_host Plugin-host port used to mutate the plugin chain.
+    \param live_rig Live rig port used to save and restore tone documents.
+    \param services Optional project IO, settings, and host-exit services.
+    */
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IAudioDeviceConfiguration& audio_devices,
+        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+        Services services = defaultServices());
+
+    /*!
     \brief Builds the controller without an audio-device backend.
 
     This overload is used by tests and temporary hosts that do not expose audio-device
@@ -169,6 +186,19 @@ public:
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IPluginHost& plugin_host, Services services = defaultServices());
+
+    /*!
+    \brief Builds the controller with plugin hosting and tone storage but no device settings UI.
+    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
+    \param audio Audio port used to validate and load arrangement audio.
+    \param plugin_host Plugin-host port used to mutate the plugin chain.
+    \param live_rig Live rig port used to save and restore tone documents.
+    \param services Optional project IO, settings, and host-exit services.
+    */
+    EditorController(
+        common::audio::ITransport& transport, common::audio::IAudio& audio,
+        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
+        Services services = defaultServices());
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -307,7 +337,7 @@ public:
     /*!
     \brief Removes a plugin instance from the current runtime plugin chain.
 
-    The runtime chain is not yet project-persistent, so removal does not mark the project dirty.
+    Removal marks the project dirty when a persistent live rig port is available.
 
     \param instance_id Opaque plugin instance ID selected by the user.
     */
@@ -321,7 +351,8 @@ private:
     EditorController(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IAudioDeviceConfiguration* audio_devices,
-        common::audio::IPluginHost* plugin_host, Services services);
+        common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
+        Services services);
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;

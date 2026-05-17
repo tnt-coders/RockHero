@@ -47,6 +47,7 @@ public:
             *m_audio_engine,
             *m_audio_engine,
             *m_audio_engine,
+            *m_audio_engine,
             rock_hero::editor::core::EditorController::Services{
                 .exit_function = &juce::JUCEApplicationBase::quit,
                 .settings = m_editor_settings.get(),
