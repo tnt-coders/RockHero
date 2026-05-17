@@ -1,9 +1,17 @@
 # Editor Busy Overlay Plan
 
+## Current Status
+
+This plan is on hold after the shared busy-state foundation and project-IO slices. Plugin work is
+the current priority, and the single-plugin insert flow should not grow an editor-wide busy state
+by default. Revisit plugin busy UI only for a measured slow path such as batch plugin scanning,
+bulk restore, or future tone-system readiness work that has meaningful progress to report.
+
 ## Goal
 
 Add one generalized editor-wide busy mechanism for operations that can visibly pause the app:
-opening/importing projects, saving, publishing, and loading plugins.
+opening/importing projects, saving, publishing, and future long-running operations that prove they
+need an editor-wide blocked state.
 
 Audio-device switching is intentionally different. Slice 4 is not a commitment to add an
 editor-wide busy overlay for device changes. It is first a performance investigation and
@@ -84,8 +92,12 @@ we add cancellable operations later.
 - If measurement still proves audio-device busy UI is needed, keep the settings dialog open.
   Disable its Apply button and show local progress in the dialog while the editor-wide busy
   overlay blocks the rest of the app.
-- The plugin-loading slice means "Tracktion accepted the plugin into the edit." Warmed and
-  seamless-ready plugin state belongs to the tone system work, not this busy-overlay feature.
+- Do not add an editor-wide busy overlay for the current single-plugin insert flow. Keep that path
+  focused on plugin functionality unless measurements show the insert is slow enough to need
+  explicit blocking UI.
+- Any future plugin-loading busy slice means "Tracktion accepted the plugin into the edit."
+  Warmed and seamless-ready plugin state belongs to the tone system work, not this busy-overlay
+  feature.
 - Close and Exit are always honored, even during busy. The action router routes both through the
   supersede path so the user always has a clean in-app escape hatch. Supersede invalidates
   completion and clears UI busy state; it does not interrupt a worker thread that is already
@@ -510,11 +522,17 @@ This slice should move package write IO behind the task runner, reuse `m_busy_ge
 keep final controller state commits on the message thread. It should not introduce cancellation or
 determinate progress yet.
 
-## Plugin Loading Slice
+## Deferred Plugin Loading Slice
 
-`onAddPluginRequested()` should become a busy operation around the current scan/add flow.
+The current single-plugin insert flow should stay simple and should not become a busy operation by
+default. Prioritize plugin functionality and use normal controller routing/error reporting for the
+single insert path.
 
-First pass:
+Only reopen this slice if plugin work creates a measured slow path that benefits from an
+editor-wide blocked state, such as batch plugin scanning, bulk project restore, or a future tone
+readiness operation with meaningful progress.
+
+If reopened, a first pass could:
 
 - set busy to `LoadingPlugin`
 - push `"Loading plugin..."`
@@ -673,7 +691,7 @@ Save and publish slice tests:
 - save-as prompt continuation still works after the busy operation completes
 - stale write completions are ignored
 
-Plugin-loading slice tests:
+Deferred plugin-loading slice tests, only if this slice is reopened:
 
 - add-plugin sets `LoadingPlugin` and waits for the overlay paint fence before scan/add starts
 - current scan/add calls remain on the message thread
@@ -752,14 +770,20 @@ the same mechanism is reused by more operations.
 - Push final non-busy state before reporting save/publish errors.
 - Add save/save-as/publish controller tests.
 
-### Slice 3: Plugin Loading Busy State
+### Deferred Slice 3: Plugin Loading Busy State
 
-- Add the `LoadingPlugin` default message.
-- Wrap the current add-plugin flow in busy begin/end.
-- Route Add Plugin and the file chooser continuation through action routing.
-- Use the paint-callback-triggered fence before starting scan/add.
+This slice is parked while the editor supports only single-plugin insertion. Do not add the
+editor-wide busy overlay to that path by default.
+
+If future plugin work introduces a measured slow path:
+
+- Add the `LoadingPlugin` default message if it is not already present.
+- Wrap only the slow plugin operation in busy begin/end.
+- Route Add Plugin and any delayed chooser continuation through action routing.
+- Use the paint-callback-triggered fence before starting message-thread blocking work.
 - Recheck the busy generation before starting or committing the fenced work.
-- Keep `IPluginHost::scanPluginFile()` and `IPluginHost::addPlugin()` on the message thread.
+- Keep `IPluginHost::scanPluginFile()` and `IPluginHost::addPlugin()` on the message thread unless
+  a new audio-adapter API explicitly permits another execution context.
 - Preserve the contract that success means Tracktion accepted the plugin into the edit.
 - Push final non-busy state before reporting plugin-load errors.
 - Add focused controller/UI tests for the fence and busy clearing behavior.
