@@ -1,157 +1,83 @@
 #include "editor_action.h"
 
-#include <utility>
+#include <type_traits>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
 
-// Builds an open-project action carrying the chosen package path.
-EditorAction EditorAction::openProject(std::filesystem::path file)
+static_assert(!std::is_default_constructible_v<EditorAction::Action>);
+static_assert(!std::is_default_constructible_v<UnsavedChangesPrompt>);
+static_assert(!std::is_default_constructible_v<SaveAsPrompt>);
+
+// Maps each variant alternative to its matching id without exposing payload contents.
+EditorAction::Id idOf(const EditorAction::Action& action)
 {
-    return EditorAction{Id::OpenProject, std::move(file)};
-}
-
-// Builds a startup-restore action carrying the persisted package path.
-EditorAction EditorAction::restoreProject(std::filesystem::path file)
-{
-    return EditorAction{Id::RestoreProject, std::move(file)};
-}
-
-// Builds an import action carrying the chosen source path.
-EditorAction EditorAction::importProject(std::filesystem::path file)
-{
-    return EditorAction{Id::ImportProject, std::move(file)};
-}
-
-// Builds a direct save action.
-EditorAction EditorAction::saveProject() noexcept
-{
-    return EditorAction{Id::SaveProject};
-}
-
-// Builds a Save As action carrying the chosen package path.
-EditorAction EditorAction::saveProjectAs(std::filesystem::path file)
-{
-    return EditorAction{Id::SaveProjectAs, std::move(file)};
-}
-
-// Builds a publish action carrying the chosen native song package path.
-EditorAction EditorAction::publishProject(std::filesystem::path file)
-{
-    return EditorAction{Id::PublishProject, std::move(file)};
-}
-
-// Builds a close-project action.
-EditorAction EditorAction::closeProject() noexcept
-{
-    return EditorAction{Id::CloseProject};
-}
-
-// Builds an exit-application action.
-EditorAction EditorAction::exitApplication() noexcept
-{
-    return EditorAction{Id::ExitApplication};
-}
-
-// Builds an unsaved-changes prompt resolution action.
-EditorAction EditorAction::resolveUnsavedChangesPrompt(UnsavedChangesDecision decision) noexcept
-{
-    return EditorAction{Id::ResolveUnsavedChangesPrompt, decision};
-}
-
-// Builds a Save As cancellation action for a controller-requested chooser.
-EditorAction EditorAction::cancelSaveAsPrompt() noexcept
-{
-    return EditorAction{Id::CancelSaveAsPrompt};
-}
-
-// Builds a transport play/pause action.
-EditorAction EditorAction::playPause() noexcept
-{
-    return EditorAction{Id::PlayPause};
-}
-
-// Builds a transport stop action.
-EditorAction EditorAction::stop() noexcept
-{
-    return EditorAction{Id::Stop};
-}
-
-// Builds a waveform seek action carrying the normalized click coordinate.
-EditorAction EditorAction::seekWaveform(double normalized_x) noexcept
-{
-    return EditorAction{Id::SeekWaveform, normalized_x};
-}
-
-// Builds an add-plugin action carrying the chosen plugin path.
-EditorAction EditorAction::addPlugin(std::filesystem::path file)
-{
-    return EditorAction{Id::AddPlugin, std::move(file)};
-}
-
-// Builds a remove-plugin action carrying the selected plugin instance ID.
-EditorAction EditorAction::removePlugin(std::string instance_id)
-{
-    return EditorAction{Id::RemovePlugin, std::move(instance_id)};
-}
-
-// Stores the action id for payload-free actions.
-EditorAction::EditorAction(Id id) noexcept
-    : m_id(id)
-{}
-
-// Stores the action id and path payload.
-EditorAction::EditorAction(Id id, std::filesystem::path file)
-    : m_id(id)
-    , m_file(std::move(file))
-{}
-
-// Stores the action id and plugin instance ID payload.
-EditorAction::EditorAction(Id id, std::string instance_id)
-    : m_id(id)
-    , m_instance_id(std::move(instance_id))
-{}
-
-// Stores the action id and unsaved-changes decision payload.
-EditorAction::EditorAction(Id id, UnsavedChangesDecision decision) noexcept
-    : m_id(id)
-    , m_decision(decision)
-{}
-
-// Stores the action id and normalized waveform coordinate payload.
-EditorAction::EditorAction(Id id, double normalized_x) noexcept
-    : m_id(id)
-    , m_normalized_x(normalized_x)
-{}
-
-// Returns the action identity used by controller policy.
-EditorAction::Id EditorAction::id() const noexcept
-{
-    return m_id;
-}
-
-// Returns the prompt decision payload for ResolveUnsavedChangesPrompt.
-UnsavedChangesDecision EditorAction::decision() const noexcept
-{
-    return m_decision;
-}
-
-// Returns the normalized waveform coordinate payload for SeekWaveform.
-double EditorAction::normalizedX() const noexcept
-{
-    return m_normalized_x;
-}
-
-// Moves the path payload out of file-backed actions.
-std::filesystem::path EditorAction::takeFile() noexcept
-{
-    return std::move(m_file);
-}
-
-// Moves the plugin instance ID payload out of remove-plugin actions.
-std::string EditorAction::takeInstanceId() noexcept
-{
-    return std::move(m_instance_id);
+    return std::visit(
+        [](const auto& alternative) noexcept -> EditorAction::Id {
+            using A = std::decay_t<decltype(alternative)>;
+            if constexpr (std::is_same_v<A, EditorAction::OpenProject>)
+            {
+                return EditorAction::Id::OpenProject;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::RestoreProject>)
+            {
+                return EditorAction::Id::RestoreProject;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::ImportSong>)
+            {
+                return EditorAction::Id::ImportSong;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
+            {
+                return EditorAction::Id::SaveProject;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
+            {
+                return EditorAction::Id::SaveProjectAs;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
+            {
+                return EditorAction::Id::PublishProject;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::CloseProject>)
+            {
+                return EditorAction::Id::CloseProject;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::ExitApplication>)
+            {
+                return EditorAction::Id::ExitApplication;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::ResolveUnsavedChangesPrompt>)
+            {
+                return EditorAction::Id::ResolveUnsavedChangesPrompt;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::CancelSaveAsPrompt>)
+            {
+                return EditorAction::Id::CancelSaveAsPrompt;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::PlayPause>)
+            {
+                return EditorAction::Id::PlayPause;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::Stop>)
+            {
+                return EditorAction::Id::Stop;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::SeekWaveform>)
+            {
+                return EditorAction::Id::SeekWaveform;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::AddPlugin>)
+            {
+                return EditorAction::Id::AddPlugin;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::RemovePlugin>)
+            {
+                return EditorAction::Id::RemovePlugin;
+            }
+        },
+        action);
 }
 
 } // namespace rock_hero::editor::core

@@ -13,8 +13,6 @@ target_sources(
             src/inline_editor_task_runner.cpp
             src/juce_editor_task_runner.cpp
             src/project.cpp
-            src/project_command.cpp
-            src/project_command.h
             src/project_io.cpp
             src/project_error.cpp
             src/psarc_song_importer.cpp
