@@ -376,6 +376,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
         const auto part_text = readRequiredString(arrangement_json, "part");
         const auto arrangement_file = readRequiredString(arrangement_json, "file");
         const auto audio_id = readRequiredString(arrangement_json, "audio");
+        std::string tone_document_ref;
         if (!id.has_value() || id->empty() || !part_text.has_value() ||
             !arrangement_file.has_value() || !audio_id.has_value())
         {
@@ -403,6 +404,23 @@ void appendJsonArray(juce::var& array, const juce::var& value)
             return std::nullopt;
         }
 
+        const juce::var& tone_document_json = jsonProperty(arrangement_json, "toneDocument");
+        if (!tone_document_json.isVoid() && !tone_document_json.isUndefined())
+        {
+            if (!tone_document_json.isString() || tone_document_json.toString().isEmpty())
+            {
+                error_message = "arrangement toneDocument must be a non-empty string when present";
+                return std::nullopt;
+            }
+
+            tone_document_ref = tone_document_json.toString().toStdString();
+            if (!resolveExistingFile(directory, tone_document_ref).has_value())
+            {
+                error_message = "tone document is missing or unsafe: " + tone_document_ref;
+                return std::nullopt;
+            }
+        }
+
         const auto audio_asset = audio_assets.find(*audio_id);
         if (audio_asset == audio_assets.end())
         {
@@ -417,7 +435,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
                 .difficulty = DifficultyRating{},
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
-                .tone_timeline_ref = {},
+                .tone_document_ref = std::move(tone_document_ref),
                 .note_events = {},
             });
     }
@@ -847,14 +865,37 @@ struct SongDocumentForSave
             return std::nullopt;
         }
 
-        appendJsonArray(
-            arrangements,
-            makeJsonObject({
-                {"id", makeJsonString(*arrangement_id)},
-                {"part", makeJsonString(partName(arrangement.part))},
-                {"file", makeJsonString(arrangement_file.generic_string())},
-                {"audio", makeJsonString(audio_id->second)},
-            }));
+        juce::var arrangement_document = makeJsonObject({
+            {"id", makeJsonString(*arrangement_id)},
+            {"part", makeJsonString(partName(arrangement.part))},
+            {"file", makeJsonString(arrangement_file.generic_string())},
+            {"audio", makeJsonString(audio_id->second)},
+        });
+        if (!arrangement.tone_document_ref.empty())
+        {
+            const std::filesystem::path tone_document_path{arrangement.tone_document_ref};
+            if (!isSafeRelativePath(tone_document_path))
+            {
+                error_message =
+                    "Cannot save an unsafe tone document path: " + arrangement.tone_document_ref;
+                return std::nullopt;
+            }
+
+            std::error_code tone_document_error;
+            const std::filesystem::path resolved_tone_document_path =
+                (workspace_directory / tone_document_path).lexically_normal();
+            if (!std::filesystem::is_regular_file(resolved_tone_document_path, tone_document_error))
+            {
+                error_message =
+                    "Cannot save a missing tone document: " + arrangement.tone_document_ref;
+                return std::nullopt;
+            }
+
+            arrangement_document.getDynamicObject()->setProperty(
+                juce::Identifier{"toneDocument"}, makeJsonString(arrangement.tone_document_ref));
+        }
+
+        appendJsonArray(arrangements, arrangement_document);
         arrangement_ids.push_back(*arrangement_id);
     }
 

@@ -54,9 +54,9 @@ enum class Part : std::uint8_t
 \brief One playable route, identified by part and numeric difficulty.
 
 An Arrangement owns the playable data for one path through a song: the backing audio selected for
-that path, the opaque tone timeline used by the audio adapter, and the NoteEvents the player must
-execute. Core treats these as plain data; scoring and audio interpretation live outside this
-module.
+that path, the package-relative tone document used by the audio adapter, and the NoteEvents the
+player must execute. Core treats these as plain data; scoring and audio interpretation live outside
+this module.
 */
 struct Arrangement
 {
@@ -76,11 +76,12 @@ struct Arrangement
     TimeDuration audio_duration;
 
     /*!
-    \brief Opaque serialized tone automation data.
+    \brief Package-relative tone document interpreted by common/audio.
 
-    Interpreted exclusively by common/audio; core treats it as a pass-through blob.
+    Interpreted exclusively by common/audio; core validates and persists the reference but treats
+    the target document as opaque audio-owned data.
     */
-    std::string tone_timeline_ref;
+    std::string tone_document_ref;
 
     /*! \brief Ordered note events the player must execute for this arrangement. */
     std::vector<NoteEvent> note_events;

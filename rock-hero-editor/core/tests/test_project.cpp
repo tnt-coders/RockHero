@@ -355,7 +355,7 @@ void writeUnsafeAssetProjectPackage(
             .difficulty = DifficultyRating{},
             .audio_asset = AudioAsset{audio_path},
             .audio_duration = TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
     return song;

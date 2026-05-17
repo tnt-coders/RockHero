@@ -57,7 +57,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = audio_asset,
             .audio_duration = common::core::TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
     return song;
@@ -348,7 +348,7 @@ TEST_CASE(
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = missing_asset,
             .audio_duration = common::core::TimeDuration{1.0},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
 
