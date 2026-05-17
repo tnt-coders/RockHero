@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -98,6 +99,12 @@ public:
     void showError(const std::string& message) override;
 
     /*!
+    \brief Runs a callback after the busy overlay paints.
+    \param callback Callback to run asynchronously after the overlay paint fence is crossed.
+    */
+    void runAfterBusyOverlayPainted(std::function<void()> callback) override;
+
+    /*!
     \brief Paints the editor background behind child widgets.
     \param g Graphics context used for drawing.
     */
@@ -184,6 +191,9 @@ private:
     // Opens the app-local audio-device configuration dialog.
     void showAudioDeviceSettingsDialog();
 
+    // Posts the pending busy-overlay fence callback after BusyOverlay has painted once.
+    void handleBusyOverlayPainted();
+
     // Queues editor startup focus once JUCE has attached it to a visible peer.
     void requestInitialKeyboardFocusIfReady();
 
@@ -234,6 +244,9 @@ private:
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
+
+    // Pending single-shot callback waiting for the next busy overlay paint.
+    std::function<void()> m_after_busy_overlay_paint;
 
     // Last unsaved-changes prompt already shown to avoid re-opening dialogs on repeated pushes.
     std::optional<core::UnsavedChangesPrompt> m_last_presented_unsaved_changes_prompt{};

@@ -1,6 +1,8 @@
 #include "busy_overlay.h"
 
+#include <algorithm>
 #include <juce_graphics/juce_graphics.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -19,9 +21,9 @@ constexpr int g_surface_height = 120;
 constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
-// Distance between the spinner and message text inside the surface.
-constexpr int g_spinner_height = 14;
-constexpr int g_spinner_message_gap = 12;
+// Distance between the progress bar and message text inside the surface.
+constexpr int g_progress_bar_height = 14;
+constexpr int g_progress_message_gap = 12;
 
 } // namespace
 
@@ -33,7 +35,7 @@ BusyOverlay::BusyOverlay()
     setInterceptsMouseClicks(true, false);
     setWantsKeyboardFocus(true);
 
-    m_progress_bar.setPercentageDisplay(false);
+    m_progress_bar.setComponentID("busy_progress_bar");
     addAndMakeVisible(m_progress_bar);
 
     m_message_label.setJustificationType(juce::Justification::centred);
@@ -53,7 +55,14 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
 
     if (should_be_visible)
     {
+        const bool has_progress = busy->progress.has_value();
+        m_progress = has_progress ? std::clamp(*busy->progress, 0.0, 1.0) : -1.0;
         m_message_label.setText(busy->message, juce::dontSendNotification);
+        m_progress_bar.setPercentageDisplay(has_progress);
+        m_progress_bar.setVisible(
+            has_progress || busy->presentation == core::BusyPresentation::Animated);
+        m_progress_bar.repaint();
+        resized();
     }
 
     if (should_be_visible == was_visible)
@@ -67,6 +76,12 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
         toFront(true);
         grabKeyboardFocus();
     }
+}
+
+// Stores the owner callback used to build a paint fence around message-thread-only operations.
+void BusyOverlay::setPaintCallback(std::function<void()> callback)
+{
+    m_paint_callback = std::move(callback);
 }
 
 // Paints the dim layer behind the editor content and the rounded progress surface centered on
@@ -83,9 +98,14 @@ void BusyOverlay::paint(juce::Graphics& g)
 
     g.setColour(juce::Colour::fromRGB(40, 40, 40));
     g.fillRoundedRectangle(surface.toFloat(), static_cast<float>(g_surface_corner_radius));
+
+    if (m_paint_callback)
+    {
+        m_paint_callback();
+    }
 }
 
-// Lays out the centered surface contents: spinner on top, message label below.
+// Lays out the centered surface contents: progress bar on top, message label below.
 void BusyOverlay::resized()
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
@@ -94,10 +114,17 @@ void BusyOverlay::resized()
     juce::Rectangle<int> surface = bounds.withSizeKeepingCentre(surface_width, surface_height);
     surface = surface.reduced(g_surface_padding);
 
-    const juce::Rectangle<int> spinner_bounds = surface.removeFromTop(g_spinner_height);
-    surface.removeFromTop(g_spinner_message_gap);
+    if (m_progress_bar.isVisible())
+    {
+        const juce::Rectangle<int> progress_bounds = surface.removeFromTop(g_progress_bar_height);
+        surface.removeFromTop(g_progress_message_gap);
+        m_progress_bar.setBounds(progress_bounds);
+    }
+    else
+    {
+        m_progress_bar.setBounds({});
+    }
 
-    m_progress_bar.setBounds(spinner_bounds);
     m_message_label.setBounds(surface);
 }
 
