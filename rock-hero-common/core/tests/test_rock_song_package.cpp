@@ -59,12 +59,19 @@ private:
     std::filesystem::path m_path;
 };
 
+// Writes a small fixture file, creating parent directories for package-relative content.
+void writeTextFile(const std::filesystem::path& path, const std::string& contents)
+{
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream file{path, std::ios::binary};
+    REQUIRE(file.is_open());
+    file << contents;
+}
+
 // Writes a tiny stand-in audio file because package persistence only needs filesystem bytes.
 void writeAudioFile(const std::filesystem::path& path)
 {
-    std::ofstream audio_file{path, std::ios::binary};
-    REQUIRE(audio_file.is_open());
-    audio_file << "audio";
+    writeTextFile(path, "audio");
 }
 
 // Builds the smallest valid native song for package round-trip tests.
@@ -80,10 +87,26 @@ void writeAudioFile(const std::filesystem::path& path)
             .difficulty = DifficultyRating{},
             .audio_asset = AudioAsset{audio_path},
             .audio_duration = TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
     return song;
+}
+
+// Builds a native song whose arrangement points at a package-relative tone document.
+[[nodiscard]] Song makeSongWithToneDocument(const std::filesystem::path& audio_path)
+{
+    Song song = makeSong(audio_path);
+    song.arrangements.front().tone_document_ref = "tones/lead.tone.json";
+    return song;
+}
+
+// Writes a minimal package directory fixture that can be edited by negative read tests.
+void writeReadablePackageDirectory(const std::filesystem::path& package_directory)
+{
+    writeAudioFile(package_directory / "audio" / "backing.wav");
+    writeTextFile(
+        package_directory / "arrangements" / "lead.xml", "<Arrangement formatVersion=\"1\" />");
 }
 
 } // namespace
@@ -142,6 +165,104 @@ TEST_CASE("Rock song package archive round-trips native song data", "[core][rock
     CHECK(
         read_song->arrangements.front().audio_asset.path ==
         extracted_directory / "audio/source.wav");
+}
+
+// Verifies package directory persistence keeps arrangement tone-document references.
+TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeTextFile(package_directory / "tones" / "lead.tone.json", "{}");
+
+    const auto written =
+        writeRockSongPackageDirectory(package_directory, makeSongWithToneDocument(source_audio));
+
+    REQUIRE(written.has_value());
+    CHECK(std::filesystem::is_regular_file(package_directory / "tones" / "lead.tone.json"));
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().tone_document_ref == "tones/lead.tone.json");
+}
+
+// Verifies published native archives include tone files and preserve the song reference.
+TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeTextFile(package_directory / "tones" / "lead.tone.json", "{}");
+
+    const auto written = writeRockSongPackage(
+        package_archive, package_directory, makeSongWithToneDocument(source_audio));
+
+    REQUIRE(written.has_value());
+
+    const std::filesystem::path extracted_directory = temporary_directory.path() / "extracted";
+    const auto read_song = readRockSongPackage(package_archive, extracted_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().tone_document_ref == "tones/lead.tone.json");
+    CHECK(std::filesystem::is_regular_file(extracted_directory / "tones" / "lead.tone.json"));
+}
+
+// Verifies package writing fails instead of saving dangling tone-document references.
+TEST_CASE("Rock song package write rejects missing tone refs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written =
+        writeRockSongPackageDirectory(package_directory, makeSongWithToneDocument(source_audio));
+
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
+    CHECK(written.error().message.find("tone document") != std::string::npos);
+}
+
+// Verifies package loading rejects tone-document paths that cannot resolve inside the package.
+TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": "lead",
+                    "part": "Lead",
+                    "file": "arrangements/lead.xml",
+                    "audio": "backing",
+                    "toneDocument": "../lead.tone.json"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
+    CHECK(read_song.error().message.find("tone document") != std::string::npos);
 }
 
 } // namespace rock_hero::common::core

@@ -41,7 +41,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .difficulty = DifficultyRating{2},
             .audio_asset = AudioAsset{std::filesystem::path{"lead.wav"}},
             .audio_duration = TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
     song.arrangements.push_back(
@@ -51,7 +51,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
             .difficulty = DifficultyRating{9},
             .audio_asset = AudioAsset{std::filesystem::path{"bass.wav"}},
             .audio_duration = TimeDuration{},
-            .tone_timeline_ref = {},
+            .tone_document_ref = {},
             .note_events = {},
         });
 
@@ -80,7 +80,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
          .difficulty = DifficultyRating{6},
          .audio_asset = AudioAsset{std::filesystem::path{"audio/rhythm.wav"}},
          .audio_duration = TimeDuration{42.0},
-         .tone_timeline_ref = "tone/rhythm.json",
+         .tone_document_ref = "tone/rhythm.json",
          .note_events = {
              {.position = TimePosition{3.0},
               .duration = TimeDuration{1.5},
@@ -99,7 +99,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(difficultyTier(arrangement.difficulty) == DifficultyTier::Hard);
     CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio/rhythm.wav"});
     CHECK(arrangement.audio_duration == TimeDuration{42.0});
-    CHECK(arrangement.tone_timeline_ref == "tone/rhythm.json");
+    CHECK(arrangement.tone_document_ref == "tone/rhythm.json");
     REQUIRE(arrangement.note_events.size() == 1);
     CHECK(arrangement.note_events[0].position == TimePosition{3.0});
     CHECK(arrangement.note_events[0].duration == TimeDuration{1.5});

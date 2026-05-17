@@ -35,8 +35,8 @@ A Song owns all data needed to start a game or editing session:
 - Descriptive metadata such as title, artist, and album.
 - Playable Arrangements for authored parts.
 
-Arrangement-owned tone automation blobs are interpreted exclusively by common/audio and are
-never parsed here.
+Arrangement-owned tone document references are interpreted exclusively by common/audio and the
+referenced documents are never parsed here.
 Song depends only on standard C++. It has no dependency on JUCE or Tracktion Engine.
 */
 struct Song
