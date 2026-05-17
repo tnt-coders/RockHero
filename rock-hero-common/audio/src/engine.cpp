@@ -4,13 +4,19 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
+#include <cctype>
 #include <exception>
 #include <expected>
 #include <filesystem>
+#include <fstream>
+#include <initializer_list>
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
+#include <system_error>
 #include <tracktion_engine/tracktion_engine.h>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -18,6 +24,53 @@ namespace rock_hero::common::audio
 
 namespace
 {
+
+constexpr std::string_view g_tones_directory_name{"tones"};
+constexpr std::string_view g_tone_state_directory_name{"state"};
+constexpr std::string_view g_tone_document_extension{".tone.json"};
+constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
+
+// Pairs a JSON object property name with the value written for that property.
+struct JsonProperty
+{
+    JsonProperty(const char* property_name, juce::var property_value)
+        : name(property_name)
+        , value(std::move(property_value))
+    {}
+
+    const char* name{};
+    juce::var value;
+};
+
+// Serializable plugin identity stored in the audio-owned tone document.
+struct TonePluginIdentity
+{
+    std::string format_name;
+    std::string name;
+    std::string descriptive_name;
+    std::string manufacturer;
+    std::string version;
+    std::string unique_id;
+    std::string deprecated_uid;
+    bool is_instrument{false};
+    std::string original_file_or_identifier;
+    std::string juce_identifier_hint;
+    std::string tracktion_identifier_hint;
+};
+
+// One persisted plugin entry in the default linear live rig chain.
+struct TonePluginRecord
+{
+    std::string id;
+    TonePluginIdentity identity;
+    std::string tracktion_state_ref;
+};
+
+// V1 tone document subset currently used by the linear plugin-chain runtime.
+struct ToneDocument
+{
+    std::vector<TonePluginRecord> chain;
+};
 
 // Records recoverable instrument-route failures without turning an internal bind into a public
 // error.
@@ -31,6 +84,520 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     const auto path_text = path.wstring();
     return juce::File{juce::String{path_text.c_str()}};
+}
+
+// Stores UTF-8 project strings in the JUCE JSON representation.
+[[nodiscard]] juce::var makeJsonString(const std::string& value)
+{
+    return juce::var{juce::String::fromUTF8(value.c_str())};
+}
+
+// Creates a JUCE JSON array value for tone documents.
+[[nodiscard]] juce::var makeJsonArray()
+{
+    return juce::var{juce::Array<juce::var>{}};
+}
+
+// Creates a JUCE dynamic object value with the supplied properties.
+[[nodiscard]] juce::var makeJsonObject(std::initializer_list<JsonProperty> properties)
+{
+    juce::var object{new juce::DynamicObject{}};
+    juce::DynamicObject* const dynamic_object = object.getDynamicObject();
+    for (const JsonProperty& property : properties)
+    {
+        dynamic_object->setProperty(juce::Identifier{property.name}, property.value);
+    }
+
+    return object;
+}
+
+// Appends to an existing JUCE JSON array created by makeJsonArray().
+void appendJsonArray(juce::var& array, const juce::var& value)
+{
+    array.append(value);
+}
+
+// Reads a JSON property from an object value without throwing on malformed JSON.
+[[nodiscard]] const juce::var& jsonProperty(const juce::var& object, const char* property_name)
+{
+    return object[juce::Identifier{property_name}];
+}
+
+// Parses JSON text while preserving JUCE's parse diagnostic for tone errors.
+[[nodiscard]] std::expected<juce::var, std::string> parseJsonDocument(const juce::String& text)
+{
+    juce::var document;
+    const juce::Result result = juce::JSON::parse(text, document);
+    if (result.failed())
+    {
+        return std::unexpected{result.getErrorMessage().toStdString()};
+    }
+
+    return document;
+}
+
+// Reads a required string property from a tone-document object.
+[[nodiscard]] std::optional<std::string> readRequiredString(
+    const juce::var& object, const char* property_name)
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isString())
+    {
+        return std::nullopt;
+    }
+
+    return value.toString().toStdString();
+}
+
+// Reads an optional string property and falls back when the field is absent or not a string.
+[[nodiscard]] std::string readOptionalString(
+    const juce::var& object, const char* property_name, const std::string& fallback = {})
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isString())
+    {
+        return fallback;
+    }
+
+    return value.toString().toStdString();
+}
+
+// Reads an optional boolean property and falls back when the field is absent or not a bool.
+[[nodiscard]] bool readOptionalBool(const juce::var& object, const char* property_name)
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    return value.isBool() && static_cast<bool>(value);
+}
+
+// Reads an optional integer property and falls back when the field is absent or malformed.
+[[nodiscard]] int readOptionalInt(const juce::var& object, const char* property_name, int fallback)
+{
+    const juce::var& value = jsonProperty(object, property_name);
+    if (!value.isInt() && !value.isInt64())
+    {
+        return fallback;
+    }
+
+    return static_cast<int>(value);
+}
+
+// Converts signed JUCE plugin IDs into the hex text used by JUCE and Tracktion state.
+[[nodiscard]] std::string toHexString(int value)
+{
+    return juce::String::toHexString(value).toStdString();
+}
+
+// Converts hex text from tone JSON back to the JUCE plugin ID integer domain.
+[[nodiscard]] int fromHexString(const std::string& value)
+{
+    return static_cast<int>(juce::String::fromUTF8(value.c_str()).getHexValue64());
+}
+
+// Replaces arbitrary arrangement IDs with package-path-safe stem text.
+[[nodiscard]] std::string safePathStem(std::string_view value)
+{
+    std::string stem;
+    stem.reserve(value.size());
+    for (const char character : value)
+    {
+        const auto unsigned_character = static_cast<unsigned char>(character);
+        if (std::isalnum(unsigned_character) || character == '-' || character == '_')
+        {
+            stem.push_back(character);
+        }
+        else
+        {
+            stem.push_back('_');
+        }
+    }
+
+    return stem.empty() ? "arrangement" : stem;
+}
+
+// Reports whether a package-relative reference stays inside the song workspace.
+[[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path)
+{
+    if (path.empty() || path.is_absolute() || path.has_root_name() || path.has_root_directory())
+    {
+        return false;
+    }
+
+    for (const std::filesystem::path& part : path)
+    {
+        const std::string text = part.generic_string();
+        if (text.empty() || text == "." || text == ".." || text.find(':') != std::string::npos)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Resolves a package-relative file and verifies it exists inside the song workspace.
+[[nodiscard]] std::optional<std::filesystem::path> resolvePackageFile(
+    const std::filesystem::path& song_directory, const std::string& relative_path)
+{
+    const std::filesystem::path package_path{relative_path};
+    if (!isSafeRelativePath(package_path))
+    {
+        return std::nullopt;
+    }
+
+    const std::filesystem::path resolved_path = (song_directory / package_path).lexically_normal();
+    std::error_code error;
+    if (!std::filesystem::is_regular_file(resolved_path, error))
+    {
+        return std::nullopt;
+    }
+
+    return resolved_path;
+}
+
+// Builds the generated package-relative tone document path for an arrangement.
+[[nodiscard]] std::filesystem::path generatedToneDocumentPath(const std::string& arrangement_id)
+{
+    return std::filesystem::path{g_tones_directory_name} /
+           (safePathStem(arrangement_id) + std::string{g_tone_document_extension});
+}
+
+// Builds one package-relative Tracktion plugin-state sidecar path.
+[[nodiscard]] std::filesystem::path generatedPluginStatePath(
+    const std::string& arrangement_id, std::size_t plugin_index)
+{
+    return std::filesystem::path{g_tones_directory_name} /
+           std::filesystem::path{g_tone_state_directory_name} / safePathStem(arrangement_id) /
+           ("plugin-" + std::to_string(plugin_index + 1) + std::string{g_plugin_state_extension});
+}
+
+// Creates directories needed for a package-relative output file.
+[[nodiscard]] std::optional<LiveRigError> createParentDirectory(
+    const std::filesystem::path& output_file)
+{
+    std::error_code error;
+    std::filesystem::create_directories(output_file.parent_path(), error);
+    if (error)
+    {
+        return LiveRigError{
+            LiveRigErrorCode::CouldNotCreateDirectory,
+            "Could not create tone directory: " + error.message()
+        };
+    }
+
+    return std::nullopt;
+}
+
+// Writes a UTF-8 text file after creating its parent directories.
+[[nodiscard]] std::optional<LiveRigError> writeTextFile(
+    const std::filesystem::path& path, const std::string& contents,
+    LiveRigErrorCode write_error_code)
+{
+    if (const auto directory_error = createParentDirectory(path); directory_error.has_value())
+    {
+        return directory_error;
+    }
+
+    std::ofstream file{path, std::ios::binary};
+    if (!file.is_open())
+    {
+        return LiveRigError{write_error_code, "Could not open tone file: " + path.string()};
+    }
+
+    file << contents;
+    if (!file.good())
+    {
+        return LiveRigError{write_error_code, "Could not write tone file: " + path.string()};
+    }
+
+    return std::nullopt;
+}
+
+// Converts a plugin description into durable identity fields plus non-authoritative lookup hints.
+[[nodiscard]] TonePluginIdentity makeTonePluginIdentity(const juce::PluginDescription& description)
+{
+    const juce::String descriptive_name =
+        description.descriptiveName.isNotEmpty() ? description.descriptiveName : description.name;
+    return TonePluginIdentity{
+        .format_name = description.pluginFormatName.toStdString(),
+        .name = description.name.toStdString(),
+        .descriptive_name = descriptive_name.toStdString(),
+        .manufacturer = description.manufacturerName.toStdString(),
+        .version = description.version.toStdString(),
+        .unique_id = toHexString(description.uniqueId),
+        .deprecated_uid = toHexString(description.deprecatedUid),
+        .is_instrument = description.isInstrument,
+        .original_file_or_identifier = description.fileOrIdentifier.toStdString(),
+        .juce_identifier_hint = description.createIdentifierString().toStdString(),
+        .tracktion_identifier_hint = tracktion::createIdentifierString(description).toStdString(),
+    };
+}
+
+// Converts identity data back into a JUCE description shape for matching known plugins.
+[[nodiscard]] juce::PluginDescription makePluginDescription(const TonePluginIdentity& identity)
+{
+    juce::PluginDescription description;
+    description.pluginFormatName = juce::String::fromUTF8(identity.format_name.c_str());
+    description.name = juce::String::fromUTF8(identity.name.c_str());
+    description.descriptiveName = juce::String::fromUTF8(identity.descriptive_name.c_str());
+    description.manufacturerName = juce::String::fromUTF8(identity.manufacturer.c_str());
+    description.version = juce::String::fromUTF8(identity.version.c_str());
+    description.uniqueId = fromHexString(identity.unique_id);
+    description.deprecatedUid = fromHexString(identity.deprecated_uid);
+    description.isInstrument = identity.is_instrument;
+    description.fileOrIdentifier =
+        juce::String::fromUTF8(identity.original_file_or_identifier.c_str());
+    return description;
+}
+
+// Converts a Tracktion external plugin into editor-facing runtime chain state.
+[[nodiscard]] LiveRigPlugin makeLiveRigPlugin(
+    const tracktion::ExternalPlugin& plugin, std::size_t chain_index)
+{
+    return LiveRigPlugin{
+        .instance_id = plugin.itemID.toString().toStdString(),
+        .plugin_id = plugin.desc.createIdentifierString().toStdString(),
+        .name = plugin.desc.name.toStdString(),
+        .manufacturer = plugin.desc.manufacturerName.toStdString(),
+        .format_name = plugin.desc.pluginFormatName.toStdString(),
+        .chain_index = chain_index,
+    };
+}
+
+// Serializes identity to the tone document's JSON shape.
+[[nodiscard]] juce::var makeIdentityJson(const TonePluginIdentity& identity)
+{
+    return makeJsonObject({
+        {"format", makeJsonString(identity.format_name)},
+        {"name", makeJsonString(identity.name)},
+        {"descriptiveName", makeJsonString(identity.descriptive_name)},
+        {"manufacturer", makeJsonString(identity.manufacturer)},
+        {"version", makeJsonString(identity.version)},
+        {"uniqueId", makeJsonString(identity.unique_id)},
+        {"deprecatedUid", makeJsonString(identity.deprecated_uid)},
+        {"isInstrument", juce::var{identity.is_instrument}},
+        {"originalFileOrIdentifier", makeJsonString(identity.original_file_or_identifier)},
+        {"juceIdentifierHint", makeJsonString(identity.juce_identifier_hint)},
+        {"tracktionIdentifierHint", makeJsonString(identity.tracktion_identifier_hint)},
+    });
+}
+
+// Serializes the v1 tone document subset used by the current linear chain.
+[[nodiscard]] juce::var makeToneDocumentJson(const ToneDocument& document)
+{
+    juce::var chain = makeJsonArray();
+    for (const TonePluginRecord& plugin : document.chain)
+    {
+        appendJsonArray(
+            chain,
+            makeJsonObject({
+                {"id", makeJsonString(plugin.id)},
+                {"identity", makeIdentityJson(plugin.identity)},
+                {"tracktionState", makeJsonString(plugin.tracktion_state_ref)},
+            }));
+    }
+
+    juce::var slots = makeJsonArray();
+    appendJsonArray(
+        slots,
+        makeJsonObject({
+            {"id", makeJsonString("default")},
+            {"name", makeJsonString("Default")},
+            {"chain", chain},
+            {"automation", makeJsonArray()},
+        }));
+
+    juce::var tone_clips = makeJsonArray();
+    appendJsonArray(
+        tone_clips,
+        makeJsonObject({
+            {"slot", makeJsonString("default")},
+            {"startSeconds", juce::var{0.0}},
+            {"endSeconds", juce::var{}},
+        }));
+
+    return makeJsonObject({
+        {"formatVersion", juce::var{1}},
+        {"slots", slots},
+        {"toneClips", tone_clips},
+    });
+}
+
+// Reads the identity object for one tone plugin record.
+[[nodiscard]] TonePluginIdentity readTonePluginIdentity(const juce::var& object)
+{
+    return TonePluginIdentity{
+        .format_name = readOptionalString(object, "format"),
+        .name = readOptionalString(object, "name"),
+        .descriptive_name = readOptionalString(object, "descriptiveName"),
+        .manufacturer = readOptionalString(object, "manufacturer"),
+        .version = readOptionalString(object, "version"),
+        .unique_id = readOptionalString(object, "uniqueId"),
+        .deprecated_uid = readOptionalString(object, "deprecatedUid"),
+        .is_instrument = readOptionalBool(object, "isInstrument"),
+        .original_file_or_identifier = readOptionalString(object, "originalFileOrIdentifier"),
+        .juce_identifier_hint = readOptionalString(object, "juceIdentifierHint"),
+        .tracktion_identifier_hint = readOptionalString(object, "tracktionIdentifierHint"),
+    };
+}
+
+// Reads the v1 tone document subset and validates all package-relative sidecar paths.
+[[nodiscard]] std::expected<ToneDocument, LiveRigError> readToneDocument(
+    const std::filesystem::path& song_directory, const std::string& tone_document_ref)
+{
+    const auto tone_document_path = resolvePackageFile(song_directory, tone_document_ref);
+    if (!tone_document_path.has_value())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::MissingToneDocument,
+            "Tone document is missing or unsafe: " + tone_document_ref
+        }};
+    }
+
+    juce::FileInputStream tone_document_file{toJuceFile(*tone_document_path)};
+    if (tone_document_file.failedToOpen())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadToneDocument,
+            "Could not open tone document: " +
+                tone_document_file.getStatus().getErrorMessage().toStdString()
+        }};
+    }
+
+    auto parsed_document = parseJsonDocument(tone_document_file.readEntireStreamAsString());
+    if (!parsed_document.has_value())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadToneDocument,
+            "Could not parse tone document: " + parsed_document.error()
+        }};
+    }
+
+    const juce::var document_json = std::move(*parsed_document);
+    if (!document_json.isObject() || readOptionalInt(document_json, "formatVersion", 0) != 1)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument, "Unsupported tone document formatVersion"
+        }};
+    }
+
+    const juce::var& slots_json = jsonProperty(document_json, "slots");
+    if (!slots_json.isArray() || slots_json.size() == 0)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument, "Tone document must contain at least one slot"
+        }};
+    }
+
+    const juce::var& default_slot_json = slots_json[0];
+    if (!default_slot_json.isObject())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument, "Tone document slot must be an object"
+        }};
+    }
+
+    const juce::var& chain_json = jsonProperty(default_slot_json, "chain");
+    if (!chain_json.isArray())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument, "Tone document slot chain must be an array"
+        }};
+    }
+
+    ToneDocument document;
+    document.chain.reserve(static_cast<std::size_t>(chain_json.size()));
+    for (int index = 0; index < chain_json.size(); ++index)
+    {
+        const juce::var& plugin_json = chain_json[index];
+        if (!plugin_json.isObject())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::InvalidToneDocument,
+                "Tone document plugin entry must be an object"
+            }};
+        }
+
+        const auto id = readRequiredString(plugin_json, "id");
+        const auto tracktion_state = readRequiredString(plugin_json, "tracktionState");
+        if (!id.has_value() || id->empty() || !tracktion_state.has_value() ||
+            tracktion_state->empty())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::InvalidToneDocument,
+                "Tone document plugin entry is missing id or tracktionState"
+            }};
+        }
+
+        if (!resolvePackageFile(song_directory, *tracktion_state).has_value())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::MissingPluginState,
+                "Tone plugin state is missing or unsafe: " + *tracktion_state
+            }};
+        }
+
+        const juce::var& identity_json = jsonProperty(plugin_json, "identity");
+        document.chain.push_back(
+            TonePluginRecord{
+                .id = *id,
+                .identity = identity_json.isObject() ? readTonePluginIdentity(identity_json)
+                                                     : TonePluginIdentity{},
+                .tracktion_state_ref = *tracktion_state,
+            });
+    }
+
+    return document;
+}
+
+// Writes the v1 tone document JSON file.
+[[nodiscard]] std::optional<LiveRigError> writeToneDocument(
+    const std::filesystem::path& tone_document_path, const ToneDocument& document)
+{
+    const juce::String json = juce::JSON::toString(makeToneDocumentJson(document));
+    return writeTextFile(
+        tone_document_path, json.toStdString() + '\n', LiveRigErrorCode::CouldNotWriteToneDocument);
+}
+
+// Reads a Tracktion plugin-state sidecar into a ValueTree.
+[[nodiscard]] std::expected<juce::ValueTree, LiveRigError> readPluginStateTree(
+    const std::filesystem::path& plugin_state_path)
+{
+    const std::unique_ptr<juce::XmlElement> xml = juce::parseXML(toJuceFile(plugin_state_path));
+    if (xml == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadPluginState,
+            "Could not parse tone plugin state: " + plugin_state_path.string()
+        }};
+    }
+
+    juce::ValueTree tree = juce::ValueTree::fromXml(*xml);
+    if (!tree.isValid())
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotReadPluginState,
+            "Tone plugin state is not a valid ValueTree: " + plugin_state_path.string()
+        }};
+    }
+
+    tree.removeProperty(tracktion::IDs::id, nullptr);
+    return tree;
+}
+
+// Serializes a Tracktion plugin ValueTree exactly enough for Tracktion to recreate the plugin.
+[[nodiscard]] std::expected<std::string, LiveRigError> makePluginStateXml(
+    const juce::ValueTree& plugin_state, const std::filesystem::path& plugin_state_path)
+{
+    const std::unique_ptr<juce::XmlElement> xml = plugin_state.createXml();
+    if (xml == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::CouldNotWritePluginState,
+            "Could not serialize tone plugin state: " + plugin_state_path.string()
+        }};
+    }
+
+    return xml->toString().toStdString();
 }
 
 // Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
@@ -313,6 +880,156 @@ private:
     {
         return m_engine->getPluginManager().knownPluginList.getTypeForIdentifierString(
             juce::String{plugin_id});
+    }
+
+    // Scans one plugin file through Tracktion's JUCE-backed known-plugin list.
+    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError>
+    scanPluginFileForCandidates(const std::filesystem::path& plugin_path)
+    {
+        const juce::File plugin_file = toJuceFile(plugin_path);
+        if (plugin_path.empty() || !plugin_file.exists())
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::MissingPluginFile,
+                "Plugin file does not exist: " + plugin_path.string()
+            }};
+        }
+
+        try
+        {
+            constexpr auto* vst3_format_name = "VST3";
+            auto& plugin_manager = m_engine->getPluginManager();
+            const juce::String& file_or_identifier = plugin_file.getFullPathName();
+            juce::OwnedArray<juce::PluginDescription> found_descriptions;
+            bool has_vst3_format = false;
+
+            for (juce::AudioPluginFormat* const format :
+                 plugin_manager.pluginFormatManager.getFormats())
+            {
+                if (format == nullptr || format->getName() != vst3_format_name)
+                {
+                    continue;
+                }
+
+                has_vst3_format = true;
+                if (!format->fileMightContainThisPluginType(file_or_identifier))
+                {
+                    continue;
+                }
+
+                plugin_manager.knownPluginList.scanAndAddFile(
+                    file_or_identifier, true, found_descriptions, *format);
+            }
+
+            if (!has_vst3_format)
+            {
+                return std::unexpected{PluginHostError{
+                    PluginHostErrorCode::PluginScanFailed,
+                    "VST3 plugin hosting is not enabled in this build"
+                }};
+            }
+
+            plugin_manager.knownPluginList.scanFinished();
+
+            std::vector<PluginCandidate> candidates;
+            candidates.reserve(static_cast<std::size_t>(found_descriptions.size()));
+
+            for (const juce::PluginDescription* description : found_descriptions)
+            {
+                if (description != nullptr && description->pluginFormatName == vst3_format_name)
+                {
+                    candidates.push_back(makePluginCandidate(*description, plugin_path));
+                }
+            }
+
+            if (candidates.empty())
+            {
+                return std::unexpected{PluginHostError{
+                    PluginHostErrorCode::NoCompatiblePlugin,
+                    "No VST3 plugin was found in: " + plugin_path.string()
+                }};
+            }
+
+            return candidates;
+        }
+        catch (const std::exception& error)
+        {
+            m_engine->getPluginManager().knownPluginList.scanFinished();
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginScanFailed,
+                std::string{"Plugin scan failed: "} + error.what()
+            }};
+        }
+    }
+
+    // Checks the current known-plugin list for a plugin matching persisted identity.
+    [[nodiscard]] bool hasKnownPluginForIdentity(const TonePluginIdentity& identity) const
+    {
+        const juce::PluginDescription persisted_description = makePluginDescription(identity);
+        auto& known_plugin_list = m_engine->getPluginManager().knownPluginList;
+        if (!identity.juce_identifier_hint.empty() &&
+            known_plugin_list
+                    .getTypeForIdentifierString(
+                        juce::String::fromUTF8(identity.juce_identifier_hint.c_str()))
+                    .get() != nullptr)
+        {
+            return true;
+        }
+
+        if (!identity.tracktion_identifier_hint.empty() &&
+            known_plugin_list
+                    .getTypeForIdentifierString(
+                        juce::String::fromUTF8(identity.tracktion_identifier_hint.c_str()))
+                    .get() != nullptr)
+        {
+            return true;
+        }
+
+        for (const juce::PluginDescription& known_description : known_plugin_list.getTypes())
+        {
+            if (persisted_description.isDuplicateOf(known_description))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // Ensures a persisted plugin can be resolved before creating Tracktion state for it.
+    [[nodiscard]] std::expected<void, LiveRigError> ensureKnownPluginForIdentity(
+        const TonePluginIdentity& identity)
+    {
+        if (hasKnownPluginForIdentity(identity))
+        {
+            return {};
+        }
+
+        if (!identity.original_file_or_identifier.empty())
+        {
+            const std::filesystem::path plugin_path{identity.original_file_or_identifier};
+            std::error_code error;
+            if (std::filesystem::exists(plugin_path, error))
+            {
+                const auto scan_result = scanPluginFileForCandidates(plugin_path);
+                if (!scan_result.has_value())
+                {
+                    return std::unexpected{LiveRigError{
+                        LiveRigErrorCode::PluginScanFailed,
+                        scan_result.error().message,
+                    }};
+                }
+
+                if (hasKnownPluginForIdentity(identity))
+                {
+                    return {};
+                }
+            }
+        }
+
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginNotFound, "Tone plugin was not found: " + identity.name
+        }};
     }
 
     // Finds a loaded instrument-chain plugin by the opaque instance ID returned to callers.
@@ -731,80 +1448,7 @@ std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginF
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    const juce::File plugin_file = toJuceFile(plugin_path);
-    if (plugin_path.empty() || !plugin_file.exists())
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::MissingPluginFile,
-            "Plugin file does not exist: " + plugin_path.string()
-        }};
-    }
-
-    try
-    {
-        constexpr auto* vst3_format_name = "VST3";
-        auto& plugin_manager = m_impl->m_engine->getPluginManager();
-        const juce::String& file_or_identifier = plugin_file.getFullPathName();
-        juce::OwnedArray<juce::PluginDescription> found_descriptions;
-        bool has_vst3_format = false;
-
-        for (juce::AudioPluginFormat* const format :
-             plugin_manager.pluginFormatManager.getFormats())
-        {
-            if (format == nullptr || format->getName() != vst3_format_name)
-            {
-                continue;
-            }
-
-            has_vst3_format = true;
-            if (!format->fileMightContainThisPluginType(file_or_identifier))
-            {
-                continue;
-            }
-
-            plugin_manager.knownPluginList.scanAndAddFile(
-                file_or_identifier, true, found_descriptions, *format);
-        }
-
-        if (!has_vst3_format)
-        {
-            return std::unexpected{PluginHostError{
-                PluginHostErrorCode::PluginScanFailed,
-                "VST3 plugin hosting is not enabled in this build"
-            }};
-        }
-
-        plugin_manager.knownPluginList.scanFinished();
-
-        std::vector<PluginCandidate> candidates;
-        candidates.reserve(static_cast<std::size_t>(found_descriptions.size()));
-
-        for (const juce::PluginDescription* description : found_descriptions)
-        {
-            if (description != nullptr && description->pluginFormatName == vst3_format_name)
-            {
-                candidates.push_back(makePluginCandidate(*description, plugin_path));
-            }
-        }
-
-        if (candidates.empty())
-        {
-            return std::unexpected{PluginHostError{
-                PluginHostErrorCode::NoCompatiblePlugin,
-                "No VST3 plugin was found in: " + plugin_path.string()
-            }};
-        }
-
-        return candidates;
-    }
-    catch (const std::exception& error)
-    {
-        m_impl->m_engine->getPluginManager().knownPluginList.scanFinished();
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginScanFailed,
-            std::string{"Plugin scan failed: "} + error.what()
-        }};
-    }
+    return m_impl->scanPluginFileForCandidates(plugin_path);
 }
 
 // Appends a selected known VST3 candidate to the instrument track's plugin list.
@@ -903,6 +1547,226 @@ std::expected<void, PluginHostError> Engine::removePlugin(const std::string& ins
     plugin->deleteFromParent();
     m_impl->rebuildInstrumentMonitoringGraph();
     return {};
+}
+
+// Clears the instrument plugin chain without touching the active backing arrangement.
+std::expected<void, LiveRigError> Engine::clearRig()
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+    instrument_track->pluginList.clear();
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return {};
+}
+
+// Captures the current Tracktion live rig chain into a tone document plus plugin-state sidecars.
+std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
+    const LiveRigCaptureRequest& request)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    if (request.song_directory.empty() || request.arrangement_id.empty())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
+    }
+
+    const std::filesystem::path tone_document_ref =
+        request.existing_tone_document_ref.empty()
+            ? generatedToneDocumentPath(request.arrangement_id)
+            : std::filesystem::path{request.existing_tone_document_ref};
+    if (!isSafeRelativePath(tone_document_ref))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument,
+            "Tone document path is unsafe: " + tone_document_ref.generic_string()
+        }};
+    }
+
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+
+    ToneDocument document;
+    LiveRigSnapshot snapshot{
+        .tone_document_ref = tone_document_ref.generic_string(),
+        .plugins = {},
+    };
+    const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
+    document.chain.reserve(static_cast<std::size_t>(plugins.size()));
+    snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
+
+    for (int plugin_index = 0; plugin_index < plugins.size(); ++plugin_index)
+    {
+        tracktion::Plugin* const plugin = plugins[plugin_index];
+        auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
+        if (external_plugin == nullptr)
+        {
+            m_impl->rebuildInstrumentMonitoringGraph();
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::UnsupportedPlugin,
+                "Only external VST plugins can be saved in tone documents right now"
+            }};
+        }
+
+        const std::size_t chain_index = static_cast<std::size_t>(plugin_index);
+        external_plugin->flushPluginStateToValueTree();
+        juce::ValueTree plugin_state = external_plugin->state.createCopy();
+        plugin_state.removeProperty(tracktion::IDs::id, nullptr);
+
+        const std::filesystem::path plugin_state_ref =
+            generatedPluginStatePath(request.arrangement_id, chain_index);
+        const std::filesystem::path plugin_state_path = request.song_directory / plugin_state_ref;
+        const auto plugin_state_xml = makePluginStateXml(plugin_state, plugin_state_path);
+        if (!plugin_state_xml.has_value())
+        {
+            m_impl->rebuildInstrumentMonitoringGraph();
+            return std::unexpected{plugin_state_xml.error()};
+        }
+
+        if (const auto write_error = writeTextFile(
+                plugin_state_path, *plugin_state_xml, LiveRigErrorCode::CouldNotWritePluginState);
+            write_error.has_value())
+        {
+            m_impl->rebuildInstrumentMonitoringGraph();
+            return std::unexpected{*write_error};
+        }
+
+        document.chain.push_back(
+            TonePluginRecord{
+                .id = "plugin-" + std::to_string(plugin_index + 1),
+                .identity = makeTonePluginIdentity(external_plugin->desc),
+                .tracktion_state_ref = plugin_state_ref.generic_string(),
+            });
+        snapshot.plugins.push_back(makeLiveRigPlugin(*external_plugin, chain_index));
+    }
+
+    const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
+    if (const auto write_error = writeToneDocument(tone_document_path, document);
+        write_error.has_value())
+    {
+        m_impl->rebuildInstrumentMonitoringGraph();
+        return std::unexpected{*write_error};
+    }
+
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return snapshot;
+}
+
+// Restores a persisted tone document by asking Tracktion to recreate each stored plugin state.
+std::expected<LiveRigLoadResult, LiveRigError> Engine::loadRig(const LiveRigLoadRequest& request)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    if (request.tone_document_ref.empty())
+    {
+        auto clear_result = clearRig();
+        if (!clear_result.has_value())
+        {
+            return std::unexpected{std::move(clear_result.error())};
+        }
+        return LiveRigLoadResult{};
+    }
+
+    if (request.song_directory.empty())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
+    }
+
+    const auto document = readToneDocument(request.song_directory, request.tone_document_ref);
+    if (!document.has_value())
+    {
+        return std::unexpected{document.error()};
+    }
+
+    std::vector<juce::ValueTree> plugin_states;
+    plugin_states.reserve(document->chain.size());
+    for (const TonePluginRecord& plugin : document->chain)
+    {
+        auto plugin_known = m_impl->ensureKnownPluginForIdentity(plugin.identity);
+        if (!plugin_known.has_value())
+        {
+            return std::unexpected{std::move(plugin_known.error())};
+        }
+
+        const auto plugin_state_path =
+            resolvePackageFile(request.song_directory, plugin.tracktion_state_ref);
+        if (!plugin_state_path.has_value())
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::MissingPluginState,
+                "Tone plugin state is missing or unsafe: " + plugin.tracktion_state_ref
+            }};
+        }
+
+        auto plugin_state = readPluginStateTree(*plugin_state_path);
+        if (!plugin_state.has_value())
+        {
+            return std::unexpected{std::move(plugin_state.error())};
+        }
+        plugin_states.push_back(std::move(*plugin_state));
+    }
+
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+    instrument_track->pluginList.clear();
+
+    LiveRigLoadResult result;
+    result.plugins.reserve(plugin_states.size());
+    for (const juce::ValueTree& plugin_state : plugin_states)
+    {
+        const tracktion::Plugin::Ptr plugin =
+            instrument_track->pluginList.insertPlugin(plugin_state, -1);
+        auto* const external_plugin =
+            plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(plugin.get()) : nullptr;
+        if (external_plugin == nullptr)
+        {
+            instrument_track->pluginList.clear();
+            m_impl->rebuildInstrumentMonitoringGraph();
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed, "Could not insert persisted tone plugin"
+            }};
+        }
+
+        const juce::String load_error = external_plugin->getLoadError();
+        if (load_error.isNotEmpty())
+        {
+            instrument_track->pluginList.clear();
+            m_impl->rebuildInstrumentMonitoringGraph();
+            return std::unexpected{
+                LiveRigError{LiveRigErrorCode::PluginRestoreFailed, load_error.toStdString()}
+            };
+        }
+
+        result.plugins.push_back(makeLiveRigPlugin(*external_plugin, result.plugins.size()));
+    }
+
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return result;
 }
 
 // Exposes the JUCE device manager so settings UI can host the stock device selector directly.
