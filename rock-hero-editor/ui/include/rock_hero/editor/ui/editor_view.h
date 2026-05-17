@@ -206,6 +206,9 @@ private:
     // SignalChainPanel::Listener implementation.
     void onAddPluginPressed() override;
 
+    // SignalChainPanel::Listener implementation.
+    void onRemovePluginPressed(std::string instance_id) override;
+
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 

@@ -91,6 +91,18 @@ public:
     [[nodiscard]] virtual std::expected<PluginHandle, PluginHostError> addPlugin(
         const std::string& plugin_id) = 0;
 
+    /*!
+    \brief Removes a loaded plugin instance from the hosted chain.
+
+    The first implementation removes from the linear Tracktion plugin list owned by the
+    instrument track. It stops and rebuilds backend playback graph state as needed.
+
+    \param instance_id Opaque instance ID returned by addPlugin().
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, PluginHostError> removePlugin(
+        const std::string& instance_id) = 0;
+
 protected:
     /*! \brief Creates the plugin-host interface. */
     IPluginHost() = default;

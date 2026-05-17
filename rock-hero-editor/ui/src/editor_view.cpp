@@ -1248,4 +1248,15 @@ void EditorView::onAddPluginPressed()
     showAddPluginChooser();
 }
 
+// Forwards row-level remove intent to the controller after checking derived availability.
+void EditorView::onRemovePluginPressed(std::string instance_id)
+{
+    if (!m_state.signal_chain.remove_plugins_enabled)
+    {
+        return;
+    }
+
+    m_controller.onRemovePluginRequested(std::move(instance_id));
+}
+
 } // namespace rock_hero::editor::ui

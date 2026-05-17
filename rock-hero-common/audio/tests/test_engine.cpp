@@ -290,6 +290,21 @@ TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][inte
     CHECK(transport.position() == common::core::TimePosition{});
 }
 
+// Verifies plugin removal reports unknown instance IDs as a typed boundary failure.
+TEST_CASE("Engine plugin host rejects unknown plugin instances", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+    const ITransport& transport = harness.engine;
+
+    const auto result = plugin_host.removePlugin("missing-instance-id");
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
+    CHECK(transport.state() == TransportState{});
+    CHECK(transport.position() == common::core::TimePosition{});
+}
+
 // Verifies the single Tracktion arrangement track can replace its loaded audio.
 TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integration]")
 {

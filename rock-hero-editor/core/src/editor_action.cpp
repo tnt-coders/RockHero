@@ -89,6 +89,12 @@ EditorAction EditorAction::addPlugin(std::filesystem::path file)
     return EditorAction{Id::AddPlugin, std::move(file)};
 }
 
+// Builds a remove-plugin action carrying the selected plugin instance ID.
+EditorAction EditorAction::removePlugin(std::string instance_id)
+{
+    return EditorAction{Id::RemovePlugin, std::move(instance_id)};
+}
+
 // Stores the action id for payload-free actions.
 EditorAction::EditorAction(Id id) noexcept
     : m_id(id)
@@ -98,6 +104,12 @@ EditorAction::EditorAction(Id id) noexcept
 EditorAction::EditorAction(Id id, std::filesystem::path file)
     : m_id(id)
     , m_file(std::move(file))
+{}
+
+// Stores the action id and plugin instance ID payload.
+EditorAction::EditorAction(Id id, std::string instance_id)
+    : m_id(id)
+    , m_instance_id(std::move(instance_id))
 {}
 
 // Stores the action id and unsaved-changes decision payload.
@@ -134,6 +146,12 @@ double EditorAction::normalizedX() const noexcept
 std::filesystem::path EditorAction::takeFile() noexcept
 {
     return std::move(m_file);
+}
+
+// Moves the plugin instance ID payload out of remove-plugin actions.
+std::string EditorAction::takeInstanceId() noexcept
+{
+    return std::move(m_instance_id);
 }
 
 } // namespace rock_hero::editor::core
