@@ -237,7 +237,7 @@ Song
     difficulty    (0 Unknown, 1-10 authored rating)
     audio_asset    (required path/identifier for backing audio)
     audio_duration (full natural duration of the audio asset)
-    tone_timeline_ref (opaque blob interpreted exclusively by common/audio)
+    tone_document_ref (package-relative tone document interpreted exclusively by common/audio)
     note_events[*]
       position.seconds
       duration.seconds
@@ -257,10 +257,11 @@ parsed song is committed to the editor session, the editor workflow validates ev
 audio through the `rock-hero-common/audio` boundary and rejects the project if any asset is
 unreadable or reports a non-positive duration. When an arrangement is selected, the application
 passes its `audio_asset`
-to `rock-hero-common/audio` for playback and waveform generation, and passes `tone_timeline_ref`
-to `rock-hero-common/audio` as an opaque blob. The game or editor reads the arrangement notes to
-drive gameplay or authoring. `rock-hero-common/core` never interprets tone automation data - that
-belongs entirely to `rock-hero-common/audio`.
+to `rock-hero-common/audio` for playback and waveform generation, and passes `tone_document_ref`
+to `rock-hero-common/audio` as a package-relative tone document reference. The game or editor reads
+the arrangement notes to drive gameplay or authoring. `rock-hero-common/core` validates and
+persists the tone document reference but never interprets the referenced tone data - that belongs
+entirely to `rock-hero-common/audio`.
 
 The editor-facing audio boundary is `common::audio::IAudio`: it prepares loaded songs by validating
 arrangement audio and filling accepted durations, makes the selected arrangement active in the
