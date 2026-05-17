@@ -84,42 +84,38 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
     return juce::File{juce::String{native_path.c_str()}};
 }
 
-// Gives the unsaved-changes prompt enough context for the command that triggered it.
-[[nodiscard]] juce::String unsavedChangesPromptMessage(core::ProjectCommandId command)
+// Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
+// deferrable subset reaches this switch; the default branch is a defensive fallback for ids the
+// controller cannot legitimately stash in a deferred slot.
+[[nodiscard]] juce::String unsavedChangesPromptMessage(core::EditorActionId action)
 {
-    switch (command)
+    switch (action)
     {
-        case core::ProjectCommandId::Close:
+        case core::EditorActionId::CloseProject:
         {
             return "Save changes before closing the current project?";
         }
-        case core::ProjectCommandId::Open:
+        case core::EditorActionId::OpenProject:
         {
             return "Save changes before opening another project?";
         }
-        case core::ProjectCommandId::Import:
+        case core::EditorActionId::RestoreProject:
+        {
+            return "Save changes before restoring the previous project?";
+        }
+        case core::EditorActionId::ImportSong:
         {
             return "Save changes before importing another project?";
         }
-        case core::ProjectCommandId::Save:
-        {
-            return "Save changes before saving the current project?";
-        }
-        case core::ProjectCommandId::SaveAs:
-        {
-            return "Save changes before saving a copy of the current project?";
-        }
-        case core::ProjectCommandId::Publish:
-        {
-            return "Save changes before publishing the current project?";
-        }
-        case core::ProjectCommandId::Exit:
+        case core::EditorActionId::ExitApplication:
         {
             return "Save changes before exiting Rock Hero Editor?";
         }
+        default:
+        {
+            return "Save changes before continuing?";
+        }
     }
-
-    return "Save changes before continuing?";
 }
 
 } // namespace
@@ -1011,7 +1007,7 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
             const auto file = chooser.getResult();
             if (file.getFullPathName().isEmpty())
             {
-                if (purpose == SaveAsChooserPurpose::DeferredProjectCommand)
+                if (purpose == SaveAsChooserPurpose::DeferredAction)
                 {
                     m_controller.onSaveAsCancelled();
                 }
@@ -1087,7 +1083,7 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
         juce::MessageBoxOptions()
             .withIconType(juce::MessageBoxIconType::QuestionIcon)
             .withTitle("Unsaved changes")
-            .withMessage(unsavedChangesPromptMessage(prompt->command))
+            .withMessage(unsavedChangesPromptMessage(prompt->prompted_action))
             .withButton("Save")
             .withButton("Discard")
             .withButton("Cancel")
@@ -1137,7 +1133,7 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
     }
 
     m_last_presented_save_as_prompt = prompt;
-    showSaveAsChooser(SaveAsChooserPurpose::DeferredProjectCommand);
+    showSaveAsChooser(SaveAsChooserPurpose::DeferredAction);
 }
 
 // Applies controller-derived ASIO routing state to the toolbar button.
