@@ -48,6 +48,9 @@ struct SignalChainViewState
     /*! \brief Enables or disables the add-plugin command. */
     bool add_plugin_enabled{false};
 
+    /*! \brief Enables or disables plugin removal commands. */
+    bool remove_plugins_enabled{false};
+
     /*! \brief Current linear plugin chain. */
     std::vector<PluginViewState> plugins;
 

@@ -273,6 +273,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
     void onAddPluginRequested(std::filesystem::path file);
+    void onRemovePluginRequested(std::string instance_id);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -571,6 +572,11 @@ void EditorController::onAddPluginRequested(std::filesystem::path file)
     m_impl->onAddPluginRequested(std::move(file));
 }
 
+void EditorController::onRemovePluginRequested(std::string instance_id)
+{
+    m_impl->onRemovePluginRequested(std::move(instance_id));
+}
+
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where a service seam is omitted.
 EditorController::Impl::Impl(
@@ -860,6 +866,13 @@ void EditorController::Impl::onAddPluginRequested(std::filesystem::path file)
     runAction(EditorAction::addPlugin(std::move(file)));
 }
 
+// Removes one runtime plugin instance from the current linear chain without marking the project
+// dirty while tone persistence does not exist.
+void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
+{
+    runAction(EditorAction::removePlugin(std::move(instance_id)));
+}
+
 // Persists the new device manager state and re-derives view state after a configuration change.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
@@ -1091,6 +1104,39 @@ void EditorController::Impl::performAction(EditorAction action)
             deriveAndPush();
             break;
         }
+        case EditorAction::Id::RemovePlugin:
+        {
+            if (m_plugin_host == nullptr || !hasLoadedArrangement())
+            {
+                return;
+            }
+
+            const std::string instance_id = action.takeInstanceId();
+            const auto plugin =
+                std::ranges::find_if(m_plugins, [&instance_id](const PluginViewState& item) {
+                    return item.instance_id == instance_id;
+                });
+            if (plugin == m_plugins.end())
+            {
+                return;
+            }
+
+            const auto result = m_plugin_host->removePlugin(instance_id);
+            if (!result.has_value())
+            {
+                reportError(std::string{"Could not remove plugin: "} + result.error().message);
+                deriveAndPush();
+                return;
+            }
+
+            m_plugins.erase(plugin);
+            for (std::size_t index = 0; index < m_plugins.size(); ++index)
+            {
+                m_plugins[index].chain_index = index;
+            }
+            deriveAndPush();
+            break;
+        }
     }
 }
 
@@ -1160,6 +1206,10 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         {
             return m_plugin_host != nullptr && hasLoadedArrangement();
         }
+        case EditorAction::Id::RemovePlugin:
+        {
+            return m_plugin_host != nullptr && hasLoadedArrangement() && !m_plugins.empty();
+        }
     }
 
     return false;
@@ -1188,6 +1238,7 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::RemovePlugin:
         {
             return ActionBusyPolicy::BlockedByBusy;
         }
@@ -1607,6 +1658,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
         .add_plugin_enabled = canRunAction(EditorAction::Id::AddPlugin),
+        .remove_plugins_enabled = canRunAction(EditorAction::Id::RemovePlugin),
         .plugins = m_plugins,
     };
 

@@ -25,6 +25,9 @@ enum class PluginHostErrorCode
     /*! \brief The requested plugin candidate ID is not present in the known plugin list. */
     PluginNotFound,
 
+    /*! \brief The requested loaded plugin instance is not present in the hosted chain. */
+    PluginInstanceNotFound,
+
     /*! \brief A plugin-host operation was invoked from the wrong thread. */
     MessageThreadRequired,
 

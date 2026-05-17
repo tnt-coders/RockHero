@@ -125,6 +125,13 @@ public:
         add_plugin_request_count += 1;
     }
 
+    // Captures plugin instances selected through the signal-chain panel.
+    void onRemovePluginRequested(std::string instance_id) override
+    {
+        last_removed_plugin_instance_id = std::move(instance_id);
+        remove_plugin_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -142,6 +149,9 @@ public:
 
     // Last plugin file selected through the signal-chain panel.
     std::optional<std::filesystem::path> last_plugin_file{};
+
+    // Last plugin instance ID selected through the signal-chain panel.
+    std::optional<std::string> last_removed_plugin_instance_id{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -184,6 +194,9 @@ public:
 
     // Number of add-plugin intents received.
     int add_plugin_request_count{0};
+
+    // Number of remove-plugin intents received.
+    int remove_plugin_request_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -597,6 +610,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .signal_chain =
                 core::SignalChainViewState{
                     .add_plugin_enabled = true,
+                    .remove_plugins_enabled = true,
                     .plugins =
                         {
                             core::PluginViewState{
@@ -628,10 +642,52 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(add_plugin_button.isEnabled());
+    CHECK(findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
     CHECK(transport.position_read_count == 0);
+}
+
+// Verifies plugin row remove controls reflect state and emit the selected instance ID.
+TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState state;
+    state.signal_chain = core::SignalChainViewState{
+        .add_plugin_enabled = true,
+        .remove_plugins_enabled = false,
+        .plugins = {
+            core::PluginViewState{
+                .instance_id = "instance",
+                .plugin_id = "plugin",
+                .name = "Amp Sim",
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = 0,
+            },
+        },
+    };
+    view.setState(state);
+
+    CHECK_FALSE(
+        findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
+
+    state.signal_chain.remove_plugins_enabled = true;
+    view.setState(state);
+
+    auto& remove_button =
+        findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance");
+    CHECK(remove_button.isEnabled());
+    remove_button.triggerClick();
+    dispatchPendingMessages();
+    CHECK(controller.remove_plugin_request_count == 1);
+    CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
 // Verifies the toolbar button reflects the current device name and backend availability.
