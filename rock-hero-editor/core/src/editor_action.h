@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -66,6 +67,9 @@ public:
 
         /*! \brief Add a selected plugin file to the signal chain. */
         AddPlugin,
+
+        /*! \brief Remove a plugin instance from the signal chain. */
+        RemovePlugin,
     };
 
     /*!
@@ -162,6 +166,13 @@ public:
     [[nodiscard]] static EditorAction addPlugin(std::filesystem::path file);
 
     /*!
+    \brief Builds a remove-plugin action.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    \return Action carrying the plugin instance ID.
+    */
+    [[nodiscard]] static EditorAction removePlugin(std::string instance_id);
+
+    /*!
     \brief Returns the action identity.
     \return Action id used by routing and availability policy.
     */
@@ -185,14 +196,22 @@ public:
     */
     [[nodiscard]] std::filesystem::path takeFile() noexcept;
 
+    /*!
+    \brief Moves the plugin instance ID payload out of the action.
+    \return Stored instance ID for remove-plugin actions.
+    */
+    [[nodiscard]] std::string takeInstanceId() noexcept;
+
 private:
     explicit EditorAction(Id id) noexcept;
     EditorAction(Id id, std::filesystem::path file);
+    EditorAction(Id id, std::string instance_id);
     EditorAction(Id id, UnsavedChangesDecision decision) noexcept;
     EditorAction(Id id, double normalized_x) noexcept;
 
     Id m_id{Id::SaveProject};
     std::filesystem::path m_file{};
+    std::string m_instance_id;
     UnsavedChangesDecision m_decision{UnsavedChangesDecision::Cancel};
     double m_normalized_x{};
 };

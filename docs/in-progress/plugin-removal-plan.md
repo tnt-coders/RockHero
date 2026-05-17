@@ -55,7 +55,13 @@ and backend order ever diverge.
 
 `Engine::removePlugin()` should remain a message-thread operation, stop/release backend context as
 needed, remove the plugin from the instrument track plugin list, then rebuild the monitoring graph.
-If the instance ID is missing, return a typed `PluginHostError`.
+If the instance ID is missing, return `PluginHostErrorCode::PluginInstanceNotFound`. Keep this
+separate from `PluginHostErrorCode::PluginNotFound`, which describes a missing scanned candidate
+before insertion.
+
+Use Tracktion `Plugin::deleteFromParent()` rather than `removeFromParent()` for deletion. The
+plugin is leaving the edit entirely, so Tracktion should also hide related automation parameters
+and plugin windows instead of merely detaching the plugin for reinsertion elsewhere.
 
 ## Controller Slice
 
@@ -64,6 +70,7 @@ Add `EditorAction::Id::RemovePlugin` carrying an instance ID.
 Controller behavior:
 
 - ignore removal when no plugin host or no loaded arrangement exists
+- silently ignore a stale instance ID that is no longer present in `m_plugins`
 - call `m_plugin_host->removePlugin(instance_id)`
 - on success, erase the matching `PluginViewState`
 - renumber remaining `chain_index` values from zero
@@ -72,6 +79,11 @@ Controller behavior:
 
 Do not add busy overlay for remove. It should be quick, and if it is not, we should measure before
 adding more busy UI.
+
+Add an explicit `SignalChainViewState::remove_plugins_enabled` field rather than treating
+`add_plugin_enabled` as a proxy for all signal-chain mutation. The values will usually match in
+the current linear chain, but keeping them separate prevents Add Plugin availability from becoming
+hidden policy for remove, reorder, bypass, or future tone-slot operations.
 
 ## UI Slice
 
@@ -83,7 +95,7 @@ Preferred first pass:
 - render one compact row component per plugin, or store button bounds and handle clicks
 - use a small remove button on the right side of each row
 - emit `onRemovePluginPressed(std::string instance_id)` through the panel listener
-- disable remove controls when Add Plugin is disabled, because both mutate the chain
+- disable remove controls from `SignalChainViewState::remove_plugins_enabled`
 
 Using child row components is a little more code but easier to test and less fragile than manual
 hit-testing if rows gain more controls later.
@@ -113,14 +125,17 @@ UI tests:
 ## Suggested Implementation Order
 
 1. Add `removePlugin(instance_id)` to `IPluginHost`, `Engine`, and fakes.
-2. Add controller action, public controller callback, and controller tests.
-3. Add signal-chain panel remove controls and UI tests.
-4. Run focused core/audio/UI tests and focused clang-tidy.
+2. Add `PluginHostErrorCode::PluginInstanceNotFound`.
+3. Add explicit `remove_plugins_enabled` view state.
+4. Add controller action, public controller callback, and controller tests.
+5. Add signal-chain panel remove controls and UI tests.
+6. Run focused core/audio/UI tests and focused clang-tidy.
 
-## Open Questions
+## Settled First-Slice Decisions
 
-- Should a stale instance ID from the UI be silently ignored by the controller, or should it surface
-  an error? Prefer silent ignore if the controller no longer has that instance in `m_plugins`, and
-  typed error only when the backend rejects an instance that the controller still believes exists.
-- Should removing a plugin stop playback first, or should `Engine::removePlugin()` follow the same
-  stop/rebuild path as add? Prefer matching Add Plugin until measured otherwise.
+- Silently ignore a stale instance ID if the controller no longer has that instance in
+  `m_plugins`.
+- Surface a typed error only when the backend rejects an instance that the controller still
+  believes exists.
+- Match Add Plugin's stop/rebuild path until measurement shows removal needs different playback
+  behavior.

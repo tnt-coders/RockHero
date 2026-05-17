@@ -304,6 +304,15 @@ public:
     */
     void onAddPluginRequested(std::filesystem::path file) override;
 
+    /*!
+    \brief Removes a plugin instance from the current runtime plugin chain.
+
+    The runtime chain is not yet project-persistent, so removal does not mark the project dirty.
+
+    \param instance_id Opaque plugin instance ID selected by the user.
+    */
+    void onRemovePluginRequested(std::string instance_id) override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
