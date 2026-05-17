@@ -184,6 +184,14 @@ struct EditorAction
         std::string instance_id;
     };
 
+    /*! \brief Variant carrying project package write actions. */
+    using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
+
+    /*! \brief Variant carrying project-lifecycle actions that may be deferred by prompts. */
+    using ProjectAction = std::variant<
+        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
+        CloseProject, ExitApplication>;
+
     /*! \brief Variant carrying any controller action and its payload. */
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
@@ -197,5 +205,19 @@ struct EditorAction
 \return Matching EditorAction::Id member for the variant's current alternative.
 */
 [[nodiscard]] EditorAction::Id idOf(const EditorAction::Action& action);
+
+/*!
+\brief Returns the identity of a project-lifecycle action without exposing its payload.
+\param action Project-lifecycle action to identify.
+\return Matching EditorAction::Id member for the variant's current alternative.
+*/
+[[nodiscard]] EditorAction::Id idOf(const EditorAction::ProjectAction& action);
+
+/*!
+\brief Returns the identity of a project write action without exposing its payload.
+\param action Project write action to identify.
+\return Matching EditorAction::Id member for the variant's current alternative.
+*/
+[[nodiscard]] EditorAction::Id idOf(const EditorAction::ProjectWriteAction& action);
 
 } // namespace rock_hero::editor::core

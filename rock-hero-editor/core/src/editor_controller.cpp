@@ -25,6 +25,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -134,24 +135,6 @@ void defaultExit()
         .format_name = candidate.format_name,
         .chain_index = handle.chain_index,
     };
-}
-
-// Identifies project actions that perform package writes on the task runner.
-[[nodiscard]] bool isProjectWriteAction(EditorAction::Id action) noexcept
-{
-    switch (action)
-    {
-        case EditorAction::Id::SaveProject:
-        case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
-        {
-            return true;
-        }
-        default:
-        {
-            return false;
-        }
-    }
 }
 
 // Maps write actions to the busy operation shown while the worker owns Project IO.
@@ -281,8 +264,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
     [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
 
-    void requestProjectAction(EditorAction::Action action);
-    void runProjectAction(EditorAction::Action action);
+    void requestProjectAction(EditorAction::ProjectAction action);
+    void runProjectAction(EditorAction::ProjectAction action);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
     void importSongSource(const std::filesystem::path& file);
@@ -290,8 +273,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
-        EditorAction::Action action);
-    void runProjectWriteAction(EditorAction::Action action);
+        EditorAction::ProjectWriteAction action);
+    void runProjectWriteAction(EditorAction::ProjectWriteAction action);
     void completeProjectWriteAction(
         std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
     void continueDeferredAction();
@@ -363,8 +346,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True once current session changes need to be saved or discarded before replacement.
     bool m_has_unsaved_changes{false};
 
-    // Original action stashed while either an unsaved-changes prompt or a Save As prompt is open.
-    std::optional<EditorAction::Action> m_deferred_action{};
+    // Project-lifecycle action waiting for either unsaved-change confirmation or a Save As path.
+    std::optional<EditorAction::ProjectAction> m_deferred_action{};
 
     // True while the view should present an unsaved-changes prompt.
     bool m_unsaved_changes_prompt_visible{false};
@@ -423,11 +406,11 @@ struct EditorController::Impl::ImportTaskState
 // ownership with message-thread controller actions.
 struct EditorController::Impl::ProjectWriteTaskState
 {
-    explicit ProjectWriteTaskState(EditorAction::Action action_value)
+    explicit ProjectWriteTaskState(EditorAction::ProjectWriteAction action_value)
         : action(std::move(action_value))
     {}
 
-    EditorAction::Action action;
+    EditorAction::ProjectWriteAction action;
     Project project{};
     common::core::Song song{};
     ProjectEditorState editor_state{};
@@ -990,7 +973,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             m_save_requires_destination = false;
             if (deferred_id != EditorAction::Id::CloseProject)
             {
-                EditorAction::Action replay = std::move(*m_deferred_action);
+                EditorAction::ProjectAction replay = std::move(*m_deferred_action);
                 clearDeferredAction();
                 if (closeProject())
                 {
@@ -1253,7 +1236,7 @@ void EditorController::Impl::onTransportStateChanged(common::audio::TransportSta
 // Starts a project-level action or asks the view to confirm unsaved changes first. Callers pass
 // the original action; on dirty state the action itself is stashed for replay after the prompt
 // resolves.
-void EditorController::Impl::requestProjectAction(EditorAction::Action action)
+void EditorController::Impl::requestProjectAction(EditorAction::ProjectAction action)
 {
     if (hasUnsavedChanges())
     {
@@ -1271,7 +1254,7 @@ void EditorController::Impl::requestProjectAction(EditorAction::Action action)
 // re-pack the moved alternative into a fresh Action rather than capturing the outer variant by
 // reference, so the visit's view into the source variant cannot dangle if the destination move
 // reassigns it.
-void EditorController::Impl::runProjectAction(EditorAction::Action action)
+void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action)
 {
     std::visit(
         [this](auto&& a) {
@@ -1302,7 +1285,8 @@ void EditorController::Impl::runProjectAction(EditorAction::Action action)
                 std::is_same_v<A, EditorAction::PublishProject>
             )
             {
-                runProjectWriteAction(EditorAction::Action{std::forward<decltype(a)>(a)});
+                runProjectWriteAction(
+                    EditorAction::ProjectWriteAction{std::forward<decltype(a)>(a)});
             }
             else if constexpr (std::is_same_v<A, EditorAction::ExitApplication>)
             {
@@ -1319,9 +1303,6 @@ void EditorController::Impl::runProjectAction(EditorAction::Action action)
                     m_exit_function();
                 }
             }
-            // Non-project-action alternatives never reach here: callers (the project handlers in
-            // performActionImpl) only pass project-lifecycle alternatives. Falling through to a
-            // no-op keeps the visit total without an assert path.
         },
         std::move(action));
 }
@@ -1373,7 +1354,7 @@ bool EditorController::Impl::closeProject()
 
 // Snapshots message-thread state and transfers Project ownership to a write task so worker-side
 // package IO cannot race with controller-owned Project mutation.
-auto EditorController::Impl::takeProjectForWrite(EditorAction::Action action)
+auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteAction action)
     -> std::shared_ptr<ProjectWriteTaskState>
 {
     if (!m_project.has_value())
@@ -1391,10 +1372,8 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::Action action)
 
 // Runs project write actions through one task-runner path so busy lifetime, stale completion
 // checks, and project restoration stay consistent across save, save-as, and publish.
-void EditorController::Impl::runProjectWriteAction(EditorAction::Action action)
+void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAction action)
 {
-    assert(isProjectWriteAction(idOf(action)));
-
     auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
     {
@@ -1430,14 +1409,6 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::Action action)
                     {
                         state->result =
                             publish_function(state->project, alternative.file, state->song);
-                    }
-                    else
-                    {
-                        assert(false);
-                        state->result = std::unexpected{ProjectError{
-                            ProjectErrorCode::CouldNotWriteProjectFiles,
-                            "Unsupported project write action"
-                        }};
                     }
                 },
                 state->action);
@@ -1496,10 +1467,6 @@ void EditorController::Impl::completeProjectWriteAction(
             {
                 // Publish does not change save destination or dirty state.
             }
-            else
-            {
-                assert(false);
-            }
         },
         state->action);
 
@@ -1524,7 +1491,7 @@ void EditorController::Impl::continueDeferredAction()
         return;
     }
 
-    EditorAction::Action replay = std::move(*m_deferred_action);
+    EditorAction::ProjectAction replay = std::move(*m_deferred_action);
     clearDeferredAction();
     runProjectAction(std::move(replay));
 }
