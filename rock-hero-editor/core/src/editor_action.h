@@ -5,215 +5,197 @@
 
 #pragma once
 
-#include <cstdint>
 #include <filesystem>
+#include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <string>
+#include <utility>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
 
 /*!
-\brief Value object describing a controller action and its optional payload.
+\brief Outer struct holding every controller action case, the dispatch variant, and the id alias.
 
-EditorAction stays private to the editor core target. It gives controller entry points one
-consistent dispatch shape without publishing implementation routing details through
-EditorController's public API.
+EditorAction stays private to the editor core target. Case structs are nested values so call sites
+brace-init them directly (e.g. EditorAction::OpenProject{file}) and the variant's converting
+constructor wraps them on entry to runAction.
 */
-class EditorAction final
+struct EditorAction
 {
-public:
-    /*! \brief Identifies the controller action to run. */
-    enum class Id : std::uint8_t
+    /*! \brief Alias for the public identity enum used by routing tables and view state. */
+    using Id = EditorActionId;
+
+    /*! \brief Open a chosen editor project package. */
+    struct OpenProject
     {
-        /*! \brief Open a chosen editor project package. */
-        OpenProject,
+        /*!
+        \brief Creates an open-project action.
+        \param file_value Project package path selected by the user.
+        */
+        explicit OpenProject(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-        /*! \brief Restore the last-open editor project package during startup. */
-        RestoreProject,
-
-        /*! \brief Import a chosen song source into an unsaved project. */
-        ImportProject,
-
-        /*! \brief Save the current project to its existing destination. */
-        SaveProject,
-
-        /*! \brief Save the current project to a chosen destination. */
-        SaveProjectAs,
-
-        /*! \brief Publish the current song as a native song package. */
-        PublishProject,
-
-        /*! \brief Close the current project. */
-        CloseProject,
-
-        /*! \brief Exit the editor application. */
-        ExitApplication,
-
-        /*! \brief Resolve the active unsaved-changes prompt. */
-        ResolveUnsavedChangesPrompt,
-
-        /*! \brief Cancel a controller-requested Save As prompt. */
-        CancelSaveAsPrompt,
-
-        /*! \brief Toggle transport playback. */
-        PlayPause,
-
-        /*! \brief Stop playback or reset a paused cursor. */
-        Stop,
-
-        /*! \brief Seek from a normalized waveform coordinate. */
-        SeekWaveform,
-
-        /*! \brief Add a selected plugin file to the signal chain. */
-        AddPlugin,
-
-        /*! \brief Remove a plugin instance from the signal chain. */
-        RemovePlugin,
+        std::filesystem::path file;
     };
 
-    /*!
-    \brief Builds an open-project action.
-    \param file Project package path selected by the user.
-    \return Action carrying the package path.
-    */
-    [[nodiscard]] static EditorAction openProject(std::filesystem::path file);
+    /*! \brief Restore the last-open editor project package during startup. */
+    struct RestoreProject
+    {
+        /*!
+        \brief Creates a startup-restore action.
+        \param file_value Persisted project package path.
+        */
+        explicit RestoreProject(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-    /*!
-    \brief Builds a startup restore action.
-    \param file Persisted project package path.
-    \return Action carrying the package path.
-    */
-    [[nodiscard]] static EditorAction restoreProject(std::filesystem::path file);
+        std::filesystem::path file;
+    };
 
-    /*!
-    \brief Builds an import action.
-    \param file Song source path selected by the user.
-    \return Action carrying the source path.
-    */
-    [[nodiscard]] static EditorAction importProject(std::filesystem::path file);
+    /*! \brief Import a chosen song source into an unsaved project. */
+    struct ImportSong
+    {
+        /*!
+        \brief Creates an import-song action.
+        \param file_value Song source path selected by the user.
+        */
+        explicit ImportSong(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-    /*!
-    \brief Builds a direct save action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction saveProject() noexcept;
+        std::filesystem::path file;
+    };
 
-    /*!
-    \brief Builds a Save As action.
-    \param file Project package path selected by the user.
-    \return Action carrying the save destination.
-    */
-    [[nodiscard]] static EditorAction saveProjectAs(std::filesystem::path file);
+    /*! \brief Save the current project to its existing destination. */
+    struct SaveProject
+    {
+    };
 
-    /*!
-    \brief Builds a publish action.
-    \param file Native song package path selected by the user.
-    \return Action carrying the publish destination.
-    */
-    [[nodiscard]] static EditorAction publishProject(std::filesystem::path file);
+    /*! \brief Save the current project to a chosen destination. */
+    struct SaveProjectAs
+    {
+        /*!
+        \brief Creates a Save As action.
+        \param file_value Project package destination path.
+        */
+        explicit SaveProjectAs(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-    /*!
-    \brief Builds a close-project action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction closeProject() noexcept;
+        std::filesystem::path file;
+    };
 
-    /*!
-    \brief Builds an exit-application action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction exitApplication() noexcept;
+    /*! \brief Publish the current song as a native song package. */
+    struct PublishProject
+    {
+        /*!
+        \brief Creates a publish action.
+        \param file_value Native song package destination path.
+        */
+        explicit PublishProject(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-    /*!
-    \brief Builds an unsaved-changes prompt resolution action.
-    \param decision User-selected prompt decision.
-    \return Action carrying the prompt decision.
-    */
-    [[nodiscard]] static EditorAction resolveUnsavedChangesPrompt(
-        UnsavedChangesDecision decision) noexcept;
+        std::filesystem::path file;
+    };
 
-    /*!
-    \brief Builds a Save As cancellation action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction cancelSaveAsPrompt() noexcept;
+    /*! \brief Close the current project. */
+    struct CloseProject
+    {
+    };
 
-    /*!
-    \brief Builds a transport play/pause action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction playPause() noexcept;
+    /*! \brief Exit the editor application. */
+    struct ExitApplication
+    {
+    };
 
-    /*!
-    \brief Builds a transport stop action.
-    \return Action without an additional payload.
-    */
-    [[nodiscard]] static EditorAction stop() noexcept;
+    /*! \brief Resolve the active unsaved-changes prompt. */
+    struct ResolveUnsavedChangesPrompt
+    {
+        /*!
+        \brief Creates an unsaved-changes prompt resolution action.
+        \param decision_value User-selected prompt decision.
+        */
+        explicit constexpr ResolveUnsavedChangesPrompt(
+            UnsavedChangesDecision decision_value) noexcept
+            : decision(decision_value)
+        {}
 
-    /*!
-    \brief Builds a waveform seek action.
-    \param normalized_x Click position normalized to the interval [0, 1].
-    \return Action carrying the normalized coordinate.
-    */
-    [[nodiscard]] static EditorAction seekWaveform(double normalized_x) noexcept;
+        UnsavedChangesDecision decision;
+    };
 
-    /*!
-    \brief Builds an add-plugin action.
-    \param file Plugin file path selected by the user.
-    \return Action carrying the plugin file path.
-    */
-    [[nodiscard]] static EditorAction addPlugin(std::filesystem::path file);
+    /*! \brief Cancel a controller-requested Save As prompt. */
+    struct CancelSaveAsPrompt
+    {
+    };
 
-    /*!
-    \brief Builds a remove-plugin action.
-    \param instance_id Opaque plugin instance ID selected by the user.
-    \return Action carrying the plugin instance ID.
-    */
-    [[nodiscard]] static EditorAction removePlugin(std::string instance_id);
+    /*! \brief Toggle transport playback. */
+    struct PlayPause
+    {
+    };
 
-    /*!
-    \brief Returns the action identity.
-    \return Action id used by routing and availability policy.
-    */
-    [[nodiscard]] Id id() const noexcept;
+    /*! \brief Stop playback or reset a paused cursor. */
+    struct Stop
+    {
+    };
 
-    /*!
-    \brief Returns the unsaved-changes decision payload.
-    \return Stored decision for ResolveUnsavedChangesPrompt actions.
-    */
-    [[nodiscard]] UnsavedChangesDecision decision() const noexcept;
+    /*! \brief Seek from a normalized waveform coordinate. */
+    struct SeekWaveform
+    {
+        /*!
+        \brief Creates a waveform seek action.
+        \param normalized_x_value Click position normalized to the interval [0, 1].
+        */
+        explicit constexpr SeekWaveform(double normalized_x_value) noexcept
+            : normalized_x(normalized_x_value)
+        {}
 
-    /*!
-    \brief Returns the normalized waveform coordinate payload.
-    \return Stored normalized x coordinate for SeekWaveform actions.
-    */
-    [[nodiscard]] double normalizedX() const noexcept;
+        double normalized_x;
+    };
 
-    /*!
-    \brief Moves the file payload out of the action.
-    \return Stored path for file-backed actions.
-    */
-    [[nodiscard]] std::filesystem::path takeFile() noexcept;
+    /*! \brief Add a selected plugin file to the signal chain. */
+    struct AddPlugin
+    {
+        /*!
+        \brief Creates an add-plugin action.
+        \param file_value Plugin file path selected by the user.
+        */
+        explicit AddPlugin(std::filesystem::path file_value)
+            : file(std::move(file_value))
+        {}
 
-    /*!
-    \brief Moves the plugin instance ID payload out of the action.
-    \return Stored instance ID for remove-plugin actions.
-    */
-    [[nodiscard]] std::string takeInstanceId() noexcept;
+        std::filesystem::path file;
+    };
 
-private:
-    explicit EditorAction(Id id) noexcept;
-    EditorAction(Id id, std::filesystem::path file);
-    EditorAction(Id id, std::string instance_id);
-    EditorAction(Id id, UnsavedChangesDecision decision) noexcept;
-    EditorAction(Id id, double normalized_x) noexcept;
+    /*! \brief Remove a plugin instance from the signal chain. */
+    struct RemovePlugin
+    {
+        /*!
+        \brief Creates a remove-plugin action.
+        \param instance_id_value Opaque plugin instance ID selected by the user.
+        */
+        explicit RemovePlugin(std::string instance_id_value)
+            : instance_id(std::move(instance_id_value))
+        {}
 
-    Id m_id{Id::SaveProject};
-    std::filesystem::path m_file{};
-    std::string m_instance_id;
-    UnsavedChangesDecision m_decision{UnsavedChangesDecision::Cancel};
-    double m_normalized_x{};
+        std::string instance_id;
+    };
+
+    /*! \brief Variant carrying any controller action and its payload. */
+    using Action = std::variant<
+        OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
+        CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
+        Stop, SeekWaveform, AddPlugin, RemovePlugin>;
 };
+
+/*!
+\brief Returns the identity of an action without exposing its payload.
+\param action Action to identify.
+\return Matching EditorAction::Id member for the variant's current alternative.
+*/
+[[nodiscard]] EditorAction::Id idOf(const EditorAction::Action& action);
 
 } // namespace rock_hero::editor::core

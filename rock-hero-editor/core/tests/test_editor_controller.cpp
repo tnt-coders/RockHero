@@ -1044,8 +1044,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                         },
                     },
             },
-        .unsaved_changes_prompt = UnsavedChangesPrompt{.command = ProjectCommandId::Close},
-        .save_as_prompt = SaveAsPrompt{.command = ProjectCommandId::Close},
+        .unsaved_changes_prompt = UnsavedChangesPrompt{EditorActionId::CloseProject},
+        .save_as_prompt = SaveAsPrompt{EditorActionId::CloseProject},
         .busy = std::nullopt,
     };
 
@@ -1060,10 +1060,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.signal_chain.plugins[0].name == "Amp Sim");
     CHECK(
         loaded_state.unsaved_changes_prompt ==
-        std::optional{UnsavedChangesPrompt{.command = ProjectCommandId::Close}});
-    CHECK(
-        loaded_state.save_as_prompt ==
-        std::optional{SaveAsPrompt{.command = ProjectCommandId::Close}});
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
+    CHECK(loaded_state.save_as_prompt == std::optional{SaveAsPrompt{EditorActionId::CloseProject}});
 }
 
 // Verifies a fake controller can receive editor intents without JUCE callback types.
@@ -1951,6 +1949,49 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     CHECK_FALSE(settings.lastOpenProject().has_value());
 }
 
+// A restore request fired while the controller already has dirty work routes through the same
+// unsaved-changes gate as Open, instead of overwriting the in-progress project. Today this only
+// matters as a guard for future call sites that invoke RestoreProject after startup (a
+// reopen-last-session menu item, a crash-recovery flow, etc.); the startup path is unaffected
+// because the controller has nothing loaded yet at that point.
+TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"restore_prompts_unsaved"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .import_function = project_services.importFunction(),
+            .settings = &settings,
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    const int open_call_count_before_restore = project_services.open_call_count;
+    controller.restoreLastOpenProject();
+
+    CHECK(project_services.open_call_count == open_call_count_before_restore);
+    REQUIRE(view.last_state.has_value());
+    if (view.last_state.has_value())
+    {
+        const EditorViewState& prompt_state = view.last_state.value();
+        CHECK(
+            prompt_state.unsaved_changes_prompt ==
+            std::optional{UnsavedChangesPrompt{EditorActionId::RestoreProject}});
+    }
+}
+
 // Exiting persists the editor project path before requesting host shutdown.
 TEST_CASE("EditorController persists project file on exit", "[core][editor-controller]")
 {
@@ -2361,7 +2402,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
         const EditorViewState& prompt_state = view.last_state.value();
         CHECK(
             prompt_state.unsaved_changes_prompt ==
-            std::optional{UnsavedChangesPrompt{.command = ProjectCommandId::Close}});
+            std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
     }
     CHECK(audio.clear_active_arrangement_call_count == 0);
 
@@ -2411,7 +2452,7 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
         const EditorViewState& prompt_state = view.last_state.value();
         CHECK(
             prompt_state.save_as_prompt ==
-            std::optional{SaveAsPrompt{.command = ProjectCommandId::Close}});
+            std::optional{SaveAsPrompt{EditorActionId::CloseProject}});
     }
 
     controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
@@ -2465,7 +2506,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
         const EditorViewState& prompt_state = view.last_state.value();
         CHECK(
             prompt_state.unsaved_changes_prompt ==
-            std::optional{UnsavedChangesPrompt{.command = ProjectCommandId::Exit}});
+            std::optional{UnsavedChangesPrompt{EditorActionId::ExitApplication}});
     }
     CHECK(exit_call_count == 0);
 
