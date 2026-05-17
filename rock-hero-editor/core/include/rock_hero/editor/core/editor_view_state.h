@@ -11,36 +11,12 @@
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
 #include <rock_hero/editor/core/busy_view_state.h>
+#include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core
 {
-
-/*! \brief Identity for a project-level command waiting on editor prompts. */
-enum class ProjectCommandId : std::uint8_t
-{
-    /*! \brief Closes the current editor project. */
-    Close,
-
-    /*! \brief Opens an editor project package from disk. */
-    Open,
-
-    /*! \brief Imports a song source into a new unsaved editor project. */
-    Import,
-
-    /*! \brief Saves the current editor project to its existing package path. */
-    Save,
-
-    /*! \brief Saves the current editor project to a selected package path. */
-    SaveAs,
-
-    /*! \brief Publishes the current editor project as a native song package. */
-    Publish,
-
-    /*! \brief Exits the editor application. */
-    Exit,
-};
 
 /*! \brief User choice returned from the unsaved-changes confirmation prompt. */
 enum class UnsavedChangesDecision : std::uint8_t
@@ -50,11 +26,25 @@ enum class UnsavedChangesDecision : std::uint8_t
     Cancel,
 };
 
-/*! \brief Describes the unsaved-changes prompt the view should present. */
+/*!
+\brief Describes the unsaved-changes prompt the view should present.
+
+The prompt only appears in view state when the controller has a deferred action waiting on the
+user's decision, so prompted_action has no meaningful default; callers must initialize it
+explicitly with the deferred action's identity.
+*/
 struct UnsavedChangesPrompt
 {
-    /*! \brief Command that will continue if the user saves or discards changes. */
-    ProjectCommandId command{ProjectCommandId::Close};
+    /*!
+    \brief Creates a prompt request for a deferred action.
+    \param action Action the prompt is currently about.
+    */
+    explicit constexpr UnsavedChangesPrompt(EditorActionId action) noexcept
+        : prompted_action(action)
+    {}
+
+    /*! \brief Action the prompt is currently about; controls the prompt text. */
+    EditorActionId prompted_action;
 
     /*!
     \brief Compares two prompt requests by their stored values.
@@ -66,11 +56,24 @@ struct UnsavedChangesPrompt
         default;
 };
 
-/*! \brief Describes a controller-requested Save As chooser. */
+/*!
+\brief Describes a controller-requested Save As chooser.
+
+Same as UnsavedChangesPrompt, prompted_action only exists when the chooser is being requested for
+a known deferred action and must be initialized explicitly.
+*/
 struct SaveAsPrompt
 {
-    /*! \brief Command that will continue after the user selects a save destination. */
-    ProjectCommandId command{ProjectCommandId::Close};
+    /*!
+    \brief Creates a Save As prompt request for a deferred action.
+    \param action Action the chooser will continue.
+    */
+    explicit constexpr SaveAsPrompt(EditorActionId action) noexcept
+        : prompted_action(action)
+    {}
+
+    /*! \brief Action the chooser will continue once the user selects a save destination. */
+    EditorActionId prompted_action;
 
     /*!
     \brief Compares two Save As prompt requests by their stored values.

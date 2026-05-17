@@ -1,7 +1,6 @@
 #include "editor_controller.h"
 
 #include "editor_action.h"
-#include "project_command.h"
 
 #include <algorithm>
 #include <cassert>
@@ -137,89 +136,72 @@ void defaultExit()
     };
 }
 
-// Identifies project commands that perform package writes on the task runner.
-[[nodiscard]] bool isProjectWriteCommand(ProjectCommandId command) noexcept
+// Identifies project actions that perform package writes on the task runner.
+[[nodiscard]] bool isProjectWriteAction(EditorAction::Id action) noexcept
 {
-    switch (command)
+    switch (action)
     {
-        case ProjectCommandId::Save:
-        case ProjectCommandId::SaveAs:
-        case ProjectCommandId::Publish:
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::PublishProject:
         {
             return true;
         }
-        case ProjectCommandId::Close:
-        case ProjectCommandId::Open:
-        case ProjectCommandId::Import:
-        case ProjectCommandId::Exit:
+        default:
         {
             return false;
         }
     }
-
-    return false;
 }
 
-// Maps write commands to the busy operation shown while the worker owns Project IO.
-[[nodiscard]] BusyOperation busyOperationForProjectWrite(ProjectCommandId command) noexcept
+// Maps write actions to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(EditorAction::Id action) noexcept
 {
-    switch (command)
+    switch (action)
     {
-        case ProjectCommandId::Save:
+        case EditorAction::Id::SaveProject:
         {
             return BusyOperation::SavingProject;
         }
-        case ProjectCommandId::SaveAs:
+        case EditorAction::Id::SaveProjectAs:
         {
             return BusyOperation::SavingProjectAs;
         }
-        case ProjectCommandId::Publish:
+        case EditorAction::Id::PublishProject:
         {
             return BusyOperation::PublishingProject;
         }
-        case ProjectCommandId::Close:
-        case ProjectCommandId::Open:
-        case ProjectCommandId::Import:
-        case ProjectCommandId::Exit:
+        default:
         {
             assert(false);
             return BusyOperation::SavingProject;
         }
     }
-
-    assert(false);
-    return BusyOperation::SavingProject;
 }
 
-// Keeps write failure prefixes coupled to the command identity rather than split by call site.
-[[nodiscard]] std::string_view projectWriteErrorPrefix(ProjectCommandId command) noexcept
+// Keeps write failure prefixes coupled to the action identity rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(EditorAction::Id action) noexcept
 {
-    switch (command)
+    switch (action)
     {
-        case ProjectCommandId::Save:
+        case EditorAction::Id::SaveProject:
         {
             return "Could not save: ";
         }
-        case ProjectCommandId::SaveAs:
+        case EditorAction::Id::SaveProjectAs:
         {
             return "Could not save as: ";
         }
-        case ProjectCommandId::Publish:
+        case EditorAction::Id::PublishProject:
         {
             return "Could not publish: ";
         }
-        case ProjectCommandId::Close:
-        case ProjectCommandId::Open:
-        case ProjectCommandId::Import:
-        case ProjectCommandId::Exit:
+        default:
         {
             assert(false);
             return "Could not write project: ";
         }
     }
-
-    assert(false);
-    return "Could not write project: ";
 }
 
 } // namespace
@@ -277,15 +259,30 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
-    void runAction(EditorAction action);
+    void runAction(EditorAction::Action action);
     [[nodiscard]] bool prepareAction(EditorAction::Id action);
-    void performAction(EditorAction action);
+    void performAction(EditorAction::Action action);
+    void performActionImpl(EditorAction::OpenProject action);
+    void performActionImpl(EditorAction::RestoreProject action);
+    void performActionImpl(EditorAction::ImportSong action);
+    void performActionImpl(EditorAction::SaveProject action);
+    void performActionImpl(EditorAction::SaveProjectAs action);
+    void performActionImpl(EditorAction::PublishProject action);
+    void performActionImpl(EditorAction::CloseProject action);
+    void performActionImpl(EditorAction::ExitApplication action);
+    void performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action);
+    void performActionImpl(EditorAction::CancelSaveAsPrompt action);
+    void performActionImpl(EditorAction::PlayPause action);
+    void performActionImpl(EditorAction::Stop action);
+    void performActionImpl(EditorAction::SeekWaveform action);
+    void performActionImpl(const EditorAction::AddPlugin& action);
+    void performActionImpl(const EditorAction::RemovePlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
     [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
 
-    void requestProjectCommand(ProjectCommand command);
-    void runProjectCommand(ProjectCommand command);
+    void requestProjectAction(EditorAction::Action action);
+    void runProjectAction(EditorAction::Action action);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
     void importSongSource(const std::filesystem::path& file);
@@ -293,12 +290,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
-        ProjectCommand command);
-    void runProjectWriteCommand(ProjectCommand command);
-    void completeProjectWriteCommand(
+        EditorAction::Action action);
+    void runProjectWriteAction(EditorAction::Action action);
+    void completeProjectWriteAction(
         std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
-    void continueDeferredProjectCommand();
-    void clearDeferredProjectCommand() noexcept;
+    void continueDeferredAction();
+    void clearDeferredAction() noexcept;
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
     [[nodiscard]] bool loadSessionSong(
         common::core::Song song, const std::optional<std::string>& selected_arrangement);
@@ -366,8 +363,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True once current session changes need to be saved or discarded before replacement.
     bool m_has_unsaved_changes{false};
 
-    // Project command waiting for either unsaved-change confirmation or a prompted Save As path.
-    std::optional<ProjectCommand> m_pending_project_command{};
+    // Original action stashed while either an unsaved-changes prompt or a Save As prompt is open.
+    std::optional<EditorAction::Action> m_deferred_action{};
 
     // True while the view should present an unsaved-changes prompt.
     bool m_unsaved_changes_prompt_visible{false};
@@ -426,11 +423,11 @@ struct EditorController::Impl::ImportTaskState
 // ownership with message-thread controller actions.
 struct EditorController::Impl::ProjectWriteTaskState
 {
-    explicit ProjectWriteTaskState(ProjectCommand command_value)
-        : command(std::move(command_value))
+    explicit ProjectWriteTaskState(EditorAction::Action action_value)
+        : action(std::move(action_value))
     {}
 
-    ProjectCommand command;
+    EditorAction::Action action;
     Project project{};
     common::core::Song song{};
     ProjectEditorState editor_state{};
@@ -641,7 +638,7 @@ void EditorController::Impl::attachView(IEditorView& view)
 // Opens an editor project package and stores it after audio and Session both accept the song.
 void EditorController::Impl::onOpenRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::openProject(std::move(file)));
+    runAction(EditorAction::OpenProject{std::move(file)});
 }
 
 // Opens an editor project package after any project-replacement prompt has been satisfied.
@@ -716,7 +713,7 @@ void EditorController::Impl::completeOpenProject(
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
-    clearDeferredProjectCommand();
+    clearDeferredAction();
     finishBusyOperation();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
@@ -727,7 +724,7 @@ void EditorController::Impl::completeOpenProject(
 // Imports a song source and stores the workspace only after audio and Session accept the song.
 void EditorController::Impl::onImportRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::importProject(std::move(file)));
+    runAction(EditorAction::ImportSong{std::move(file)});
 }
 
 // Imports a song source after any current project-replacement prompt has been satisfied. Same
@@ -787,7 +784,7 @@ void EditorController::Impl::completeImportSongSource(
     m_project_file.clear();
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
-    clearDeferredProjectCommand();
+    clearDeferredAction();
     finishBusyOperation();
 
     // The single derive-and-push below also satisfies any deferred transport refresh that may
@@ -798,79 +795,79 @@ void EditorController::Impl::completeImportSongSource(
 // Saves to the current destination when one exists; Save As is responsible for destination choice.
 void EditorController::Impl::onSaveRequested()
 {
-    runAction(EditorAction::saveProject());
+    runAction(EditorAction::SaveProject{});
 }
 
 // Saves to a chosen destination and promotes future Save commands to direct saves.
 void EditorController::Impl::onSaveAsRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::saveProjectAs(std::move(file)));
+    runAction(EditorAction::SaveProjectAs{std::move(file)});
 }
 
 // Publishes the current project as a native song package without changing save destination or
 // dirty state.
 void EditorController::Impl::onPublishRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::publishProject(std::move(file)));
+    runAction(EditorAction::PublishProject{std::move(file)});
 }
 
 // Cancels only a Save As chooser that was opened to continue a deferred project command.
 void EditorController::Impl::onSaveAsCancelled()
 {
-    runAction(EditorAction::cancelSaveAsPrompt());
+    runAction(EditorAction::CancelSaveAsPrompt{});
 }
 
 // Closes the current project after prompting for unsaved changes when needed.
 void EditorController::Impl::onCloseRequested()
 {
-    runAction(EditorAction::closeProject());
+    runAction(EditorAction::CloseProject{});
 }
 
 // Exits through the composition host after prompting for unsaved changes when needed.
 void EditorController::Impl::onExitRequested()
 {
-    runAction(EditorAction::exitApplication());
+    runAction(EditorAction::ExitApplication{});
 }
 
 // Applies the user's unsaved-changes choice to the stored deferred project command.
 void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision decision)
 {
-    runAction(EditorAction::resolveUnsavedChangesPrompt(decision));
+    runAction(EditorAction::ResolveUnsavedChangesPrompt{decision});
 }
 
 // Ignores the intent until audio activation has committed an arrangement, otherwise toggles
 // playback.
 void EditorController::Impl::onPlayPausePressed()
 {
-    runAction(EditorAction::playPause());
+    runAction(EditorAction::PlayPause{});
 }
 
 // Mirrors the published stop_enabled gate so the keyboard or alternate input paths cannot stop a
 // transport the view considers already reset.
 void EditorController::Impl::onStopPressed()
 {
-    runAction(EditorAction::stop());
+    runAction(EditorAction::Stop{});
 }
 
 // Clamps the normalized input and converts it through the session timeline so the seek target
 // stays inside the loaded content even when the view emits out-of-range values.
 void EditorController::Impl::onWaveformClicked(double normalized_x)
 {
-    runAction(EditorAction::seekWaveform(normalized_x));
+    runAction(EditorAction::SeekWaveform{normalized_x});
 }
 
 // Handles the first plugin UI flow: scan one selected VST3 file, append the first discovered
 // candidate, and publish enough state for the panel to show the linear chain.
 void EditorController::Impl::onAddPluginRequested(std::filesystem::path file)
 {
-    runAction(EditorAction::addPlugin(std::move(file)));
+    runAction(EditorAction::AddPlugin{std::move(file)});
 }
 
 // Removes one runtime plugin instance from the current linear chain without marking the project
 // dirty while tone persistence does not exist.
 void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
 {
-    runAction(EditorAction::removePlugin(std::move(instance_id)));
+    runAction(EditorAction::RemovePlugin{std::move(instance_id)});
 }
 
 // Persists the new device manager state and re-derives view state after a configuration change.
@@ -881,9 +878,9 @@ void EditorController::Impl::onAudioDeviceConfigurationChanged()
 }
 
 // Applies the central action gate and routes the accepted action.
-void EditorController::Impl::runAction(EditorAction action)
+void EditorController::Impl::runAction(EditorAction::Action action)
 {
-    if (!prepareAction(action.id()))
+    if (!prepareAction(idOf(action)))
     {
         return;
     }
@@ -908,236 +905,231 @@ bool EditorController::Impl::prepareAction(EditorAction::Id action)
     return true;
 }
 
-// Executes an accepted action. Payload access stays centralized here so controller entry points
-// stay readable and do not hand-roll action bodies.
-void EditorController::Impl::performAction(EditorAction action)
+// Visits the variant once and dispatches to a typed overload per case. The overloads keep each
+// case body short and individually testable, with payload access through the alternative's fields.
+void EditorController::Impl::performAction(EditorAction::Action action)
 {
-    switch (action.id())
+    std::visit(
+        [this](auto&& a) { performActionImpl(std::forward<decltype(a)>(a)); }, std::move(action));
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::OpenProject action)
+{
+    requestProjectAction(EditorAction::OpenProject{std::move(action.file)});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::RestoreProject action)
+{
+    requestProjectAction(EditorAction::RestoreProject{std::move(action.file)});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ImportSong action)
+{
+    requestProjectAction(EditorAction::ImportSong{std::move(action.file)});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::SaveProject /*action*/)
+{
+    if (m_save_requires_destination)
     {
-        case EditorAction::Id::OpenProject:
-        {
-            requestProjectCommand(ProjectCommand::open(action.takeFile()));
-            break;
-        }
-        case EditorAction::Id::RestoreProject:
-        {
-            const std::filesystem::path file = action.takeFile();
-            openProject(file, true);
-            break;
-        }
-        case EditorAction::Id::ImportProject:
-        {
-            requestProjectCommand(ProjectCommand::importSong(action.takeFile()));
-            break;
-        }
-        case EditorAction::Id::SaveProject:
+        return;
+    }
+    runProjectAction(EditorAction::SaveProject{});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::SaveProjectAs action)
+{
+    runProjectAction(EditorAction::SaveProjectAs{std::move(action.file)});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::PublishProject action)
+{
+    runProjectAction(EditorAction::PublishProject{std::move(action.file)});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::CloseProject /*action*/)
+{
+    requestProjectAction(EditorAction::CloseProject{});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ExitApplication /*action*/)
+{
+    requestProjectAction(EditorAction::ExitApplication{});
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action)
+{
+    if (!m_deferred_action.has_value())
+    {
+        clearDeferredAction();
+        deriveAndPush();
+        return;
+    }
+
+    m_unsaved_changes_prompt_visible = false;
+    switch (action.decision)
+    {
+        case UnsavedChangesDecision::Save:
         {
             if (m_save_requires_destination)
             {
-                return;
-            }
-
-            runProjectCommand(ProjectCommand::save());
-            break;
-        }
-        case EditorAction::Id::SaveProjectAs:
-        {
-            runProjectCommand(ProjectCommand::saveAs(action.takeFile()));
-            break;
-        }
-        case EditorAction::Id::PublishProject:
-        {
-            runProjectCommand(ProjectCommand::publish(action.takeFile()));
-            break;
-        }
-        case EditorAction::Id::CloseProject:
-        {
-            requestProjectCommand(ProjectCommand::close());
-            break;
-        }
-        case EditorAction::Id::ExitApplication:
-        {
-            requestProjectCommand(ProjectCommand::exit());
-            break;
-        }
-        case EditorAction::Id::ResolveUnsavedChangesPrompt:
-        {
-            if (!m_pending_project_command.has_value())
-            {
-                clearDeferredProjectCommand();
+                m_save_as_prompt_visible = true;
                 deriveAndPush();
                 return;
             }
 
-            m_unsaved_changes_prompt_visible = false;
-            switch (action.decision())
+            // The deferred action stays in m_deferred_action so completeProjectWriteAction can
+            // resume it after the save commits, and drop it if the save fails.
+            runProjectAction(EditorAction::SaveProject{});
+            break;
+        }
+        case UnsavedChangesDecision::Discard:
+        {
+            const EditorAction::Id deferred_id = idOf(*m_deferred_action);
+            m_has_unsaved_changes = false;
+            m_save_requires_destination = false;
+            if (deferred_id != EditorAction::Id::CloseProject)
             {
-                case UnsavedChangesDecision::Save:
+                EditorAction::Action replay = std::move(*m_deferred_action);
+                clearDeferredAction();
+                if (closeProject())
                 {
-                    if (m_save_requires_destination)
-                    {
-                        m_save_as_prompt_visible = true;
-                        deriveAndPush();
-                        return;
-                    }
-
-                    runProjectCommand(ProjectCommand::saveBeforeDeferredCommand());
-                    break;
+                    runProjectAction(std::move(replay));
                 }
-                case UnsavedChangesDecision::Discard:
-                {
-                    const ProjectCommandId command_id = m_pending_project_command->id();
-                    m_has_unsaved_changes = false;
-                    m_save_requires_destination = false;
-                    if (command_id != ProjectCommandId::Close)
-                    {
-                        ProjectCommand command = std::move(*m_pending_project_command);
-                        clearDeferredProjectCommand();
-                        if (closeProject())
-                        {
-                            runProjectCommand(std::move(command));
-                        }
-                        return;
-                    }
-
-                    continueDeferredProjectCommand();
-                    break;
-                }
-                case UnsavedChangesDecision::Cancel:
-                {
-                    clearDeferredProjectCommand();
-                    deriveAndPush();
-                    break;
-                }
+                return;
             }
+
+            continueDeferredAction();
             break;
         }
-        case EditorAction::Id::CancelSaveAsPrompt:
+        case UnsavedChangesDecision::Cancel:
         {
-            if (!m_save_as_prompt_visible)
-            {
-                return;
-            }
-
-            clearDeferredProjectCommand();
-            deriveAndPush();
-            break;
-        }
-        case EditorAction::Id::PlayPause:
-        {
-            if (!hasLoadedArrangement())
-            {
-                return;
-            }
-
-            if (m_transport.state().playing)
-            {
-                m_transport.pause();
-            }
-            else
-            {
-                m_transport.play();
-            }
-            break;
-        }
-        case EditorAction::Id::Stop:
-        {
-            const common::audio::TransportState transport_state = m_transport.state();
-            if (!canStopTransport(transport_state))
-            {
-                return;
-            }
-            m_transport.stop();
-
-            if (!transport_state.playing)
-            {
-                deriveAndPush();
-            }
-            break;
-        }
-        case EditorAction::Id::SeekWaveform:
-        {
-            const double normalized_x = action.normalizedX();
-            const double clamped = std::clamp(normalized_x, 0.0, 1.0);
-            const common::core::TimeRange timeline_range = session().timeline();
-            const double target_seconds =
-                timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
-            m_transport.seek(timeline_range.clamp(common::core::TimePosition{target_seconds}));
-            deriveAndPush();
-            break;
-        }
-        case EditorAction::Id::AddPlugin:
-        {
-            if (m_plugin_host == nullptr || !hasLoadedArrangement())
-            {
-                return;
-            }
-
-            const std::filesystem::path file = action.takeFile();
-            const auto candidates = m_plugin_host->scanPluginFile(file);
-            if (!candidates.has_value())
-            {
-                reportError(std::string{"Could not scan plugin: "} + candidates.error().message);
-                deriveAndPush();
-                return;
-            }
-
-            if (candidates->empty())
-            {
-                reportError("Could not scan plugin: no compatible plugin was found");
-                deriveAndPush();
-                return;
-            }
-
-            const common::audio::PluginCandidate& candidate = candidates->front();
-            const auto handle = m_plugin_host->addPlugin(candidate.id);
-            if (!handle.has_value())
-            {
-                reportError(std::string{"Could not add plugin: "} + handle.error().message);
-                deriveAndPush();
-                return;
-            }
-
-            // Tone persistence is not implemented yet, so the panel tracks the runtime chain
-            // without marking the project dirty for data Save cannot currently restore.
-            m_plugins.push_back(makePluginViewState(candidate, *handle));
-            deriveAndPush();
-            break;
-        }
-        case EditorAction::Id::RemovePlugin:
-        {
-            if (m_plugin_host == nullptr || !hasLoadedArrangement())
-            {
-                return;
-            }
-
-            const std::string instance_id = action.takeInstanceId();
-            const auto plugin =
-                std::ranges::find_if(m_plugins, [&instance_id](const PluginViewState& item) {
-                    return item.instance_id == instance_id;
-                });
-            if (plugin == m_plugins.end())
-            {
-                return;
-            }
-
-            const auto result = m_plugin_host->removePlugin(instance_id);
-            if (!result.has_value())
-            {
-                reportError(std::string{"Could not remove plugin: "} + result.error().message);
-                deriveAndPush();
-                return;
-            }
-
-            m_plugins.erase(plugin);
-            for (std::size_t index = 0; index < m_plugins.size(); ++index)
-            {
-                m_plugins[index].chain_index = index;
-            }
+            clearDeferredAction();
             deriveAndPush();
             break;
         }
     }
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::CancelSaveAsPrompt /*action*/)
+{
+    if (!m_save_as_prompt_visible)
+    {
+        return;
+    }
+
+    clearDeferredAction();
+    deriveAndPush();
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    if (m_transport.state().playing)
+    {
+        m_transport.pause();
+    }
+    else
+    {
+        m_transport.play();
+    }
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
+{
+    const common::audio::TransportState transport_state = m_transport.state();
+    if (!canStopTransport(transport_state))
+    {
+        return;
+    }
+    m_transport.stop();
+
+    if (!transport_state.playing)
+    {
+        deriveAndPush();
+    }
+}
+
+void EditorController::Impl::performActionImpl(EditorAction::SeekWaveform action)
+{
+    const double clamped = std::clamp(action.normalized_x, 0.0, 1.0);
+    const common::core::TimeRange timeline_range = session().timeline();
+    const double target_seconds =
+        timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
+    m_transport.seek(timeline_range.clamp(common::core::TimePosition{target_seconds}));
+    deriveAndPush();
+}
+
+void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& action)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    const auto candidates = m_plugin_host->scanPluginFile(action.file);
+    if (!candidates.has_value())
+    {
+        reportError(std::string{"Could not scan plugin: "} + candidates.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    if (candidates->empty())
+    {
+        reportError("Could not scan plugin: no compatible plugin was found");
+        deriveAndPush();
+        return;
+    }
+
+    const common::audio::PluginCandidate& candidate = candidates->front();
+    const auto handle = m_plugin_host->addPlugin(candidate.id);
+    if (!handle.has_value())
+    {
+        reportError(std::string{"Could not add plugin: "} + handle.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    // Tone persistence is not implemented yet, so the panel tracks the runtime chain without
+    // marking the project dirty for data Save cannot currently restore.
+    m_plugins.push_back(makePluginViewState(candidate, *handle));
+    deriveAndPush();
+}
+
+void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin& action)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    const auto plugin = std::ranges::find_if(m_plugins, [&action](const PluginViewState& item) {
+        return item.instance_id == action.instance_id;
+    });
+    if (plugin == m_plugins.end())
+    {
+        return;
+    }
+
+    const auto result = m_plugin_host->removePlugin(action.instance_id);
+    if (!result.has_value())
+    {
+        reportError(std::string{"Could not remove plugin: "} + result.error().message);
+        deriveAndPush();
+        return;
+    }
+
+    m_plugins.erase(plugin);
+    for (std::size_t index = 0; index < m_plugins.size(); ++index)
+    {
+        m_plugins[index].chain_index = index;
+    }
+    deriveAndPush();
 }
 
 // Combines natural action availability with the action's busy-state policy.
@@ -1173,7 +1165,7 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
     {
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportProject:
+        case EditorAction::Id::ImportSong:
         case EditorAction::Id::ExitApplication:
         {
             return true;
@@ -1187,7 +1179,7 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         }
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         {
-            return m_pending_project_command.has_value() && m_unsaved_changes_prompt_visible;
+            return m_deferred_action.has_value() && m_unsaved_changes_prompt_visible;
         }
         case EditorAction::Id::CancelSaveAsPrompt:
         {
@@ -1228,7 +1220,7 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportProject:
+        case EditorAction::Id::ImportSong:
         case EditorAction::Id::SaveProject:
         case EditorAction::Id::SaveProjectAs:
         case EditorAction::Id::PublishProject:
@@ -1258,71 +1250,80 @@ void EditorController::Impl::onTransportStateChanged(common::audio::TransportSta
     deriveAndPush();
 }
 
-// Starts a project-level command or asks the view to confirm unsaved changes first.
-void EditorController::Impl::requestProjectCommand(ProjectCommand command)
+// Starts a project-level action or asks the view to confirm unsaved changes first. Callers pass
+// the original action; on dirty state the action itself is stashed for replay after the prompt
+// resolves.
+void EditorController::Impl::requestProjectAction(EditorAction::Action action)
 {
     if (hasUnsavedChanges())
     {
-        m_pending_project_command = std::move(command);
+        m_deferred_action = std::move(action);
         m_unsaved_changes_prompt_visible = true;
         m_save_as_prompt_visible = false;
         deriveAndPush();
         return;
     }
 
-    runProjectCommand(std::move(command));
+    runProjectAction(std::move(action));
 }
 
-// Runs a project-level command once dirty-state gates have been satisfied.
-void EditorController::Impl::runProjectCommand(ProjectCommand command)
+// Runs a project-level action once dirty-state gates have been satisfied. Write-side cases
+// re-pack the moved alternative into a fresh Action rather than capturing the outer variant by
+// reference, so the visit's view into the source variant cannot dangle if the destination move
+// reassigns it.
+void EditorController::Impl::runProjectAction(EditorAction::Action action)
 {
-    switch (command.id())
-    {
-        case ProjectCommandId::Close:
-        {
-            if (closeProject())
+    std::visit(
+        [this](auto&& a) {
+            using A = std::decay_t<decltype(a)>;
+            if constexpr (std::is_same_v<A, EditorAction::CloseProject>)
             {
-                clearDeferredProjectCommand();
-                deriveAndPush();
-            }
-            break;
-        }
-        case ProjectCommandId::Open:
-        {
-            const std::filesystem::path file = command.takeFile();
-            openProject(file, false);
-            break;
-        }
-        case ProjectCommandId::Import:
-        {
-            const std::filesystem::path file = command.takeFile();
-            importSongSource(file);
-            break;
-        }
-        case ProjectCommandId::Save:
-        case ProjectCommandId::SaveAs:
-        case ProjectCommandId::Publish:
-        {
-            runProjectWriteCommand(std::move(command));
-            break;
-        }
-        case ProjectCommandId::Exit:
-        {
-            const std::optional<std::filesystem::path> restorable_project_file =
-                currentProjectFile();
-            if (closeProject())
-            {
-                clearDeferredProjectCommand();
-                if (m_settings != nullptr)
+                if (closeProject())
                 {
-                    m_settings->setLastOpenProject(restorable_project_file);
+                    clearDeferredAction();
+                    deriveAndPush();
                 }
-                deriveAndPush();
-                m_exit_function();
             }
-            break;
-        }
-    }
+            else if constexpr (std::is_same_v<A, EditorAction::OpenProject>)
+            {
+                openProject(a.file, false);
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::RestoreProject>)
+            {
+                openProject(a.file, true);
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::ImportSong>)
+            {
+                importSongSource(a.file);
+            }
+            else if constexpr (
+                std::is_same_v<A, EditorAction::SaveProject> ||
+                std::is_same_v<A, EditorAction::SaveProjectAs> ||
+                std::is_same_v<A, EditorAction::PublishProject>
+            )
+            {
+                runProjectWriteAction(EditorAction::Action{std::forward<decltype(a)>(a)});
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::ExitApplication>)
+            {
+                const std::optional<std::filesystem::path> restorable_project_file =
+                    currentProjectFile();
+                if (closeProject())
+                {
+                    clearDeferredAction();
+                    if (m_settings != nullptr)
+                    {
+                        m_settings->setLastOpenProject(restorable_project_file);
+                    }
+                    deriveAndPush();
+                    m_exit_function();
+                }
+            }
+            // Non-project-action alternatives never reach here: callers (the project handlers in
+            // performActionImpl) only pass project-lifecycle alternatives. Falling through to a
+            // no-op keeps the visit total without an assert path.
+        },
+        std::move(action));
 }
 
 // Closes the current editor document across transport, backend audio, session, and workspace.
@@ -1372,7 +1373,7 @@ bool EditorController::Impl::closeProject()
 
 // Snapshots message-thread state and transfers Project ownership to a write task so worker-side
 // package IO cannot race with controller-owned Project mutation.
-auto EditorController::Impl::takeProjectForWrite(ProjectCommand command)
+auto EditorController::Impl::takeProjectForWrite(EditorAction::Action action)
     -> std::shared_ptr<ProjectWriteTaskState>
 {
     if (!m_project.has_value())
@@ -1380,7 +1381,7 @@ auto EditorController::Impl::takeProjectForWrite(ProjectCommand command)
         return {};
     }
 
-    auto state = std::make_shared<ProjectWriteTaskState>(std::move(command));
+    auto state = std::make_shared<ProjectWriteTaskState>(std::move(action));
     state->project = std::move(*m_project);
     state->song = session().song();
     state->editor_state = projectEditorStateForSave();
@@ -1388,19 +1389,19 @@ auto EditorController::Impl::takeProjectForWrite(ProjectCommand command)
     return state;
 }
 
-// Runs project write commands through one task-runner path so busy lifetime, stale completion
+// Runs project write actions through one task-runner path so busy lifetime, stale completion
 // checks, and project restoration stay consistent across save, save-as, and publish.
-void EditorController::Impl::runProjectWriteCommand(ProjectCommand command)
+void EditorController::Impl::runProjectWriteAction(EditorAction::Action action)
 {
-    assert(isProjectWriteCommand(command.id()));
+    assert(isProjectWriteAction(idOf(action)));
 
-    auto state = takeProjectForWrite(std::move(command));
+    auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
     {
         return;
     }
 
-    const std::uint64_t token = beginBusy(busyOperationForProjectWrite(state->command.id()));
+    const std::uint64_t token = beginBusy(busyOperationForProjectWrite(idOf(state->action)));
     deriveAndPush();
 
     std::weak_ptr<bool> alive_weak = m_alive;
@@ -1412,51 +1413,47 @@ void EditorController::Impl::runProjectWriteCommand(ProjectCommand command)
          save_function = std::move(save_function),
          save_as_function = std::move(save_as_function),
          publish_function = std::move(publish_function)]() mutable {
-            switch (state->command.id())
-            {
-                case ProjectCommandId::Save:
-                {
-                    state->result = save_function(state->project, state->song, state->editor_state);
-                    break;
-                }
-                case ProjectCommandId::SaveAs:
-                {
-                    state->result = save_as_function(
-                        state->project, state->command.file(), state->song, state->editor_state);
-                    break;
-                }
-                case ProjectCommandId::Publish:
-                {
-                    state->result =
-                        publish_function(state->project, state->command.file(), state->song);
-                    break;
-                }
-                case ProjectCommandId::Close:
-                case ProjectCommandId::Open:
-                case ProjectCommandId::Import:
-                case ProjectCommandId::Exit:
-                {
-                    assert(false);
-                    state->result = std::unexpected{ProjectError{
-                        ProjectErrorCode::CouldNotWriteProjectFiles,
-                        "Unsupported project write command"
-                    }};
-                    break;
-                }
-            }
+            std::visit(
+                [&state, &save_function, &save_as_function, &publish_function](auto&& alternative) {
+                    using A = std::decay_t<decltype(alternative)>;
+                    if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
+                    {
+                        state->result =
+                            save_function(state->project, state->song, state->editor_state);
+                    }
+                    else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
+                    {
+                        state->result = save_as_function(
+                            state->project, alternative.file, state->song, state->editor_state);
+                    }
+                    else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
+                    {
+                        state->result =
+                            publish_function(state->project, alternative.file, state->song);
+                    }
+                    else
+                    {
+                        assert(false);
+                        state->result = std::unexpected{ProjectError{
+                            ProjectErrorCode::CouldNotWriteProjectFiles,
+                            "Unsupported project write action"
+                        }};
+                    }
+                },
+                state->action);
         },
         [this, state, token, alive_weak = std::move(alive_weak)]() {
             if (alive_weak.expired())
             {
                 return;
             }
-            completeProjectWriteCommand(token, state);
+            completeProjectWriteAction(token, state);
         });
 }
 
 // Restores the Project context, clears busy before errors, and applies the successful write's
-// command-specific state transition on the message thread.
-void EditorController::Impl::completeProjectWriteCommand(
+// action-specific state transition on the message thread.
+void EditorController::Impl::completeProjectWriteAction(
     std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state)
 {
     if (token != m_busy_generation)
@@ -1464,78 +1461,78 @@ void EditorController::Impl::completeProjectWriteCommand(
         return;
     }
 
-    const ProjectCommandId command_id = state->command.id();
+    const EditorAction::Id action_id = idOf(state->action);
     m_project = std::move(state->project);
     if (!state->result.has_value())
     {
         const std::string message = state->result.error().message;
-        if (state->command.clearsDeferredCommandOnFailure())
+        // A deferred action present at the moment of a failed save means this save was the one
+        // synthesized by the unsaved-changes prompt's Save branch; the user wanted to protect
+        // their work first, so dropping the deferred replay is the right escape.
+        if (m_deferred_action.has_value())
         {
-            clearDeferredProjectCommand();
+            clearDeferredAction();
         }
         finishBusyOperation();
         deriveAndPush();
-        reportError(std::string{projectWriteErrorPrefix(command_id)} + message);
+        reportError(std::string{projectWriteErrorPrefix(action_id)} + message);
         return;
     }
 
-    switch (command_id)
-    {
-        case ProjectCommandId::Save:
-        {
-            m_has_unsaved_changes = false;
-            break;
-        }
-        case ProjectCommandId::SaveAs:
-        {
-            m_save_requires_destination = false;
-            m_project_file = state->command.file();
-            m_has_unsaved_changes = false;
-            break;
-        }
-        case ProjectCommandId::Publish:
-        {
-            break;
-        }
-        case ProjectCommandId::Close:
-        case ProjectCommandId::Open:
-        case ProjectCommandId::Import:
-        case ProjectCommandId::Exit:
-        {
-            assert(false);
-            break;
-        }
-    }
+    std::visit(
+        [this](auto&& alternative) {
+            using A = std::decay_t<decltype(alternative)>;
+            if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
+            {
+                m_has_unsaved_changes = false;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
+            {
+                m_save_requires_destination = false;
+                m_project_file = alternative.file;
+                m_has_unsaved_changes = false;
+            }
+            else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
+            {
+                // Publish does not change save destination or dirty state.
+            }
+            else
+            {
+                assert(false);
+            }
+        },
+        state->action);
 
     finishBusyOperation();
-    if ((command_id == ProjectCommandId::Save || command_id == ProjectCommandId::SaveAs) &&
-        m_pending_project_command.has_value())
+    if ((action_id == EditorAction::Id::SaveProject ||
+         action_id == EditorAction::Id::SaveProjectAs) &&
+        m_deferred_action.has_value())
     {
-        continueDeferredProjectCommand();
+        continueDeferredAction();
         return;
     }
 
     deriveAndPush();
 }
 
-// Resumes a deferred command after Save or Save As has successfully protected user changes.
-void EditorController::Impl::continueDeferredProjectCommand()
+// Resumes a deferred action after Save or Save As has successfully protected user changes.
+void EditorController::Impl::continueDeferredAction()
 {
-    if (!m_pending_project_command.has_value())
+    if (!m_deferred_action.has_value())
     {
         deriveAndPush();
         return;
     }
 
-    ProjectCommand command = std::move(*m_pending_project_command);
-    clearDeferredProjectCommand();
-    runProjectCommand(std::move(command));
+    EditorAction::Action replay = std::move(*m_deferred_action);
+    clearDeferredAction();
+    runProjectAction(std::move(replay));
 }
 
 // Clears all prompt-related state without changing the currently loaded project.
-void EditorController::Impl::clearDeferredProjectCommand() noexcept
+void EditorController::Impl::clearDeferredAction() noexcept
 {
-    m_pending_project_command.reset();
+    m_deferred_action.reset();
     m_unsaved_changes_prompt_visible = false;
     m_save_as_prompt_visible = false;
 }
@@ -1577,7 +1574,7 @@ void EditorController::Impl::restoreLastOpenProject()
         return;
     }
 
-    runAction(EditorAction::restoreProject(*project_file));
+    runAction(EditorAction::RestoreProject{*project_file});
 }
 
 // Captures editor-only persistence state from the current transport and displayed arrangement.
@@ -1637,7 +1634,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
 
     EditorViewState state;
     state.open_enabled = canRunAction(EditorAction::Id::OpenProject);
-    state.import_enabled = canRunAction(EditorAction::Id::ImportProject);
+    state.import_enabled = canRunAction(EditorAction::Id::ImportSong);
     state.save_enabled = canRunAction(EditorAction::Id::SaveProject);
     state.save_as_enabled = canRunAction(EditorAction::Id::SaveProjectAs);
     state.publish_enabled = canRunAction(EditorAction::Id::PublishProject);
@@ -1669,15 +1666,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
         };
     }
-    if (m_pending_project_command.has_value() && m_unsaved_changes_prompt_visible)
+    if (m_deferred_action.has_value() && m_unsaved_changes_prompt_visible)
     {
-        state.unsaved_changes_prompt =
-            UnsavedChangesPrompt{.command = m_pending_project_command->id()};
+        state.unsaved_changes_prompt = UnsavedChangesPrompt{idOf(*m_deferred_action)};
     }
 
-    if (m_pending_project_command.has_value() && m_save_as_prompt_visible)
+    if (m_deferred_action.has_value() && m_save_as_prompt_visible)
     {
-        state.save_as_prompt = SaveAsPrompt{.command = m_pending_project_command->id()};
+        state.save_as_prompt = SaveAsPrompt{idOf(*m_deferred_action)};
     }
 
     state.busy = m_busy;
