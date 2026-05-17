@@ -315,6 +315,28 @@ private:
             juce::String{plugin_id});
     }
 
+    // Finds a loaded instrument-chain plugin by the opaque instance ID returned to callers.
+    [[nodiscard]] tracktion::Plugin* findInstrumentPluginInstance(
+        const std::string& instance_id) const
+    {
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return nullptr;
+        }
+
+        const juce::String target_id{instance_id};
+        for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+        {
+            if (plugin != nullptr && plugin->itemID.toString() == target_id)
+            {
+                return plugin;
+            }
+        }
+
+        return nullptr;
+    }
+
     // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
     [[nodiscard]] bool shouldStopAtLoadedEnd(double raw_position_seconds) const
     {
@@ -852,6 +874,35 @@ std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string
         .plugin_id = plugin_id,
         .chain_index = static_cast<std::size_t>(inserted_index),
     };
+}
+
+// Removes a loaded plugin from the instrument track and rebuilds monitoring around the mutation.
+std::expected<void, PluginHostError> Engine::removePlugin(const std::string& instance_id)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    const tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id
+        }};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+    plugin->deleteFromParent();
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return {};
 }
 
 // Exposes the JUCE device manager so settings UI can host the stock device selector directly.

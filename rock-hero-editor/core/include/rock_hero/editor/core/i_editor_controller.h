@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -82,6 +83,12 @@ public:
     \param file Filesystem path selected by the user.
     */
     virtual void onAddPluginRequested(std::filesystem::path file) = 0;
+
+    /*!
+    \brief Handles a request to remove a plugin instance from the plugin chain.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    */
+    virtual void onRemovePluginRequested(std::string instance_id) = 0;
 
 protected:
     /*! \brief Creates the editor-controller interface. */

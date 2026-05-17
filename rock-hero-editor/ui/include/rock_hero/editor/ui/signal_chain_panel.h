@@ -6,7 +6,10 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
+#include <string>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -30,6 +33,12 @@ public:
 
         /*! \brief Called when the user requests a plugin file for the chain. */
         virtual void onAddPluginPressed() = 0;
+
+        /*!
+        \brief Called when the user requests removal of a plugin instance.
+        \param instance_id Opaque plugin instance ID selected by the user.
+        */
+        virtual void onRemovePluginPressed(std::string instance_id) = 0;
 
     protected:
         /*! \brief Creates the listener interface. */
@@ -91,6 +100,11 @@ public:
     void resized() override;
 
 private:
+    class PluginRowView;
+
+    // Rebuilds row components after controller-derived plugin state changes.
+    void rebuildPluginRows();
+
     // Listener that receives panel user intents.
     Listener& m_listener;
 
@@ -99,6 +113,9 @@ private:
 
     // Button that opens plugin selection through the owning editor view.
     juce::TextButton m_add_plugin_button;
+
+    // Child row controls for the current plugin chain.
+    std::vector<std::unique_ptr<PluginRowView>> m_plugin_rows;
 };
 
 } // namespace rock_hero::editor::ui

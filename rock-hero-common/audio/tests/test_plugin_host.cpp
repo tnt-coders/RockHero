@@ -45,6 +45,20 @@ public:
         return next_handle;
     }
 
+    // Records the removed instance ID and returns the configured removal result.
+    std::expected<void, PluginHostError> removePlugin(const std::string& instance_id) override
+    {
+        last_removed_instance_id = instance_id;
+        ++remove_call_count;
+
+        if (next_remove_error.has_value())
+        {
+            return std::unexpected{*next_remove_error};
+        }
+
+        return {};
+    }
+
     // Candidate list returned by successful scans.
     std::vector<PluginCandidate> next_scan_candidates{
         PluginCandidate{
@@ -69,17 +83,26 @@ public:
     // Optional error returned by the next add request.
     std::optional<PluginHostError> next_add_error{};
 
+    // Optional error returned by the next remove request.
+    std::optional<PluginHostError> next_remove_error{};
+
     // Last path passed to scanPluginFile().
     std::optional<std::filesystem::path> last_scan_path{};
 
     // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
+    // Last plugin instance ID passed to removePlugin().
+    std::optional<std::string> last_removed_instance_id{};
+
     // Number of scan requests received.
     int scan_call_count{0};
 
     // Number of add requests received.
     int add_call_count{0};
+
+    // Number of remove requests received.
+    int remove_call_count{0};
 };
 
 } // namespace
@@ -127,6 +150,18 @@ TEST_CASE("IPluginHost add can fail with a typed error", "[audio][plugin-host]")
     CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
     CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"missing"});
     CHECK(plugin_host.add_call_count == 1);
+}
+
+// Verifies loaded plugin instances are removed through opaque instance IDs.
+TEST_CASE("IPluginHost removes a plugin instance", "[audio][plugin-host]")
+{
+    FakePluginHost plugin_host;
+
+    const auto result = plugin_host.removePlugin("instance-1");
+
+    REQUIRE(result.has_value());
+    CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-1"});
+    CHECK(plugin_host.remove_call_count == 1);
 }
 
 } // namespace rock_hero::common::audio

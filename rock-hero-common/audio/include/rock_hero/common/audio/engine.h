@@ -169,6 +169,18 @@ public:
         const std::string& plugin_id) override;
 
     /*!
+    \brief Removes a loaded plugin instance from the hosted Tracktion chain.
+
+    The adapter stops and rebuilds backend graph state around the mutation. The instrument input
+    route is rebound afterward so monitoring continues through the updated plugin chain.
+
+    \param instance_id Opaque instance ID returned by addPlugin().
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> removePlugin(
+        const std::string& instance_id) override;
+
+    /*!
     \brief Returns the JUCE audio device manager backing the engine.
     \return Reference to the active device manager owned by the audio backend.
     */

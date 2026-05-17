@@ -29,6 +29,10 @@ namespace
         {
             return "Plugin candidate was not found";
         }
+        case PluginHostErrorCode::PluginInstanceNotFound:
+        {
+            return "Plugin instance was not found";
+        }
         case PluginHostErrorCode::MessageThreadRequired:
         {
             return "Plugin-host operation must run on the message thread";
