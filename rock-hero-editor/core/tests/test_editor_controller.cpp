@@ -52,6 +52,16 @@ public:
         shown_errors.push_back(message);
     }
 
+    // Runs or stores a busy-overlay paint fence callback for controller tests.
+    void runAfterBusyOverlayPainted(std::function<void()> callback) override
+    {
+        busy_overlay_paint_callback_count += 1;
+        if (callback)
+        {
+            callback();
+        }
+    }
+
     // Last durable state pushed to the view.
     std::optional<EditorViewState> last_state{};
 
@@ -63,6 +73,9 @@ public:
 
     // Number of durable state pushes observed by the fake.
     int set_state_call_count{0};
+
+    // Number of busy-overlay paint callbacks requested by the controller.
+    int busy_overlay_paint_callback_count{0};
 };
 
 // Returns a nullable pointer so tests can satisfy optional-access lint after a REQUIRE.
@@ -1138,19 +1151,18 @@ TEST_CASE("EditorController adds a plugin", "[core][editor-controller]")
     CHECK(plugin_host.last_scanned_file == std::optional{std::filesystem::path{"amp.vst3"}});
     CHECK(plugin_host.add_call_count == 1);
     CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"plugin-id"});
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const auto& signal_chain_state = view.last_state.value().signal_chain;
-        CHECK(signal_chain_state.add_plugin_enabled);
-        REQUIRE(signal_chain_state.plugins.size() == 1);
-        CHECK(signal_chain_state.plugins[0].instance_id == "instance-id");
-        CHECK(signal_chain_state.plugins[0].plugin_id == "plugin-id");
-        CHECK(signal_chain_state.plugins[0].name == "Amp Sim");
-        CHECK(signal_chain_state.plugins[0].manufacturer == "Example Audio");
-        CHECK(signal_chain_state.plugins[0].format_name == "VST3");
-        CHECK(signal_chain_state.plugins[0].chain_index == 0);
-    }
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    CHECK(view.busy_overlay_paint_callback_count == 0);
+    REQUIRE(final_state->signal_chain.plugins.size() == 1);
+    CHECK(final_state->signal_chain.add_plugin_enabled);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
+    CHECK(final_state->signal_chain.plugins[0].plugin_id == "plugin-id");
+    CHECK(final_state->signal_chain.plugins[0].name == "Amp Sim");
+    CHECK(final_state->signal_chain.plugins[0].manufacturer == "Example Audio");
+    CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
+    CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(view.shown_errors.empty());
 }
 
@@ -1187,6 +1199,48 @@ TEST_CASE("EditorController reports plugin add errors", "[core][editor-controlle
     }
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
+}
+
+// Scanner failures report through the transient error channel and skip chain mutation.
+TEST_CASE("EditorController reports plugin scan errors", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    plugin_host.next_scan_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginScanFailed,
+        "scanner rejected",
+    };
+
+    controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
+
+    CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.add_call_count == 0);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->signal_chain.plugins.empty());
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not scan plugin: scanner rejected");
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
 }
 
 // Device-manager change notifications re-derive view state through the listener relay.
@@ -2431,6 +2485,8 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::OpeningProject);
     CHECK(busy->message == "Opening project...");
+    CHECK(busy->presentation == BusyPresentation::Animated);
+    CHECK_FALSE(busy->progress.has_value());
     CHECK(busy->cancel_enabled == false);
 }
 

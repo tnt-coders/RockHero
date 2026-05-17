@@ -1061,10 +1061,7 @@ void EditorController::Impl::performAction(EditorAction action)
             }
 
             const std::filesystem::path file = action.takeFile();
-            std::expected<
-                std::vector<common::audio::PluginCandidate>,
-                common::audio::PluginHostError>
-                candidates = m_plugin_host->scanPluginFile(file);
+            const auto candidates = m_plugin_host->scanPluginFile(file);
             if (!candidates.has_value())
             {
                 reportError(std::string{"Could not scan plugin: "} + candidates.error().message);
@@ -1080,8 +1077,7 @@ void EditorController::Impl::performAction(EditorAction action)
             }
 
             const common::audio::PluginCandidate& candidate = candidates->front();
-            std::expected<common::audio::PluginHandle, common::audio::PluginHostError> handle =
-                m_plugin_host->addPlugin(candidate.id);
+            const auto handle = m_plugin_host->addPlugin(candidate.id);
             if (!handle.has_value())
             {
                 reportError(std::string{"Could not add plugin: "} + handle.error().message);
@@ -1719,6 +1715,7 @@ std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
     m_busy = BusyViewState{
         .operation = operation,
         .message = busyMessage(operation),
+        .presentation = busyPresentation(operation),
         .cancel_enabled = false,
     };
     return m_busy_generation;

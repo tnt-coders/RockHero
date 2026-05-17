@@ -687,6 +687,7 @@ EditorView::EditorView(
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsDialog(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_busy_overlay.setComponentID("busy_overlay");
+    m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
 
     m_arrangement_view.setThumbnailFactory(thumbnail_factory);
 
@@ -707,6 +708,7 @@ EditorView::EditorView(
 // Disconnects the menu bar from this model before base and member teardown begins.
 EditorView::~EditorView()
 {
+    m_busy_overlay.setPaintCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
 }
@@ -715,6 +717,10 @@ EditorView::~EditorView()
 void EditorView::setState(const core::EditorViewState& state)
 {
     m_state = state;
+    if (!m_state.busy.has_value())
+    {
+        m_after_busy_overlay_paint = {};
+    }
 
     menuItemsChanged();
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
@@ -750,6 +756,22 @@ void EditorView::showError(const std::string& message)
             .withMessage(juce::String{message.c_str()})
             .withButton("OK"),
         nullptr);
+}
+
+// Defers message-thread-only work until BusyOverlay has actually rendered the busy state.
+void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
+{
+    if (!m_state.busy.has_value())
+    {
+        m_after_busy_overlay_paint = {};
+        return;
+    }
+
+    m_after_busy_overlay_paint = std::move(callback);
+    if (m_after_busy_overlay_paint)
+    {
+        m_busy_overlay.repaint();
+    }
 }
 
 // Paints the background and transport strip behind child widgets.
@@ -1148,6 +1170,20 @@ void EditorView::showAudioDeviceSettingsDialog()
     }
 
     AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
+}
+
+// Posts the single pending fence callback after BusyOverlay has crossed its paint path. The
+// follow-up message keeps expensive work out of paint() itself.
+void EditorView::handleBusyOverlayPainted()
+{
+    if (!m_after_busy_overlay_paint)
+    {
+        return;
+    }
+
+    std::function<void()> callback = std::move(m_after_busy_overlay_paint);
+    m_after_busy_overlay_paint = {};
+    juce::MessageManager::callAsync(std::move(callback));
 }
 
 // Returns the area shared by the track viewport and bottom signal-chain panel.
