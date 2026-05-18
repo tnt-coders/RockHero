@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
@@ -43,6 +44,7 @@ public:
     void setState(const EditorViewState& state) override
     {
         last_state = state;
+        pushed_states.push_back(state);
         set_state_call_count += 1;
     }
 
@@ -65,6 +67,9 @@ public:
 
     // Last durable state pushed to the view.
     std::optional<EditorViewState> last_state{};
+
+    // Every durable state pushed to the view, in delivery order.
+    std::vector<EditorViewState> pushed_states{};
 
     // One-shot error messages reported through the transient view-effect channel.
     std::vector<std::string> shown_errors{};
@@ -90,6 +95,21 @@ public:
 [[nodiscard]] const BusyViewState* busyOrNull(const EditorViewState& state) noexcept
 {
     return state.busy.has_value() ? &*state.busy : nullptr;
+}
+
+// Extracts live-rig busy states so tests can assert the progress sequence directly.
+[[nodiscard]] std::vector<BusyViewState> liveRigBusyStates(const FakeEditorView& view)
+{
+    std::vector<BusyViewState> states;
+    for (const EditorViewState& state : view.pushed_states)
+    {
+        if (state.busy.has_value() && state.busy->operation == BusyOperation::LoadingLiveRig)
+        {
+            states.push_back(*state.busy);
+        }
+    }
+
+    return states;
 }
 
 // Records incoming editor intents so tests can verify the controller contract headlessly.
@@ -538,18 +558,49 @@ public:
         return next_capture_snapshot;
     }
 
-    // Returns the configured load result or error while recording the open/import request.
-    [[nodiscard]] std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
-    loadRig(const common::audio::LiveRigLoadRequest& request) override
+    // Drives the configured load result or error through the new async callback contract while
+    // recording the request and replicating the engine's per-plugin progress sequence.
+    void loadRig(
+        common::audio::LiveRigLoadRequest request,
+        common::audio::LiveRigLoadResultCallback on_result) override
     {
         last_load_request = request;
         load_call_count += 1;
         if (next_load_error.has_value())
         {
-            return std::unexpected{*next_load_error};
+            on_result(std::unexpected{*next_load_error});
+            return;
         }
 
-        return next_load_result;
+        if (request.progress_callback)
+        {
+            const std::size_t total_plugins = next_load_result.plugins.size();
+            request.progress_callback(
+                common::audio::LiveRigLoadProgress{
+                    .completed_plugins = 0,
+                    .total_plugins = total_plugins,
+                });
+            for (std::size_t plugin_index = 0; plugin_index < total_plugins; ++plugin_index)
+            {
+                const common::audio::LiveRigPlugin& plugin = next_load_result.plugins[plugin_index];
+                request.progress_callback(
+                    common::audio::LiveRigLoadProgress{
+                        .completed_plugins = plugin_index,
+                        .total_plugins = total_plugins,
+                        .active_plugin_index = plugin_index,
+                        .active_plugin_name = plugin.name,
+                    });
+                request.progress_callback(
+                    common::audio::LiveRigLoadProgress{
+                        .completed_plugins = plugin_index + 1,
+                        .total_plugins = total_plugins,
+                        .active_plugin_index = plugin_index,
+                        .active_plugin_name = plugin.name,
+                    });
+            }
+        }
+
+        on_result(next_load_result);
     }
 
     // Records explicit clear requests made during project teardown.
@@ -1368,6 +1419,69 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     REQUIRE(state->signal_chain.plugins.size() == 1);
     CHECK(state->signal_chain.plugins[0].instance_id == "loaded-instance");
     CHECK(state->signal_chain.plugins[0].name == "Loaded Amp");
+}
+
+// Project load switches to determinate live-rig progress before restoring saved plugins.
+TEST_CASE("EditorController reports live rig plugin load progress", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins = {
+        common::audio::LiveRigPlugin{
+            .instance_id = "amp-instance",
+            .plugin_id = "amp-plugin",
+            .name = "Amp Sim",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .chain_index = 0,
+        },
+        common::audio::LiveRigPlugin{
+            .instance_id = "cab-instance",
+            .plugin_id = "cab-plugin",
+            .name = "Cab IR",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .chain_index = 1,
+        },
+    };
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    const std::vector<BusyViewState> progress_states = liveRigBusyStates(view);
+    REQUIRE_FALSE(progress_states.empty());
+    CHECK(progress_states.front().message == "Loading live rig...");
+    CHECK(progress_states.front().progress == std::optional<double>{0.0});
+    CHECK(progress_states.front().presentation == BusyPresentation::Blocking);
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Loading Amp Sim (1 of 2)..." &&
+               state.progress == std::optional<double>{0.25};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Loading Amp Sim (1 of 2)..." &&
+               state.progress == std::optional<double>{0.5};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Loading Cab IR (2 of 2)..." &&
+               state.progress == std::optional<double>{1.0};
+    }));
+    CHECK(view.busy_overlay_paint_callback_count == 1);
 }
 
 // Saving captures the active live rig and writes its document reference into the song.
