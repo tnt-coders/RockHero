@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <rock_hero/common/audio/live_rig_error.h>
 #include <string>
 #include <vector>
@@ -60,6 +61,36 @@ struct [[nodiscard]] LiveRigSnapshot
     std::vector<LiveRigPlugin> plugins;
 };
 
+/*! \brief Progress reported while restoring plugins into the live rig. */
+struct [[nodiscard]] LiveRigLoadProgress
+{
+    /*! \brief Number of plugins fully restored into the live rig so far. */
+    std::size_t completed_plugins{};
+
+    /*! \brief Total plugin count expected for the current tone document. */
+    std::size_t total_plugins{};
+
+    /*! \brief Zero-based index of the active plugin name within the current tone document. */
+    std::size_t active_plugin_index{};
+
+    /*! \brief User-facing name of the plugin currently being restored, when known. */
+    std::string active_plugin_name;
+};
+
+/*! \brief Callback used by live rig restore to report determinate plugin progress. */
+using LiveRigLoadProgressCallback = std::function<void(const LiveRigLoadProgress&)>;
+
+/*!
+\brief Callback used by live rig restore to yield to the message loop between plugin steps.
+
+The implementation should arrange for `next` to run after the message loop has had a chance to
+process pending paints; this is what makes per-plugin progress updates actually visible to the
+user. The editor wires this to a paint-fence helper that waits for the busy overlay to repaint
+before resuming work. When unset, the engine falls back to a plain async post that does not
+guarantee a paint cycle between steps.
+*/
+using LiveRigLoadYieldCallback = std::function<void(std::function<void()> next)>;
+
 /*! \brief Message-thread request to restore a tone document into the live rig. */
 struct [[nodiscard]] LiveRigLoadRequest
 {
@@ -68,6 +99,19 @@ struct [[nodiscard]] LiveRigLoadRequest
 
     /*! \brief Package-relative tone document path stored on the arrangement. */
     std::string tone_document_ref;
+
+    /*! \brief Optional callback invoked as plugin restore progress changes. */
+    LiveRigLoadProgressCallback progress_callback;
+
+    /*!
+    \brief Optional callback used to yield to the message loop between plugin steps.
+
+    When set, the engine calls this between each cooperative step and waits for the supplied
+    continuation to be invoked before running the next step. Wire this to a paint-fence helper so
+    pending paints actually run between steps; otherwise the engine falls back to plain async
+    posts and per-step progress updates may not be visible.
+    */
+    LiveRigLoadYieldCallback yield_callback;
 };
 
 /*! \brief Result of loading a tone document into the live rig chain. */
@@ -76,6 +120,16 @@ struct [[nodiscard]] LiveRigLoadResult
     /*! \brief Restored chain state for the editor signal-chain panel. */
     std::vector<LiveRigPlugin> plugins;
 };
+
+/*!
+\brief Callback invoked on the message thread once an async live rig load has fully finished.
+
+Fires exactly once per loadRig() call, after every plugin in the chain has been restored or after
+the operation fails. Per-plugin updates during the load are delivered through
+LiveRigLoadProgressCallback instead.
+*/
+using LiveRigLoadResultCallback =
+    std::function<void(std::expected<LiveRigLoadResult, LiveRigError>)>;
 
 /*!
 \brief Project-owned facade for the currently loaded playable guitar rig.
@@ -100,11 +154,16 @@ public:
 
     /*!
     \brief Loads a package-relative tone document into the active live rig chain.
-    \param request Song workspace and package-relative tone document reference.
-    \return Restored display chain, or a typed failure.
+
+    The operation runs cooperatively on the message thread: each plugin is restored in its own
+    message-loop turn so the message loop can service paints and input between plugins. The
+    completion callback fires on the message thread with the restored chain or a typed failure.
+    For an empty tone document reference the completion fires immediately with an empty result.
+
+    \param request Song workspace, tone document reference, and optional progress callback.
+    \param completion Callback invoked once the operation finishes or fails.
     */
-    [[nodiscard]] virtual std::expected<LiveRigLoadResult, LiveRigError> loadRig(
-        const LiveRigLoadRequest& request) = 0;
+    virtual void loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result) = 0;
 
     /*!
     \brief Clears the active live rig chain.

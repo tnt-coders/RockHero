@@ -193,11 +193,15 @@ public:
 
     /*!
     \brief Loads a package-relative tone document into the active live rig chain.
-    \param request Song workspace and package-relative tone document reference.
-    \return Restored display chain, or a typed failure.
+
+    Plugin restoration is driven cooperatively via the message loop: each plugin is restored in
+    its own message-loop turn so paint and input can run between plugins. The completion callback
+    fires on the message thread once the chain is fully restored or the operation fails.
+
+    \param request Song workspace, tone document reference, and optional progress callback.
+    \param completion Callback invoked once the operation finishes or fails.
     */
-    [[nodiscard]] std::expected<LiveRigLoadResult, LiveRigError> loadRig(
-        const LiveRigLoadRequest& request) override;
+    void loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result) override;
 
     /*!
     \brief Clears the active live rig chain.

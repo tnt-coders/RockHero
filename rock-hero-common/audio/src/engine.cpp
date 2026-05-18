@@ -9,6 +9,7 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <optional>
@@ -43,7 +44,7 @@ struct JsonProperty
 };
 
 // Serializable plugin identity stored in the audio-owned tone document.
-struct TonePluginIdentity
+struct PluginIdentity
 {
     std::string format_name;
     std::string name;
@@ -59,17 +60,41 @@ struct TonePluginIdentity
 };
 
 // One persisted plugin entry in the default linear live rig chain.
-struct TonePluginRecord
+struct PluginRecord
 {
     std::string id;
-    TonePluginIdentity identity;
+    PluginIdentity identity;
     std::string tracktion_state_ref;
 };
 
 // V1 tone document subset currently used by the linear plugin-chain runtime.
 struct ToneDocument
 {
-    std::vector<TonePluginRecord> chain;
+    std::vector<PluginRecord> chain;
+};
+
+// Per-call state for an in-flight async live rig load. Lives on the heap inside Engine::Impl so
+// MessageManager::callAsync continuations can resume the work between plugins without each lambda
+// having to carry the full state along.
+struct LiveRigLoadOperation
+{
+    // Original request, kept for the song directory and the progress callback.
+    LiveRigLoadRequest request;
+
+    // Parsed tone document chain, already validated against package-relative path rules.
+    std::vector<PluginRecord> chain;
+
+    // Display names precomputed once so progress messages stay stable across resume points.
+    std::vector<std::string> display_names;
+
+    // Final result delivered to the caller once every plugin is restored.
+    LiveRigLoadResult result;
+
+    // Index of the next plugin to load on the upcoming step.
+    std::size_t next_index{0};
+
+    // Callback fired exactly once when the load finishes or fails.
+    LiveRigLoadResultCallback on_result;
 };
 
 // Records recoverable instrument-route failures without turning an internal bind into a public
@@ -313,11 +338,11 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 }
 
 // Converts a plugin description into durable identity fields plus non-authoritative lookup hints.
-[[nodiscard]] TonePluginIdentity makeTonePluginIdentity(const juce::PluginDescription& description)
+[[nodiscard]] PluginIdentity makePluginIdentity(const juce::PluginDescription& description)
 {
     const juce::String descriptive_name =
         description.descriptiveName.isNotEmpty() ? description.descriptiveName : description.name;
-    return TonePluginIdentity{
+    return PluginIdentity{
         .format_name = description.pluginFormatName.toStdString(),
         .name = description.name.toStdString(),
         .descriptive_name = descriptive_name.toStdString(),
@@ -333,7 +358,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 }
 
 // Converts identity data back into a JUCE description shape for matching known plugins.
-[[nodiscard]] juce::PluginDescription makePluginDescription(const TonePluginIdentity& identity)
+[[nodiscard]] juce::PluginDescription makePluginDescription(const PluginIdentity& identity)
 {
     juce::PluginDescription description;
     description.pluginFormatName = juce::String::fromUTF8(identity.format_name.c_str());
@@ -347,6 +372,42 @@ void appendJsonArray(juce::var& array, const juce::var& value)
     description.fileOrIdentifier =
         juce::String::fromUTF8(identity.original_file_or_identifier.c_str());
     return description;
+}
+
+// Chooses stable display text for progress reports before Tracktion recreates the plugin.
+[[nodiscard]] std::string pluginDisplayName(
+    const PluginIdentity& identity, std::size_t plugin_index)
+{
+    if (!identity.descriptive_name.empty())
+    {
+        return identity.descriptive_name;
+    }
+
+    if (!identity.name.empty())
+    {
+        return identity.name;
+    }
+
+    return "Plugin " + std::to_string(plugin_index + 1);
+}
+
+// Sends progress only when the caller provided a progress callback.
+void reportLiveRigLoadProgress(
+    const LiveRigLoadRequest& request, std::size_t completed_plugins, std::size_t total_plugins,
+    std::size_t active_plugin_index = 0, const std::string& active_plugin_name = {})
+{
+    if (!request.progress_callback)
+    {
+        return;
+    }
+
+    request.progress_callback(
+        LiveRigLoadProgress{
+            .completed_plugins = completed_plugins,
+            .total_plugins = total_plugins,
+            .active_plugin_index = active_plugin_index,
+            .active_plugin_name = active_plugin_name,
+        });
 }
 
 // Converts a Tracktion external plugin into editor-facing runtime chain state.
@@ -364,7 +425,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 }
 
 // Serializes identity to the tone document's JSON shape.
-[[nodiscard]] juce::var makeIdentityJson(const TonePluginIdentity& identity)
+[[nodiscard]] juce::var makeIdentityJson(const PluginIdentity& identity)
 {
     return makeJsonObject({
         {"format", makeJsonString(identity.format_name)},
@@ -385,7 +446,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 [[nodiscard]] juce::var makeToneDocumentJson(const ToneDocument& document)
 {
     juce::var chain = makeJsonArray();
-    for (const TonePluginRecord& plugin : document.chain)
+    for (const PluginRecord& plugin : document.chain)
     {
         appendJsonArray(
             chain,
@@ -423,9 +484,9 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 }
 
 // Reads the identity object for one tone plugin record.
-[[nodiscard]] TonePluginIdentity readTonePluginIdentity(const juce::var& object)
+[[nodiscard]] PluginIdentity readPluginIdentity(const juce::var& object)
 {
-    return TonePluginIdentity{
+    return PluginIdentity{
         .format_name = readOptionalString(object, "format"),
         .name = readOptionalString(object, "name"),
         .descriptive_name = readOptionalString(object, "descriptiveName"),
@@ -538,10 +599,10 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 
         const juce::var& identity_json = jsonProperty(plugin_json, "identity");
         document.chain.push_back(
-            TonePluginRecord{
+            PluginRecord{
                 .id = *id,
-                .identity = identity_json.isObject() ? readTonePluginIdentity(identity_json)
-                                                     : TonePluginIdentity{},
+                .identity =
+                    identity_json.isObject() ? readPluginIdentity(identity_json) : PluginIdentity{},
                 .tracktion_state_ref = *tracktion_state,
             });
     }
@@ -743,6 +804,30 @@ private:
 
     // Message-thread listener list for audio-device configuration changes.
     juce::ListenerList<IAudioDeviceConfiguration::Listener> m_audio_device_listeners;
+
+    // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
+    // Engine destruction before re-entering Impl state.
+    std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
+
+    // In-flight async live rig load operation, when one is running. Reset between loads so the
+    // result callback may safely start a new load.
+    std::unique_ptr<LiveRigLoadOperation> m_load_op;
+
+    // Starts the next plugin step: completes the load if all plugins are restored, otherwise
+    // reports "Loading X" progress and yields before the heavy plugin construction.
+    void beginNextPluginStep();
+
+    // Performs the heavy plugin construction for the current step, reports "Loaded X" progress,
+    // and yields before beginning the next plugin step.
+    void executePluginStep();
+
+    // Hands the supplied continuation to the request's yield callback when one is provided so a
+    // paint cycle can run between cooperative steps; falls back to a plain async post otherwise.
+    void yieldThenContinue(std::function<void()> next);
+
+    // Aborts the in-flight live rig load with the supplied error, clearing the half-built chain
+    // and rebuilding the instrument monitoring graph before invoking the completion callback.
+    void abortLiveRigLoad(LiveRigError error);
 
     // Derives the current coarse transport state directly from Tracktion state.
     [[nodiscard]] TransportState currentTransportState() const noexcept
@@ -963,7 +1048,7 @@ private:
     }
 
     // Checks the current known-plugin list for a plugin matching persisted identity.
-    [[nodiscard]] bool hasKnownPluginForIdentity(const TonePluginIdentity& identity) const
+    [[nodiscard]] bool hasKnownPluginForIdentity(const PluginIdentity& identity) const
     {
         const juce::PluginDescription persisted_description = makePluginDescription(identity);
         auto& known_plugin_list = m_engine->getPluginManager().knownPluginList;
@@ -998,7 +1083,7 @@ private:
 
     // Ensures a persisted plugin can be resolved before creating Tracktion state for it.
     [[nodiscard]] std::expected<void, LiveRigError> ensureKnownPluginForIdentity(
-        const TonePluginIdentity& identity)
+        const PluginIdentity& identity)
     {
         if (hasKnownPluginForIdentity(identity))
         {
@@ -1649,9 +1734,9 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         }
 
         document.chain.push_back(
-            TonePluginRecord{
+            PluginRecord{
                 .id = "plugin-" + std::to_string(plugin_index + 1),
-                .identity = makeTonePluginIdentity(external_plugin->desc),
+                .identity = makePluginIdentity(external_plugin->desc),
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
             });
         snapshot.plugins.push_back(makeLiveRigPlugin(*external_plugin, chain_index));
@@ -1669,12 +1754,20 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     return snapshot;
 }
 
-// Restores a persisted tone document by asking Tracktion to recreate each stored plugin state.
-std::expected<LiveRigLoadResult, LiveRigError> Engine::loadRig(const LiveRigLoadRequest& request)
+// Kicks off the cooperative async live rig load: validates the request, reads the tone document
+// up front, clears the existing chain, and posts the first plugin step on the message loop so
+// the busy overlay has a chance to paint before plugin construction starts.
+void Engine::loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result)
 {
+    if (!on_result)
+    {
+        return;
+    }
+
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+        on_result(std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}});
+        return;
     }
 
     if (request.tone_document_ref.empty())
@@ -1682,91 +1775,228 @@ std::expected<LiveRigLoadResult, LiveRigError> Engine::loadRig(const LiveRigLoad
         auto clear_result = clearRig();
         if (!clear_result.has_value())
         {
-            return std::unexpected{std::move(clear_result.error())};
+            on_result(std::unexpected{std::move(clear_result.error())});
+            return;
         }
-        return LiveRigLoadResult{};
+        on_result(LiveRigLoadResult{});
+        return;
     }
 
     if (request.song_directory.empty())
     {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
+        on_result(std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}});
+        return;
     }
 
-    const auto document = readToneDocument(request.song_directory, request.tone_document_ref);
+    auto document = readToneDocument(request.song_directory, request.tone_document_ref);
     if (!document.has_value())
     {
-        return std::unexpected{document.error()};
-    }
-
-    std::vector<juce::ValueTree> plugin_states;
-    plugin_states.reserve(document->chain.size());
-    for (const TonePluginRecord& plugin : document->chain)
-    {
-        auto plugin_known = m_impl->ensureKnownPluginForIdentity(plugin.identity);
-        if (!plugin_known.has_value())
-        {
-            return std::unexpected{std::move(plugin_known.error())};
-        }
-
-        const auto plugin_state_path =
-            resolvePackageFile(request.song_directory, plugin.tracktion_state_ref);
-        if (!plugin_state_path.has_value())
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::MissingPluginState,
-                "Tone plugin state is missing or unsafe: " + plugin.tracktion_state_ref
-            }};
-        }
-
-        auto plugin_state = readPluginStateTree(*plugin_state_path);
-        if (!plugin_state.has_value())
-        {
-            return std::unexpected{std::move(plugin_state.error())};
-        }
-        plugin_states.push_back(std::move(*plugin_state));
+        on_result(std::unexpected{std::move(document.error())});
+        return;
     }
 
     tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
     if (instrument_track == nullptr)
     {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+        on_result(std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}});
+        return;
     }
 
     m_impl->stopTransportAndReleaseContext();
     instrument_track->pluginList.clear();
 
-    LiveRigLoadResult result;
-    result.plugins.reserve(plugin_states.size());
-    for (const juce::ValueTree& plugin_state : plugin_states)
+    auto operation = std::make_unique<LiveRigLoadOperation>();
+    operation->request = std::move(request);
+    operation->chain = std::move(document->chain);
+    operation->display_names.reserve(operation->chain.size());
+    for (std::size_t plugin_index = 0; plugin_index < operation->chain.size(); ++plugin_index)
     {
-        const tracktion::Plugin::Ptr plugin =
-            instrument_track->pluginList.insertPlugin(plugin_state, -1);
-        auto* const external_plugin =
-            plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(plugin.get()) : nullptr;
-        if (external_plugin == nullptr)
-        {
-            instrument_track->pluginList.clear();
-            m_impl->rebuildInstrumentMonitoringGraph();
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed, "Could not insert persisted tone plugin"
-            }};
-        }
+        operation->display_names.push_back(
+            pluginDisplayName(operation->chain[plugin_index].identity, plugin_index));
+    }
+    operation->result.plugins.reserve(operation->chain.size());
+    operation->on_result = std::move(on_result);
 
-        const juce::String load_error = external_plugin->getLoadError();
-        if (load_error.isNotEmpty())
-        {
-            instrument_track->pluginList.clear();
-            m_impl->rebuildInstrumentMonitoringGraph();
-            return std::unexpected{
-                LiveRigError{LiveRigErrorCode::PluginRestoreFailed, load_error.toStdString()}
-            };
-        }
+    reportLiveRigLoadProgress(operation->request, 0, operation->chain.size());
 
-        result.plugins.push_back(makeLiveRigPlugin(*external_plugin, result.plugins.size()));
+    m_impl->m_load_op = std::move(operation);
+
+    // Yield through the caller-provided paint fence so the initial "Loading live rig..." state
+    // actually paints before plugin construction starts.
+    std::weak_ptr<bool> alive_weak = m_impl->m_alive;
+    m_impl->yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
+        if (alive_weak.expired())
+        {
+            return;
+        }
+        m_impl->beginNextPluginStep();
+    });
+}
+
+// Starts the next plugin's step: completes the load if no plugins remain, otherwise reports
+// "Loading X" progress and yields so the busy overlay actually paints the new state before the
+// heavy plugin construction blocks the message thread.
+void Engine::Impl::beginNextPluginStep()
+{
+    if (m_load_op == nullptr)
+    {
+        return;
     }
 
-    m_impl->rebuildInstrumentMonitoringGraph();
-    return result;
+    const std::size_t total_plugins = m_load_op->chain.size();
+    if (m_load_op->next_index >= total_plugins)
+    {
+        auto operation = std::move(m_load_op);
+        rebuildInstrumentMonitoringGraph();
+        operation->on_result(std::move(operation->result));
+        return;
+    }
+
+    const std::size_t plugin_index = m_load_op->next_index;
+    const std::string& display_name = m_load_op->display_names[plugin_index];
+
+    // "Loading X" before the heavy work so the bar updates to the new plugin name immediately.
+    reportLiveRigLoadProgress(
+        m_load_op->request, plugin_index, total_plugins, plugin_index, display_name);
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
+        if (alive_weak.expired())
+        {
+            return;
+        }
+        executePluginStep();
+    });
+}
+
+// Performs the heavy work for the current plugin (scan-if-needed, read state, insert,
+// error-check), reports "Loaded X" progress, then yields again so the completion of that plugin
+// is visible before the next plugin's "Loading" message replaces it.
+void Engine::Impl::executePluginStep()
+{
+    if (m_load_op == nullptr)
+    {
+        return;
+    }
+
+    const std::size_t plugin_index = m_load_op->next_index;
+    const std::size_t total_plugins = m_load_op->chain.size();
+    const PluginRecord& plugin = m_load_op->chain[plugin_index];
+    const std::string& display_name = m_load_op->display_names[plugin_index];
+
+    auto plugin_known = ensureKnownPluginForIdentity(plugin.identity);
+    if (!plugin_known.has_value())
+    {
+        abortLiveRigLoad(std::move(plugin_known.error()));
+        return;
+    }
+
+    const auto plugin_state_path =
+        resolvePackageFile(m_load_op->request.song_directory, plugin.tracktion_state_ref);
+    if (!plugin_state_path.has_value())
+    {
+        abortLiveRigLoad(
+            LiveRigError{
+                LiveRigErrorCode::MissingPluginState,
+                "Tone plugin state is missing or unsafe: " + plugin.tracktion_state_ref
+            });
+        return;
+    }
+
+    auto plugin_state = readPluginStateTree(*plugin_state_path);
+    if (!plugin_state.has_value())
+    {
+        abortLiveRigLoad(std::move(plugin_state.error()));
+        return;
+    }
+
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        abortLiveRigLoad(LiveRigError{LiveRigErrorCode::TrackMissing});
+        return;
+    }
+
+    const tracktion::Plugin::Ptr inserted_plugin =
+        instrument_track->pluginList.insertPlugin(*plugin_state, -1);
+    auto* const external_plugin =
+        inserted_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
+                                   : nullptr;
+    if (external_plugin == nullptr)
+    {
+        abortLiveRigLoad(
+            LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed, "Could not insert persisted tone plugin"
+            });
+        return;
+    }
+
+    const juce::String load_error = external_plugin->getLoadError();
+    if (load_error.isNotEmpty())
+    {
+        abortLiveRigLoad(
+            LiveRigError{LiveRigErrorCode::PluginRestoreFailed, load_error.toStdString()});
+        return;
+    }
+
+    m_load_op->result.plugins.push_back(
+        makeLiveRigPlugin(*external_plugin, m_load_op->result.plugins.size()));
+    m_load_op->next_index = plugin_index + 1;
+
+    // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec
+    // calls for, and so a one-plugin chain hits 100% before the overlay clears.
+    reportLiveRigLoadProgress(
+        m_load_op->request,
+        m_load_op->result.plugins.size(),
+        total_plugins,
+        plugin_index,
+        display_name);
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
+        if (alive_weak.expired())
+        {
+            return;
+        }
+        beginNextPluginStep();
+    });
+}
+
+// Routes the continuation through the caller's yield callback when one is provided so each step
+// waits for a real paint cycle before resuming. Falls back to plain callAsync so the loop still
+// advances when the caller has not supplied a paint fence (e.g. headless tests).
+void Engine::Impl::yieldThenContinue(std::function<void()> next)
+{
+    if (!next)
+    {
+        return;
+    }
+
+    if (m_load_op != nullptr && m_load_op->request.yield_callback)
+    {
+        m_load_op->request.yield_callback(std::move(next));
+        return;
+    }
+
+    juce::MessageManager::callAsync(std::move(next));
+}
+
+// Tears down a partially loaded chain and delivers the failure to the original caller.
+void Engine::Impl::abortLiveRigLoad(LiveRigError error)
+{
+    if (m_load_op == nullptr)
+    {
+        return;
+    }
+
+    auto operation = std::move(m_load_op);
+    if (tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        instrument_track != nullptr)
+    {
+        instrument_track->pluginList.clear();
+    }
+    rebuildInstrumentMonitoringGraph();
+    operation->on_result(std::unexpected{std::move(error)});
 }
 
 // Exposes the JUCE device manager so settings UI can host the stock device selector directly.

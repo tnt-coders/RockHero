@@ -41,6 +41,9 @@ enum class BusyOperation : std::uint8_t
 
     /*! \brief Loading a plugin into the signal chain. */
     LoadingPlugin,
+
+    /*! \brief Restoring a saved live rig chain during project load. */
+    LoadingLiveRig,
 };
 
 /*!

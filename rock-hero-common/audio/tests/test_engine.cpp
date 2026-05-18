@@ -1,8 +1,10 @@
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
+#include <expected>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
@@ -324,10 +326,14 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
 
-    const auto result = live_rig.loadRig(common::audio::LiveRigLoadRequest{});
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        result;
+    live_rig.loadRig(
+        common::audio::LiveRigLoadRequest{}, [&result](auto value) { result = std::move(value); });
 
     REQUIRE(result.has_value());
-    CHECK(result->plugins.empty());
+    REQUIRE(result->has_value());
+    CHECK((*result)->plugins.empty());
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

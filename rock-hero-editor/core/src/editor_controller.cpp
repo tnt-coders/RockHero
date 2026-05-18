@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 #include <memory>
@@ -223,6 +224,47 @@ void defaultExit()
     }
 }
 
+// Converts plugin-level live rig progress into the percentage value consumed by BusyOverlay.
+[[nodiscard]] double liveRigProgressFraction(
+    const common::audio::LiveRigLoadProgress& progress) noexcept
+{
+    if (progress.total_plugins == 0)
+    {
+        return 1.0;
+    }
+
+    const double completed =
+        static_cast<double>(std::min(progress.completed_plugins, progress.total_plugins));
+    if (progress.completed_plugins >= progress.total_plugins ||
+        progress.completed_plugins > progress.active_plugin_index ||
+        progress.active_plugin_name.empty())
+    {
+        return completed / static_cast<double>(progress.total_plugins);
+    }
+
+    // The engine reports a "starting plugin N" event before each plugin and a "completed plugin
+    // N" event after. Half-stepping the active-plugin event keeps the bar visibly advancing
+    // between the two events, which matters most for single-plugin chains that would otherwise
+    // jump straight from 0% to 100%.
+    const double active_plugin_fraction =
+        std::min(completed + 0.5, static_cast<double>(progress.total_plugins));
+    return active_plugin_fraction / static_cast<double>(progress.total_plugins);
+}
+
+// Builds clear progress text for the currently restoring plugin.
+[[nodiscard]] std::string liveRigProgressMessage(const common::audio::LiveRigLoadProgress& progress)
+{
+    if (progress.total_plugins == 0 || progress.active_plugin_name.empty())
+    {
+        return busyMessage(BusyOperation::LoadingLiveRig);
+    }
+
+    const std::size_t display_index =
+        std::min(progress.active_plugin_index + 1, progress.total_plugins);
+    return "Loading " + progress.active_plugin_name + " (" + std::to_string(display_index) +
+           " of " + std::to_string(progress.total_plugins) + ")...";
+}
+
 } // namespace
 
 // Owns every implementation detail that does not need to be part of the public controller type.
@@ -305,15 +347,26 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void runProjectAction(EditorAction::ProjectAction action);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
+    void continueOpenProjectAfterLiveRigPaint(
+        std::uint64_t token, std::shared_ptr<OpenTaskState> state, ProjectEditorState editor_state);
+    void finishOpenProjectAfterLiveRigLoad(
+        std::uint64_t token, const std::shared_ptr<OpenTaskState>& state,
+        const ProjectEditorState& editor_state, std::expected<void, std::string> rig_result);
     void importSongSource(const std::filesystem::path& file);
     void completeImportSongSource(
         std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
+    void continueImportSongSourceAfterLiveRigPaint(
+        std::uint64_t token, std::shared_ptr<ImportTaskState> state);
+    void finishImportSongSourceAfterLiveRigLoad(
+        std::uint64_t token, const std::shared_ptr<ImportTaskState>& state,
+        std::expected<void, std::string> rig_result);
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
     [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(common::core::Song& song);
-    [[nodiscard]] std::expected<void, std::string> loadRigFromSession(
-        const std::filesystem::path& song_directory);
+    void loadRigFromSession(
+        const std::filesystem::path& song_directory, bool report_progress,
+        std::function<void(std::expected<void, std::string>)> on_loaded);
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction action);
     void completeProjectWriteAction(
@@ -329,11 +382,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
+    void setLiveRigLoadBusyState(std::string message, double progress);
+    void beginLiveRigLoadProgress();
+    void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
+    void runAfterBusyOverlayPaintedOrNow(std::function<void()> callback);
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
     void deriveAndPush();
     void reportError(const std::string& message);
     [[nodiscard]] bool hasLoadedArrangement() const;
+    [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
     [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
 
@@ -757,8 +815,81 @@ void EditorController::Impl::completeOpenProject(
         return;
     }
 
-    if (const auto rig_loaded = loadRigFromSession(songDirectoryForProject(state->project));
-        !rig_loaded.has_value())
+    if (shouldShowLiveRigLoadProgress())
+    {
+        beginLiveRigLoadProgress();
+        continueOpenProjectAfterLiveRigPaint(token, state, editor_state);
+        return;
+    }
+
+    // No tone document on the active arrangement: load runs to immediate completion with no
+    // progress UI, but it still has to go through the async load boundary so finish runs through
+    // the same code path as the progress case.
+    std::weak_ptr<bool> alive_weak = m_alive;
+    loadRigFromSession(
+        songDirectoryForProject(state->project),
+        /*report_progress=*/false,
+        [this, token, state, editor_state, alive_weak = std::move(alive_weak)](
+            std::expected<void, std::string> rig_result) {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            finishOpenProjectAfterLiveRigLoad(token, state, editor_state, std::move(rig_result));
+        });
+}
+
+// Waits for the determinate busy state to paint, then starts the async live rig load and routes
+// its completion into finishOpenProjectAfterLiveRigLoad.
+void EditorController::Impl::continueOpenProjectAfterLiveRigPaint(
+    std::uint64_t token, std::shared_ptr<OpenTaskState> state, ProjectEditorState editor_state)
+{
+    std::weak_ptr<bool> alive_weak = m_alive;
+    runAfterBusyOverlayPaintedOrNow([this,
+                                     token,
+                                     state = std::move(state),
+                                     editor_state,
+                                     alive_weak = std::move(alive_weak)]() mutable {
+        if (alive_weak.expired())
+        {
+            return;
+        }
+
+        // Resolve the song directory before constructing the completion lambda. The lambda
+        // moves `state`, and MSVC's right-to-left argument evaluation would otherwise read
+        // state->project after it had already been moved into the lambda.
+        const std::filesystem::path song_directory = songDirectoryForProject(state->project);
+        std::weak_ptr<bool> alive_inner = m_alive;
+        loadRigFromSession(
+            song_directory,
+            /*report_progress=*/true,
+            [this,
+             token,
+             state = std::move(state),
+             editor_state,
+             alive_inner =
+                 std::move(alive_inner)](std::expected<void, std::string> rig_result) mutable {
+                if (alive_inner.expired())
+                {
+                    return;
+                }
+                finishOpenProjectAfterLiveRigLoad(
+                    token, state, editor_state, std::move(rig_result));
+            });
+    });
+}
+
+// Commits a fully loaded editor project, or tears down the partial session on rig-load failure.
+void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
+    std::uint64_t token, const std::shared_ptr<OpenTaskState>& state,
+    const ProjectEditorState& editor_state, std::expected<void, std::string> rig_result)
+{
+    if (token != m_busy_generation)
+    {
+        return;
+    }
+
+    if (!rig_result.has_value())
     {
         m_transport.stop();
         m_audio.clearActiveArrangement();
@@ -772,7 +903,7 @@ void EditorController::Impl::completeOpenProject(
         }
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
-            rig_loaded.error());
+            rig_result.error());
         return;
     }
 
@@ -848,8 +979,74 @@ void EditorController::Impl::completeImportSongSource(
         return;
     }
 
-    if (const auto rig_loaded = loadRigFromSession(songDirectoryForProject(state->project));
-        !rig_loaded.has_value())
+    if (shouldShowLiveRigLoadProgress())
+    {
+        beginLiveRigLoadProgress();
+        continueImportSongSourceAfterLiveRigPaint(token, state);
+        return;
+    }
+
+    // No tone document on the imported arrangement: load runs to immediate completion with no
+    // progress UI but still goes through the async load boundary so finish runs through the same
+    // code path as the progress case.
+    std::weak_ptr<bool> alive_weak = m_alive;
+    loadRigFromSession(
+        songDirectoryForProject(state->project),
+        /*report_progress=*/false,
+        [this, token, state, alive_weak = std::move(alive_weak)](
+            std::expected<void, std::string> rig_result) {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            finishImportSongSourceAfterLiveRigLoad(token, state, std::move(rig_result));
+        });
+}
+
+// Waits for the determinate busy state to paint, then starts the async live rig load and routes
+// its completion into finishImportSongSourceAfterLiveRigLoad.
+void EditorController::Impl::continueImportSongSourceAfterLiveRigPaint(
+    std::uint64_t token, std::shared_ptr<ImportTaskState> state)
+{
+    std::weak_ptr<bool> alive_weak = m_alive;
+    runAfterBusyOverlayPaintedOrNow(
+        [this, token, state = std::move(state), alive_weak = std::move(alive_weak)]() mutable {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+
+            // Resolve the song directory before constructing the completion lambda. The lambda
+            // moves `state`, and MSVC's right-to-left argument evaluation would otherwise read
+            // state->project after it had already been moved into the lambda.
+            const std::filesystem::path song_directory = songDirectoryForProject(state->project);
+            std::weak_ptr<bool> alive_inner = m_alive;
+            loadRigFromSession(
+                song_directory,
+                /*report_progress=*/true,
+                [this, token, state = std::move(state), alive_inner = std::move(alive_inner)](
+                    std::expected<void, std::string> rig_result) mutable {
+                    if (alive_inner.expired())
+                    {
+                        return;
+                    }
+                    finishImportSongSourceAfterLiveRigLoad(token, state, std::move(rig_result));
+                });
+        });
+}
+
+// Commits a fully imported editor workspace, or tears down the partial session on rig-load
+// failure.
+void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
+    std::uint64_t token, const std::shared_ptr<ImportTaskState>& state,
+    std::expected<void, std::string> rig_result)
+{
+    if (token != m_busy_generation)
+    {
+        return;
+    }
+
+    if (!rig_result.has_value())
     {
         m_transport.stop();
         m_audio.clearActiveArrangement();
@@ -859,7 +1056,7 @@ void EditorController::Impl::completeImportSongSource(
         deriveAndPush();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
-            rig_loaded.error());
+            rig_result.error());
         return;
     }
 
@@ -1532,34 +1729,73 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 }
 
 // Restores the selected arrangement's saved tone document after the backing audio is active.
-std::expected<void, std::string> EditorController::Impl::loadRigFromSession(
-    const std::filesystem::path& song_directory)
+// Live rig restore runs cooperatively on the message thread inside the audio adapter, so this
+// method always returns immediately and routes the final result through the on_loaded callback.
+void EditorController::Impl::loadRigFromSession(
+    const std::filesystem::path& song_directory, bool report_progress,
+    std::function<void(std::expected<void, std::string>)> on_loaded)
 {
+    if (!on_loaded)
+    {
+        return;
+    }
+
     if (m_live_rig == nullptr)
     {
         m_plugins.clear();
-        return {};
+        on_loaded({});
+        return;
     }
 
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr)
     {
         m_plugins.clear();
-        return {};
+        on_loaded({});
+        return;
     }
 
-    auto loaded = m_live_rig->loadRig(
-        common::audio::LiveRigLoadRequest{
-            .song_directory = song_directory,
-            .tone_document_ref = arrangement->tone_document_ref,
-        });
-    if (!loaded.has_value())
+    common::audio::LiveRigLoadRequest request{
+        .song_directory = song_directory,
+        .tone_document_ref = arrangement->tone_document_ref,
+    };
+    if (report_progress)
     {
-        return std::unexpected{loaded.error().message};
+        request.progress_callback = [this](const common::audio::LiveRigLoadProgress& progress) {
+            updateLiveRigLoadProgress(progress);
+        };
+        // Route the engine's per-step yield through the busy-overlay paint fence so each plugin's
+        // progress update actually paints before the next step blocks the message thread.
+        std::weak_ptr<bool> alive_yield = m_alive;
+        request.yield_callback =
+            [this, alive_yield = std::move(alive_yield)](std::function<void()> next) {
+                if (alive_yield.expired())
+                {
+                    return;
+                }
+                runAfterBusyOverlayPaintedOrNow(std::move(next));
+            };
     }
 
-    m_plugins = makePluginViewStates(loaded->plugins);
-    return {};
+    std::weak_ptr<bool> alive_weak = m_alive;
+    m_live_rig->loadRig(
+        std::move(request),
+        [this, alive_weak = std::move(alive_weak), on_loaded = std::move(on_loaded)](
+            std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> loaded) {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+
+            if (!loaded.has_value())
+            {
+                on_loaded(std::unexpected{loaded.error().message});
+                return;
+            }
+
+            m_plugins = makePluginViewStates(loaded->plugins);
+            on_loaded({});
+        });
 }
 
 // Clears the audio backend's live rig chain as part of project teardown.
@@ -1923,6 +2159,18 @@ bool EditorController::Impl::hasLoadedArrangement() const
     return session().currentArrangement() != nullptr;
 }
 
+// Reports whether the active arrangement has persisted plugin state worth showing as progress.
+bool EditorController::Impl::shouldShowLiveRigLoadProgress() const
+{
+    if (m_live_rig == nullptr)
+    {
+        return false;
+    }
+
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    return arrangement != nullptr && !arrangement->tone_document_ref.empty();
+}
+
 // Reports whether a busy operation is currently active.
 bool EditorController::Impl::isBusy() const noexcept
 {
@@ -1962,6 +2210,53 @@ void EditorController::Impl::endBusy()
 {
     m_busy.reset();
     m_busy_generation += 1;
+}
+
+// Writes the current live rig load message and fraction into the active busy overlay state.
+void EditorController::Impl::setLiveRigLoadBusyState(std::string message, double progress)
+{
+    if (!m_busy.has_value())
+    {
+        return;
+    }
+
+    m_busy->operation = BusyOperation::LoadingLiveRig;
+    m_busy->message = std::move(message);
+    m_busy->presentation = busyPresentation(BusyOperation::LoadingLiveRig);
+    m_busy->progress = progress;
+}
+
+// Switches a project-load busy operation into determinate live rig restore progress and pushes
+// the new state so the overlay paints at 0% before any plugin construction starts.
+void EditorController::Impl::beginLiveRigLoadProgress()
+{
+    setLiveRigLoadBusyState(busyMessage(BusyOperation::LoadingLiveRig), 0.0);
+    deriveAndPush();
+}
+
+// Applies plugin-level progress reported by the live rig boundary to the busy overlay state.
+void EditorController::Impl::updateLiveRigLoadProgress(
+    const common::audio::LiveRigLoadProgress& progress)
+{
+    setLiveRigLoadBusyState(liveRigProgressMessage(progress), liveRigProgressFraction(progress));
+    deriveAndPush();
+}
+
+// Runs message-thread-only load work after the busy overlay has had a chance to repaint.
+void EditorController::Impl::runAfterBusyOverlayPaintedOrNow(std::function<void()> callback)
+{
+    if (!callback)
+    {
+        return;
+    }
+
+    if (m_view == nullptr)
+    {
+        callback();
+        return;
+    }
+
+    m_view->runAfterBusyOverlayPainted(std::move(callback));
 }
 
 // Treat imported unsaved projects and future session edits as requiring confirmation.
