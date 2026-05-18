@@ -14,6 +14,7 @@
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <string>
+#include <string_view>
 
 namespace juce
 {
@@ -55,6 +56,35 @@ class Engine : public ITransport,
                public IThumbnailFactory
 {
 public:
+    /*!
+    \brief Handles a Tracktion plugin-scan child process command line.
+    \param command_line Command line supplied by JUCE application startup.
+    \return True when the command line was consumed by the scanner child process.
+    */
+    [[nodiscard]] static bool startPluginScanChildProcess(std::string_view command_line);
+
+    /*!
+    \brief Reports whether a command line targets Tracktion plugin scanning.
+    \param command_line Command line supplied by JUCE application startup.
+    \return True when the command line is for a plugin scan child process.
+    */
+    [[nodiscard]] static bool isPluginScanChildProcessCommandLine(std::string_view command_line);
+
+    /*!
+    \brief Handles a Rock Hero plugin-load probe child process command line.
+    \param command_line Command line supplied by JUCE application startup.
+    \return True when the command line was consumed by the load-probe child process.
+    */
+    [[nodiscard]] static bool startPluginLoadProbeChildProcess(std::string_view command_line);
+
+    /*!
+    \brief Reports whether a command line targets a Rock Hero plugin-load probe.
+    \param command_line Command line supplied by JUCE application startup.
+    \return True when the command line is for a plugin-load probe child process.
+    */
+    [[nodiscard]] static bool isPluginLoadProbeChildProcessCommandLine(
+        std::string_view command_line);
+
     /*!
     \brief Creates the Tracktion Engine instance and two-track Edit for playback.
 
@@ -155,9 +185,19 @@ public:
     \brief Scans one plugin file or bundle for candidates loadable by the plugin chain.
     \param plugin_path Path to a plugin file or plugin bundle.
     \return Discovered plugin candidates, or a typed failure.
+    \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginFile(
         const std::filesystem::path& plugin_path) override;
+
+    /*!
+    \brief Validates that a previously scanned plugin candidate can instantiate.
+    \param plugin_id Opaque candidate ID returned by scanPluginFile().
+    \return Empty success, or a typed failure.
+    \note This method may be called from a non-realtime worker thread.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> validatePluginLoad(
+        const std::string& plugin_id) override;
 
     /*!
     \brief Appends a previously scanned plugin candidate to the hosted Tracktion chain.
