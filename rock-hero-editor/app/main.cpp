@@ -6,6 +6,7 @@
 #include <rock_hero/editor/core/juce_editor_task_runner.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
+#include <string_view>
 
 namespace rock_hero::editor::app
 {
@@ -26,15 +27,27 @@ public:
         return ProjectInfo::versionString;
     }
 
-    // Keeps startup single-instance while editor session coordination is not implemented.
+    // Keeps startup single-instance while letting helper child processes serve plugin work.
     bool moreThanOneInstanceAllowed() override
     {
-        return false;
+        const std::string command_line =
+            juce::JUCEApplicationBase::getCommandLineParameters().toStdString();
+        return rock_hero::common::audio::Engine::isPluginScanChildProcessCommandLine(
+                   command_line) ||
+               rock_hero::common::audio::Engine::isPluginLoadProbeChildProcessCommandLine(
+                   command_line);
     }
 
     // Creates the editor window once JUCE has entered application startup.
-    void initialise(const juce::String& /*command_line*/) override
+    void initialise(const juce::String& command_line) override
     {
+        const std::string command_line_text = command_line.toStdString();
+        if (rock_hero::common::audio::Engine::startPluginScanChildProcess(command_line_text) ||
+            rock_hero::common::audio::Engine::startPluginLoadProbeChildProcess(command_line_text))
+        {
+            return;
+        }
+
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();

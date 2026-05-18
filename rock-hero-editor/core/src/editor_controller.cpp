@@ -286,6 +286,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     struct OpenTaskState;
     struct ImportTaskState;
+    struct AddPluginTaskState;
     struct ProjectWriteTaskState;
     struct ProjectLoadLiveRigStage;
 
@@ -356,6 +357,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
+    void completeAddPluginScan(
+        std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state);
+    void completeAddPluginLoad(
+        std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state);
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
@@ -499,6 +504,17 @@ struct EditorController::Impl::ImportTaskState
     std::filesystem::path file{};
     Project project{};
     std::expected<common::core::Song, ProjectError> result{};
+};
+
+// Per-operation worker state for AddPlugin discovery and validation. The slow Tracktion plugin
+// work runs on a worker so the busy overlay stays responsive. Actual chain mutation happens on
+// the message thread in the completion callback because Tracktion requires it.
+struct EditorController::Impl::AddPluginTaskState
+{
+    std::filesystem::path file{};
+    std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+        candidates{};
+    std::optional<std::expected<void, common::audio::PluginHostError>> load_validation{};
 };
 
 // Per-operation worker state for project package writes. The Project is moved out of the
@@ -1311,6 +1327,9 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekWaveform action
     deriveAndPush();
 }
 
+// Offloads the slow Tracktion plugin scan to the editor task runner so the busy overlay stays
+// responsive while the file is inspected. Actual chain mutation resumes on the message thread
+// in the completion callback because Tracktion plugin insertion requires it.
 void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& action)
 {
     if (m_plugin_host == nullptr || !hasLoadedArrangement())
@@ -1318,27 +1337,101 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         return;
     }
 
-    const auto candidates = m_plugin_host->scanPluginFile(action.file);
-    if (!candidates.has_value())
+    auto state = std::make_shared<AddPluginTaskState>();
+    state->file = action.file;
+    const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
+    deriveAndPush();
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    common::audio::IPluginHost* const plugin_host = m_plugin_host;
+    m_task_runner->submit(
+        [state, plugin_host] {
+            state->candidates = plugin_host->scanPluginFile(state->file);
+            if (state->candidates.has_value() && !state->candidates->empty())
+            {
+                state->load_validation =
+                    plugin_host->validatePluginLoad(state->candidates->front().id);
+            }
+        },
+        [this, state, token, alive_weak = std::move(alive_weak)]() {
+            if (alive_weak.expired())
+            {
+                return;
+            }
+            completeAddPluginScan(token, state);
+        });
+}
+
+// Applies the scan and validation result on the message thread before final chain mutation.
+void EditorController::Impl::completeAddPluginScan(
+    std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
+{
+    if (token != m_busy_generation)
     {
-        reportError(std::string{"Could not scan plugin: "} + candidates.error().message);
-        deriveAndPush();
         return;
     }
 
-    if (candidates->empty())
+    if (!state->candidates.has_value())
     {
+        const std::string message = state->candidates.error().message;
+        finishBusyOperation();
+        deriveAndPush();
+        reportError(std::string{"Could not scan plugin: "} + message);
+        return;
+    }
+
+    if (state->candidates->empty())
+    {
+        finishBusyOperation();
+        deriveAndPush();
         reportError("Could not scan plugin: no compatible plugin was found");
-        deriveAndPush();
         return;
     }
 
-    const common::audio::PluginCandidate& candidate = candidates->front();
+    if (!state->load_validation.has_value())
+    {
+        finishBusyOperation();
+        deriveAndPush();
+        reportError("Could not load plugin: plugin validation did not run");
+        return;
+    }
+
+    if (!state->load_validation->has_value())
+    {
+        const std::string message = state->load_validation->error().message;
+        finishBusyOperation();
+        deriveAndPush();
+        reportError(std::string{"Could not load plugin: "} + message);
+        return;
+    }
+
+    std::weak_ptr<bool> alive_weak = m_alive;
+    runAfterBusyOverlayPaintedOrNow([this, state, token, alive_weak = std::move(alive_weak)]() {
+        if (alive_weak.expired())
+        {
+            return;
+        }
+        completeAddPluginLoad(token, state);
+    });
+}
+
+// Inserts the already-scanned and validated plugin candidate into the live chain.
+void EditorController::Impl::completeAddPluginLoad(
+    std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
+{
+    if (token != m_busy_generation || !state->candidates.has_value() || state->candidates->empty())
+    {
+        return;
+    }
+
+    const common::audio::PluginCandidate& candidate = state->candidates->front();
     const auto handle = m_plugin_host->addPlugin(candidate.id);
     if (!handle.has_value())
     {
-        reportError(std::string{"Could not add plugin: "} + handle.error().message);
+        const std::string message = handle.error().message;
+        finishBusyOperation();
         deriveAndPush();
+        reportError(std::string{"Could not add plugin: "} + message);
         return;
     }
 
@@ -1347,6 +1440,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
     {
         m_has_unsaved_changes = true;
     }
+
+    finishBusyOperation();
     deriveAndPush();
 }
 

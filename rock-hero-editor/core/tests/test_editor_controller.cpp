@@ -466,6 +466,20 @@ public:
         return next_candidates;
     }
 
+    // Returns success or the configured validation error while recording the candidate ID.
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> validatePluginLoad(
+        const std::string& plugin_id) override
+    {
+        last_validated_plugin_id = plugin_id;
+        validate_call_count += 1;
+        if (next_validate_error.has_value())
+        {
+            return std::unexpected{*next_validate_error};
+        }
+
+        return {};
+    }
+
     // Returns the configured insertion handle or insertion error.
     [[nodiscard]] std::expected<common::audio::PluginHandle, common::audio::PluginHostError>
     addPlugin(const std::string& plugin_id) override
@@ -518,6 +532,9 @@ public:
     // Optional insertion error returned instead of a handle.
     std::optional<common::audio::PluginHostError> next_add_error{};
 
+    // Optional load-validation error returned instead of success.
+    std::optional<common::audio::PluginHostError> next_validate_error{};
+
     // Optional removal error returned instead of success.
     std::optional<common::audio::PluginHostError> next_remove_error{};
 
@@ -527,6 +544,9 @@ public:
     // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
+    // Last candidate ID passed to validatePluginLoad().
+    std::optional<std::string> last_validated_plugin_id{};
+
     // Last instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
 
@@ -535,6 +555,9 @@ public:
 
     // Number of insertion calls received.
     int add_call_count{0};
+
+    // Number of load-validation calls received.
+    int validate_call_count{0};
 
     // Number of removal calls received.
     int remove_call_count{0};
@@ -1407,12 +1430,14 @@ TEST_CASE("EditorController adds a plugin", "[core][editor-controller]")
 
     CHECK(plugin_host.scan_call_count == 1);
     CHECK(plugin_host.last_scanned_file == std::optional{std::filesystem::path{"amp.vst3"}});
+    CHECK(plugin_host.validate_call_count == 1);
+    CHECK(plugin_host.last_validated_plugin_id == std::optional<std::string>{"plugin-id"});
     CHECK(plugin_host.add_call_count == 1);
     CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"plugin-id"});
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());
-    CHECK(view.busy_overlay_paint_callback_count == 0);
+    CHECK(view.busy_overlay_paint_callback_count == 1);
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
     CHECK(final_state->signal_chain.add_plugin_enabled);
     CHECK(final_state->signal_chain.remove_plugins_enabled);
@@ -1778,6 +1803,7 @@ TEST_CASE("EditorController reports plugin add errors", "[core][editor-controlle
     controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
 
     CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.validate_call_count == 1);
     CHECK(plugin_host.add_call_count == 1);
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -1787,6 +1813,45 @@ TEST_CASE("EditorController reports plugin add errors", "[core][editor-controlle
     }
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
+}
+
+// Load-validation failures report through the transient error channel and skip insertion.
+TEST_CASE("EditorController reports plugin load validation failures", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    plugin_host.next_validate_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginLoadFailed,
+        "plugin timed out",
+    };
+
+    controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
+
+    CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.validate_call_count == 1);
+    CHECK(plugin_host.last_validated_plugin_id == std::optional<std::string>{"plugin-id"});
+    CHECK(plugin_host.add_call_count == 0);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->signal_chain.plugins.empty());
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not load plugin: plugin timed out");
     REQUIRE(view.states_seen_at_errors.size() == 1);
     REQUIRE(view.states_seen_at_errors.back().has_value());
     const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
@@ -1818,6 +1883,7 @@ TEST_CASE("EditorController reports plugin scan errors", "[core][editor-controll
     controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
 
     CHECK(plugin_host.scan_call_count == 1);
+    CHECK(plugin_host.validate_call_count == 0);
     CHECK(plugin_host.add_call_count == 0);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -3353,7 +3419,9 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     runner.runPendingCompletions();
     controller.onAddPluginRequested(std::filesystem::path{"loaded.vst3"});
+    runner.runPendingCompletions();
     plugin_host.scan_call_count = 0;
+    plugin_host.validate_call_count = 0;
     plugin_host.add_call_count = 0;
     plugin_host.remove_call_count = 0;
 
@@ -3385,6 +3453,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     CHECK(transport.stop_call_count == 0);
     CHECK(transport.seek_call_count == 1);
     CHECK(plugin_host.scan_call_count == 0);
+    CHECK(plugin_host.validate_call_count == 0);
     CHECK(plugin_host.remove_call_count == 0);
 }
 
