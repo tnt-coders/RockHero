@@ -4,7 +4,10 @@
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
+#include <chrono>
+#include <condition_variable>
 #include <exception>
 #include <expected>
 #include <filesystem>
@@ -12,10 +15,12 @@
 #include <functional>
 #include <initializer_list>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <tracktion_engine/tracktion_engine.h>
 #include <utility>
 #include <vector>
@@ -30,6 +35,79 @@ constexpr std::string_view g_tones_directory_name{"tones"};
 constexpr std::string_view g_tone_state_directory_name{"state"};
 constexpr std::string_view g_tone_document_extension{".tone.json"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
+constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
+constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
+constexpr std::string_view g_plugin_load_probe_command_line_prefix{"--RockHeroPluginLoadProbe:"};
+constexpr auto g_plugin_load_probe_timeout = std::chrono::seconds{60};
+
+// Cancels Tracktion's custom plugin scanner if a child-process scan never replies.
+class PluginScanTimeout final
+{
+public:
+    PluginScanTimeout(std::function<void()> abort_scan, std::chrono::milliseconds timeout)
+        : m_abort_scan(std::move(abort_scan))
+        , m_thread([this, timeout] {
+            std::unique_lock lock{m_mutex};
+            if (m_finished_condition.wait_for(lock, timeout, [this] { return m_finished; }))
+            {
+                return;
+            }
+
+            lock.unlock();
+            m_timed_out.store(true);
+            if (m_abort_scan)
+            {
+                m_abort_scan();
+            }
+        })
+    {}
+
+    ~PluginScanTimeout()
+    {
+        finish();
+    }
+
+    PluginScanTimeout(const PluginScanTimeout&) = delete;
+    PluginScanTimeout& operator=(const PluginScanTimeout&) = delete;
+    PluginScanTimeout(PluginScanTimeout&&) = delete;
+    PluginScanTimeout& operator=(PluginScanTimeout&&) = delete;
+
+    void finish()
+    {
+        {
+            const std::scoped_lock lock{m_mutex};
+            m_finished = true;
+        }
+
+        m_finished_condition.notify_one();
+
+        if (m_thread.joinable())
+        {
+            m_thread.join();
+        }
+    }
+
+    [[nodiscard]] bool timedOut() const noexcept
+    {
+        return m_timed_out.load();
+    }
+
+private:
+    std::function<void()> m_abort_scan;
+    std::mutex m_mutex;
+    std::condition_variable m_finished_condition;
+    bool m_finished{false};
+    std::atomic_bool m_timed_out{false};
+    std::jthread m_thread;
+};
+
+// Decoded command-line payload for the helper process that probes plugin instantiation.
+struct PluginLoadProbeRequest
+{
+    std::filesystem::path plugin_path;
+    std::string plugin_id;
+    std::filesystem::path result_path;
+};
 
 // Pairs a JSON object property name with the value written for that property.
 struct JsonProperty
@@ -109,6 +187,72 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     const auto path_text = path.wstring();
     return juce::File{juce::String{path_text.c_str()}};
+}
+
+// Converts UTF-8-ish command line text from the public startup boundary into JUCE text.
+[[nodiscard]] juce::String toJuceString(std::string_view text)
+{
+    const std::string utf8_text{text};
+    return text.empty() ? juce::String{} : juce::String::fromUTF8(utf8_text.c_str());
+}
+
+// Encodes the probe child payload as a single whitespace-free command-line argument.
+[[nodiscard]] juce::String makePluginLoadProbeArgument(
+    const juce::String& plugin_file_or_identifier, const std::string& plugin_id,
+    const juce::File& result_file)
+{
+    juce::String payload;
+    payload << plugin_file_or_identifier << "\n"
+            << juce::String::fromUTF8(plugin_id.c_str()) << "\n"
+            << result_file.getFullPathName();
+
+    return juce::String{g_plugin_load_probe_command_line_prefix.data()} +
+           juce::Base64::toBase64(payload);
+}
+
+// Decodes the single-argument helper payload, returning empty for normal app launches.
+[[nodiscard]] std::optional<PluginLoadProbeRequest> parsePluginLoadProbeRequest(
+    std::string_view command_line)
+{
+    const juce::String prefix{g_plugin_load_probe_command_line_prefix.data()};
+    const juce::StringArray arguments =
+        juce::StringArray::fromTokens(toJuceString(command_line), true);
+
+    for (const juce::String& argument : arguments)
+    {
+        if (!argument.startsWith(prefix))
+        {
+            continue;
+        }
+
+        juce::MemoryOutputStream decoded;
+        if (!juce::Base64::convertFromBase64(decoded, argument.substring(prefix.length())))
+        {
+            return std::nullopt;
+        }
+
+        const juce::StringArray lines = juce::StringArray::fromLines(decoded.toString());
+        if (lines.size() != 3 || lines[0].isEmpty() || lines[1].isEmpty() || lines[2].isEmpty())
+        {
+            return std::nullopt;
+        }
+
+        return PluginLoadProbeRequest{
+            .plugin_path = std::filesystem::path{lines[0].toStdString()},
+            .plugin_id = lines[1].toStdString(),
+            .result_path = std::filesystem::path{lines[2].toStdString()},
+        };
+    }
+
+    return std::nullopt;
+}
+
+// Writes a small result file so the parent process can surface helper failures in the UI.
+void writePluginLoadProbeResult(const std::filesystem::path& result_path, const std::string& text)
+{
+    const juce::File result_file = toJuceFile(result_path);
+    result_file.getParentDirectory().createDirectory();
+    result_file.replaceWithText(juce::String::fromUTF8(text.c_str()));
 }
 
 // Stores UTF-8 project strings in the JUCE JSON representation.
@@ -720,6 +864,12 @@ public:
         return false;
     }
 
+    // Scans third-party plugins in a child process so bad scans cannot wedge the editor process.
+    bool canScanPluginsOutOfProcess() override
+    {
+        return true;
+    }
+
     // Rock Hero supplies compact wave-device descriptions for the staged JUCE route.
     bool isDescriptionOfWaveDevicesSupported() override
     {
@@ -1002,8 +1152,25 @@ private:
                     continue;
                 }
 
+                PluginScanTimeout scan_timeout{
+                    [&plugin_manager] { plugin_manager.abortCurrentPluginScan(); },
+                    g_plugin_scan_timeout
+                };
                 plugin_manager.knownPluginList.scanAndAddFile(
                     file_or_identifier, true, found_descriptions, *format);
+                scan_timeout.finish();
+
+                if (scan_timeout.timedOut())
+                {
+                    plugin_manager.knownPluginList.removeFromBlacklist(file_or_identifier);
+                    plugin_manager.knownPluginList.scanFinished();
+                    return std::unexpected{PluginHostError{
+                        PluginHostErrorCode::PluginScanFailed,
+                        "Plugin scan timed out after " +
+                            std::to_string(g_plugin_scan_timeout.count()) +
+                            " seconds: " + plugin_path.string()
+                    }};
+                }
             }
 
             if (!has_vst3_format)
@@ -1046,6 +1213,15 @@ private:
             }};
         }
     }
+
+    // Appends a known plugin candidate, optionally proving in a helper process that the plugin
+    // can instantiate before the editor process enters third-party code.
+    [[nodiscard]] std::expected<PluginHandle, PluginHostError> addKnownPluginToTrack(
+        const std::string& plugin_id, bool validate_with_child_probe);
+
+    // Runs a helper-process instantiation probe for slow or potentially wedging plugins.
+    [[nodiscard]] std::expected<void, PluginHostError> validatePluginLoadInChildProcess(
+        const juce::PluginDescription& description, const std::string& plugin_id) const;
 
     // Checks the current known-plugin list for a plugin matching persisted identity.
     [[nodiscard]] bool hasKnownPluginForIdentity(const PluginIdentity& identity) const
@@ -1318,12 +1494,83 @@ private:
     }
 };
 
+// Handles the child-process entry point used by Tracktion's isolated plugin scanner.
+bool Engine::startPluginScanChildProcess(std::string_view command_line)
+{
+    return tracktion::PluginManager::startChildProcessPluginScan(toJuceString(command_line));
+}
+
+// Checks whether a command line is addressed to Tracktion's isolated plugin scanner.
+bool Engine::isPluginScanChildProcessCommandLine(std::string_view command_line)
+{
+    return toJuceString(command_line)
+        .trim()
+        .startsWith(juce::String{g_plugin_scan_command_line_prefix.data()});
+}
+
+// Handles the child-process entry point used to probe full plugin instantiation safely.
+bool Engine::startPluginLoadProbeChildProcess(std::string_view command_line)
+{
+    const std::optional<PluginLoadProbeRequest> request = parsePluginLoadProbeRequest(command_line);
+    if (!request.has_value())
+    {
+        return false;
+    }
+
+    auto finish = [&request](int exit_code, const std::string& message) {
+        writePluginLoadProbeResult(request->result_path, message);
+        if (juce::JUCEApplicationBase* const app = juce::JUCEApplicationBase::getInstance();
+            app != nullptr)
+        {
+            app->setApplicationReturnValue(exit_code);
+        }
+        juce::JUCEApplicationBase::quit();
+        return true;
+    };
+
+    try
+    {
+        Engine engine;
+        const auto candidates = engine.scanPluginFile(request->plugin_path);
+        if (!candidates.has_value())
+        {
+            return finish(2, candidates.error().message);
+        }
+
+        const auto candidate = std::ranges::find_if(
+            *candidates, [&request](const auto& item) { return item.id == request->plugin_id; });
+        if (candidate == candidates->end())
+        {
+            return finish(3, "Plugin candidate was not found during load probe");
+        }
+
+        const auto handle = engine.m_impl->addKnownPluginToTrack(candidate->id, false);
+        if (!handle.has_value())
+        {
+            return finish(4, handle.error().message);
+        }
+
+        return finish(0, "ok");
+    }
+    catch (const std::exception& error)
+    {
+        return finish(5, std::string{"Plugin load probe failed: "} + error.what());
+    }
+}
+
+// Checks whether a command line is addressed to Rock Hero's plugin-load probe helper.
+bool Engine::isPluginLoadProbeChildProcessCommandLine(std::string_view command_line)
+{
+    return parsePluginLoadProbeRequest(command_line).has_value();
+}
+
 // Creates the Tracktion engine and a minimal two-track edit for playback and instrument monitoring.
 Engine::Engine()
     : m_impl(std::make_unique<Impl>())
 {
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
         "RockHero", nullptr, std::make_unique<RockHeroEngineBehaviour>());
+    m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
 
     // createSingleTrackEdit already provides one AudioTrack ready for media.
     m_impl->createEdit();
@@ -1524,33 +1771,104 @@ void Engine::clearActiveArrangement()
     m_impl->updateTransportState();
 }
 
-// Scans one plugin file through Tracktion's JUCE-backed known-plugin list.
+// Scans one plugin file through Tracktion's JUCE-backed known-plugin list. The editor invokes
+// this from a worker thread so the busy overlay stays responsive while the file is inspected.
 std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginFile(
     const std::filesystem::path& plugin_path)
 {
-    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
-    }
-
     return m_impl->scanPluginFileForCandidates(plugin_path);
 }
 
+// Validates a selected known VST3 candidate in a helper process before final insertion.
+std::expected<void, PluginHostError> Engine::validatePluginLoad(const std::string& plugin_id)
+{
+    const std::unique_ptr<juce::PluginDescription> description = m_impl->findKnownPlugin(plugin_id);
+    if (description == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginNotFound, "Plugin candidate was not found: " + plugin_id
+        }};
+    }
+
+    return m_impl->validatePluginLoadInChildProcess(*description, plugin_id);
+}
+
+// Runs a helper executable that proves full plugin instantiation without risking the editor.
+std::expected<void, PluginHostError> Engine::Impl::validatePluginLoadInChildProcess(
+    const juce::PluginDescription& description, const std::string& plugin_id) const
+{
+    if (juce::JUCEApplicationBase::getInstance() == nullptr)
+    {
+        return {};
+    }
+
+    const juce::File executable = juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+    if (!executable.existsAsFile())
+    {
+        return {};
+    }
+
+    const juce::File result_file =
+        juce::File::getSpecialLocation(juce::File::tempDirectory)
+            .getChildFile("rockhero-plugin-load-probe-" + juce::Uuid{}.toString() + ".txt");
+
+    juce::StringArray arguments;
+    arguments.add(executable.getFullPathName());
+    arguments.add(
+        makePluginLoadProbeArgument(description.fileOrIdentifier, plugin_id, result_file));
+
+    juce::ChildProcess child_process;
+    if (!child_process.start(arguments, 0))
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginLoadFailed, "Could not start plugin load helper"
+        }};
+    }
+
+    if (!child_process.waitForProcessToFinish(
+            static_cast<int>(
+                std::chrono::duration_cast<std::chrono::milliseconds>(g_plugin_load_probe_timeout)
+                    .count())))
+    {
+        child_process.kill();
+        result_file.deleteFile();
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginLoadFailed,
+            "Plugin load timed out after " + std::to_string(g_plugin_load_probe_timeout.count()) +
+                " seconds: " + description.name.toStdString()
+        }};
+    }
+
+    const juce::String result_text =
+        result_file.existsAsFile() ? result_file.loadFileAsString().trim() : juce::String{};
+    result_file.deleteFile();
+
+    if (child_process.getExitCode() != 0)
+    {
+        const std::string detail =
+            result_text.isNotEmpty() ? result_text.toStdString() : "Plugin load helper failed";
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginLoadFailed, detail}};
+    }
+
+    return {};
+}
+
 // Appends a selected known VST3 candidate to the instrument track's plugin list.
-std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string& plugin_id)
+std::expected<PluginHandle, PluginHostError> Engine::Impl::addKnownPluginToTrack(
+    const std::string& plugin_id, bool validate_with_child_probe)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
     if (instrument_track == nullptr)
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
     }
 
-    const std::unique_ptr<juce::PluginDescription> description = m_impl->findKnownPlugin(plugin_id);
+    const std::unique_ptr<juce::PluginDescription> description = findKnownPlugin(plugin_id);
     if (description == nullptr)
     {
         return std::unexpected{PluginHostError{
@@ -1563,13 +1881,22 @@ std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
-    m_impl->stopTransportAndReleaseContext();
+    if (validate_with_child_probe)
+    {
+        const auto probe_result = validatePluginLoadInChildProcess(*description, plugin_id);
+        if (!probe_result.has_value())
+        {
+            return std::unexpected{std::move(probe_result.error())};
+        }
+    }
 
-    const tracktion::Plugin::Ptr plugin = m_impl->m_edit->getPluginCache().createNewPlugin(
+    stopTransportAndReleaseContext();
+
+    const tracktion::Plugin::Ptr plugin = m_edit->getPluginCache().createNewPlugin(
         tracktion::ExternalPlugin::xmlTypeName, *description);
     if (plugin == nullptr)
     {
-        m_impl->rebuildInstrumentMonitoringGraph();
+        rebuildInstrumentMonitoringGraph();
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginCreationFailed,
             "Could not create plugin: " + description->name.toStdString()
@@ -1582,7 +1909,7 @@ std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string
         const juce::String load_error = external_plugin->getLoadError();
         if (load_error.isNotEmpty())
         {
-            m_impl->rebuildInstrumentMonitoringGraph();
+            rebuildInstrumentMonitoringGraph();
             return std::unexpected{
                 PluginHostError{PluginHostErrorCode::PluginLoadFailed, load_error.toStdString()}
             };
@@ -1593,16 +1920,22 @@ std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string
     const int inserted_index = instrument_track->pluginList.indexOf(plugin.get());
     if (inserted_index < 0)
     {
-        m_impl->rebuildInstrumentMonitoringGraph();
+        rebuildInstrumentMonitoringGraph();
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
-    m_impl->rebuildInstrumentMonitoringGraph();
+    rebuildInstrumentMonitoringGraph();
     return PluginHandle{
         .instance_id = plugin->itemID.toString().toStdString(),
         .plugin_id = plugin_id,
         .chain_index = static_cast<std::size_t>(inserted_index),
     };
+}
+
+// Appends a selected known VST3 candidate to the instrument track's plugin list.
+std::expected<PluginHandle, PluginHostError> Engine::addPlugin(const std::string& plugin_id)
+{
+    return m_impl->addKnownPluginToTrack(plugin_id, false);
 }
 
 // Removes a loaded plugin from the instrument track and rebuilds monitoring around the mutation.

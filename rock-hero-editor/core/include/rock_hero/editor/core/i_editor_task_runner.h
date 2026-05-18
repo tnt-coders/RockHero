@@ -11,7 +11,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Runs filesystem-heavy editor work off the message thread.
+\brief Runs slow editor work off the message thread.
 
 Submits a work callable to be run on a worker thread. When the work returns, the runner schedules
 the completion callable on the message thread so the controller can apply results without
@@ -30,8 +30,9 @@ public:
     /*!
     \brief Submits work for off-thread execution with on-message-thread completion.
 
-    \param work Callable invoked on a worker thread. Must not touch controller, session, JUCE, or
-    Tracktion state. The runner moves this callable into worker storage.
+    \param work Callable invoked on a worker thread. Must not touch controller, session, UI, or
+    message-thread-only audio state. It may call project-owned ports whose contracts explicitly
+    allow worker-thread use. The runner moves this callable into worker storage.
 
     \param completion Callable invoked on the message thread after work returns. The runner moves
     this callable into completion storage. The caller is responsible for any stale-completion or
