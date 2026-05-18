@@ -566,11 +566,6 @@ public:
     {
         last_load_request = request;
         load_call_count += 1;
-        if (next_load_error.has_value())
-        {
-            on_result(std::unexpected{*next_load_error});
-            return;
-        }
 
         if (request.progress_callback)
         {
@@ -600,7 +595,40 @@ public:
             }
         }
 
-        on_result(next_load_result);
+        std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> result =
+            next_load_result;
+        if (next_load_error.has_value())
+        {
+            result = std::unexpected{*next_load_error};
+        }
+
+        if (defer_load_completion)
+        {
+            pending_load = PendingLoad{
+                .on_result = std::move(on_result),
+                .result = std::move(result),
+            };
+            return;
+        }
+
+        on_result(std::move(result));
+    }
+
+    // Completes one deferred load so tests can supersede the busy operation before delivery.
+    [[nodiscard]] bool completePendingLoad()
+    {
+        if (!pending_load.has_value())
+        {
+            return false;
+        }
+
+        PendingLoad pending = std::move(*pending_load);
+        pending_load.reset();
+        if (pending.on_result)
+        {
+            pending.on_result(std::move(pending.result));
+        }
+        return true;
     }
 
     // Records explicit clear requests made during project teardown.
@@ -653,6 +681,9 @@ public:
     // Optional clear error returned instead of success.
     std::optional<common::audio::LiveRigError> next_clear_error{};
 
+    // When set, loadRig stores its completion so tests can finish it explicitly.
+    bool defer_load_completion{false};
+
     // Last capture request observed by the fake.
     std::optional<common::audio::LiveRigCaptureRequest> last_capture_request{};
 
@@ -667,6 +698,16 @@ public:
 
     // Number of clear calls received.
     int clear_call_count{0};
+
+private:
+    // Deferred live-rig completion captured with the result configured at load time.
+    struct PendingLoad
+    {
+        common::audio::LiveRigLoadResultCallback on_result;
+        std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> result{};
+    };
+
+    std::optional<PendingLoad> pending_load{};
 };
 
 // Minimal audio-device-configuration fake exposing a real juce::AudioDeviceManager.
@@ -1482,6 +1523,60 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
                state.progress == std::optional<double>{1.0};
     }));
     CHECK(view.busy_overlay_paint_callback_count == 1);
+}
+
+// A live-rig completion delivered after close cannot repopulate project or plugin state.
+TEST_CASE(
+    "EditorController close during live rig load supersedes open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.defer_load_completion = true;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    CHECK(live_rig.load_call_count == 1);
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    const EditorViewState* loading_state = stateOrNull(view.last_state);
+    REQUIRE(loading_state != nullptr);
+    REQUIRE(loading_state->busy.has_value());
+    CHECK(loading_state->busy->operation == BusyOperation::LoadingLiveRig);
+
+    controller.onCloseRequested();
+
+    CHECK(live_rig.clear_call_count == 1);
+    const EditorViewState* closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->busy.has_value());
+    CHECK_FALSE(closed_state->project_loaded);
+    CHECK(closed_state->signal_chain.plugins.empty());
+
+    CHECK(live_rig.completePendingLoad());
+
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    CHECK_FALSE(final_state->project_loaded);
+    CHECK(final_state->signal_chain.plugins.empty());
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    CHECK(view.shown_errors.empty());
 }
 
 // Saving captures the active live rig and writes its document reference into the song.

@@ -1642,6 +1642,10 @@ std::expected<void, LiveRigError> Engine::clearRig()
         return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
     }
 
+    // Clear also cancels cooperative restore steps queued by loadRig(); otherwise stale
+    // continuations could rebuild the chain after the editor has closed the project.
+    m_impl->m_load_op.reset();
+
     tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
     if (instrument_track == nullptr)
     {
