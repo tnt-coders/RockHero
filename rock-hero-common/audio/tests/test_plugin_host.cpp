@@ -31,6 +31,20 @@ public:
         return next_scan_candidates;
     }
 
+    // Records the selected candidate ID and returns the configured validation result.
+    std::expected<void, PluginHostError> validatePluginLoad(const std::string& plugin_id) override
+    {
+        last_validated_plugin_id = plugin_id;
+        ++validate_call_count;
+
+        if (next_validate_error.has_value())
+        {
+            return std::unexpected{*next_validate_error};
+        }
+
+        return {};
+    }
+
     // Records the selected candidate ID and returns the configured handle or add failure.
     std::expected<PluginHandle, PluginHostError> addPlugin(const std::string& plugin_id) override
     {
@@ -83,6 +97,9 @@ public:
     // Optional error returned by the next add request.
     std::optional<PluginHostError> next_add_error{};
 
+    // Optional error returned by the next validation request.
+    std::optional<PluginHostError> next_validate_error{};
+
     // Optional error returned by the next remove request.
     std::optional<PluginHostError> next_remove_error{};
 
@@ -92,6 +109,9 @@ public:
     // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
+    // Last candidate ID passed to validatePluginLoad().
+    std::optional<std::string> last_validated_plugin_id{};
+
     // Last plugin instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
 
@@ -100,6 +120,9 @@ public:
 
     // Number of add requests received.
     int add_call_count{0};
+
+    // Number of validation requests received.
+    int validate_call_count{0};
 
     // Number of remove requests received.
     int remove_call_count{0};
@@ -121,6 +144,18 @@ TEST_CASE("IPluginHost scans plugin candidates", "[audio][plugin-host]")
     CHECK(candidates->front().format_name == "VST3");
     CHECK(plugin_host.last_scan_path == std::optional{std::filesystem::path{"Amp.vst3"}});
     CHECK(plugin_host.scan_call_count == 1);
+}
+
+// Verifies selected plugin candidates can be validated before chain mutation.
+TEST_CASE("IPluginHost validates plugin load", "[audio][plugin-host]")
+{
+    FakePluginHost plugin_host;
+
+    const auto result = plugin_host.validatePluginLoad("vst3:amp");
+
+    CHECK(result.has_value());
+    CHECK(plugin_host.last_validated_plugin_id == std::optional<std::string>{"vst3:amp"});
+    CHECK(plugin_host.validate_call_count == 1);
 }
 
 // Verifies selected plugin candidates are appended through an opaque returned instance handle.
