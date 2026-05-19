@@ -212,6 +212,13 @@ public:
         remove_plugin_request_count += 1;
     }
 
+    // Captures plugin instance IDs selected for editor-window opening.
+    void onOpenPluginRequested(std::string instance_id) override
+    {
+        last_opened_plugin_instance_id = std::move(instance_id);
+        open_plugin_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -232,6 +239,9 @@ public:
 
     // Last plugin instance ID selected through the controller contract.
     std::optional<std::string> last_removed_plugin_instance_id{};
+
+    // Last plugin instance ID selected for editor-window opening.
+    std::optional<std::string> last_opened_plugin_instance_id{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -277,6 +287,9 @@ public:
 
     // Number of remove-plugin intents received.
     int remove_plugin_request_count{0};
+
+    // Number of open-plugin intents received.
+    int open_plugin_request_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -500,6 +513,20 @@ public:
         return {};
     }
 
+    // Returns success or the configured open error while recording the requested instance.
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
+        const std::string& instance_id) override
+    {
+        last_opened_instance_id = instance_id;
+        open_call_count += 1;
+        if (next_open_error.has_value())
+        {
+            return std::unexpected{*next_open_error};
+        }
+
+        return {};
+    }
+
     // Candidates returned by the next successful scan.
     std::vector<common::audio::PluginCandidate> next_candidates{common::audio::PluginCandidate{
         .id = "plugin-id",
@@ -525,6 +552,9 @@ public:
     // Optional removal error returned instead of success.
     std::optional<common::audio::PluginHostError> next_remove_error{};
 
+    // Optional open-window error returned instead of success.
+    std::optional<common::audio::PluginHostError> next_open_error{};
+
     // Last plugin file passed to scanPluginFile().
     std::optional<std::filesystem::path> last_scanned_file{};
 
@@ -534,6 +564,9 @@ public:
     // Last instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
 
+    // Last instance ID passed to openPluginWindow().
+    std::optional<std::string> last_opened_instance_id{};
+
     // Number of scan calls received.
     int scan_call_count{0};
 
@@ -542,6 +575,9 @@ public:
 
     // Number of removal calls received.
     int remove_call_count{0};
+
+    // Number of open-window calls received.
+    int open_call_count{0};
 };
 
 // Configurable live rig fake that records project-boundary save and restore requests.
@@ -1307,6 +1343,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onWaveformClicked(0.75);
     controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
     controller.onRemovePluginRequested("instance-id");
+    controller.onOpenPluginRequested("instance-id");
 
     CHECK(controller.open_request_count == 1);
     CHECK(controller.last_open_file == std::optional{open_file});
@@ -1331,6 +1368,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.last_plugin_file == std::optional{std::filesystem::path{"amp.vst3"}});
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance-id"});
+    CHECK(controller.open_plugin_request_count == 1);
+    CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance-id"});
 }
 
 // Verifies the controller publishes the current audio-device name through view state.
@@ -1738,6 +1777,84 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     CHECK(view.shown_errors.empty());
+}
+
+// Opening a plugin window validates the row instance before delegating to the plugin host.
+TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+
+    controller.onOpenPluginRequested("instance-id");
+
+    CHECK(plugin_host.open_call_count == 1);
+    CHECK(plugin_host.last_opened_instance_id == std::optional<std::string>{"instance-id"});
+    CHECK(view.shown_errors.empty());
+}
+
+// A stale plugin-window row ID is ignored before calling the backend.
+TEST_CASE("EditorController ignores stale plugin window requests", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+
+    controller.onOpenPluginRequested("stale-instance");
+
+    CHECK(plugin_host.open_call_count == 0);
+    CHECK(view.shown_errors.empty());
+}
+
+// Backend plugin-window failures surface as transient editor errors.
+TEST_CASE("EditorController reports plugin window errors", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    plugin_host.next_open_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginWindowUnavailable,
+        "plugin has no editor",
+    };
+
+    controller.onOpenPluginRequested("instance-id");
+
+    CHECK(plugin_host.open_call_count == 1);
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not open plugin: plugin has no editor");
 }
 
 // Backend removal failures report an error without erasing controller-owned runtime state.
@@ -3376,6 +3493,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     plugin_host.scan_call_count = 0;
     plugin_host.add_call_count = 0;
     plugin_host.remove_call_count = 0;
+    plugin_host.open_call_count = 0;
 
     transport.current_position = common::core::TimePosition{1.0};
     project_services.next_song = makeSong(std::filesystem::path{"pending.wav"});
@@ -3394,6 +3512,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onWaveformClicked(0.5);
     controller.onAddPluginRequested(std::filesystem::path{"blocked.vst3"});
     controller.onRemovePluginRequested("instance-id");
+    controller.onOpenPluginRequested("instance-id");
 
     CHECK(runner.pendingCount() == 1);
     CHECK(project_services.open_call_count == 2);
@@ -3406,6 +3525,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     CHECK(transport.seek_call_count == 1);
     CHECK(plugin_host.scan_call_count == 0);
     CHECK(plugin_host.remove_call_count == 0);
+    CHECK(plugin_host.open_call_count == 0);
 }
 
 // Completion of a successful open clears busy and publishes the final committed state.
