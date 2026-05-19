@@ -107,29 +107,19 @@ public:
     Engine engine;
 };
 
-// Creates a syntactically valid plugin-load probe command without starting a helper process.
-[[nodiscard]] std::string makePluginLoadProbeCommandLine()
-{
-    const juce::String payload{"C:\\Plugins\\Amp.vst3\nplugin-id\nC:\\Temp\\probe.txt"};
-    return ("--RockHeroPluginLoadProbe:" + juce::Base64::toBase64(payload)).toStdString();
-}
-
 } // namespace
 
-// Verifies normal app launches are not consumed as scan or probe child processes.
+// Verifies normal app launches are not consumed as scanner child processes.
 TEST_CASE("Engine child-process helpers ignore normal startup", "[audio][engine]")
 {
     CHECK_FALSE(Engine::isPluginScanChildProcessCommandLine("--normal"));
     CHECK_FALSE(Engine::startPluginScanChildProcess("--normal"));
-    CHECK_FALSE(Engine::isPluginLoadProbeChildProcessCommandLine("--normal"));
-    CHECK_FALSE(Engine::startPluginLoadProbeChildProcess("--normal"));
 }
 
-// Verifies plugin helper command lines are recognized before normal editor startup.
+// Verifies plugin scanner command lines are recognized before normal editor startup.
 TEST_CASE("Engine recognizes plugin helper command lines", "[audio][engine]")
 {
     CHECK(Engine::isPluginScanChildProcessCommandLine("--PluginScan:abc"));
-    CHECK(Engine::isPluginLoadProbeChildProcessCommandLine(makePluginLoadProbeCommandLine()));
 }
 
 // Verifies the concrete engine starts with empty state and a zero current position.

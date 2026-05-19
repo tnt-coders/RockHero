@@ -506,15 +506,14 @@ struct EditorController::Impl::ImportTaskState
     std::expected<common::core::Song, ProjectError> result{};
 };
 
-// Per-operation worker state for AddPlugin discovery and validation. The slow Tracktion plugin
-// work runs on a worker so the busy overlay stays responsive. Actual chain mutation happens on
-// the message thread in the completion callback because Tracktion requires it.
+// Per-operation worker state for AddPlugin discovery. The slow Tracktion plugin scan runs on a
+// worker so the busy overlay stays responsive. Actual chain mutation happens on the message thread
+// in the completion callback because Tracktion requires it.
 struct EditorController::Impl::AddPluginTaskState
 {
     std::filesystem::path file{};
     std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
         candidates{};
-    std::optional<std::expected<void, common::audio::PluginHostError>> load_validation{};
 };
 
 // Per-operation worker state for project package writes. The Project is moved out of the
@@ -1345,14 +1344,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
     std::weak_ptr<bool> alive_weak = m_alive;
     common::audio::IPluginHost* const plugin_host = m_plugin_host;
     m_task_runner->submit(
-        [state, plugin_host] {
-            state->candidates = plugin_host->scanPluginFile(state->file);
-            if (state->candidates.has_value() && !state->candidates->empty())
-            {
-                state->load_validation =
-                    plugin_host->validatePluginLoad(state->candidates->front().id);
-            }
-        },
+        [state, plugin_host] { state->candidates = plugin_host->scanPluginFile(state->file); },
         [this, state, token, alive_weak = std::move(alive_weak)]() {
             if (alive_weak.expired())
             {
@@ -1362,7 +1354,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         });
 }
 
-// Applies the scan and validation result on the message thread before final chain mutation.
+// Applies the scan result on the message thread before final chain mutation.
 void EditorController::Impl::completeAddPluginScan(
     std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
 {
@@ -1388,23 +1380,6 @@ void EditorController::Impl::completeAddPluginScan(
         return;
     }
 
-    if (!state->load_validation.has_value())
-    {
-        finishBusyOperation();
-        deriveAndPush();
-        reportError("Could not load plugin: plugin validation did not run");
-        return;
-    }
-
-    if (!state->load_validation->has_value())
-    {
-        const std::string message = state->load_validation->error().message;
-        finishBusyOperation();
-        deriveAndPush();
-        reportError(std::string{"Could not load plugin: "} + message);
-        return;
-    }
-
     std::weak_ptr<bool> alive_weak = m_alive;
     runAfterBusyOverlayPaintedOrNow([this, state, token, alive_weak = std::move(alive_weak)]() {
         if (alive_weak.expired())
@@ -1415,7 +1390,7 @@ void EditorController::Impl::completeAddPluginScan(
     });
 }
 
-// Inserts the already-scanned and validated plugin candidate into the live chain.
+// Inserts the already-scanned plugin candidate into the live chain.
 void EditorController::Impl::completeAddPluginLoad(
     std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
 {
