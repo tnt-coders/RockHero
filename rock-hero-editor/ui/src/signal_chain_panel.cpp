@@ -22,7 +22,10 @@ const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
 const juce::Colour g_plugin_row_background{juce::Colours::darkgrey.darker(0.12f)};
+const juce::Colour g_plugin_row_hover_background{juce::Colour{0xff263a4c}};
 const juce::Colour g_plugin_row_border{juce::Colours::black.withAlpha(0.35f)};
+const juce::Colour g_plugin_row_hover_border{juce::Colours::lightskyblue.withAlpha(0.95f)};
+const juce::Colour g_plugin_row_hover_accent{juce::Colours::lightskyblue};
 
 // Builds the compact slot label shown in the linear plugin chain.
 [[nodiscard]] juce::String pluginLabel(const core::PluginViewState& plugin)
@@ -59,6 +62,7 @@ public:
         , m_plugin(std::move(plugin))
     {
         setComponentID(juce::String{"plugin_row_"} + juce::String{m_plugin.instance_id});
+        setMouseCursor(juce::MouseCursor::PointingHandCursor);
         m_remove_button.setComponentID(
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
         m_remove_button.setButtonText("Remove");
@@ -78,10 +82,16 @@ public:
     // Draws the compact plugin label while the button remains a normal child control.
     void paint(juce::Graphics& g) override
     {
-        g.setColour(g_plugin_row_background);
+        g.setColour(m_is_hovered ? g_plugin_row_hover_background : g_plugin_row_background);
         g.fillRect(getLocalBounds());
-        g.setColour(g_plugin_row_border);
-        g.drawRect(getLocalBounds());
+        if (m_is_hovered)
+        {
+            g.setColour(g_plugin_row_hover_accent);
+            g.fillRect(getLocalBounds().removeFromLeft(4));
+        }
+
+        g.setColour(m_is_hovered ? g_plugin_row_hover_border : g_plugin_row_border);
+        g.drawRect(getLocalBounds(), m_is_hovered ? 2 : 1);
 
         auto label_area = getLocalBounds().reduced(8, 0);
         label_area.removeFromRight(g_remove_button_width + g_row_button_gap);
@@ -101,6 +111,29 @@ public:
                 .withSizeKeepingCentre(g_remove_button_width, getHeight() - 4));
     }
 
+    // Treats a row click as an editor-window request while ignoring drag releases.
+    void mouseUp(const juce::MouseEvent& event) override
+    {
+        if (event.mouseWasClicked())
+        {
+            m_listener.onOpenPluginPressed(m_plugin.instance_id);
+        }
+    }
+
+    // Shows that the row itself has a click action independent of the remove button.
+    void mouseEnter(const juce::MouseEvent& /*event*/) override
+    {
+        m_is_hovered = true;
+        repaint();
+    }
+
+    // Clears the row affordance when the pointer leaves the plugin row.
+    void mouseExit(const juce::MouseEvent& /*event*/) override
+    {
+        m_is_hovered = false;
+        repaint();
+    }
+
 private:
     // Listener that receives this row's remove intent.
     Listener& m_listener;
@@ -110,6 +143,9 @@ private:
 
     // Button that emits a remove intent for this row's plugin instance.
     juce::TextButton m_remove_button;
+
+    // True while the pointer is over the row, used only for the clickable-row affordance.
+    bool m_is_hovered{false};
 };
 
 // Creates the panel controls and routes the add command through the owner.

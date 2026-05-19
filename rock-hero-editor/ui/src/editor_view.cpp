@@ -121,6 +121,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::SeekWaveform:
         case core::EditorActionId::AddPlugin:
         case core::EditorActionId::RemovePlugin:
+        case core::EditorActionId::OpenPlugin:
         {
             return "Save changes before continuing?";
         }
@@ -1270,6 +1271,12 @@ void EditorView::onRemovePluginPressed(std::string instance_id)
     }
 
     m_controller.onRemovePluginRequested(std::move(instance_id));
+}
+
+// Forwards row-level open intent to the controller; controller-side routing handles busy gating.
+void EditorView::onOpenPluginPressed(std::string instance_id)
+{
+    m_controller.onOpenPluginRequested(std::move(instance_id));
 }
 
 } // namespace rock_hero::editor::ui

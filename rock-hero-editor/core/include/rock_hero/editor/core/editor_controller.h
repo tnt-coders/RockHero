@@ -343,6 +343,12 @@ public:
     */
     void onRemovePluginRequested(std::string instance_id) override;
 
+    /*!
+    \brief Opens a plugin instance editor window for the current runtime plugin chain.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    */
+    void onOpenPluginRequested(std::string instance_id) override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();

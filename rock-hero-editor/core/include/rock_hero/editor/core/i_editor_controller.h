@@ -90,6 +90,12 @@ public:
     */
     virtual void onRemovePluginRequested(std::string instance_id) = 0;
 
+    /*!
+    \brief Handles a request to open a plugin instance editor window.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    */
+    virtual void onOpenPluginRequested(std::string instance_id) = 0;
+
 protected:
     /*! \brief Creates the editor-controller interface. */
     IEditorController() = default;

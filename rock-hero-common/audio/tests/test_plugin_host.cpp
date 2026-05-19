@@ -59,6 +59,20 @@ public:
         return {};
     }
 
+    // Records the opened instance ID and returns the configured open result.
+    std::expected<void, PluginHostError> openPluginWindow(const std::string& instance_id) override
+    {
+        last_opened_instance_id = instance_id;
+        ++open_call_count;
+
+        if (next_open_error.has_value())
+        {
+            return std::unexpected{*next_open_error};
+        }
+
+        return {};
+    }
+
     // Candidate list returned by successful scans.
     std::vector<PluginCandidate> next_scan_candidates{
         PluginCandidate{
@@ -86,6 +100,9 @@ public:
     // Optional error returned by the next remove request.
     std::optional<PluginHostError> next_remove_error{};
 
+    // Optional error returned by the next open request.
+    std::optional<PluginHostError> next_open_error{};
+
     // Last path passed to scanPluginFile().
     std::optional<std::filesystem::path> last_scan_path{};
 
@@ -95,6 +112,9 @@ public:
     // Last plugin instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
 
+    // Last plugin instance ID passed to openPluginWindow().
+    std::optional<std::string> last_opened_instance_id{};
+
     // Number of scan requests received.
     int scan_call_count{0};
 
@@ -103,6 +123,9 @@ public:
 
     // Number of remove requests received.
     int remove_call_count{0};
+
+    // Number of open-window requests received.
+    int open_call_count{0};
 };
 
 } // namespace
@@ -162,6 +185,18 @@ TEST_CASE("IPluginHost removes a plugin instance", "[audio][plugin-host]")
     REQUIRE(result.has_value());
     CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-1"});
     CHECK(plugin_host.remove_call_count == 1);
+}
+
+// Verifies loaded plugin instances expose a message-thread window operation through the port.
+TEST_CASE("IPluginHost opens a plugin window", "[audio][plugin-host]")
+{
+    FakePluginHost plugin_host;
+
+    const auto result = plugin_host.openPluginWindow("instance-1");
+
+    REQUIRE(result.has_value());
+    CHECK(plugin_host.last_opened_instance_id == std::optional<std::string>{"instance-1"});
+    CHECK(plugin_host.open_call_count == 1);
 }
 
 } // namespace rock_hero::common::audio
