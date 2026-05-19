@@ -44,7 +44,7 @@ struct [[nodiscard]] LiveRigCaptureRequest
     /*! \brief Native song workspace directory that owns package-relative tone files. */
     std::filesystem::path song_directory;
 
-    /*! \brief Arrangement ID used to generate stable tone and state sidecar paths. */
+    /*! \brief Canonical package arrangement ID whose rig is being captured. */
     std::string arrangement_id;
 
     /*! \brief Existing package-relative tone document path, when one should be overwritten. */
