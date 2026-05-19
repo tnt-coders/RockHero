@@ -61,10 +61,10 @@ struct [[nodiscard]] PluginHandle
 /*!
 \brief Project-owned facade for plugin discovery and chain mutation.
 
-Plugin discovery and validation may run on a non-realtime worker thread because selected-file
-inspection and plugin instantiation can execute slow third-party code; chain mutation methods are
-message-thread operations because implementations may mutate backend playback graphs. Callers must
-never invoke this interface from the real-time audio callback.
+Plugin discovery may run on a non-realtime worker thread because selected-file inspection can
+execute slow third-party code; chain mutation methods are message-thread operations because
+implementations may mutate backend playback graphs. Callers must never invoke this interface from
+the real-time audio callback.
 */
 class IPluginHost
 {
@@ -80,15 +80,6 @@ public:
     */
     [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
     scanPluginFile(const std::filesystem::path& plugin_path) = 0;
-
-    /*!
-    \brief Validates that a previously scanned plugin candidate can instantiate.
-    \param plugin_id Opaque candidate ID returned by scanPluginFile().
-    \return Empty success, or a typed failure.
-    \note This method may be called from a non-realtime worker thread.
-    */
-    [[nodiscard]] virtual std::expected<void, PluginHostError> validatePluginLoad(
-        const std::string& plugin_id) = 0;
 
     /*!
     \brief Appends a previously scanned plugin candidate to the hosted chain.
