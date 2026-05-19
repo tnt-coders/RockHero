@@ -1103,14 +1103,9 @@ private:
     void valueTreePropertyChanged(
         juce::ValueTree& /*tree*/, const juce::Identifier& property) override
     {
-        if (property != tracktion::IDs::position)
+        if (property == tracktion::IDs::position && loadedAudioEndReached(currentBackendPosition()))
         {
-            return;
-        }
-
-        if (shouldStopAtLoadedEnd(currentBackendPosition()))
-        {
-            stopAndReturnToStart();
+            stopTransport();
         }
     }
 
@@ -1363,27 +1358,24 @@ private:
     }
 
     // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
-    [[nodiscard]] bool shouldStopAtLoadedEnd(double raw_position_seconds) const
+    [[nodiscard]] bool loadedAudioEndReached(double position_seconds) const
     {
         return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
-               raw_position_seconds >= m_loaded_length_seconds;
+               position_seconds >= m_loaded_length_seconds;
     }
 
-    // Stops Tracktion without discarding recording state while preserving playback nodes.
+    // Tracktion's stop(false, false) halts playback but leaves the playhead where it is.
+    void stopTracktionPlayback()
+    {
+        constexpr bool discard_recordings = false;
+        constexpr bool clear_devices = false;
+        m_edit->getTransport().stop(discard_recordings, clear_devices);
+    }
+
+    // Pauses Rock Hero playback without resetting the transport position.
     void pauseTransport()
     {
-        constexpr bool discard_recordings = false;
-        constexpr bool clear_devices = false;
-        m_edit->getTransport().stop(discard_recordings, clear_devices);
-    }
-
-    // Stops backing playback for the Stop button while keeping instrument monitoring graph state
-    // alive.
-    void stopTransportForPlaybackReset()
-    {
-        constexpr bool discard_recordings = false;
-        constexpr bool clear_devices = false;
-        m_edit->getTransport().stop(discard_recordings, clear_devices);
+        stopTracktionPlayback();
     }
 
     // Stops Tracktion and tears down the active playback graph for graph mutation or shutdown.
@@ -1522,13 +1514,11 @@ private:
         transport.ensureContextAllocated(true);
     }
 
-    // Applies Stop-button semantics programmatically when playback reaches the loaded file end.
-    // Tracktion's ChangeBroadcaster and ValueTree listeners propagate these mutations back
-    // through our own callbacks; no manual listener firing needed.
-    void stopAndReturnToStart()
+    // Applies Rock Hero Stop-button semantics: halt playback and reset to timeline start.
+    void stopTransport()
     {
         auto& transport = m_edit->getTransport();
-        stopTransportForPlaybackReset();
+        stopTracktionPlayback();
         transport.setPosition(tracktion::TimePosition{});
     }
 
@@ -1637,7 +1627,7 @@ void Engine::play()
 // Stops playback and resets Tracktion's transport position to the start.
 void Engine::stop()
 {
-    m_impl->stopAndReturnToStart();
+    m_impl->stopTransport();
     m_impl->updateTransportState();
 }
 
