@@ -13,10 +13,10 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
-#include <initializer_list>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <rock_hero/common/core/json.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -99,18 +99,6 @@ private:
     std::jthread m_thread;
 };
 
-// Pairs a JSON object property name with the value written for that property.
-struct JsonProperty
-{
-    JsonProperty(const char* property_name, juce::var property_value)
-        : name(property_name)
-        , value(std::move(property_value))
-    {}
-
-    const char* name{};
-    juce::var value;
-};
-
 // Serializable plugin identity stored in the audio-owned tone document.
 struct PluginIdentity
 {
@@ -184,101 +172,6 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     const std::string utf8_text{text};
     return text.empty() ? juce::String{} : juce::String::fromUTF8(utf8_text.c_str());
-}
-
-// Stores UTF-8 project strings in the JUCE JSON representation.
-[[nodiscard]] juce::var makeJsonString(const std::string& value)
-{
-    return juce::var{juce::String::fromUTF8(value.c_str())};
-}
-
-// Creates a JUCE JSON array value for tone documents.
-[[nodiscard]] juce::var makeJsonArray()
-{
-    return juce::var{juce::Array<juce::var>{}};
-}
-
-// Creates a JUCE dynamic object value with the supplied properties.
-[[nodiscard]] juce::var makeJsonObject(std::initializer_list<JsonProperty> properties)
-{
-    juce::var object{new juce::DynamicObject{}};
-    juce::DynamicObject* const dynamic_object = object.getDynamicObject();
-    for (const JsonProperty& property : properties)
-    {
-        dynamic_object->setProperty(juce::Identifier{property.name}, property.value);
-    }
-
-    return object;
-}
-
-// Appends to an existing JUCE JSON array created by makeJsonArray().
-void appendJsonArray(juce::var& array, const juce::var& value)
-{
-    array.append(value);
-}
-
-// Reads a JSON property from an object value without throwing on malformed JSON.
-[[nodiscard]] const juce::var& jsonProperty(const juce::var& object, const char* property_name)
-{
-    return object[juce::Identifier{property_name}];
-}
-
-// Parses JSON text while preserving JUCE's parse diagnostic for tone errors.
-[[nodiscard]] std::expected<juce::var, std::string> parseJsonDocument(const juce::String& text)
-{
-    juce::var document;
-    const juce::Result result = juce::JSON::parse(text, document);
-    if (result.failed())
-    {
-        return std::unexpected{result.getErrorMessage().toStdString()};
-    }
-
-    return document;
-}
-
-// Reads a required string property from a tone-document object.
-[[nodiscard]] std::optional<std::string> readRequiredString(
-    const juce::var& object, const char* property_name)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isString())
-    {
-        return std::nullopt;
-    }
-
-    return value.toString().toStdString();
-}
-
-// Reads an optional string property and falls back when the field is absent or not a string.
-[[nodiscard]] std::string readOptionalString(
-    const juce::var& object, const char* property_name, const std::string& fallback = {})
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isString())
-    {
-        return fallback;
-    }
-
-    return value.toString().toStdString();
-}
-
-// Reads an optional boolean property and falls back when the field is absent or not a bool.
-[[nodiscard]] bool readOptionalBool(const juce::var& object, const char* property_name)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    return value.isBool() && static_cast<bool>(value);
-}
-
-// Reads an optional integer property and falls back when the field is absent or malformed.
-[[nodiscard]] int readOptionalInt(const juce::var& object, const char* property_name, int fallback)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isInt() && !value.isInt64())
-    {
-        return fallback;
-    }
-
-    return static_cast<int>(value);
 }
 
 // Converts signed JUCE plugin IDs into the hex text used by JUCE and Tracktion state.
@@ -361,12 +254,30 @@ void appendJsonArray(juce::var& array, const juce::var& value)
            (safePathStem(arrangement_id) + std::string{g_tone_document_extension});
 }
 
+// Derives the stable state-file namespace owned by a tone document path.
+[[nodiscard]] std::filesystem::path toneDocumentStateDirectory(
+    const std::filesystem::path& tone_document_ref)
+{
+    std::string state_directory_name = tone_document_ref.filename().generic_string();
+    const std::string tone_document_extension{g_tone_document_extension};
+    if (state_directory_name.ends_with(tone_document_extension))
+    {
+        state_directory_name.resize(state_directory_name.size() - tone_document_extension.size());
+    }
+    else
+    {
+        state_directory_name = tone_document_ref.stem().generic_string();
+    }
+
+    return tone_document_ref.parent_path() / std::filesystem::path{g_tone_state_directory_name} /
+           state_directory_name;
+}
+
 // Builds one package-relative Tracktion plugin-state sidecar path.
 [[nodiscard]] std::filesystem::path generatedPluginStatePath(
-    const std::string& arrangement_id, std::size_t plugin_index)
+    const std::filesystem::path& state_directory, std::size_t plugin_index)
 {
-    return std::filesystem::path{g_tones_directory_name} /
-           std::filesystem::path{g_tone_state_directory_name} / safePathStem(arrangement_id) /
+    return state_directory /
            ("plugin-" + std::to_string(plugin_index + 1) + std::string{g_plugin_state_extension});
 }
 
@@ -502,56 +413,53 @@ void reportLiveRigLoadProgress(
 // Serializes identity to the tone document's JSON shape.
 [[nodiscard]] juce::var makeIdentityJson(const PluginIdentity& identity)
 {
-    return makeJsonObject({
-        {"format", makeJsonString(identity.format_name)},
-        {"name", makeJsonString(identity.name)},
-        {"descriptiveName", makeJsonString(identity.descriptive_name)},
-        {"manufacturer", makeJsonString(identity.manufacturer)},
-        {"version", makeJsonString(identity.version)},
-        {"uniqueId", makeJsonString(identity.unique_id)},
-        {"deprecatedUid", makeJsonString(identity.deprecated_uid)},
+    return core::Json::makeObject({
+        {"format", core::Json::makeString(identity.format_name)},
+        {"name", core::Json::makeString(identity.name)},
+        {"descriptiveName", core::Json::makeString(identity.descriptive_name)},
+        {"manufacturer", core::Json::makeString(identity.manufacturer)},
+        {"version", core::Json::makeString(identity.version)},
+        {"uniqueId", core::Json::makeString(identity.unique_id)},
+        {"deprecatedUid", core::Json::makeString(identity.deprecated_uid)},
         {"isInstrument", juce::var{identity.is_instrument}},
-        {"originalFileOrIdentifier", makeJsonString(identity.original_file_or_identifier)},
-        {"juceIdentifierHint", makeJsonString(identity.juce_identifier_hint)},
-        {"tracktionIdentifierHint", makeJsonString(identity.tracktion_identifier_hint)},
+        {"originalFileOrIdentifier", core::Json::makeString(identity.original_file_or_identifier)},
+        {"juceIdentifierHint", core::Json::makeString(identity.juce_identifier_hint)},
+        {"tracktionIdentifierHint", core::Json::makeString(identity.tracktion_identifier_hint)},
     });
 }
 
 // Serializes the v1 tone document subset used by the current linear chain.
 [[nodiscard]] juce::var makeToneDocumentJson(const ToneDocument& document)
 {
-    juce::var chain = makeJsonArray();
+    juce::var chain = core::Json::makeArray();
     for (const PluginRecord& plugin : document.chain)
     {
-        appendJsonArray(
-            chain,
-            makeJsonObject({
-                {"id", makeJsonString(plugin.id)},
+        chain.append(
+            core::Json::makeObject({
+                {"id", core::Json::makeString(plugin.id)},
                 {"identity", makeIdentityJson(plugin.identity)},
-                {"tracktionState", makeJsonString(plugin.tracktion_state_ref)},
+                {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
             }));
     }
 
-    juce::var slots = makeJsonArray();
-    appendJsonArray(
-        slots,
-        makeJsonObject({
-            {"id", makeJsonString("default")},
-            {"name", makeJsonString("Default")},
+    juce::var slots = core::Json::makeArray();
+    slots.append(
+        core::Json::makeObject({
+            {"id", core::Json::makeString("default")},
+            {"name", core::Json::makeString("Default")},
             {"chain", chain},
-            {"automation", makeJsonArray()},
+            {"automation", core::Json::makeArray()},
         }));
 
-    juce::var tone_clips = makeJsonArray();
-    appendJsonArray(
-        tone_clips,
-        makeJsonObject({
-            {"slot", makeJsonString("default")},
+    juce::var tone_clips = core::Json::makeArray();
+    tone_clips.append(
+        core::Json::makeObject({
+            {"slot", core::Json::makeString("default")},
             {"startSeconds", juce::var{0.0}},
             {"endSeconds", juce::var{}},
         }));
 
-    return makeJsonObject({
+    return core::Json::makeObject({
         {"formatVersion", juce::var{1}},
         {"slots", slots},
         {"toneClips", tone_clips},
@@ -562,17 +470,19 @@ void reportLiveRigLoadProgress(
 [[nodiscard]] PluginIdentity readPluginIdentity(const juce::var& object)
 {
     return PluginIdentity{
-        .format_name = readOptionalString(object, "format"),
-        .name = readOptionalString(object, "name"),
-        .descriptive_name = readOptionalString(object, "descriptiveName"),
-        .manufacturer = readOptionalString(object, "manufacturer"),
-        .version = readOptionalString(object, "version"),
-        .unique_id = readOptionalString(object, "uniqueId"),
-        .deprecated_uid = readOptionalString(object, "deprecatedUid"),
-        .is_instrument = readOptionalBool(object, "isInstrument"),
-        .original_file_or_identifier = readOptionalString(object, "originalFileOrIdentifier"),
-        .juce_identifier_hint = readOptionalString(object, "juceIdentifierHint"),
-        .tracktion_identifier_hint = readOptionalString(object, "tracktionIdentifierHint"),
+        .format_name = core::Json::readOptionalString(object, "format"),
+        .name = core::Json::readOptionalString(object, "name"),
+        .descriptive_name = core::Json::readOptionalString(object, "descriptiveName"),
+        .manufacturer = core::Json::readOptionalString(object, "manufacturer"),
+        .version = core::Json::readOptionalString(object, "version"),
+        .unique_id = core::Json::readOptionalString(object, "uniqueId"),
+        .deprecated_uid = core::Json::readOptionalString(object, "deprecatedUid"),
+        .is_instrument = core::Json::readOptionalBool(object, "isInstrument"),
+        .original_file_or_identifier =
+            core::Json::readOptionalString(object, "originalFileOrIdentifier"),
+        .juce_identifier_hint = core::Json::readOptionalString(object, "juceIdentifierHint"),
+        .tracktion_identifier_hint =
+            core::Json::readOptionalString(object, "tracktionIdentifierHint"),
     };
 }
 
@@ -599,24 +509,25 @@ void reportLiveRigLoadProgress(
         }};
     }
 
-    auto parsed_document = parseJsonDocument(tone_document_file.readEntireStreamAsString());
+    auto parsed_document = core::Json::parseDocument(tone_document_file.readEntireStreamAsString());
     if (!parsed_document.has_value())
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::CouldNotReadToneDocument,
-            "Could not parse tone document: " + parsed_document.error()
+            "Could not parse tone document: " + parsed_document.error().message
         }};
     }
 
     const juce::var document_json = std::move(*parsed_document);
-    if (!document_json.isObject() || readOptionalInt(document_json, "formatVersion", 0) != 1)
+    if (!document_json.isObject() ||
+        core::Json::readOptionalInt(document_json, "formatVersion", 0) != 1)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::InvalidToneDocument, "Unsupported tone document formatVersion"
         }};
     }
 
-    const juce::var& slots_json = jsonProperty(document_json, "slots");
+    const juce::var& slots_json = core::Json::value(document_json, "slots");
     if (!slots_json.isArray() || slots_json.size() == 0)
     {
         return std::unexpected{LiveRigError{
@@ -632,7 +543,7 @@ void reportLiveRigLoadProgress(
         }};
     }
 
-    const juce::var& chain_json = jsonProperty(default_slot_json, "chain");
+    const juce::var& chain_json = core::Json::value(default_slot_json, "chain");
     if (!chain_json.isArray())
     {
         return std::unexpected{LiveRigError{
@@ -653,8 +564,8 @@ void reportLiveRigLoadProgress(
             }};
         }
 
-        const auto id = readRequiredString(plugin_json, "id");
-        const auto tracktion_state = readRequiredString(plugin_json, "tracktionState");
+        const auto id = core::Json::readRequiredString(plugin_json, "id");
+        const auto tracktion_state = core::Json::readRequiredString(plugin_json, "tracktionState");
         if (!id.has_value() || id->empty() || !tracktion_state.has_value() ||
             tracktion_state->empty())
         {
@@ -672,7 +583,7 @@ void reportLiveRigLoadProgress(
             }};
         }
 
-        const juce::var& identity_json = jsonProperty(plugin_json, "identity");
+        const juce::var& identity_json = core::Json::value(plugin_json, "identity");
         document.chain.push_back(
             PluginRecord{
                 .id = *id,
@@ -683,6 +594,41 @@ void reportLiveRigLoadProgress(
     }
 
     return document;
+}
+
+// Finds the existing sidecar namespace recorded by a tone document, when one exists.
+[[nodiscard]] std::optional<std::filesystem::path> existingPluginStateDirectory(
+    const ToneDocument& document)
+{
+    for (const PluginRecord& plugin : document.chain)
+    {
+        const std::filesystem::path state_ref{plugin.tracktion_state_ref};
+        if (state_ref.has_parent_path())
+        {
+            return state_ref.parent_path();
+        }
+    }
+
+    return std::nullopt;
+}
+
+// Chooses the sidecar namespace for a save. Existing documents keep their recorded namespace so
+// renaming a tone document does not force plugin-state files to move or strand a new state folder.
+[[nodiscard]] std::filesystem::path pluginStateDirectoryForCapture(
+    const std::filesystem::path& song_directory, const std::filesystem::path& tone_document_ref)
+{
+    const auto existing_document =
+        readToneDocument(song_directory, tone_document_ref.generic_string());
+    if (existing_document.has_value())
+    {
+        if (const auto existing_directory = existingPluginStateDirectory(*existing_document);
+            existing_directory.has_value())
+        {
+            return *existing_directory;
+        }
+    }
+
+    return toneDocumentStateDirectory(tone_document_ref);
 }
 
 // Writes the v1 tone document JSON file.
@@ -1048,7 +994,9 @@ private:
             juce::String{plugin_id});
     }
 
-    // Scans one plugin file through Tracktion's JUCE-backed known-plugin list.
+    // Scans one plugin file through Tracktion's JUCE-backed known-plugin list. This is shared by
+    // the worker-facing plugin-host port and message-thread live-rig restore; callers must keep it
+    // off the realtime audio thread and avoid concurrent access to Tracktion's known-plugin list.
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError>
     scanPluginFileForCandidates(const std::filesystem::path& plugin_path)
     {
@@ -1820,6 +1768,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
     document.chain.reserve(static_cast<std::size_t>(plugins.size()));
     snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
+    const std::filesystem::path plugin_state_directory =
+        pluginStateDirectoryForCapture(request.song_directory, tone_document_ref);
 
     for (int plugin_index = 0; plugin_index < plugins.size(); ++plugin_index)
     {
@@ -1840,7 +1790,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
 
         const std::filesystem::path plugin_state_ref =
-            generatedPluginStatePath(request.arrangement_id, chain_index);
+            generatedPluginStatePath(plugin_state_directory, chain_index);
         const std::filesystem::path plugin_state_path = request.song_directory / plugin_state_ref;
         const auto plugin_state_xml = makePluginStateXml(plugin_state, plugin_state_path);
         if (!plugin_state_xml.has_value())
