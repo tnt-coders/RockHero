@@ -68,6 +68,9 @@ private:
     // Rebuilds driver type choices from the device manager.
     void refreshDeviceTypes();
 
+    // Scans the currently staged device type once for this refresh pass.
+    void scanCurrentDeviceType() const;
+
     // Rebuilds device-name choices for the current driver type.
     void refreshDeviceNames();
 
