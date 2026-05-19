@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cctype>
 #include <cstdint>
 #include <expected>
@@ -14,6 +15,7 @@
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <set>
 #include <string>
@@ -30,6 +32,8 @@ namespace
 {
 
 constexpr std::string_view g_song_document_name{"song.json"};
+constexpr std::string_view g_arrangements_directory_name{"arrangements"};
+constexpr std::string_view g_arrangement_file_extension{".xml"};
 constexpr int g_zip_compression_level = 9;
 
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
@@ -182,6 +186,20 @@ constexpr int g_zip_compression_level = 9;
     return std::nullopt;
 }
 
+// Builds the canonical package-relative arrangement XML path for a stable arrangement ID.
+[[nodiscard]] std::filesystem::path arrangementFilePath(std::string_view arrangement_id)
+{
+    return std::filesystem::path{std::string{g_arrangements_directory_name}} /
+           (std::string{arrangement_id} + std::string{g_arrangement_file_extension});
+}
+
+// Reports whether a package-relative arrangement file path is canonical for its arrangement ID.
+[[nodiscard]] bool isCanonicalArrangementFileRef(
+    std::string_view arrangement_id, const std::string& file_ref)
+{
+    return file_ref == arrangementFilePath(arrangement_id).generic_string();
+}
+
 // Reads song metadata while treating missing descriptive fields as blank draft values.
 [[nodiscard]] SongMetadata readMetadata(const juce::var& song_document)
 {
@@ -286,6 +304,12 @@ constexpr int g_zip_compression_level = 9;
             return std::nullopt;
         }
 
+        if (!isCanonicalPackageId(*id))
+        {
+            error_message = "arrangement id must be a canonical UUIDv4: " + *id;
+            return std::nullopt;
+        }
+
         if (!arrangement_ids.insert(*id).second)
         {
             error_message = "duplicate arrangement id: " + *id;
@@ -296,6 +320,12 @@ constexpr int g_zip_compression_level = 9;
         if (!part.has_value())
         {
             error_message = "unsupported arrangement part: " + *part_text;
+            return std::nullopt;
+        }
+
+        if (!isCanonicalArrangementFileRef(*id, *arrangement_file))
+        {
+            error_message = "arrangement file must match arrangement id: " + *arrangement_file;
             return std::nullopt;
         }
 
@@ -315,6 +345,13 @@ constexpr int g_zip_compression_level = 9;
             }
 
             tone_document_ref = tone_document_json.toString().toStdString();
+            if (!isCanonicalToneDocumentRef(tone_document_ref))
+            {
+                error_message =
+                    "tone document path must be tones/<uuid>/tone.json: " + tone_document_ref;
+                return std::nullopt;
+            }
+
             if (!resolveExistingFile(directory, tone_document_ref).has_value())
             {
                 error_message = "tone document is missing or unsafe: " + tone_document_ref;
@@ -499,28 +536,6 @@ constexpr int g_zip_compression_level = 9;
     return "Lead";
 }
 
-// Produces a lowercase stem suitable for generated arrangement file names.
-[[nodiscard]] std::string partFileStem(Part part)
-{
-    switch (part)
-    {
-        case Part::Lead:
-        {
-            return "lead";
-        }
-        case Part::Rhythm:
-        {
-            return "rhythm";
-        }
-        case Part::Bass:
-        {
-            return "bass";
-        }
-    }
-
-    return "arrangement";
-}
-
 // Returns true when a relative path tries to escape its base.
 [[nodiscard]] bool startsWithParentTraversal(const std::filesystem::path& path)
 {
@@ -636,22 +651,6 @@ constexpr int g_zip_compression_level = 9;
     return std::nullopt;
 }
 
-// Creates a generated arrangement file path for one arrangement entry.
-[[nodiscard]] std::filesystem::path arrangementFilePath(
-    Part part, std::unordered_map<std::string, int>& part_counts)
-{
-    const std::string stem = partFileStem(part);
-    int& count = part_counts[stem];
-    ++count;
-
-    if (count == 1)
-    {
-        return std::filesystem::path{"arrangements"} / (stem + ".xml");
-    }
-
-    return std::filesystem::path{"arrangements"} / (stem + "-" + std::to_string(count) + ".xml");
-}
-
 // Pairs the generated song document with arrangement IDs useful to callers.
 struct SongDocumentForSave
 {
@@ -661,11 +660,16 @@ struct SongDocumentForSave
 
 // Chooses the ID to write for one arrangement, generating a stable fallback when needed.
 [[nodiscard]] std::optional<std::string> arrangementIdForSave(
-    const Arrangement& arrangement, std::unordered_map<std::string, int>& id_counts,
-    std::set<std::string>& used_ids, std::string& error_message)
+    const Arrangement& arrangement, std::set<std::string>& used_ids, std::string& error_message)
 {
     if (!arrangement.id.empty())
     {
+        if (!isCanonicalPackageId(arrangement.id))
+        {
+            error_message = "Cannot save a non-canonical arrangement id: " + arrangement.id;
+            return std::nullopt;
+        }
+
         if (!used_ids.insert(arrangement.id).second)
         {
             error_message = "Cannot save duplicate arrangement id: " + arrangement.id;
@@ -675,17 +679,16 @@ struct SongDocumentForSave
         return arrangement.id;
     }
 
-    const std::string stem = partFileStem(arrangement.part);
-    int& count = id_counts[stem];
-    while (true)
+    std::string candidate = generatePackageId();
+    const bool inserted = used_ids.insert(candidate).second;
+    assert(inserted && "Generated UUIDv4 arrangement ID unexpectedly collided");
+    if (!inserted)
     {
-        ++count;
-        std::string candidate = count == 1 ? stem : stem + "-" + std::to_string(count);
-        if (used_ids.insert(candidate).second)
-        {
-            return candidate;
-        }
+        error_message = "Could not generate a unique arrangement id";
+        return std::nullopt;
     }
+
+    return candidate;
 }
 
 // Creates the JSON song document that represents the supplied session song.
@@ -701,8 +704,6 @@ struct SongDocumentForSave
     juce::var audio_assets = Json::makeArray();
     juce::var arrangements = Json::makeArray();
     std::unordered_map<std::string, std::string> audio_ids_by_path;
-    std::unordered_map<std::string, int> part_counts;
-    std::unordered_map<std::string, int> id_counts;
     std::set<std::string> used_arrangement_ids;
     std::vector<std::string> arrangement_ids;
     arrangement_ids.reserve(song.arrangements.size());
@@ -749,14 +750,13 @@ struct SongDocumentForSave
         }
 
         const auto arrangement_id =
-            arrangementIdForSave(arrangement, id_counts, used_arrangement_ids, error_message);
+            arrangementIdForSave(arrangement, used_arrangement_ids, error_message);
         if (!arrangement_id.has_value())
         {
             return std::nullopt;
         }
 
-        const std::filesystem::path arrangement_file =
-            arrangementFilePath(arrangement.part, part_counts);
+        const std::filesystem::path arrangement_file = arrangementFilePath(*arrangement_id);
         if (const auto arrangement_error =
                 ensureArrangementFile(workspace_directory, arrangement_file);
             arrangement_error.has_value())
@@ -774,10 +774,11 @@ struct SongDocumentForSave
         if (!arrangement.tone_document_ref.empty())
         {
             const std::filesystem::path tone_document_path{arrangement.tone_document_ref};
-            if (!isSafeRelativePath(tone_document_path))
+            if (!isSafeRelativePath(tone_document_path) ||
+                !isCanonicalToneDocumentRef(arrangement.tone_document_ref))
             {
-                error_message =
-                    "Cannot save an unsafe tone document path: " + arrangement.tone_document_ref;
+                error_message = "Cannot save a non-canonical tone document path: " +
+                                arrangement.tone_document_ref;
                 return std::nullopt;
             }
 
