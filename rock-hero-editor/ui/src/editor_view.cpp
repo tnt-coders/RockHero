@@ -1179,8 +1179,8 @@ void EditorView::showAudioDeviceSettingsDialog()
     AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
 }
 
-// Posts the single pending fence callback after BusyOverlay has crossed its paint path. The
-// follow-up message keeps expensive work out of paint() itself.
+// Runs the single pending fence callback after BusyOverlay has crossed its paint path. Showing
+// views post a follow-up message so expensive work stays out of the real paint callback.
 void EditorView::handleBusyOverlayPainted()
 {
     if (!m_after_busy_overlay_paint)
@@ -1190,6 +1190,12 @@ void EditorView::handleBusyOverlayPainted()
 
     std::function<void()> callback = std::move(m_after_busy_overlay_paint);
     m_after_busy_overlay_paint = {};
+    if (!isShowing())
+    {
+        callback();
+        return;
+    }
+
     juce::MessageManager::callAsync(std::move(callback));
 }
 

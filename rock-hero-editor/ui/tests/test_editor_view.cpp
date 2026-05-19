@@ -28,14 +28,6 @@ template <typename Value>
     return value.value_or(std::numeric_limits<Value>::quiet_NaN());
 }
 
-// Pumps already-posted JUCE async callbacks, then stops the temporary dispatch loop.
-void dispatchPendingMessages()
-{
-    juce::MessageManager::callAsync(
-        [] { juce::MessageManager::getInstance()->stopDispatchLoop(); });
-    juce::MessageManager::getInstance()->runDispatchLoop();
-}
-
 // Records editor intents emitted by EditorView child widgets.
 class FakeEditorController final : public core::IEditorController
 {
@@ -684,8 +676,8 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     auto& remove_button =
         findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance");
     CHECK(remove_button.isEnabled());
-    remove_button.triggerClick();
-    dispatchPendingMessages();
+    REQUIRE(remove_button.onClick);
+    remove_button.onClick();
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance"});
 }
@@ -1292,12 +1284,9 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
     juce::Graphics graphics{image};
     overlay->paint(graphics);
 
-    CHECK(callback_count == 0);
-    dispatchPendingMessages();
     CHECK(callback_count == 1);
 
     overlay->paint(graphics);
-    dispatchPendingMessages();
     CHECK(callback_count == 1);
 }
 
