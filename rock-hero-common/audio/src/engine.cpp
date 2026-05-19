@@ -736,37 +736,74 @@ public:
 };
 
 // Top-level JUCE window that Tracktion owns through PluginWindowState::pluginWindow.
-class PluginEditorWindow final : public juce::DocumentWindow
+class PluginWindow final : public juce::DocumentWindow
 {
 public:
-    // Takes ownership of Tracktion's editor component and sizes the native window around it.
-    PluginEditorWindow(
-        tracktion::PluginWindowState& window_state, tracktion::Plugin& plugin,
-        std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
+    // Creates a window only when Tracktion can supply a concrete plugin editor component.
+    [[nodiscard]] static std::unique_ptr<juce::Component> create(tracktion::Plugin& plugin)
+    {
+        std::unique_ptr<tracktion::Plugin::EditorComponent> editor = plugin.createEditor();
+        if (editor == nullptr)
+        {
+            return {};
+        }
+
+        return std::make_unique<PluginWindow>(plugin, std::move(editor));
+    }
+
+    // Takes ownership of Tracktion's editor component and lets plugin size changes drive bounds.
+    PluginWindow(
+        tracktion::Plugin& plugin, std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
         : juce::DocumentWindow(
               plugin.getName(), juce::Colours::darkgrey,
               juce::DocumentWindow::closeButton | juce::DocumentWindow::minimiseButton)
-        , m_window_state(window_state)
+        , m_plugin(plugin)
+        , m_window_state(*plugin.windowState)
     {
-        const bool allow_resizing = editor->allowWindowResizing();
-        juce::ComponentBoundsConstrainer* const editor_bounds_constrainer =
-            editor->getBoundsConstrainer();
-        juce::Rectangle<int> editor_bounds = editor->getBounds();
-        if (editor_bounds.isEmpty())
-        {
-            editor_bounds = juce::Rectangle<int>{0, 0, 480, 320};
-        }
-
         setUsingNativeTitleBar(true);
-        setResizable(allow_resizing, false);
-        if (editor_bounds_constrainer != nullptr)
-        {
-            setConstrainer(editor_bounds_constrainer);
-        }
+        setResizeLimits(100, 50, 4000, 4000);
+        setEditor(std::move(editor));
+        setBoundsConstrained(getLocalBounds() + m_window_state.choosePositionForPluginWindow());
+        m_update_stored_bounds = true;
+    }
 
-        setContentOwned(editor.release(), true);
-        setContentComponentSize(editor_bounds.getWidth(), editor_bounds.getHeight());
-        setTopLeftPosition(m_window_state.choosePositionForPluginWindow());
+    // Flushes any plugin state touched by the editor before Tracktion releases the window.
+    ~PluginWindow() override
+    {
+        m_update_stored_bounds = false;
+        m_plugin.edit.flushPluginStateIfNeeded(m_plugin);
+        setEditor(nullptr);
+    }
+
+    // Recreates the plugin editor when Tracktion asks the host window to refresh its content.
+    void recreateEditor()
+    {
+        setEditor(nullptr);
+        setEditor(m_plugin.createEditor());
+    }
+
+    // Standard Tracktion-host pattern (see external/tracktion_engine/examples/common/PluginWindow.h
+    // and the default PluginWindowState::recreateWindowIfShowing): drop the current editor
+    // synchronously, then recreate it on a short timer.
+    //
+    // Tracktion calls this hook from ExternalPlugin::forceFullReinitialise() right before it
+    // tears down and replaces the underlying AudioPluginInstance. The current editor is bound to
+    // the dying instance, so it must be released now; the replacement editor must be created
+    // *after* forceFullReinitialise() finishes installing the new instance, which is why
+    // creation is deferred onto the message loop. The "Async" suffix in
+    // UIBehaviour::recreatePluginWindowContentAsync is contractual — Tracktion depends on this
+    // being deferred.
+    void recreateEditorAsync()
+    {
+        setEditor(nullptr);
+
+        juce::Timer::callAfterDelay(
+            50, [safe_this = juce::Component::SafePointer<PluginWindow>{this}] {
+                if (auto* const window = safe_this.getComponent())
+                {
+                    window->recreateEditor();
+                }
+            });
     }
 
     // Routes the close button back through Tracktion so its window state stays authoritative.
@@ -776,22 +813,75 @@ public:
         m_window_state.closeWindowExplicitly();
     }
 
+    // Routes native system-close requests through the same Tracktion-owned close path.
+    void userTriedToCloseWindow() override
+    {
+        closeButtonPressed();
+    }
+
+    // Plugin editors receive native scale notifications themselves; avoid double scaling the peer.
+    [[nodiscard]] float getDesktopScaleFactor() const override
+    {
+        return 1.0F;
+    }
+
     // Persists the latest bounds so reopening can restore the user's window position.
     void moved() override
     {
-        m_window_state.lastWindowBounds = getBounds();
+        storeWindowBounds();
     }
 
     // Persists resized bounds while leaving DocumentWindow to manage the content layout.
     void resized() override
     {
         juce::DocumentWindow::resized();
-        m_window_state.lastWindowBounds = getBounds();
+        storeWindowBounds();
     }
 
 private:
+    // Installs Tracktion's editor wrapper while preserving plugin-owned resize notifications.
+    void setEditor(std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
+    {
+        setConstrainer(nullptr);
+        clearContentComponent();
+        m_editor.reset();
+
+        if (editor != nullptr)
+        {
+            m_editor = std::move(editor);
+            setContentNonOwned(m_editor.get(), true);
+        }
+
+        const bool allow_window_resizing = m_editor == nullptr || m_editor->allowWindowResizing();
+        setResizable(allow_window_resizing, false);
+
+        if (m_editor != nullptr && allow_window_resizing)
+        {
+            setConstrainer(m_editor->getBoundsConstrainer());
+        }
+    }
+
+    // Stores bounds only after construction has chosen the initial Tracktion window position.
+    void storeWindowBounds()
+    {
+        if (m_update_stored_bounds)
+        {
+            m_window_state.lastWindowBounds = getBounds();
+            m_plugin.edit.pluginChanged(m_plugin);
+        }
+    }
+
+    // Tracktion plugin whose editor is hosted by this window.
+    tracktion::Plugin& m_plugin;
+
     // Tracktion owns this window and remains the source of truth for close/show state.
     tracktion::PluginWindowState& m_window_state;
+
+    // Tracktion editor wrapper installed as the non-owned DocumentWindow content component.
+    std::unique_ptr<tracktion::Plugin::EditorComponent> m_editor;
+
+    // Prevents construction-time resized callbacks from overwriting Tracktion's default position.
+    bool m_update_stored_bounds = false;
 };
 
 // Supplies Tracktion with Rock Hero's minimal plugin editor window implementation.
@@ -809,15 +899,20 @@ public:
             return {};
         }
 
-        std::unique_ptr<tracktion::Plugin::EditorComponent> editor =
-            plugin_window_state->plugin.createEditor();
-        if (editor == nullptr)
+        return PluginWindow::create(plugin_window_state->plugin);
+    }
+
+    // Refreshes the editor contents without replacing Tracktion's owning plugin window.
+    void recreatePluginWindowContentAsync(tracktion::Plugin& plugin) override
+    {
+        if (auto* const window =
+                dynamic_cast<PluginWindow*>(plugin.windowState->pluginWindow.get()))
         {
-            return {};
+            window->recreateEditorAsync();
+            return;
         }
 
-        return std::make_unique<PluginEditorWindow>(
-            window_state, plugin_window_state->plugin, std::move(editor));
+        tracktion::UIBehaviour::recreatePluginWindowContentAsync(plugin);
     }
 };
 
