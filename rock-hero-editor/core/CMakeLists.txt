@@ -30,6 +30,6 @@ target_link_libraries(
     rock_hero_editor_core
     PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::juce_data_structures
     PRIVATE rock_hero::build_policy rock_hero::juce_audio_devices rock_hero::juce_core
-            OpenPSARC::OpenPSARC)
+            rock_hero::juce_events OpenPSARC::OpenPSARC)
 
 add_subdirectory(tests)
