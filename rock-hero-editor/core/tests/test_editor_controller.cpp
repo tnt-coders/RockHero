@@ -541,9 +541,8 @@ public:
 };
 
 // Configurable live rig fake that records project-boundary save and restore requests.
-class FakeLiveRig final : public common::audio::ILiveRig
+struct FakeLiveRig final : public common::audio::ILiveRig
 {
-public:
     // Returns the configured capture snapshot or error while recording the save request.
     [[nodiscard]] std::expected<common::audio::LiveRigSnapshot, common::audio::LiveRigError>
     captureActiveRig(const common::audio::LiveRigCaptureRequest& request) override
@@ -574,6 +573,7 @@ public:
                 common::audio::LiveRigLoadProgress{
                     .completed_plugins = 0,
                     .total_plugins = total_plugins,
+                    .active_plugin_name = {},
                 });
             for (std::size_t plugin_index = 0; plugin_index < total_plugins; ++plugin_index)
             {
@@ -699,7 +699,6 @@ public:
     // Number of clear calls received.
     int clear_call_count{0};
 
-private:
     // Deferred live-rig completion captured with the result configured at load time.
     struct PendingLoad
     {
@@ -707,6 +706,7 @@ private:
         std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> result{};
     };
 
+    // Pending completion stored when tests need explicit control over live-rig load timing.
     std::optional<PendingLoad> pending_load{};
 };
 
@@ -1452,8 +1452,12 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
 
     CHECK(live_rig.load_call_count == 1);
     REQUIRE(live_rig.last_load_request.has_value());
-    CHECK(live_rig.last_load_request->song_directory == std::filesystem::path{"song"});
-    CHECK(live_rig.last_load_request->tone_document_ref == "tones/lead.tone.json");
+    if (live_rig.last_load_request.has_value())
+    {
+        const auto& load_request = live_rig.last_load_request.value();
+        CHECK(load_request.song_directory == std::filesystem::path{"song"});
+        CHECK(load_request.tone_document_ref == "tones/lead.tone.json");
+    }
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -1556,7 +1560,11 @@ TEST_CASE(
     const EditorViewState* loading_state = stateOrNull(view.last_state);
     REQUIRE(loading_state != nullptr);
     REQUIRE(loading_state->busy.has_value());
-    CHECK(loading_state->busy->operation == BusyOperation::LoadingLiveRig);
+    if (loading_state->busy.has_value())
+    {
+        const auto& busy = loading_state->busy.value();
+        CHECK(busy.operation == BusyOperation::LoadingLiveRig);
+    }
 
     controller.onCloseRequested();
 
@@ -1607,9 +1615,13 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
 
     CHECK(live_rig.capture_call_count == 1);
     REQUIRE(live_rig.last_capture_request.has_value());
-    CHECK(live_rig.last_capture_request->song_directory == std::filesystem::path{"song"});
-    CHECK(live_rig.last_capture_request->arrangement_id == "lead");
-    CHECK(live_rig.last_capture_request->existing_tone_document_ref.empty());
+    if (live_rig.last_capture_request.has_value())
+    {
+        const auto& capture_request = live_rig.last_capture_request.value();
+        CHECK(capture_request.song_directory == std::filesystem::path{"song"});
+        CHECK(capture_request.arrangement_id == "lead");
+        CHECK(capture_request.existing_tone_document_ref.empty());
+    }
     CHECK(project_services.save_call_count == 1);
     CHECK(
         project_services.last_save_tone_document_ref ==
@@ -1652,7 +1664,11 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->unsaved_changes_prompt.has_value());
-    CHECK(state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    if (state->unsaved_changes_prompt.has_value())
+    {
+        const auto& prompt = state->unsaved_changes_prompt.value();
+        CHECK(prompt.prompted_action == EditorActionId::CloseProject);
+    }
 }
 
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.

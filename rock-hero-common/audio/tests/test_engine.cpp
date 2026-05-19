@@ -345,8 +345,12 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         common::audio::LiveRigLoadRequest{}, [&result](auto value) { result = std::move(value); });
 
     REQUIRE(result.has_value());
-    REQUIRE(result->has_value());
-    CHECK((*result)->plugins.empty());
+    if (result.has_value())
+    {
+        const auto& load_result = result.value();
+        REQUIRE(load_result.has_value());
+        CHECK(load_result->plugins.empty());
+    }
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

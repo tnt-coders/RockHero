@@ -96,6 +96,18 @@ namespace
     return project.publish(file, song);
 }
 
+// Closes an optional project after the caller has released subsystem references into its workspace.
+[[nodiscard]] std::expected<void, ProjectError> closeExistingProject(
+    std::optional<Project>& project)
+{
+    if (!project.has_value())
+    {
+        return {};
+    }
+
+    return project->close();
+}
+
 // Production exit fallback used when a composition host does not provide an exit callback.
 void defaultExit()
 {}
@@ -235,7 +247,7 @@ void defaultExit()
         return 1.0;
     }
 
-    const double completed =
+    const auto completed =
         static_cast<double>(std::min(progress.completed_plugins, progress.total_plugins));
     return completed / static_cast<double>(progress.total_plugins);
 }
@@ -814,7 +826,7 @@ void EditorController::Impl::completeOpenProject(
     }
 
     common::core::Song song = std::move(*state->result);
-    const ProjectEditorState editor_state = state->project.editorState();
+    ProjectEditorState editor_state = state->project.editorState();
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
@@ -832,7 +844,8 @@ void EditorController::Impl::completeOpenProject(
         ProjectLoadLiveRigStage{
             .token = token,
             .song_directory = songDirectoryForProject(state->project),
-            .finish = [this, state, editor_state](std::expected<void, std::string> rig_result) {
+            .finish = [this, state, editor_state = std::move(editor_state)](
+                          std::expected<void, std::string> rig_result) {
                 finishOpenProjectAfterLiveRigLoad(state, editor_state, std::move(rig_result));
             },
         });
@@ -1700,7 +1713,7 @@ bool EditorController::Impl::closeProject()
     m_session.reset();
     m_plugins.clear();
 
-    auto closed = m_project->close();
+    auto closed = closeExistingProject(m_project);
     if (!closed.has_value())
     {
         reportError(std::string{"Could not close: "} + closed.error().message);
@@ -1819,6 +1832,8 @@ void EditorController::Impl::restoreLiveRig(
     common::audio::LiveRigLoadRequest request{
         .song_directory = song_directory,
         .tone_document_ref = arrangement->tone_document_ref,
+        .progress_callback = {},
+        .yield_callback = {},
     };
     if (report_progress)
     {
@@ -1857,7 +1872,7 @@ void EditorController::Impl::restoreLiveRig(
     std::weak_ptr<bool> alive_weak = m_alive;
     m_live_rig->loadRig(
         std::move(request),
-        [this, alive_weak = std::move(alive_weak), on_loaded = std::move(on_loaded)](
+        [alive_weak = std::move(alive_weak), on_loaded = std::move(on_loaded)](
             std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> loaded) {
             if (alive_weak.expired())
             {

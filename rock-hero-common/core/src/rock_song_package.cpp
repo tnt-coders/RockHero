@@ -765,7 +765,7 @@ struct SongDocumentForSave
             return std::nullopt;
         }
 
-        juce::var arrangement_document = Json::makeObject({
+        const juce::var arrangement_document = Json::makeObject({
             {"id", Json::makeString(*arrangement_id)},
             {"part", Json::makeString(partName(arrangement.part))},
             {"file", Json::makeString(arrangement_file.generic_string())},

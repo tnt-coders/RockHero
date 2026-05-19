@@ -237,7 +237,7 @@ void logInstrumentMonitoringFailure(const juce::String& message)
         return std::nullopt;
     }
 
-    const std::filesystem::path resolved_path = (song_directory / package_path).lexically_normal();
+    std::filesystem::path resolved_path = (song_directory / package_path).lexically_normal();
     std::error_code error;
     if (!std::filesystem::is_regular_file(resolved_path, error))
     {
@@ -1379,7 +1379,7 @@ bool Engine::isPluginScanChildProcessCommandLine(std::string_view command_line)
 {
     return toJuceString(command_line)
         .trim()
-        .startsWith(juce::String{g_plugin_scan_command_line_prefix.data()});
+        .startsWith(toJuceString(g_plugin_scan_command_line_prefix));
 }
 
 // Creates the Tracktion engine and a minimal two-track edit for playback and instrument monitoring.
@@ -1752,7 +1752,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         }};
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    const tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
     if (instrument_track == nullptr)
     {
         return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
@@ -1784,7 +1784,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             }};
         }
 
-        const std::size_t chain_index = static_cast<std::size_t>(plugin_index);
+        const auto chain_index = static_cast<std::size_t>(plugin_index);
         external_plugin->flushPluginStateToValueTree();
         juce::ValueTree plugin_state = external_plugin->state.createCopy();
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
