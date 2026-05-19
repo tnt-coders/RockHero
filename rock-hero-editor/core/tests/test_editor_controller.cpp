@@ -3765,7 +3765,7 @@ TEST_CASE("EditorController exit during busy save persists file", "[core][editor
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
 }
 
-// A stale completion (generation no longer matches) does not finish busy state: if another
+// A stale completion (busy token no longer matches) does not finish busy state: if another
 // operation is busy when the stale completion fires, the live busy state is preserved.
 TEST_CASE(
     "EditorController stale completion preserves live busy state", "[core][editor-controller]")
