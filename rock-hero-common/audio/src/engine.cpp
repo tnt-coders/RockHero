@@ -96,7 +96,7 @@ private:
     std::condition_variable m_finished_condition;
     bool m_finished{false};
     std::atomic_bool m_timed_out{false};
-    std::jthread m_thread;
+    std::thread m_thread;
 };
 
 // Serializable plugin identity stored in the audio-owned tone document.
@@ -1178,6 +1178,8 @@ private:
         }
 
         const juce::String target_id{instance_id};
+        // The returned plugin may be mutated by callers such as removePlugin().
+        // NOLINTNEXTLINE(misc-const-correctness)
         for (tracktion::Plugin* const plugin : instrument_track->pluginList)
         {
             if (plugin != nullptr && plugin->itemID.toString() == target_id)
@@ -1897,9 +1899,9 @@ void Engine::loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_re
 
     // Yield through the caller-provided paint fence so the initial "Loading live rig..." state
     // actually paints before plugin construction starts.
-    std::weak_ptr<bool> alive_weak = m_impl->m_alive;
-    m_impl->yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
-        if (alive_weak.expired())
+    std::weak_ptr<bool> load_alive_source = m_impl->m_alive;
+    m_impl->yieldThenContinue([this, load_alive = std::move(load_alive_source)] {
+        if (load_alive.expired())
         {
             return;
         }
@@ -1933,9 +1935,9 @@ void Engine::Impl::beginNextPluginStep()
     reportLiveRigLoadProgress(
         m_load_op->request, plugin_index, total_plugins, plugin_index, display_name);
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
-        if (alive_weak.expired())
+    std::weak_ptr<bool> load_alive_source = m_alive;
+    yieldThenContinue([this, load_alive = std::move(load_alive_source)] {
+        if (load_alive.expired())
         {
             return;
         }
@@ -2026,9 +2028,9 @@ void Engine::Impl::executePluginStep()
         plugin_index,
         display_name);
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    yieldThenContinue([this, alive_weak = std::move(alive_weak)] {
-        if (alive_weak.expired())
+    std::weak_ptr<bool> load_alive_source = m_alive;
+    yieldThenContinue([this, load_alive = std::move(load_alive_source)] {
+        if (load_alive.expired())
         {
             return;
         }

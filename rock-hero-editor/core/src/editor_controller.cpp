@@ -205,12 +205,26 @@ void defaultExit()
         {
             return BusyOperation::PublishingProject;
         }
-        default:
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::ExitApplication:
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
+        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::RemovePlugin:
         {
             assert(false);
             return BusyOperation::SavingProject;
         }
     }
+
+    assert(false);
+    return BusyOperation::SavingProject;
 }
 
 // Keeps write failure prefixes coupled to the action identity rather than split by call site.
@@ -230,12 +244,26 @@ void defaultExit()
         {
             return "Could not publish: ";
         }
-        default:
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::ExitApplication:
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
+        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::RemovePlugin:
         {
             assert(false);
             return "Could not write project: ";
         }
     }
+
+    assert(false);
+    return "Could not write project: ";
 }
 
 // Converts plugin-level live rig progress into the percentage value consumed by BusyOverlay.
@@ -366,13 +394,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
     [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(common::core::Song& song);
-    void runLiveRigLoadStage(ProjectLoadLiveRigStage stage);
-    void startLiveRigLoadStage(ProjectLoadLiveRigStage stage, bool report_progress);
+    void runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state);
+    void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
         const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
         std::function<void(std::expected<std::vector<PluginViewState>, std::string>)> on_loaded);
     void clearLiveRig();
-    void runProjectWriteAction(EditorAction::ProjectWriteAction action);
+    void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(
         std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
     void continueDeferredAction();
@@ -386,10 +414,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
-    void setLiveRigLoadBusyState(std::string message, double progress);
+    void setLiveRigLoadBusyState(std::string&& message, double progress);
     void beginLiveRigLoadProgress();
     void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
-    void runAfterBusyOverlayPaintedOrNow(std::function<void()> callback);
+    void runAfterBusyOverlayPaintedOrNow(std::function<void()>&& callback);
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
     void deriveAndPush();
@@ -786,14 +814,14 @@ void EditorController::Impl::openProject(
     const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
     deriveAndPush();
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    EditorController::OpenFunction open_function = m_open_function;
+    std::weak_ptr<bool> completion_alive_source = m_alive;
+    const EditorController::OpenFunction open_function = m_open_function;
     m_task_runner->submit(
-        [state, open_function = std::move(open_function)]() mutable {
-            state->result = open_function(state->project, state->file);
+        [state, worker_open_function = open_function] {
+            state->result = worker_open_function(state->project, state->file);
         },
-        [this, state, token, alive_weak = std::move(alive_weak)]() {
-            if (alive_weak.expired())
+        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
+            if (completion_alive.expired())
             {
                 return;
             }
@@ -844,9 +872,10 @@ void EditorController::Impl::completeOpenProject(
         ProjectLoadLiveRigStage{
             .token = token,
             .song_directory = songDirectoryForProject(state->project),
-            .finish = [this, state, editor_state = std::move(editor_state)](
+            .finish = [this, state, captured_editor_state = std::move(editor_state)](
                           std::expected<void, std::string> rig_result) {
-                finishOpenProjectAfterLiveRigLoad(state, editor_state, std::move(rig_result));
+                finishOpenProjectAfterLiveRigLoad(
+                    state, captured_editor_state, std::move(rig_result));
             },
         });
 }
@@ -904,14 +933,14 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
     const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
     deriveAndPush();
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    EditorController::ImportFunction import_function = m_import_function;
+    std::weak_ptr<bool> completion_alive_source = m_alive;
+    const EditorController::ImportFunction import_function = m_import_function;
     m_task_runner->submit(
-        [state, import_function = std::move(import_function)]() mutable {
-            state->result = import_function(state->project, state->file);
+        [state, worker_import_function = import_function] {
+            state->result = worker_import_function(state->project, state->file);
         },
-        [this, state, token, alive_weak = std::move(alive_weak)]() {
-            if (alive_weak.expired())
+        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
+            if (completion_alive.expired())
             {
                 return;
             }
@@ -992,9 +1021,9 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
 
 // Runs the shared project-load live-rig stage. Tone-bearing arrangements switch the busy overlay
 // into determinate progress and wait for that state to paint before live-rig restore starts.
-void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage)
+void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state)
 {
-    if (!stage.finish || stage.token != m_busy_generation)
+    if (!stage_state.finish || stage_state.token != m_busy_generation)
     {
         return;
     }
@@ -1002,40 +1031,41 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage)
     const bool report_progress = shouldShowLiveRigLoadProgress();
     if (!report_progress)
     {
-        startLiveRigLoadStage(std::move(stage), false);
+        startLiveRigLoadStage(std::move(stage_state), false);
         return;
     }
 
     beginLiveRigLoadProgress();
-    std::weak_ptr<bool> alive_weak = m_alive;
-    runAfterBusyOverlayPaintedOrNow(
-        [this, stage = std::move(stage), alive_weak = std::move(alive_weak)]() mutable {
-            if (alive_weak.expired())
-            {
-                return;
-            }
-            startLiveRigLoadStage(std::move(stage), true);
-        });
+    std::weak_ptr<bool> stage_alive_source = m_alive;
+    runAfterBusyOverlayPaintedOrNow([this,
+                                     captured_stage = std::move(stage_state),
+                                     stage_alive = std::move(stage_alive_source)]() mutable {
+        if (stage_alive.expired())
+        {
+            return;
+        }
+        startLiveRigLoadStage(std::move(captured_stage), true);
+    });
 }
 
 // Starts the audio-boundary live-rig restore and routes only current-generation completions to
 // the stage finalizer. Signal-chain view state is updated only after the generation check so a
 // superseded restore cannot repopulate plugins after close or replacement.
 void EditorController::Impl::startLiveRigLoadStage(
-    ProjectLoadLiveRigStage stage, bool report_progress)
+    ProjectLoadLiveRigStage stage_state, bool report_progress)
 {
-    if (!stage.finish || stage.token != m_busy_generation)
+    if (!stage_state.finish || stage_state.token != m_busy_generation)
     {
         return;
     }
 
-    const std::uint64_t token = stage.token;
+    const std::uint64_t token = stage_state.token;
 
     // Resolve the directory before moving the stage into the completion lambda. MSVC may evaluate
-    // later call arguments before earlier ones, so reading stage.song_directory inline would risk
-    // reading after move.
-    const std::filesystem::path song_directory = stage.song_directory;
-    std::weak_ptr<bool> alive_weak = m_alive;
+    // later call arguments before earlier ones, so reading stage_state.song_directory inline would
+    // risk reading after move.
+    const std::filesystem::path song_directory = stage_state.song_directory;
+    std::weak_ptr<bool> load_alive_source = m_alive;
     restoreLiveRig(
         song_directory,
         report_progress,
@@ -1043,23 +1073,23 @@ void EditorController::Impl::startLiveRigLoadStage(
         [this,
          token,
          report_progress,
-         stage = std::move(stage),
-         alive_weak = std::move(alive_weak)](
+         captured_stage = std::move(stage_state),
+         load_alive = std::move(load_alive_source)](
             std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
-            if (alive_weak.expired() || token != m_busy_generation)
+            if (load_alive.expired() || token != m_busy_generation)
             {
                 return;
             }
             if (!rig_result.has_value())
             {
-                stage.finish(std::unexpected{std::move(rig_result.error())});
+                captured_stage.finish(std::unexpected{std::move(rig_result.error())});
                 return;
             }
 
             m_plugins = std::move(*rig_result);
             if (!report_progress)
             {
-                stage.finish({});
+                captured_stage.finish({});
                 return;
             }
 
@@ -1069,7 +1099,7 @@ void EditorController::Impl::startLiveRigLoadStage(
             // No message thread in unit tests; finish synchronously so tests don't deadlock.
             if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
             {
-                stage.finish({});
+                captured_stage.finish({});
                 return;
             }
 
@@ -1080,14 +1110,14 @@ void EditorController::Impl::startLiveRigLoadStage(
                 static_cast<int>(minimum_completion_display_time.count()),
                 [this,
                  token,
-                 stage = std::move(stage),
-                 alive_weak = std::move(alive_weak)]() mutable {
-                    if (alive_weak.expired() || token != m_busy_generation)
+                 timer_stage = std::move(captured_stage),
+                 timer_alive = std::move(load_alive)]() mutable {
+                    if (timer_alive.expired() || token != m_busy_generation)
                     {
                         return;
                     }
 
-                    stage.finish({});
+                    timer_stage.finish({});
                 });
         });
 }
@@ -1379,12 +1409,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
     deriveAndPush();
 
-    std::weak_ptr<bool> alive_weak = m_alive;
+    std::weak_ptr<bool> completion_alive_source = m_alive;
     common::audio::IPluginHost* const plugin_host = m_plugin_host;
     m_task_runner->submit(
         [state, plugin_host] { state->candidates = plugin_host->scanPluginFile(state->file); },
-        [this, state, token, alive_weak = std::move(alive_weak)]() {
-            if (alive_weak.expired())
+        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
+            if (completion_alive.expired())
             {
                 return;
             }
@@ -1418,14 +1448,15 @@ void EditorController::Impl::completeAddPluginScan(
         return;
     }
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    runAfterBusyOverlayPaintedOrNow([this, state, token, alive_weak = std::move(alive_weak)]() {
-        if (alive_weak.expired())
-        {
-            return;
-        }
-        completeAddPluginLoad(token, state);
-    });
+    std::weak_ptr<bool> completion_alive_source = m_alive;
+    runAfterBusyOverlayPaintedOrNow(
+        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
+            if (completion_alive.expired())
+            {
+                return;
+            }
+            completeAddPluginLoad(token, state);
+        });
 }
 
 // Inserts the already-scanned plugin candidate into the live chain.
@@ -1837,55 +1868,56 @@ void EditorController::Impl::restoreLiveRig(
     };
     if (report_progress)
     {
-        std::weak_ptr<bool> alive_progress = m_alive;
-        request.progress_callback = [this, token, alive_progress = std::move(alive_progress)](
-                                        const common::audio::LiveRigLoadProgress& progress) {
-            if (alive_progress.expired() || token != m_busy_generation)
-            {
-                return;
-            }
-            updateLiveRigLoadProgress(progress);
-        };
+        std::weak_ptr<bool> progress_alive_source = m_alive;
+        request.progress_callback =
+            [this, token, progress_alive = std::move(progress_alive_source)](
+                const common::audio::LiveRigLoadProgress& progress) {
+                if (progress_alive.expired() || token != m_busy_generation)
+                {
+                    return;
+                }
+                updateLiveRigLoadProgress(progress);
+            };
         // Route the engine's per-step yield through the busy-overlay paint fence so each plugin's
         // progress update actually paints before the next step blocks the message thread.
-        std::weak_ptr<bool> alive_yield = m_alive;
+        std::weak_ptr<bool> yield_alive_source = m_alive;
         request.yield_callback =
-            [this, token, alive_yield = std::move(alive_yield)](std::function<void()> next) {
-                if (alive_yield.expired() || token != m_busy_generation)
+            [this, token, yield_alive = std::move(yield_alive_source)](std::function<void()> next) {
+                if (yield_alive.expired() || token != m_busy_generation)
                 {
                     return;
                 }
                 runAfterBusyOverlayPaintedOrNow(
-                    [this, token, next = std::move(next), alive_yield]() mutable {
-                        if (alive_yield.expired() || token != m_busy_generation)
+                    [this, token, continuation = std::move(next), yield_alive]() mutable {
+                        if (yield_alive.expired() || token != m_busy_generation)
                         {
                             return;
                         }
-                        if (next)
+                        if (continuation)
                         {
-                            next();
+                            continuation();
                         }
                     });
             };
     }
 
-    std::weak_ptr<bool> alive_weak = m_alive;
+    std::weak_ptr<bool> load_alive_source = m_alive;
     m_live_rig->loadRig(
         std::move(request),
-        [alive_weak = std::move(alive_weak), on_loaded = std::move(on_loaded)](
+        [load_alive = std::move(load_alive_source), completion = std::move(on_loaded)](
             std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> loaded) {
-            if (alive_weak.expired())
+            if (load_alive.expired())
             {
                 return;
             }
 
             if (!loaded.has_value())
             {
-                on_loaded(std::unexpected{loaded.error().message});
+                completion(std::unexpected{loaded.error().message});
                 return;
             }
 
-            on_loaded(makePluginViewStates(loaded->plugins));
+            completion(makePluginViewStates(loaded->plugins));
         });
 }
 
@@ -1906,7 +1938,7 @@ void EditorController::Impl::clearLiveRig()
 
 // Runs project write actions through one task-runner path so busy lifetime, stale completion
 // checks, and project restoration stay consistent across save, save-as, and publish.
-void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAction action)
+void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAction&& action)
 {
     auto state = takeProjectForWrite(std::move(action));
     if (state == nullptr)
@@ -1917,38 +1949,39 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
     const std::uint64_t token = beginBusy(busyOperationForProjectWrite(idOf(state->action)));
     deriveAndPush();
 
-    std::weak_ptr<bool> alive_weak = m_alive;
-    EditorController::SaveFunction save_function = m_save_function;
-    EditorController::SaveAsFunction save_as_function = m_save_as_function;
-    EditorController::PublishFunction publish_function = m_publish_function;
+    std::weak_ptr<bool> completion_alive_source = m_alive;
+    const EditorController::SaveFunction save_function = m_save_function;
+    const EditorController::SaveAsFunction save_as_function = m_save_as_function;
+    const EditorController::PublishFunction publish_function = m_publish_function;
     m_task_runner->submit(
         [state,
-         save_function = std::move(save_function),
-         save_as_function = std::move(save_as_function),
-         publish_function = std::move(publish_function)]() mutable {
+         worker_save_function = save_function,
+         worker_save_as_function = save_as_function,
+         worker_publish_function = publish_function] {
             std::visit(
-                [&state, &save_function, &save_as_function, &publish_function](auto&& alternative) {
+                [&state, &worker_save_function, &worker_save_as_function, &worker_publish_function](
+                    auto&& alternative) {
                     using A = std::decay_t<decltype(alternative)>;
                     if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
                     {
                         state->result =
-                            save_function(state->project, state->song, state->editor_state);
+                            worker_save_function(state->project, state->song, state->editor_state);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
                     {
-                        state->result = save_as_function(
+                        state->result = worker_save_as_function(
                             state->project, alternative.file, state->song, state->editor_state);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
                     {
                         state->result =
-                            publish_function(state->project, alternative.file, state->song);
+                            worker_publish_function(state->project, alternative.file, state->song);
                     }
                 },
                 state->action);
         },
-        [this, state, token, alive_weak = std::move(alive_weak)]() {
-            if (alive_weak.expired())
+        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
+            if (completion_alive.expired())
             {
                 return;
             }
@@ -2310,7 +2343,7 @@ void EditorController::Impl::endBusy()
 }
 
 // Writes the current live rig load message and fraction into the active busy overlay state.
-void EditorController::Impl::setLiveRigLoadBusyState(std::string message, double progress)
+void EditorController::Impl::setLiveRigLoadBusyState(std::string&& message, double progress)
 {
     if (!m_busy.has_value())
     {
@@ -2340,7 +2373,7 @@ void EditorController::Impl::updateLiveRigLoadProgress(
 }
 
 // Runs message-thread-only load work after the busy overlay has had a chance to repaint.
-void EditorController::Impl::runAfterBusyOverlayPaintedOrNow(std::function<void()> callback)
+void EditorController::Impl::runAfterBusyOverlayPaintedOrNow(std::function<void()>&& callback)
 {
     if (!callback)
     {
