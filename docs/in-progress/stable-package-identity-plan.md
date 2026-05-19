@@ -35,12 +35,19 @@ PSARC IDs into the Rock Hero package format.
 Use stable, opaque IDs as the durable identity for arrangements, tone documents, and tone state.
 Do not use editable display names as the durable key.
 
-Generate a fresh Rock Hero ID whenever an object is created, including during PSARC import. Use a
-128-bit value rendered as 32 lowercase hex characters:
+Generate a fresh Rock Hero ID whenever an object is created, including during PSARC import. Use
+`juce::Uuid`, which generates RFC 4122 version 4 UUIDs, and persist the value as canonical
+lowercase dashed UUID text:
 
 ```text
-9b26d8e83ec54f979a81d18ef6bce30d
+9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d
 ```
+
+This keeps package identity aligned with the existing JUCE core dependency and avoids adding a
+custom UUIDv7 generator or another third-party library for IDs. UUIDv7 and ULID remain reasonable
+alternatives if future package tooling needs lexicographic creation-time ordering, but Rock Hero
+does not currently need ID ordering. Treat IDs as opaque; no runtime behavior should depend on ID
+sort order.
 
 The Rock Hero package format is its own format. PSARC-specific identifiers
 (`PersistentID`, `MasterID`, `ManifestUrn`, `DLCKey`) are not stored in `song.json`, tone
@@ -59,9 +66,9 @@ Do not add an `arr_` prefix to arrangement IDs or filenames. The package directo
 the ID its domain:
 
 ```text
-arrangements/20f97706bd07464ea7cf63ac86838117.xml
-tones/9b26d8e83ec54f979a81d18ef6bce30d.tone.json
-tones/state/9b26d8e83ec54f979a81d18ef6bce30d/plugin-1.tracktion.xml
+arrangements/4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4.xml
+tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json
+tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/state/plugin-1.tracktion.xml
 ```
 
 Tone IDs should be separate from arrangement IDs unless the model deliberately says one
@@ -77,11 +84,11 @@ Store package resources under stable IDs:
 ```text
 song.json
 arrangements/
-  4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4.xml
+  4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4.xml
 tones/
-  9b26d8e83ec54f979a81d18ef6bce30d.tone.json
-  state/
-    9b26d8e83ec54f979a81d18ef6bce30d/
+  9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/
+    tone.json
+    state/
       plugin-1.tracktion.xml
 ```
 
@@ -89,11 +96,11 @@ The display name remains metadata, not a path input:
 
 ```json
 {
-  "id": "4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4",
+  "id": "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
   "name": "Lead",
   "part": "Lead",
-  "file": "arrangements/4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4.xml",
-  "toneDocument": "tones/9b26d8e83ec54f979a81d18ef6bce30d.tone.json"
+  "file": "arrangements/4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4.xml",
+  "toneDocument": "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json"
 }
 ```
 
@@ -101,6 +108,8 @@ Advantages:
 
 - Rename operations do not move files.
 - Tone state sidecar paths cannot drift from editable names.
+- Tone metadata and Tracktion sidecars live in one folder per tone.
+- ID generation uses the existing JUCE core dependency.
 - Save/load validation stays simple.
 - Package writes are less likely to leave orphaned files.
 - Implementation is smaller because no rename cleanup policy is required for normal edits.
@@ -109,6 +118,7 @@ Tradeoffs:
 
 - Browsing the package by hand is less descriptive.
 - Debugging package contents requires looking at `song.json` or tone JSON to connect IDs to names.
+- ID text is not creation-time sortable.
 - Existing fixtures and imported output that expect `arrangements/lead.xml` need to be updated.
 
 ## Option B: Readable Filenames With Stable IDs
@@ -122,9 +132,9 @@ song.json
 arrangements/
   lead.xml
 tones/
-  lead.tone.json
-  state/
-    lead/
+  lead/
+    tone.json
+    state/
       plugin-1.tracktion.xml
 ```
 
@@ -132,11 +142,11 @@ The stable ID remains authoritative:
 
 ```json
 {
-  "id": "4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4",
+  "id": "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4",
   "name": "Lead",
   "part": "Lead",
   "file": "arrangements/lead.xml",
-  "toneDocument": "tones/lead.tone.json"
+  "toneDocument": "tones/lead/tone.json"
 }
 ```
 
@@ -165,8 +175,12 @@ Tradeoffs:
 ## Implementation Plan For Option A
 
 1. Add a small package ID helper in the appropriate core module.
-   - Generate fresh 128-bit IDs rendered as 32 lowercase hex characters.
-   - Reject empty, unsafe, or duplicate IDs at package boundaries.
+   - Generate fresh IDs with `juce::Uuid`.
+   - Persist IDs using canonical lowercase dashed UUIDv4 strings.
+   - Validate canonical spelling explicitly before parsing; `juce::Uuid` string parsing is too
+     permissive to be the package boundary validator by itself.
+   - Reject empty, malformed, non-UUIDv4, non-canonical, unsafe, or duplicate IDs at package
+     boundaries.
 
 2. Update PSARC import identity.
    - Generate a fresh Rock Hero ID for each imported arrangement at import time.
@@ -181,8 +195,8 @@ Tradeoffs:
 
 4. Update tone document identity.
    - Create or preserve a stable tone document ID.
-   - Use `tones/<tone-id>.tone.json` for the document path.
-   - Use `tones/state/<tone-id>/` for Tracktion state sidecars.
+   - Use `tones/<tone-id>/tone.json` for the document path.
+   - Use `tones/<tone-id>/state/` for Tracktion state sidecars.
    - Stop deriving tone state directories from arrangement names or tone display names.
 
 5. Update live rig capture and restore.
@@ -194,15 +208,16 @@ Tradeoffs:
    - `common/core` validates that arrangement and tone document refs are safe package-relative
      paths.
    - `common/audio` validates tone document sidecar refs and keeps them under the expected
-     `tones/state/<tone-id>/` root.
+     `tones/<tone-id>/state/` root.
    - Save fails on duplicate IDs or missing referenced files.
 
 7. Add focused tests.
    - PSARC importer generates a fresh Rock Hero ID per arrangement and writes no PSARC
      identifiers into `song.json`.
    - Native package save/load round-trips ID-based arrangement files.
-   - Tone capture creates `tones/<tone-id>.tone.json`.
-   - Tone capture writes plugin state under `tones/state/<tone-id>/`.
+   - Generated package IDs are canonical lowercase dashed UUIDv4 strings.
+   - Tone capture creates `tones/<tone-id>/tone.json`.
+   - Tone capture writes plugin state under `tones/<tone-id>/state/`.
    - Renaming a display name does not move or orphan package resources.
 
 ## Migration

@@ -1194,7 +1194,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
-    const auto& progress_bar = findRequiredChild<juce::ProgressBar>(view, "busy_progress_bar");
+    auto& progress_bar = findRequiredChild<juce::ProgressBar>(view, "busy_progress_bar");
     CHECK_FALSE(overlay->isVisible());
 
     core::EditorViewState busy_state;
