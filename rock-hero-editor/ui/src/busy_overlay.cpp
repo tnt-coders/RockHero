@@ -22,7 +22,7 @@ constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
 // Distance between the progress bar and message text inside the surface.
-constexpr int g_progress_bar_height = 14;
+constexpr int g_progress_bar_height = 22;
 constexpr int g_progress_message_gap = 12;
 
 } // namespace
