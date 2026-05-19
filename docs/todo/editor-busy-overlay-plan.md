@@ -2,10 +2,42 @@
 
 ## Current Status
 
-This plan is on hold after the shared busy-state foundation and project-IO slices. Plugin work is
-the current priority, and the single-plugin insert flow should not grow an editor-wide busy state
-by default. Revisit plugin busy UI only for a measured slow path such as batch plugin scanning,
-bulk restore, or future tone-system readiness work that has meaningful progress to report.
+This plan is moving back to `docs/todo/` after the shared busy-state foundation, project-IO,
+save/publish, plugin-load, and live-rig progress slices. The remaining work is not active feature
+work. Revisit it when audio-device changes, cancellation, or richer progress reporting become a
+near-term priority.
+
+Historical implementation slices below are kept as context. Re-read current code before using
+this document for new implementation work.
+
+## Audio Device Loading Investigation
+
+A quick code inspection found likely audio-device slow points that should be measured before any
+`ChangingAudioDevice` busy overlay is added. One immediate cleanup has already been applied:
+`AudioDeviceSettingsComponent::refreshControls()` now scans the staged JUCE device type once per
+refresh pass instead of rescanning in each helper.
+
+- The settings dialog creates a staged `juce::AudioIODevice` while the user is still choosing
+  devices so it can read channel, sample-rate, and buffer-size capabilities. That is useful, but
+  it should be cached or rebuilt only when the staged type/device names change.
+- `AudioDeviceSettingsComponent::applyAcceptedSetup()` mutates `juce::AudioDeviceManager`
+  directly. On a device-type change, JUCE's `setCurrentAudioDeviceType()` closes the old device,
+  waits briefly for OS device state to settle, opens the type's remembered/default setup, and then
+  Rock Hero applies the staged setup with `setAudioDeviceSetup()`. That can create an avoidable
+  intermediate open before the final route.
+- The user-visible OK delay is therefore likely in the synchronous JUCE apply path, especially
+  device open/reopen and the device-type settle wait. JUCE's `ChangeBroadcaster` already
+  coalesces pending async change notifications, so Tracktion route rebinding should not repeat for
+  every internal `sendChangeMessage()` during one OK click.
+- `Engine::Impl::changeListenerCallback()` responds to the device-manager change by rebinding the
+  instrument route before notifying the editor controller. That path calls Tracktion pending-update
+  dispatch and playback-context allocation, so controller state updates happen after the slow audio
+  work has already begun.
+
+Recommended next step: add temporary timing around dialog refresh, JUCE type/setup calls, and
+Tracktion route rebinding. Consider staged-device caching next, then only introduce a
+controller-owned audio-device apply command and editor-wide busy state if measurements still show
+normal device switching visibly stalls after those cheaper fixes.
 
 ## Goal
 
