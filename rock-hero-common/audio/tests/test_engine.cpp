@@ -372,6 +372,18 @@ TEST_CASE("Engine plugin host rejects unknown plugin instances", "[audio][engine
     CHECK(transport.position() == common::core::TimePosition{});
 }
 
+// Verifies plugin window requests reject unknown instance IDs before asking Tracktion for a UI.
+TEST_CASE("Engine plugin host rejects unknown plugin windows", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+
+    const auto result = plugin_host.openPluginWindow("missing-instance-id");
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
+}
+
 // Verifies clearing an empty live rig uses the same message-thread adapter path.
 TEST_CASE("Engine live rig clears empty chain", "[audio][engine][integration]")
 {

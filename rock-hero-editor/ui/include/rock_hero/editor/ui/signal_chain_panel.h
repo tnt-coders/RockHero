@@ -40,6 +40,12 @@ public:
         */
         virtual void onRemovePluginPressed(std::string instance_id) = 0;
 
+        /*!
+        \brief Called when the user requests a plugin instance editor window.
+        \param instance_id Opaque plugin instance ID selected by the user.
+        */
+        virtual void onOpenPluginPressed(std::string instance_id) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
