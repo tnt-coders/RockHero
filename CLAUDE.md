@@ -51,10 +51,17 @@ Consult these documents per the [Bootstrap Rules](#bootstrap-rules) above:
 
 ## Documentation Maintenance Rules
 
-Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design
-changes. Treat them as deferred implementation plans that may be stale until the user chooses to
-implement that specific plan; at that point, re-read the current code and design docs and revise the
-plan as needed before using it.
+Planning documents live in two buckets:
+
+- **`docs/todo/`** — Deferred plans for work that may happen at some unknown future point. Do not
+  keep these continuously synchronized with routine code or design changes. Treat them as plans
+  that may be stale until the user chooses to implement that specific plan; at that point, re-read
+  the current code and design docs and revise the plan as needed before using it.
+
+- **`docs/in-progress/`** — Plans for work the user is actively engaged in now. Keep these aligned
+  with the user's current direction for that active work, and update them when the plan itself
+  changes. Routine code edits made while executing the plan do not require touching the doc — the
+  doc captures intent, not implementation state.
 
 Keep `docs/design/` documents aligned with implemented architecture and durable project decisions.
 Before making any significant rule or architecture change in `docs/design/`, confirm with the user

@@ -30,17 +30,18 @@ void JuceEditorTaskRunner::submit(std::function<void()> work, std::function<void
         m_worker.join();
     }
 
-    m_worker = std::thread([work = std::move(work), completion = std::move(completion)]() mutable {
-        if (work)
-        {
-            work();
-        }
+    m_worker = std::thread(
+        [worker_work = std::move(work), worker_completion = std::move(completion)]() mutable {
+            if (worker_work)
+            {
+                worker_work();
+            }
 
-        if (completion)
-        {
-            juce::MessageManager::callAsync(std::move(completion));
-        }
-    });
+            if (worker_completion)
+            {
+                juce::MessageManager::callAsync(std::move(worker_completion));
+            }
+        });
 }
 
 } // namespace rock_hero::editor::core
