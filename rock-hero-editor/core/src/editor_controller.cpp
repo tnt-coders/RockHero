@@ -384,6 +384,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void reportError(const std::string& message);
     [[nodiscard]] bool hasLoadedArrangement() const;
     [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
+    [[nodiscard]] bool hasLiveRigPersistence() const noexcept;
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
     [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
 
@@ -1435,7 +1436,7 @@ void EditorController::Impl::completeAddPluginLoad(
     }
 
     m_plugins.push_back(makePluginViewState(candidate, *handle));
-    if (m_live_rig != nullptr)
+    if (hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
     }
@@ -1472,7 +1473,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     {
         m_plugins[index].chain_index = index;
     }
-    if (m_live_rig != nullptr)
+    if (hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
     }
@@ -2237,13 +2238,19 @@ bool EditorController::Impl::hasLoadedArrangement() const
 // Reports whether the active arrangement has persisted plugin state worth showing as progress.
 bool EditorController::Impl::shouldShowLiveRigLoadProgress() const
 {
-    if (m_live_rig == nullptr)
+    if (!hasLiveRigPersistence())
     {
         return false;
     }
 
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     return arrangement != nullptr && !arrangement->tone_document_ref.empty();
+}
+
+// Reports whether plugin mutations can be captured into project saves.
+bool EditorController::Impl::hasLiveRigPersistence() const noexcept
+{
+    return m_live_rig != nullptr;
 }
 
 // Reports whether a busy operation is currently active.

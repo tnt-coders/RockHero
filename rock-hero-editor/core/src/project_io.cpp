@@ -4,9 +4,9 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
-#include <initializer_list>
 #include <juce_core/juce_core.h>
 #include <optional>
+#include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 #include <string_view>
@@ -21,17 +21,7 @@ namespace
 {
 constexpr std::string_view g_project_document_name{"project.json"};
 
-// Pairs a JSON object property name with the value written for that property.
-struct JsonProperty
-{
-    JsonProperty(const char* property_name, juce::var property_value)
-        : name(property_name)
-        , value(std::move(property_value))
-    {}
-
-    const char* name{};
-    juce::var value;
-};
+using common::core::Json;
 
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
 [[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
@@ -43,61 +33,11 @@ struct JsonProperty
 #endif
 }
 
-// Stores UTF-8 project strings in the JUCE JSON representation.
-[[nodiscard]] juce::var makeJsonString(const std::string& value)
-{
-    return juce::var{juce::String::fromUTF8(value.c_str())};
-}
-
-// Creates a JUCE dynamic object value with the supplied properties.
-[[nodiscard]] juce::var makeJsonObject(std::initializer_list<JsonProperty> properties)
-{
-    juce::var object{new juce::DynamicObject{}};
-    juce::DynamicObject* const dynamic_object = object.getDynamicObject();
-    for (const JsonProperty& property : properties)
-    {
-        dynamic_object->setProperty(juce::Identifier{property.name}, property.value);
-    }
-
-    return object;
-}
-
-// Reads a JSON property from an object value without throwing on malformed JSON.
-[[nodiscard]] const juce::var& jsonProperty(const juce::var& object, const char* property_name)
-{
-    return object[juce::Identifier{property_name}];
-}
-
-// Parses JSON text while preserving JUCE's parse diagnostic for the project error.
-[[nodiscard]] std::expected<juce::var, std::string> parseJsonDocument(const juce::String& text)
-{
-    juce::var document;
-    const juce::Result result = juce::JSON::parse(text, document);
-    if (result.failed())
-    {
-        return std::unexpected{result.getErrorMessage().toStdString()};
-    }
-
-    return document;
-}
-
-// Reads an optional integer property and falls back when the field is absent or malformed.
-[[nodiscard]] int readOptionalInt(const juce::var& object, const char* property_name, int fallback)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isInt() && !value.isInt64())
-    {
-        return fallback;
-    }
-
-    return static_cast<int>(value);
-}
-
 // Reads an optional string property while rejecting non-string values.
 [[nodiscard]] std::expected<std::optional<std::string>, ProjectError> readOptionalString(
     const juce::var& object, const char* property_name)
 {
-    const juce::var& value = jsonProperty(object, property_name);
+    const juce::var& value = Json::value(object, property_name);
     if (value.isVoid() || value.isUndefined())
     {
         return std::optional<std::string>{};
@@ -157,17 +97,18 @@ std::expected<ProjectEditorState, ProjectError> readProjectDocument(
         }};
     }
 
-    auto parsed_document = parseJsonDocument(project_document_file.readEntireStreamAsString());
+    auto parsed_document = Json::parseDocument(project_document_file.readEntireStreamAsString());
     if (!parsed_document.has_value())
     {
         return std::unexpected{ProjectError{
             ProjectErrorCode::InvalidProjectDocument,
-            "Could not parse project.json: " + parsed_document.error()
+            "Could not parse project.json: " + parsed_document.error().message
         }};
     }
 
     const juce::var project_document = std::move(*parsed_document);
-    if (!project_document.isObject() || readOptionalInt(project_document, "formatVersion", 0) != 1)
+    if (!project_document.isObject() ||
+        Json::readOptionalInt(project_document, "formatVersion", 0) != 1)
     {
         return std::unexpected{ProjectError{
             ProjectErrorCode::InvalidProjectDocument, "Unsupported project.json formatVersion"
@@ -175,7 +116,7 @@ std::expected<ProjectEditorState, ProjectError> readProjectDocument(
     }
 
     ProjectEditorState editor_state;
-    const juce::var& editor_state_json = jsonProperty(project_document, "editorState");
+    const juce::var& editor_state_json = Json::value(project_document, "editorState");
     if (editor_state_json.isVoid() || editor_state_json.isUndefined())
     {
         return editor_state;
@@ -188,7 +129,7 @@ std::expected<ProjectEditorState, ProjectError> readProjectDocument(
         }};
     }
 
-    const juce::var& cursor_position_json = jsonProperty(editor_state_json, "cursorPosition");
+    const juce::var& cursor_position_json = Json::value(editor_state_json, "cursorPosition");
     if (!cursor_position_json.isVoid() && !cursor_position_json.isUndefined())
     {
         if (!cursor_position_json.isInt() && !cursor_position_json.isInt64() &&
@@ -224,16 +165,16 @@ std::expected<void, ProjectError> writeProjectDocument(
     const std::vector<std::string>& arrangement_ids)
 {
     juce::var editor_state_json =
-        makeJsonObject({{"cursorPosition", juce::var{editor_state.cursor_position.seconds}}});
+        Json::makeObject({{"cursorPosition", juce::var{editor_state.cursor_position.seconds}}});
 
     const auto selected_arrangement = selectedArrangementForSave(editor_state, arrangement_ids);
     if (selected_arrangement.has_value())
     {
         editor_state_json.getDynamicObject()->setProperty(
-            juce::Identifier{"selectedArrangement"}, makeJsonString(*selected_arrangement));
+            Json::identifier("selectedArrangement"), Json::makeString(*selected_arrangement));
     }
 
-    const juce::var project_document = makeJsonObject({
+    const juce::var project_document = Json::makeObject({
         {"formatVersion", juce::var{1}},
         {"editorState", editor_state_json},
     });

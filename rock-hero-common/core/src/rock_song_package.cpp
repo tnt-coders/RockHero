@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <set>
 #include <string>
@@ -31,18 +32,6 @@ namespace
 constexpr std::string_view g_song_document_name{"song.json"};
 constexpr int g_zip_compression_level = 9;
 
-// Pairs a JSON object property name with the value written for that property.
-struct JsonProperty
-{
-    JsonProperty(const char* property_name, juce::var property_value)
-        : name(property_name)
-        , value(std::move(property_value))
-    {}
-
-    const char* name{};
-    juce::var value;
-};
-
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
 [[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
 {
@@ -51,56 +40,6 @@ struct JsonProperty
 #else
     return juce::File{juce::String::fromUTF8(path.string().c_str())};
 #endif
-}
-
-// Stores UTF-8 project strings in the JUCE JSON representation.
-[[nodiscard]] juce::var makeJsonString(const std::string& value)
-{
-    return juce::var{juce::String::fromUTF8(value.c_str())};
-}
-
-// Creates a JUCE JSON array value for package documents.
-[[nodiscard]] juce::var makeJsonArray()
-{
-    return juce::var{juce::Array<juce::var>{}};
-}
-
-// Creates a JUCE dynamic object value with the supplied properties.
-[[nodiscard]] juce::var makeJsonObject(std::initializer_list<JsonProperty> properties)
-{
-    juce::var object{new juce::DynamicObject{}};
-    juce::DynamicObject* const dynamic_object = object.getDynamicObject();
-    for (const JsonProperty& property : properties)
-    {
-        dynamic_object->setProperty(juce::Identifier{property.name}, property.value);
-    }
-
-    return object;
-}
-
-// Appends to an existing JUCE JSON array created by makeJsonArray().
-void appendJsonArray(juce::var& array, const juce::var& value)
-{
-    array.append(value);
-}
-
-// Reads a JSON property from an object value without throwing on malformed JSON.
-[[nodiscard]] const juce::var& jsonProperty(const juce::var& object, const char* property_name)
-{
-    return object[juce::Identifier{property_name}];
-}
-
-// Parses JSON text while preserving JUCE's parse diagnostic for the package error.
-[[nodiscard]] std::expected<juce::var, std::string> parseJsonDocument(const juce::String& text)
-{
-    juce::var document;
-    const juce::Result result = juce::JSON::parse(text, document);
-    if (result.failed())
-    {
-        return std::unexpected{result.getErrorMessage().toStdString()};
-    }
-
-    return document;
 }
 
 // Finds the required native song document in an extracted song package directory.
@@ -222,44 +161,6 @@ void appendJsonArray(juce::var& array, const juce::var& value)
     return resolved_path;
 }
 
-// Reads a required string property from a song-document object.
-[[nodiscard]] std::optional<std::string> readRequiredString(
-    const juce::var& object, const char* property_name)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isString())
-    {
-        return std::nullopt;
-    }
-
-    return value.toString().toStdString();
-}
-
-// Reads an optional string property and falls back when the field is absent or not a string.
-[[nodiscard]] std::string readOptionalString(
-    const juce::var& object, const char* property_name, const std::string& fallback)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isString())
-    {
-        return fallback;
-    }
-
-    return value.toString().toStdString();
-}
-
-// Reads an optional integer property and falls back when the field is absent or malformed.
-[[nodiscard]] int readOptionalInt(const juce::var& object, const char* property_name, int fallback)
-{
-    const juce::var& value = jsonProperty(object, property_name);
-    if (!value.isInt() && !value.isInt64())
-    {
-        return fallback;
-    }
-
-    return static_cast<int>(value);
-}
-
 // Translates song-document part names into the current core enum.
 [[nodiscard]] std::optional<Part> parsePart(const std::string& text)
 {
@@ -284,17 +185,17 @@ void appendJsonArray(juce::var& array, const juce::var& value)
 // Reads song metadata while treating missing descriptive fields as blank draft values.
 [[nodiscard]] SongMetadata readMetadata(const juce::var& song_document)
 {
-    const juce::var& metadata = jsonProperty(song_document, "metadata");
+    const juce::var& metadata = Json::value(song_document, "metadata");
     if (!metadata.isObject())
     {
         return {};
     }
 
     return SongMetadata{
-        .title = readOptionalString(metadata, "title", {}),
-        .artist = readOptionalString(metadata, "artist", {}),
-        .album = readOptionalString(metadata, "album", {}),
-        .year = readOptionalInt(metadata, "year", 0),
+        .title = Json::readOptionalString(metadata, "title"),
+        .artist = Json::readOptionalString(metadata, "artist"),
+        .album = Json::readOptionalString(metadata, "album"),
+        .year = Json::readOptionalInt(metadata, "year", 0),
     };
 }
 
@@ -303,7 +204,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
     const std::filesystem::path& directory, const juce::var& song_document,
     std::string& error_message)
 {
-    const juce::var& audio_assets_json = jsonProperty(song_document, "audioAssets");
+    const juce::var& audio_assets_json = Json::value(song_document, "audioAssets");
     if (!audio_assets_json.isArray() || audio_assets_json.size() == 0)
     {
         error_message = "song.json must contain at least one audio asset";
@@ -320,8 +221,8 @@ void appendJsonArray(juce::var& array, const juce::var& value)
             return std::nullopt;
         }
 
-        const auto id = readRequiredString(asset_json, "id");
-        const auto relative_path = readRequiredString(asset_json, "path");
+        const auto id = Json::readRequiredString(asset_json, "id");
+        const auto relative_path = Json::readRequiredString(asset_json, "path");
         if (!id.has_value() || id->empty() || !relative_path.has_value())
         {
             error_message = "audio asset entries require non-empty id and path fields";
@@ -352,7 +253,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
     const std::filesystem::path& directory, const juce::var& song_document,
     const std::unordered_map<std::string, AudioAsset>& audio_assets, std::string& error_message)
 {
-    const juce::var& arrangements_json = jsonProperty(song_document, "arrangements");
+    const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
     {
         error_message = "song.json must contain at least one arrangement";
@@ -372,10 +273,10 @@ void appendJsonArray(juce::var& array, const juce::var& value)
             return std::nullopt;
         }
 
-        const auto id = readRequiredString(arrangement_json, "id");
-        const auto part_text = readRequiredString(arrangement_json, "part");
-        const auto arrangement_file = readRequiredString(arrangement_json, "file");
-        const auto audio_id = readRequiredString(arrangement_json, "audio");
+        const auto id = Json::readRequiredString(arrangement_json, "id");
+        const auto part_text = Json::readRequiredString(arrangement_json, "part");
+        const auto arrangement_file = Json::readRequiredString(arrangement_json, "file");
+        const auto audio_id = Json::readRequiredString(arrangement_json, "audio");
         std::string tone_document_ref;
         if (!id.has_value() || id->empty() || !part_text.has_value() ||
             !arrangement_file.has_value() || !audio_id.has_value())
@@ -404,7 +305,7 @@ void appendJsonArray(juce::var& array, const juce::var& value)
             return std::nullopt;
         }
 
-        const juce::var& tone_document_json = jsonProperty(arrangement_json, "toneDocument");
+        const juce::var& tone_document_json = Json::value(arrangement_json, "toneDocument");
         if (!tone_document_json.isVoid() && !tone_document_json.isUndefined())
         {
             if (!tone_document_json.isString() || tone_document_json.toString().isEmpty())
@@ -797,8 +698,8 @@ struct SongDocumentForSave
         return std::nullopt;
     }
 
-    juce::var audio_assets = makeJsonArray();
-    juce::var arrangements = makeJsonArray();
+    juce::var audio_assets = Json::makeArray();
+    juce::var arrangements = Json::makeArray();
     std::unordered_map<std::string, std::string> audio_ids_by_path;
     std::unordered_map<std::string, int> part_counts;
     std::unordered_map<std::string, int> id_counts;
@@ -839,11 +740,10 @@ struct SongDocumentForSave
         {
             const std::string generated_id =
                 "audio-" + std::to_string(audio_ids_by_path.size() + 1);
-            appendJsonArray(
-                audio_assets,
-                makeJsonObject({
-                    {"id", makeJsonString(generated_id)},
-                    {"path", makeJsonString(relative_audio_name)},
+            audio_assets.append(
+                Json::makeObject({
+                    {"id", Json::makeString(generated_id)},
+                    {"path", Json::makeString(relative_audio_name)},
                 }));
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
@@ -865,11 +765,11 @@ struct SongDocumentForSave
             return std::nullopt;
         }
 
-        juce::var arrangement_document = makeJsonObject({
-            {"id", makeJsonString(*arrangement_id)},
-            {"part", makeJsonString(partName(arrangement.part))},
-            {"file", makeJsonString(arrangement_file.generic_string())},
-            {"audio", makeJsonString(audio_id->second)},
+        juce::var arrangement_document = Json::makeObject({
+            {"id", Json::makeString(*arrangement_id)},
+            {"part", Json::makeString(partName(arrangement.part))},
+            {"file", Json::makeString(arrangement_file.generic_string())},
+            {"audio", Json::makeString(audio_id->second)},
         });
         if (!arrangement.tone_document_ref.empty())
         {
@@ -892,21 +792,21 @@ struct SongDocumentForSave
             }
 
             arrangement_document.getDynamicObject()->setProperty(
-                juce::Identifier{"toneDocument"}, makeJsonString(arrangement.tone_document_ref));
+                Json::identifier("toneDocument"), Json::makeString(arrangement.tone_document_ref));
         }
 
-        appendJsonArray(arrangements, arrangement_document);
+        arrangements.append(arrangement_document);
         arrangement_ids.push_back(*arrangement_id);
     }
 
     return SongDocumentForSave{
-        .document = makeJsonObject({
+        .document = Json::makeObject({
             {"formatVersion", juce::var{1}},
             {"metadata",
-             makeJsonObject({
-                 {"title", makeJsonString(song.metadata.title)},
-                 {"artist", makeJsonString(song.metadata.artist)},
-                 {"album", makeJsonString(song.metadata.album)},
+             Json::makeObject({
+                 {"title", Json::makeString(song.metadata.title)},
+                 {"artist", Json::makeString(song.metadata.artist)},
+                 {"album", Json::makeString(song.metadata.album)},
                  {"year", juce::var{song.metadata.year}},
              })},
             {"audioAssets", audio_assets},
@@ -1045,17 +945,17 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     }
 
     const juce::String document_text = song_document_file.readEntireStreamAsString();
-    auto parsed_document = parseJsonDocument(document_text);
+    auto parsed_document = Json::parseDocument(document_text);
     if (!parsed_document.has_value())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "Could not parse song.json: " + parsed_document.error(),
+            "Could not parse song.json: " + parsed_document.error().message,
         }};
     }
 
     const juce::var song_document = std::move(*parsed_document);
-    const auto format_version = readOptionalInt(song_document, "formatVersion", 0);
+    const auto format_version = Json::readOptionalInt(song_document, "formatVersion", 0);
     if (!song_document.isObject() || format_version != 1)
     {
         return std::unexpected{SongPackageError{

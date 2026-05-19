@@ -40,7 +40,9 @@ include Tracktion headers.
 
 Owns the tracktion::Engine and the tracktion::Edit used for playback. The current adapter keeps a
 backing track for the displayed arrangement and an instrument track for the selected mono
-input. All public methods must be called on the message thread.
+input. Most public methods must be called on the message thread; scanPluginFile() is the explicit
+non-realtime worker-thread exception because selected-file inspection can run slow third-party
+code.
 
 \see ITransport
 \see IAudio
