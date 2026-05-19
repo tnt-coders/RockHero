@@ -642,9 +642,9 @@ an error dialog above a stale "Loading..." overlay.
 The required order is: capture the result, finish busy, push final state, then call
 `IEditorView::showError()` if the result failed.
 
-In controller code, that should look like `finishBusyOperation()`, then `deriveAndPush()`, then
+In controller code, that should look like `finishBusyOperation()`, then `updateView()`, then
 `reportError(...)`. Do not call `reportError()` between finishing busy state and
-`deriveAndPush()`: native dialogs can run a modal message loop, and the user should not see or
+`updateView()`: native dialogs can run a modal message loop, and the user should not see or
 interact with the error while the last pushed editor state still says the app is busy.
 
 Use the existing `IEditorView::showError()` one-shot path for failures. Do not put error text in
@@ -779,7 +779,7 @@ Do this cleanup before moving on to save/publish, plugin loading, or audio-devic
 - Route current controller entry points and delayed file/prompt continuations through routing.
 - Fix startup restore so `restoreLastOpenProject()` does not inspect `currentProjectFile()`
   immediately after scheduling async open.
-- Make every open/import failure path call `finishBusyOperation()`, `deriveAndPush()`, then
+- Make every open/import failure path call `finishBusyOperation()`, `updateView()`, then
   `reportError()`.
 - Keep the current single-worker `JuceEditorTaskRunner` only under the explicit invariant that
   action routing prevents overlapping normal submissions.
