@@ -124,6 +124,13 @@ public:
         remove_plugin_request_count += 1;
     }
 
+    // Captures plugin instances selected for editor-window opening.
+    void onOpenPluginRequested(std::string instance_id) override
+    {
+        last_opened_plugin_instance_id = std::move(instance_id);
+        open_plugin_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -144,6 +151,9 @@ public:
 
     // Last plugin instance ID selected through the signal-chain panel.
     std::optional<std::string> last_removed_plugin_instance_id{};
+
+    // Last plugin instance ID selected for editor-window opening.
+    std::optional<std::string> last_opened_plugin_instance_id{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -189,6 +199,9 @@ public:
 
     // Number of remove-plugin intents received.
     int remove_plugin_request_count{0};
+
+    // Number of open-plugin intents received.
+    int open_plugin_request_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -680,6 +693,39 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     remove_button.onClick();
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance"});
+}
+
+// Verifies plugin row clicks request opening the selected plugin editor window.
+TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState state;
+    state.signal_chain = core::SignalChainViewState{
+        .add_plugin_enabled = true,
+        .remove_plugins_enabled = true,
+        .plugins = {
+            core::PluginViewState{
+                .instance_id = "instance",
+                .plugin_id = "plugin",
+                .name = "Amp Sim",
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = 0,
+            },
+        },
+    };
+    view.setState(state);
+
+    auto& plugin_row = findRequiredChild<juce::Component>(view, "plugin_row_instance");
+    plugin_row.mouseUp(makeMouseDownEvent(plugin_row, 4.0f, 4.0f));
+
+    CHECK(controller.open_plugin_request_count == 1);
+    CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
 // Verifies the toolbar button reflects the current device name and backend availability.

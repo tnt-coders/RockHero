@@ -184,6 +184,20 @@ struct EditorAction
         std::string instance_id;
     };
 
+    /*! \brief Open a plugin instance editor window. */
+    struct OpenPlugin
+    {
+        /*!
+        \brief Creates an open-plugin action.
+        \param instance_id_value Opaque plugin instance ID selected by the user.
+        */
+        explicit OpenPlugin(std::string instance_id_value)
+            : instance_id(std::move(instance_id_value))
+        {}
+
+        std::string instance_id;
+    };
+
     /*! \brief Variant carrying project package write actions. */
     using ProjectWriteAction = std::variant<SaveProjectAs, SaveProject, PublishProject>;
 
@@ -196,7 +210,7 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, AddPlugin, RemovePlugin>;
+        Stop, SeekWaveform, AddPlugin, RemovePlugin, OpenPlugin>;
 };
 
 /*!

@@ -62,9 +62,9 @@ struct [[nodiscard]] PluginHandle
 \brief Project-owned facade for plugin discovery and chain mutation.
 
 Plugin discovery may run on a non-realtime worker thread because selected-file inspection can
-execute slow third-party code; chain mutation methods are message-thread operations because
-implementations may mutate backend playback graphs. Callers must never invoke this interface from
-the real-time audio callback.
+execute slow third-party code; chain mutation and plugin-window methods are message-thread
+operations because implementations may mutate or inspect backend playback/UI graph state. Callers
+must never invoke this interface from the real-time audio callback.
 */
 class IPluginHost
 {
@@ -103,6 +103,19 @@ public:
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<void, PluginHostError> removePlugin(
+        const std::string& instance_id) = 0;
+
+    /*!
+    \brief Opens the hosted editor window for a loaded plugin instance.
+
+    The first implementation asks Tracktion to show the plugin's native/editor component and bring
+    it to the front if it is already open.
+
+    \param instance_id Opaque instance ID returned by addPlugin().
+    \return Empty success, or a typed failure.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::expected<void, PluginHostError> openPluginWindow(
         const std::string& instance_id) = 0;
 
 protected:

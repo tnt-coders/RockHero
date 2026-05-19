@@ -42,6 +42,9 @@ enum class PluginHostErrorCode
 
     /*! \brief The backend could not append the plugin to the hosted chain. */
     PluginInsertionFailed,
+
+    /*! \brief The plugin editor window could not be created or shown. */
+    PluginWindowUnavailable,
 };
 
 /*! \brief Recoverable plugin-host failure with a stable code and displayable detail. */

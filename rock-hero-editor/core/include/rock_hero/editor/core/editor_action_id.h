@@ -62,6 +62,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Remove a plugin instance from the signal chain. */
     RemovePlugin,
+
+    /*! \brief Open a plugin instance editor window. */
+    OpenPlugin,
 };
 
 } // namespace rock_hero::editor::core

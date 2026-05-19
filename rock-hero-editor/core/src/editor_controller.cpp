@@ -217,6 +217,7 @@ void defaultExit()
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
         {
             assert(false);
             return BusyOperation::SavingProject;
@@ -256,6 +257,7 @@ void defaultExit()
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
         {
             assert(false);
             return "Could not write project: ";
@@ -349,6 +351,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onWaveformClicked(double normalized_x);
     void onAddPluginRequested(std::filesystem::path file);
     void onRemovePluginRequested(std::string instance_id);
+    void onOpenPluginRequested(std::string instance_id);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -370,6 +373,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::SeekWaveform action);
     void performActionImpl(const EditorAction::AddPlugin& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
+    void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
     [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
@@ -731,6 +735,11 @@ void EditorController::onAddPluginRequested(std::filesystem::path file)
 void EditorController::onRemovePluginRequested(std::string instance_id)
 {
     m_impl->onRemovePluginRequested(std::move(instance_id));
+}
+
+void EditorController::onOpenPluginRequested(std::string instance_id)
+{
+    m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
@@ -1201,6 +1210,12 @@ void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
     runAction(EditorAction::RemovePlugin{std::move(instance_id)});
 }
 
+// Opens the hosted plugin editor window for a row-level signal-chain request.
+void EditorController::Impl::onOpenPluginRequested(std::string instance_id)
+{
+    runAction(EditorAction::OpenPlugin{std::move(instance_id)});
+}
+
 // Persists the new device manager state and re-derives view state after a configuration change.
 void EditorController::Impl::onAudioDeviceConfigurationChanged()
 {
@@ -1525,6 +1540,28 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
     deriveAndPush();
 }
 
+void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& action)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    const auto plugin = std::ranges::find_if(m_plugins, [&action](const PluginViewState& item) {
+        return item.instance_id == action.instance_id;
+    });
+    if (plugin == m_plugins.end())
+    {
+        return;
+    }
+
+    const auto result = m_plugin_host->openPluginWindow(action.instance_id);
+    if (!result.has_value())
+    {
+        reportError(std::string{"Could not open plugin: "} + result.error().message);
+    }
+}
+
 // Combines natural action availability with the action's busy-state policy.
 bool EditorController::Impl::canRunAction(EditorAction::Id action) const
 {
@@ -1592,6 +1629,7 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
             return m_plugin_host != nullptr && hasLoadedArrangement();
         }
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
         {
             return m_plugin_host != nullptr && hasLoadedArrangement() && !m_plugins.empty();
         }
@@ -1624,6 +1662,7 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
         {
             return ActionBusyPolicy::BlockedByBusy;
         }

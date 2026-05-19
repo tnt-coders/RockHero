@@ -202,6 +202,14 @@ public:
         const std::string& instance_id) override;
 
     /*!
+    \brief Opens a hosted plugin editor window for the requested runtime instance.
+    \param instance_id Opaque instance ID returned by addPlugin().
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> openPluginWindow(
+        const std::string& instance_id) override;
+
+    /*!
     \brief Captures the active live rig chain into a package-relative tone document.
     \param request Song workspace and arrangement identity for the capture.
     \return Written tone document reference and display chain, or a typed failure.

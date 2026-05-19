@@ -75,6 +75,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::RemovePlugin;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::OpenPlugin>)
+    {
+        return EditorAction::Id::OpenPlugin;
+    }
     else
     {
         static_assert(g_dependent_false<A>, "Unhandled editor action alternative");

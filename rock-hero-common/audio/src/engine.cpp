@@ -735,6 +735,92 @@ public:
     }
 };
 
+// Top-level JUCE window that Tracktion owns through PluginWindowState::pluginWindow.
+class PluginEditorWindow final : public juce::DocumentWindow
+{
+public:
+    // Takes ownership of Tracktion's editor component and sizes the native window around it.
+    PluginEditorWindow(
+        tracktion::PluginWindowState& window_state, tracktion::Plugin& plugin,
+        std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
+        : juce::DocumentWindow(
+              plugin.getName(), juce::Colours::darkgrey,
+              juce::DocumentWindow::closeButton | juce::DocumentWindow::minimiseButton)
+        , m_window_state(window_state)
+    {
+        const bool allow_resizing = editor->allowWindowResizing();
+        juce::ComponentBoundsConstrainer* const editor_bounds_constrainer =
+            editor->getBoundsConstrainer();
+        juce::Rectangle<int> editor_bounds = editor->getBounds();
+        if (editor_bounds.isEmpty())
+        {
+            editor_bounds = juce::Rectangle<int>{0, 0, 480, 320};
+        }
+
+        setUsingNativeTitleBar(true);
+        setResizable(allow_resizing, false);
+        if (editor_bounds_constrainer != nullptr)
+        {
+            setConstrainer(editor_bounds_constrainer);
+        }
+
+        setContentOwned(editor.release(), true);
+        setContentComponentSize(editor_bounds.getWidth(), editor_bounds.getHeight());
+        setTopLeftPosition(m_window_state.choosePositionForPluginWindow());
+    }
+
+    // Routes the close button back through Tracktion so its window state stays authoritative.
+    void closeButtonPressed() override
+    {
+        m_window_state.lastWindowBounds = getBounds();
+        m_window_state.closeWindowExplicitly();
+    }
+
+    // Persists the latest bounds so reopening can restore the user's window position.
+    void moved() override
+    {
+        m_window_state.lastWindowBounds = getBounds();
+    }
+
+    // Persists resized bounds while leaving DocumentWindow to manage the content layout.
+    void resized() override
+    {
+        juce::DocumentWindow::resized();
+        m_window_state.lastWindowBounds = getBounds();
+    }
+
+private:
+    // Tracktion owns this window and remains the source of truth for close/show state.
+    tracktion::PluginWindowState& m_window_state;
+};
+
+// Supplies Tracktion with Rock Hero's minimal plugin editor window implementation.
+class RockHeroUIBehaviour final : public tracktion::UIBehaviour
+{
+public:
+    // Creates windows only for normal plugin instances; rack windows will get their own UI later.
+    std::unique_ptr<juce::Component> createPluginWindow(
+        tracktion::PluginWindowState& window_state) override
+    {
+        auto* const plugin_window_state =
+            dynamic_cast<tracktion::Plugin::WindowState*>(&window_state);
+        if (plugin_window_state == nullptr)
+        {
+            return {};
+        }
+
+        std::unique_ptr<tracktion::Plugin::EditorComponent> editor =
+            plugin_window_state->plugin.createEditor();
+        if (editor == nullptr)
+        {
+            return {};
+        }
+
+        return std::make_unique<PluginEditorWindow>(
+            window_state, plugin_window_state->plugin, std::move(editor));
+    }
+};
+
 // Opens an asset through Tracktion only long enough to validate it and read its duration.
 [[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
     tracktion::Engine& engine, const common::core::AudioAsset& audio_asset)
@@ -1352,7 +1438,9 @@ Engine::Engine()
     : m_impl(std::make_unique<Impl>())
 {
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
-        "RockHero", nullptr, std::make_unique<RockHeroEngineBehaviour>());
+        "RockHero",
+        std::make_unique<RockHeroUIBehaviour>(),
+        std::make_unique<RockHeroEngineBehaviour>());
     m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
 
     // createSingleTrackEdit already provides one AudioTrack ready for media.
@@ -1664,6 +1752,40 @@ std::expected<void, PluginHostError> Engine::removePlugin(const std::string& ins
     m_impl->stopTransportAndReleaseContext();
     plugin->deleteFromParent();
     m_impl->rebuildInstrumentMonitoringGraph();
+    return {};
+}
+
+// Opens a plugin editor window through Tracktion's plugin window state.
+std::expected<void, PluginHostError> Engine::openPluginWindow(const std::string& instance_id)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    if (m_impl->instrumentTrack() == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id,
+        }};
+    }
+
+    plugin->showWindowExplicitly();
+    if (plugin->windowState == nullptr || !plugin->windowState->isWindowShowing())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginWindowUnavailable,
+            "Plugin editor window could not be opened: " + plugin->getName().toStdString(),
+        }};
+    }
+
     return {};
 }
 
