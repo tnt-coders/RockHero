@@ -26,23 +26,34 @@ not actually change.
 Rocksmith PSARC packages provide useful precedent: the extracted sample package uses readable
 resource names such as `bigrminthefaceofthenameless_lead.xml`, but the manifests also carry stable
 arrangement identity through `PersistentID` values such as
-`20F97706BD07464EA7CF63AC86838117`. Rock Hero should follow the same identity rule even if it
-chooses a different filename convention: stable IDs are authoritative; display names are metadata.
+`20F97706BD07464EA7CF63AC86838117`. Rock Hero adopts the same identity *rule* — stable IDs are
+authoritative, display names are metadata — but uses its own ID namespace rather than carrying
+PSARC IDs into the Rock Hero package format.
 
 ## Recommendation
 
 Use stable, opaque IDs as the durable identity for arrangements, tone documents, and tone state.
 Do not use editable display names as the durable key.
 
-For imported PSARC arrangements, seed `Arrangement::id` from the manifest `PersistentID` when it is
-available. Normalize the value to lowercase hex without dashes:
+Generate a fresh Rock Hero ID whenever an object is created, including during PSARC import. Use a
+128-bit value rendered as 32 lowercase hex characters:
 
 ```text
-20F97706BD07464EA7CF63AC86838117 -> 20f97706bd07464ea7cf63ac86838117
+9b26d8e83ec54f979a81d18ef6bce30d
 ```
 
-For authored Rock Hero content that does not come from PSARC, generate the same kind of stable
-path-safe ID when the object is created.
+The Rock Hero package format is its own format. PSARC-specific identifiers
+(`PersistentID`, `MasterID`, `ManifestUrn`, `DLCKey`) are not stored in `song.json`, tone
+documents, or any other persisted Rock Hero artifact. They may be used transiently during import
+(for example, to disambiguate arrangements within a single PSARC) but do not survive into the
+saved package. This keeps the format self-contained and free of coupling to Ubisoft's tooling or
+identity scheme.
+
+Note on arrangement XML payloads: Rock Hero currently embeds PSARC's arrangement XML format
+unchanged as the contents of `arrangements/<id>.xml`. This is an interim choice. Because the file
+is named by ID rather than by format, the surrounding package structure does not depend on the
+payload format, and a future Rock Hero-native arrangement format can replace it without changing
+identity, paths, or references.
 
 Do not add an `arr_` prefix to arrangement IDs or filenames. The package directory already gives
 the ID its domain:
@@ -66,7 +77,7 @@ Store package resources under stable IDs:
 ```text
 song.json
 arrangements/
-  20f97706bd07464ea7cf63ac86838117.xml
+  4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4.xml
 tones/
   9b26d8e83ec54f979a81d18ef6bce30d.tone.json
   state/
@@ -78,10 +89,10 @@ The display name remains metadata, not a path input:
 
 ```json
 {
-  "id": "20f97706bd07464ea7cf63ac86838117",
+  "id": "4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4",
   "name": "Lead",
   "part": "Lead",
-  "file": "arrangements/20f97706bd07464ea7cf63ac86838117.xml",
+  "file": "arrangements/4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4.xml",
   "toneDocument": "tones/9b26d8e83ec54f979a81d18ef6bce30d.tone.json"
 }
 ```
@@ -121,7 +132,7 @@ The stable ID remains authoritative:
 
 ```json
 {
-  "id": "20f97706bd07464ea7cf63ac86838117",
+  "id": "4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4",
   "name": "Lead",
   "part": "Lead",
   "file": "arrangements/lead.xml",
@@ -154,15 +165,14 @@ Tradeoffs:
 ## Implementation Plan For Option A
 
 1. Add a small package ID helper in the appropriate core module.
-   - Normalize imported IDs to lowercase path-safe hex.
-   - Generate new IDs for Rock Hero-authored objects.
+   - Generate fresh 128-bit IDs rendered as 32 lowercase hex characters.
    - Reject empty, unsafe, or duplicate IDs at package boundaries.
 
 2. Update PSARC import identity.
-   - Read `PersistentID` from arrangement manifests.
-   - Use it as `Arrangement::id` when present.
-   - Fall back to the current part-based ID only when no persistent ID is available.
-   - Keep `MasterID` as optional future source metadata, not as the primary ID.
+   - Generate a fresh Rock Hero ID for each imported arrangement at import time.
+   - Do not carry `PersistentID`, `MasterID`, `ManifestUrn`, or `DLCKey` into the saved Rock Hero
+     package. These values may be used transiently during import but do not appear in `song.json`
+     or any other persisted artifact.
 
 3. Update arrangement file generation.
    - For imported and saved arrangements, prefer `arrangements/<arrangement-id>.xml`.
@@ -188,7 +198,8 @@ Tradeoffs:
    - Save fails on duplicate IDs or missing referenced files.
 
 7. Add focused tests.
-   - PSARC importer preserves `PersistentID` as arrangement ID.
+   - PSARC importer generates a fresh Rock Hero ID per arrangement and writes no PSARC
+     identifiers into `song.json`.
    - Native package save/load round-trips ID-based arrangement files.
    - Tone capture creates `tones/<tone-id>.tone.json`.
    - Tone capture writes plugin state under `tones/state/<tone-id>/`.
@@ -206,5 +217,6 @@ load time.
 - Whether `Arrangement` should gain a display `name` separate from `part`.
 - Whether tone documents need their own first-class metadata object in `common/core`, or can remain
   referenced only through `Arrangement::tone_document_ref` for now.
-- Whether source metadata such as PSARC `PersistentID`, `MasterID`, `ManifestUrn`, or `DLCKey`
-  should be persisted for provenance and re-import workflows.
+- Whether to embed a format/version marker in `song.json` (e.g. `"arrangementFormat":
+  "psarc-xml-v1"`) ahead of a future Rock Hero-native arrangement format. Not needed until a
+  second format is on the horizon.
