@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/json.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -28,6 +29,7 @@ namespace
 using common::core::Arrangement;
 using common::core::AudioAsset;
 using common::core::DifficultyRating;
+using common::core::Json;
 using common::core::Part;
 using common::core::Song;
 using common::core::TimeDuration;
@@ -68,58 +70,10 @@ using common::core::TimeDuration;
     return std::string{bytes.begin(), bytes.end()};
 }
 
-// Parses a JSON document while tolerating a UTF-8 BOM.
-[[nodiscard]] std::optional<juce::var> parseJsonDocument(std::string_view text)
-{
-    constexpr std::string_view utf8_bom{"\xEF\xBB\xBF"};
-    if (text.starts_with(utf8_bom))
-    {
-        text.remove_prefix(utf8_bom.size());
-    }
-
-    juce::var document;
-    const juce::String json_text =
-        juce::String::fromUTF8(text.data(), static_cast<int>(text.size()));
-    const juce::Result result = juce::JSON::parse(json_text, document);
-    if (result.failed())
-    {
-        return std::nullopt;
-    }
-
-    return document;
-}
-
-// Converts manifest key spellings into JUCE identifiers for object property lookup.
-[[nodiscard]] juce::Identifier jsonIdentifier(std::string_view key)
-{
-    return juce::Identifier{juce::String::fromUTF8(key.data(), static_cast<int>(key.size()))};
-}
-
-// Finds one of several equivalent Rocksmith manifest keys.
-[[nodiscard]] const juce::var* findJsonValue(
-    const juce::var& object, std::initializer_list<std::string_view> keys)
-{
-    if (!object.isObject())
-    {
-        return nullptr;
-    }
-
-    for (const std::string_view key : keys)
-    {
-        const juce::Identifier identifier = jsonIdentifier(key);
-        if (object.hasProperty(identifier))
-        {
-            return &object[identifier];
-        }
-    }
-
-    return nullptr;
-}
-
 // Rocksmith manifests wrap the relevant attributes under the first Entries object.
 [[nodiscard]] const juce::var* manifestAttributes(const juce::var& document)
 {
-    const juce::var* entries = findJsonValue(document, {"Entries", "entries"});
+    const juce::var* entries = Json::findValue(document, {"Entries", "entries"});
     if (entries == nullptr || !entries->isObject())
     {
         return nullptr;
@@ -132,14 +86,14 @@ using common::core::TimeDuration;
     }
 
     const juce::var& first_entry = entries_object->getProperties().getValueAt(0);
-    return findJsonValue(first_entry, {"Attributes", "attributes"});
+    return Json::findValue(first_entry, {"Attributes", "attributes"});
 }
 
 // Reads a string attribute from a manifest object when it exists.
 [[nodiscard]] std::optional<std::string> readString(
     const juce::var& object, std::initializer_list<std::string_view> keys)
 {
-    const juce::var* value = findJsonValue(object, keys);
+    const juce::var* value = Json::findValue(object, keys);
     if (value == nullptr || !value->isString())
     {
         return std::nullopt;
@@ -152,7 +106,7 @@ using common::core::TimeDuration;
 [[nodiscard]] std::optional<int> readInt(
     const juce::var& object, std::initializer_list<std::string_view> keys)
 {
-    const juce::var* value = findJsonValue(object, keys);
+    const juce::var* value = Json::findValue(object, keys);
     if (value == nullptr || (!value->isInt() && !value->isInt64() && !value->isDouble()))
     {
         return std::nullopt;
@@ -195,10 +149,10 @@ using common::core::TimeDuration;
         }
     }
 
-    const juce::var* properties = findJsonValue(attributes, {"ArrangementProperties"});
+    const juce::var* properties = Json::findValue(attributes, {"ArrangementProperties"});
     if (properties == nullptr)
     {
-        properties = findJsonValue(attributes, {"arrangementProperties"});
+        properties = Json::findValue(attributes, {"arrangementProperties"});
     }
 
     if (properties != nullptr && properties->isObject())
@@ -258,7 +212,8 @@ void applyManifestMetadata(Song& song, const juce::var& attributes)
             continue;
         }
 
-        const auto json_document = parseJsonDocument(bytesToString(psarc.ExtractFile(file_name)));
+        const auto json_document =
+            Json::parseUtf8Document(bytesToString(psarc.ExtractFile(file_name)));
         if (!json_document.has_value())
         {
             continue;
