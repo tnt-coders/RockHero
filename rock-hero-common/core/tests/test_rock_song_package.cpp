@@ -3,14 +3,19 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
+#include <string_view>
 
 namespace rock_hero::common::core
 {
 
 namespace
 {
+
+constexpr std::string_view g_lead_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
+constexpr std::string_view g_tone_id{"9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d"};
 
 // Owns a clean temporary directory for native Rock Hero song package tests.
 class TemporaryRockSongPackageDirectory final
@@ -74,6 +79,24 @@ void writeAudioFile(const std::filesystem::path& path)
     writeTextFile(path, "audio");
 }
 
+// Returns the package-relative arrangement file path for a stable arrangement ID.
+[[nodiscard]] std::filesystem::path arrangementFilePath(std::string_view arrangement_id)
+{
+    return std::filesystem::path{"arrangements"} / (std::string{arrangement_id} + ".xml");
+}
+
+// Returns the package-relative tone document path for a stable tone ID.
+[[nodiscard]] std::filesystem::path toneDocumentPath(std::string_view tone_id)
+{
+    return std::filesystem::path{"tones"} / std::string{tone_id} / "tone.json";
+}
+
+// Returns the package-relative tone document reference stored in song.json.
+[[nodiscard]] std::string toneDocumentRef()
+{
+    return toneDocumentPath(g_tone_id).generic_string();
+}
+
 // Builds the smallest valid native song for package round-trip tests.
 [[nodiscard]] Song makeSong(const std::filesystem::path& audio_path)
 {
@@ -82,7 +105,7 @@ void writeAudioFile(const std::filesystem::path& path)
     song.metadata.artist = "Native Artist";
     song.arrangements.push_back(
         Arrangement{
-            .id = "lead",
+            .id = std::string{g_lead_arrangement_id},
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
             .audio_asset = AudioAsset{audio_path},
@@ -97,7 +120,7 @@ void writeAudioFile(const std::filesystem::path& path)
 [[nodiscard]] Song makeSongWithToneDocument(const std::filesystem::path& audio_path)
 {
     Song song = makeSong(audio_path);
-    song.arrangements.front().tone_document_ref = "tones/lead.tone.json";
+    song.arrangements.front().tone_document_ref = toneDocumentRef();
     return song;
 }
 
@@ -106,10 +129,27 @@ void writeReadablePackageDirectory(const std::filesystem::path& package_director
 {
     writeAudioFile(package_directory / "audio" / "backing.wav");
     writeTextFile(
-        package_directory / "arrangements" / "lead.xml", "<Arrangement formatVersion=\"1\" />");
+        package_directory / arrangementFilePath(g_lead_arrangement_id),
+        "<Arrangement formatVersion=\"1\" />");
 }
 
 } // namespace
+
+// Verifies package IDs use the canonical UUIDv4 spelling persisted in song packages.
+TEST_CASE("Package IDs use canonical UUIDv4 text", "[core][rock-song-package]")
+{
+    const std::string generated_id = generatePackageId();
+
+    CHECK(isCanonicalPackageId(generated_id));
+    CHECK(isCanonicalPackageId(g_lead_arrangement_id));
+    CHECK(toneDocumentRefForToneId(g_tone_id) == toneDocumentRef());
+    CHECK(isCanonicalToneDocumentRef(toneDocumentRef()));
+    CHECK_FALSE(isCanonicalPackageId("lead"));
+    CHECK_FALSE(isCanonicalPackageId("4f3a1c5e9d2b48a6b1f0c7e8d9a2b3c4"));
+    CHECK_FALSE(isCanonicalPackageId("4f3a1c5e-9d2b-58a6-b1f0-c7e8d9a2b3c4"));
+    CHECK_FALSE(isCanonicalPackageId("4F3A1C5E-9D2B-48A6-B1F0-C7E8D9A2B3C4"));
+    CHECK_FALSE(isCanonicalToneDocumentRef("tones/lead.tone.json"));
+}
 
 // Verifies Rock song package directory writing can be read back as shared Song data.
 TEST_CASE("Rock song package directory writes native song data", "[core][rock-song-package]")
@@ -123,10 +163,12 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
 
     REQUIRE(written.has_value());
     REQUIRE(written->size() == 1);
-    CHECK(written->front() == "lead");
+    CHECK(written->front() == std::string{g_lead_arrangement_id});
     CHECK(std::filesystem::is_regular_file(package_directory / "song.json"));
     CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.wav"));
-    CHECK(std::filesystem::is_regular_file(package_directory / "arrangements" / "lead.xml"));
+    CHECK(
+        std::filesystem::is_regular_file(
+            package_directory / arrangementFilePath(g_lead_arrangement_id)));
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
@@ -134,7 +176,7 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK(read_song->metadata.title == "Native Song");
     CHECK(read_song->metadata.artist == "Native Artist");
-    CHECK(read_song->arrangements.front().id == "lead");
+    CHECK(read_song->arrangements.front().id == std::string{g_lead_arrangement_id});
     CHECK(
         read_song->arrangements.front().audio_asset.path == package_directory / "audio/source.wav");
 }
@@ -161,10 +203,54 @@ TEST_CASE("Rock song package archive round-trips native song data", "[core][rock
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK(read_song->metadata.title == "Native Song");
     CHECK(read_song->metadata.artist == "Native Artist");
-    CHECK(read_song->arrangements.front().id == "lead");
+    CHECK(read_song->arrangements.front().id == std::string{g_lead_arrangement_id});
     CHECK(
         read_song->arrangements.front().audio_asset.path ==
         extracted_directory / "audio/source.wav");
+}
+
+// Verifies empty arrangement IDs are generated as canonical UUIDv4 package IDs.
+TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().id.clear();
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+
+    REQUIRE(written.has_value());
+    REQUIRE(written->size() == 1);
+    const std::string& generated_id = written->front();
+    CHECK(isCanonicalPackageId(generated_id));
+    CHECK(std::filesystem::is_regular_file(package_directory / arrangementFilePath(generated_id)));
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().id == generated_id);
+}
+
+// Verifies package writing rejects legacy or user-facing arrangement names as durable IDs.
+TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().id = "lead";
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
+    CHECK(written.error().message.find("arrangement id") != std::string::npos);
 }
 
 // Verifies package directory persistence keeps arrangement tone-document references.
@@ -175,19 +261,19 @@ TEST_CASE("Rock song package directory preserves tone refs", "[core][rock-song-p
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    writeTextFile(package_directory / "tones" / "lead.tone.json", "{}");
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
     const auto written =
         writeRockSongPackageDirectory(package_directory, makeSongWithToneDocument(source_audio));
 
     REQUIRE(written.has_value());
-    CHECK(std::filesystem::is_regular_file(package_directory / "tones" / "lead.tone.json"));
+    CHECK(std::filesystem::is_regular_file(package_directory / toneDocumentPath(g_tone_id)));
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().tone_document_ref == "tones/lead.tone.json");
+    CHECK(read_song->arrangements.front().tone_document_ref == toneDocumentRef());
 }
 
 // Verifies published native archives include tone files and preserve the song reference.
@@ -199,7 +285,7 @@ TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-pac
 
     const std::filesystem::path package_archive = temporary_directory.path() / "song.rock";
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    writeTextFile(package_directory / "tones" / "lead.tone.json", "{}");
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
 
     const auto written = writeRockSongPackage(
         package_archive, package_directory, makeSongWithToneDocument(source_audio));
@@ -211,8 +297,8 @@ TEST_CASE("Rock song package archive preserves tone refs", "[core][rock-song-pac
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().tone_document_ref == "tones/lead.tone.json");
-    CHECK(std::filesystem::is_regular_file(extracted_directory / "tones" / "lead.tone.json"));
+    CHECK(read_song->arrangements.front().tone_document_ref == toneDocumentRef());
+    CHECK(std::filesystem::is_regular_file(extracted_directory / toneDocumentPath(g_tone_id)));
 }
 
 // Verifies package writing fails instead of saving dangling tone-document references.
@@ -249,9 +335,13 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
             ],
             "arrangements": [
                 {
-                    "id": "lead",
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
                     "part": "Lead",
-                    "file": "arrangements/lead.xml",
+                    "file": ")" +
+            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            R"(",
                     "audio": "backing",
                     "toneDocument": "../lead.tone.json"
                 }

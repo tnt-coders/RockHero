@@ -13,6 +13,7 @@
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/package_id.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -29,6 +30,7 @@ namespace
 using common::core::Arrangement;
 using common::core::AudioAsset;
 using common::core::DifficultyRating;
+using common::core::generatePackageId;
 using common::core::Json;
 using common::core::Part;
 using common::core::Song;
@@ -261,42 +263,10 @@ void applyManifestMetadata(Song& song, const juce::var& attributes)
     return std::nullopt;
 }
 
-// Converts arrangement parts into native arrangement file stems.
-[[nodiscard]] std::string arrangementFileStem(Part part)
+// Generates the arrangement path that native save will later reference.
+[[nodiscard]] std::filesystem::path arrangementPath(std::string_view arrangement_id)
 {
-    switch (part)
-    {
-        case Part::Lead:
-        {
-            return "lead";
-        }
-        case Part::Rhythm:
-        {
-            return "rhythm";
-        }
-        case Part::Bass:
-        {
-            return "bass";
-        }
-    }
-
-    return "arrangement";
-}
-
-// Generates the same arrangement path that native save will later reference.
-[[nodiscard]] std::filesystem::path arrangementPath(
-    Part part, std::unordered_map<std::string, int>& part_counts)
-{
-    const std::string stem = arrangementFileStem(part);
-    int& count = part_counts[stem];
-    ++count;
-
-    if (count == 1)
-    {
-        return std::filesystem::path{"arrangements"} / (stem + ".xml");
-    }
-
-    return std::filesystem::path{"arrangements"} / (stem + "-" + std::to_string(count) + ".xml");
+    return std::filesystem::path{"arrangements"} / (std::string{arrangement_id} + ".xml");
 }
 
 // Creates parent directories and extracts a PSARC file into the requested workspace path.
@@ -436,7 +406,6 @@ void addImportedArrangement(
     const AudioAsset& audio_asset, const std::filesystem::path& workspace_directory)
 {
     std::vector<Arrangement> arrangements;
-    std::unordered_map<std::string, int> part_counts;
 
     for (const std::string& file_name : psarc.GetFileList())
     {
@@ -451,11 +420,11 @@ void addImportedArrangement(
             continue;
         }
 
-        const std::filesystem::path relative_arrangement_path = arrangementPath(*part, part_counts);
+        const std::string arrangement_id = generatePackageId();
+        const std::filesystem::path relative_arrangement_path = arrangementPath(arrangement_id);
         extractFileTo(psarc, file_name, workspace_directory / relative_arrangement_path);
 
-        addImportedArrangement(
-            arrangements, relative_arrangement_path.stem().generic_string(), *part, audio_asset);
+        addImportedArrangement(arrangements, arrangement_id, *part, audio_asset);
     }
 
     return arrangements;
@@ -486,7 +455,6 @@ void addImportedArrangement(
     std::ranges::sort(xml_files);
 
     std::vector<Arrangement> arrangements;
-    std::unordered_map<std::string, int> part_counts;
     for (const std::filesystem::path& xml_file : xml_files)
     {
         const auto part = arrangementPart(xml_file.generic_string(), parts_by_stem);
@@ -495,11 +463,11 @@ void addImportedArrangement(
             continue;
         }
 
-        const std::filesystem::path relative_arrangement_path = arrangementPath(*part, part_counts);
+        const std::string arrangement_id = generatePackageId();
+        const std::filesystem::path relative_arrangement_path = arrangementPath(arrangement_id);
         copyFileTo(xml_file, workspace_directory / relative_arrangement_path);
 
-        addImportedArrangement(
-            arrangements, relative_arrangement_path.stem().generic_string(), *part, audio_asset);
+        addImportedArrangement(arrangements, arrangement_id, *part, audio_asset);
     }
 
     std::filesystem::remove_all(arrangement_staging, error);
