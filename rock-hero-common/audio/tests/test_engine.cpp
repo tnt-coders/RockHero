@@ -11,12 +11,16 @@
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/core/package_id.h>
+#include <string>
 
 namespace rock_hero::common::audio
 {
 
 namespace
 {
+
+constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
@@ -106,6 +110,52 @@ public:
     // Real adapter under test; destroyed before scoped_gui because members tear down in reverse.
     Engine engine;
 };
+
+// Owns a temporary song workspace for live-rig file persistence tests.
+class TemporarySongDirectory final
+{
+public:
+    TemporarySongDirectory()
+        : m_path(
+              std::filesystem::temp_directory_path() /
+              ("rock-hero-engine-test-" + common::core::generatePackageId()))
+    {
+        std::filesystem::remove_all(m_path);
+        std::filesystem::create_directories(m_path);
+    }
+
+    ~TemporarySongDirectory() noexcept
+    {
+        try
+        {
+            std::error_code error;
+            std::filesystem::remove_all(m_path, error);
+        }
+        catch (...)
+        {
+            m_path.clear();
+        }
+    }
+
+    TemporarySongDirectory(const TemporarySongDirectory&) = delete;
+    TemporarySongDirectory& operator=(const TemporarySongDirectory&) = delete;
+    TemporarySongDirectory(TemporarySongDirectory&&) = delete;
+    TemporarySongDirectory& operator=(TemporarySongDirectory&&) = delete;
+
+    [[nodiscard]] const std::filesystem::path& path() const noexcept
+    {
+        return m_path;
+    }
+
+private:
+    std::filesystem::path m_path;
+};
+
+// Extracts the tone ID segment from tones/<tone-id>/tone.json.
+[[nodiscard]] std::string toneIdFromRef(const std::string& tone_document_ref)
+{
+    return std::filesystem::path{tone_document_ref}.parent_path().filename().generic_string();
+}
 
 } // namespace
 
@@ -351,6 +401,35 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
     }
+}
+
+// Verifies new live rig captures use co-located UUID tone document folders.
+TEST_CASE("Engine live rig captures UUID tone refs", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto snapshot = live_rig.captureActiveRig(
+        LiveRigCaptureRequest{
+            .song_directory = song_directory.path(),
+            .arrangement_id = g_arrangement_id,
+            .existing_tone_document_ref = {},
+        });
+
+    if (!snapshot.has_value())
+    {
+        FAIL(
+            "capture failed with code " << static_cast<int>(snapshot.error().code) << ": "
+                                        << snapshot.error().message);
+    }
+    REQUIRE(snapshot.has_value());
+    const std::string& tone_document_ref = snapshot->tone_document_ref;
+    const std::string tone_id = toneIdFromRef(tone_document_ref);
+    CHECK(snapshot->plugins.empty());
+    CHECK(common::core::isCanonicalPackageId(tone_id));
+    CHECK(tone_document_ref == "tones/" + tone_id + "/tone.json");
+    CHECK(std::filesystem::is_regular_file(song_directory.path() / tone_document_ref));
 }
 
 // Verifies the single Tracktion arrangement track can replace its loaded audio.

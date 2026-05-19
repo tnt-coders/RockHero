@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <exception>
@@ -17,6 +16,7 @@
 #include <mutex>
 #include <optional>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/package_id.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -31,9 +31,7 @@ namespace rock_hero::common::audio
 namespace
 {
 
-constexpr std::string_view g_tones_directory_name{"tones"};
 constexpr std::string_view g_tone_state_directory_name{"state"};
-constexpr std::string_view g_tone_document_extension{".tone.json"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
@@ -186,27 +184,6 @@ void logInstrumentMonitoringFailure(const juce::String& message)
     return static_cast<int>(juce::String::fromUTF8(value.c_str()).getHexValue64());
 }
 
-// Replaces arbitrary arrangement IDs with package-path-safe stem text.
-[[nodiscard]] std::string safePathStem(std::string_view value)
-{
-    std::string stem;
-    stem.reserve(value.size());
-    for (const char character : value)
-    {
-        const auto unsigned_character = static_cast<unsigned char>(character);
-        if (std::isalnum(unsigned_character) || character == '-' || character == '_')
-        {
-            stem.push_back(character);
-        }
-        else
-        {
-            stem.push_back('_');
-        }
-    }
-
-    return stem.empty() ? "arrangement" : stem;
-}
-
 // Reports whether a package-relative reference stays inside the song workspace.
 [[nodiscard]] bool isSafeRelativePath(const std::filesystem::path& path)
 {
@@ -247,30 +224,18 @@ void logInstrumentMonitoringFailure(const juce::String& message)
     return resolved_path;
 }
 
-// Builds the generated package-relative tone document path for an arrangement.
-[[nodiscard]] std::filesystem::path generatedToneDocumentPath(const std::string& arrangement_id)
+// Builds the generated package-relative tone document path for a new tone.
+[[nodiscard]] std::filesystem::path generatedToneDocumentPath()
 {
-    return std::filesystem::path{g_tones_directory_name} /
-           (safePathStem(arrangement_id) + std::string{g_tone_document_extension});
+    const std::string tone_id = core::generatePackageId();
+    return std::filesystem::path{core::toneDocumentRefForToneId(tone_id)};
 }
 
 // Derives the stable state-file namespace owned by a tone document path.
 [[nodiscard]] std::filesystem::path toneDocumentStateDirectory(
     const std::filesystem::path& tone_document_ref)
 {
-    std::string state_directory_name = tone_document_ref.filename().generic_string();
-    const std::string tone_document_extension{g_tone_document_extension};
-    if (state_directory_name.ends_with(tone_document_extension))
-    {
-        state_directory_name.resize(state_directory_name.size() - tone_document_extension.size());
-    }
-    else
-    {
-        state_directory_name = tone_document_ref.stem().generic_string();
-    }
-
-    return tone_document_ref.parent_path() / std::filesystem::path{g_tone_state_directory_name} /
-           state_directory_name;
+    return tone_document_ref.parent_path() / std::filesystem::path{g_tone_state_directory_name};
 }
 
 // Builds one package-relative Tracktion plugin-state sidecar path.
@@ -279,6 +244,18 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     return state_directory /
            ("plugin-" + std::to_string(plugin_index + 1) + std::string{g_plugin_state_extension});
+}
+
+// Reports whether a Tracktion state sidecar stays in the tone document's co-located state folder.
+[[nodiscard]] bool isCanonicalPluginStateRef(
+    const std::string& plugin_state_ref, const std::filesystem::path& expected_state_directory)
+{
+    const std::filesystem::path plugin_state_path{plugin_state_ref};
+    const std::string extension = plugin_state_path.extension().generic_string();
+    return isSafeRelativePath(plugin_state_path) &&
+           plugin_state_path.parent_path().generic_string() ==
+               expected_state_directory.generic_string() &&
+           extension == g_plugin_state_extension;
 }
 
 // Creates directories needed for a package-relative output file.
@@ -490,6 +467,14 @@ void reportLiveRigLoadProgress(
 [[nodiscard]] std::expected<ToneDocument, LiveRigError> readToneDocument(
     const std::filesystem::path& song_directory, const std::string& tone_document_ref)
 {
+    if (!core::isCanonicalToneDocumentRef(tone_document_ref))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::InvalidToneDocument,
+            "Tone document path must be tones/<uuid>/tone.json: " + tone_document_ref
+        }};
+    }
+
     const auto tone_document_path = resolvePackageFile(song_directory, tone_document_ref);
     if (!tone_document_path.has_value())
     {
@@ -551,6 +536,8 @@ void reportLiveRigLoadProgress(
         }};
     }
 
+    const std::filesystem::path expected_state_directory =
+        toneDocumentStateDirectory(std::filesystem::path{tone_document_ref});
     ToneDocument document;
     document.chain.reserve(static_cast<std::size_t>(chain_json.size()));
     for (int index = 0; index < chain_json.size(); ++index)
@@ -575,6 +562,14 @@ void reportLiveRigLoadProgress(
             }};
         }
 
+        if (!isCanonicalPluginStateRef(*tracktion_state, expected_state_directory))
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::InvalidToneDocument,
+                "Tone plugin state must be under the tone state directory: " + *tracktion_state
+            }};
+        }
+
         if (!resolvePackageFile(song_directory, *tracktion_state).has_value())
         {
             return std::unexpected{LiveRigError{
@@ -594,41 +589,6 @@ void reportLiveRigLoadProgress(
     }
 
     return document;
-}
-
-// Finds the existing sidecar namespace recorded by a tone document, when one exists.
-[[nodiscard]] std::optional<std::filesystem::path> existingPluginStateDirectory(
-    const ToneDocument& document)
-{
-    for (const PluginRecord& plugin : document.chain)
-    {
-        const std::filesystem::path state_ref{plugin.tracktion_state_ref};
-        if (state_ref.has_parent_path())
-        {
-            return state_ref.parent_path();
-        }
-    }
-
-    return std::nullopt;
-}
-
-// Chooses the sidecar namespace for a save. Existing documents keep their recorded namespace so
-// renaming a tone document does not force plugin-state files to move or strand a new state folder.
-[[nodiscard]] std::filesystem::path pluginStateDirectoryForCapture(
-    const std::filesystem::path& song_directory, const std::filesystem::path& tone_document_ref)
-{
-    const auto existing_document =
-        readToneDocument(song_directory, tone_document_ref.generic_string());
-    if (existing_document.has_value())
-    {
-        if (const auto existing_directory = existingPluginStateDirectory(*existing_document);
-            existing_directory.has_value())
-        {
-            return *existing_directory;
-        }
-    }
-
-    return toneDocumentStateDirectory(tone_document_ref);
 }
 
 // Writes the v1 tone document JSON file.
@@ -881,8 +841,11 @@ private:
             logInstrumentMonitoringFailure("backing track was not created");
         }
 
+        // Keep the authored signal chain empty until Tracktion built-ins are modeled in the
+        // editor state and tone schema.
+        constexpr bool add_default_plugins = false;
         const tracktion::AudioTrack::Ptr instrument_track = m_edit->insertNewAudioTrack(
-            tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr);
+            tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr, add_default_plugins);
 
         if (instrument_track != nullptr)
         {
@@ -1737,20 +1700,22 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
     }
 
-    if (request.song_directory.empty() || request.arrangement_id.empty())
+    if (request.song_directory.empty() || !core::isCanonicalPackageId(request.arrangement_id))
     {
         return std::unexpected{LiveRigError{LiveRigErrorCode::InvalidRequest}};
     }
 
     const std::filesystem::path tone_document_ref =
         request.existing_tone_document_ref.empty()
-            ? generatedToneDocumentPath(request.arrangement_id)
+            ? generatedToneDocumentPath()
             : std::filesystem::path{request.existing_tone_document_ref};
-    if (!isSafeRelativePath(tone_document_ref))
+    if (!isSafeRelativePath(tone_document_ref) ||
+        !core::isCanonicalToneDocumentRef(tone_document_ref.generic_string()))
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::InvalidToneDocument,
-            "Tone document path is unsafe: " + tone_document_ref.generic_string()
+            "Tone document path must be tones/<uuid>/tone.json: " +
+                tone_document_ref.generic_string()
         }};
     }
 
@@ -1771,22 +1736,31 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     document.chain.reserve(static_cast<std::size_t>(plugins.size()));
     snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
     const std::filesystem::path plugin_state_directory =
-        pluginStateDirectoryForCapture(request.song_directory, tone_document_ref);
+        toneDocumentStateDirectory(tone_document_ref);
 
-    for (int plugin_index = 0; plugin_index < plugins.size(); ++plugin_index)
+    std::size_t captured_plugin_index = 0;
+    for (tracktion::Plugin* const plugin : plugins)
     {
-        tracktion::Plugin* const plugin = plugins[plugin_index];
+        if (plugin == nullptr)
+        {
+            continue;
+        }
+
         auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
         if (external_plugin == nullptr)
         {
+            // TODO: Remove this blocker once supported Tracktion built-ins are modeled by
+            // `000-tracktion-built-in-controls-plan.md`; until then, failing is safer than
+            // silently dropping tone content.
             m_impl->rebuildInstrumentMonitoringGraph();
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::UnsupportedPlugin,
-                "Only external VST plugins can be saved in tone documents right now"
+                "Only external plugins can be captured right now: " +
+                    plugin->getName().toStdString()
             }};
         }
 
-        const auto chain_index = static_cast<std::size_t>(plugin_index);
+        const std::size_t chain_index = captured_plugin_index;
         external_plugin->flushPluginStateToValueTree();
         juce::ValueTree plugin_state = external_plugin->state.createCopy();
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
@@ -1811,11 +1785,12 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
 
         document.chain.push_back(
             PluginRecord{
-                .id = "plugin-" + std::to_string(plugin_index + 1),
+                .id = "plugin-" + std::to_string(chain_index + 1),
                 .identity = makePluginIdentity(external_plugin->desc),
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
             });
         snapshot.plugins.push_back(makeLiveRigPlugin(*external_plugin, chain_index));
+        ++captured_plugin_index;
     }
 
     const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;

@@ -3,8 +3,14 @@ add_library(rock_hero::common::core ALIAS rock_hero_common_core)
 
 # Shared headless domain library for song/session state and native song package persistence.
 target_sources(
-    rock_hero_common_core PRIVATE src/archive_error.cpp src/json.cpp src/session.cpp src/song.cpp
-                                  src/rock_song_package.cpp src/song_package_error.cpp)
+    rock_hero_common_core
+    PRIVATE src/archive_error.cpp
+            src/json.cpp
+            src/session.cpp
+            src/song.cpp
+            src/package_id.cpp
+            src/rock_song_package.cpp
+            src/song_package_error.cpp)
 
 target_include_directories(
     rock_hero_common_core

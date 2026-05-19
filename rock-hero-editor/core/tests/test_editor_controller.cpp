@@ -36,6 +36,10 @@ namespace rock_hero::editor::core
 namespace
 {
 
+constexpr const char* g_lead_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
+constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a2c9";
+constexpr const char* g_tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
+
 // Captures editor view state and transient effects pushed through the view contract.
 class FakeEditorView final : public IEditorView
 {
@@ -645,7 +649,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Snapshot returned by the next successful capture.
     common::audio::LiveRigSnapshot next_capture_snapshot{
-        .tone_document_ref = "tones/lead.tone.json",
+        .tone_document_ref = g_tone_document_ref,
         .plugins = {
             common::audio::LiveRigPlugin{
                 .instance_id = "captured-instance",
@@ -1087,7 +1091,7 @@ private:
     common::core::Song song;
     song.arrangements.push_back(
         common::core::Arrangement{
-            .id = "lead",
+            .id = g_lead_arrangement_id,
             .part = common::core::Part::Lead,
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(path)},
@@ -1106,7 +1110,7 @@ private:
     common::core::Song song;
     song.arrangements.push_back(
         common::core::Arrangement{
-            .id = "lead",
+            .id = g_lead_arrangement_id,
             .part = common::core::Part::Lead,
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(lead_path)},
@@ -1116,7 +1120,7 @@ private:
         });
     song.arrangements.push_back(
         common::core::Arrangement{
-            .id = "bass",
+            .id = g_bass_arrangement_id,
             .part = common::core::Part::Bass,
             .difficulty = common::core::DifficultyRating{},
             .audio_asset = common::core::AudioAsset{std::move(bass_path)},
@@ -1446,7 +1450,7 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     controller.attachView(view);
 
     project_services.next_song =
-        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
@@ -1456,7 +1460,7 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     {
         const auto& load_request = live_rig.last_load_request.value();
         CHECK(load_request.song_directory == std::filesystem::path{"song"});
-        CHECK(load_request.tone_document_ref == "tones/lead.tone.json");
+        CHECK(load_request.tone_document_ref == g_tone_document_ref);
     }
 
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -1505,7 +1509,7 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     controller.attachView(view);
 
     project_services.next_song =
-        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
@@ -1551,7 +1555,7 @@ TEST_CASE(
     controller.attachView(view);
 
     project_services.next_song =
-        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), "tones/lead.tone.json");
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
@@ -1619,13 +1623,13 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
     {
         const auto& capture_request = live_rig.last_capture_request.value();
         CHECK(capture_request.song_directory == std::filesystem::path{"song"});
-        CHECK(capture_request.arrangement_id == "lead");
+        CHECK(capture_request.arrangement_id == g_lead_arrangement_id);
         CHECK(capture_request.existing_tone_document_ref.empty());
     }
     CHECK(project_services.save_call_count == 1);
     CHECK(
         project_services.last_save_tone_document_ref ==
-        std::optional<std::string>{"tones/lead.tone.json"});
+        std::optional<std::string>{g_tone_document_ref});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -2521,7 +2525,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
         project_services.last_save_editor_state ==
         std::optional{ProjectEditorState{
             .cursor_position = common::core::TimePosition{1.25},
-            .selected_arrangement = std::string{"lead"},
+            .selected_arrangement = std::string{g_lead_arrangement_id},
         }});
     CHECK(view.shown_errors.empty());
 }
@@ -2819,7 +2823,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
         project_services.last_save_as_editor_state ==
         std::optional{ProjectEditorState{
             .cursor_position = common::core::TimePosition{2.5},
-            .selected_arrangement = std::string{"lead"},
+            .selected_arrangement = std::string{g_lead_arrangement_id},
         }});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
