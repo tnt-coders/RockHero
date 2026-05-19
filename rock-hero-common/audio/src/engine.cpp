@@ -761,9 +761,34 @@ public:
         , m_window_state(*plugin.windowState)
     {
         setUsingNativeTitleBar(true);
+
+        // Configure the default ResizableWindow constrainer as a backstop. setEditor() will
+        // replace this with the plugin editor's own constrainer when one is supplied; these
+        // values only take effect for editors that allow resizing but don't provide a
+        // constrainer of their own. The onscreen amounts also guard against restored bounds
+        // landing on a monitor that no longer exists — the title bar (top) must stay fully
+        // onscreen so the user can always drag the window back.
+        getConstrainer()->setMinimumOnscreenAmounts(0x10000, 50, 30, 50);
         setResizeLimits(100, 50, 4000, 4000);
+
         setEditor(std::move(editor));
-        setBoundsConstrained(getLocalBounds() + m_window_state.choosePositionForPluginWindow());
+
+        // Restore the full saved rectangle on within-session reopen when the editor supports
+        // resizing; otherwise fall back to the editor's natural size at Tracktion's chosen
+        // position. Tracktion's own choosePositionForPluginWindow() returns only a Point, so
+        // size would be lost across close/reopen without this branch. If an editor returns
+        // empty bounds (signaling "host, pick a size"), the default ResizableWindow
+        // constrainer's setResizeLimits floor of 100x50 takes over.
+        const bool editor_allows_resizing = m_editor != nullptr && m_editor->allowWindowResizing();
+        if (editor_allows_resizing && m_window_state.lastWindowBounds.has_value())
+        {
+            setBoundsConstrained(*m_window_state.lastWindowBounds);
+        }
+        else
+        {
+            setBoundsConstrained(getLocalBounds() + m_window_state.choosePositionForPluginWindow());
+        }
+
         m_update_stored_bounds = true;
     }
 
@@ -776,9 +801,10 @@ public:
     }
 
     // Recreates the plugin editor when Tracktion asks the host window to refresh its content.
+    // setEditor() always clears existing state before installing the new editor, so no
+    // separate setEditor(nullptr) call is needed first.
     void recreateEditor()
     {
-        setEditor(nullptr);
         setEditor(m_plugin.createEditor());
     }
 
@@ -809,7 +835,6 @@ public:
     // Routes the close button back through Tracktion so its window state stays authoritative.
     void closeButtonPressed() override
     {
-        m_window_state.lastWindowBounds = getBounds();
         m_window_state.closeWindowExplicitly();
     }
 
@@ -861,13 +886,15 @@ private:
         }
     }
 
-    // Stores bounds only after construction has chosen the initial Tracktion window position.
+    // Caches the latest user-driven bounds on Tracktion's window state so a closed-and-reopened
+    // plugin window restores its last position within the session. Persistence across project
+    // saves is handled at the project layer (see ProjectEditorState plumbing), so this path
+    // intentionally does not call Edit::pluginChanged().
     void storeWindowBounds()
     {
         if (m_update_stored_bounds)
         {
             m_window_state.lastWindowBounds = getBounds();
-            m_plugin.edit.pluginChanged(m_plugin);
         }
     }
 
@@ -1873,6 +1900,12 @@ std::expected<void, PluginHostError> Engine::openPluginWindow(const std::string&
     }
 
     plugin->showWindowExplicitly();
+
+    // Safe to inspect synchronously: showWindowExplicitly() runs the entire
+    // createPluginWindow -> setVisible chain on the message thread (gated above), so
+    // isWindowShowing() is authoritative immediately after it returns. This catches real
+    // failures such as plugins with no editor (createPluginWindow returns null) or
+    // showWindow() bailing out because a modal dialog is in front.
     if (plugin->windowState == nullptr || !plugin->windowState->isWindowShowing())
     {
         return std::unexpected{PluginHostError{

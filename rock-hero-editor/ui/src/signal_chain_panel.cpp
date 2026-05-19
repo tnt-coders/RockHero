@@ -17,7 +17,7 @@ constexpr int g_header_height{34};
 constexpr int g_plugin_row_height{24};
 constexpr int g_plugin_row_gap{4};
 constexpr int g_remove_button_width{72};
-constexpr int g_row_button_gap{6};
+constexpr int g_row_button_gap{8};
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
@@ -79,23 +79,25 @@ public:
         m_remove_button.setEnabled(enabled);
     }
 
-    // Draws the compact plugin label while the button remains a normal child control.
+    // Draws the highlight box around the clickable label area only; the Remove button sits
+    // visually beside it so the two interactive zones never overlap.
     void paint(juce::Graphics& g) override
     {
+        auto highlight_area = getLocalBounds();
+        highlight_area.removeFromRight(g_remove_button_width + g_row_button_gap);
+
         g.setColour(m_is_hovered ? g_plugin_row_hover_background : g_plugin_row_background);
-        g.fillRect(getLocalBounds());
+        g.fillRect(highlight_area);
         if (m_is_hovered)
         {
             g.setColour(g_plugin_row_hover_accent);
-            g.fillRect(getLocalBounds().removeFromLeft(4));
+            g.fillRect(highlight_area.withWidth(4));
         }
 
         g.setColour(m_is_hovered ? g_plugin_row_hover_border : g_plugin_row_border);
-        g.drawRect(getLocalBounds(), m_is_hovered ? 2 : 1);
+        g.drawRect(highlight_area, m_is_hovered ? 2 : 1);
 
-        auto label_area = getLocalBounds().reduced(8, 0);
-        label_area.removeFromRight(g_remove_button_width + g_row_button_gap);
-
+        const auto label_area = highlight_area.reduced(8, 0);
         g.setColour(juce::Colours::white);
         g.setFont(juce::FontOptions{14.0f});
         g.drawFittedText(pluginLabel(m_plugin), label_area, juce::Justification::centredLeft, 1);
