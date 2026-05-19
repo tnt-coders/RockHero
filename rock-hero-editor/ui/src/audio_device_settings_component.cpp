@@ -369,6 +369,7 @@ void AudioDeviceSettingsComponent::refreshControls()
 {
     const juce::ScopedValueSetter<bool> refreshing{m_refreshing_controls, true};
     refreshDeviceTypes();
+    scanCurrentDeviceType();
     refreshDeviceNames();
     m_staged_device = createStagedDevice();
     refreshChannelChoices();
@@ -410,6 +411,17 @@ void AudioDeviceSettingsComponent::refreshDeviceTypes()
         m_device_type_combo, type_names, m_staged_device_type, "No audio systems found");
 }
 
+// Performs the only device-list scan needed for one refreshControls() pass. JUCE requires a scan
+// before querying device names or creating a device; doing it here avoids repeating the same
+// driver query in each helper below.
+void AudioDeviceSettingsComponent::scanCurrentDeviceType() const
+{
+    if (juce::AudioIODeviceType* const type = currentDeviceType(); type != nullptr)
+    {
+        type->scanForDevices();
+    }
+}
+
 // Populates either one combined device selector or separate input/output selectors.
 void AudioDeviceSettingsComponent::refreshDeviceNames()
 {
@@ -436,7 +448,6 @@ void AudioDeviceSettingsComponent::refreshDeviceNames()
         return;
     }
 
-    type->scanForDevices();
     if (separate_devices)
     {
         populateStringCombo(
@@ -783,8 +794,6 @@ void AudioDeviceSettingsComponent::ensureStagedDeviceNames()
         return;
     }
 
-    type->scanForDevices();
-
     if (type->hasSeparateInputsAndOutputs())
     {
         m_staged_setup.inputDeviceName = validOrDefaultDeviceName(
@@ -852,7 +861,6 @@ std::unique_ptr<juce::AudioIODevice> AudioDeviceSettingsComponent::createStagedD
         return nullptr;
     }
 
-    type->scanForDevices();
     return std::unique_ptr<juce::AudioIODevice>{type->createDevice(
         m_staged_setup.outputDeviceName, m_staged_setup.inputDeviceName)};
 }
