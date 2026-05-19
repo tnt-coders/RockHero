@@ -393,7 +393,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
-    [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(common::core::Song& song);
+    [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(
+        common::core::Song& song, const Project& project);
     void runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state);
     void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
@@ -1773,15 +1774,16 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
         return {};
     }
 
+    Project& project = m_project.value();
     auto state = std::make_shared<ProjectWriteTaskState>(std::move(action));
     common::core::Song song = session().song();
-    if (const auto rig_captured = captureLiveRigIntoSong(song); !rig_captured.has_value())
+    if (const auto rig_captured = captureLiveRigIntoSong(song, project); !rig_captured.has_value())
     {
         reportError(std::string{"Could not capture live rig: "} + rig_captured.error());
         return {};
     }
 
-    state->project = std::move(*m_project);
+    state->project = std::move(project);
     state->song = std::move(song);
     state->editor_state = projectEditorStateForSave();
     m_project.reset();
@@ -1791,16 +1793,11 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
 // Captures the selected arrangement's live rig state into song files before Project IO leaves the
 // message thread.
 std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
-    common::core::Song& song)
+    common::core::Song& song, const Project& project)
 {
     if (m_live_rig == nullptr)
     {
         return {};
-    }
-
-    if (!m_project.has_value())
-    {
-        return std::unexpected{std::string{"project workspace is not available"}};
     }
 
     const common::core::Arrangement* const current_arrangement = session().currentArrangement();
@@ -1820,7 +1817,7 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 
     auto snapshot = m_live_rig->captureActiveRig(
         common::audio::LiveRigCaptureRequest{
-            .song_directory = songDirectoryForProject(*m_project),
+            .song_directory = songDirectoryForProject(project),
             .arrangement_id = arrangement->id,
             .existing_tone_document_ref = arrangement->tone_document_ref,
         });

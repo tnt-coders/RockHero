@@ -100,7 +100,7 @@ public:
 
     /*!
     \brief Runs a callback after the busy overlay paints.
-    \param callback Callback to run asynchronously after the overlay paint fence is crossed.
+    \param callback Callback to run after the overlay paint fence is crossed.
     */
     void runAfterBusyOverlayPainted(std::function<void()> callback) override;
 
