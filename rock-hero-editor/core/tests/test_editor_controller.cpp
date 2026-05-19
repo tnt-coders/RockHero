@@ -1512,15 +1512,14 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     CHECK(progress_states.front().presentation == BusyPresentation::Blocking);
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
         return state.message == "Loading Amp Sim (1 of 2)..." &&
-               state.progress == std::optional<double>{0.25};
-    }));
-    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
-        return state.message == "Loading Amp Sim (1 of 2)..." &&
                state.progress == std::optional<double>{0.5};
     }));
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
         return state.message == "Loading Cab IR (2 of 2)..." &&
                state.progress == std::optional<double>{1.0};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Live rig loaded." && state.progress == std::optional<double>{1.0};
     }));
     CHECK(view.busy_overlay_paint_callback_count == 1);
 }

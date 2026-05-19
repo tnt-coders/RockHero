@@ -6,11 +6,13 @@
 #include <algorithm>
 #include <cassert>
 #include <cctype>
+#include <chrono>
 #include <cstdint>
 #include <expected>
 #include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
+#include <juce_events/juce_events.h>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
@@ -235,20 +237,7 @@ void defaultExit()
 
     const double completed =
         static_cast<double>(std::min(progress.completed_plugins, progress.total_plugins));
-    if (progress.completed_plugins >= progress.total_plugins ||
-        progress.completed_plugins > progress.active_plugin_index ||
-        progress.active_plugin_name.empty())
-    {
-        return completed / static_cast<double>(progress.total_plugins);
-    }
-
-    // The engine reports a "starting plugin N" event before each plugin and a "completed plugin
-    // N" event after. Half-stepping the active-plugin event keeps the bar visibly advancing
-    // between the two events, which matters most for single-plugin chains that would otherwise
-    // jump straight from 0% to 100%.
-    const double active_plugin_fraction =
-        std::min(completed + 0.5, static_cast<double>(progress.total_plugins));
-    return active_plugin_fraction / static_cast<double>(progress.total_plugins);
+    return completed / static_cast<double>(progress.total_plugins);
 }
 
 // Builds clear progress text for the currently restoring plugin.
@@ -1037,7 +1026,11 @@ void EditorController::Impl::startLiveRigLoadStage(
         song_directory,
         report_progress,
         token,
-        [this, token, stage = std::move(stage), alive_weak = std::move(alive_weak)](
+        [this,
+         token,
+         report_progress,
+         stage = std::move(stage),
+         alive_weak = std::move(alive_weak)](
             std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
             if (alive_weak.expired() || token != m_busy_generation)
             {
@@ -1050,7 +1043,38 @@ void EditorController::Impl::startLiveRigLoadStage(
             }
 
             m_plugins = std::move(*rig_result);
-            stage.finish({});
+            if (!report_progress)
+            {
+                stage.finish({});
+                return;
+            }
+
+            setLiveRigLoadBusyState("Live rig loaded.", 1.0);
+            deriveAndPush();
+
+            // No message thread in unit tests; finish synchronously so tests don't deadlock.
+            if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
+            {
+                stage.finish({});
+                return;
+            }
+
+            // Wall-clock delay so the 100% state stays visible long enough for the user to see.
+            // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
+            constexpr std::chrono::milliseconds minimum_completion_display_time{500};
+            juce::Timer::callAfterDelay(
+                static_cast<int>(minimum_completion_display_time.count()),
+                [this,
+                 token,
+                 stage = std::move(stage),
+                 alive_weak = std::move(alive_weak)]() mutable {
+                    if (alive_weak.expired() || token != m_busy_generation)
+                    {
+                        return;
+                    }
+
+                    stage.finish({});
+                });
         });
 }
 
