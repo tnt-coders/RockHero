@@ -85,7 +85,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 }
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
-// deferrable subset reaches this switch; the default branch is a defensive fallback for ids the
+// deferrable subset reaches this switch; the post-switch return is a defensive fallback for ids the
 // controller cannot legitimately stash in a deferred slot.
 [[nodiscard]] juce::String unsavedChangesPromptMessage(core::EditorActionId action)
 {
@@ -111,11 +111,22 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         {
             return "Save changes before exiting Rock Hero Editor?";
         }
-        default:
+        case core::EditorActionId::SaveProject:
+        case core::EditorActionId::SaveProjectAs:
+        case core::EditorActionId::PublishProject:
+        case core::EditorActionId::ResolveUnsavedChangesPrompt:
+        case core::EditorActionId::CancelSaveAsPrompt:
+        case core::EditorActionId::PlayPause:
+        case core::EditorActionId::Stop:
+        case core::EditorActionId::SeekWaveform:
+        case core::EditorActionId::AddPlugin:
+        case core::EditorActionId::RemovePlugin:
         {
             return "Save changes before continuing?";
         }
     }
+
+    return "Save changes before continuing?";
 }
 
 } // namespace
