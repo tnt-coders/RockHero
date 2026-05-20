@@ -381,19 +381,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void requestProjectAction(EditorAction::ProjectAction action);
     void runProjectAction(EditorAction::ProjectAction action);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
-    void completeOpenProject(std::uint64_t token, const std::shared_ptr<OpenTaskState>& state);
+    void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
         const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
         std::expected<void, std::string> rig_result);
     void importSongSource(const std::filesystem::path& file);
-    void completeImportSongSource(
-        std::uint64_t token, const std::shared_ptr<ImportTaskState>& state);
+    void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
-    void completeAddPluginScan(
-        std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state);
-    void completeAddPluginLoad(
-        std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state);
+    void completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state);
+    void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
@@ -406,8 +403,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::function<void(std::expected<std::vector<PluginViewState>, std::string>)> on_loaded);
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
-    void completeProjectWriteAction(
-        std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state);
+    void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
     void continueDeferredAction();
     void clearDeferredAction() noexcept;
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
@@ -419,7 +415,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
-    void setLiveRigLoadBusyState(std::string&& message, double progress);
+    void setLiveRigLoadProgress(std::string message, double fraction);
     void beginLiveRigLoadProgress();
     void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
     void runAfterBusyOverlayPaintedOrNow(std::function<void()>&& callback);
@@ -427,6 +423,50 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void persistAudioDeviceState();
     void updateView();
     void reportError(const std::string& message);
+
+    // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
+    // m_alive at the call site; the returned callable checks expiry before invoking the
+    // wrapped callback. Use this for any callback that may fire from the task runner / timer
+    // / external scheduler after Impl is destroyed. For task-runner-driven busy operations,
+    // use runBusyOperation(), which composes the liveness check with token validation.
+    template <typename Callback> auto safeCallback(Callback&& callback)
+    {
+        return [wrapped_callback = std::forward<Callback>(callback),
+                alive = std::weak_ptr<bool>{m_alive}](auto&&... args) mutable {
+            if (alive.expired())
+            {
+                return;
+            }
+            wrapped_callback(std::forward<decltype(args)>(args)...);
+        };
+    }
+
+    // Begins a busy operation, pushes the resulting view state, and submits a worker+completion
+    // pair to the task runner. The completion is wrapped so it runs only if (a) this Impl is
+    // still alive AND (b) the busy token captured at submission still matches the current
+    // token. Stale completions from superseded or interrupted operations are dropped silently.
+    // The completion receives the shared state pointer only, because the helper already
+    // guarantees that m_current_busy_token still matches at the call site.
+    template <typename TaskState, typename Worker, typename Completion>
+    void runBusyOperation(
+        BusyOperation operation, const std::shared_ptr<TaskState>& state, Worker&& worker,
+        Completion&& completion)
+    {
+        const std::uint64_t token = beginBusy(operation);
+        updateView();
+        m_task_runner->submit(
+            [state, captured_worker = std::forward<Worker>(worker)] { captured_worker(state); },
+            safeCallback([this,
+                          state,
+                          token,
+                          captured_completion = std::forward<Completion>(completion)]() mutable {
+                if (token != m_current_busy_token)
+                {
+                    return;
+                }
+                captured_completion(state);
+            }));
+    }
     [[nodiscard]] bool hasLoadedArrangement() const;
     [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
     [[nodiscard]] bool hasLiveRigPersistence() const noexcept;
@@ -495,8 +535,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True while the view should present a Save As chooser for a deferred command.
     bool m_save_as_prompt_visible{false};
 
-    // Active busy state pushed to the view; empty while no slow operation is in flight.
-    std::optional<BusyViewState> m_busy{};
+    // Per-operation progress payload for LoadingLiveRig. Held separately from m_busy_operation
+    // so the truth (what kind of work is in flight) is independent from per-op presentational
+    // data (message override, completion fraction).
+    struct LiveRigProgress
+    {
+        std::string message;
+        double fraction;
+    };
+
+    // Identifies the current in-flight operation, if any. Empty while no slow operation runs.
+    // BusyViewState shown to the view is derived from this field plus m_live_rig_progress.
+    // No presentational state is stored here.
+    std::optional<BusyOperation> m_busy_operation{};
+
+    // Optional live-rig progress payload, populated only while LoadingLiveRig is reporting
+    // progress. Cleared when busy state ends.
+    std::optional<LiveRigProgress> m_live_rig_progress{};
 
     // Current busy-operation token used by async callbacks to reject stale work.
     std::uint64_t m_current_busy_token{0};
@@ -821,43 +876,31 @@ void EditorController::Impl::openProject(
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
     state->clear_last_open_project_on_failure = clear_last_open_project_on_failure;
-    const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
-    updateView();
-
-    std::weak_ptr<bool> completion_alive_source = m_alive;
-    const EditorController::OpenFunction open_function = m_open_function;
-    m_task_runner->submit(
-        [state, worker_open_function = open_function] {
-            state->result = worker_open_function(state->project, state->file);
+    runBusyOperation(
+        BusyOperation::OpeningProject,
+        state,
+        [open_function = m_open_function](const std::shared_ptr<OpenTaskState>& task_state) {
+            task_state->result = open_function(task_state->project, task_state->file);
         },
-        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
-            if (completion_alive.expired())
-            {
-                return;
-            }
-            completeOpenProject(token, state);
+        [this](const std::shared_ptr<OpenTaskState>& task_state) {
+            completeOpenProject(task_state);
         });
 }
 
-// Applies the worker's open result on the message thread. Discards stale completions whose busy
-// token no longer matches the controller; otherwise commits the loaded song and clears busy.
-void EditorController::Impl::completeOpenProject(
-    std::uint64_t token, const std::shared_ptr<OpenTaskState>& state)
+// Applies the worker's open result on the message thread. runBusyOperation already verified
+// that the busy token still matches before invoking this finalizer.
+void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskState>& state)
 {
-    if (token != m_current_busy_token)
-    {
-        return;
-    }
+    assert(isBusy() && "completeOpenProject called outside a busy operation");
 
     if (!state->result.has_value())
     {
-        const std::string message = state->result.error().message;
-        finishBusyOperation();
-        updateView();
         if (state->clear_last_open_project_on_failure && m_settings != nullptr)
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        const std::string message = state->result.error().message;
+        finishBusyOperation();
         reportError(std::string{"Could not open: "} + message);
         return;
     }
@@ -867,19 +910,18 @@ void EditorController::Impl::completeOpenProject(
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
-        finishBusyOperation();
-        updateView();
         if (state->clear_last_open_project_on_failure && m_settings != nullptr)
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        finishBusyOperation();
         reportError(std::string{"Could not load audio from: "} + state->file.string());
         return;
     }
 
     runLiveRigLoadStage(
         ProjectLoadLiveRigStage{
-            .token = token,
+            .token = m_current_busy_token,
             .song_directory = songDirectoryForProject(state->project),
             .finish = [this, state, captured_editor_state = std::move(editor_state)](
                           std::expected<void, std::string> rig_result) {
@@ -896,18 +938,19 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
     std::expected<void, std::string> rig_result)
 {
+    assert(isBusy() && "finishOpenProjectAfterLiveRigLoad called outside a busy operation");
+
     if (!rig_result.has_value())
     {
         m_transport.stop();
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
-        finishBusyOperation();
-        updateView();
         if (state->clear_last_open_project_on_failure && m_settings != nullptr)
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        finishBusyOperation();
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
             rig_result.error());
@@ -920,11 +963,10 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
     clearDeferredAction();
-    finishBusyOperation();
 
-    // The single view update below also satisfies any deferred transport refresh that may
-    // have arrived during the load window.
-    updateView();
+    // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
+    // may have arrived during the load window.
+    finishBusyOperation();
 }
 
 // Imports a song source and stores the workspace only after audio and Session accept the song.
@@ -939,39 +981,27 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
-    const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
-    updateView();
-
-    std::weak_ptr<bool> completion_alive_source = m_alive;
-    const EditorController::ImportFunction import_function = m_import_function;
-    m_task_runner->submit(
-        [state, worker_import_function = import_function] {
-            state->result = worker_import_function(state->project, state->file);
+    runBusyOperation(
+        BusyOperation::ImportingProject,
+        state,
+        [import_function = m_import_function](const std::shared_ptr<ImportTaskState>& task_state) {
+            task_state->result = import_function(task_state->project, task_state->file);
         },
-        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
-            if (completion_alive.expired())
-            {
-                return;
-            }
-            completeImportSongSource(token, state);
+        [this](const std::shared_ptr<ImportTaskState>& task_state) {
+            completeImportSongSource(task_state);
         });
 }
 
-// Applies the worker's import result on the message thread. Discards stale completions; on
-// success commits the imported song into the session and marks the workspace unsaved.
-void EditorController::Impl::completeImportSongSource(
-    std::uint64_t token, const std::shared_ptr<ImportTaskState>& state)
+// Applies the worker's import result on the message thread. runBusyOperation already verified
+// that the busy token still matches before invoking this finalizer.
+void EditorController::Impl::completeImportSongSource(const std::shared_ptr<ImportTaskState>& state)
 {
-    if (token != m_current_busy_token)
-    {
-        return;
-    }
+    assert(isBusy() && "completeImportSongSource called outside a busy operation");
 
     if (!state->result.has_value())
     {
         const std::string message = state->result.error().message;
         finishBusyOperation();
-        updateView();
         reportError(std::string{"Could not import: "} + message);
         return;
     }
@@ -981,14 +1011,13 @@ void EditorController::Impl::completeImportSongSource(
     if (!loadSessionSong(std::move(song), std::nullopt))
     {
         finishBusyOperation();
-        updateView();
         reportError(std::string{"Could not load imported audio from: "} + state->file.string());
         return;
     }
 
     runLiveRigLoadStage(
         ProjectLoadLiveRigStage{
-            .token = token,
+            .token = m_current_busy_token,
             .song_directory = songDirectoryForProject(state->project),
             .finish = [this, state](std::expected<void, std::string> rig_result) {
                 finishImportSongSourceAfterLiveRigLoad(state, std::move(rig_result));
@@ -1002,6 +1031,8 @@ void EditorController::Impl::completeImportSongSource(
 void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result)
 {
+    assert(isBusy() && "finishImportSongSourceAfterLiveRigLoad called outside a busy operation");
+
     if (!rig_result.has_value())
     {
         m_transport.stop();
@@ -1009,7 +1040,6 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_plugins.clear();
         finishBusyOperation();
-        updateView();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
             rig_result.error());
@@ -1021,11 +1051,10 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
     clearDeferredAction();
-    finishBusyOperation();
 
-    // The single view update below also satisfies any deferred transport refresh that may
-    // have arrived during the load window.
-    updateView();
+    // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
+    // may have arrived during the load window.
+    finishBusyOperation();
 }
 
 // Runs the shared project-load live-rig stage. Tone-bearing arrangements switch the busy overlay
@@ -1045,16 +1074,10 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_s
     }
 
     beginLiveRigLoadProgress();
-    std::weak_ptr<bool> stage_alive_source = m_alive;
-    runAfterBusyOverlayPaintedOrNow([this,
-                                     captured_stage = std::move(stage_state),
-                                     stage_alive = std::move(stage_alive_source)]() mutable {
-        if (stage_alive.expired())
-        {
-            return;
-        }
-        startLiveRigLoadStage(std::move(captured_stage), true);
-    });
+    runAfterBusyOverlayPaintedOrNow(
+        safeCallback([this, captured_stage = std::move(stage_state)]() mutable {
+            startLiveRigLoadStage(std::move(captured_stage), true);
+        }));
 }
 
 // Starts the audio-boundary live-rig restore and routes only current-token completions to the
@@ -1074,61 +1097,53 @@ void EditorController::Impl::startLiveRigLoadStage(
     // later call arguments before earlier ones, so reading stage_state.song_directory inline would
     // risk reading after move.
     const std::filesystem::path song_directory = stage_state.song_directory;
-    std::weak_ptr<bool> load_alive_source = m_alive;
     restoreLiveRig(
         song_directory,
         report_progress,
         token,
-        [this,
-         token,
-         report_progress,
-         captured_stage = std::move(stage_state),
-         load_alive = std::move(load_alive_source)](
-            std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
-            if (load_alive.expired() || token != m_current_busy_token)
-            {
-                return;
-            }
-            if (!rig_result.has_value())
-            {
-                captured_stage.finish(std::unexpected{std::move(rig_result.error())});
-                return;
-            }
+        safeCallback(
+            [this, token, report_progress, captured_stage = std::move(stage_state)](
+                std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
+                if (token != m_current_busy_token)
+                {
+                    return;
+                }
+                if (!rig_result.has_value())
+                {
+                    captured_stage.finish(std::unexpected{std::move(rig_result.error())});
+                    return;
+                }
 
-            m_plugins = std::move(*rig_result);
-            if (!report_progress)
-            {
-                captured_stage.finish({});
-                return;
-            }
+                m_plugins = std::move(*rig_result);
+                if (!report_progress)
+                {
+                    captured_stage.finish({});
+                    return;
+                }
 
-            setLiveRigLoadBusyState("Live rig loaded.", 1.0);
-            updateView();
+                setLiveRigLoadProgress("Live rig loaded.", 1.0);
+                updateView();
 
-            // No message thread in unit tests; finish synchronously so tests don't deadlock.
-            if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
-            {
-                captured_stage.finish({});
-                return;
-            }
+                // No message thread in unit tests; finish synchronously so tests don't deadlock.
+                if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
+                {
+                    captured_stage.finish({});
+                    return;
+                }
 
-            // Wall-clock delay so the 100% state stays visible long enough for the user to see.
-            // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
-            constexpr std::chrono::milliseconds minimum_completion_display_time{500};
-            juce::Timer::callAfterDelay(
-                static_cast<int>(minimum_completion_display_time.count()),
-                [this,
-                 token,
-                 timer_stage = std::move(captured_stage),
-                 timer_alive = std::move(load_alive)]() mutable {
-                    if (timer_alive.expired() || token != m_current_busy_token)
-                    {
-                        return;
-                    }
-
-                    timer_stage.finish({});
-                });
-        });
+                // Wall-clock delay so the 100% state stays visible long enough for the user to see.
+                // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
+                constexpr std::chrono::milliseconds minimum_completion_display_time{500};
+                juce::Timer::callAfterDelay(
+                    static_cast<int>(minimum_completion_display_time.count()),
+                    safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
+                        if (token != m_current_busy_token)
+                        {
+                            return;
+                        }
+                        timer_stage.finish({});
+                    }));
+            }));
 }
 
 // Saves to the current destination when one exists; Save As is responsible for destination choice.
@@ -1421,36 +1436,27 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
 
     auto state = std::make_shared<AddPluginTaskState>();
     state->file = action.file;
-    const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
-    updateView();
-
-    std::weak_ptr<bool> completion_alive_source = m_alive;
-    common::audio::IPluginHost* const plugin_host = m_plugin_host;
-    m_task_runner->submit(
-        [state, plugin_host] { state->candidates = plugin_host->scanPluginFile(state->file); },
-        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
-            if (completion_alive.expired())
-            {
-                return;
-            }
-            completeAddPluginScan(token, state);
+    runBusyOperation(
+        BusyOperation::LoadingPlugin,
+        state,
+        [plugin_host = m_plugin_host](const std::shared_ptr<AddPluginTaskState>& task_state) {
+            task_state->candidates = plugin_host->scanPluginFile(task_state->file);
+        },
+        [this](const std::shared_ptr<AddPluginTaskState>& task_state) {
+            completeAddPluginScan(task_state);
         });
 }
 
-// Applies the scan result on the message thread before final chain mutation.
-void EditorController::Impl::completeAddPluginScan(
-    std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
+// Applies the scan result on the message thread before final chain mutation. runBusyOperation
+// already verified that the busy token still matches before invoking this finalizer.
+void EditorController::Impl::completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state)
 {
-    if (token != m_current_busy_token)
-    {
-        return;
-    }
+    assert(isBusy() && "completeAddPluginScan called outside a busy operation");
 
     if (!state->candidates.has_value())
     {
         const std::string message = state->candidates.error().message;
         finishBusyOperation();
-        updateView();
         reportError(std::string{"Could not scan plugin: "} + message);
         return;
     }
@@ -1458,28 +1464,27 @@ void EditorController::Impl::completeAddPluginScan(
     if (state->candidates->empty())
     {
         finishBusyOperation();
-        updateView();
         reportError("Could not scan plugin: no compatible plugin was found");
         return;
     }
 
-    std::weak_ptr<bool> completion_alive_source = m_alive;
-    runAfterBusyOverlayPaintedOrNow(
-        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
-            if (completion_alive.expired())
-            {
-                return;
-            }
-            completeAddPluginLoad(token, state);
-        });
+    const std::uint64_t token = m_current_busy_token;
+    runAfterBusyOverlayPaintedOrNow(safeCallback([this, state, token]() {
+        if (token != m_current_busy_token)
+        {
+            return;
+        }
+        completeAddPluginLoad(state);
+    }));
 }
 
-// Inserts the already-scanned plugin candidate into the live chain.
-void EditorController::Impl::completeAddPluginLoad(
-    std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
+// Inserts the already-scanned plugin candidate into the live chain. The caller in
+// completeAddPluginScan already verified the busy token is current before scheduling this.
+void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state)
 {
-    if (token != m_current_busy_token || !state->candidates.has_value() ||
-        state->candidates->empty())
+    assert(isBusy() && "completeAddPluginLoad called outside a busy operation");
+
+    if (!state->candidates.has_value() || state->candidates->empty())
     {
         return;
     }
@@ -1490,7 +1495,6 @@ void EditorController::Impl::completeAddPluginLoad(
     {
         const std::string message = handle.error().message;
         finishBusyOperation();
-        updateView();
         reportError(std::string{"Could not add plugin: "} + message);
         return;
     }
@@ -1502,7 +1506,6 @@ void EditorController::Impl::completeAddPluginLoad(
     }
 
     finishBusyOperation();
-    updateView();
 }
 
 void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin& action)
@@ -1904,57 +1907,48 @@ void EditorController::Impl::restoreLiveRig(
     };
     if (report_progress)
     {
-        std::weak_ptr<bool> progress_alive_source = m_alive;
         request.progress_callback =
-            [this, token, progress_alive = std::move(progress_alive_source)](
-                const common::audio::LiveRigLoadProgress& progress) {
-                if (progress_alive.expired() || token != m_current_busy_token)
+            safeCallback([this, token](const common::audio::LiveRigLoadProgress& progress) {
+                if (token != m_current_busy_token)
                 {
                     return;
                 }
                 updateLiveRigLoadProgress(progress);
-            };
+            });
         // Route the engine's per-step yield through the busy-overlay paint fence so each plugin's
         // progress update actually paints before the next step blocks the message thread.
-        std::weak_ptr<bool> yield_alive_source = m_alive;
-        request.yield_callback =
-            [this, token, yield_alive = std::move(yield_alive_source)](std::function<void()> next) {
-                if (yield_alive.expired() || token != m_current_busy_token)
-                {
-                    return;
-                }
-                runAfterBusyOverlayPaintedOrNow(
-                    [this, token, continuation = std::move(next), yield_alive]() mutable {
-                        if (yield_alive.expired() || token != m_current_busy_token)
-                        {
-                            return;
-                        }
-                        if (continuation)
-                        {
-                            continuation();
-                        }
-                    });
-            };
+        request.yield_callback = safeCallback([this, token](std::function<void()> next) {
+            if (token != m_current_busy_token)
+            {
+                return;
+            }
+            runAfterBusyOverlayPaintedOrNow(
+                safeCallback([this, token, continuation = std::move(next)]() mutable {
+                    if (token != m_current_busy_token)
+                    {
+                        return;
+                    }
+                    if (continuation)
+                    {
+                        continuation();
+                    }
+                }));
+        });
     }
 
-    std::weak_ptr<bool> load_alive_source = m_alive;
     m_live_rig->loadRig(
         std::move(request),
-        [load_alive = std::move(load_alive_source), completion = std::move(on_loaded)](
-            std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError> loaded) {
-            if (load_alive.expired())
-            {
-                return;
-            }
-
-            if (!loaded.has_value())
-            {
-                completion(std::unexpected{loaded.error().message});
-                return;
-            }
-
-            completion(makePluginViewStates(loaded->plugins));
-        });
+        safeCallback(
+            [completion = std::move(on_loaded)](
+                std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+                    loaded) {
+                if (!loaded.has_value())
+                {
+                    completion(std::unexpected{loaded.error().message});
+                    return;
+                }
+                completion(makePluginViewStates(loaded->plugins));
+            }));
 }
 
 // Clears the audio backend's live rig chain as part of project teardown.
@@ -1982,58 +1976,49 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
         return;
     }
 
-    const std::uint64_t token = beginBusy(busyOperationForProjectWrite(idOf(state->action)));
-    updateView();
-
-    std::weak_ptr<bool> completion_alive_source = m_alive;
-    const EditorController::SaveFunction save_function = m_save_function;
-    const EditorController::SaveAsFunction save_as_function = m_save_as_function;
-    const EditorController::PublishFunction publish_function = m_publish_function;
-    m_task_runner->submit(
-        [state,
-         worker_save_function = save_function,
-         worker_save_as_function = save_as_function,
-         worker_publish_function = publish_function] {
+    runBusyOperation(
+        busyOperationForProjectWrite(idOf(state->action)),
+        state,
+        [save_function = m_save_function,
+         save_as_function = m_save_as_function,
+         publish_function =
+             m_publish_function](const std::shared_ptr<ProjectWriteTaskState>& task_state) {
             std::visit(
-                [&state, &worker_save_function, &worker_save_as_function, &worker_publish_function](
+                [&task_state, &save_function, &save_as_function, &publish_function](
                     auto&& alternative) {
                     using A = std::decay_t<decltype(alternative)>;
                     if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
                     {
-                        state->result =
-                            worker_save_function(state->project, state->song, state->editor_state);
+                        task_state->result = save_function(
+                            task_state->project, task_state->song, task_state->editor_state);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
                     {
-                        state->result = worker_save_as_function(
-                            state->project, alternative.file, state->song, state->editor_state);
+                        task_state->result = save_as_function(
+                            task_state->project,
+                            alternative.file,
+                            task_state->song,
+                            task_state->editor_state);
                     }
                     else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
                     {
-                        state->result =
-                            worker_publish_function(state->project, alternative.file, state->song);
+                        task_state->result = publish_function(
+                            task_state->project, alternative.file, task_state->song);
                     }
                 },
-                state->action);
+                task_state->action);
         },
-        [this, state, token, completion_alive = std::move(completion_alive_source)]() {
-            if (completion_alive.expired())
-            {
-                return;
-            }
-            completeProjectWriteAction(token, state);
+        [this](const std::shared_ptr<ProjectWriteTaskState>& task_state) {
+            completeProjectWriteAction(task_state);
         });
 }
 
 // Restores the Project context, clears busy before errors, and applies the successful write's
 // action-specific state transition on the message thread.
 void EditorController::Impl::completeProjectWriteAction(
-    std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state)
+    const std::shared_ptr<ProjectWriteTaskState>& state)
 {
-    if (token != m_current_busy_token)
-    {
-        return;
-    }
+    assert(isBusy() && "completeProjectWriteAction called outside a busy operation");
 
     const EditorAction::Id action_id = idOf(state->action);
     m_project = std::move(state->project);
@@ -2048,7 +2033,6 @@ void EditorController::Impl::completeProjectWriteAction(
             clearDeferredAction();
         }
         finishBusyOperation();
-        updateView();
         reportError(std::string{projectWriteErrorPrefix(action_id)} + message);
         return;
     }
@@ -2079,10 +2063,7 @@ void EditorController::Impl::completeProjectWriteAction(
         m_deferred_action.has_value())
     {
         continueDeferredAction();
-        return;
     }
-
-    updateView();
 }
 
 // Resumes a deferred action after Save or Save As has successfully protected user changes.
@@ -2246,7 +2227,21 @@ EditorViewState EditorController::Impl::deriveViewState() const
         state.save_as_prompt = SaveAsPrompt{idOf(*m_deferred_action)};
     }
 
-    state.busy = m_busy;
+    if (m_busy_operation.has_value())
+    {
+        BusyViewState busy{
+            .operation = *m_busy_operation,
+            .message = busyMessage(*m_busy_operation),
+            .presentation = busyPresentation(*m_busy_operation),
+            .cancel_enabled = false,
+        };
+        if (*m_busy_operation == BusyOperation::LoadingLiveRig && m_live_rig_progress.has_value())
+        {
+            busy.message = m_live_rig_progress->message;
+            busy.progress = m_live_rig_progress->fraction;
+        }
+        state.busy = busy;
+    }
 
     return state;
 }
@@ -2340,31 +2335,32 @@ bool EditorController::Impl::hasLiveRigPersistence() const noexcept
 // Reports whether a busy operation is currently active.
 bool EditorController::Impl::isBusy() const noexcept
 {
-    return m_busy.has_value();
+    return m_busy_operation.has_value();
 }
 
-// Begins a busy operation, advances the current busy token, and fills the default message from the
-// central busyMessage() helper so every entry point produces consistent overlay copy.
+// Begins a busy operation and advances the current busy token. The BusyViewState shown to the
+// view is derived from m_busy_operation in deriveViewState(); this function only sets the source
+// state.
 std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
 {
     m_current_busy_token += 1;
-    m_busy = BusyViewState{
-        .operation = operation,
-        .message = busyMessage(operation),
-        .presentation = busyPresentation(operation),
-        .cancel_enabled = false,
-    };
+    m_busy_operation = operation;
     return m_current_busy_token;
 }
 
-// Semantic wrapper for normal operation completion. Completion paths call this only after their
-// captured busy token has already matched the current busy token.
+// Normal operation completion: clears busy state and pushes the resulting view state so the
+// overlay clears in the same frame. Completion paths call this only after their captured busy
+// token has already matched the current busy token. Failure sites call this BEFORE
+// reportError() so the cleared state is pushed before any modal dialog the error path may
+// raise. Otherwise the dialog overlays a stale "busy" view.
 void EditorController::Impl::finishBusyOperation()
 {
     endBusy();
+    updateView();
 }
 
-// Semantic wrapper for Close/Exit-style commands that intentionally take over the busy lifecycle.
+// Close/Exit-style commands that intentionally take over the busy lifecycle. Does not push view
+// state itself; the accepted action's close or exit path owns the next visible state push.
 void EditorController::Impl::supersedeBusyOperation()
 {
     endBusy();
@@ -2374,29 +2370,40 @@ void EditorController::Impl::supersedeBusyOperation()
 // stale whether this is a normal finish or a superseding action takeover.
 void EditorController::Impl::endBusy()
 {
-    m_busy.reset();
+    m_busy_operation.reset();
+    m_live_rig_progress.reset();
     m_current_busy_token += 1;
 }
 
-// Writes the current live rig load message and fraction into the active busy overlay state.
-void EditorController::Impl::setLiveRigLoadBusyState(std::string&& message, double progress)
+// Writes the current live rig load progress (message override and 0..1 fraction). Does not
+// promote m_busy_operation; beginLiveRigLoadProgress() is responsible for that transition.
+// deriveViewState() composes m_busy_operation with m_live_rig_progress to produce the
+// BusyViewState shown to the view.
+void EditorController::Impl::setLiveRigLoadProgress(std::string message, double fraction)
 {
-    if (!m_busy.has_value())
+    if (!m_busy_operation.has_value())
     {
         return;
     }
 
-    m_busy->operation = BusyOperation::LoadingLiveRig;
-    m_busy->message = std::move(message);
-    m_busy->presentation = busyPresentation(BusyOperation::LoadingLiveRig);
-    m_busy->progress = progress;
+    m_live_rig_progress = LiveRigProgress{
+        .message = std::move(message),
+        .fraction = fraction,
+    };
 }
 
 // Switches a project-load busy operation into determinate live rig restore progress and pushes
-// the new state so the overlay paints at 0% before any plugin construction starts.
+// the new state so the overlay paints at 0% before any plugin construction starts. Promoting
+// m_busy_operation is part of this transition because LoadingLiveRig is a distinct phase from
+// the surrounding project-open or import operation.
 void EditorController::Impl::beginLiveRigLoadProgress()
 {
-    setLiveRigLoadBusyState(busyMessage(BusyOperation::LoadingLiveRig), 0.0);
+    if (!m_busy_operation.has_value())
+    {
+        return;
+    }
+    m_busy_operation = BusyOperation::LoadingLiveRig;
+    setLiveRigLoadProgress(busyMessage(BusyOperation::LoadingLiveRig), 0.0);
     updateView();
 }
 
@@ -2404,7 +2411,7 @@ void EditorController::Impl::beginLiveRigLoadProgress()
 void EditorController::Impl::updateLiveRigLoadProgress(
     const common::audio::LiveRigLoadProgress& progress)
 {
-    setLiveRigLoadBusyState(liveRigProgressMessage(progress), liveRigProgressFraction(progress));
+    setLiveRigLoadProgress(liveRigProgressMessage(progress), liveRigProgressFraction(progress));
     updateView();
 }
 
