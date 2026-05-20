@@ -19,7 +19,7 @@ touching JUCE or Tracktion state from the worker.
 
 Implementations must join any outstanding worker in their destructor so the editor task runner
 outlives no worker thread that captured its surrounding state. Callers are responsible for
-guarding completions against stale state through the controller's active busy token.
+guarding completions against stale state through the controller's current busy token.
 */
 class IEditorTaskRunner
 {
