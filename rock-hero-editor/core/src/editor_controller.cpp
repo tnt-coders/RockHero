@@ -499,7 +499,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     std::optional<BusyViewState> m_busy{};
 
     // Current busy-operation token used by async callbacks to reject stale work.
-    std::uint64_t m_active_busy_token{0};
+    std::uint64_t m_current_busy_token{0};
 
     // Reset during destruction so queued completions can detect that the controller is gone.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
@@ -844,7 +844,7 @@ void EditorController::Impl::openProject(
 void EditorController::Impl::completeOpenProject(
     std::uint64_t token, const std::shared_ptr<OpenTaskState>& state)
 {
-    if (token != m_active_busy_token)
+    if (token != m_current_busy_token)
     {
         return;
     }
@@ -962,7 +962,7 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 void EditorController::Impl::completeImportSongSource(
     std::uint64_t token, const std::shared_ptr<ImportTaskState>& state)
 {
-    if (token != m_active_busy_token)
+    if (token != m_current_busy_token)
     {
         return;
     }
@@ -1032,7 +1032,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
 // into determinate progress and wait for that state to paint before live-rig restore starts.
 void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state)
 {
-    if (!stage_state.finish || stage_state.token != m_active_busy_token)
+    if (!stage_state.finish || stage_state.token != m_current_busy_token)
     {
         return;
     }
@@ -1063,7 +1063,7 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_s
 void EditorController::Impl::startLiveRigLoadStage(
     ProjectLoadLiveRigStage stage_state, bool report_progress)
 {
-    if (!stage_state.finish || stage_state.token != m_active_busy_token)
+    if (!stage_state.finish || stage_state.token != m_current_busy_token)
     {
         return;
     }
@@ -1085,7 +1085,7 @@ void EditorController::Impl::startLiveRigLoadStage(
          captured_stage = std::move(stage_state),
          load_alive = std::move(load_alive_source)](
             std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
-            if (load_alive.expired() || token != m_active_busy_token)
+            if (load_alive.expired() || token != m_current_busy_token)
             {
                 return;
             }
@@ -1121,7 +1121,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                  token,
                  timer_stage = std::move(captured_stage),
                  timer_alive = std::move(load_alive)]() mutable {
-                    if (timer_alive.expired() || token != m_active_busy_token)
+                    if (timer_alive.expired() || token != m_current_busy_token)
                     {
                         return;
                     }
@@ -1441,7 +1441,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
 void EditorController::Impl::completeAddPluginScan(
     std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
 {
-    if (token != m_active_busy_token)
+    if (token != m_current_busy_token)
     {
         return;
     }
@@ -1478,7 +1478,7 @@ void EditorController::Impl::completeAddPluginScan(
 void EditorController::Impl::completeAddPluginLoad(
     std::uint64_t token, const std::shared_ptr<AddPluginTaskState>& state)
 {
-    if (token != m_active_busy_token || !state->candidates.has_value() ||
+    if (token != m_current_busy_token || !state->candidates.has_value() ||
         state->candidates->empty())
     {
         return;
@@ -1908,7 +1908,7 @@ void EditorController::Impl::restoreLiveRig(
         request.progress_callback =
             [this, token, progress_alive = std::move(progress_alive_source)](
                 const common::audio::LiveRigLoadProgress& progress) {
-                if (progress_alive.expired() || token != m_active_busy_token)
+                if (progress_alive.expired() || token != m_current_busy_token)
                 {
                     return;
                 }
@@ -1919,13 +1919,13 @@ void EditorController::Impl::restoreLiveRig(
         std::weak_ptr<bool> yield_alive_source = m_alive;
         request.yield_callback =
             [this, token, yield_alive = std::move(yield_alive_source)](std::function<void()> next) {
-                if (yield_alive.expired() || token != m_active_busy_token)
+                if (yield_alive.expired() || token != m_current_busy_token)
                 {
                     return;
                 }
                 runAfterBusyOverlayPaintedOrNow(
                     [this, token, continuation = std::move(next), yield_alive]() mutable {
-                        if (yield_alive.expired() || token != m_active_busy_token)
+                        if (yield_alive.expired() || token != m_current_busy_token)
                         {
                             return;
                         }
@@ -2030,7 +2030,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
 void EditorController::Impl::completeProjectWriteAction(
     std::uint64_t token, const std::shared_ptr<ProjectWriteTaskState>& state)
 {
-    if (token != m_active_busy_token)
+    if (token != m_current_busy_token)
     {
         return;
     }
@@ -2343,22 +2343,22 @@ bool EditorController::Impl::isBusy() const noexcept
     return m_busy.has_value();
 }
 
-// Begins a busy operation, advances the active busy token, and fills the default message from the
+// Begins a busy operation, advances the current busy token, and fills the default message from the
 // central busyMessage() helper so every entry point produces consistent overlay copy.
 std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
 {
-    m_active_busy_token += 1;
+    m_current_busy_token += 1;
     m_busy = BusyViewState{
         .operation = operation,
         .message = busyMessage(operation),
         .presentation = busyPresentation(operation),
         .cancel_enabled = false,
     };
-    return m_active_busy_token;
+    return m_current_busy_token;
 }
 
 // Semantic wrapper for normal operation completion. Completion paths call this only after their
-// captured busy token has already matched the current active busy token.
+// captured busy token has already matched the current busy token.
 void EditorController::Impl::finishBusyOperation()
 {
     endBusy();
@@ -2370,12 +2370,12 @@ void EditorController::Impl::supersedeBusyOperation()
     endBusy();
 }
 
-// Clears busy state and advances the active busy token. This makes any in-flight worker completion
+// Clears busy state and advances the current busy token. This makes any in-flight worker completion
 // stale whether this is a normal finish or a superseding action takeover.
 void EditorController::Impl::endBusy()
 {
     m_busy.reset();
-    m_active_busy_token += 1;
+    m_current_busy_token += 1;
 }
 
 // Writes the current live rig load message and fraction into the active busy overlay state.

@@ -22,7 +22,7 @@ outstanding worker before allowing the runner to be destroyed, so Exit during an
 operation waits for the worker to finish before the app shuts down.
 
 Slice 1 processes at most one in-flight open or import at a time because Close and Exit
-supersede prior operations by advancing the controller's active busy token. If a later slice
+supersede prior operations by advancing the controller's current busy token. If a later slice
 introduces concurrent submissions, this runner must grow a queue.
 */
 class JuceEditorTaskRunner final : public IEditorTaskRunner
