@@ -1581,6 +1581,9 @@ Engine::Engine()
 // Stops transport activity before destroying Tracktion objects in dependency order.
 Engine::~Engine()
 {
+    m_impl->m_alive.reset();
+    m_impl->m_load_op.reset();
+
     if (m_impl->m_engine)
     {
         auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
