@@ -8,6 +8,7 @@
 #include <cctype>
 #include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <expected>
 #include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -161,6 +162,143 @@ void defaultExit()
     };
 }
 
+// Converts scanner metadata into stable, framework-free state for the plugin browser window.
+[[nodiscard]] PluginBrowserCandidateViewState makePluginBrowserCandidateViewState(
+    const common::audio::PluginCandidate& candidate)
+{
+    return PluginBrowserCandidateViewState{
+        .id = candidate.id,
+        .name = candidate.name,
+        .manufacturer = candidate.manufacturer,
+        .format_name = candidate.format_name,
+        .file_path = candidate.file_path,
+    };
+}
+
+// Converts the audio-boundary catalog into plugin-browser view state.
+[[nodiscard]] std::vector<PluginBrowserCandidateViewState> makePluginBrowserCandidateViewStates(
+    const std::vector<common::audio::PluginCandidate>& candidates)
+{
+    std::vector<PluginBrowserCandidateViewState> states;
+    states.reserve(candidates.size());
+    for (const common::audio::PluginCandidate& candidate : candidates)
+    {
+        states.push_back(makePluginBrowserCandidateViewState(candidate));
+    }
+
+    return states;
+}
+
+// Adds a path once so default roots can combine environment-derived and fallback locations.
+void appendUniquePath(std::vector<std::filesystem::path>& paths, std::filesystem::path path)
+{
+    if (path.empty())
+    {
+        return;
+    }
+
+    if (std::ranges::find(paths, path) == paths.end())
+    {
+        paths.push_back(std::move(path));
+    }
+}
+
+// Reads an environment variable as a filesystem path when it exists.
+[[nodiscard]] std::optional<std::filesystem::path> environmentPath(const char* environment_variable)
+{
+#if defined(_WIN32)
+    char* value{};
+    std::size_t size{};
+    if (_dupenv_s(&value, &size, environment_variable) != 0 || value == nullptr || size <= 1)
+    {
+        return std::nullopt;
+    }
+
+    std::unique_ptr<char, decltype(&std::free)> value_owner{value, &std::free};
+    return std::filesystem::path{value_owner.get()};
+#else
+    const char* const value = std::getenv(environment_variable);
+    if (value == nullptr || *value == '\0')
+    {
+        return std::nullopt;
+    }
+
+    return std::filesystem::path{value};
+#endif
+}
+
+// Adds a subdirectory under an environment variable when the variable exists.
+void appendEnvironmentSubpath(
+    std::vector<std::filesystem::path>& paths, const char* environment_variable,
+    const std::filesystem::path& child)
+{
+    const std::optional<std::filesystem::path> value = environmentPath(environment_variable);
+    if (!value.has_value())
+    {
+        return;
+    }
+
+    appendUniquePath(paths, *value / child);
+}
+
+// First-pass catalog roots cover the conventional system VST3 locations. User-configurable plugin
+// paths belong in a settings-backed follow-up rather than in the JUCE browser widget.
+[[nodiscard]] std::vector<std::filesystem::path> defaultPluginCatalogRoots()
+{
+    std::vector<std::filesystem::path> roots;
+#if defined(_WIN32)
+    appendEnvironmentSubpath(roots, "CommonProgramFiles", std::filesystem::path{"VST3"});
+    appendEnvironmentSubpath(roots, "CommonProgramFiles(x86)", std::filesystem::path{"VST3"});
+    appendUniquePath(roots, std::filesystem::path{R"(C:\Program Files\Common Files\VST3)"});
+#elif defined(__APPLE__)
+    appendUniquePath(roots, std::filesystem::path{"/Library/Audio/Plug-Ins/VST3"});
+    appendEnvironmentSubpath(roots, "HOME", std::filesystem::path{"Library/Audio/Plug-Ins/VST3"});
+#else
+    appendUniquePath(roots, std::filesystem::path{"/usr/lib/vst3"});
+    appendUniquePath(roots, std::filesystem::path{"/usr/local/lib/vst3"});
+    appendEnvironmentSubpath(roots, "HOME", std::filesystem::path{".vst3"});
+#endif
+    return roots;
+}
+
+// Keeps the browser catalog stable and readable after any scan source updates it.
+void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& candidates)
+{
+    std::ranges::sort(
+        candidates,
+        [](const common::audio::PluginCandidate& lhs, const common::audio::PluginCandidate& rhs) {
+            if (lhs.name != rhs.name)
+            {
+                return lhs.name < rhs.name;
+            }
+            if (lhs.manufacturer != rhs.manufacturer)
+            {
+                return lhs.manufacturer < rhs.manufacturer;
+            }
+            return lhs.id < rhs.id;
+        });
+}
+
+// Merges file-based scans into the browser catalog so later browser opens can reuse them.
+void mergePluginCatalogCandidates(
+    std::vector<common::audio::PluginCandidate>& catalog,
+    const std::vector<common::audio::PluginCandidate>& candidates)
+{
+    for (const common::audio::PluginCandidate& candidate : candidates)
+    {
+        const auto duplicate =
+            std::ranges::find_if(catalog, [&candidate](const common::audio::PluginCandidate& item) {
+                return item.id == candidate.id;
+            });
+        if (duplicate == catalog.end())
+        {
+            catalog.push_back(candidate);
+        }
+    }
+
+    sortPluginCatalog(catalog);
+}
+
 // Converts restored or captured live rig state into the signal-chain panel's view model.
 [[nodiscard]] PluginViewState makePluginViewState(const common::audio::LiveRigPlugin& plugin)
 {
@@ -216,6 +354,9 @@ void defaultExit()
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::AddPluginCandidate:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -256,6 +397,9 @@ void defaultExit()
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::AddPluginCandidate:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -318,6 +462,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct OpenTaskState;
     struct ImportTaskState;
     struct AddPluginTaskState;
+    struct PluginCatalogTaskState;
     struct ProjectWriteTaskState;
     struct ProjectLoadLiveRigStage;
 
@@ -350,6 +495,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
     void onAddPluginRequested(std::filesystem::path file);
+    void onPluginBrowserRequested();
+    void onPluginBrowserClosed();
+    void onPluginCatalogScanRequested();
+    void onPluginCandidateAddRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onOpenPluginRequested(std::string instance_id);
     void onTransportStateChanged(common::audio::TransportState state) override;
@@ -372,6 +521,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
     void performActionImpl(const EditorAction::AddPlugin& action);
+    void performActionImpl(EditorAction::ShowPluginBrowser action);
+    void performActionImpl(EditorAction::ScanPluginCatalog action);
+    void performActionImpl(const EditorAction::AddPluginCandidate& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
@@ -391,6 +543,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
     void completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
+    void beginAddKnownPlugin(const common::audio::PluginCandidate& candidate);
+    void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
+    void refreshKnownPluginCatalog();
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
@@ -511,6 +666,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Runtime plugin chain shown by the view and refreshed from the live rig boundary.
     std::vector<PluginViewState> m_plugins;
 
+    // Plugin candidates shown in the browser and selected by opaque candidate ID.
+    std::vector<common::audio::PluginCandidate> m_plugin_catalog;
+
+    // True while the plugin browser should be visible.
+    bool m_plugin_browser_visible{false};
+
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
     bool m_session_load_in_progress{false};
 
@@ -602,6 +763,15 @@ struct EditorController::Impl::ImportTaskState
 struct EditorController::Impl::AddPluginTaskState
 {
     std::filesystem::path file{};
+    std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+        candidates{};
+};
+
+// Per-operation worker state for plugin catalog scanning. The worker owns filesystem traversal and
+// plugin inspection through the audio boundary; the completion replaces the browser catalog.
+struct EditorController::Impl::PluginCatalogTaskState
+{
+    std::vector<std::filesystem::path> roots{};
     std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
         candidates{};
 };
@@ -785,6 +955,26 @@ void EditorController::onWaveformClicked(double normalized_x)
 void EditorController::onAddPluginRequested(std::filesystem::path file)
 {
     m_impl->onAddPluginRequested(std::move(file));
+}
+
+void EditorController::onPluginBrowserRequested()
+{
+    m_impl->onPluginBrowserRequested();
+}
+
+void EditorController::onPluginBrowserClosed()
+{
+    m_impl->onPluginBrowserClosed();
+}
+
+void EditorController::onPluginCatalogScanRequested()
+{
+    m_impl->onPluginCatalogScanRequested();
+}
+
+void EditorController::onPluginCandidateAddRequested(std::string plugin_id)
+{
+    m_impl->onPluginCandidateAddRequested(std::move(plugin_id));
 }
 
 void EditorController::onRemovePluginRequested(std::string instance_id)
@@ -1217,6 +1407,38 @@ void EditorController::Impl::onAddPluginRequested(std::filesystem::path file)
     runAction(EditorAction::AddPlugin{std::move(file)});
 }
 
+// Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
+// intentionally left behind the explicit Rescan button because plugin scans can be slow.
+void EditorController::Impl::onPluginBrowserRequested()
+{
+    runAction(EditorAction::ShowPluginBrowser{});
+}
+
+// Hides the browser directly because closing a presentation window should not be blocked by an
+// unrelated busy operation. In-flight scans still complete against the cached browser state.
+void EditorController::Impl::onPluginBrowserClosed()
+{
+    if (!m_plugin_browser_visible)
+    {
+        return;
+    }
+
+    m_plugin_browser_visible = false;
+    updateView();
+}
+
+// Starts a user-requested catalog refresh through the normal action gate.
+void EditorController::Impl::onPluginCatalogScanRequested()
+{
+    runAction(EditorAction::ScanPluginCatalog{});
+}
+
+// Adds the catalog item selected by the browser window.
+void EditorController::Impl::onPluginCandidateAddRequested(std::string plugin_id)
+{
+    runAction(EditorAction::AddPluginCandidate{std::move(plugin_id)});
+}
+
 // Removes one runtime plugin instance from the current linear chain without marking the project
 // dirty while tone persistence does not exist.
 void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
@@ -1447,6 +1669,64 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         });
 }
 
+// Makes the browser visible and refreshes the lightweight in-memory catalog.
+void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /*action*/)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    m_plugin_browser_visible = true;
+    refreshKnownPluginCatalog();
+    updateView();
+}
+
+// Offloads catalog scanning to the editor task runner because directory traversal and plugin
+// inspection can execute slow third-party code.
+void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /*action*/)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    auto state = std::make_shared<PluginCatalogTaskState>();
+    state->roots = defaultPluginCatalogRoots();
+    runBusyOperation(
+        BusyOperation::ScanningPlugins,
+        state,
+        [plugin_host = m_plugin_host](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
+            task_state->candidates = plugin_host->scanPluginLocations(task_state->roots);
+        },
+        [this](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
+            completePluginCatalogScan(task_state);
+        });
+}
+
+// Begins loading the selected browser candidate. The catalog is the authority for display
+// metadata, while the audio boundary remains the authority for creating the runtime plugin.
+void EditorController::Impl::performActionImpl(const EditorAction::AddPluginCandidate& action)
+{
+    if (m_plugin_host == nullptr || !hasLoadedArrangement())
+    {
+        return;
+    }
+
+    const auto candidate =
+        std::ranges::find_if(m_plugin_catalog, [&action](const auto& catalog_candidate) {
+            return catalog_candidate.id == action.plugin_id;
+        });
+    if (candidate == m_plugin_catalog.end())
+    {
+        reportError("Could not add plugin: selected plugin is no longer available");
+        updateView();
+        return;
+    }
+
+    beginAddKnownPlugin(*candidate);
+}
+
 // Applies the scan result on the message thread before final chain mutation. runBusyOperation
 // already verified that the busy token still matches before invoking this finalizer.
 void EditorController::Impl::completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state)
@@ -1467,6 +1747,8 @@ void EditorController::Impl::completeAddPluginScan(const std::shared_ptr<AddPlug
         reportError("Could not scan plugin: no compatible plugin was found");
         return;
     }
+
+    mergePluginCatalogCandidates(m_plugin_catalog, *state->candidates);
 
     const std::uint64_t token = m_current_busy_token;
     runAfterBusyOverlayPaintedOrNow(safeCallback([this, state, token]() {
@@ -1500,12 +1782,61 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
     }
 
     m_plugins.push_back(makePluginViewState(candidate, *handle));
+    m_plugin_browser_visible = false;
     if (hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
     }
 
     finishBusyOperation();
+}
+
+// Starts the blocking plugin-instantiation phase after pushing LoadingPlugin state first.
+void EditorController::Impl::beginAddKnownPlugin(const common::audio::PluginCandidate& candidate)
+{
+    auto state = std::make_shared<AddPluginTaskState>();
+    state->candidates = std::vector<common::audio::PluginCandidate>{candidate};
+
+    const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
+    updateView();
+    runAfterBusyOverlayPaintedOrNow(safeCallback([this, state, token]() {
+        if (token != m_current_busy_token)
+        {
+            return;
+        }
+        completeAddPluginLoad(state);
+    }));
+}
+
+// Replaces the browser catalog with the latest scan result while keeping the browser open.
+void EditorController::Impl::completePluginCatalogScan(
+    const std::shared_ptr<PluginCatalogTaskState>& state)
+{
+    assert(isBusy() && "completePluginCatalogScan called outside a busy operation");
+
+    if (!state->candidates.has_value())
+    {
+        const std::string message = state->candidates.error().message;
+        finishBusyOperation();
+        reportError(std::string{"Could not scan plugins: "} + message);
+        return;
+    }
+
+    m_plugin_catalog = std::move(*state->candidates);
+    sortPluginCatalog(m_plugin_catalog);
+    finishBusyOperation();
+}
+
+// Refreshes the browser from Tracktion's already-known plugins without touching the filesystem.
+void EditorController::Impl::refreshKnownPluginCatalog()
+{
+    if (m_plugin_host == nullptr)
+    {
+        return;
+    }
+
+    m_plugin_catalog = m_plugin_host->knownPluginCandidates();
+    sortPluginCatalog(m_plugin_catalog);
 }
 
 void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin& action)
@@ -1628,8 +1959,14 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
             return canStopTransport(m_transport.state());
         }
         case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
         {
             return m_plugin_host != nullptr && hasLoadedArrangement();
+        }
+        case EditorAction::Id::AddPluginCandidate:
+        {
+            return m_plugin_host != nullptr && hasLoadedArrangement() && !m_plugin_catalog.empty();
         }
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
@@ -1664,6 +2001,9 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::AddPluginCandidate:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -1778,6 +2118,7 @@ bool EditorController::Impl::closeProject()
         m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
+        m_plugin_browser_visible = false;
         return true;
     }
 
@@ -1795,6 +2136,7 @@ bool EditorController::Impl::closeProject()
         m_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
+        m_plugin_browser_visible = false;
         updateView();
         return false;
     }
@@ -1803,6 +2145,7 @@ bool EditorController::Impl::closeProject()
     m_project_file.clear();
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
+    m_plugin_browser_visible = false;
     return true;
 }
 
@@ -2169,6 +2512,7 @@ bool EditorController::Impl::loadSessionSong(
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
         m_plugins.clear();
+        m_plugin_browser_visible = false;
     }
     m_session_load_in_progress = false;
 
@@ -2205,9 +2549,15 @@ EditorViewState EditorController::Impl::deriveViewState() const
         m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
-        .add_plugin_enabled = canRunAction(EditorAction::Id::AddPlugin),
+        .add_plugin_enabled = canRunAction(EditorAction::Id::ShowPluginBrowser),
         .remove_plugins_enabled = canRunAction(EditorAction::Id::RemovePlugin),
         .plugins = m_plugins,
+    };
+    state.plugin_browser = PluginBrowserViewState{
+        .visible = m_plugin_browser_visible,
+        .scan_enabled = canRunAction(EditorAction::Id::ScanPluginCatalog),
+        .add_enabled = canRunAction(EditorAction::Id::AddPluginCandidate),
+        .candidates = makePluginBrowserCandidateViewStates(m_plugin_catalog),
     };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)

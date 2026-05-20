@@ -71,6 +71,18 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::AddPlugin;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::ShowPluginBrowser>)
+    {
+        return EditorAction::Id::ShowPluginBrowser;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::ScanPluginCatalog>)
+    {
+        return EditorAction::Id::ScanPluginCatalog;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::AddPluginCandidate>)
+    {
+        return EditorAction::Id::AddPluginCandidate;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::RemovePlugin>)
     {
         return EditorAction::Id::RemovePlugin;

@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <exception>
@@ -35,6 +36,38 @@ constexpr std::string_view g_tone_state_directory_name{"state"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
+
+// Normalizes filesystem extensions for case-insensitive plugin bundle matching.
+[[nodiscard]] std::string lowerExtension(const std::filesystem::path& path)
+{
+    std::string extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return extension;
+}
+
+// VST3 plugins are usually bundle directories on Windows and macOS, but some hosts may present
+// them as ordinary files. The catalog scan treats either shape as a scan root.
+[[nodiscard]] bool isVst3PluginPath(const std::filesystem::path& path)
+{
+    return lowerExtension(path) == ".vst3";
+}
+
+// Adds a candidate only once because JUCE/Tracktion can return the same plugin identity through
+// multiple supplied roots.
+void appendUniquePluginCandidate(
+    std::vector<PluginCandidate>& candidates, PluginCandidate candidate)
+{
+    const auto duplicate =
+        std::ranges::find_if(candidates, [&candidate](const PluginCandidate& existing) {
+            return existing.id == candidate.id;
+        });
+    if (duplicate == candidates.end())
+    {
+        candidates.push_back(std::move(candidate));
+    }
+}
 
 // Cancels Tracktion's custom plugin scanner if a child-process scan never replies.
 class PluginScanTimeout final
@@ -1259,6 +1292,109 @@ private:
         }
     }
 
+    // Walks user/system plugin locations and scans only VST3 bundle/file candidates. Individual
+    // broken or incompatible plugins are skipped so a single bad third-party binary does not hide
+    // otherwise usable plugins from the browser.
+    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError>
+    scanPluginLocationsForCandidates(const std::vector<std::filesystem::path>& roots)
+    {
+        std::vector<PluginCandidate> candidates;
+        std::optional<PluginHostError> first_scan_failure;
+
+        const auto scan_path =
+            [this, &candidates, &first_scan_failure](const std::filesystem::path& plugin_path) {
+                const auto result = scanPluginFileForCandidates(plugin_path);
+                if (result.has_value())
+                {
+                    for (PluginCandidate candidate : *result)
+                    {
+                        appendUniquePluginCandidate(candidates, std::move(candidate));
+                    }
+                    return;
+                }
+
+                if (result.error().code != PluginHostErrorCode::NoCompatiblePlugin &&
+                    result.error().code != PluginHostErrorCode::MissingPluginFile &&
+                    !first_scan_failure.has_value())
+                {
+                    first_scan_failure = result.error();
+                }
+            };
+
+        for (const std::filesystem::path& root : roots)
+        {
+            std::error_code error;
+            if (!std::filesystem::exists(root, error))
+            {
+                continue;
+            }
+
+            if (isVst3PluginPath(root))
+            {
+                scan_path(root);
+                continue;
+            }
+
+            if (!std::filesystem::is_directory(root, error))
+            {
+                continue;
+            }
+
+            auto iterator = std::filesystem::recursive_directory_iterator{
+                root, std::filesystem::directory_options::skip_permission_denied, error
+            };
+            const std::filesystem::recursive_directory_iterator end;
+            while (!error && iterator != end)
+            {
+                const std::filesystem::path plugin_path = iterator->path();
+                if (isVst3PluginPath(plugin_path))
+                {
+                    scan_path(plugin_path);
+                    std::error_code directory_error;
+                    if (std::filesystem::is_directory(plugin_path, directory_error))
+                    {
+                        iterator.disable_recursion_pending();
+                    }
+                }
+
+                iterator.increment(error);
+                if (error)
+                {
+                    error.clear();
+                }
+            }
+        }
+
+        if (candidates.empty() && first_scan_failure.has_value())
+        {
+            return std::unexpected{*first_scan_failure};
+        }
+
+        return candidates;
+    }
+
+    // Exposes Tracktion's in-memory known-plugin list without triggering filesystem scans.
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCandidates() const
+    {
+        constexpr auto* vst3_format_name = "VST3";
+        std::vector<PluginCandidate> candidates;
+        const auto& known_types = m_engine->getPluginManager().knownPluginList.getTypes();
+        candidates.reserve(static_cast<std::size_t>(known_types.size()));
+
+        for (const juce::PluginDescription& description : known_types)
+        {
+            if (description.pluginFormatName != vst3_format_name)
+            {
+                continue;
+            }
+
+            const std::filesystem::path plugin_path{description.fileOrIdentifier.toStdString()};
+            appendUniquePluginCandidate(candidates, makePluginCandidate(description, plugin_path));
+        }
+
+        return candidates;
+    }
+
     // Appends a known plugin candidate to the instrument track.
     [[nodiscard]] std::expected<PluginHandle, PluginHostError> addKnownPluginToTrack(
         const std::string& plugin_id);
@@ -1763,6 +1899,19 @@ std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginF
     const std::filesystem::path& plugin_path)
 {
     return m_impl->scanPluginFileForCandidates(plugin_path);
+}
+
+// Scans default or user-supplied plugin locations for browser catalog candidates.
+std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginLocations(
+    const std::vector<std::filesystem::path>& roots)
+{
+    return m_impl->scanPluginLocationsForCandidates(roots);
+}
+
+// Reads Tracktion's known-plugin list without launching plugin scanners.
+std::vector<PluginCandidate> Engine::knownPluginCandidates() const
+{
+    return m_impl->knownPluginCandidates();
 }
 
 // Appends a selected known VST3 candidate to the instrument track's plugin list.
