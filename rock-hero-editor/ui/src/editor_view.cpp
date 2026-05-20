@@ -120,6 +120,9 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekWaveform:
         case core::EditorActionId::AddPlugin:
+        case core::EditorActionId::ShowPluginBrowser:
+        case core::EditorActionId::ScanPluginCatalog:
+        case core::EditorActionId::AddPluginCandidate:
         case core::EditorActionId::RemovePlugin:
         case core::EditorActionId::OpenPlugin:
         {
@@ -750,6 +753,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
     repaint();
 }
@@ -778,6 +782,16 @@ void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
     m_after_busy_overlay_paint = std::move(callback);
     if (m_after_busy_overlay_paint)
     {
+        // Startup restore can request the fence before the window has a paintable peer.
+        // Waiting for an impossible paint would leave the project-open continuation stuck.
+        if (!isShowing())
+        {
+            std::function<void()> pending_callback = std::move(m_after_busy_overlay_paint);
+            m_after_busy_overlay_paint = {};
+            pending_callback();
+            return;
+        }
+
         m_busy_overlay.repaint();
     }
 }
@@ -1053,27 +1067,6 @@ void EditorView::showPublishChooser()
         });
 }
 
-// Opens an asynchronous VST3 chooser and sends the selected plugin path to the controller.
-void EditorView::showAddPluginChooser()
-{
-    m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Add VST3 Plugin", juce::File::getSpecialLocation(juce::File::userHomeDirectory), "*.vst3");
-
-    m_file_chooser->launchAsync(
-        juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles |
-            juce::FileBrowserComponent::canSelectDirectories,
-        [this](const juce::FileChooser& chooser) {
-            const auto file = chooser.getResult();
-            if (!file.exists())
-            {
-                return;
-            }
-
-            m_controller.onAddPluginRequested(
-                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
-        });
-}
-
 // Shows each distinct unsaved-changes prompt once and reports the selected decision.
 void EditorView::presentUnsavedChangesPromptIfNeeded(
     const std::optional<core::UnsavedChangesPrompt>& prompt)
@@ -1146,6 +1139,30 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
 
     m_last_presented_save_as_prompt = prompt;
     showSaveAsChooser(SaveAsChooserPurpose::DeferredAction);
+}
+
+// Opens or refreshes the plugin browser top-level window from controller-derived state.
+void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state)
+{
+    if (!state.visible)
+    {
+        m_plugin_browser_window.reset();
+        return;
+    }
+
+    if (m_plugin_browser_window == nullptr)
+    {
+        auto& listener = static_cast<PluginBrowserWindow::Listener&>(*this);
+        m_plugin_browser_window = std::make_unique<PluginBrowserWindow>(listener);
+        if (isShowing())
+        {
+            m_plugin_browser_window->centreAroundComponent(this, 760, 500);
+        }
+        m_plugin_browser_window->setVisible(true);
+    }
+
+    m_plugin_browser_window->setState(state);
+    m_plugin_browser_window->toFront(true);
 }
 
 // Applies controller-derived ASIO routing state to the toolbar button.
@@ -1251,7 +1268,7 @@ void EditorView::onStopPressed()
     m_controller.onStopPressed();
 }
 
-// Opens the plugin chooser through the owner so file-dialog lifetime stays centralized.
+// Opens the plugin browser through the controller-owned workflow state.
 void EditorView::onAddPluginPressed()
 {
     if (!m_state.signal_chain.add_plugin_enabled)
@@ -1259,7 +1276,7 @@ void EditorView::onAddPluginPressed()
         return;
     }
 
-    showAddPluginChooser();
+    m_controller.onPluginBrowserRequested();
 }
 
 // Forwards row-level remove intent to the controller after checking derived availability.
@@ -1277,6 +1294,24 @@ void EditorView::onRemovePluginPressed(std::string instance_id)
 void EditorView::onOpenPluginPressed(std::string instance_id)
 {
     m_controller.onOpenPluginRequested(std::move(instance_id));
+}
+
+// Forwards browser rescan intent to the workflow controller.
+void EditorView::onPluginBrowserScanRequested()
+{
+    m_controller.onPluginCatalogScanRequested();
+}
+
+// Forwards the selected scanned candidate to the workflow controller.
+void EditorView::onPluginBrowserCandidateAddRequested(std::string plugin_id)
+{
+    m_controller.onPluginCandidateAddRequested(std::move(plugin_id));
+}
+
+// Forwards browser close intent to the workflow controller.
+void EditorView::onPluginBrowserClosed()
+{
+    m_controller.onPluginBrowserClosed();
 }
 
 } // namespace rock_hero::editor::ui

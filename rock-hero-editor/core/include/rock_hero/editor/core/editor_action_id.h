@@ -60,6 +60,15 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Add a selected plugin file to the signal chain. */
     AddPlugin,
 
+    /*! \brief Show the scanned plugin browser. */
+    ShowPluginBrowser,
+
+    /*! \brief Scan default plugin catalog locations for browser candidates. */
+    ScanPluginCatalog,
+
+    /*! \brief Add a scanned plugin browser candidate to the signal chain. */
+    AddPluginCandidate,
+
     /*! \brief Remove a plugin instance from the signal chain. */
     RemovePlugin,
 

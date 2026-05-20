@@ -3,8 +3,9 @@ find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 # Keep focused editor UI component coverage in one target because the test surface is small.
-add_executable(rock_hero_editor_ui_tests test_arrangement_view.cpp test_editor.cpp
-                                         test_editor_view.cpp test_transport_controls.cpp)
+add_executable(
+    rock_hero_editor_ui_tests test_arrangement_view.cpp test_editor.cpp test_editor_view.cpp
+                              test_plugin_browser_window.cpp test_transport_controls.cpp)
 
 # Link only the editor UI module and Catch2; concrete app composition stays outside this target.
 target_link_libraries(rock_hero_editor_ui_tests

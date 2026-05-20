@@ -19,6 +19,7 @@
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
 #include <rock_hero/editor/ui/busy_overlay.h>
+#include <rock_hero/editor/ui/plugin_browser_window.h>
 #include <rock_hero/editor/ui/signal_chain_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
@@ -56,7 +57,8 @@ class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
                          private TransportControls::Listener,
-                         private SignalChainPanel::Listener
+                         private SignalChainPanel::Listener,
+                         private PluginBrowserWindow::Listener
 {
 public:
     /*!
@@ -172,15 +174,15 @@ private:
     // Opens the asynchronous publish chooser and forwards accepted selections.
     void showPublishChooser();
 
-    // Opens the asynchronous VST3 plugin chooser and forwards accepted selections.
-    void showAddPluginChooser();
-
     // Presents an unsaved-changes prompt once per prompt request.
     void presentUnsavedChangesPromptIfNeeded(
         const std::optional<core::UnsavedChangesPrompt>& prompt);
 
     // Presents a Save As chooser once per controller-requested prompt.
     void presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt);
+
+    // Presents, refreshes, or closes the plugin browser window from controller state.
+    void presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state);
 
     // Returns the editor content area below the menu and transport strips.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
@@ -211,6 +213,15 @@ private:
 
     // SignalChainPanel::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;
+
+    // PluginBrowserWindow::Listener implementation.
+    void onPluginBrowserScanRequested() override;
+
+    // PluginBrowserWindow::Listener implementation.
+    void onPluginBrowserCandidateAddRequested(std::string plugin_id) override;
+
+    // PluginBrowserWindow::Listener implementation.
+    void onPluginBrowserClosed() override;
 
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
@@ -247,6 +258,9 @@ private:
 
     // Owned asynchronous file chooser; must outlive the native dialog callback.
     std::unique_ptr<juce::FileChooser> m_file_chooser;
+
+    // Optional top-level plugin browser window.
+    std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;

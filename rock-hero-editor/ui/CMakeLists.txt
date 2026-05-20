@@ -14,6 +14,7 @@ target_sources(
             src/busy_overlay.cpp
             src/editor.cpp
             src/editor_view.cpp
+            src/plugin_browser_window.cpp
             src/signal_chain_panel.cpp
             src/main_window.cpp
             src/transport_controls.cpp)

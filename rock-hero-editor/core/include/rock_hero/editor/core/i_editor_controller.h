@@ -84,6 +84,21 @@ public:
     */
     virtual void onAddPluginRequested(std::filesystem::path file) = 0;
 
+    /*! \brief Handles a request to show the scanned plugin browser. */
+    virtual void onPluginBrowserRequested() = 0;
+
+    /*! \brief Handles the plugin browser window closing. */
+    virtual void onPluginBrowserClosed() = 0;
+
+    /*! \brief Handles a request to rescan the plugin browser catalog. */
+    virtual void onPluginCatalogScanRequested() = 0;
+
+    /*!
+    \brief Handles a request to add a selected scanned plugin candidate.
+    \param plugin_id Opaque candidate ID selected by the user.
+    */
+    virtual void onPluginCandidateAddRequested(std::string plugin_id) = 0;
+
     /*!
     \brief Handles a request to remove a plugin instance from the plugin chain.
     \param instance_id Opaque plugin instance ID selected by the user.

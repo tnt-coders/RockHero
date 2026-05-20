@@ -82,6 +82,31 @@ public:
     scanPluginFile(const std::filesystem::path& plugin_path) = 0;
 
     /*!
+    \brief Scans plugin files or directories for loadable candidates.
+
+    Implementations may recurse through supplied directories and should return an empty list when
+    no compatible candidates are found. Callers should treat individual plugin failures as
+    scanner diagnostics rather than as proof that every other plugin failed.
+
+    \param roots Files or directories to inspect for plugin candidates.
+    \return Discovered candidates, or a typed failure when scanning itself cannot proceed.
+    \note This method may be called from a non-realtime worker thread.
+    */
+    [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
+    scanPluginLocations(const std::vector<std::filesystem::path>& roots) = 0;
+
+    /*!
+    \brief Returns plugin candidates already known to the host without scanning.
+
+    This is a lightweight catalog read for UI presentation. It must not traverse plugin folders,
+    launch plugin scanner processes, or execute third-party plugin code.
+
+    \return Known plugin candidates currently available to add to the hosted chain.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::vector<PluginCandidate> knownPluginCandidates() const = 0;
+
+    /*!
     \brief Appends a previously scanned plugin candidate to the hosted chain.
 
     The first implementation appends to the linear Tracktion plugin list owned by the instrument

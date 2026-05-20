@@ -15,6 +15,7 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace juce
 {
@@ -42,7 +43,7 @@ Owns the tracktion::Engine and the tracktion::Edit used for playback. The curren
 backing track for the displayed arrangement and an instrument track for the selected mono
 input. Most public methods must be called on the message thread; scanPluginFile() is the explicit
 non-realtime worker-thread exception because selected-file inspection can run slow third-party
-code.
+code. scanPluginLocations() follows the same worker-thread rule for catalog discovery.
 
 \see ITransport
 \see IAudio
@@ -176,6 +177,22 @@ public:
     */
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginFile(
         const std::filesystem::path& plugin_path) override;
+
+    /*!
+    \brief Scans plugin files or directories for candidates loadable by the plugin chain.
+    \param roots Files or directories to inspect for plugin candidates.
+    \return Discovered plugin candidates, or a typed failure.
+    \note This method may be called from a non-realtime worker thread.
+    */
+    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
+        const std::vector<std::filesystem::path>& roots) override;
+
+    /*!
+    \brief Returns loadable plugin candidates already known by Tracktion.
+    \return Known plugin candidates without running a plugin scan.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCandidates() const override;
 
     /*!
     \brief Appends a previously scanned plugin candidate to the hosted Tracktion chain.

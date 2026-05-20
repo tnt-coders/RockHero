@@ -12,6 +12,7 @@
 #include <rock_hero/editor/core/arrangement_view_state.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_action_id.h>
+#include <rock_hero/editor/core/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
 
@@ -144,6 +145,9 @@ struct EditorViewState
 
     /*! \brief Current signal-chain panel state. */
     SignalChainViewState signal_chain;
+
+    /*! \brief Current plugin browser window state. */
+    PluginBrowserViewState plugin_browser;
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
     std::optional<UnsavedChangesPrompt> unsaved_changes_prompt;

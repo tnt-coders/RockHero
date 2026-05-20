@@ -42,7 +42,8 @@ public:
 
     Message-thread-only operations that would otherwise block repaint can use this fence after
     pushing busy state. Concrete views should call the callback asynchronously after the first
-    busy-overlay paint, not directly from the paint callback itself.
+    busy-overlay paint, not directly from the paint callback itself. If the view cannot currently
+    paint, it should run the callback without waiting indefinitely.
 
     \param callback Callback to run after the busy overlay paints.
     */
