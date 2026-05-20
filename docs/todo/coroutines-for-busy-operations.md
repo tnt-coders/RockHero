@@ -2,8 +2,11 @@
 
 Investigation of whether C++20 coroutines would meaningfully simplify the editor's busy
 operation lifecycle, currently implemented via `runBusyOperation` + `safeCallback` helpers
-in `rock-hero-editor/core/src/editor_controller.cpp`. **Status: investigation only,
-no commitment to migrate.**
+in `rock-hero-editor/core/src/editor_controller.cpp`.
+
+**Status: deferred investigation in `docs/todo/`. Do not migrate now.** The current
+`runBusyOperation` design remains preferred until async workflow count, sequencing depth,
+or cooperative cancellation needs justify a new async runtime.
 
 ## Current shape (post-refactor baseline)
 
@@ -184,9 +187,55 @@ A C++20 coroutine integration is **not free** — you need infrastructure:
   learn. The current callback model is mundane and well-understood. If this is a
   one-person project right now, the cost lands entirely on you.
 
+## Independent skeptical analysis
+
+The current callback/task-state design has ceremony, but most of that ceremony maps to
+real boundaries rather than accidental noise:
+
+- worker-thread package/plugin/save work
+- message-thread commit work
+- busy-token stale-completion rejection
+- controller destruction guards
+- busy-overlay paint fences
+- live-rig callbacks
+- JUCE timer delay for visible 100% live-rig progress
+
+A coroutine implementation would still need to model all of those boundaries. It would
+not remove the core invariant currently handled by `runBusyOperation`: begin busy state,
+submit worker work, resume on the message thread, then reject stale or post-destruction
+completion before touching controller state. Coroutines would move that invariant into
+custom awaitables and scheduler code.
+
+The biggest risk is lifetime. Today, `shared_ptr<TaskState>` is boring but explicit:
+worker and completion lambdas share owned state, and stale completions are dropped by
+token checks. In a coroutine design, the coroutine frame becomes the shared async state.
+If Close or Exit supersedes an operation while worker code is still running, the frame
+cannot be destroyed safely if worker code captured locals or references from it.
+
+That leaves two realistic designs:
+
+1. Keep the coroutine frame alive until worker completion, then still use token/liveness
+   checks before resuming meaningful controller work.
+2. Support cancellation/destruction of suspended coroutines, which requires every
+   awaitable to prove no worker, timer, paint fence, or live-rig callback can later
+   touch the destroyed frame.
+
+The first design preserves much of the current complexity. The second design is a
+use-after-free risk unless the scheduler and awaitables are extremely carefully built.
+
+Testing is also not an obvious win. Current controller tests use `DeferredEditorTaskRunner`
+to hold completions and assert exact intermediate states. A coroutine runtime would need
+equivalent deterministic control over worker completion, coroutine resumption, paint
+fences, timers, and live-rig callbacks. That is feasible, but it is new infrastructure
+and a new failure surface.
+
+The strongest coroutine benefit is local readability for long chains such as project
+open/import. That benefit is real but narrow today. It does not currently outweigh the
+new runtime, lifetime, cancellation, and test-driver complexity.
+
 ## Verdict (this investigation only)
 
-**Worth considering, not worth starting yet.** Reasons:
+**Not recommended at the current scale.** Reasons:
 
 - The current `runBusyOperation` + `safeCallback` model just landed and is materially
   cleaner than what came before. It should be lived with for a while before any new
@@ -196,8 +245,11 @@ A C++20 coroutine integration is **not free** — you need infrastructure:
   (`openProject`, `importSongSource`) span more than one stage today.
 - Building the `Task<T>` infrastructure is a non-trivial up-front investment with
   cancellation semantics that have to be right first time.
-- The "modern C++" benefit is genuine but better realized when there's enough async
-  surface to amortize the infrastructure cost.
+- The "modern C++" benefit should carry little decision weight by itself. It matters
+  only if coroutines reduce real risk or complexity.
+- Coroutines would improve local readability for a small number of functions, but they
+  would move important lifetime and stale-completion rules into less visible runtime
+  infrastructure.
 
 **Revisit when:**
 
