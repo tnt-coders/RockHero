@@ -170,6 +170,30 @@ struct EditorAction
         std::filesystem::path file;
     };
 
+    /*! \brief Show the scanned plugin browser. */
+    struct ShowPluginBrowser
+    {
+    };
+
+    /*! \brief Scan configured plugin catalog locations. */
+    struct ScanPluginCatalog
+    {
+    };
+
+    /*! \brief Add a selected scanned plugin candidate to the signal chain. */
+    struct AddPluginCandidate
+    {
+        /*!
+        \brief Creates an add-plugin-candidate action.
+        \param plugin_id_value Opaque plugin candidate ID selected by the user.
+        */
+        explicit AddPluginCandidate(std::string plugin_id_value)
+            : plugin_id(std::move(plugin_id_value))
+        {}
+
+        std::string plugin_id;
+    };
+
     /*! \brief Remove a plugin instance from the signal chain. */
     struct RemovePlugin
     {
@@ -210,7 +234,8 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, AddPlugin, RemovePlugin, OpenPlugin>;
+        Stop, SeekWaveform, AddPlugin, ShowPluginBrowser, ScanPluginCatalog, AddPluginCandidate,
+        RemovePlugin, OpenPlugin>;
 };
 
 /*!

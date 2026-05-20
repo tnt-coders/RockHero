@@ -117,6 +117,31 @@ public:
         add_plugin_request_count += 1;
     }
 
+    // Counts plugin-browser open intents emitted by the signal-chain panel.
+    void onPluginBrowserRequested() override
+    {
+        plugin_browser_request_count += 1;
+    }
+
+    // Counts plugin-browser close intents emitted by the browser window.
+    void onPluginBrowserClosed() override
+    {
+        plugin_browser_close_count += 1;
+    }
+
+    // Counts plugin-catalog scan intents emitted by the browser window.
+    void onPluginCatalogScanRequested() override
+    {
+        plugin_catalog_scan_request_count += 1;
+    }
+
+    // Captures plugin candidate IDs selected in the browser window.
+    void onPluginCandidateAddRequested(std::string plugin_id) override
+    {
+        last_plugin_candidate_id = std::move(plugin_id);
+        plugin_candidate_add_request_count += 1;
+    }
+
     // Captures plugin instances selected through the signal-chain panel.
     void onRemovePluginRequested(std::string instance_id) override
     {
@@ -148,6 +173,9 @@ public:
 
     // Last plugin file selected through the signal-chain panel.
     std::optional<std::filesystem::path> last_plugin_file{};
+
+    // Last plugin candidate ID selected through the plugin browser.
+    std::optional<std::string> last_plugin_candidate_id{};
 
     // Last plugin instance ID selected through the signal-chain panel.
     std::optional<std::string> last_removed_plugin_instance_id{};
@@ -196,6 +224,18 @@ public:
 
     // Number of add-plugin intents received.
     int add_plugin_request_count{0};
+
+    // Number of plugin-browser open intents received.
+    int plugin_browser_request_count{0};
+
+    // Number of plugin-browser close intents received.
+    int plugin_browser_close_count{0};
+
+    // Number of plugin-catalog scan intents received.
+    int plugin_catalog_scan_request_count{0};
+
+    // Number of browser candidate-add intents received.
+    int plugin_candidate_add_request_count{0};
 
     // Number of remove-plugin intents received.
     int remove_plugin_request_count{0};
@@ -647,6 +687,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(add_plugin_button.isEnabled());
+    REQUIRE(add_plugin_button.onClick);
+    add_plugin_button.onClick();
+    CHECK(controller.plugin_browser_request_count == 1);
+    CHECK(controller.add_plugin_request_count == 0);
     CHECK(findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
@@ -1333,6 +1377,37 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
     CHECK(callback_count == 1);
 
     overlay->paint(graphics);
+    CHECK(callback_count == 1);
+}
+
+// A hidden view cannot satisfy a paint fence; startup restore must continue instead of waiting.
+TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState busy_state;
+    busy_state.visible_timeline = common::core::TimeRange{
+        .start = common::core::TimePosition{},
+        .end = common::core::TimePosition{},
+    };
+    busy_state.arrangement = makeArrangementState(std::filesystem::path{});
+    busy_state.signal_chain = core::SignalChainViewState{};
+    busy_state.busy = core::BusyViewState{
+        .operation = core::BusyOperation::OpeningProject,
+        .message = "Opening project...",
+        .presentation = core::BusyPresentation::Blocking,
+        .cancel_enabled = false,
+    };
+    view.setState(busy_state);
+
+    int callback_count = 0;
+    view.runAfterBusyOverlayPainted([&callback_count] { callback_count += 1; });
+
     CHECK(callback_count == 1);
 }
 
