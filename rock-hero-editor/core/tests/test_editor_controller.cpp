@@ -3320,6 +3320,85 @@ TEST_CASE("EditorController save begins busy with default message", "[core][edit
     CHECK(project_services.save_call_count == 1);
 }
 
+// Saving from an unsaved prompt clears the save overlay before the deferred open begins.
+TEST_CASE("EditorController deferred save clears busy before open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
+    const common::core::AudioAsset replacement_asset{std::filesystem::path{"replacement.wav"}};
+    project_services.next_song = makeSong(original_asset.path);
+    controller.onOpenRequested(std::filesystem::path{"original.rhp"});
+    runner.runPendingCompletions();
+
+    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    runner.runPendingCompletions();
+
+    project_services.next_song = makeSong(replacement_asset.path);
+    controller.onOpenRequested(std::filesystem::path{"replacement.rhp"});
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::OpenProject}});
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Save);
+
+    const EditorViewState* saving_state = stateOrNull(view.last_state);
+    REQUIRE(saving_state != nullptr);
+    const BusyViewState* saving_busy = busyOrNull(*saving_state);
+    REQUIRE(saving_busy != nullptr);
+    CHECK(saving_busy->operation == BusyOperation::SavingProject);
+    CHECK(project_services.save_call_count == 1);
+
+    runner.runPendingCompletions();
+
+    CHECK(runner.pendingCount() == 1);
+    REQUIRE(view.pushed_states.size() >= 2);
+    const EditorViewState& saved_state = view.pushed_states[view.pushed_states.size() - 2];
+    const EditorViewState& opening_state = view.pushed_states.back();
+
+    CHECK_FALSE(saved_state.busy.has_value());
+    CHECK(saved_state.project_loaded == true);
+    CHECK(saved_state.arrangement.audio_asset == std::optional{original_asset});
+    CHECK_FALSE(saved_state.unsaved_changes_prompt.has_value());
+
+    const BusyViewState* opening_busy = busyOrNull(opening_state);
+    REQUIRE(opening_busy != nullptr);
+    CHECK(opening_busy->operation == BusyOperation::OpeningProject);
+    CHECK(opening_state.arrangement.audio_asset == std::optional{original_asset});
+
+    runner.runPendingCompletions();
+
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    CHECK(final_state->project_loaded == true);
+    CHECK(final_state->arrangement.audio_asset == std::optional{replacement_asset});
+    CHECK(
+        controller.currentProjectFile() == std::optional{std::filesystem::path{"replacement.rhp"}});
+}
+
 // Save As sets busy=SavingProjectAs before the deferred write completion commits the path.
 TEST_CASE("EditorController save as begins busy with default message", "[core][editor-controller]")
 {
