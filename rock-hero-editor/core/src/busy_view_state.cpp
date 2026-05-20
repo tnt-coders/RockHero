@@ -23,6 +23,8 @@ std::string busyMessage(BusyOperation operation)
             return "Changing audio device...";
         case BusyOperation::LoadingPlugin:
             return "Loading plugin...";
+        case BusyOperation::ScanningPlugins:
+            return "Scanning plugins...";
         case BusyOperation::LoadingLiveRig:
             return "Loading live rig...";
     }
@@ -45,6 +47,7 @@ BusyPresentation busyPresentation(BusyOperation operation) noexcept
         case BusyOperation::SavingProjectAs:
         case BusyOperation::PublishingProject:
         case BusyOperation::ChangingAudioDevice:
+        case BusyOperation::ScanningPlugins:
             return BusyPresentation::Animated;
     }
 

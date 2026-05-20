@@ -31,6 +31,28 @@ public:
         return next_scan_candidates;
     }
 
+    // Records catalog roots and returns the configured catalog candidates or failure.
+    std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
+        const std::vector<std::filesystem::path>& roots) override
+    {
+        last_scan_roots = roots;
+        ++catalog_scan_call_count;
+
+        if (next_catalog_scan_error.has_value())
+        {
+            return std::unexpected{*next_catalog_scan_error};
+        }
+
+        return next_catalog_candidates;
+    }
+
+    // Returns the configured known catalog without simulating a plugin scan.
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCandidates() const override
+    {
+        ++known_candidates_call_count;
+        return next_known_candidates;
+    }
+
     // Records the selected candidate ID and returns the configured handle or add failure.
     std::expected<PluginHandle, PluginHostError> addPlugin(const std::string& plugin_id) override
     {
@@ -84,8 +106,33 @@ public:
         },
     };
 
+    // Candidate list returned by successful catalog scans.
+    std::vector<PluginCandidate> next_catalog_candidates{
+        PluginCandidate{
+            .id = "vst3:catalog-amp",
+            .name = "Catalog Amp",
+            .manufacturer = "Rock Hero Tests",
+            .format_name = "VST3",
+            .file_path = std::filesystem::path{"CatalogAmp.vst3"},
+        },
+    };
+
+    // Candidate list returned by the lightweight known-catalog read.
+    std::vector<PluginCandidate> next_known_candidates{
+        PluginCandidate{
+            .id = "vst3:known-amp",
+            .name = "Known Amp",
+            .manufacturer = "Rock Hero Tests",
+            .format_name = "VST3",
+            .file_path = std::filesystem::path{"KnownAmp.vst3"},
+        },
+    };
+
     // Optional error returned by the next scan request.
     std::optional<PluginHostError> next_scan_error{};
+
+    // Optional error returned by the next catalog scan request.
+    std::optional<PluginHostError> next_catalog_scan_error{};
 
     // Handle returned by successful add requests.
     PluginHandle next_handle{
@@ -106,6 +153,9 @@ public:
     // Last path passed to scanPluginFile().
     std::optional<std::filesystem::path> last_scan_path{};
 
+    // Last roots passed to scanPluginLocations().
+    std::vector<std::filesystem::path> last_scan_roots{};
+
     // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
@@ -117,6 +167,12 @@ public:
 
     // Number of scan requests received.
     int scan_call_count{0};
+
+    // Number of catalog scan requests received.
+    int catalog_scan_call_count{0};
+
+    // Number of known-catalog reads received.
+    mutable int known_candidates_call_count{0};
 
     // Number of add requests received.
     int add_call_count{0};
@@ -144,6 +200,34 @@ TEST_CASE("IPluginHost scans plugin candidates", "[audio][plugin-host]")
     CHECK(candidates->front().format_name == "VST3");
     CHECK(plugin_host.last_scan_path == std::optional{std::filesystem::path{"Amp.vst3"}});
     CHECK(plugin_host.scan_call_count == 1);
+}
+
+// Verifies catalog scans expose scanned plugin candidates without selecting a single file.
+TEST_CASE("IPluginHost scans plugin catalog locations", "[audio][plugin-host]")
+{
+    FakePluginHost plugin_host;
+    const std::vector<std::filesystem::path> roots{std::filesystem::path{"VST3"}};
+
+    const auto candidates = plugin_host.scanPluginLocations(roots);
+
+    REQUIRE(candidates.has_value());
+    REQUIRE(candidates->size() == 1);
+    CHECK(candidates->front().id == "vst3:catalog-amp");
+    CHECK(plugin_host.last_scan_roots == roots);
+    CHECK(plugin_host.catalog_scan_call_count == 1);
+}
+
+// Verifies known candidates can be displayed without scanning plugin folders.
+TEST_CASE("IPluginHost returns known plugin candidates", "[audio][plugin-host]")
+{
+    const FakePluginHost plugin_host;
+
+    const std::vector<PluginCandidate> candidates = plugin_host.knownPluginCandidates();
+
+    REQUIRE(candidates.size() == 1);
+    CHECK(candidates.front().id == "vst3:known-amp");
+    CHECK(plugin_host.known_candidates_call_count == 1);
+    CHECK(plugin_host.catalog_scan_call_count == 0);
 }
 
 // Verifies selected plugin candidates are appended through an opaque returned instance handle.

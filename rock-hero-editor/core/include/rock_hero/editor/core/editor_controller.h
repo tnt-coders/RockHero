@@ -327,12 +327,27 @@ public:
     /*!
     \brief Scans a plugin file and appends the first candidate to the plugin chain.
 
-    The initial UI path intentionally handles the common one-candidate VST3 case. Future chooser
-    state can branch on multiple scanned candidates without changing the controller/view boundary.
+    This remains as a compatibility path for explicit file-based plugin adds. The normal UI flow
+    uses the scanned plugin browser and onPluginCandidateAddRequested().
 
     \param file Filesystem path selected by the user.
     */
     void onAddPluginRequested(std::filesystem::path file) override;
+
+    /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
+    void onPluginBrowserRequested() override;
+
+    /*! \brief Hides the scanned plugin browser. */
+    void onPluginBrowserClosed() override;
+
+    /*! \brief Starts a plugin catalog scan for the browser. */
+    void onPluginCatalogScanRequested() override;
+
+    /*!
+    \brief Adds a selected scanned plugin candidate to the runtime plugin chain.
+    \param plugin_id Opaque plugin candidate ID selected by the user.
+    */
+    void onPluginCandidateAddRequested(std::string plugin_id) override;
 
     /*!
     \brief Removes a plugin instance from the current runtime plugin chain.
