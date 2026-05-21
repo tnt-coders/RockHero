@@ -16,6 +16,19 @@ namespace
 class FakePluginHost final : public IPluginHost
 {
 public:
+    // Records a default catalog scan and returns the configured catalog candidates or failure.
+    std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginCatalog() override
+    {
+        ++catalog_scan_call_count;
+
+        if (next_catalog_scan_error.has_value())
+        {
+            return std::unexpected{*next_catalog_scan_error};
+        }
+
+        return next_catalog_candidates;
+    }
+
     // Records catalog roots and returns the configured catalog candidates or failure.
     std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
         const std::vector<std::filesystem::path>& roots) override
@@ -32,7 +45,7 @@ public:
     }
 
     // Returns the configured known catalog without simulating a plugin scan.
-    [[nodiscard]] std::vector<PluginCandidate> knownPluginCandidates() const override
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalog() const override
     {
         ++known_candidates_call_count;
         return next_known_candidates;
@@ -151,6 +164,20 @@ public:
 
 } // namespace
 
+// Verifies default catalog scans let the host own platform-specific plugin search policy.
+TEST_CASE("IPluginHost scans default plugin catalog", "[audio][plugin-host]")
+{
+    FakePluginHost plugin_host;
+
+    const auto candidates = plugin_host.scanPluginCatalog();
+
+    REQUIRE(candidates.has_value());
+    REQUIRE(candidates->size() == 1);
+    CHECK(candidates->front().id == "vst3:catalog-amp");
+    CHECK(plugin_host.last_scan_roots.empty());
+    CHECK(plugin_host.catalog_scan_call_count == 1);
+}
+
 // Verifies catalog scans expose scanned plugin candidates without selecting a single file.
 TEST_CASE("IPluginHost scans plugin catalog locations", "[audio][plugin-host]")
 {
@@ -171,7 +198,7 @@ TEST_CASE("IPluginHost returns known plugin candidates", "[audio][plugin-host]")
 {
     const FakePluginHost plugin_host;
 
-    const std::vector<PluginCandidate> candidates = plugin_host.knownPluginCandidates();
+    const std::vector<PluginCandidate> candidates = plugin_host.knownPluginCatalog();
 
     REQUIRE(candidates.size() == 1);
     CHECK(candidates.front().id == "vst3:known-amp");
