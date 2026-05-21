@@ -48,6 +48,24 @@ const juce::Colour g_alternate_row_colour{juce::Colours::darkgrey.darker(0.1f)};
     return value.empty() ? juce::String{fallback} : juce::String{value};
 }
 
+// Builds cached lowercase search text for one plugin row.
+[[nodiscard]] std::string pluginFilterText(const core::PluginCandidateViewState& plugin)
+{
+    const std::string path = plugin.file_path.string();
+    std::string text;
+    text.reserve(
+        plugin.name.size() + plugin.manufacturer.size() + plugin.format_name.size() + path.size() +
+        3);
+    text.append(plugin.name);
+    text.push_back(' ');
+    text.append(plugin.manufacturer);
+    text.push_back(' ');
+    text.append(plugin.format_name);
+    text.push_back(' ');
+    text.append(path);
+    return lowerText(std::move(text));
+}
+
 } // namespace
 
 // Dense browser content used by the top-level plugin browser window.
@@ -103,6 +121,7 @@ public:
     {
         const std::string previous_selection = selectedPluginId();
         m_state = state;
+        rebuildFilterTextCache();
         rebuildFilteredIndices();
         selectPluginId(previous_selection);
         updateControls();
@@ -254,6 +273,17 @@ private:
         m_list_box.deselectAllRows();
     }
 
+    // Rebuilds the lowercase search text that stays parallel to m_state.plugins.
+    void rebuildFilterTextCache()
+    {
+        m_filter_texts.clear();
+        m_filter_texts.reserve(m_state.plugins.size());
+        for (const core::PluginCandidateViewState& plugin : m_state.plugins)
+        {
+            m_filter_texts.push_back(pluginFilterText(plugin));
+        }
+    }
+
     // Rebuilds the filtered row map from the search field.
     void rebuildFilteredIndices()
     {
@@ -261,7 +291,7 @@ private:
         const std::string filter = lowerText(m_filter_editor.getText().toStdString());
         for (std::size_t index = 0; index < m_state.plugins.size(); ++index)
         {
-            if (pluginMatchesFilter(m_state.plugins[index], filter))
+            if (pluginMatchesFilter(index, filter))
             {
                 m_filtered_indices.push_back(index);
             }
@@ -272,17 +302,15 @@ private:
 
     // Returns whether one plugin matches the current lowercase filter.
     [[nodiscard]] bool pluginMatchesFilter(
-        const core::PluginCandidateViewState& plugin, const std::string& filter) const
+        std::size_t plugin_index, const std::string& filter) const
     {
         if (filter.empty())
         {
             return true;
         }
 
-        const std::string haystack = lowerText(
-            plugin.name + " " + plugin.manufacturer + " " + plugin.format_name + " " +
-            plugin.file_path.string());
-        return haystack.find(filter) != std::string::npos;
+        return plugin_index < m_filter_texts.size() &&
+               m_filter_texts[plugin_index].find(filter) != std::string::npos;
     }
 
     // Adds the currently selected plugin if both state and selection allow it.
@@ -335,6 +363,9 @@ private:
 
     // Plugin indices that pass the current filter.
     std::vector<std::size_t> m_filtered_indices;
+
+    // Lowercase search text parallel to m_state.plugins, rebuilt when state changes.
+    std::vector<std::string> m_filter_texts;
 };
 
 // Creates a native top-level browser window with owned content.
