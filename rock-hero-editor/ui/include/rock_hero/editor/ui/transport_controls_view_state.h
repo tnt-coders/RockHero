@@ -1,5 +1,5 @@
 /*!
-\file transport_controls_state.h
+\file transport_controls_view_state.h
 \brief Framework-free state rendered by the transport-controls widget.
 */
 
@@ -11,7 +11,7 @@ namespace rock_hero::editor::ui
 /*!
 \brief State needed to render transport button enabledness and play/pause visuals.
 */
-struct TransportControlsState
+struct TransportControlsViewState
 {
     /*! \brief Enables or disables the play/pause button. */
     bool play_pause_enabled{false};
@@ -23,13 +23,13 @@ struct TransportControlsState
     bool play_pause_shows_pause_icon{false};
 
     /*!
-    \brief Compares two transport-control states by value.
-    \param lhs Left-hand transport-controls state.
-    \param rhs Right-hand transport-controls state.
-    \return True when both transport-controls states store equal values.
+    \brief Compares two transport-controls view states by value.
+    \param lhs Left-hand transport-controls view state.
+    \param rhs Right-hand transport-controls view state.
+    \return True when both transport-controls view states store equal values.
     */
-    friend bool operator==(const TransportControlsState& lhs, const TransportControlsState& rhs) =
-        default;
+    friend bool operator==(
+        const TransportControlsViewState& lhs, const TransportControlsViewState& rhs) = default;
 };
 
 } // namespace rock_hero::editor::ui

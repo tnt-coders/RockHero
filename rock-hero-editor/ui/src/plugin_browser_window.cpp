@@ -146,7 +146,7 @@ private:
     void paintListBoxItem(
         int row_number, juce::Graphics& g, int width, int height, bool row_is_selected) override
     {
-        const core::PluginCandidateState* const plugin = pluginAtRow(row_number);
+        const core::PluginCandidateViewState* const plugin = pluginAtRow(row_number);
         if (plugin == nullptr)
         {
             return;
@@ -207,7 +207,7 @@ private:
     }
 
     // Returns the plugin represented by a filtered row, or null for invalid rows.
-    [[nodiscard]] const core::PluginCandidateState* pluginAtRow(int row) const
+    [[nodiscard]] const core::PluginCandidateViewState* pluginAtRow(int row) const
     {
         if (row < 0 || static_cast<std::size_t>(row) >= m_filtered_indices.size())
         {
@@ -226,7 +226,8 @@ private:
     // Returns the currently selected plugin ID, or empty if the selection is invalid.
     [[nodiscard]] std::string selectedPluginId() const
     {
-        const core::PluginCandidateState* const plugin = pluginAtRow(m_list_box.getSelectedRow());
+        const core::PluginCandidateViewState* const plugin =
+            pluginAtRow(m_list_box.getSelectedRow());
         return plugin != nullptr ? plugin->id : std::string{};
     }
 
@@ -271,7 +272,7 @@ private:
 
     // Returns whether one plugin matches the current lowercase filter.
     [[nodiscard]] bool pluginMatchesFilter(
-        const core::PluginCandidateState& plugin, const std::string& filter) const
+        const core::PluginCandidateViewState& plugin, const std::string& filter) const
     {
         if (filter.empty())
         {

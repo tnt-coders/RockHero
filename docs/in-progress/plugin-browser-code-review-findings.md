@@ -9,11 +9,10 @@ code.
 ## Resolution Status
 
 - **Resolved:** finding 1 (re-entrant Close-button destruction), finding 2 (legacy file-path
-  `AddPlugin`), finding 3 (catalog merge/replace inconsistency), finding 8 (PluginCandidate
-  dual-use leak risk).
-- **Open:** finding 4 (catalog roots in editor-core), finding 5 (paint-fence comment nit),
-  finding 6 (catalog ownership split between Tracktion and controller), finding 7 (minor
-  efficiency notes; no action required yet).
+  `AddPlugin`), finding 3 (catalog merge/replace inconsistency), finding 4 (catalog roots in
+  editor-core), finding 5 (paint-fence comment nit), finding 6 (catalog ownership split between
+  Tracktion and controller), finding 8 (PluginCandidate dual-use leak risk).
+- **Open:** finding 7 (minor efficiency notes; no action required yet).
 
 ## Purpose
 
@@ -40,9 +39,8 @@ The original checklist items, with their current verdict against the code:
 
 - **Clean layering** — Pass. Tracktion/JUCE plugin details stay behind
   `common::audio::IPluginHost`. Editor workflow lives in `editor/core`. UI components only
-  render state and emit intents. One caveat under finding 4: platform path resolution leaked
-  into core.
-- **Cheap browser open** — Pass. `ShowPluginBrowser` calls `knownPluginCandidates()` only; no
+  render state and emit intents.
+- **Cheap browser open** — Pass. `ShowPluginBrowser` calls `knownPluginCatalog()` only; no
   filesystem traversal, no plugin scanner launch. Rescan is the only path that walks the default
   plugin folders.
 - **Lifecycle on project changes** — Pass. `closeProject` and `loadSessionSong` reset
@@ -53,7 +51,7 @@ The original checklist items, with their current verdict against the code:
   before mutating state.
 - **Startup restore paint fence** — Pass. The `!isShowing()` branch in
   `EditorView::runAfterBusyOverlayPainted` keeps the project-open continuation from blocking on
-  an impossible paint. See finding 5 for an open readability nit.
+  an impossible paint and now names its reentrancy guard.
 - **Scan failure surfacing** — Pass. `scanPluginLocationsForCandidates` skips per-plugin
   `NoCompatiblePlugin` and `MissingPluginFile` errors so one bad binary cannot mask the rest,
   and surfaces the first real scanner failure when nothing was found.
@@ -64,7 +62,7 @@ The original checklist items, with their current verdict against the code:
 ## Summary
 
 The change set delivers the intended user-facing behavior: the Add Plugin button opens an in-app
-searchable catalog backed by `IPluginHost::knownPluginCandidates()`, first browser open is cheap,
+searchable catalog backed by `IPluginHost::knownPluginCatalog()`, first browser open is cheap,
 broad scans are gated behind explicit Rescan, and project lifecycle correctly closes the browser
 on project replacement/close.
 
@@ -132,7 +130,7 @@ through a new `addKnownPlugin` helper.
 
 **Where (at time of finding):** `rock-hero-editor/core/src/editor_controller.cpp:1751` (merge
 after file-picker scan) versus `:1825` (replace after Rescan); `:1681` (overwrite from
-`knownPluginCandidates` on `ShowPluginBrowser`).
+`knownPluginCatalog` on `ShowPluginBrowser`).
 
 `completePluginCatalogScan` did `m_plugin_catalog = std::move(*state->candidates)` — wholesale
 replacement. `completeAddPluginScan` called `mergePluginCatalogCandidates`. Both paths
@@ -143,33 +141,30 @@ part of finding 2's cleanup, taking `mergePluginCatalogCandidates` with it. The 
 catalog producers (`ShowPluginBrowser` and `ScanPluginCatalog`) both replace, so there is no
 inconsistency left.
 
-**Still open as a semantic question, not a bug:** after a Rescan, anything Tracktion knew about
-that does not live under the default VST3 roots disappears from the catalog. If that is
-intentional (Rescan = canonical), it deserves a comment; otherwise the Rescan completion should
-merge into, not replace, the catalog. This overlaps with finding 6 (catalog ownership) and
-should be revisited together with it.
+**Follow-up:** `ScanPluginCatalog` now calls `IPluginHost::scanPluginCatalog()`, which refreshes
+the host-owned default catalog and returns the host's known plugins. The controller still
+replaces its browser snapshot, but that snapshot is explicitly derived from the host catalog.
 
 ### 4. Catalog roots resolved inside `editor/core`
 
-**Status:** Open.
+**Status:** Resolved.
 
-**Where:** `rock-hero-editor/core/src/editor_controller.cpp:184-241` (`environmentPath`,
-`appendEnvironmentSubpath`, `defaultPluginCatalogRoots`).
+**Where (at time of finding):** `rock-hero-editor/core/src/editor_controller.cpp:184-241`
+(`environmentPath`, `appendEnvironmentSubpath`, `defaultPluginCatalogRoots`).
 
-`editor/core` currently reads environment variables (`_dupenv_s` / `std::getenv`) and embeds
+`editor/core` previously read environment variables (`_dupenv_s` / `std::getenv`) and embedded
 hard-coded paths under `#if defined(_WIN32) / __APPLE__ / else`. Per
 `docs/design/architectural-principles.md`, environment- and platform-shaped concerns belong
 behind a port so the headless core stays automated-testable.
 
-**Suggested refactor:** inject an `IPluginCatalogPaths` (or a `std::function` constructor
-parameter returning `std::vector<std::filesystem::path>`) into the controller, and supply the
-platform-specific defaults from the editor `app/` layer. This also unblocks the deferred
-"user-configurable plugin search paths" follow-up without touching core, and makes Rescan tests
-in `test_editor_controller` independent of the host machine's environment variables.
+**Fix:** default VST3 root resolution moved behind the audio boundary. `EditorController` now
+expresses only the user intent by calling `IPluginHost::scanPluginCatalog()`. The Tracktion-backed
+`Engine` owns platform/environment root selection and still exposes `scanPluginLocations()` for
+future user-configurable roots.
 
 ### 5. `runAfterBusyOverlayPainted` startup fallback intent
 
-**Status:** Open.
+**Status:** Resolved.
 
 **Where:** `rock-hero-editor/ui/src/editor_view.cpp:782-795`.
 
@@ -183,9 +178,12 @@ reentrancy guard so a future reader does not "simplify" the member assignment aw
 shape: skip the member assignment entirely when `!isShowing()` and just invoke `callback`
 locally — same effect, no apparent redundancy.
 
+**Fix:** the fallback now comments that the member is cleared before invoking the callback so
+reentrant fence requests observe no stale callback.
+
 ### 6. Catalog ownership split between Tracktion and the controller
 
-**Status:** Open.
+**Status:** Resolved.
 
 **Where:** `rock-hero-common/audio/src/engine.cpp` (Tracktion `KnownPluginList`) versus
 `rock-hero-editor/core/src/editor_controller.cpp` (`m_plugin_catalog`).
@@ -197,7 +195,9 @@ behavior is that a user-initiated rescan updates the host's known list. If we ev
 that, the boundary should clarify which side is canonical; for now a comment at
 `completePluginCatalogScan` is enough.
 
-This pairs with the remaining open piece of finding 3.
+**Fix:** `IPluginHost::scanPluginCatalog()` is now the full-catalog refresh port. `Engine`
+scans default roots through Tracktion, updates Tracktion's `KnownPluginList`, and returns the
+known catalog after the refresh. The controller keeps only a sorted UI snapshot of that result.
 
 ### 7. Minor efficiency notes (no action required yet)
 
@@ -206,8 +206,8 @@ This pairs with the remaining open piece of finding 3.
 - `appendUniquePluginCandidate` is O(N) per insert (O(N²) total). For realistic VST3 counts this
   is fine; if catalog sizes grow, swap to an `std::unordered_set<std::string>` for seen IDs.
 - `PluginBrowserWindow::Content::rebuildFilteredIndices` recomputes a lowercased haystack per
-  candidate per keystroke. Fine for ≤1k plugins; if it becomes noticeable, cache a precomputed
-  lowercase haystack per candidate inside `setState`.
+  plugin per keystroke. Fine for ≤1k plugins; if it becomes noticeable, cache a precomputed
+  lowercase haystack per plugin inside `setState`.
 - `scanPluginLocationsForCandidates` correctly disables recursion into VST3 bundle directories
   via `disable_recursion_pending`. No issue, called out only because the path is easy to break
   on later edits.
@@ -227,32 +227,24 @@ while the two types were field-for-field identical, but it left no mechanical gu
 future fields on `common::audio::PluginCandidate` (Tracktion or JUCE handles, raw plugin
 descriptions, opaque backend payloads) silently shipping into editor-ui state.
 
-**Fix:** `rock-hero-editor/core/include/rock_hero/editor/core/plugin_candidate_state.h` defines
-`core::PluginCandidateState` as the editor-core workflow record. The controller lifts the
-audio-boundary catalog through `makePluginCandidateState` / `makePluginCandidateStates`
+**Fix:** `rock-hero-editor/core/include/rock_hero/editor/core/plugin_candidate_view_state.h` defines
+`core::PluginCandidateViewState` as the editor-core workflow record. The controller lifts the
+audio-boundary catalog through `makePluginCandidateViewState` / `makePluginCandidateViewStates`
 helpers in `editor_controller.cpp`, and `PluginBrowserViewState::plugins` now holds
-`std::vector<core::PluginCandidateState>`. The controller is the single seam, so any future
+`std::vector<core::PluginCandidateViewState>`. The controller is the single seam, so any future
 backend-shaped field added to `common::audio::PluginCandidate` cannot reach editor-ui without
 going through that conversion. The previously-extracted `plugin_candidate.h` header is removed
 and `PluginCandidate` is folded back into `i_plugin_host.h` because the editor side no longer
 needs a slim header to avoid pulling the port in.
 
 Editor-only fields (favorites, match scores, last-used timestamps) now have a natural home on
-`PluginCandidateState` rather than on the audio-boundary type.
+`PluginCandidateViewState` rather than on the audio-boundary type.
 
 ## Suggested Ordering
 
-Remaining open work, ordered by impact:
+Remaining open work:
 
-1. Finding 4 (catalog roots injection). Highest payoff: removes the env-var and platform `#if`
-   leakage from `editor/core`, makes Rescan tests host-independent, and prepares the seam that
-   the deferred "user-configurable plugin search paths" follow-up will plug into.
-2. Findings 3 (remaining semantic question) and 6 (catalog ownership) together. Both are about
-   what Rescan means and which side of the audio boundary owns canonical catalog state. A small
-   change either way, but they should be decided in the same pass.
-3. Finding 5 (paint-fence comment nit). Two-line edit; ride along with whatever else touches
-   `editor_view.cpp` next.
-4. Finding 7 (efficiency notes). No action needed until catalog sizes grow.
+1. Finding 7 (efficiency notes). No action needed until catalog sizes grow.
 
 ## Out of Scope
 
