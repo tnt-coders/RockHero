@@ -52,10 +52,11 @@ public:
         return next_known_candidates;
     }
 
-    // Records the selected candidate ID and returns the configured handle or add failure.
-    std::expected<PluginHandle, PluginHostError> addPlugin(const std::string& plugin_id) override
+    // Records the selected candidate and returns the configured handle or add failure.
+    std::expected<PluginHandle, PluginHostError> addPlugin(
+        const PluginCandidate& plugin_candidate) override
     {
-        last_added_plugin_id = plugin_id;
+        last_added_plugin_candidate = plugin_candidate;
         ++add_call_count;
 
         if (next_add_error.has_value())
@@ -63,7 +64,9 @@ public:
             return std::unexpected{*next_add_error};
         }
 
-        return next_handle;
+        PluginHandle handle = next_handle;
+        handle.plugin_id = plugin_candidate.id;
+        return handle;
     }
 
     // Records the removed instance ID and returns the configured removal result.
@@ -138,8 +141,8 @@ public:
     // Last roots passed to scanPluginLocations().
     std::vector<std::filesystem::path> last_scan_roots{};
 
-    // Last candidate ID passed to addPlugin().
-    std::optional<std::string> last_added_plugin_id{};
+    // Last candidate passed to addPlugin().
+    std::optional<PluginCandidate> last_added_plugin_candidate{};
 
     // Last plugin instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
@@ -213,14 +216,21 @@ TEST_CASE("IPluginHost returns known plugin candidates", "[audio][plugin-host]")
 TEST_CASE("IPluginHost adds a plugin", "[audio][plugin-host]")
 {
     FakePluginHost plugin_host;
+    const PluginCandidate selected_candidate{
+        .id = "vst3:amp",
+        .name = "Amp",
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = std::filesystem::path{"Amp.vst3"},
+    };
 
-    const auto handle = plugin_host.addPlugin("vst3:amp");
+    const auto handle = plugin_host.addPlugin(selected_candidate);
 
     REQUIRE(handle.has_value());
     CHECK(handle->instance_id == "1");
     CHECK(handle->plugin_id == "vst3:amp");
     CHECK(handle->chain_index == 0);
-    CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"vst3:amp"});
+    CHECK(plugin_host.last_added_plugin_candidate == std::optional{selected_candidate});
     CHECK(plugin_host.add_call_count == 1);
 }
 
@@ -229,12 +239,19 @@ TEST_CASE("IPluginHost add can fail with a typed error", "[audio][plugin-host]")
 {
     FakePluginHost plugin_host;
     plugin_host.next_add_error = PluginHostError{PluginHostErrorCode::PluginNotFound};
+    const PluginCandidate selected_candidate{
+        .id = "missing",
+        .name = "Missing",
+        .manufacturer = {},
+        .format_name = "VST3",
+        .file_path = {},
+    };
 
-    const auto handle = plugin_host.addPlugin("missing");
+    const auto handle = plugin_host.addPlugin(selected_candidate);
 
     REQUIRE_FALSE(handle.has_value());
     CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
-    CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"missing"});
+    CHECK(plugin_host.last_added_plugin_candidate == std::optional{selected_candidate});
     CHECK(plugin_host.add_call_count == 1);
 }
 
