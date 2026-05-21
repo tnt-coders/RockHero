@@ -329,19 +329,6 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     CHECK_FALSE(prepared);
 }
 
-// Verifies plugin scanning rejects missing plugin paths without touching Tracktion graph state.
-TEST_CASE("Engine plugin host rejects missing plugin files", "[audio][engine][integration]")
-{
-    EngineTestHarness harness;
-    IPluginHost& plugin_host = harness.engine;
-
-    const auto candidates =
-        plugin_host.scanPluginFile(fixtureAudioPath().parent_path() / "missing.vst3");
-
-    REQUIRE_FALSE(candidates.has_value());
-    CHECK(candidates.error().code == PluginHostErrorCode::MissingPluginFile);
-}
-
 // Verifies plugin insertion reports unknown candidate IDs as a typed boundary failure.
 TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][integration]")
 {

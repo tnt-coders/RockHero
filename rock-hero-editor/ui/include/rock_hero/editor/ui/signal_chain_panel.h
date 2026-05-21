@@ -31,7 +31,7 @@ public:
         /*! \brief Destroys the listener interface. */
         virtual ~Listener() = default;
 
-        /*! \brief Called when the user requests a plugin file for the chain. */
+        /*! \brief Called when the user requests the plugin browser for the chain. */
         virtual void onAddPluginPressed() = 0;
 
         /*!
