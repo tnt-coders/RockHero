@@ -162,33 +162,6 @@ void defaultExit()
     };
 }
 
-// Converts scanner metadata into stable, framework-free state for the plugin browser window.
-[[nodiscard]] PluginBrowserCandidateViewState makePluginBrowserCandidateViewState(
-    const common::audio::PluginCandidate& candidate)
-{
-    return PluginBrowserCandidateViewState{
-        .id = candidate.id,
-        .name = candidate.name,
-        .manufacturer = candidate.manufacturer,
-        .format_name = candidate.format_name,
-        .file_path = candidate.file_path,
-    };
-}
-
-// Converts the audio-boundary catalog into plugin-browser view state.
-[[nodiscard]] std::vector<PluginBrowserCandidateViewState> makePluginBrowserCandidateViewStates(
-    const std::vector<common::audio::PluginCandidate>& candidates)
-{
-    std::vector<PluginBrowserCandidateViewState> states;
-    states.reserve(candidates.size());
-    for (const common::audio::PluginCandidate& candidate : candidates)
-    {
-        states.push_back(makePluginBrowserCandidateViewState(candidate));
-    }
-
-    return states;
-}
-
 // Adds a path once so default roots can combine environment-derived and fallback locations.
 void appendUniquePath(std::vector<std::filesystem::path>& paths, std::filesystem::path path)
 {
@@ -279,24 +252,32 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& candidates)
         });
 }
 
-// Merges file-based scans into the browser catalog so later browser opens can reuse them.
-void mergePluginCatalogCandidates(
-    std::vector<common::audio::PluginCandidate>& catalog,
+// Lifts an audio-boundary plugin candidate into editor-core workflow state. The conversion is the
+// single seam between common::audio::PluginCandidate and editor-core, so backend-shaped fields
+// added to the audio-boundary type cannot reach editor-ui without going through this helper.
+[[nodiscard]] PluginCandidateState makePluginCandidateState(
+    const common::audio::PluginCandidate& candidate)
+{
+    return PluginCandidateState{
+        .id = candidate.id,
+        .name = candidate.name,
+        .manufacturer = candidate.manufacturer,
+        .format_name = candidate.format_name,
+        .file_path = candidate.file_path,
+    };
+}
+
+// Lifts the controller's in-memory catalog into editor-core workflow state for the view.
+[[nodiscard]] std::vector<PluginCandidateState> makePluginCandidateStates(
     const std::vector<common::audio::PluginCandidate>& candidates)
 {
+    std::vector<PluginCandidateState> states;
+    states.reserve(candidates.size());
     for (const common::audio::PluginCandidate& candidate : candidates)
     {
-        const auto duplicate =
-            std::ranges::find_if(catalog, [&candidate](const common::audio::PluginCandidate& item) {
-                return item.id == candidate.id;
-            });
-        if (duplicate == catalog.end())
-        {
-            catalog.push_back(candidate);
-        }
+        states.push_back(makePluginCandidateState(candidate));
     }
-
-    sortPluginCatalog(catalog);
+    return states;
 }
 
 // Converts restored or captured live rig state into the signal-chain panel's view model.
@@ -353,10 +334,9 @@ void mergePluginCatalogCandidates(
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPluginCandidate:
+        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -396,10 +376,9 @@ void mergePluginCatalogCandidates(
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPluginCandidate:
+        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -494,11 +473,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPlayPausePressed();
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
-    void onAddPluginRequested(std::filesystem::path file);
     void onPluginBrowserRequested();
     void onPluginBrowserClosed();
     void onPluginCatalogScanRequested();
-    void onPluginCandidateAddRequested(std::string plugin_id);
+    void onAddPluginRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onOpenPluginRequested(std::string instance_id);
     void onTransportStateChanged(common::audio::TransportState state) override;
@@ -520,10 +498,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
-    void performActionImpl(const EditorAction::AddPlugin& action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
-    void performActionImpl(const EditorAction::AddPluginCandidate& action);
+    void performActionImpl(const EditorAction::AddPlugin& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
@@ -541,7 +518,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
-    void completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
     void beginAddKnownPlugin(const common::audio::PluginCandidate& candidate);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
@@ -666,7 +642,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Runtime plugin chain shown by the view and refreshed from the live rig boundary.
     std::vector<PluginViewState> m_plugins;
 
-    // Plugin candidates shown in the browser and selected by opaque candidate ID.
+    // Plugins shown in the browser and selected by opaque plugin ID.
     std::vector<common::audio::PluginCandidate> m_plugin_catalog;
 
     // True while the plugin browser should be visible.
@@ -757,14 +733,11 @@ struct EditorController::Impl::ImportTaskState
     std::expected<common::core::Song, ProjectError> result{};
 };
 
-// Per-operation worker state for AddPlugin discovery. The slow Tracktion plugin scan runs on a
-// worker so the busy overlay stays responsive. Actual chain mutation happens on the message thread
-// in the completion callback because Tracktion requires it.
+// Per-operation state for selected browser-plugin loading. Actual chain mutation happens on
+// the message thread after the busy overlay has painted because Tracktion requires it.
 struct EditorController::Impl::AddPluginTaskState
 {
-    std::filesystem::path file{};
-    std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-        candidates{};
+    common::audio::PluginCandidate candidate{};
 };
 
 // Per-operation worker state for plugin catalog scanning. The worker owns filesystem traversal and
@@ -952,11 +925,6 @@ void EditorController::onWaveformClicked(double normalized_x)
     m_impl->onWaveformClicked(normalized_x);
 }
 
-void EditorController::onAddPluginRequested(std::filesystem::path file)
-{
-    m_impl->onAddPluginRequested(std::move(file));
-}
-
 void EditorController::onPluginBrowserRequested()
 {
     m_impl->onPluginBrowserRequested();
@@ -972,9 +940,9 @@ void EditorController::onPluginCatalogScanRequested()
     m_impl->onPluginCatalogScanRequested();
 }
 
-void EditorController::onPluginCandidateAddRequested(std::string plugin_id)
+void EditorController::onAddPluginRequested(std::string plugin_id)
 {
-    m_impl->onPluginCandidateAddRequested(std::move(plugin_id));
+    m_impl->onAddPluginRequested(std::move(plugin_id));
 }
 
 void EditorController::onRemovePluginRequested(std::string instance_id)
@@ -1400,13 +1368,6 @@ void EditorController::Impl::onWaveformClicked(double normalized_x)
     runAction(EditorAction::SeekWaveform{normalized_x});
 }
 
-// Handles the first plugin UI flow: scan one selected VST3 file, append the first discovered
-// candidate, and publish enough state for the panel to show the linear chain.
-void EditorController::Impl::onAddPluginRequested(std::filesystem::path file)
-{
-    runAction(EditorAction::AddPlugin{std::move(file)});
-}
-
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
 // intentionally left behind the explicit Rescan button because plugin scans can be slow.
 void EditorController::Impl::onPluginBrowserRequested()
@@ -1433,10 +1394,10 @@ void EditorController::Impl::onPluginCatalogScanRequested()
     runAction(EditorAction::ScanPluginCatalog{});
 }
 
-// Adds the catalog item selected by the browser window.
-void EditorController::Impl::onPluginCandidateAddRequested(std::string plugin_id)
+// Adds the plugin selected by the browser window.
+void EditorController::Impl::onAddPluginRequested(std::string plugin_id)
 {
-    runAction(EditorAction::AddPluginCandidate{std::move(plugin_id)});
+    runAction(EditorAction::AddPlugin{std::move(plugin_id)});
 }
 
 // Removes one runtime plugin instance from the current linear chain without marking the project
@@ -1646,29 +1607,6 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekWaveform action
     updateView();
 }
 
-// Offloads the slow Tracktion plugin scan to the editor task runner so the busy overlay stays
-// responsive while the file is inspected. Actual chain mutation resumes on the message thread
-// in the completion callback because Tracktion plugin insertion requires it.
-void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& action)
-{
-    if (m_plugin_host == nullptr || !hasLoadedArrangement())
-    {
-        return;
-    }
-
-    auto state = std::make_shared<AddPluginTaskState>();
-    state->file = action.file;
-    runBusyOperation(
-        BusyOperation::LoadingPlugin,
-        state,
-        [plugin_host = m_plugin_host](const std::shared_ptr<AddPluginTaskState>& task_state) {
-            task_state->candidates = plugin_host->scanPluginFile(task_state->file);
-        },
-        [this](const std::shared_ptr<AddPluginTaskState>& task_state) {
-            completeAddPluginScan(task_state);
-        });
-}
-
 // Makes the browser visible and refreshes the lightweight in-memory catalog.
 void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /*action*/)
 {
@@ -1704,9 +1642,9 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
         });
 }
 
-// Begins loading the selected browser candidate. The catalog is the authority for display
+// Begins loading the selected browser plugin. The catalog is the authority for display
 // metadata, while the audio boundary remains the authority for creating the runtime plugin.
-void EditorController::Impl::performActionImpl(const EditorAction::AddPluginCandidate& action)
+void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& action)
 {
     if (m_plugin_host == nullptr || !hasLoadedArrangement())
     {
@@ -1727,51 +1665,12 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPluginCand
     beginAddKnownPlugin(*candidate);
 }
 
-// Applies the scan result on the message thread before final chain mutation. runBusyOperation
-// already verified that the busy token still matches before invoking this finalizer.
-void EditorController::Impl::completeAddPluginScan(const std::shared_ptr<AddPluginTaskState>& state)
-{
-    assert(isBusy() && "completeAddPluginScan called outside a busy operation");
-
-    if (!state->candidates.has_value())
-    {
-        const std::string message = state->candidates.error().message;
-        finishBusyOperation();
-        reportError(std::string{"Could not scan plugin: "} + message);
-        return;
-    }
-
-    if (state->candidates->empty())
-    {
-        finishBusyOperation();
-        reportError("Could not scan plugin: no compatible plugin was found");
-        return;
-    }
-
-    mergePluginCatalogCandidates(m_plugin_catalog, *state->candidates);
-
-    const std::uint64_t token = m_current_busy_token;
-    runAfterBusyOverlayPaintedOrNow(safeCallback([this, state, token]() {
-        if (token != m_current_busy_token)
-        {
-            return;
-        }
-        completeAddPluginLoad(state);
-    }));
-}
-
-// Inserts the already-scanned plugin candidate into the live chain. The caller in
-// completeAddPluginScan already verified the busy token is current before scheduling this.
+// Inserts the selected browser plugin into the live chain after the loading state has painted.
 void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state)
 {
     assert(isBusy() && "completeAddPluginLoad called outside a busy operation");
 
-    if (!state->candidates.has_value() || state->candidates->empty())
-    {
-        return;
-    }
-
-    const common::audio::PluginCandidate& candidate = state->candidates->front();
+    const common::audio::PluginCandidate& candidate = state->candidate;
     const auto handle = m_plugin_host->addPlugin(candidate.id);
     if (!handle.has_value())
     {
@@ -1795,7 +1694,7 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
 void EditorController::Impl::beginAddKnownPlugin(const common::audio::PluginCandidate& candidate)
 {
     auto state = std::make_shared<AddPluginTaskState>();
-    state->candidates = std::vector<common::audio::PluginCandidate>{candidate};
+    state->candidate = candidate;
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
     updateView();
@@ -1958,13 +1857,12 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         {
             return canStopTransport(m_transport.state());
         }
-        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return m_plugin_host != nullptr && hasLoadedArrangement();
         }
-        case EditorAction::Id::AddPluginCandidate:
+        case EditorAction::Id::AddPlugin:
         {
             return m_plugin_host != nullptr && hasLoadedArrangement() && !m_plugin_catalog.empty();
         }
@@ -2000,10 +1898,9 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPluginCandidate:
+        case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
@@ -2556,8 +2453,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.plugin_browser = PluginBrowserViewState{
         .visible = m_plugin_browser_visible,
         .scan_enabled = canRunAction(EditorAction::Id::ScanPluginCatalog),
-        .add_enabled = canRunAction(EditorAction::Id::AddPluginCandidate),
-        .candidates = makePluginBrowserCandidateViewStates(m_plugin_catalog),
+        .add_enabled = canRunAction(EditorAction::Id::AddPlugin),
+        .plugins = makePluginCandidateStates(m_plugin_catalog),
     };
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)

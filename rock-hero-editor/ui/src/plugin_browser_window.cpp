@@ -98,7 +98,7 @@ public:
         setState(core::PluginBrowserViewState{});
     }
 
-    // Applies controller-derived catalog state and preserves selection by candidate ID.
+    // Applies controller-derived catalog state and preserves selection by plugin ID.
     void setState(const core::PluginBrowserViewState& state)
     {
         const std::string previous_selection = selectedPluginId();
@@ -142,12 +142,12 @@ private:
         return static_cast<int>(m_filtered_indices.size());
     }
 
-    // ListBoxModel implementation: draws one candidate row with stable columns.
+    // ListBoxModel implementation: draws one plugin row with stable columns.
     void paintListBoxItem(
         int row_number, juce::Graphics& g, int width, int height, bool row_is_selected) override
     {
-        const core::PluginBrowserCandidateViewState* const candidate = candidateAtRow(row_number);
-        if (candidate == nullptr)
+        const core::PluginCandidateState* const plugin = pluginAtRow(row_number);
+        if (plugin == nullptr)
         {
             return;
         }
@@ -165,7 +165,7 @@ private:
         g.setColour(juce::Colours::white);
         g.setFont(juce::FontOptions{14.0f});
         g.drawFittedText(
-            fallbackText(candidate->name, "Unnamed Plugin"),
+            fallbackText(plugin->name, "Unnamed Plugin"),
             area.removeFromLeft(std::min(name_width, area.getWidth())),
             juce::Justification::centredLeft,
             1);
@@ -173,14 +173,14 @@ private:
         area.removeFromLeft(std::min(g_gap, area.getWidth()));
         g.setColour(juce::Colours::lightgrey);
         g.drawFittedText(
-            fallbackText(candidate->manufacturer, "Unknown"),
+            fallbackText(plugin->manufacturer, "Unknown"),
             area.removeFromLeft(std::min(manufacturer_width, area.getWidth())),
             juce::Justification::centredLeft,
             1);
 
         area.removeFromLeft(std::min(g_gap, area.getWidth()));
         g.drawFittedText(
-            fallbackText(candidate->format_name, "Plugin"),
+            fallbackText(plugin->format_name, "Plugin"),
             area.removeFromLeft(std::min(format_width, area.getWidth())),
             juce::Justification::centredLeft,
             1);
@@ -188,7 +188,7 @@ private:
         area.removeFromLeft(std::min(g_gap, area.getWidth()));
         g.setColour(juce::Colours::silver);
         g.drawFittedText(
-            juce::String{candidate->file_path.string()}, area, juce::Justification::centredLeft, 1);
+            juce::String{plugin->file_path.string()}, area, juce::Justification::centredLeft, 1);
     }
 
     // ListBoxModel implementation: refreshes Add availability when selection changes.
@@ -197,41 +197,40 @@ private:
         updateControls();
     }
 
-    // ListBoxModel implementation: double-clicking adds the row's candidate.
+    // ListBoxModel implementation: double-clicking adds the row's plugin.
     void listBoxItemDoubleClicked(int row, const juce::MouseEvent& /*event*/) override
     {
-        if (const auto* const candidate = candidateAtRow(row); candidate != nullptr)
+        if (const auto* const plugin = pluginAtRow(row); plugin != nullptr)
         {
-            m_listener.onPluginBrowserCandidateAddRequested(candidate->id);
+            m_listener.onPluginBrowserAddRequested(plugin->id);
         }
     }
 
-    // Returns the candidate represented by a filtered row, or null for invalid rows.
-    [[nodiscard]] const core::PluginBrowserCandidateViewState* candidateAtRow(int row) const
+    // Returns the plugin represented by a filtered row, or null for invalid rows.
+    [[nodiscard]] const core::PluginCandidateState* pluginAtRow(int row) const
     {
         if (row < 0 || static_cast<std::size_t>(row) >= m_filtered_indices.size())
         {
             return nullptr;
         }
 
-        const std::size_t candidate_index = m_filtered_indices[static_cast<std::size_t>(row)];
-        if (candidate_index >= m_state.candidates.size())
+        const std::size_t plugin_index = m_filtered_indices[static_cast<std::size_t>(row)];
+        if (plugin_index >= m_state.plugins.size())
         {
             return nullptr;
         }
 
-        return &m_state.candidates[candidate_index];
+        return &m_state.plugins[plugin_index];
     }
 
     // Returns the currently selected plugin ID, or empty if the selection is invalid.
     [[nodiscard]] std::string selectedPluginId() const
     {
-        const core::PluginBrowserCandidateViewState* const candidate =
-            candidateAtRow(m_list_box.getSelectedRow());
-        return candidate != nullptr ? candidate->id : std::string{};
+        const core::PluginCandidateState* const plugin = pluginAtRow(m_list_box.getSelectedRow());
+        return plugin != nullptr ? plugin->id : std::string{};
     }
 
-    // Selects a candidate by ID after filtering or state replacement.
+    // Selects a plugin by ID after filtering or state replacement.
     void selectPluginId(const std::string& plugin_id)
     {
         if (plugin_id.empty())
@@ -242,9 +241,9 @@ private:
 
         for (std::size_t row = 0; row < m_filtered_indices.size(); ++row)
         {
-            const std::size_t candidate_index = m_filtered_indices[row];
-            if (candidate_index < m_state.candidates.size() &&
-                m_state.candidates[candidate_index].id == plugin_id)
+            const std::size_t plugin_index = m_filtered_indices[row];
+            if (plugin_index < m_state.plugins.size() &&
+                m_state.plugins[plugin_index].id == plugin_id)
             {
                 m_list_box.selectRow(static_cast<int>(row));
                 return;
@@ -259,9 +258,9 @@ private:
     {
         m_filtered_indices.clear();
         const std::string filter = lowerText(m_filter_editor.getText().toStdString());
-        for (std::size_t index = 0; index < m_state.candidates.size(); ++index)
+        for (std::size_t index = 0; index < m_state.plugins.size(); ++index)
         {
-            if (candidateMatchesFilter(m_state.candidates[index], filter))
+            if (pluginMatchesFilter(m_state.plugins[index], filter))
             {
                 m_filtered_indices.push_back(index);
             }
@@ -270,9 +269,9 @@ private:
         m_list_box.updateContent();
     }
 
-    // Returns whether one candidate matches the current lowercase filter.
-    [[nodiscard]] bool candidateMatchesFilter(
-        const core::PluginBrowserCandidateViewState& candidate, const std::string& filter) const
+    // Returns whether one plugin matches the current lowercase filter.
+    [[nodiscard]] bool pluginMatchesFilter(
+        const core::PluginCandidateState& plugin, const std::string& filter) const
     {
         if (filter.empty())
         {
@@ -280,12 +279,12 @@ private:
         }
 
         const std::string haystack = lowerText(
-            candidate.name + " " + candidate.manufacturer + " " + candidate.format_name + " " +
-            candidate.file_path.string());
+            plugin.name + " " + plugin.manufacturer + " " + plugin.format_name + " " +
+            plugin.file_path.string());
         return haystack.find(filter) != std::string::npos;
     }
 
-    // Adds the currently selected candidate if both state and selection allow it.
+    // Adds the currently selected plugin if both state and selection allow it.
     void addSelectedPlugin()
     {
         if (!m_state.add_enabled)
@@ -296,7 +295,7 @@ private:
         const std::string plugin_id = selectedPluginId();
         if (!plugin_id.empty())
         {
-            m_listener.onPluginBrowserCandidateAddRequested(plugin_id);
+            m_listener.onPluginBrowserAddRequested(plugin_id);
         }
     }
 
@@ -324,16 +323,16 @@ private:
     // Button that requests closing the browser window.
     juce::TextButton m_close_button;
 
-    // List displaying filtered candidates.
+    // List displaying filtered plugins.
     juce::ListBox m_list_box;
 
     // Label showing the current filtered count.
     juce::Label m_count_label;
 
-    // Button that adds the selected candidate.
+    // Button that adds the selected plugin.
     juce::TextButton m_add_button;
 
-    // Candidate indices that pass the current filter.
+    // Plugin indices that pass the current filter.
     std::vector<std::size_t> m_filtered_indices;
 };
 

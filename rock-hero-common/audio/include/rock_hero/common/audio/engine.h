@@ -41,9 +41,9 @@ include Tracktion headers.
 
 Owns the tracktion::Engine and the tracktion::Edit used for playback. The current adapter keeps a
 backing track for the displayed arrangement and an instrument track for the selected mono
-input. Most public methods must be called on the message thread; scanPluginFile() is the explicit
-non-realtime worker-thread exception because selected-file inspection can run slow third-party
-code. scanPluginLocations() follows the same worker-thread rule for catalog discovery.
+input. Most public methods must be called on the message thread; scanPluginLocations() is the
+explicit non-realtime worker-thread exception because plugin catalog discovery can run slow
+third-party code.
 
 \see ITransport
 \see IAudio
@@ -170,15 +170,6 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Scans one plugin file or bundle for candidates loadable by the plugin chain.
-    \param plugin_path Path to a plugin file or plugin bundle.
-    \return Discovered plugin candidates, or a typed failure.
-    \note This method may be called from a non-realtime worker thread.
-    */
-    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginFile(
-        const std::filesystem::path& plugin_path) override;
-
-    /*!
     \brief Scans plugin files or directories for candidates loadable by the plugin chain.
     \param roots Files or directories to inspect for plugin candidates.
     \return Discovered plugin candidates, or a typed failure.
@@ -200,7 +191,7 @@ public:
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain.
 
-    \param plugin_id Opaque candidate ID returned by scanPluginFile().
+    \param plugin_id Opaque candidate ID returned by knownPluginCandidates() or a catalog scan.
     \return Handle for the inserted plugin instance, or a typed failure.
     */
     [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPlugin(

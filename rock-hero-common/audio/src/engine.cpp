@@ -1194,8 +1194,8 @@ private:
     }
 
     // Scans one plugin file through Tracktion's JUCE-backed known-plugin list. This is shared by
-    // the worker-facing plugin-host port and message-thread live-rig restore; callers must keep it
-    // off the realtime audio thread and avoid concurrent access to Tracktion's known-plugin list.
+    // catalog discovery and message-thread live-rig restore; callers must keep it off the realtime
+    // audio thread and avoid concurrent access to Tracktion's known-plugin list.
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError>
     scanPluginFileForCandidates(const std::filesystem::path& plugin_path)
     {
@@ -1891,14 +1891,6 @@ void Engine::clearActiveArrangement()
     m_impl->m_loaded_length_seconds = 0.0;
     m_impl->applyInstrumentMonitoringRoute();
     m_impl->updateTransportState();
-}
-
-// Scans one plugin file through Tracktion's JUCE-backed known-plugin list. The editor invokes
-// this from a worker thread so the busy overlay stays responsive while the file is inspected.
-std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginFile(
-    const std::filesystem::path& plugin_path)
-{
-    return m_impl->scanPluginFileForCandidates(plugin_path);
 }
 
 // Scans default or user-supplied plugin locations for browser catalog candidates.

@@ -156,20 +156,6 @@ struct EditorAction
         double normalized_x;
     };
 
-    /*! \brief Add a selected plugin file to the signal chain. */
-    struct AddPlugin
-    {
-        /*!
-        \brief Creates an add-plugin action.
-        \param file_value Plugin file path selected by the user.
-        */
-        explicit AddPlugin(std::filesystem::path file_value)
-            : file(std::move(file_value))
-        {}
-
-        std::filesystem::path file;
-    };
-
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -180,14 +166,14 @@ struct EditorAction
     {
     };
 
-    /*! \brief Add a selected scanned plugin candidate to the signal chain. */
-    struct AddPluginCandidate
+    /*! \brief Add a selected browser plugin to the signal chain. */
+    struct AddPlugin
     {
         /*!
-        \brief Creates an add-plugin-candidate action.
-        \param plugin_id_value Opaque plugin candidate ID selected by the user.
+        \brief Creates an add-plugin action.
+        \param plugin_id_value Opaque plugin ID selected by the user.
         */
-        explicit AddPluginCandidate(std::string plugin_id_value)
+        explicit AddPlugin(std::string plugin_id_value)
             : plugin_id(std::move(plugin_id_value))
         {}
 
@@ -234,8 +220,8 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, AddPlugin, ShowPluginBrowser, ScanPluginCatalog, AddPluginCandidate,
-        RemovePlugin, OpenPlugin>;
+        Stop, SeekWaveform, ShowPluginBrowser, ScanPluginCatalog, AddPlugin, RemovePlugin,
+        OpenPlugin>;
 };
 
 /*!

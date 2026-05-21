@@ -78,12 +78,6 @@ public:
     */
     virtual void onWaveformClicked(double normalized_x) = 0;
 
-    /*!
-    \brief Handles a request to add a plugin file to the plugin chain.
-    \param file Filesystem path selected by the user.
-    */
-    virtual void onAddPluginRequested(std::filesystem::path file) = 0;
-
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 
@@ -94,10 +88,10 @@ public:
     virtual void onPluginCatalogScanRequested() = 0;
 
     /*!
-    \brief Handles a request to add a selected scanned plugin candidate.
-    \param plugin_id Opaque candidate ID selected by the user.
+    \brief Handles a request to add a selected plugin from the browser.
+    \param plugin_id Opaque plugin ID selected by the user.
     */
-    virtual void onPluginCandidateAddRequested(std::string plugin_id) = 0;
+    virtual void onAddPluginRequested(std::string plugin_id) = 0;
 
     /*!
     \brief Handles a request to remove a plugin instance from the plugin chain.

@@ -218,7 +218,7 @@ private:
     void onPluginBrowserScanRequested() override;
 
     // PluginBrowserWindow::Listener implementation.
-    void onPluginBrowserCandidateAddRequested(std::string plugin_id) override;
+    void onPluginBrowserAddRequested(std::string plugin_id) override;
 
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserClosed() override;

@@ -42,7 +42,7 @@ enum class BusyOperation : std::uint8_t
     /*! \brief Loading a plugin into the signal chain. */
     LoadingPlugin,
 
-    /*! \brief Scanning plugin locations for browser candidates. */
+    /*! \brief Scanning plugin locations for browser plugins. */
     ScanningPlugins,
 
     /*! \brief Restoring a saved live rig chain during project load. */

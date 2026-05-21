@@ -16,21 +16,6 @@ namespace
 class FakePluginHost final : public IPluginHost
 {
 public:
-    // Records the scan path and returns the configured candidate list or scan failure.
-    std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginFile(
-        const std::filesystem::path& plugin_path) override
-    {
-        last_scan_path = plugin_path;
-        ++scan_call_count;
-
-        if (next_scan_error.has_value())
-        {
-            return std::unexpected{*next_scan_error};
-        }
-
-        return next_scan_candidates;
-    }
-
     // Records catalog roots and returns the configured catalog candidates or failure.
     std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
         const std::vector<std::filesystem::path>& roots) override
@@ -95,17 +80,6 @@ public:
         return {};
     }
 
-    // Candidate list returned by successful scans.
-    std::vector<PluginCandidate> next_scan_candidates{
-        PluginCandidate{
-            .id = "vst3:amp",
-            .name = "Amp",
-            .manufacturer = "Rock Hero Tests",
-            .format_name = "VST3",
-            .file_path = std::filesystem::path{"Amp.vst3"},
-        },
-    };
-
     // Candidate list returned by successful catalog scans.
     std::vector<PluginCandidate> next_catalog_candidates{
         PluginCandidate{
@@ -128,9 +102,6 @@ public:
         },
     };
 
-    // Optional error returned by the next scan request.
-    std::optional<PluginHostError> next_scan_error{};
-
     // Optional error returned by the next catalog scan request.
     std::optional<PluginHostError> next_catalog_scan_error{};
 
@@ -150,9 +121,6 @@ public:
     // Optional error returned by the next open request.
     std::optional<PluginHostError> next_open_error{};
 
-    // Last path passed to scanPluginFile().
-    std::optional<std::filesystem::path> last_scan_path{};
-
     // Last roots passed to scanPluginLocations().
     std::vector<std::filesystem::path> last_scan_roots{};
 
@@ -164,9 +132,6 @@ public:
 
     // Last plugin instance ID passed to openPluginWindow().
     std::optional<std::string> last_opened_instance_id{};
-
-    // Number of scan requests received.
-    int scan_call_count{0};
 
     // Number of catalog scan requests received.
     int catalog_scan_call_count{0};
@@ -185,22 +150,6 @@ public:
 };
 
 } // namespace
-
-// Verifies the plugin-host port can return project-owned plugin candidates.
-TEST_CASE("IPluginHost scans plugin candidates", "[audio][plugin-host]")
-{
-    FakePluginHost plugin_host;
-
-    const auto candidates = plugin_host.scanPluginFile(std::filesystem::path{"Amp.vst3"});
-
-    REQUIRE(candidates.has_value());
-    REQUIRE(candidates->size() == 1);
-    CHECK(candidates->front().id == "vst3:amp");
-    CHECK(candidates->front().name == "Amp");
-    CHECK(candidates->front().format_name == "VST3");
-    CHECK(plugin_host.last_scan_path == std::optional{std::filesystem::path{"Amp.vst3"}});
-    CHECK(plugin_host.scan_call_count == 1);
-}
 
 // Verifies catalog scans expose scanned plugin candidates without selecting a single file.
 TEST_CASE("IPluginHost scans plugin catalog locations", "[audio][plugin-host]")

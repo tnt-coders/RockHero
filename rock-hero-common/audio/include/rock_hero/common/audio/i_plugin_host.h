@@ -37,6 +37,14 @@ struct [[nodiscard]] PluginCandidate
 
     /*! \brief File or bundle path that produced this plugin candidate. */
     std::filesystem::path file_path;
+
+    /*!
+    \brief Compares two plugin candidates by their stored values.
+    \param lhs Left-hand plugin candidate.
+    \param rhs Right-hand plugin candidate.
+    \return True when both plugin candidates store equal values.
+    */
+    friend bool operator==(const PluginCandidate& lhs, const PluginCandidate& rhs) = default;
 };
 
 /*!
@@ -61,7 +69,7 @@ struct [[nodiscard]] PluginHandle
 /*!
 \brief Project-owned facade for plugin discovery and chain mutation.
 
-Plugin discovery may run on a non-realtime worker thread because selected-file inspection can
+Plugin catalog discovery may run on a non-realtime worker thread because plugin inspection can
 execute slow third-party code; chain mutation and plugin-window methods are message-thread
 operations because implementations may mutate or inspect backend playback/UI graph state. Callers
 must never invoke this interface from the real-time audio callback.
@@ -71,15 +79,6 @@ class IPluginHost
 public:
     /*! \brief Destroys the plugin-host interface. */
     virtual ~IPluginHost() = default;
-
-    /*!
-    \brief Scans one plugin file or bundle for loadable candidates.
-    \param plugin_path Path to a plugin file or plugin bundle.
-    \return Discovered candidates, or a typed failure.
-    \note This method may be called from a non-realtime worker thread.
-    */
-    [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
-    scanPluginFile(const std::filesystem::path& plugin_path) = 0;
 
     /*!
     \brief Scans plugin files or directories for loadable candidates.
@@ -112,7 +111,7 @@ public:
     The first implementation appends to the linear Tracktion plugin list owned by the instrument
     track. It stops and rebuilds backend playback graph state as needed.
 
-    \param plugin_id Opaque candidate ID returned by scanPluginFile().
+    \param plugin_id Opaque candidate ID returned by knownPluginCandidates() or a catalog scan.
     \return Handle for the inserted plugin instance, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<PluginHandle, PluginHostError> addPlugin(

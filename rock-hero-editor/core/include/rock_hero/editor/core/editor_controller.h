@@ -324,16 +324,6 @@ public:
     */
     void onWaveformClicked(double normalized_x) override;
 
-    /*!
-    \brief Scans a plugin file and appends the first candidate to the plugin chain.
-
-    This remains as a compatibility path for explicit file-based plugin adds. The normal UI flow
-    uses the scanned plugin browser and onPluginCandidateAddRequested().
-
-    \param file Filesystem path selected by the user.
-    */
-    void onAddPluginRequested(std::filesystem::path file) override;
-
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 
@@ -344,10 +334,10 @@ public:
     void onPluginCatalogScanRequested() override;
 
     /*!
-    \brief Adds a selected scanned plugin candidate to the runtime plugin chain.
-    \param plugin_id Opaque plugin candidate ID selected by the user.
+    \brief Adds a selected browser plugin to the runtime plugin chain.
+    \param plugin_id Opaque plugin ID selected by the user.
     */
-    void onPluginCandidateAddRequested(std::string plugin_id) override;
+    void onAddPluginRequested(std::string plugin_id) override;
 
     /*!
     \brief Removes a plugin instance from the current runtime plugin chain.

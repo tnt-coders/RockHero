@@ -110,13 +110,6 @@ public:
         waveform_click_count += 1;
     }
 
-    // Captures plugin files selected through the signal-chain panel.
-    void onAddPluginRequested(std::filesystem::path file) override
-    {
-        last_plugin_file = std::move(file);
-        add_plugin_request_count += 1;
-    }
-
     // Counts plugin-browser open intents emitted by the signal-chain panel.
     void onPluginBrowserRequested() override
     {
@@ -135,11 +128,11 @@ public:
         plugin_catalog_scan_request_count += 1;
     }
 
-    // Captures plugin candidate IDs selected in the browser window.
-    void onPluginCandidateAddRequested(std::string plugin_id) override
+    // Captures plugin IDs selected in the browser window.
+    void onAddPluginRequested(std::string plugin_id) override
     {
-        last_plugin_candidate_id = std::move(plugin_id);
-        plugin_candidate_add_request_count += 1;
+        last_plugin_id = std::move(plugin_id);
+        plugin_add_request_count += 1;
     }
 
     // Captures plugin instances selected through the signal-chain panel.
@@ -171,11 +164,8 @@ public:
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
 
-    // Last plugin file selected through the signal-chain panel.
-    std::optional<std::filesystem::path> last_plugin_file{};
-
-    // Last plugin candidate ID selected through the plugin browser.
-    std::optional<std::string> last_plugin_candidate_id{};
+    // Last plugin ID selected through the plugin browser.
+    std::optional<std::string> last_plugin_id{};
 
     // Last plugin instance ID selected through the signal-chain panel.
     std::optional<std::string> last_removed_plugin_instance_id{};
@@ -222,9 +212,6 @@ public:
     // Number of waveform-click intents received.
     int waveform_click_count{0};
 
-    // Number of add-plugin intents received.
-    int add_plugin_request_count{0};
-
     // Number of plugin-browser open intents received.
     int plugin_browser_request_count{0};
 
@@ -234,8 +221,8 @@ public:
     // Number of plugin-catalog scan intents received.
     int plugin_catalog_scan_request_count{0};
 
-    // Number of browser candidate-add intents received.
-    int plugin_candidate_add_request_count{0};
+    // Number of browser plugin-add intents received.
+    int plugin_add_request_count{0};
 
     // Number of remove-plugin intents received.
     int remove_plugin_request_count{0};
@@ -690,7 +677,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     REQUIRE(add_plugin_button.onClick);
     add_plugin_button.onClick();
     CHECK(controller.plugin_browser_request_count == 1);
-    CHECK(controller.add_plugin_request_count == 0);
     CHECK(findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
