@@ -672,8 +672,7 @@ struct EditorController::Impl::AddPluginTaskState
 // through the audio boundary; the completion replaces the browser catalog.
 struct EditorController::Impl::PluginCatalogTaskState
 {
-    std::expected<std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-        plugin_candidates{};
+    std::expected<void, common::audio::PluginHostError> scan_result{};
 };
 
 // Per-operation worker state for project package writes. The Project is moved out of the
@@ -1561,7 +1560,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
         BusyOperation::ScanningPlugins,
         state,
         [plugin_host = m_plugin_host](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
-            task_state->plugin_candidates = plugin_host->scanPluginCatalog();
+            task_state->scan_result = plugin_host->scanPluginCatalog();
         },
         [this](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
             completePluginCatalogScan(task_state);
@@ -1640,18 +1639,17 @@ void EditorController::Impl::completePluginCatalogScan(
 {
     assert(isBusy() && "completePluginCatalogScan called outside a busy operation");
 
-    if (!state->plugin_candidates.has_value())
+    if (!state->scan_result.has_value())
     {
-        const std::string message = state->plugin_candidates.error().message;
+        const std::string message = state->scan_result.error().message;
         finishBusyOperation();
         reportError(std::string{"Could not scan plugins: "} + message);
         return;
     }
 
-    // Rescan asks the host to refresh its canonical catalog. The controller keeps only this
-    // sorted UI snapshot so browser rendering and selection stay framework-free.
-    m_plugin_catalog = std::move(*state->plugin_candidates);
-    sortPluginCatalog(m_plugin_catalog);
+    // Rescan refreshes the host-owned catalog on a worker thread. The controller reads the
+    // canonical known catalog here on the message thread and keeps only a sorted UI snapshot.
+    refreshKnownPluginCatalog();
     finishBusyOperation();
 }
 

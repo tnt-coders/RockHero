@@ -81,17 +81,16 @@ public:
     virtual ~IPluginHost() = default;
 
     /*!
-    \brief Scans the host's default plugin catalog locations for loadable candidates.
+    \brief Refreshes the host's default plugin catalog locations.
 
     Implementations own the platform- and host-specific default locations for the plugin formats
     they support. Callers should use this for a user-initiated full catalog refresh instead of
     resolving platform search paths themselves.
 
-    \return Host catalog after the refresh, or a typed failure when scanning cannot proceed.
+    \return Success after the refresh, or a typed failure when scanning cannot proceed.
     \note This method may be called from a non-realtime worker thread.
     */
-    [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
-    scanPluginCatalog() = 0;
+    [[nodiscard]] virtual std::expected<void, PluginHostError> scanPluginCatalog() = 0;
 
     /*!
     \brief Scans plugin files or directories for loadable candidates.
