@@ -1146,7 +1146,23 @@ void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState
 {
     if (!state.visible)
     {
-        m_plugin_browser_window.reset();
+        if (m_plugin_browser_window != nullptr)
+        {
+            m_plugin_browser_window->setVisible(false);
+
+            const juce::Component::SafePointer<EditorView> safe_this{this};
+            juce::MessageManager::callAsync([safe_this] {
+                EditorView* const view = safe_this.getComponent();
+                // The browser can request this while JUCE is dispatching its own close event.
+                // Hide now, but defer destruction until that event stack has unwound.
+                // This is a Component lifetime guard: SafePointer is JUCE's built-in way for
+                // posted UI callbacks to observe deletion without keeping the Component alive.
+                if (view != nullptr && !view->m_state.plugin_browser.visible)
+                {
+                    view->m_plugin_browser_window.reset();
+                }
+            });
+        }
         return;
     }
 
@@ -1158,9 +1174,9 @@ void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState
         {
             m_plugin_browser_window->centreAroundComponent(this, 760, 500);
         }
-        m_plugin_browser_window->setVisible(true);
     }
 
+    m_plugin_browser_window->setVisible(true);
     m_plugin_browser_window->setState(state);
     m_plugin_browser_window->toFront(true);
 }
