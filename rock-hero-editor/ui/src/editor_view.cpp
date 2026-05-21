@@ -119,10 +119,9 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::PlayPause:
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekWaveform:
-        case core::EditorActionId::AddPlugin:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::ScanPluginCatalog:
-        case core::EditorActionId::AddPluginCandidate:
+        case core::EditorActionId::AddPlugin:
         case core::EditorActionId::RemovePlugin:
         case core::EditorActionId::OpenPlugin:
         {
@@ -1318,10 +1317,10 @@ void EditorView::onPluginBrowserScanRequested()
     m_controller.onPluginCatalogScanRequested();
 }
 
-// Forwards the selected scanned candidate to the workflow controller.
-void EditorView::onPluginBrowserCandidateAddRequested(std::string plugin_id)
+// Forwards the selected browser plugin to the workflow controller.
+void EditorView::onPluginBrowserAddRequested(std::string plugin_id)
 {
-    m_controller.onPluginCandidateAddRequested(std::move(plugin_id));
+    m_controller.onAddPluginRequested(std::move(plugin_id));
 }
 
 // Forwards browser close intent to the workflow controller.

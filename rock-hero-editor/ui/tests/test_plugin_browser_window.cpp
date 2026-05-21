@@ -22,8 +22,8 @@ public:
         scan_request_count += 1;
     }
 
-    // Captures the selected plugin candidate ID.
-    void onPluginBrowserCandidateAddRequested(std::string plugin_id) override
+    // Captures the selected browser plugin ID.
+    void onPluginBrowserAddRequested(std::string plugin_id) override
     {
         last_added_plugin_id = std::move(plugin_id);
         add_request_count += 1;
@@ -85,22 +85,22 @@ template <class ComponentType>
     return *typed_child;
 }
 
-// Builds a browser state with two recognizable plugin candidates.
+// Builds a browser state with two recognizable plugins.
 [[nodiscard]] core::PluginBrowserViewState makeBrowserState()
 {
     return core::PluginBrowserViewState{
         .visible = true,
         .scan_enabled = true,
         .add_enabled = true,
-        .candidates = {
-            core::PluginBrowserCandidateViewState{
+        .plugins = {
+            core::PluginCandidateState{
                 .id = "nolly-id",
                 .name = "Archetype Nolly X",
                 .manufacturer = "Neural DSP",
                 .format_name = "VST3",
                 .file_path = std::filesystem::path{"Nolly.vst3"},
             },
-            core::PluginBrowserCandidateViewState{
+            core::PluginCandidateState{
                 .id = "gojira-id",
                 .name = "Archetype Gojira X",
                 .manufacturer = "Neural DSP",
@@ -113,7 +113,7 @@ template <class ComponentType>
 
 } // namespace
 
-// Verifies the browser forwards the selected candidate ID through its listener.
+// Verifies the browser forwards the selected plugin ID through its listener.
 TEST_CASE("PluginBrowserWindow forwards selected add intent", "[ui][plugin-browser]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -153,8 +153,8 @@ TEST_CASE("PluginBrowserWindow forwards scan and close", "[ui][plugin-browser]")
     CHECK(listener.close_request_count == 2);
 }
 
-// Verifies presentation-side filtering narrows the visible candidate count.
-TEST_CASE("PluginBrowserWindow filters visible candidates", "[ui][plugin-browser]")
+// Verifies presentation-side filtering narrows the visible plugin count.
+TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakePluginBrowserListener listener;
