@@ -142,8 +142,8 @@ catalog producers (`ShowPluginBrowser` and `ScanPluginCatalog`) both replace, so
 inconsistency left.
 
 **Follow-up:** `ScanPluginCatalog` now calls `IPluginHost::scanPluginCatalog()`, which refreshes
-the host-owned default catalog and returns the host's known plugins. The controller still
-replaces its browser snapshot, but that snapshot is explicitly derived from the host catalog.
+the host-owned default catalog. The controller then reads `knownPluginCatalog()` on the message
+thread and replaces its browser snapshot from that host catalog.
 
 ### 4. Catalog roots resolved inside `editor/core`
 
@@ -196,8 +196,9 @@ that, the boundary should clarify which side is canonical; for now a comment at
 `completePluginCatalogScan` is enough.
 
 **Fix:** `IPluginHost::scanPluginCatalog()` is now the full-catalog refresh port. `Engine`
-scans default roots through Tracktion, updates Tracktion's `KnownPluginList`, and returns the
-known catalog after the refresh. The controller keeps only a sorted UI snapshot of that result.
+scans default roots through Tracktion and updates Tracktion's `KnownPluginList`. The controller
+then reads `knownPluginCatalog()` on the message thread and keeps only a sorted UI snapshot of
+that result.
 
 ### 7. Minor efficiency notes (no action required yet)
 
