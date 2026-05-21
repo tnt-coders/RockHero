@@ -336,7 +336,14 @@ TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][inte
     IPluginHost& plugin_host = harness.engine;
     const ITransport& transport = harness.engine;
 
-    const auto handle = plugin_host.addPlugin("missing-plugin-id");
+    const auto handle = plugin_host.addPlugin(
+        PluginCandidate{
+            .id = "missing-plugin-id",
+            .name = "Missing Plugin",
+            .manufacturer = {},
+            .format_name = "VST3",
+            .file_path = {},
+        });
 
     REQUIRE_FALSE(handle.has_value());
     CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
