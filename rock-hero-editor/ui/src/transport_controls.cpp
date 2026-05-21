@@ -54,7 +54,7 @@ TransportControls::TransportControls(Listener& listener)
 TransportControls::~TransportControls() = default;
 
 // Applies already-derived enabledness and play/pause visuals without adding workflow rules.
-void TransportControls::setState(const TransportControlsState& state)
+void TransportControls::setState(const TransportControlsViewState& state)
 {
     m_state = state;
     const juce::Drawable* const play_pause_drawable =

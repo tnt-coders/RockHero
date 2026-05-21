@@ -1,6 +1,7 @@
 /*!
-\file plugin_candidate_state.h
-\brief Editor-core workflow record for one discoverable plugin shown in the plugin browser.
+\file plugin_candidate_view_state.h
+\brief Editor-core workflow record for one discoverable plugin candidate shown in the plugin
+browser.
 */
 
 #pragma once
@@ -12,7 +13,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Editor-core workflow state for one discoverable plugin.
+\brief Editor-core workflow state for one plugin candidate.
 
 Produced by the editor controller from common::audio::PluginCandidate so editor-core owns the
 shape of plugin-browser workflow data without consuming the audio-boundary type directly. The
@@ -22,9 +23,9 @@ plugin descriptions, opaque backend payloads) cannot reach editor-ui by accident
 editor-only fields such as favorites, match scores, or last-used timestamps belong here, not on
 the audio-boundary type.
 */
-struct PluginCandidateState
+struct PluginCandidateViewState
 {
-    /*! \brief Opaque plugin ID passed back to the plugin host when adding this plugin. */
+    /*! \brief Opaque plugin ID passed back to the plugin host when adding this candidate. */
     std::string id;
 
     /*! \brief User-facing plugin name reported by the scanner. */
@@ -36,17 +37,17 @@ struct PluginCandidateState
     /*! \brief Backend plugin format name, such as VST3. */
     std::string format_name;
 
-    /*! \brief File or bundle path that produced this plugin. */
+    /*! \brief File or bundle path that produced this plugin candidate. */
     std::filesystem::path file_path;
 
     /*!
-    \brief Compares two plugin candidate states by their stored values.
-    \param lhs Left-hand plugin candidate state.
-    \param rhs Right-hand plugin candidate state.
-    \return True when both plugin candidate states store equal values.
+    \brief Compares two plugin candidate view states by their stored values.
+    \param lhs Left-hand plugin candidate view state.
+    \param rhs Right-hand plugin candidate view state.
+    \return True when both plugin candidate view states store equal values.
     */
-    friend bool operator==(const PluginCandidateState& lhs, const PluginCandidateState& rhs) =
-        default;
+    friend bool operator==(
+        const PluginCandidateViewState& lhs, const PluginCandidateViewState& rhs) = default;
 };
 
 } // namespace rock_hero::editor::core

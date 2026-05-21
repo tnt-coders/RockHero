@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/editor/core/plugin_candidate_state.h>
+#include <rock_hero/editor/core/plugin_candidate_view_state.h>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -23,8 +23,8 @@ struct PluginBrowserViewState
     /*! \brief Enables or disables adding a selected browser plugin. */
     bool add_enabled{false};
 
-    /*! \brief Plugins currently shown by the browser. */
-    std::vector<PluginCandidateState> plugins;
+    /*! \brief Plugin candidates currently shown by the browser. */
+    std::vector<PluginCandidateViewState> plugins;
 
     /*!
     \brief Compares two plugin browser states by their stored values.

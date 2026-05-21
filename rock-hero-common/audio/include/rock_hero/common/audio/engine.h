@@ -40,10 +40,9 @@ This boundary enables a fallback-to-raw-JUCE strategy: only common/audio impleme
 include Tracktion headers.
 
 Owns the tracktion::Engine and the tracktion::Edit used for playback. The current adapter keeps a
-backing track for the displayed arrangement and an instrument track for the selected mono
-input. Most public methods must be called on the message thread; scanPluginLocations() is the
-explicit non-realtime worker-thread exception because plugin catalog discovery can run slow
-third-party code.
+backing track for the displayed arrangement and an instrument track for the selected mono input.
+Most public methods must be called on the message thread; plugin catalog scans are the explicit
+non-realtime worker-thread exceptions because discovery can run slow third-party code.
 
 \see ITransport
 \see IAudio
@@ -170,7 +169,15 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Scans plugin files or directories for candidates loadable by the plugin chain.
+    \brief Scans conventional VST3 catalog locations for candidates loadable by the chain.
+    \return Host catalog after the refresh, or a typed failure.
+    \note This method may be called from a non-realtime worker thread.
+    */
+    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginCatalog()
+        override;
+
+    /*!
+    \brief Scans supplied plugin files or directories for candidates loadable by the chain.
     \param roots Files or directories to inspect for plugin candidates.
     \return Discovered plugin candidates, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
@@ -183,15 +190,15 @@ public:
     \return Known plugin candidates without running a plugin scan.
     \note This method must be called on the message thread.
     */
-    [[nodiscard]] std::vector<PluginCandidate> knownPluginCandidates() const override;
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalog() const override;
 
     /*!
-    \brief Appends a previously scanned plugin candidate to the hosted Tracktion chain.
+    \brief Appends a previously discovered plugin candidate to the hosted Tracktion chain.
 
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain.
 
-    \param plugin_id Opaque candidate ID returned by knownPluginCandidates() or a catalog scan.
+    \param plugin_id Opaque candidate ID returned by knownPluginCatalog() or a scan method.
     \return Handle for the inserted plugin instance, or a typed failure.
     */
     [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPlugin(
