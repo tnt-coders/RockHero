@@ -1596,7 +1596,7 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
     assert(isBusy() && "completeAddPluginLoad called outside a busy operation");
 
     const common::audio::PluginCandidate& plugin_candidate = state->plugin_candidate;
-    const auto handle = m_plugin_host->addPlugin(plugin_candidate.id);
+    const auto handle = m_plugin_host->addPlugin(plugin_candidate);
     if (!handle.has_value())
     {
         const std::string message = handle.error().message;

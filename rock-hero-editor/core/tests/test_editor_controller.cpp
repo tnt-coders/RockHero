@@ -532,9 +532,9 @@ public:
 
     // Returns the configured insertion handle or insertion error.
     [[nodiscard]] std::expected<common::audio::PluginHandle, common::audio::PluginHostError>
-    addPlugin(const std::string& plugin_id) override
+    addPlugin(const common::audio::PluginCandidate& plugin_candidate) override
     {
-        last_added_plugin_id = plugin_id;
+        last_added_plugin_candidate = plugin_candidate;
         add_call_count += 1;
         if (next_add_error.has_value())
         {
@@ -542,7 +542,7 @@ public:
         }
 
         common::audio::PluginHandle handle = next_handle;
-        handle.plugin_id = plugin_id;
+        handle.plugin_id = plugin_candidate.id;
         return handle;
     }
 
@@ -618,8 +618,8 @@ public:
     // Last roots passed to scanPluginLocations().
     std::vector<std::filesystem::path> last_catalog_scan_roots{};
 
-    // Last candidate ID passed to addPlugin().
-    std::optional<std::string> last_added_plugin_id{};
+    // Last candidate passed to addPlugin().
+    std::optional<common::audio::PluginCandidate> last_added_plugin_candidate{};
 
     // Last instance ID passed to removePlugin().
     std::optional<std::string> last_removed_instance_id{};
@@ -1628,7 +1628,9 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     controller.onAddPluginRequested("catalog-plugin-id");
 
     CHECK(plugin_host.add_call_count == 1);
-    CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
+    CHECK(
+        plugin_host.last_added_plugin_candidate ==
+        std::optional{plugin_host.next_known_candidates.front()});
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());

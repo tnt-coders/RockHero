@@ -25,7 +25,7 @@ the audio-boundary type.
 */
 struct PluginCandidateViewState
 {
-    /*! \brief Opaque plugin ID passed back to the plugin host when adding this candidate. */
+    /*! \brief Opaque catalog ID emitted by browser selection. */
     std::string id;
 
     /*! \brief User-facing plugin name reported by the scanner. */

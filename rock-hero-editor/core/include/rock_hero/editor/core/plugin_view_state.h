@@ -17,7 +17,7 @@ struct PluginViewState
     /*! \brief Opaque instance ID assigned by the plugin host. */
     std::string instance_id;
 
-    /*! \brief Opaque plugin ID used to create this instance. */
+    /*! \brief Opaque backend plugin ID associated with this instance. */
     std::string plugin_id;
 
     /*! \brief User-facing plugin name. */

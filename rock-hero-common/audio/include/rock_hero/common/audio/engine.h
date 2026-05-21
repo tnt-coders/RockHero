@@ -169,14 +169,14 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Refreshes conventional VST3 catalog locations for candidates loadable by the chain.
+    \brief Refreshes conventional VST3 catalog locations for filesystem-backed candidates.
     \return Success after the refresh, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog() override;
 
     /*!
-    \brief Scans supplied plugin files or directories for candidates loadable by the chain.
+    \brief Discovers supplied plugin files or directories as filesystem-backed candidates.
     \param roots Files or directories to inspect for plugin candidates.
     \return Discovered plugin candidates, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
@@ -185,8 +185,8 @@ public:
         const std::vector<std::filesystem::path>& roots) override;
 
     /*!
-    \brief Returns loadable plugin candidates already known by Tracktion.
-    \return Known plugin candidates without running a plugin scan.
+    \brief Returns cached filesystem candidates and candidates already known by Tracktion.
+    \return Plugin candidates without running a plugin scan.
     \note This method must be called on the message thread.
     */
     [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalog() const override;
@@ -197,11 +197,11 @@ public:
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain.
 
-    \param plugin_id Opaque candidate ID returned by knownPluginCatalog() or a scan method.
+    \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
     \return Handle for the inserted plugin instance, or a typed failure.
     */
     [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPlugin(
-        const std::string& plugin_id) override;
+        const PluginCandidate& plugin_candidate) override;
 
     /*!
     \brief Removes a loaded plugin instance from the hosted Tracktion chain.
