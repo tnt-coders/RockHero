@@ -359,6 +359,13 @@ Threading concerns should stay in infrastructure code:
 - message-thread marshalling
 - audio-thread handoff logic
 
+Asynchronous lifetime guards should match the kind of object being protected rather than forcing
+one pointer type across the whole codebase. Use `juce::Component::SafePointer` for posted
+message-thread callbacks that target JUCE `Component` objects. Use private `std::weak_ptr`
+liveness tokens for project-owned non-component controllers, Pimpls, and adapters whose callbacks
+may outlive the owner. Do not use these guards as thread synchronization; they only prevent
+callbacks from touching owners that have already been destroyed.
+
 Domain logic should receive plain snapshots, events, or immutable inputs.
 
 The core should not care whether input came from:
