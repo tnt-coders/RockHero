@@ -198,13 +198,6 @@ public:
         waveform_click_count += 1;
     }
 
-    // Captures plugin files selected through the controller contract.
-    void onAddPluginRequested(std::filesystem::path file) override
-    {
-        last_plugin_file = std::move(file);
-        add_plugin_request_count += 1;
-    }
-
     // Counts plugin browser open requests.
     void onPluginBrowserRequested() override
     {
@@ -223,11 +216,11 @@ public:
         plugin_catalog_scan_request_count += 1;
     }
 
-    // Captures selected plugin candidate IDs from the browser.
-    void onPluginCandidateAddRequested(std::string plugin_id) override
+    // Captures selected plugin IDs from the browser.
+    void onAddPluginRequested(std::string plugin_id) override
     {
-        last_plugin_candidate_id = std::move(plugin_id);
-        plugin_candidate_add_request_count += 1;
+        last_plugin_id = std::move(plugin_id);
+        plugin_add_request_count += 1;
     }
 
     // Captures plugin instance IDs selected through the controller contract.
@@ -259,11 +252,8 @@ public:
     // Last normalized timeline click emitted by the view.
     std::optional<double> last_normalized_x{};
 
-    // Last plugin file selected through the controller contract.
-    std::optional<std::filesystem::path> last_plugin_file{};
-
-    // Last plugin candidate ID selected through the controller contract.
-    std::optional<std::string> last_plugin_candidate_id{};
+    // Last plugin ID selected through the controller contract.
+    std::optional<std::string> last_plugin_id{};
 
     // Last plugin instance ID selected through the controller contract.
     std::optional<std::string> last_removed_plugin_instance_id{};
@@ -310,9 +300,6 @@ public:
     // Number of waveform-click intents received.
     int waveform_click_count{0};
 
-    // Number of add-plugin intents received.
-    int add_plugin_request_count{0};
-
     // Number of plugin-browser open intents received.
     int plugin_browser_request_count{0};
 
@@ -322,8 +309,8 @@ public:
     // Number of plugin-catalog scan intents received.
     int plugin_catalog_scan_request_count{0};
 
-    // Number of plugin-browser candidate-add intents received.
-    int plugin_candidate_add_request_count{0};
+    // Number of plugin-browser add intents received.
+    int plugin_add_request_count{0};
 
     // Number of remove-plugin intents received.
     int remove_plugin_request_count{0};
@@ -508,21 +495,6 @@ public:
 class FakePluginHost final : public common::audio::IPluginHost
 {
 public:
-    // Returns the configured scan candidates or scan error.
-    [[nodiscard]] std::expected<
-        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-    scanPluginFile(const std::filesystem::path& plugin_path) override
-    {
-        last_scanned_file = plugin_path;
-        scan_call_count += 1;
-        if (next_scan_error.has_value())
-        {
-            return std::unexpected{*next_scan_error};
-        }
-
-        return next_candidates;
-    }
-
     // Returns the configured catalog candidates or scan error.
     [[nodiscard]] std::expected<
         std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
@@ -589,15 +561,6 @@ public:
         return {};
     }
 
-    // Candidates returned by the next successful scan.
-    std::vector<common::audio::PluginCandidate> next_candidates{common::audio::PluginCandidate{
-        .id = "plugin-id",
-        .name = "Amp Sim",
-        .manufacturer = "Example Audio",
-        .format_name = "VST3",
-        .file_path = std::filesystem::path{"amp.vst3"},
-    }};
-
     // Candidates returned by the next successful catalog scan.
     std::vector<common::audio::PluginCandidate> next_catalog_candidates{
         common::audio::PluginCandidate{
@@ -627,9 +590,6 @@ public:
         .chain_index = 0,
     };
 
-    // Optional scan error returned instead of candidates.
-    std::optional<common::audio::PluginHostError> next_scan_error{};
-
     // Optional catalog scan error returned instead of candidates.
     std::optional<common::audio::PluginHostError> next_catalog_scan_error{};
 
@@ -642,13 +602,10 @@ public:
     // Optional open-window error returned instead of success.
     std::optional<common::audio::PluginHostError> next_open_error{};
 
-    // Last plugin file passed to scanPluginFile().
-    std::optional<std::filesystem::path> last_scanned_file{};
-
     // Last roots passed to scanPluginLocations().
     std::vector<std::filesystem::path> last_catalog_scan_roots{};
 
-    // Last candidate ID passed to addPlugin().
+    // Last plugin ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
     // Last instance ID passed to removePlugin().
@@ -656,9 +613,6 @@ public:
 
     // Last instance ID passed to openPluginWindow().
     std::optional<std::string> last_opened_instance_id{};
-
-    // Number of scan calls received.
-    int scan_call_count{0};
 
     // Number of catalog scan calls received.
     int catalog_scan_call_count{0};
@@ -1276,6 +1230,13 @@ void loadArrangement(
     REQUIRE(controller.session().currentArrangement() != nullptr);
 }
 
+// Adds the default known plugin through the same browser route used by production UI.
+void addKnownPlugin(EditorController& controller, std::string plugin_id = "catalog-plugin-id")
+{
+    controller.onPluginBrowserRequested();
+    controller.onAddPluginRequested(std::move(plugin_id));
+}
+
 // Exposes stop enabledness as an optional value so tests can assert presence and value together.
 [[nodiscard]] std::optional<bool> lastStopEnabled(const FakeEditorView& view)
 {
@@ -1358,7 +1319,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.plugin_browser.visible == false);
     CHECK(empty_state.plugin_browser.scan_enabled == false);
     CHECK(empty_state.plugin_browser.add_enabled == false);
-    CHECK(empty_state.plugin_browser.candidates.empty());
+    CHECK(empty_state.plugin_browser.plugins.empty());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
 
@@ -1405,9 +1366,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .visible = true,
                 .scan_enabled = true,
                 .add_enabled = true,
-                .candidates =
+                .plugins =
                     {
-                        PluginBrowserCandidateViewState{
+                        PluginCandidateState{
                             .id = "plugin",
                             .name = "Amp Sim",
                             .manufacturer = "Example Audio",
@@ -1433,8 +1394,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.plugin_browser.visible);
     CHECK(loaded_state.plugin_browser.scan_enabled);
     CHECK(loaded_state.plugin_browser.add_enabled);
-    REQUIRE(loaded_state.plugin_browser.candidates.size() == 1);
-    CHECK(loaded_state.plugin_browser.candidates[0].name == "Amp Sim");
+    REQUIRE(loaded_state.plugin_browser.plugins.size() == 1);
+    CHECK(loaded_state.plugin_browser.plugins[0].name == "Amp Sim");
     CHECK(
         loaded_state.unsaved_changes_prompt ==
         std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
@@ -1462,11 +1423,10 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
     controller.onPluginBrowserRequested();
     controller.onPluginBrowserClosed();
     controller.onPluginCatalogScanRequested();
-    controller.onPluginCandidateAddRequested("catalog-plugin-id");
+    controller.onAddPluginRequested("catalog-plugin-id");
     controller.onRemovePluginRequested("instance-id");
     controller.onOpenPluginRequested("instance-id");
 
@@ -1489,13 +1449,11 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
     CHECK(controller.last_normalized_x == std::optional{0.75});
-    CHECK(controller.add_plugin_request_count == 1);
-    CHECK(controller.last_plugin_file == std::optional{std::filesystem::path{"amp.vst3"}});
     CHECK(controller.plugin_browser_request_count == 1);
     CHECK(controller.plugin_browser_close_count == 1);
     CHECK(controller.plugin_catalog_scan_request_count == 1);
-    CHECK(controller.plugin_candidate_add_request_count == 1);
-    CHECK(controller.last_plugin_candidate_id == std::optional<std::string>{"catalog-plugin-id"});
+    CHECK(controller.plugin_add_request_count == 1);
+    CHECK(controller.last_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance-id"});
     CHECK(controller.open_plugin_request_count == 1);
@@ -1559,45 +1517,6 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     }
 }
 
-// Adding a plugin scans the selected file and publishes the inserted chain item.
-TEST_CASE("EditorController adds a plugin", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    FakeAudio audio;
-    FakePluginHost plugin_host;
-    FakeProjectServices project_services;
-    EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        EditorController::Services{.open_function = project_services.openFunction()}
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
-
-    CHECK(plugin_host.scan_call_count == 1);
-    CHECK(plugin_host.last_scanned_file == std::optional{std::filesystem::path{"amp.vst3"}});
-    CHECK(plugin_host.add_call_count == 1);
-    CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"plugin-id"});
-    const EditorViewState* final_state = stateOrNull(view.last_state);
-    REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->busy.has_value());
-    CHECK(view.busy_overlay_paint_callback_count == 1);
-    REQUIRE(final_state->signal_chain.plugins.size() == 1);
-    CHECK(final_state->signal_chain.add_plugin_enabled);
-    CHECK(final_state->signal_chain.remove_plugins_enabled);
-    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
-    CHECK(final_state->signal_chain.plugins[0].plugin_id == "plugin-id");
-    CHECK(final_state->signal_chain.plugins[0].name == "Amp Sim");
-    CHECK(final_state->signal_chain.plugins[0].manufacturer == "Example Audio");
-    CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
-    CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
-    CHECK(view.shown_errors.empty());
-}
-
 // Opening the plugin browser makes it visible from the already-known catalog only.
 TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-controller]")
 {
@@ -1625,9 +1544,9 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
     CHECK(final_state->plugin_browser.visible);
     CHECK(final_state->plugin_browser.scan_enabled);
     CHECK(final_state->plugin_browser.add_enabled);
-    REQUIRE(final_state->plugin_browser.candidates.size() == 1);
-    CHECK(final_state->plugin_browser.candidates[0].id == "catalog-plugin-id");
-    CHECK(final_state->plugin_browser.candidates[0].name == "Catalog Amp");
+    REQUIRE(final_state->plugin_browser.plugins.size() == 1);
+    CHECK(final_state->plugin_browser.plugins[0].id == "catalog-plugin-id");
+    CHECK(final_state->plugin_browser.plugins[0].name == "Catalog Amp");
     CHECK_FALSE(final_state->busy.has_value());
     CHECK(view.shown_errors.empty());
 }
@@ -1657,13 +1576,13 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->plugin_browser.visible);
-    REQUIRE(final_state->plugin_browser.candidates.size() == 1);
-    CHECK(final_state->plugin_browser.candidates[0].id == "catalog-plugin-id");
+    REQUIRE(final_state->plugin_browser.plugins.size() == 1);
+    CHECK(final_state->plugin_browser.plugins[0].id == "catalog-plugin-id");
     CHECK_FALSE(final_state->busy.has_value());
 }
 
-// Adding a browser candidate uses the current catalog metadata and appends the selected plugin.
-TEST_CASE("EditorController adds a browser plugin candidate", "[core][editor-controller]")
+// Adding a browser plugin uses the current catalog metadata and appends the selected plugin.
+TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -1680,21 +1599,28 @@ TEST_CASE("EditorController adds a browser plugin candidate", "[core][editor-con
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
 
-    controller.onPluginCandidateAddRequested("catalog-plugin-id");
+    controller.onAddPluginRequested("catalog-plugin-id");
 
     CHECK(plugin_host.add_call_count == 1);
     CHECK(plugin_host.last_added_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());
+    CHECK(view.busy_overlay_paint_callback_count == 1);
     CHECK_FALSE(final_state->plugin_browser.visible);
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
+    CHECK(final_state->signal_chain.add_plugin_enabled);
+    CHECK(final_state->signal_chain.remove_plugins_enabled);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     CHECK(final_state->signal_chain.plugins[0].plugin_id == "catalog-plugin-id");
     CHECK(final_state->signal_chain.plugins[0].name == "Catalog Amp");
+    CHECK(final_state->signal_chain.plugins[0].manufacturer == "Example Audio");
+    CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
+    CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(view.shown_errors.empty());
 }
 
-// A failed browser candidate add leaves the browser open so the user can retry or pick another.
+// A failed browser plugin add leaves the browser open so the user can retry or pick another.
 TEST_CASE("EditorController keeps plugin browser open after add error", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1716,7 +1642,7 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
         "plugin rejected",
     };
 
-    controller.onPluginCandidateAddRequested("catalog-plugin-id");
+    controller.onAddPluginRequested("catalog-plugin-id");
 
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -1725,6 +1651,11 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     CHECK(final_state->signal_chain.plugins.empty());
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
+    REQUIRE(view.states_seen_at_errors.size() == 1);
+    REQUIRE(view.states_seen_at_errors.back().has_value());
+    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
+    REQUIRE(error_state != nullptr);
+    CHECK_FALSE(error_state->busy.has_value());
 }
 
 // Browser close only hides the window state; it does not discard the current catalog.
@@ -1750,8 +1681,8 @@ TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->plugin_browser.visible);
-    REQUIRE(final_state->plugin_browser.candidates.size() == 1);
-    CHECK(final_state->plugin_browser.candidates[0].id == "catalog-plugin-id");
+    REQUIRE(final_state->plugin_browser.plugins.size() == 1);
+    CHECK(final_state->plugin_browser.plugins[0].id == "catalog-plugin-id");
 }
 
 // Catalog scan failures clear busy before the transient error is displayed.
@@ -2022,7 +1953,7 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
     controller.onCloseRequested();
 
     const EditorViewState* state = stateOrNull(view.last_state);
@@ -2054,10 +1985,10 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 
     plugin_host.next_handle.instance_id = "instance-a";
     plugin_host.next_handle.chain_index = 0;
-    controller.onAddPluginRequested(std::filesystem::path{"amp-a.vst3"});
+    addKnownPlugin(controller);
     plugin_host.next_handle.instance_id = "instance-b";
     plugin_host.next_handle.chain_index = 1;
-    controller.onAddPluginRequested(std::filesystem::path{"amp-b.vst3"});
+    addKnownPlugin(controller);
 
     controller.onRemovePluginRequested("instance-a");
 
@@ -2089,7 +2020,7 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
     controller.attachView(view);
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
 
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
     controller.onRemovePluginRequested("stale-instance");
 
     CHECK(plugin_host.remove_call_count == 0);
@@ -2116,7 +2047,7 @@ TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
     FakeEditorView view;
     controller.attachView(view);
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
 
     controller.onOpenPluginRequested("instance-id");
 
@@ -2141,7 +2072,7 @@ TEST_CASE("EditorController ignores stale plugin window requests", "[core][edito
     FakeEditorView view;
     controller.attachView(view);
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
 
     controller.onOpenPluginRequested("stale-instance");
 
@@ -2165,7 +2096,7 @@ TEST_CASE("EditorController reports plugin window errors", "[core][editor-contro
     FakeEditorView view;
     controller.attachView(view);
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
     plugin_host.next_open_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginWindowUnavailable,
         "plugin has no editor",
@@ -2194,7 +2125,7 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
     FakeEditorView view;
     controller.attachView(view);
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
+    addKnownPlugin(controller);
     plugin_host.next_remove_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginInstanceNotFound,
         "backend rejected removal",
@@ -2209,83 +2140,6 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not remove plugin: backend rejected removal");
-}
-
-// Plugin-host failures surface as transient errors without adding a chain item.
-TEST_CASE("EditorController reports plugin add errors", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    FakeAudio audio;
-    FakePluginHost plugin_host;
-    FakeProjectServices project_services;
-    EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        EditorController::Services{.open_function = project_services.openFunction()}
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    plugin_host.next_add_error = common::audio::PluginHostError{
-        common::audio::PluginHostErrorCode::PluginLoadFailed,
-        "plugin rejected",
-    };
-
-    controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
-
-    CHECK(plugin_host.scan_call_count == 1);
-    CHECK(plugin_host.add_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    if (view.last_state.has_value())
-    {
-        const EditorViewState& state = view.last_state.value();
-        CHECK(state.signal_chain.plugins.empty());
-    }
-    REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
-    REQUIRE(view.states_seen_at_errors.size() == 1);
-    REQUIRE(view.states_seen_at_errors.back().has_value());
-    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
-    REQUIRE(error_state != nullptr);
-    CHECK_FALSE(error_state->busy.has_value());
-}
-
-// Scanner failures report through the transient error channel and skip chain mutation.
-TEST_CASE("EditorController reports plugin scan errors", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    FakeAudio audio;
-    FakePluginHost plugin_host;
-    FakeProjectServices project_services;
-    EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        EditorController::Services{.open_function = project_services.openFunction()}
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    plugin_host.next_scan_error = common::audio::PluginHostError{
-        common::audio::PluginHostErrorCode::PluginScanFailed,
-        "scanner rejected",
-    };
-
-    controller.onAddPluginRequested(std::filesystem::path{"broken.vst3"});
-
-    CHECK(plugin_host.scan_call_count == 1);
-    CHECK(plugin_host.add_call_count == 0);
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    CHECK(state->signal_chain.plugins.empty());
-    REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not scan plugin: scanner rejected");
-    REQUIRE(view.states_seen_at_errors.size() == 1);
-    REQUIRE(view.states_seen_at_errors.back().has_value());
-    const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
-    REQUIRE(error_state != nullptr);
-    CHECK_FALSE(error_state->busy.has_value());
 }
 
 // Device-manager change notifications re-derive view state through the listener relay.
@@ -3671,8 +3525,7 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     controller.onOpenRequested(std::filesystem::path{"original.rhp"});
     runner.runPendingCompletions();
 
-    controller.onAddPluginRequested(std::filesystem::path{"amp.vst3"});
-    runner.runPendingCompletions();
+    addKnownPlugin(controller);
 
     project_services.next_song = makeSong(replacement_asset.path);
     controller.onOpenRequested(std::filesystem::path{"replacement.rhp"});
@@ -3890,10 +3743,9 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     project_services.next_song = makeSong(std::filesystem::path{"loaded.wav"});
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     runner.runPendingCompletions();
-    controller.onAddPluginRequested(std::filesystem::path{"loaded.vst3"});
-    runner.runPendingCompletions();
-    plugin_host.scan_call_count = 0;
+    addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;
+    plugin_host.known_candidates_call_count = 0;
     plugin_host.add_call_count = 0;
     plugin_host.remove_call_count = 0;
     plugin_host.open_call_count = 0;
@@ -3913,10 +3765,9 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.5);
-    controller.onAddPluginRequested(std::filesystem::path{"blocked.vst3"});
     controller.onPluginBrowserRequested();
     controller.onPluginCatalogScanRequested();
-    controller.onPluginCandidateAddRequested("catalog-plugin-id");
+    controller.onAddPluginRequested("catalog-plugin-id");
     controller.onRemovePluginRequested("instance-id");
     controller.onOpenPluginRequested("instance-id");
 
@@ -3929,8 +3780,8 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     CHECK(transport.play_call_count == 0);
     CHECK(transport.stop_call_count == 0);
     CHECK(transport.seek_call_count == 1);
-    CHECK(plugin_host.scan_call_count == 0);
     CHECK(plugin_host.catalog_scan_call_count == 0);
+    CHECK(plugin_host.known_candidates_call_count == 0);
     CHECK(plugin_host.add_call_count == 0);
     CHECK(plugin_host.remove_call_count == 0);
     CHECK(plugin_host.open_call_count == 0);

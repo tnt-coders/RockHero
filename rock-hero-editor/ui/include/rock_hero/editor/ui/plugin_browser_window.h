@@ -1,6 +1,6 @@
 /*!
 \file plugin_browser_window.h
-\brief JUCE window that displays scanned plugin candidates and emits browser intents.
+\brief JUCE window that displays scanned plugins and emits browser intents.
 */
 
 #pragma once
@@ -33,10 +33,10 @@ public:
         virtual void onPluginBrowserScanRequested() = 0;
 
         /*!
-        \brief Requests that a scanned plugin candidate be added.
-        \param plugin_id Opaque candidate ID selected by the user.
+        \brief Requests that the selected browser plugin be added.
+        \param plugin_id Opaque plugin ID selected by the user.
         */
-        virtual void onPluginBrowserCandidateAddRequested(std::string plugin_id) = 0;
+        virtual void onPluginBrowserAddRequested(std::string plugin_id) = 0;
 
         /*! \brief Reports that the browser window was closed. */
         virtual void onPluginBrowserClosed() = 0;
