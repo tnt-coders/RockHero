@@ -1967,14 +1967,9 @@ void Engine::clearActiveArrangement()
     m_impl->updateTransportState();
 }
 
-// Scans default roots, then returns the host's known catalog as the browser authority. The scan
-// result is intentionally discarded: scanPluginLocationsForCandidates side-effects Tracktion's
-// KnownPluginList during inspection, and the post-scan read is the canonical source of truth
-// because it folds the freshly-scanned plugins in with anything Tracktion remembered from earlier
-// sessions. Reading the KnownPluginList from this worker thread is safe under the busy-operation
-// contract: editor-core gates plugin scans behind a single busy token, so the worker has
-// exclusive access to the list for the duration of the scan and the immediate read that follows.
-std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginCatalog()
+// Scans default roots through Tracktion's known-plugin list. Callers should read
+// knownPluginCatalog() from the message thread after this worker-thread refresh succeeds.
+std::expected<void, PluginHostError> Engine::scanPluginCatalog()
 {
     auto scanned = m_impl->scanPluginLocationsForCandidates(defaultPluginCatalogRoots());
     if (!scanned.has_value())
@@ -1982,7 +1977,7 @@ std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginC
         return std::unexpected{std::move(scanned.error())};
     }
 
-    return m_impl->knownPluginCatalog();
+    return {};
 }
 
 // Scans user-supplied plugin locations for browser catalog candidates.
