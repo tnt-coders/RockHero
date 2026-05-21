@@ -738,7 +738,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTransportDisplayState(
         m_state.play_pause_shows_pause_icon, m_state.stop_enabled);
     m_transport_controls.setState(
-        TransportControlsState{
+        TransportControlsViewState{
             .play_pause_enabled = m_state.play_pause_enabled,
             .stop_enabled = m_state.stop_enabled,
             .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
@@ -785,6 +785,7 @@ void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
         // Waiting for an impossible paint would leave the project-open continuation stuck.
         if (!isShowing())
         {
+            // Clear the member before invoking so reentrant fence requests see no stale callback.
             std::function<void()> pending_callback = std::move(m_after_busy_overlay_paint);
             m_after_busy_overlay_paint = {};
             pending_callback();

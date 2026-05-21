@@ -19,7 +19,7 @@ namespace rock_hero::common::audio
 \brief Project-owned description of one loadable plugin candidate.
 
 The ID is opaque to callers. It is stable enough to pass back to the same plugin host when adding
-the selected plugin, but callers should not parse it or depend on Tracktion/JUCE formatting.
+the selected candidate, but callers should not parse it or depend on Tracktion/JUCE formatting.
 */
 struct [[nodiscard]] PluginCandidate
 {
@@ -52,7 +52,7 @@ struct [[nodiscard]] PluginCandidate
 
 The instance ID is opaque to callers and identifies the concrete inserted plugin in the current
 backend edit. The chain index describes the current linear chain insertion position; future
-parallel or rack-based tone graphs may add richer addressing without changing candidate scanning.
+parallel or rack-based tone graphs may add richer addressing without changing candidate discovery.
 */
 struct [[nodiscard]] PluginHandle
 {
@@ -81,14 +81,27 @@ public:
     virtual ~IPluginHost() = default;
 
     /*!
+    \brief Scans the host's default plugin catalog locations for loadable candidates.
+
+    Implementations own the platform- and host-specific default locations for the plugin formats
+    they support. Callers should use this for a user-initiated full catalog refresh instead of
+    resolving platform search paths themselves.
+
+    \return Host catalog after the refresh, or a typed failure when scanning cannot proceed.
+    \note This method may be called from a non-realtime worker thread.
+    */
+    [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
+    scanPluginCatalog() = 0;
+
+    /*!
     \brief Scans plugin files or directories for loadable candidates.
 
     Implementations may recurse through supplied directories and should return an empty list when
     no compatible candidates are found. Callers should treat individual plugin failures as
-    scanner diagnostics rather than as proof that every other plugin failed.
+    scanner diagnostics rather than as proof that every other candidate failed.
 
     \param roots Files or directories to inspect for plugin candidates.
-    \return Discovered candidates, or a typed failure when scanning itself cannot proceed.
+    \return Discovered plugin candidates, or a typed failure when scanning itself cannot proceed.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
@@ -103,15 +116,15 @@ public:
     \return Known plugin candidates currently available to add to the hosted chain.
     \note This method must be called on the message thread.
     */
-    [[nodiscard]] virtual std::vector<PluginCandidate> knownPluginCandidates() const = 0;
+    [[nodiscard]] virtual std::vector<PluginCandidate> knownPluginCatalog() const = 0;
 
     /*!
-    \brief Appends a previously scanned plugin candidate to the hosted chain.
+    \brief Appends a previously discovered plugin candidate to the hosted chain.
 
     The first implementation appends to the linear Tracktion plugin list owned by the instrument
     track. It stops and rebuilds backend playback graph state as needed.
 
-    \param plugin_id Opaque candidate ID returned by knownPluginCandidates() or a catalog scan.
+    \param plugin_id Opaque candidate ID returned by knownPluginCatalog() or a scan method.
     \return Handle for the inserted plugin instance, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<PluginHandle, PluginHostError> addPlugin(

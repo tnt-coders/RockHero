@@ -93,14 +93,14 @@ template <class ComponentType>
         .scan_enabled = true,
         .add_enabled = true,
         .plugins = {
-            core::PluginCandidateState{
+            core::PluginCandidateViewState{
                 .id = "nolly-id",
                 .name = "Archetype Nolly X",
                 .manufacturer = "Neural DSP",
                 .format_name = "VST3",
                 .file_path = std::filesystem::path{"Nolly.vst3"},
             },
-            core::PluginCandidateState{
+            core::PluginCandidateViewState{
                 .id = "gojira-id",
                 .name = "Archetype Gojira X",
                 .manufacturer = "Neural DSP",

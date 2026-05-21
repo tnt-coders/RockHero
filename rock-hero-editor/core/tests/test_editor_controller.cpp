@@ -495,6 +495,20 @@ public:
 class FakePluginHost final : public common::audio::IPluginHost
 {
 public:
+    // Returns the configured default catalog candidates or scan error.
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+    scanPluginCatalog() override
+    {
+        catalog_scan_call_count += 1;
+        if (next_catalog_scan_error.has_value())
+        {
+            return std::unexpected{*next_catalog_scan_error};
+        }
+
+        return next_catalog_candidates;
+    }
+
     // Returns the configured catalog candidates or scan error.
     [[nodiscard]] std::expected<
         std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
@@ -511,7 +525,7 @@ public:
     }
 
     // Returns the configured known catalog without simulating a plugin scan.
-    [[nodiscard]] std::vector<common::audio::PluginCandidate> knownPluginCandidates() const override
+    [[nodiscard]] std::vector<common::audio::PluginCandidate> knownPluginCatalog() const override
     {
         known_candidates_call_count += 1;
         return next_known_candidates;
@@ -605,7 +619,7 @@ public:
     // Last roots passed to scanPluginLocations().
     std::vector<std::filesystem::path> last_catalog_scan_roots{};
 
-    // Last plugin ID passed to addPlugin().
+    // Last candidate ID passed to addPlugin().
     std::optional<std::string> last_added_plugin_id{};
 
     // Last instance ID passed to removePlugin().
@@ -1368,7 +1382,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                 .add_enabled = true,
                 .plugins =
                     {
-                        PluginCandidateState{
+                        PluginCandidateViewState{
                             .id = "plugin",
                             .name = "Amp Sim",
                             .manufacturer = "Example Audio",
@@ -1538,7 +1552,6 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
 
     CHECK(plugin_host.known_candidates_call_count == 1);
     CHECK(plugin_host.catalog_scan_call_count == 0);
-    CHECK(plugin_host.last_catalog_scan_roots.empty());
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->plugin_browser.visible);
@@ -1572,7 +1585,6 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     controller.onPluginCatalogScanRequested();
 
     CHECK(plugin_host.catalog_scan_call_count == 1);
-    CHECK_FALSE(plugin_host.last_catalog_scan_roots.empty());
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->plugin_browser.visible);
