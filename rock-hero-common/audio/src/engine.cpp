@@ -24,6 +24,7 @@
 #include <system_error>
 #include <thread>
 #include <tracktion_engine/tracktion_engine.h>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -130,13 +131,10 @@ void appendEnvironmentSubpath(
 // Adds a candidate only once because JUCE/Tracktion can return the same plugin identity through
 // multiple supplied roots.
 void appendUniquePluginCandidate(
-    std::vector<PluginCandidate>& plugin_candidates, PluginCandidate plugin_candidate)
+    std::vector<PluginCandidate>& plugin_candidates, std::unordered_set<std::string>& seen_ids,
+    PluginCandidate plugin_candidate)
 {
-    const auto duplicate = std::ranges::find_if(
-        plugin_candidates, [&plugin_candidate](const PluginCandidate& existing) {
-            return existing.id == plugin_candidate.id;
-        });
-    if (duplicate == plugin_candidates.end())
+    if (seen_ids.insert(plugin_candidate.id).second)
     {
         plugin_candidates.push_back(std::move(plugin_candidate));
     }
@@ -1372,16 +1370,18 @@ private:
     scanPluginLocationsForCandidates(const std::vector<std::filesystem::path>& roots)
     {
         std::vector<PluginCandidate> plugin_candidates;
+        std::unordered_set<std::string> seen_plugin_ids;
         std::optional<PluginHostError> first_scan_failure;
 
-        const auto scan_path = [this, &plugin_candidates, &first_scan_failure](
+        const auto scan_path = [this, &plugin_candidates, &seen_plugin_ids, &first_scan_failure](
                                    const std::filesystem::path& plugin_path) {
             const auto result = scanPluginFileForCandidates(plugin_path);
             if (result.has_value())
             {
                 for (PluginCandidate plugin_candidate : *result)
                 {
-                    appendUniquePluginCandidate(plugin_candidates, std::move(plugin_candidate));
+                    appendUniquePluginCandidate(
+                        plugin_candidates, seen_plugin_ids, std::move(plugin_candidate));
                 }
                 return;
             }
@@ -1451,8 +1451,10 @@ private:
     {
         constexpr auto* vst3_format_name = "VST3";
         std::vector<PluginCandidate> plugin_candidates;
+        std::unordered_set<std::string> seen_plugin_ids;
         const auto& known_types = m_engine->getPluginManager().knownPluginList.getTypes();
         plugin_candidates.reserve(static_cast<std::size_t>(known_types.size()));
+        seen_plugin_ids.reserve(static_cast<std::size_t>(known_types.size()));
 
         for (const juce::PluginDescription& description : known_types)
         {
@@ -1463,7 +1465,7 @@ private:
 
             const std::filesystem::path plugin_path{description.fileOrIdentifier.toStdString()};
             appendUniquePluginCandidate(
-                plugin_candidates, makePluginCandidate(description, plugin_path));
+                plugin_candidates, seen_plugin_ids, makePluginCandidate(description, plugin_path));
         }
 
         return plugin_candidates;

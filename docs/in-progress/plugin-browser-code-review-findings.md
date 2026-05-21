@@ -1,6 +1,6 @@
 # Plugin Browser Code Review Findings
 
-Status: in-progress. Concrete review findings for commit
+Status: resolved. Concrete review findings for commit
 `5c168ece — Add plugin browser workflow`, plus follow-up findings raised during review of the
 subsequent cleanup work. This document supersedes the earlier `plugin-browser-code-review.md`
 checklist by folding its scope and checklist into the actual findings produced by walking the
@@ -11,8 +11,9 @@ code.
 - **Resolved:** finding 1 (re-entrant Close-button destruction), finding 2 (legacy file-path
   `AddPlugin`), finding 3 (catalog merge/replace inconsistency), finding 4 (catalog roots in
   editor-core), finding 5 (paint-fence comment nit), finding 6 (catalog ownership split between
-  Tracktion and controller), finding 8 (PluginCandidate dual-use leak risk).
-- **Open:** finding 7 (minor efficiency notes; no action required yet).
+  Tracktion and controller), finding 7 (catalog-scale efficiency notes), finding 8
+  (PluginCandidate dual-use leak risk).
+- **Open:** none.
 
 ## Purpose
 
@@ -200,15 +201,16 @@ scans default roots through Tracktion and updates Tracktion's `KnownPluginList`.
 then reads `knownPluginCatalog()` on the message thread and keeps only a sorted UI snapshot of
 that result.
 
-### 7. Minor efficiency notes (no action required yet)
+### 7. Catalog-scale efficiency notes
 
-**Status:** Open (informational; no action required).
+**Status:** Resolved.
 
-- `appendUniquePluginCandidate` is O(N) per insert (O(N²) total). For realistic VST3 counts this
-  is fine; if catalog sizes grow, swap to an `std::unordered_set<std::string>` for seen IDs.
-- `PluginBrowserWindow::Content::rebuildFilteredIndices` recomputes a lowercased haystack per
-  plugin per keystroke. Fine for ≤1k plugins; if it becomes noticeable, cache a precomputed
-  lowercase haystack per plugin inside `setState`.
+- `appendUniquePluginCandidate` was O(N) per insert (O(N^2) total). It now uses an
+  `std::unordered_set<std::string>` of seen IDs while accumulating scan results and known-catalog
+  snapshots.
+- `PluginBrowserWindow::Content::rebuildFilteredIndices` recomputed a lowercased haystack per
+  plugin per keystroke. The browser now caches lowercase search text when state is applied and
+  filters against that cache.
 - `scanPluginLocationsForCandidates` correctly disables recursion into VST3 bundle directories
   via `disable_recursion_pending`. No issue, called out only because the path is easy to break
   on later edits.
@@ -243,9 +245,7 @@ Editor-only fields (favorites, match scores, last-used timestamps) now have a na
 
 ## Suggested Ordering
 
-Remaining open work:
-
-1. Finding 7 (efficiency notes). No action needed until catalog sizes grow.
+No remaining open review findings.
 
 ## Out of Scope
 

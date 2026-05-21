@@ -166,11 +166,17 @@ TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
 
     CHECK(count_label.getText() == "2 plugins");
 
-    filter.setText("gojira", false);
+    filter.setText("gojira.vst3", false);
     REQUIRE(filter.onTextChange);
     filter.onTextChange();
 
     CHECK(count_label.getText() == "1 plugin");
+
+    auto updated_state = makeBrowserState();
+    updated_state.plugins[1].file_path = std::filesystem::path{"Different.vst3"};
+    window.setState(updated_state);
+
+    CHECK(count_label.getText() == "0 plugins");
 }
 
 } // namespace rock_hero::editor::ui
