@@ -169,12 +169,11 @@ public:
     void clearActiveArrangement() override;
 
     /*!
-    \brief Scans conventional VST3 catalog locations for candidates loadable by the chain.
-    \return Host catalog after the refresh, or a typed failure.
+    \brief Refreshes conventional VST3 catalog locations for candidates loadable by the chain.
+    \return Success after the refresh, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
     */
-    [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginCatalog()
-        override;
+    [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog() override;
 
     /*!
     \brief Scans supplied plugin files or directories for candidates loadable by the chain.

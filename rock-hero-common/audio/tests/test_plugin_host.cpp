@@ -16,8 +16,8 @@ namespace
 class FakePluginHost final : public IPluginHost
 {
 public:
-    // Records a default catalog scan and returns the configured catalog candidates or failure.
-    std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginCatalog() override
+    // Records a default catalog scan and refreshes the known catalog or returns failure.
+    std::expected<void, PluginHostError> scanPluginCatalog() override
     {
         ++catalog_scan_call_count;
 
@@ -26,7 +26,8 @@ public:
             return std::unexpected{*next_catalog_scan_error};
         }
 
-        return next_catalog_candidates;
+        next_known_candidates = next_catalog_candidates;
+        return {};
     }
 
     // Records catalog roots and returns the configured catalog candidates or failure.
@@ -164,18 +165,20 @@ public:
 
 } // namespace
 
-// Verifies default catalog scans let the host own platform-specific plugin search policy.
-TEST_CASE("IPluginHost scans default plugin catalog", "[audio][plugin-host]")
+// Verifies default catalog scans refresh the host-owned known catalog.
+TEST_CASE("IPluginHost refreshes default plugin catalog", "[audio][plugin-host]")
 {
     FakePluginHost plugin_host;
 
-    const auto candidates = plugin_host.scanPluginCatalog();
+    const auto scan_result = plugin_host.scanPluginCatalog();
+    const std::vector<PluginCandidate> candidates = plugin_host.knownPluginCatalog();
 
-    REQUIRE(candidates.has_value());
-    REQUIRE(candidates->size() == 1);
-    CHECK(candidates->front().id == "vst3:catalog-amp");
+    REQUIRE(scan_result.has_value());
+    REQUIRE(candidates.size() == 1);
+    CHECK(candidates.front().id == "vst3:catalog-amp");
     CHECK(plugin_host.last_scan_roots.empty());
     CHECK(plugin_host.catalog_scan_call_count == 1);
+    CHECK(plugin_host.known_candidates_call_count == 1);
 }
 
 // Verifies catalog scans expose scanned plugin candidates without selecting a single file.

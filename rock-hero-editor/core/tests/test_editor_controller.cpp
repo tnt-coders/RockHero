@@ -495,10 +495,8 @@ public:
 class FakePluginHost final : public common::audio::IPluginHost
 {
 public:
-    // Returns the configured default catalog candidates or scan error.
-    [[nodiscard]] std::expected<
-        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-    scanPluginCatalog() override
+    // Refreshes the configured known catalog from the default catalog scan or returns scan error.
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog() override
     {
         catalog_scan_call_count += 1;
         if (next_catalog_scan_error.has_value())
@@ -506,7 +504,8 @@ public:
             return std::unexpected{*next_catalog_scan_error};
         }
 
-        return next_catalog_candidates;
+        next_known_candidates = next_catalog_candidates;
+        return {};
     }
 
     // Returns the configured catalog candidates or scan error.
@@ -1571,6 +1570,15 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     FakeAudio audio;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
+    plugin_host.next_known_candidates = {
+        common::audio::PluginCandidate{
+            .id = "known-plugin-id",
+            .name = "Known Amp",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .file_path = std::filesystem::path{"known-amp.vst3"},
+        },
+    };
     EditorController controller{
         transport,
         audio,
@@ -1582,9 +1590,15 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
 
+    const EditorViewState* browser_state = stateOrNull(view.last_state);
+    REQUIRE(browser_state != nullptr);
+    REQUIRE(browser_state->plugin_browser.plugins.size() == 1);
+    CHECK(browser_state->plugin_browser.plugins[0].id == "known-plugin-id");
+
     controller.onPluginCatalogScanRequested();
 
     CHECK(plugin_host.catalog_scan_call_count == 1);
+    CHECK(plugin_host.known_candidates_call_count == 2);
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->plugin_browser.visible);
