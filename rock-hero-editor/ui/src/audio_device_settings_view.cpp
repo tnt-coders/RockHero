@@ -99,7 +99,7 @@ void populateStringCombo(
 [[nodiscard]] juce::String sampleRateText(double sample_rate)
 {
     const auto rounded = static_cast<int>(std::lround(sample_rate));
-    if (std::abs(sample_rate - static_cast<double>(rounded)) < 0.001)
+    if (common::audio::sampleRatesMatch(sample_rate, static_cast<double>(rounded)))
     {
         return juce::String{rounded} + " Hz";
     }
@@ -135,7 +135,8 @@ void populateStringCombo(
 {
     for (int index = 0; std::cmp_less(index, sample_rates.size()); ++index)
     {
-        if (std::abs(sample_rates[static_cast<std::size_t>(index)] - current_rate) < 0.001)
+        if (common::audio::sampleRatesMatch(
+                sample_rates[static_cast<std::size_t>(index)], current_rate))
         {
             return index + 1;
         }
