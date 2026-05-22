@@ -482,10 +482,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return std::unexpected{std::move(error)};
         }
 
-        if (m_staged_device_type != m_device_manager.getCurrentAudioDeviceType())
-        {
-            m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
-        }
+        applyStagedAudioSystem();
 
         const juce::String error_text = m_device_manager.setAudioDeviceSetup(m_staged_setup, true);
         if (error_text.isNotEmpty())
@@ -579,6 +576,24 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     }
 
 private:
+    // Switches audio systems without triggering JUCE's fixed open-device release delay.
+    void applyStagedAudioSystem()
+    {
+        if (m_staged_device_type == m_device_manager.getCurrentAudioDeviceType())
+        {
+            return;
+        }
+
+        // JUCE sleeps for 1.5 seconds inside setCurrentAudioDeviceType when a device is open.
+        // Pre-closing preserves currentSetup, so rollback can still restore the old route.
+        if (m_device_manager.getCurrentAudioDevice() != nullptr)
+        {
+            m_device_manager.closeAudioDevice();
+        }
+
+        m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
+    }
+
     // Rebuilds the public settings state while preserving a caller-supplied operation error.
     void refreshState(std::string error_message)
     {

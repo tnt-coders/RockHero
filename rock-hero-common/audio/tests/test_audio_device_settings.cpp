@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <memory>
 #include <rock_hero/common/audio/audio_device_settings.h>
@@ -385,6 +386,28 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
     CHECK(result.has_value());
     CHECK(applied_setup.inputDeviceName == g_input_a);
     CHECK(applied_setup.outputDeviceName == g_output_b);
+}
+
+// Switching audio systems should avoid JUCE's fixed 1.5 second type-switch sleep.
+TEST_CASE("AudioDeviceSettings avoids JUCE type-switch delay", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+    addMockAudioType(audio_devices.device_manager, "Windows Audio");
+
+    AudioDeviceSettings settings{audio_devices};
+    settings.selectAudioSystem(2);
+
+    const auto started_at = std::chrono::steady_clock::now();
+    const auto result = settings.apply();
+    const auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - started_at)
+                                .count();
+
+    CHECK(result.has_value());
+    CHECK(audio_devices.device_manager.getCurrentAudioDeviceType() == "Windows Audio");
+    CHECK(elapsed_ms < 1000);
 }
 
 // JUCE delivers route-change broadcasts asynchronously, so the configuration listener can fire
