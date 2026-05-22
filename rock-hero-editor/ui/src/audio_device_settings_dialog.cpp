@@ -7,12 +7,13 @@
 namespace rock_hero::editor::ui
 {
 
-// Launches the custom audio-device settings dialog centered on the requesting component.
+// Launches the audio settings dialog centered on the editor window that owns the launcher.
 void AudioDeviceSettingsDialog::show(
     juce::AudioDeviceManager& device_manager, juce::Component& anchor)
 {
     auto content = std::make_unique<AudioDeviceSettingsComponent>(device_manager);
     const int content_height = content->preferredContentHeight();
+    juce::Component* const dialog_owner = anchor.getTopLevelComponent();
 
     juce::DialogWindow::LaunchOptions options;
     options.dialogTitle = "Audio Device Settings";
@@ -21,7 +22,7 @@ void AudioDeviceSettingsDialog::show(
     options.useNativeTitleBar = true;
     options.resizable = true;
     options.useBottomRightCornerResizer = true;
-    options.componentToCentreAround = &anchor;
+    options.componentToCentreAround = dialog_owner != nullptr ? dialog_owner : &anchor;
     options.content.setOwned(content.release());
     auto* window = options.launchAsync();
     window->setResizeLimits(
