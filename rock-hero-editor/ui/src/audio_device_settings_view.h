@@ -5,31 +5,30 @@
 
 #pragma once
 
-#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <memory>
-#include <vector>
+#include <rock_hero/editor/core/audio_device_settings_view_state.h>
+#include <rock_hero/editor/core/i_audio_device_settings_controller.h>
+#include <rock_hero/editor/core/i_audio_device_settings_view.h>
 
 namespace rock_hero::editor::ui
 {
 
 /*!
-\brief Presents the app-specific audio-device settings supported by Rock Hero.
+\brief Presents editor audio-device settings state and emits controller intents.
 
-The view stages hardware route changes locally while the window is open. Pressing OK applies the
-selected route through juce::AudioDeviceManager; Cancel, Escape, and native close leave the active
-device untouched.
+The view owns only JUCE controls and layout. The staged route transaction, device capability
+queries, apply rollback, and native-close cancellation backstop live outside the component.
 */
-class AudioDeviceSettingsView final : public juce::Component, private juce::ChangeListener
+class AudioDeviceSettingsView final : public juce::Component, public core::IAudioDeviceSettingsView
 {
 public:
     /*!
-    \brief Creates the audio settings view around the shared device manager.
-    \param device_manager Device manager owned by the audio backend.
+    \brief Creates the audio settings view around an editor settings controller.
+    \param controller Controller that receives all user intents emitted by this view.
     */
-    explicit AudioDeviceSettingsView(juce::AudioDeviceManager& device_manager);
+    explicit AudioDeviceSettingsView(core::IAudioDeviceSettingsController& controller);
 
-    /*! \brief Removes device-change listeners without mutating the active audio route. */
+    /*! \brief Uses default destruction; no backend listener is owned by the view. */
     ~AudioDeviceSettingsView() override;
 
     /*! \brief Returns the default window width for the current control set. */
@@ -47,96 +46,36 @@ public:
     /*! \brief Returns the maximum useful window height. */
     [[nodiscard]] static int maximumHeight() noexcept;
 
+    /*!
+    \brief Applies controller-derived state to the JUCE controls.
+    \param state State to render.
+    */
+    void setState(const core::AudioDeviceSettingsViewState& state) override;
+
+    /*! \brief Requests modal shutdown from the host DialogWindow. */
+    void requestClose() override;
+
     /*! \brief Lays out the routing controls and window action buttons. */
     void resized() override;
 
 private:
-    struct OutputPair
-    {
-        int left_channel{};
-        int right_channel{};
-    };
-
-    void changeListenerCallback(juce::ChangeBroadcaster* source) override;
-
     // Sets labels, button text, component IDs, and static presentation properties.
     void configureControls();
 
-    // Rebuilds all controls from the active device-manager state.
-    void refreshControls();
-
-    // Rebuilds audio-system choices from the device manager.
-    void refreshDeviceTypes();
-
-    // Scans the JUCE device type for the staged audio system once for this refresh pass.
-    void scanCurrentDeviceType() const;
-
-    // Rebuilds device-name choices for the current audio system.
-    void refreshDeviceNames();
-
-    // Rebuilds the mono input and stereo output-pair choices from the open device.
-    void refreshChannelChoices();
-
-    // Rebuilds sample-rate choices from the staged device capabilities.
-    void refreshSampleRateChoices();
-
-    // Rebuilds buffer-size choices from the open device.
-    void refreshBufferSizeChoices();
-
-    // Enables controls only when their backing choices exist.
-    void refreshControlEnablement();
+    // Populates every control from the current view state.
+    void applyStateToControls();
 
     // Resizes the view and host window to match the current form rows.
     void syncWindowHeightToContent();
 
-    void handleDeviceTypeChanged();
-    void handleDeviceChanged();
-    void handleRouteChanged();
-    void handleAudioFormatChanged();
-    void acceptAndClose();
-    void cancelAndClose();
-
-    // Stages the selected device names and resets routing to the first usable channels.
-    void applySelectedDevice();
-
-    // Stages channel, sample-rate, and buffer-size selections against the chosen devices.
-    void applySelectedRoute();
-
-    // Applies the staged route to the active device manager and reports any failure.
-    void applyAcceptedSetup();
-
     // Closes the containing DialogWindow, if the view is currently hosted by one.
     void closeWindow();
 
-    // Ensures a staged audio system exists before dependent controls are populated.
-    void ensureStagedDeviceType();
+    // Controller that owns settings workflow policy.
+    core::IAudioDeviceSettingsController& m_controller;
 
-    // Ensures staged device names refer to available devices for the chosen audio system.
-    void ensureStagedDeviceNames();
-
-    // Resets the staged route to Rock Hero's first mono input and stereo output pair.
-    void resetStagedRouteDefaults();
-
-    [[nodiscard]] juce::AudioIODeviceType* currentDeviceType() const;
-    [[nodiscard]] bool currentTypeUsesSeparateDevices() const;
-    [[nodiscard]] std::unique_ptr<juce::AudioIODevice> createStagedDevice() const;
-    [[nodiscard]] bool stagedRouteMatchesActiveRoute() const;
-    [[nodiscard]] bool stagedDeviceNamesMatchActiveRoute() const;
-    [[nodiscard]] bool copySelectedDeviceNames(
-        juce::AudioDeviceManager::AudioDeviceSetup& setup) const;
-
-    void setSingleInputChannel(
-        juce::AudioDeviceManager::AudioDeviceSetup& setup, int channel_index) const;
-    void setOutputPair(juce::AudioDeviceManager::AudioDeviceSetup& setup, OutputPair pair) const;
-    void setSelectedAudioFormat(juce::AudioDeviceManager::AudioDeviceSetup& setup) const;
-
-    juce::AudioDeviceManager& m_device_manager;
-    juce::AudioDeviceManager::AudioDeviceSetup m_staged_setup;
-    juce::String m_staged_device_type;
-    std::unique_ptr<juce::AudioIODevice> m_staged_device;
-    std::vector<double> m_sample_rates;
-    std::vector<int> m_buffer_sizes;
-    std::vector<OutputPair> m_output_pairs;
+    // Last controller-derived view state rendered by this component.
+    core::AudioDeviceSettingsViewState m_state{};
 
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;
@@ -159,8 +98,6 @@ private:
     juce::TextButton m_control_panel_button;
     juce::TextButton m_ok_button;
     juce::TextButton m_cancel_button;
-
-    bool m_refreshing_controls{false};
 };
 
 } // namespace rock_hero::editor::ui
