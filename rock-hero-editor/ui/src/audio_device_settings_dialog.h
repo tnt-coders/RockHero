@@ -25,9 +25,9 @@ class AudioDeviceSettingsDialog final
 {
 public:
     /*!
-    \brief Opens the modal dialog around the requesting component.
+    \brief Opens the modal dialog around the top-level component that owns the launcher.
     \param device_manager Device manager hosted by the settings component; must outlive the dialog.
-    \param anchor Component used to center the dialog.
+    \param anchor Launcher component used to find the owning editor window.
     */
     static void show(juce::AudioDeviceManager& device_manager, juce::Component& anchor);
 
