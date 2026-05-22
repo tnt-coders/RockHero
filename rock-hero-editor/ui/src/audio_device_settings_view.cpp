@@ -141,7 +141,7 @@ void AudioDeviceSettingsView::requestClose()
     closeWindow();
 }
 
-// Disables editing while the blocking audio-device apply runs and delegates host visibility to the
+// Disables editing while audio-device open work runs and delegates host visibility to the
 // window wrapper that owns JUCE modal lifetime.
 void AudioDeviceSettingsView::setApplying(bool applying)
 {
@@ -170,11 +170,15 @@ void AudioDeviceSettingsView::resized()
     button_row.removeFromRight(std::min(g_row_gap, button_row.getWidth()));
     m_ok_button.setBounds(button_row.removeFromRight(g_button_width));
 
-    m_test_button.setBounds(
-        button_row.removeFromLeft(std::min(g_utility_button_width, button_row.getWidth())));
-    button_row.removeFromLeft(std::min(g_row_gap, button_row.getWidth()));
-    m_control_panel_button.setBounds(
-        button_row.removeFromLeft(std::min(g_utility_button_width, button_row.getWidth())));
+    if (m_control_panel_button.isVisible())
+    {
+        m_control_panel_button.setBounds(
+            button_row.removeFromLeft(std::min(g_utility_button_width, button_row.getWidth())));
+    }
+    else
+    {
+        m_control_panel_button.setBounds({});
+    }
 
     area.removeFromBottom(std::min(g_row_gap, area.getHeight()));
     m_error_label.setBounds(area.removeFromBottom(std::min(g_error_height, area.getHeight())));
@@ -213,14 +217,12 @@ void AudioDeviceSettingsView::configureControls()
     m_sample_rate_combo.setComponentID("audio_settings_sample_rate");
     m_buffer_size_combo.setComponentID("audio_settings_buffer_size");
     m_error_label.setComponentID("audio_settings_error");
-    m_test_button.setComponentID("audio_settings_test_button");
     m_control_panel_button.setComponentID("audio_settings_control_panel_button");
     m_ok_button.setComponentID("audio_settings_ok_button");
     m_cancel_button.setComponentID("audio_settings_cancel_button");
 
     m_error_label.setColour(juce::Label::textColourId, juce::Colours::lightsalmon);
     m_error_label.setJustificationType(juce::Justification::centredLeft);
-    m_test_button.setButtonText("Test Output");
     m_control_panel_button.setButtonText("Control Panel");
     m_ok_button.setButtonText("OK");
     m_cancel_button.setButtonText("Cancel");
@@ -251,7 +253,6 @@ void AudioDeviceSettingsView::configureControls()
     m_buffer_size_combo.onChange = [this] {
         m_controller.onBufferSizeSelected(m_buffer_size_combo.getSelectedId());
     };
-    m_test_button.onClick = [this] { m_controller.onTestOutputRequested(); };
     m_control_panel_button.onClick = [this] { m_controller.onControlPanelRequested(); };
     m_ok_button.onClick = [this] { m_controller.onOkRequested(); };
     m_cancel_button.onClick = [this] { m_controller.onCancelRequested(); };
@@ -273,7 +274,6 @@ void AudioDeviceSettingsView::configureControls()
     addAndMakeVisible(m_buffer_size_label);
     addAndMakeVisible(m_buffer_size_combo);
     addAndMakeVisible(m_error_label);
-    addAndMakeVisible(m_test_button);
     addAndMakeVisible(m_control_panel_button);
     addAndMakeVisible(m_ok_button);
     addAndMakeVisible(m_cancel_button);
@@ -340,7 +340,10 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_pair_combo.setEnabled(controls_enabled && !m_state.stereo_output_pairs.empty());
     m_sample_rate_combo.setEnabled(controls_enabled && !m_state.sample_rates.empty());
     m_buffer_size_combo.setEnabled(controls_enabled && !m_state.buffer_sizes.empty());
-    m_test_button.setEnabled(controls_enabled && m_state.test_output_enabled);
+    // The control panel button is hidden entirely for backends that do not expose one (such as
+    // WASAPI). Only ASIO drivers reliably show a per-device control panel; for non-ASIO routes
+    // the button would otherwise sit there as a permanently-disabled control and look broken.
+    m_control_panel_button.setVisible(m_state.control_panel_enabled);
     m_control_panel_button.setEnabled(controls_enabled && m_state.control_panel_enabled);
     m_ok_button.setEnabled(controls_enabled && m_state.ok_enabled);
     m_cancel_button.setEnabled(controls_enabled);

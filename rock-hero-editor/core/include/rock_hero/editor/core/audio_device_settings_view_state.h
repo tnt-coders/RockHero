@@ -75,9 +75,6 @@ struct AudioDeviceSettingsViewState
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
 
-    /*! \brief True when test output can be requested for the staged route. */
-    bool test_output_enabled{};
-
     /*! \brief True when the backend control panel can be opened for the staged route. */
     bool control_panel_enabled{};
 
