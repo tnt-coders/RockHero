@@ -16,37 +16,19 @@ game-side UI lands or when test investment is prioritized.
 
 ## Open Follow-Ups
 
-### View-level smoke tests
+### Remaining view-level smoke test
 
-`AudioDeviceSettingsView` (and its sibling that will live in the game UI) currently has
-no direct tests. The shared policy is well covered, but the view-level behavior is not:
+`AudioDeviceSettingsView` now has direct smoke coverage for OK / Cancel preview
+semantics and apply rollback against a mock `juce::AudioDeviceManager` device type.
+One view-level behavior remains open:
 
-- OK / Cancel preview semantics: pressing Cancel must leave the active route untouched,
-  pressing OK must apply the staged route.
-- Apply rollback: when `juce::AudioDeviceManager::setAudioDeviceSetup` returns a
-  non-empty error string, the view restores both the prior device type and prior setup
-  and surfaces the error in the error label without closing the window.
 - `ChangeListener` re-derivation: when the device manager broadcasts a change while the
   window is open, the view re-reads its staged state and the combos reflect the new
   reality without losing user-visible staging the user has already touched (or, if that
   is the design choice, the staging is intentionally discarded with a documented reason).
 
-A small smoke test for each of these in editor UI tests would pay off twice once the
-game-side view exists, because both views will share the same interaction patterns even
-if the controls differ.
-
-### Sample-rate tolerance duplication
-
-`g_sample_rate_match_tolerance{0.001}` lives in
-`rock-hero-common/audio/src/audio_device_settings.cpp`, while the editor view's
-`selectedSampleRateId` still hardcodes `0.001` directly for ComboBox ID lookup. Two
-copies of the same studio-engineering constant. Options:
-
-- Leave it: the value is conventional and unlikely to change.
-- Export a constant from the common header so view code can reference it.
-
-Leaving it is the lower-friction choice and is the current state. Revisit only if the
-tolerance ever needs to change.
+A small smoke test for this would pay off twice once the game-side view exists, because
+both views will share the same interaction pattern even if the controls differ.
 
 ### View file size and shape
 

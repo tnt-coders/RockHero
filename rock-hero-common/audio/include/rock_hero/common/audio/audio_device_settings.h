@@ -28,6 +28,15 @@ responsive.
     const juce::StringArray& available_type_names);
 
 /*!
+\brief Reports whether two sample rates represent the same user-visible choice.
+
+\param lhs First sample rate to compare.
+\param rhs Second sample rate to compare.
+\return True when the rates are close enough to select the same hardware setting.
+*/
+[[nodiscard]] bool sampleRatesMatch(double lhs, double rhs) noexcept;
+
+/*!
 \brief Returns the sample rate an audio-device settings view should select by default.
 
 The available-rate list typically comes from a preview device. Some preview devices are not open
