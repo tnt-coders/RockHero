@@ -107,7 +107,7 @@ public:
     virtual void onOpenPluginRequested(std::string instance_id) = 0;
 
     /*!
-    \brief Schedules an audio-device apply behind the editor's busy overlay.
+    \brief Schedules audio-device open work behind the editor's busy overlay.
 
     The supplied callable runs on the message thread after the busy overlay paints, so the user
     sees a static blocking indicator while the underlying juce::AudioDeviceManager call occupies
@@ -115,9 +115,10 @@ public:
     (dismissing on success, restoring on failure); the editor controller only manages the
     surrounding busy presentation.
 
-    \param apply_fn Callable run after the busy overlay paints; must be safe to call once.
+    \param change_audio_device Callable run after the busy overlay paints; must be safe to call
+    once.
     */
-    virtual void onApplyAudioDeviceSettings(std::function<void()> apply_fn) = 0;
+    virtual void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) = 0;
 
 protected:
     /*! \brief Creates the editor-controller interface. */

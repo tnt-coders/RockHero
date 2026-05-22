@@ -29,9 +29,6 @@ enum class AudioDeviceSettingsErrorCode
     /*! \brief Applying failed and restoring the previous route also failed. */
     RollbackFailed,
 
-    /*! \brief Test output is unavailable for the staged route. */
-    TestOutputUnavailable,
-
     /*! \brief The selected route has no backend control panel to open. */
     ControlPanelUnavailable,
 };
@@ -121,10 +118,7 @@ struct AudioDeviceSettingsState
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
 
-    /*! \brief True when the active route can play a test sound for the staged route. */
-    bool test_output_enabled{};
-
-    /*! \brief True when the active route exposes a backend control panel. */
+    /*! \brief True when the staged route's audio backend exposes a control panel. */
     bool control_panel_enabled{};
 
     /*! \brief Last operation error to display, or empty when no error is active. */
@@ -173,9 +167,6 @@ public:
     /*! \brief Destroys the settings boundary. */
     virtual ~IAudioDeviceSettings() = default;
 
-    /*! \brief Starts a fresh staged edit from the current active route. */
-    virtual void begin() = 0;
-
     /*!
     \brief Returns the current staged settings snapshot.
     \return Current staged settings state.
@@ -212,17 +203,17 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> apply() = 0;
 
-    /*! \brief Abandons the staged route without mutating the active audio backend. */
+    /*!
+    \brief Restores the active audio device to the route that was open when this object was made.
+
+    The settings dialog closes the active device when it opens so the user can edit hardware
+    routing without holding the device. Cancel reopens the captured route only when the device
+    was actually open before editing began.
+    */
     virtual void cancel() = 0;
 
     /*!
-    \brief Plays the backend's test output for the active route.
-    \return Empty success, or a typed settings failure.
-    */
-    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> testOutput() = 0;
-
-    /*!
-    \brief Opens the backend control panel for the active route.
+    \brief Opens the backend control panel for the staged route.
     \return Empty success, or a typed settings failure.
     */
     [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> openControlPanel() = 0;
@@ -265,19 +256,24 @@ protected:
 /*!
 \brief JUCE-backed shared audio-device settings workflow.
 
-The implementation stages route changes independently from the active device manager until
-apply() is called. cancel() and destruction abandon the staged route only.
+Construction captures the current route, closes the active audio device when one is open, and
+builds staged settings from that captured route. apply() opens the staged setup; cancel()
+reopens the captured previous setup only when there was an open device to restore. Destruction
+without an explicit cancel() also attempts that restore so a native window close does not leave
+an originally-open backend silent.
 */
 class AudioDeviceSettings final : public IAudioDeviceSettings
 {
 public:
     /*!
-    \brief Creates settings around an existing audio-device configuration port.
+    \brief Creates a settings edit around an existing audio-device configuration port.
     \param audio_devices Audio-device configuration backend; must outlive this object.
     */
     explicit AudioDeviceSettings(IAudioDeviceConfiguration& audio_devices);
 
-    /*! \brief Releases the backend listener registration. */
+    /*!
+    \brief Releases listener registration and restores the captured route when needed.
+    */
     ~AudioDeviceSettings() override;
 
     /*! \brief Copying is disabled because the settings object owns listener registration. */
@@ -292,7 +288,6 @@ public:
     /*! \brief Move assignment is disabled because listener identity must remain stable. */
     AudioDeviceSettings& operator=(AudioDeviceSettings&&) = delete;
 
-    void begin() override;
     [[nodiscard]] AudioDeviceSettingsState state() const override;
     void selectAudioSystem(int choice_id) override;
     void selectDevice(int choice_id) override;
@@ -304,7 +299,6 @@ public:
     void selectBufferSize(int choice_id) override;
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply() override;
     void cancel() override;
-    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> testOutput() override;
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel() override;
     void addListener(Listener& listener) override;
     void removeListener(Listener& listener) override;

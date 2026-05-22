@@ -15,7 +15,7 @@ namespace rock_hero::editor::core
 /*!
 \brief Semantic identity for an active editor busy operation.
 
-Used by controller policy, tests, telemetry, and special-case behavior such as audio-device apply
+Used by controller policy, tests, telemetry, and special-case behavior such as audio-device open
 handling. The view should render BusyViewState::message rather than deriving its own copy from
 this enum.
 */
@@ -36,8 +36,8 @@ enum class BusyOperation : std::uint8_t
     /*! \brief Publishing the current project as a native song package. */
     PublishingProject,
 
-    /*! \brief Applying an audio-device configuration change. */
-    ChangingAudioDevice,
+    /*! \brief Opening or reopening the audio-device route. */
+    OpeningAudioDevice,
 
     /*! \brief Loading a plugin into the signal chain. */
     LoadingPlugin,

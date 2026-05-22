@@ -237,12 +237,12 @@ public:
         open_plugin_request_count += 1;
     }
 
-    // Records audio-device apply scheduling; controller-level tests can invoke the captured
+    // Records audio-device change scheduling; controller-level tests can invoke the captured
     // callback directly to simulate the busy overlay paint fence firing.
-    void onApplyAudioDeviceSettings(std::function<void()> apply_fn) override
+    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
     {
-        last_audio_device_apply_fn = std::move(apply_fn);
-        apply_audio_device_request_count += 1;
+        last_audio_device_change = std::move(change_audio_device);
+        audio_device_change_request_count += 1;
     }
 
     // Last file passed to onOpenRequested().
@@ -326,11 +326,11 @@ public:
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
 
-    // Last apply callback handed to onApplyAudioDeviceSettings.
-    std::function<void()> last_audio_device_apply_fn{};
+    // Last audio-device change callback handed to onAudioDeviceChangeRequested.
+    std::function<void()> last_audio_device_change{};
 
-    // Number of audio-device apply requests received.
-    int apply_audio_device_request_count{0};
+    // Number of audio-device change requests received.
+    int audio_device_change_request_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -4171,10 +4171,10 @@ TEST_CASE(
     CHECK(audio.prepare_song_call_count == 1);
 }
 
-// Audio-device apply is scheduled behind the busy overlay paint fence so the blocking
+// Audio-device open is scheduled behind the busy overlay paint fence so the blocking
 // presentation paints once before juce::AudioDeviceManager occupies the message thread.
 TEST_CASE(
-    "EditorController schedules audio device apply via paint fence", "[core][editor-controller]")
+    "EditorController schedules audio device open via paint fence", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -4182,11 +4182,25 @@ TEST_CASE(
     FakeEditorView view;
     controller.attachView(view);
 
-    int apply_call_count = 0;
-    controller.onApplyAudioDeviceSettings([&apply_call_count] { apply_call_count += 1; });
+    int audio_device_change_call_count = 0;
+    controller.onAudioDeviceChangeRequested(
+        [&audio_device_change_call_count] { audio_device_change_call_count += 1; });
 
+    const BusyViewState* audio_device_busy = nullptr;
+    for (const EditorViewState& pushed_state : view.pushed_states)
+    {
+        if (pushed_state.busy.has_value())
+        {
+            audio_device_busy = &*pushed_state.busy;
+        }
+    }
+
+    REQUIRE(audio_device_busy != nullptr);
+    CHECK(audio_device_busy->operation == BusyOperation::OpeningAudioDevice);
+    CHECK(audio_device_busy->message == "Opening audio device...");
+    CHECK(audio_device_busy->presentation == BusyPresentation::Blocking);
     CHECK(view.busy_overlay_paint_callback_count == 1);
-    CHECK(apply_call_count == 1);
+    CHECK(audio_device_change_call_count == 1);
     REQUIRE(view.last_state.has_value());
     CHECK_FALSE(view.last_state->busy.has_value());
 }

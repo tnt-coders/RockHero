@@ -192,7 +192,7 @@ private:
     // Editor top-level component used for centering and for revealing the busy overlay.
     juce::Component::SafePointer<juce::Component> m_centering_component;
 
-    // True while the window is hidden for an in-flight audio-device apply.
+    // True while the window is hidden for an in-flight audio-device change.
     bool m_applying{false};
 
     // Set when the next modal-end callback was caused by apply-driven temporary hiding.
@@ -211,11 +211,11 @@ class AudioDeviceSettingsWindowContent final : public juce::Component
 public:
     AudioDeviceSettingsWindowContent(
         common::audio::IAudioDeviceConfiguration& audio_devices,
-        core::AudioDeviceSettingsApplyDispatcher apply_dispatcher,
+        core::AudioDeviceSettingsDispatcher dispatcher,
         AudioDeviceSettingsView::ApplyingCallback applying_callback,
         AudioDeviceSettingsView::CloseCallback close_callback)
         : m_settings(audio_devices)
-        , m_controller(m_settings, std::move(apply_dispatcher))
+        , m_controller(m_settings, std::move(dispatcher))
         , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
         m_controller.attachView(m_view);
@@ -236,7 +236,7 @@ public:
     }
 
 private:
-    // Shared backend that owns the staged route transaction.
+    // Shared backend that owns one staged route edit.
     common::audio::AudioDeviceSettings m_settings;
 
     // Editor-specific controller that maps settings state into view state.
@@ -251,7 +251,7 @@ private:
 // Launches the audio settings window centered on the editor window that owns the launcher.
 void AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-    ApplyDispatcher apply_dispatcher)
+    Dispatcher dispatcher)
 {
     juce::Component* const centering_component = anchor.getTopLevelComponent();
     auto window = std::make_unique<AudioDeviceSettingsDialogWindow>(
@@ -259,7 +259,7 @@ void AudioDeviceSettingsWindow::show(
     const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_window{window.get()};
     auto content = std::make_unique<AudioDeviceSettingsWindowContent>(
         audio_devices,
-        std::move(apply_dispatcher),
+        std::move(dispatcher),
         [safe_window](bool applying) {
             if (auto* target_window = safe_window.getComponent())
             {

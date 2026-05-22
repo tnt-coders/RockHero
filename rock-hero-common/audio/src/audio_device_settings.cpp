@@ -47,10 +47,6 @@ constexpr double g_sample_rate_match_tolerance{0.001};
         {
             return "Could not restore the previous audio device settings.";
         }
-        case AudioDeviceSettingsErrorCode::TestOutputUnavailable:
-        {
-            return "Test output is unavailable for the selected audio device.";
-        }
         case AudioDeviceSettingsErrorCode::ControlPanelUnavailable:
         {
             return "The selected audio device has no control panel.";
@@ -317,21 +313,50 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         : m_device_manager(audio_devices.deviceManager())
         , m_configuration_listener(audio_devices, *this)
     {
-        begin();
+        captureInitialRouteAndCloseDevice();
     }
 
-    ~Impl() override = default;
+    // Reopens the previous route only if construction saw an actually-open device. The controller
+    // calls cancel() on a non-finished native close, but a destructor-only path can still happen
+    // (for example tests that tear down without driving a cancel). Reopening unconditionally when
+    // the device is closed would accidentally start audio in cases where it was already closed
+    // before the settings edit began.
+    ~Impl() override
+    {
+        if (m_restore_pending)
+        {
+            static_cast<void>(restorePreviousRoute());
+            m_restore_pending = false;
+        }
+    }
 
     Impl(const Impl&) = delete;
     Impl& operator=(const Impl&) = delete;
     Impl(Impl&&) = delete;
     Impl& operator=(Impl&&) = delete;
 
-    // Starts staging from the current active device-manager route.
-    void begin()
+    // Captures the active route as the "previous" snapshot, then closes the audio device so the
+    // user can edit hardware settings without holding it. Subsequent apply() opens the staged
+    // route; cancel() reopens this captured snapshot when the route was actually open.
+    //
+    // m_restore_pending records whether there is something meaningful to restore. JUCE preserves
+    // currentSetup and currentDeviceType across closeAudioDevice(), so without the explicit flag
+    // we cannot tell "device was open before editing" from "device was already closed and
+    // we should leave it that way."
+    void captureInitialRouteAndCloseDevice()
     {
-        m_staged_setup = m_device_manager.getAudioDeviceSetup();
-        m_staged_device_type = m_device_manager.getCurrentAudioDeviceType();
+        m_previous_setup = m_device_manager.getAudioDeviceSetup();
+        m_previous_device_type = m_device_manager.getCurrentAudioDeviceType();
+        m_restore_pending = m_device_manager.getCurrentAudioDevice() != nullptr;
+
+        m_staged_setup = m_previous_setup;
+        m_staged_device_type = m_previous_device_type;
+
+        if (m_restore_pending)
+        {
+            m_device_manager.closeAudioDevice();
+        }
+
         refreshState({});
     }
 
@@ -462,12 +487,11 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         refreshState({});
     }
 
-    // Applies the staged setup and restores the active route if the apply attempt fails.
+    // Opens the staged route. If the open fails, restores the previous route captured by the
+    // constructor when there is one to restore. With the device closed during the settings edit,
+    // setCurrentAudioDeviceType() does not incur JUCE's 1.5 second open-device release sleep.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply()
     {
-        const auto previous_setup = m_device_manager.getAudioDeviceSetup();
-        const juce::String previous_device_type = m_device_manager.getCurrentAudioDeviceType();
-
         if (m_staged_device_type.isEmpty())
         {
             AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::NoAudioSystem};
@@ -482,71 +506,71 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return std::unexpected{std::move(error)};
         }
 
-        applyStagedAudioSystem();
+        if (m_staged_device_type != m_device_manager.getCurrentAudioDeviceType())
+        {
+            m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
+        }
 
         const juce::String error_text = m_device_manager.setAudioDeviceSetup(m_staged_setup, true);
-        if (error_text.isNotEmpty())
+        if (error_text.isEmpty())
         {
-            if (previous_device_type.isNotEmpty() &&
-                previous_device_type != m_device_manager.getCurrentAudioDeviceType())
-            {
-                m_device_manager.setCurrentAudioDeviceType(previous_device_type, true);
-            }
+            // Staged route is now the active route. The captured previous route is no longer
+            // meaningful, so destruction should not try to restore it.
+            m_restore_pending = false;
+            refreshState({});
+            return {};
+        }
 
-            const juce::String rollback_error =
-                m_device_manager.setAudioDeviceSetup(previous_setup, true);
-            if (rollback_error.isNotEmpty())
-            {
-                AudioDeviceSettingsError error{
-                    AudioDeviceSettingsErrorCode::RollbackFailed, rollback_error.toStdString()
-                };
-                refreshState(error.message);
-                return std::unexpected{std::move(error)};
-            }
-
+        const juce::String rollback_error =
+            m_restore_pending ? restorePreviousRoute() : juce::String{};
+        if (rollback_error.isNotEmpty())
+        {
+            // Rollback failed — the backend is in a broken state. Leave m_restore_pending true
+            // so the destructor gets one more chance to restore the previous route.
             AudioDeviceSettingsError error{
-                AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
+                AudioDeviceSettingsErrorCode::RollbackFailed, rollback_error.toStdString()
             };
             refreshState(error.message);
             return std::unexpected{std::move(error)};
         }
 
-        refreshState({});
-        return {};
+        // Rollback succeeded — the previous route is active again, so subsequent cancel and
+        // destruction have nothing more to restore.
+        m_restore_pending = false;
+        AudioDeviceSettingsError error{
+            AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
+        };
+        refreshState(error.message);
+        return std::unexpected{std::move(error)};
     }
 
-    // Cancels the staged route only; settings previews never mutate the active device manager.
+    // Reopens the captured audio device when there was one to reopen. No-op when settings were
+    // opened from an [audio device closed] state, so cancel cannot accidentally start audio that
+    // was not running before the settings edit. Best-effort otherwise: a failure to reopen leaves
+    // the backend closed and the menu-bar status reflects that.
     void cancel()
     {
-        begin();
-    }
-
-    // Plays the active backend's test sound only when it represents the staged route.
-    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> testOutput()
-    {
-        if (!m_state.test_output_enabled)
+        if (m_restore_pending)
         {
-            AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::TestOutputUnavailable};
-            refreshState(error.message);
-            return std::unexpected{std::move(error)};
+            static_cast<void>(restorePreviousRoute());
+            m_restore_pending = false;
         }
-
-        m_device_manager.playTestSound();
-        return {};
     }
 
-    // Opens the active backend's control panel only when it represents the staged route.
+    // Opens the staged backend's control panel through the in-memory staged device so the panel
+    // remains available even though the active audio device is closed during the settings
+    // edit. ASIO drivers honor showControlPanel() against a non-open device because the type
+    // has already loaded the driver to populate the staged device's capability set.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel()
     {
-        auto* device = m_device_manager.getCurrentAudioDevice();
-        if (!m_state.control_panel_enabled || device == nullptr)
+        if (!m_state.control_panel_enabled || m_staged_device == nullptr)
         {
             AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::ControlPanelUnavailable};
             refreshState(error.message);
             return std::unexpected{std::move(error)};
         }
 
-        device->showControlPanel();
+        m_staged_device->showControlPanel();
         refreshState({});
         return {};
     }
@@ -577,22 +601,21 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     }
 
 private:
-    // Switches audio systems without triggering JUCE's fixed open-device release delay.
-    void applyStagedAudioSystem()
+    // Reopens the captured route. Returns JUCE's error string from setAudioDeviceSetup, or empty
+    // when there was no previous route or the open succeeded.
+    [[nodiscard]] juce::String restorePreviousRoute()
     {
-        if (m_staged_device_type == m_device_manager.getCurrentAudioDeviceType())
+        if (!m_restore_pending || m_previous_device_type.isEmpty())
         {
-            return;
+            return {};
         }
 
-        // JUCE sleeps for 1.5 seconds inside setCurrentAudioDeviceType when a device is open.
-        // Pre-closing preserves currentSetup, so rollback can still restore the old route.
-        if (m_device_manager.getCurrentAudioDevice() != nullptr)
+        if (m_previous_device_type != m_device_manager.getCurrentAudioDeviceType())
         {
-            m_device_manager.closeAudioDevice();
+            m_device_manager.setCurrentAudioDeviceType(m_previous_device_type, true);
         }
 
-        m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
+        return m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
     }
 
     // Rebuilds the public settings state while preserving a caller-supplied operation error.
@@ -661,8 +684,10 @@ private:
         }
     }
 
-    // Forces the next refresh to rescan device names and rebuild capability probes after a backend
-    // broadcast. The staged audio system may not change during same-backend hot-plug events.
+    // Forces the next refresh to rescan device names and rebuild capability probes after a
+    // backend broadcast. The staged audio system may not change during same-backend hot-plug
+    // events, but endpoint identity can shift, so the single-entry staged-device cache is
+    // dropped as well.
     void invalidateDeviceScanCache()
     {
         m_last_scanned_device_type.clear();
@@ -673,11 +698,12 @@ private:
     }
 
     // Re-creates the staged preview device only when the audio system or device names change.
-    // JUCE's createDevice plus the initial capability probe (channel names, sample rates, buffer
-    // sizes) is the per-refresh hotspot for WASAPI and especially ASIO, so reusing the staged
-    // device across refreshes that didn't change the route makes apply() and post-apply
-    // listener-driven refreshes feel responsive. Format-only changes (sample rate, buffer size)
-    // and listener notifications that re-broadcast the same route therefore skip the rebuild.
+    // Format-only changes (sample rate, buffer size) and listener notifications that re-broadcast
+    // the same route therefore skip the rebuild. This is not about speed — it is about not doing
+    // unnecessary work when only the format part of the setup changed. Device-name changes
+    // unavoidably trigger a fresh JUCE createDevice and capability probe; see
+    // docs/in-progress/juce-audio-device-open-performance-review.md for the JUCE-level
+    // bottleneck.
     void refreshStagedDeviceIfRouteChanged()
     {
         if (m_staged_device != nullptr && m_cached_staged_device_type == m_staged_device_type &&
@@ -896,14 +922,14 @@ private:
                                           : device->getCurrentBufferSizeSamples());
     }
 
-    // Derives active-device-only capability flags for the staged route.
+    // Derives capability flags from the staged preview device. The settings edit keeps the
+    // active device closed, so capability gating is based on what the staged device (the loaded
+    // driver object behind the user's current selection) reports, not on the now-closed active
+    // device.
     void refreshCapabilities(AudioDeviceSettingsState& next_state) const
     {
-        auto* device = m_device_manager.getCurrentAudioDevice();
-        const bool can_use_active_device_buttons = stagedRouteMatchesActiveRoute();
-        next_state.test_output_enabled = can_use_active_device_buttons && device != nullptr;
         next_state.control_panel_enabled =
-            can_use_active_device_buttons && device != nullptr && device->hasControlPanel();
+            m_staged_device != nullptr && m_staged_device->hasControlPanel();
     }
 
     // Clears route and format fields whose choices depend on the selected device.
@@ -950,14 +976,10 @@ private:
             m_staged_setup.outputDeviceName, m_staged_setup.inputDeviceName)};
     }
 
-    // Reports whether active-device-only buttons apply to the currently staged route.
-    [[nodiscard]] bool stagedRouteMatchesActiveRoute() const
-    {
-        return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
-               m_staged_setup == m_device_manager.getAudioDeviceSetup();
-    }
-
     // Matches the currently selected device names while ignoring route and format staging edits.
+    // The active device is closed during a settings edit, so this returns false during the edit
+    // itself. It still returns true on the trailing refreshState() that runs after a
+    // successful apply, when the active route again matches the staged names.
     [[nodiscard]] bool stagedDeviceNamesMatchActiveRoute() const
     {
         const auto active_setup = m_device_manager.getAudioDeviceSetup();
@@ -989,6 +1011,16 @@ private:
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;
 
+    // Route active when the settings edit was constructed. cancel() reopens this, and
+    // apply()-on-failure rolls back to it.
+    juce::AudioDeviceManager::AudioDeviceSetup m_previous_setup;
+    juce::String m_previous_device_type;
+
+    // True between construction and a successful apply or cancel when there was an actually-open
+    // device to restore. Gates cancel(), apply rollback, and ~Impl() so they cannot accidentally
+    // start audio from an originally-closed state.
+    bool m_restore_pending{false};
+
     // Staged route edited independently from the active device manager until apply().
     juce::AudioDeviceManager::AudioDeviceSetup m_staged_setup;
     juce::String m_staged_device_type;
@@ -999,9 +1031,9 @@ private:
     juce::String m_last_scanned_device_type;
 
     // Audio system and device names that produced the current m_staged_device; used by
-    // refreshStagedDeviceIfRouteChanged to skip rebuilding the preview device when the route is
-    // unchanged. JUCE's createDevice plus capability probe dominates per-refresh time on
-    // WASAPI and ASIO, so reuse matters for apply() latency.
+    // refreshStagedDeviceIfRouteChanged to skip rebuilding the preview device when only the
+    // format (sample rate, buffer size) changed. Device-name changes still trigger a full
+    // createDevice and capability probe.
     juce::String m_cached_staged_device_type;
     juce::String m_cached_staged_input_device_name;
     juce::String m_cached_staged_output_device_name;
@@ -1022,11 +1054,6 @@ AudioDeviceSettings::AudioDeviceSettings(IAudioDeviceConfiguration& audio_device
 {}
 
 AudioDeviceSettings::~AudioDeviceSettings() = default;
-
-void AudioDeviceSettings::begin()
-{
-    m_impl->begin();
-}
 
 AudioDeviceSettingsState AudioDeviceSettings::state() const
 {
@@ -1081,11 +1108,6 @@ std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::apply()
 void AudioDeviceSettings::cancel()
 {
     m_impl->cancel();
-}
-
-std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::testOutput()
-{
-    return m_impl->testOutput();
 }
 
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::openControlPanel()

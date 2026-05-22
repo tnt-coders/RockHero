@@ -31,25 +31,28 @@ class AudioDeviceSettingsWindow final
 {
 public:
     /*!
-    \brief Defers an apply continuation behind the host editor's busy overlay paint fence.
+    \brief Dispatches an audio-device operation behind the host editor's busy overlay paint fence.
 
-    Empty by default; when supplied, OK on the settings dialog hides the window, hands the apply
-    continuation to the dispatcher (which schedules it through the editor's busy overlay), and the
-    dispatcher invokes the continuation after the overlay paints. Empty leaves the window in the
-    synchronous fallback behavior so the dialog can stand alone in tests or in composition contexts
-    that lack a busy overlay.
+    Empty by default; when supplied, OK and Cancel on the settings dialog hide the window, hand
+    the operation continuation to the dispatcher (which schedules it through the editor's busy
+    overlay), and the dispatcher invokes the continuation after the overlay paints. Used for any
+    blocking JUCE device-manager work the dialog drives (the apply and the cancel both reopen the
+    audio device, which blocks the message thread). Empty leaves the dialog in the synchronous
+    fallback behavior so it can stand alone in tests or in composition contexts that lack a busy
+    overlay.
     */
-    using ApplyDispatcher = std::function<void(std::function<void()>)>;
+    using Dispatcher = std::function<void(std::function<void()>)>;
 
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
     \param audio_devices Audio-device configuration backend; must outlive the window.
     \param anchor Launcher component used to find the owning editor window.
-    \param apply_dispatcher Optional async-apply hook supplied by the editor composition layer.
+    \param dispatcher Optional operation hook supplied by the editor composition layer; receives
+           device-manager work to run after the editor's busy overlay paints.
     */
     static void show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-        ApplyDispatcher apply_dispatcher = {});
+        Dispatcher dispatcher = {});
 
 private:
     AudioDeviceSettingsWindow() = default;
