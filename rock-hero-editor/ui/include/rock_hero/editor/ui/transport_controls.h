@@ -75,15 +75,17 @@ public:
     /*! \brief Copying is disabled because JUCE components and listener state are not copyable. */
     TransportControls(const TransportControls&) = delete;
 
-    /*! \brief Copy assignment is disabled because JUCE components and listener state are not
-     * copyable. */
+    /*!
+    \brief Copy assignment is disabled because JUCE components and listener state are not copyable.
+    */
     TransportControls& operator=(const TransportControls&) = delete;
 
     /*! \brief Moving is disabled because JUCE components and listener state are not movable. */
     TransportControls(TransportControls&&) = delete;
 
-    /*! \brief Move assignment is disabled because JUCE components and listener state are not
-     * movable. */
+    /*!
+    \brief Move assignment is disabled because JUCE components and listener state are not movable.
+    */
     TransportControls& operator=(TransportControls&&) = delete;
 
     /*!

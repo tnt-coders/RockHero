@@ -430,8 +430,8 @@ Built with JUCE components — the same framework Waveform (the DAW built on Tra
 The editor (`rock-hero-editor`) consists of:
 
 - **Waveform display**: `juce::AudioThumbnail` showing the backing track with a playhead overlay.
-- **Signal chain panel**: Horizontal row of loaded effects with add/remove/reorder controls.
-- **Signal chain panel**: Bottom control area for loaded plugins and future routing edits.
+- **Signal chain panel**: Bottom control area for loaded plugins, add/remove/reorder controls,
+  and future routing edits.
 - **Automation area**: Shares the waveform's horizontal time axis and zoom/scroll state. Breakpoint envelopes control plugin parameters over the song's duration.
 - **Transport controls**: Play, stop, seek.
 
@@ -443,7 +443,8 @@ UI theming is planned as a distinct later phase — functionality first, polish 
 
 # Game View
 
-Built with SDL3 (window management, input) and bgfx (rendering abstraction over Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero`.
+Target design: built with SDL3 (window management, input) and bgfx (rendering abstraction over
+Vulkan, Metal, D3D11/D3D12, OpenGL). Lives in `rock-hero-game`.
 
 The note highway is geometrically simple — textured quads on lanes with perspective projection. bgfx handles this easily with room for glow effects, particles on note hits, and other visual feedback.
 

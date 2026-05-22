@@ -571,6 +571,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // explicit empty error so transient diagnostics still clear on the next interaction.
     void onAudioDeviceConfigurationChanged() override
     {
+        invalidateDeviceScanCache();
         refreshState(m_state.error_message);
         m_listeners.call(&IAudioDeviceSettings::Listener::onAudioDeviceSettingsChanged);
     }
@@ -642,12 +643,10 @@ private:
     }
 
     // Scans the current device type's device list only when the staged audio system has changed
-    // since the last scan. JUCE's scanForDevices is slow on WASAPI (hundreds of ms enumerating
-    // MMDevice endpoints), so calling it on every refreshState made apply() visibly laggy: the
-    // listener-driven refreshes triggered by setCurrentAudioDeviceType and setAudioDeviceSetup
-    // would each rescan even though the audio system is unchanged. Device-list contents only
-    // change when the user switches audio systems or when an external backend change broadcasts
-    // through the configuration listener (where m_staged_device_type is also re-evaluated).
+    // since the last scan or an external configuration broadcast has invalidated the cache.
+    // JUCE's scanForDevices is slow on WASAPI (hundreds of ms enumerating MMDevice endpoints), so
+    // calling it on every refreshState made apply() visibly laggy: repeated user-action refreshes
+    // would each rescan even though the audio system is unchanged.
     void scanCurrentDeviceTypeIfNeeded()
     {
         if (m_last_scanned_device_type == m_staged_device_type)
@@ -660,6 +659,17 @@ private:
             type->scanForDevices();
             m_last_scanned_device_type = m_staged_device_type;
         }
+    }
+
+    // Forces the next refresh to rescan device names and rebuild capability probes after a backend
+    // broadcast. The staged audio system may not change during same-backend hot-plug events.
+    void invalidateDeviceScanCache()
+    {
+        m_last_scanned_device_type.clear();
+        m_staged_device.reset();
+        m_cached_staged_device_type.clear();
+        m_cached_staged_input_device_name.clear();
+        m_cached_staged_output_device_name.clear();
     }
 
     // Re-creates the staged preview device only when the audio system or device names change.

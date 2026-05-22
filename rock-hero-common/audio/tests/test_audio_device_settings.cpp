@@ -209,7 +209,9 @@ public:
     {}
 
     void scanForDevices() override
-    {}
+    {
+        ++scan_call_count;
+    }
 
     [[nodiscard]] juce::StringArray getDeviceNames(bool want_input_names) const override
     {
@@ -255,6 +257,9 @@ public:
         };
     }
 
+    // Public test observation for scan-cache behavior exercised through AudioDeviceSettings.
+    int scan_call_count{};
+
 private:
     juce::StringArray m_failing_outputs;
 };
@@ -286,12 +291,15 @@ public:
     return setup;
 }
 
-void addMockAudioType(
+MockAudioDeviceType& addMockAudioType(
     juce::AudioDeviceManager& manager, juce::String type_name,
     juce::StringArray failing_outputs = {})
 {
-    manager.addAudioDeviceType(
-        std::make_unique<MockAudioDeviceType>(std::move(type_name), std::move(failing_outputs)));
+    auto device_type =
+        std::make_unique<MockAudioDeviceType>(std::move(type_name), std::move(failing_outputs));
+    auto& result = *device_type;
+    manager.addAudioDeviceType(std::move(device_type));
+    return result;
 }
 
 void openInitialRoute(
@@ -429,6 +437,22 @@ TEST_CASE(
     audio_devices.notifyChanged();
 
     CHECK(settings.state().error_message == g_open_output_b_error);
+}
+
+// A backend notification can mean a device was added or removed under the same audio system.
+TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
+
+    AudioDeviceSettings settings{audio_devices};
+    const int initial_scan_count = audio_type.scan_call_count;
+    REQUIRE(initial_scan_count > 0);
+
+    audio_devices.notifyChanged();
+
+    CHECK(audio_type.scan_call_count == initial_scan_count + 1);
 }
 
 // Apply failures return a typed error and restore the previous active route.
