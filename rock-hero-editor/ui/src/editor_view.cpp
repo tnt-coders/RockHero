@@ -29,7 +29,10 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
-constexpr int g_audio_device_menu_button_width{260};
+// Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
+// File/Edit/... menu titles still have room on the smallest supported window width.
+constexpr int g_audio_device_menu_button_min_width{180};
+constexpr int g_audio_device_menu_button_max_width{520};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
@@ -43,6 +46,17 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
+
+// Reserves enough right-side menu space for the current audio status without overlapping menus.
+[[nodiscard]] int audioDeviceButtonWidth(
+    const MenuBarButton& button, int menu_bar_height, int available_width)
+{
+    const int preferred_width = std::clamp(
+        button.preferredWidthForHeight(menu_bar_height),
+        g_audio_device_menu_button_min_width,
+        g_audio_device_menu_button_max_width);
+    return std::min(preferred_width, std::max(0, available_width));
+}
 
 // Treats tiny wheel deltas as absent so zoom input stays stable across platforms.
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
@@ -808,12 +822,9 @@ void EditorView::paint(juce::Graphics& g)
 // Keeps the control strip above the timeline viewport and signal-chain panel.
 void EditorView::resized()
 {
+    layoutMenuStrip();
     auto top_area = getLocalBounds();
-    juce::Rectangle<int> menu_bar_bounds = top_area.removeFromTop(g_menu_bar_height);
-    const juce::Rectangle<int> audio_device_bounds = menu_bar_bounds.removeFromRight(
-        std::min(g_audio_device_menu_button_width, menu_bar_bounds.getWidth()));
-    m_menu_bar.setBounds(menu_bar_bounds);
-    m_audio_device_button.setBounds(audio_device_bounds);
+    top_area.removeFromTop(g_menu_bar_height);
     auto transport_row = top_area.removeFromTop(g_transport_bar_height);
     auto control_row =
         transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset);
@@ -1172,17 +1183,26 @@ void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState
     m_plugin_browser_window->toFront(true);
 }
 
-// Applies controller-derived ASIO routing state to the menu-bar button.
+// Re-positions only the menu-bar children when the audio-device label changes width, so a
+// status-text update does not relayout the transport row, track viewport, or signal-chain panel.
+void EditorView::layoutMenuStrip()
+{
+    juce::Rectangle<int> menu_bar_bounds = getLocalBounds().removeFromTop(g_menu_bar_height);
+    const juce::Rectangle<int> audio_device_bounds =
+        menu_bar_bounds.removeFromRight(audioDeviceButtonWidth(
+            m_audio_device_button, g_menu_bar_height, menu_bar_bounds.getWidth()));
+    m_menu_bar.setBounds(menu_bar_bounds);
+    m_audio_device_button.setBounds(audio_device_bounds);
+}
+
+// Applies controller-derived audio routing state to the menu-bar button.
 void EditorView::updateAudioDeviceButton()
 {
-    if (m_state.current_audio_device_name.has_value())
+    const juce::String status_text{m_state.audio_device_status_text.c_str()};
+    if (m_audio_device_button.getText() != status_text)
     {
-        m_audio_device_button.setText(
-            juce::String{"Audio: "} + juce::String{m_state.current_audio_device_name->c_str()});
-    }
-    else
-    {
-        m_audio_device_button.setText("Audio Device");
+        m_audio_device_button.setText(status_text);
+        layoutMenuStrip();
     }
 
     m_audio_device_button.setEnabled(m_state.audio_devices_available);

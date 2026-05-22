@@ -475,7 +475,6 @@ template <class ComponentType>
         .play_pause_enabled = true,
         .stop_enabled = false,
         .play_pause_shows_pause_icon = false,
-        .current_audio_device_name = std::nullopt,
         .audio_devices_available = false,
         .visible_timeline =
             common::core::TimeRange{
@@ -554,7 +553,6 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
-            .current_audio_device_name = std::nullopt,
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
@@ -631,7 +629,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
-            .current_audio_device_name = std::nullopt,
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
@@ -771,20 +768,38 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     view.setState(core::EditorViewState{});
 
     CHECK_FALSE(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "Audio Device");
+    CHECK(audio_button.getText() == "[audio device closed]");
 
     core::EditorViewState state;
     state.audio_devices_available = true;
     view.setState(state);
 
     CHECK(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "Audio Device");
+    CHECK(audio_button.getText() == "[audio device closed]");
 
-    state.current_audio_device_name = std::string{"Interface A"};
+    state.audio_device_status_text = "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]";
     view.setState(state);
 
     CHECK(audio_button.isEnabled());
-    CHECK(audio_button.getText() == "Audio: Interface A");
+    CHECK(audio_button.getText() == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
+}
+
+// Pins the GlyphArrangement-based width measurement that EditorView uses to size the menu-bar
+// action; a wider label must report a larger preferred width than a narrower one.
+TEST_CASE("MenuBarButton preferred width grows with label text", "[ui][menu-bar-button]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr int menu_strip_height{24};
+
+    MenuBarButton button;
+    button.setText("[audio device closed]");
+    const int narrow_width = button.preferredWidthForHeight(menu_strip_height);
+
+    button.setText("[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
+    const int wide_width = button.preferredWidthForHeight(menu_strip_height);
+
+    CHECK(narrow_width > 0);
+    CHECK(wide_width > narrow_width);
 }
 
 // Verifies the File menu and audio-device action share the top strip without overlap.
@@ -800,8 +815,16 @@ TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
-    CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 240, 24});
-    CHECK(audio_button.getBounds() == juce::Rectangle<int>{240, 0, 260, 24});
+    CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 320, 24});
+    CHECK(audio_button.getBounds() == juce::Rectangle<int>{320, 0, 180, 24});
+
+    core::EditorViewState state;
+    state.audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]";
+    view.setState(state);
+
+    CHECK(audio_button.getRight() == 500);
+    CHECK(menu_bar.getRight() == audio_button.getX());
+    CHECK(audio_button.getWidth() > 260);
 }
 
 // Verifies the full-width transport strip sits directly above the track viewport.
@@ -1149,7 +1172,6 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
-            .current_audio_device_name = std::nullopt,
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{

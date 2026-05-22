@@ -5,8 +5,7 @@
 
 #pragma once
 
-#include <optional>
-#include <string>
+#include <rock_hero/common/audio/audio_device_status.h>
 
 namespace juce
 {
@@ -69,10 +68,10 @@ public:
     [[nodiscard]] virtual juce::AudioDeviceManager& deviceManager() noexcept = 0;
 
     /*!
-    \brief Returns the name of the currently open audio device, if any.
-    \return Current device name, or empty when no device is open.
+    \brief Returns a project-owned snapshot of the current audio-device route.
+    \return Current device status, or a closed status when no device is open.
     */
-    [[nodiscard]] virtual std::optional<std::string> currentDeviceName() const = 0;
+    [[nodiscard]] virtual AudioDeviceStatus currentDeviceStatus() const = 0;
 
     /*!
     \brief Registers a listener notified after audio device configuration changes.

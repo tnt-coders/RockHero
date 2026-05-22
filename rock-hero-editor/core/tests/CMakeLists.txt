@@ -3,8 +3,9 @@ find_package(Catch2 3 REQUIRED)
 include(Catch)
 
 # Keep controller, settings, and package workflow coverage in the headless core test target.
-add_executable(rock_hero_editor_core_tests test_editor_controller.cpp test_project.cpp
-                                           test_editor_settings.cpp)
+add_executable(
+    rock_hero_editor_core_tests test_audio_device_status_text.cpp test_editor_controller.cpp
+                                test_project.cpp test_editor_settings.cpp)
 
 # Link JUCE core for project package fixtures while keeping tests on the editor-core boundary.
 target_link_libraries(

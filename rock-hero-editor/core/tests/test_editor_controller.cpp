@@ -823,11 +823,11 @@ public:
         return device_manager;
     }
 
-    // Returns the test-configured current device name.
-    [[nodiscard]] std::optional<std::string> currentDeviceName() const override
+    // Returns the test-configured current device status snapshot.
+    [[nodiscard]] common::audio::AudioDeviceStatus currentDeviceStatus() const override
     {
-        current_call_count += 1;
-        return current_name;
+        status_call_count += 1;
+        return current_status;
     }
 
     // Stores a listener pointer so tests can notify it manually through notifyChanged().
@@ -854,14 +854,14 @@ public:
     // JUCE device manager owned by the fake; tests may initialise it explicitly.
     juce::AudioDeviceManager device_manager{};
 
-    // Current device name returned by currentDeviceName().
-    std::optional<std::string> current_name{};
+    // Current device status returned by currentDeviceStatus().
+    common::audio::AudioDeviceStatus current_status{};
 
     // Non-owning listeners subscribed by the controller under test.
     std::vector<common::audio::IAudioDeviceConfiguration::Listener*> listeners{};
 
-    // Number of current-device-name reads received.
-    mutable int current_call_count{0};
+    // Number of current-device-status reads received.
+    mutable int status_call_count{0};
 };
 
 // Provides controller-facing project service callbacks without touching the filesystem.
@@ -1322,7 +1322,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.play_pause_enabled == false);
     CHECK(empty_state.stop_enabled == false);
     CHECK(empty_state.play_pause_shows_pause_icon == false);
-    CHECK_FALSE(empty_state.current_audio_device_name.has_value());
+    CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
@@ -1350,7 +1350,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .play_pause_enabled = true,
         .stop_enabled = true,
         .play_pause_shows_pause_icon = true,
-        .current_audio_device_name = std::string{"ASIO Driver"},
+        .audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]",
         .audio_devices_available = true,
         .visible_timeline = loadedTimelineRange(180.0),
         .arrangement =
@@ -1396,7 +1396,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     };
 
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
-    CHECK(loaded_state.current_audio_device_name == std::optional<std::string>{"ASIO Driver"});
+    CHECK(loaded_state.audio_device_status_text == "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
     CHECK(loaded_state.audio_devices_available);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
@@ -1473,13 +1473,24 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance-id"});
 }
 
-// Verifies the controller publishes the current audio-device name through view state.
+// Verifies the controller publishes current audio-device status through view state.
 TEST_CASE("EditorController publishes current audio device", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
-    audio_devices.current_name = std::string{"Interface A"};
+    audio_devices.current_status = common::audio::AudioDeviceStatus{
+        .open = true,
+        .device_name = "Interface A",
+        .backend_name = "ASIO",
+        .sample_rate_hz = 48000.0,
+        .bit_depth = 24,
+        .input_channels = 2,
+        .output_channels = 2,
+        .buffer_size_samples = 128,
+        .input_latency_ms = 4.5,
+        .output_latency_ms = 7.5,
+    };
     EditorController controller{transport, audio, audio_devices};
     FakeEditorView view;
 
@@ -1490,7 +1501,7 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
     {
         const EditorViewState& state = view.last_state.value();
         CHECK(state.audio_devices_available);
-        CHECK(state.current_audio_device_name == std::optional<std::string>{"Interface A"});
+        CHECK(state.audio_device_status_text == "[48kHz 24bit: 2/2ch 128spls ~4.5/7.5ms ASIO]");
     }
 }
 
@@ -2181,7 +2192,18 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     controller.attachView(view);
     const int baseline_pushes = view.set_state_call_count;
 
-    audio_devices.current_name = std::string{"Interface B"};
+    audio_devices.current_status = common::audio::AudioDeviceStatus{
+        .open = true,
+        .device_name = "Interface B",
+        .backend_name = "Windows Audio",
+        .sample_rate_hz = 44100.0,
+        .bit_depth = 24,
+        .input_channels = 1,
+        .output_channels = 2,
+        .buffer_size_samples = 512,
+        .input_latency_ms = 9.5,
+        .output_latency_ms = 30.0,
+    };
     audio_devices.notifyChanged();
 
     REQUIRE(view.last_state.has_value());
@@ -2189,7 +2211,7 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     if (view.last_state.has_value())
     {
         const EditorViewState& state = view.last_state.value();
-        CHECK(state.current_audio_device_name == std::optional<std::string>{"Interface B"});
+        CHECK(state.audio_device_status_text == "[44.1kHz 24bit: 1/2ch 512spls ~9.5/30ms WASAPI]");
     }
 }
 
@@ -2219,7 +2241,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.stop_enabled == false);
         CHECK(state.play_pause_shows_pause_icon == false);
         CHECK_FALSE(state.audio_devices_available);
-        CHECK_FALSE(state.current_audio_device_name.has_value());
+        CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
         CHECK_FALSE(state.signal_chain.add_plugin_enabled);
