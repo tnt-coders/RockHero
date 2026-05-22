@@ -21,6 +21,7 @@
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
+#include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/i_editor_view.h>
@@ -2373,8 +2374,11 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.stop_enabled = canRunAction(EditorAction::Id::Stop);
     state.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_devices_available = m_audio_devices != nullptr;
-    state.current_audio_device_name =
-        m_audio_devices != nullptr ? m_audio_devices->currentDeviceName() : std::nullopt;
+    if (m_audio_devices != nullptr)
+    {
+        state.audio_device_status_text =
+            audioDeviceStatusText(m_audio_devices->currentDeviceStatus());
+    }
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
         .add_plugin_enabled = canRunAction(EditorAction::Id::ShowPluginBrowser),

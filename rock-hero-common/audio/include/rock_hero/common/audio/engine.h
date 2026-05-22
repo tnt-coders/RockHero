@@ -6,7 +6,6 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_live_rig.h>
@@ -256,10 +255,10 @@ public:
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override;
 
     /*!
-    \brief Returns the name of the currently open audio device, if any.
-    \return Current device name, or empty when no device is open.
+    \brief Returns the currently open audio-device route and hardware timing details.
+    \return Current device status, or a closed status when no device is open.
     */
-    [[nodiscard]] std::optional<std::string> currentDeviceName() const override;
+    [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override;
 
     /*!
     \brief Registers a listener notified after audio device configuration changes.
