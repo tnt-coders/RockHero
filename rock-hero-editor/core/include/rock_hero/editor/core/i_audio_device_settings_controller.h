@@ -39,9 +39,6 @@ public:
     /*! \brief Handles a buffer-size choice selection. */
     virtual void onBufferSizeSelected(int choice_id) = 0;
 
-    /*! \brief Handles a test-output button press. */
-    virtual void onTestOutputRequested() = 0;
-
     /*! \brief Handles a backend control-panel button press. */
     virtual void onControlPanelRequested() = 0;
 

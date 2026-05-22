@@ -19,8 +19,8 @@ std::string busyMessage(BusyOperation operation)
             return "Saving project...";
         case BusyOperation::PublishingProject:
             return "Publishing project...";
-        case BusyOperation::ChangingAudioDevice:
-            return "Changing audio device...";
+        case BusyOperation::OpeningAudioDevice:
+            return "Opening audio device...";
         case BusyOperation::LoadingPlugin:
             return "Loading plugin...";
         case BusyOperation::ScanningPlugins:
@@ -32,8 +32,8 @@ std::string busyMessage(BusyOperation operation)
     return {};
 }
 
-// Central source of busy-overlay presentation policy. Plugin load and audio-device apply both
-// use a static blocking presentation because the JUCE call that does the work
+// Central source of busy-overlay presentation policy. Plugin load and audio-device open both use
+// a static blocking presentation because the JUCE call that does the work
 // (Tracktion plugin instantiation, juce::AudioDeviceManager::setAudioDeviceSetup) occupies the
 // message thread; an animated bar would freeze and misrepresent progress.
 BusyPresentation busyPresentation(BusyOperation operation) noexcept
@@ -42,7 +42,7 @@ BusyPresentation busyPresentation(BusyOperation operation) noexcept
     {
         case BusyOperation::LoadingPlugin:
         case BusyOperation::LoadingLiveRig:
-        case BusyOperation::ChangingAudioDevice:
+        case BusyOperation::OpeningAudioDevice:
             return BusyPresentation::Blocking;
         case BusyOperation::OpeningProject:
         case BusyOperation::ImportingProject:

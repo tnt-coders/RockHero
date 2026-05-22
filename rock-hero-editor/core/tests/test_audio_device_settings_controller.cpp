@@ -13,11 +13,6 @@ namespace
 class FakeAudioDeviceSettings final : public common::audio::IAudioDeviceSettings
 {
 public:
-    void begin() override
-    {
-        ++begin_call_count;
-    }
-
     [[nodiscard]] common::audio::AudioDeviceSettingsState state() const override
     {
         return current_state;
@@ -88,12 +83,6 @@ public:
         ++cancel_call_count;
     }
 
-    [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> testOutput() override
-    {
-        ++test_output_call_count;
-        return {};
-    }
-
     [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> openControlPanel()
         override
     {
@@ -139,15 +128,12 @@ public:
         .selected_sample_rate_id = 2,
         .buffer_sizes = {128, 256},
         .selected_buffer_size_id = 1,
-        .test_output_enabled = true,
         .control_panel_enabled = true,
     };
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
     std::vector<Listener*> listeners{};
-    int begin_call_count{};
     int cancel_call_count{};
     int apply_call_count{};
-    int test_output_call_count{};
     int control_panel_call_count{};
     int selected_audio_system_id{};
     int selected_device_id{};
@@ -350,8 +336,9 @@ TEST_CASE(
     FakeAudioDeviceSettings settings;
     std::function<void()> captured_apply;
     AudioDeviceSettingsController controller{
-        settings,
-        [&captured_apply](std::function<void()> apply_fn) { captured_apply = std::move(apply_fn); }
+        settings, [&captured_apply](std::function<void()> operation) {
+            captured_apply = std::move(operation);
+        }
     };
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
@@ -381,8 +368,9 @@ TEST_CASE(
     };
     std::function<void()> captured_apply;
     AudioDeviceSettingsController controller{
-        settings,
-        [&captured_apply](std::function<void()> apply_fn) { captured_apply = std::move(apply_fn); }
+        settings, [&captured_apply](std::function<void()> operation) {
+            captured_apply = std::move(operation);
+        }
     };
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
@@ -396,6 +384,35 @@ TEST_CASE(
     CHECK(view.last_state.error_message == "Could not open Output B");
 }
 
+// With a dispatcher supplied, Cancel marks the view applying first and defers cancel through the
+// dispatcher rather than blocking on the reopen path. This is what gives Cancel the same
+// dismiss-immediately, busy-overlay feel that OK has.
+TEST_CASE(
+    "AudioDeviceSettingsController defers cancel through dispatcher",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    std::function<void()> captured_cancel;
+    AudioDeviceSettingsController controller{
+        settings, [&captured_cancel](std::function<void()> operation) {
+            captured_cancel = std::move(operation);
+        }
+    };
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onCancelRequested();
+
+    CHECK(view.applying_transitions == std::vector<bool>{true});
+    CHECK(settings.cancel_call_count == 0);
+    REQUIRE(captured_cancel);
+
+    captured_cancel();
+
+    CHECK(settings.cancel_call_count == 1);
+    CHECK(view.close_call_count == 1);
+}
+
 // If the host closes the settings window before the paint-fenced apply runs, the deferred
 // continuation must not touch the destroyed controller or its settings backend.
 TEST_CASE(
@@ -407,8 +424,8 @@ TEST_CASE(
     FakeAudioDeviceSettingsView view;
     {
         AudioDeviceSettingsController controller{
-            settings, [&captured_apply](std::function<void()> apply_fn) {
-                captured_apply = std::move(apply_fn);
+            settings, [&captured_apply](std::function<void()> operation) {
+                captured_apply = std::move(operation);
             }
         };
         controller.attachView(view);
@@ -426,20 +443,18 @@ TEST_CASE(
     CHECK(settings.cancel_call_count == 1);
 }
 
-// Test output and control panel requests are gated by derived state.
-TEST_CASE("AudioDeviceSettingsController gates utility actions", "[core][audio-device-settings]")
+// Control panel requests are gated by derived state.
+TEST_CASE(
+    "AudioDeviceSettingsController gates control panel action", "[core][audio-device-settings]")
 {
     FakeAudioDeviceSettings settings;
-    settings.current_state.test_output_enabled = false;
     settings.current_state.control_panel_enabled = false;
     AudioDeviceSettingsController controller{settings};
     FakeAudioDeviceSettingsView view;
     controller.attachView(view);
 
-    controller.onTestOutputRequested();
     controller.onControlPanelRequested();
 
-    CHECK(settings.test_output_call_count == 0);
     CHECK(settings.control_panel_call_count == 0);
 }
 

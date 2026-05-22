@@ -115,7 +115,6 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
         .selected_sample_rate_id = state.selected_sample_rate_id,
         .buffer_sizes = bufferSizeChoices(state.buffer_sizes),
         .selected_buffer_size_id = state.selected_buffer_size_id,
-        .test_output_enabled = state.test_output_enabled,
         .control_panel_enabled = state.control_panel_enabled,
         .ok_enabled =
             state.selected_audio_system_id > 0 &&
@@ -128,16 +127,13 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
 
 } // namespace
 
-// Begins a settings edit and subscribes for backend refreshes while the window is alive.
+// Subscribes for backend refreshes while the already-started settings edit is alive.
 AudioDeviceSettingsController::AudioDeviceSettingsController(
-    common::audio::IAudioDeviceSettings& settings,
-    AudioDeviceSettingsApplyDispatcher apply_dispatcher)
+    common::audio::IAudioDeviceSettings& settings, AudioDeviceSettingsDispatcher dispatcher)
     : m_settings(settings)
-    , m_apply_dispatcher(std::move(apply_dispatcher))
+    , m_dispatcher(std::move(dispatcher))
     , m_settings_listener(settings, *this)
-{
-    m_settings.begin();
-}
+{}
 
 // Native window close destroys the controller without a Cancel intent, so cancel here as the
 // lifecycle backstop for abandoning any staged settings transaction.
@@ -205,15 +201,6 @@ void AudioDeviceSettingsController::onBufferSizeSelected(int choice_id)
     updateView();
 }
 
-void AudioDeviceSettingsController::onTestOutputRequested()
-{
-    if (m_last_state.test_output_enabled)
-    {
-        static_cast<void>(m_settings.testOutput());
-    }
-    updateView();
-}
-
 void AudioDeviceSettingsController::onControlPanelRequested()
 {
     if (m_last_state.control_panel_enabled)
@@ -231,7 +218,7 @@ void AudioDeviceSettingsController::onOkRequested()
         return;
     }
 
-    if (m_apply_dispatcher)
+    if (m_dispatcher)
     {
         // Async path: disable editing now so the user sees OK take effect immediately, run apply
         // behind the dispatcher's busy indicator, and re-enable the view on failure so the
@@ -241,7 +228,7 @@ void AudioDeviceSettingsController::onOkRequested()
         {
             m_view->setApplying(true);
         }
-        m_apply_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
+        m_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
             if (alive.expired())
             {
                 return;
@@ -274,6 +261,27 @@ void AudioDeviceSettingsController::onOkRequested()
 
 void AudioDeviceSettingsController::onCancelRequested()
 {
+    if (m_dispatcher)
+    {
+        // Async path: cancel reopens the previous audio device, which blocks the message thread
+        // the same way apply does. Routing through the dispatcher gives Cancel the same dismiss-
+        // immediately, busy-overlay-painted feel that OK has.
+        if (m_view != nullptr)
+        {
+            m_view->setApplying(true);
+        }
+        m_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
+            if (alive.expired())
+            {
+                return;
+            }
+
+            m_settings.cancel();
+            finishAndClose();
+        });
+        return;
+    }
+
     m_settings.cancel();
     finishAndClose();
 }

@@ -120,7 +120,6 @@ private:
     juce::Label m_buffer_size_label;
     juce::ComboBox m_buffer_size_combo;
     juce::Label m_error_label;
-    juce::TextButton m_test_button;
     juce::TextButton m_control_panel_button;
     juce::TextButton m_ok_button;
     juce::TextButton m_cancel_button;
