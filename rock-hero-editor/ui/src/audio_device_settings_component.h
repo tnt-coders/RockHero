@@ -77,7 +77,7 @@ private:
     // Rebuilds the mono input and stereo output-pair choices from the open device.
     void refreshChannelChoices();
 
-    // Rebuilds sample-rate choices from the open device.
+    // Rebuilds sample-rate choices from the staged device capabilities.
     void refreshSampleRateChoices();
 
     // Rebuilds buffer-size choices from the open device.
@@ -121,6 +121,7 @@ private:
     [[nodiscard]] bool currentTypeUsesSeparateDevices() const;
     [[nodiscard]] std::unique_ptr<juce::AudioIODevice> createStagedDevice() const;
     [[nodiscard]] bool stagedRouteMatchesActiveRoute() const;
+    [[nodiscard]] bool stagedDeviceNamesMatchActiveRoute() const;
     [[nodiscard]] bool copySelectedDeviceNames(
         juce::AudioDeviceManager::AudioDeviceSetup& setup) const;
 

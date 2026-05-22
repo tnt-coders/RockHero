@@ -4,8 +4,17 @@ include(Catch)
 
 # Keep focused editor UI component coverage in one target because the test surface is small.
 add_executable(
-    rock_hero_editor_ui_tests test_arrangement_view.cpp test_editor.cpp test_editor_view.cpp
-                              test_plugin_browser_window.cpp test_transport_controls.cpp)
+    rock_hero_editor_ui_tests
+    test_arrangement_view.cpp
+    test_audio_device_sample_rate_choice.cpp
+    test_audio_device_type_policy.cpp
+    test_editor.cpp
+    test_editor_view.cpp
+    test_plugin_browser_window.cpp
+    test_transport_controls.cpp)
+
+# Let focused UI tests exercise private presentation helpers without exporting them.
+target_include_directories(rock_hero_editor_ui_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
 # Link only the editor UI module and Catch2; concrete app composition stays outside this target.
 target_link_libraries(rock_hero_editor_ui_tests
