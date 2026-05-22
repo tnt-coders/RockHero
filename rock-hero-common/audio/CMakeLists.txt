@@ -1,11 +1,12 @@
 add_library(rock_hero_common_audio STATIC)
 add_library(rock_hero::common::audio ALIAS rock_hero_common_audio)
 
-# Shared audio ports plus the default Tracktion/JUCE-backed adapter.
+# Shared audio ports, audio-device settings policy, and the default Tracktion/JUCE-backed adapter.
 target_sources(
     rock_hero_common_audio
-    PRIVATE src/live_rig_error.cpp src/engine.cpp src/plugin_host_error.cpp
-            src/tracktion_instrument_wave_device_mapping.cpp src/tracktion_thumbnail.cpp)
+    PRIVATE src/audio_device_settings.cpp src/engine.cpp src/live_rig_error.cpp
+            src/plugin_host_error.cpp src/tracktion_instrument_wave_device_mapping.cpp
+            src/tracktion_thumbnail.cpp)
 
 target_include_directories(
     rock_hero_common_audio

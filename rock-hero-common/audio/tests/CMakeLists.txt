@@ -1,4 +1,4 @@
-# Audio tests cover both fast project-owned contracts and the concrete Tracktion/JUCE adapter.
+# Audio tests cover fast contracts, settings policy, and the concrete Tracktion/JUCE adapter.
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
@@ -10,6 +10,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
 add_executable(
     rock_hero_common_audio_tests
     test_audio.cpp
+    test_audio_device_settings.cpp
     test_edit.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
