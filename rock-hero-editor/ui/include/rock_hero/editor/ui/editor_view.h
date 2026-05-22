@@ -19,6 +19,7 @@
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
 #include <rock_hero/editor/ui/busy_overlay.h>
+#include <rock_hero/editor/ui/menu_bar_button.h>
 #include <rock_hero/editor/ui/plugin_browser_window.h>
 #include <rock_hero/editor/ui/signal_chain_panel.h>
 #include <rock_hero/editor/ui/transport_controls.h>
@@ -187,7 +188,7 @@ private:
     // Returns the editor content area below the menu and transport strips.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
-    // Applies ASIO routing state to the toolbar audio-device button.
+    // Applies ASIO routing state to the menu-bar audio-device button.
     void updateAudioDeviceButton();
 
     // Opens the app-local audio-device configuration dialog.
@@ -241,8 +242,8 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Opens app-local ASIO device, input, and output controls.
-    juce::TextButton m_audio_device_button;
+    // Right-aligned menu-bar action for app-local ASIO device, input, and output controls.
+    MenuBarButton m_audio_device_button;
 
     // Bottom control panel for the plugin chain.
     SignalChainPanel m_signal_chain_panel;
