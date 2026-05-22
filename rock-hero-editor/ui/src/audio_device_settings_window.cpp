@@ -5,6 +5,7 @@
 #include <memory>
 #include <rock_hero/common/audio/audio_device_settings.h>
 #include <rock_hero/editor/core/audio_device_settings_controller.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -12,15 +13,181 @@ namespace rock_hero::editor::ui
 namespace
 {
 
+// Self-managed modal dialog that can be hidden for async apply without destroying its content.
+class AudioDeviceSettingsDialogWindow final : public juce::DialogWindow
+{
+public:
+    explicit AudioDeviceSettingsDialogWindow(juce::Component* centering_component)
+        : juce::DialogWindow(
+              "Audio Device Settings", juce::Colours::darkgrey.darker(0.16F), true, true,
+              centering_component != nullptr
+                  ? juce::Component::getApproximateScaleFactorForComponent(centering_component)
+                  : 1.0F)
+        , m_centering_component(centering_component)
+    {
+        setResizable(true, true);
+        setUsingNativeTitleBar(true);
+        setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
+    }
+
+    // Installs owned content and applies the settings-window resize policy before showing.
+    void installContent(std::unique_ptr<juce::Component> content, int content_height)
+    {
+        setContentOwned(content.release(), true);
+        centreAroundComponent(m_centering_component, getWidth(), getHeight());
+        setResizeLimits(
+            AudioDeviceSettingsView::minimumWidth(),
+            content_height,
+            AudioDeviceSettingsView::maximumWidth(),
+            AudioDeviceSettingsView::maximumHeight());
+    }
+
+    // Starts a non-auto-delete modal lifetime; this object decides which modal ends are final.
+    void showModal()
+    {
+        enterManagedModalState();
+    }
+
+    // Hides fully for async apply, then restores modality if the apply fails.
+    void setApplying(bool applying)
+    {
+        if (m_applying == applying || m_close_requested)
+        {
+            return;
+        }
+
+        m_applying = applying;
+        if (m_applying)
+        {
+            m_modal_end_is_temporary = true;
+            setVisible(false);
+            if (m_centering_component != nullptr)
+            {
+                m_centering_component->toFront(true);
+            }
+            return;
+        }
+
+        setVisible(true);
+        enterManagedModalState();
+        toFront(true);
+    }
+
+    // Treats OK, Cancel, title-bar close, and Escape as final disposal paths.
+    void requestClose()
+    {
+        if (m_close_requested)
+        {
+            return;
+        }
+
+        m_close_requested = true;
+        if (isCurrentlyModal(false))
+        {
+            exitModalState(0);
+            return;
+        }
+
+        deleteSelfAsync();
+    }
+
+    // Routes native title-bar close through the same final disposal path as controller close.
+    void closeButtonPressed() override
+    {
+        requestClose();
+    }
+
+    // Keeps Escape from using DialogWindow's default hide-only behavior.
+    bool escapeKeyPressed() override
+    {
+        requestClose();
+        return true;
+    }
+
+private:
+    // Enters JUCE modality without auto-delete and attaches a guarded finalization callback.
+    void enterManagedModalState()
+    {
+        if (isCurrentlyModal(false) || m_close_requested)
+        {
+            return;
+        }
+
+        const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_this{this};
+        enterModalState(
+            true,
+            juce::ModalCallbackFunction::create([safe_this](int) {
+                if (auto* window = safe_this.getComponent())
+                {
+                    window->handleModalStateFinished();
+                }
+            }),
+            false);
+    }
+
+    // Deletes only for final modal exits; apply-driven hide/show cycles keep content alive.
+    void handleModalStateFinished()
+    {
+        if (m_delete_posted)
+        {
+            return;
+        }
+
+        if (m_modal_end_is_temporary && !m_close_requested)
+        {
+            m_modal_end_is_temporary = false;
+            return;
+        }
+
+        delete this;
+    }
+
+    // Defers non-modal deletion so callers can finish the current callback stack safely.
+    void deleteSelfAsync()
+    {
+        if (m_delete_posted)
+        {
+            return;
+        }
+
+        m_delete_posted = true;
+        const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_this{this};
+        juce::MessageManager::callAsync([safe_this] {
+            if (auto* window = safe_this.getComponent())
+            {
+                delete window;
+            }
+        });
+    }
+
+    // Editor top-level component used for centering and for revealing the busy overlay.
+    juce::Component::SafePointer<juce::Component> m_centering_component;
+
+    // True while the window is hidden for an in-flight audio-device apply.
+    bool m_applying{false};
+
+    // Set when the next modal-end callback was caused by apply-driven temporary hiding.
+    bool m_modal_end_is_temporary{false};
+
+    // Set once the workflow has requested final disposal.
+    bool m_close_requested{false};
+
+    // Prevents double deletion when a pending modal callback races with async self-delete.
+    bool m_delete_posted{false};
+};
+
 // Owns the shared settings service, editor controller, and passive view for one modal window.
 class AudioDeviceSettingsWindowContent final : public juce::Component
 {
 public:
-    explicit AudioDeviceSettingsWindowContent(
-        common::audio::IAudioDeviceConfiguration& audio_devices)
+    AudioDeviceSettingsWindowContent(
+        common::audio::IAudioDeviceConfiguration& audio_devices,
+        core::AudioDeviceSettingsApplyDispatcher apply_dispatcher,
+        AudioDeviceSettingsView::ApplyingCallback applying_callback,
+        AudioDeviceSettingsView::CloseCallback close_callback)
         : m_settings(audio_devices)
-        , m_controller(m_settings)
-        , m_view(m_controller)
+        , m_controller(m_settings, std::move(apply_dispatcher))
+        , m_view(m_controller, std::move(applying_callback), std::move(close_callback))
     {
         m_controller.attachView(m_view);
         addAndMakeVisible(m_view);
@@ -54,28 +221,33 @@ private:
 
 // Launches the audio settings window centered on the editor window that owns the launcher.
 void AudioDeviceSettingsWindow::show(
-    common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor)
+    common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
+    ApplyDispatcher apply_dispatcher)
 {
-    auto content = std::make_unique<AudioDeviceSettingsWindowContent>(audio_devices);
-    const int content_height = content->preferredContentHeight();
     juce::Component* const centering_component = anchor.getTopLevelComponent();
+    auto window = std::make_unique<AudioDeviceSettingsDialogWindow>(
+        centering_component != nullptr ? centering_component : &anchor);
+    const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_window{window.get()};
+    auto content = std::make_unique<AudioDeviceSettingsWindowContent>(
+        audio_devices,
+        std::move(apply_dispatcher),
+        [safe_window](bool applying) {
+            if (auto* target_window = safe_window.getComponent())
+            {
+                target_window->setApplying(applying);
+            }
+        },
+        [safe_window] {
+            if (auto* target_window = safe_window.getComponent())
+            {
+                target_window->requestClose();
+            }
+        });
+    const int content_height = content->preferredContentHeight();
 
-    juce::DialogWindow::LaunchOptions options;
-    options.dialogTitle = "Audio Device Settings";
-    options.dialogBackgroundColour = juce::Colours::darkgrey.darker(0.16F);
-    options.escapeKeyTriggersCloseButton = true;
-    options.useNativeTitleBar = true;
-    options.resizable = true;
-    options.useBottomRightCornerResizer = true;
-    options.componentToCentreAround =
-        centering_component != nullptr ? centering_component : &anchor;
-    options.content.setOwned(content.release());
-    auto* window = options.launchAsync();
-    window->setResizeLimits(
-        AudioDeviceSettingsView::minimumWidth(),
-        content_height,
-        AudioDeviceSettingsView::maximumWidth(),
-        AudioDeviceSettingsView::maximumHeight());
+    window->installContent(std::move(content), content_height);
+    AudioDeviceSettingsDialogWindow* const released_window = window.release();
+    released_window->showModal();
 }
 
 } // namespace rock_hero::editor::ui
