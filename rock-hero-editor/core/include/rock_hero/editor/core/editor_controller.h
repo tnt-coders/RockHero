@@ -354,6 +354,12 @@ public:
     */
     void onOpenPluginRequested(std::string instance_id) override;
 
+    /*!
+    \brief Schedules an audio-device apply behind the editor's busy overlay paint fence.
+    \param apply_fn Callable run after the busy overlay paints.
+    */
+    void onApplyAudioDeviceSettings(std::function<void()> apply_fn) override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();

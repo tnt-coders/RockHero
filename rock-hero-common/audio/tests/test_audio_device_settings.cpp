@@ -323,9 +323,9 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
     CHECK(
         state.audio_systems == std::vector<std::string>{
                                    "ASIO",
+                                   "Windows Audio (Exclusive Mode)",
                                    "Windows Audio (Low Latency Mode)",
                                    "Windows Audio",
-                                   "Windows Audio (Exclusive Mode)",
                                    "DirectSound",
                                    "WaveOut",
                                });
@@ -385,6 +385,27 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
     CHECK(result.has_value());
     CHECK(applied_setup.inputDeviceName == g_input_a);
     CHECK(applied_setup.outputDeviceName == g_output_b);
+}
+
+// JUCE delivers route-change broadcasts asynchronously, so the configuration listener can fire
+// after apply() returns. The error message that apply() set must survive that refresh so the
+// user-facing label does not silently clear a just-reported failure.
+TEST_CASE(
+    "AudioDeviceSettings preserves error across backend refresh", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices, juce::StringArray{g_output_b});
+
+    AudioDeviceSettings settings{audio_devices};
+    settings.selectOutputDevice(2);
+    const auto result = settings.apply();
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(settings.state().error_message == g_open_output_b_error);
+
+    audio_devices.notifyChanged();
+
+    CHECK(settings.state().error_message == g_open_output_b_error);
 }
 
 // Apply failures return a typed error and restore the previous active route.

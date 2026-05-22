@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/editor/core/audio_device_settings_view_state.h>
 #include <rock_hero/editor/core/i_audio_device_settings_controller.h>
@@ -22,11 +23,21 @@ queries, apply rollback, and native-close cancellation backstop live outside the
 class AudioDeviceSettingsView final : public juce::Component, public core::IAudioDeviceSettingsView
 {
 public:
+    /*! \brief Host callback notified when asynchronous apply starts or finishes. */
+    using ApplyingCallback = std::function<void(bool)>;
+
+    /*! \brief Host callback used when the controller requests that the window close. */
+    using CloseCallback = std::function<void()>;
+
     /*!
     \brief Creates the audio settings view around an editor settings controller.
     \param controller Controller that receives all user intents emitted by this view.
+    \param applying_callback Optional host callback for applying presentation changes.
+    \param close_callback Optional host callback for real window closure.
     */
-    explicit AudioDeviceSettingsView(core::IAudioDeviceSettingsController& controller);
+    explicit AudioDeviceSettingsView(
+        core::IAudioDeviceSettingsController& controller, ApplyingCallback applying_callback = {},
+        CloseCallback close_callback = {});
 
     /*! \brief Uses default destruction; no backend listener is owned by the view. */
     ~AudioDeviceSettingsView() override;
@@ -55,6 +66,12 @@ public:
     /*! \brief Requests modal shutdown from the host DialogWindow. */
     void requestClose() override;
 
+    /*!
+    \brief Disables or restores the settings controls during async apply.
+    \param applying True while an apply is in progress.
+    */
+    void setApplying(bool applying) override;
+
     /*! \brief Lays out the routing controls and window action buttons. */
     void resized() override;
 
@@ -76,6 +93,15 @@ private:
 
     // Last controller-derived view state rendered by this component.
     core::AudioDeviceSettingsViewState m_state{};
+
+    // True while OK has dispatched a blocking device apply through the editor busy overlay.
+    bool m_applying{false};
+
+    // Host callback that hides or reshows the window while async apply is active.
+    ApplyingCallback m_applying_callback;
+
+    // Host callback that owns final window disposal.
+    CloseCallback m_close_callback;
 
     juce::Label m_device_type_label;
     juce::ComboBox m_device_type_combo;

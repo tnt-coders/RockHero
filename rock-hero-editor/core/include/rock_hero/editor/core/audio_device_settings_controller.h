@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <functional>
+#include <memory>
 #include <rock_hero/common/audio/audio_device_settings.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/editor/core/audio_device_settings_view_state.h>
@@ -14,6 +16,16 @@
 namespace rock_hero::editor::core
 {
 
+/*!
+\brief Callable used by the controller to defer the apply step behind a host paint fence.
+
+The callable accepts an apply continuation that the host invokes after its busy indicator has
+painted. When no dispatcher is supplied, the controller falls back to running apply synchronously
+inside onOkRequested(). The async path is what the editor uses to present its busy overlay before
+running the blocking device-manager apply.
+*/
+using AudioDeviceSettingsApplyDispatcher = std::function<void(std::function<void()>)>;
+
 /*! \brief Headless editor workflow controller for one audio-device settings window. */
 class AudioDeviceSettingsController final : public IAudioDeviceSettingsController,
                                             private common::audio::IAudioDeviceSettings::Listener
@@ -22,8 +34,11 @@ public:
     /*!
     \brief Creates the controller around the shared settings backend.
     \param settings Shared audio-device settings workflow; must outlive this controller.
+    \param apply_dispatcher Optional async-apply hook; when empty, OK runs apply synchronously.
     */
-    explicit AudioDeviceSettingsController(common::audio::IAudioDeviceSettings& settings);
+    explicit AudioDeviceSettingsController(
+        common::audio::IAudioDeviceSettings& settings,
+        AudioDeviceSettingsApplyDispatcher apply_dispatcher = {});
 
     /*! \brief Cancels an unfinished settings edit before detaching from the backend. */
     ~AudioDeviceSettingsController() override;
@@ -71,6 +86,9 @@ private:
     // Shared settings backend that owns staging policy and hardware-side apply behavior.
     common::audio::IAudioDeviceSettings& m_settings;
 
+    // Optional dispatcher used to run apply asynchronously behind a host paint fence.
+    AudioDeviceSettingsApplyDispatcher m_apply_dispatcher;
+
     // Non-owning view binding installed by attachView().
     IAudioDeviceSettingsView* m_view{};
 
@@ -79,6 +97,9 @@ private:
 
     // True once OK or Cancel has completed, so native close is the only destructor cancel path.
     bool m_finished{false};
+
+    // Reset during destruction so deferred apply callbacks can detect that the controller is gone.
+    std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
 
     // Declared last so listener deregistration happens before referenced state is destroyed.
     common::audio::ScopedListener<

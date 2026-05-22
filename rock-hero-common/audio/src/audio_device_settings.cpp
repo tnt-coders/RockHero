@@ -66,24 +66,25 @@ constexpr double g_sample_rate_match_tolerance{0.001};
     return type_name.startsWith(g_windows_audio_type_prefix);
 }
 
-// Ranks WASAPI variants for Rock Hero defaults. Low Latency Mode wins because it is JUCE's
-// documented low-latency path. Shared mode is preferred over Exclusive Mode because exclusive
-// routes typically need extra device-side configuration to open reliably; defaulting to shared
-// means settings land on a route most users can connect to without fiddling. Every variant stays
-// visible, so users who want exclusive can still select it.
+// Ranks WASAPI variants for Rock Hero defaults. Rock Hero is a real-time guitar game where
+// hardware-side latency dominates the playing experience, so Exclusive Mode wins: it bypasses
+// the OS audio engine and gives the lowest WASAPI latency the hardware can offer. Low Latency
+// Mode follows as the best shared-mode option (smaller buffers, event-driven). Plain Shared
+// Mode sits last because its default buffer sizes give the highest WASAPI latency. Every
+// variant stays visible, so users who specifically want shared mode can still select it.
 [[nodiscard]] int wasapiPreferenceRank(const juce::String& type_name) noexcept
 {
-    if (type_name == g_windows_audio_low_latency_type_name)
+    if (type_name == g_windows_audio_exclusive_type_name)
     {
         return 0;
     }
 
-    if (type_name == g_windows_audio_type_prefix)
+    if (type_name == g_windows_audio_low_latency_type_name)
     {
         return 1;
     }
 
-    if (type_name == g_windows_audio_exclusive_type_name)
+    if (type_name == g_windows_audio_type_prefix)
     {
         return 2;
     }
@@ -566,9 +567,14 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     }
 
     // Keeps staged settings valid when the underlying backend changes outside this workflow.
+    // Preserves the current error_message across the refresh: apply() sets the error on m_state
+    // before returning, then JUCE delivers its async route-change broadcast a moment later. An
+    // unconditional empty error here would clobber that just-set diagnostic, making OK failures
+    // appear to silently succeed. User-action paths (select*, apply, cancel) refresh with an
+    // explicit empty error so transient diagnostics still clear on the next interaction.
     void onAudioDeviceConfigurationChanged() override
     {
-        refreshState({});
+        refreshState(m_state.error_message);
         m_listeners.call(&IAudioDeviceSettings::Listener::onAudioDeviceSettingsChanged);
     }
 
@@ -577,9 +583,9 @@ private:
     void refreshState(std::string error_message)
     {
         ensureStagedDeviceType();
-        scanCurrentDeviceType();
+        scanCurrentDeviceTypeIfNeeded();
         ensureStagedDeviceNames();
-        m_staged_device = createStagedDevice();
+        refreshStagedDeviceIfRouteChanged();
 
         AudioDeviceSettingsState next_state;
         next_state.error_message = std::move(error_message);
@@ -620,13 +626,46 @@ private:
         m_staged_device_type = type_names.isEmpty() ? juce::String{} : type_names[0];
     }
 
-    // Performs the only device-list scan needed for one refresh pass.
-    void scanCurrentDeviceType() const
+    // Scans the current device type's device list only when the staged audio system has changed
+    // since the last scan. JUCE's scanForDevices is slow on WASAPI (hundreds of ms enumerating
+    // MMDevice endpoints), so calling it on every refreshState made apply() visibly laggy: the
+    // listener-driven refreshes triggered by setCurrentAudioDeviceType and setAudioDeviceSetup
+    // would each rescan even though the audio system is unchanged. Device-list contents only
+    // change when the user switches audio systems or when an external backend change broadcasts
+    // through the configuration listener (where m_staged_device_type is also re-evaluated).
+    void scanCurrentDeviceTypeIfNeeded()
     {
+        if (m_last_scanned_device_type == m_staged_device_type)
+        {
+            return;
+        }
+
         if (juce::AudioIODeviceType* const type = currentDeviceType(); type != nullptr)
         {
             type->scanForDevices();
+            m_last_scanned_device_type = m_staged_device_type;
         }
+    }
+
+    // Re-creates the staged preview device only when the audio system or device names change.
+    // JUCE's createDevice plus the initial capability probe (channel names, sample rates, buffer
+    // sizes) is the per-refresh hotspot for WASAPI and especially ASIO, so reusing the staged
+    // device across refreshes that didn't change the route makes apply() and post-apply
+    // listener-driven refreshes feel responsive. Format-only changes (sample rate, buffer size)
+    // and listener notifications that re-broadcast the same route therefore skip the rebuild.
+    void refreshStagedDeviceIfRouteChanged()
+    {
+        if (m_staged_device != nullptr && m_cached_staged_device_type == m_staged_device_type &&
+            m_cached_staged_input_device_name == m_staged_setup.inputDeviceName &&
+            m_cached_staged_output_device_name == m_staged_setup.outputDeviceName)
+        {
+            return;
+        }
+
+        m_staged_device = createStagedDevice();
+        m_cached_staged_device_type = m_staged_device_type;
+        m_cached_staged_input_device_name = m_staged_setup.inputDeviceName;
+        m_cached_staged_output_device_name = m_staged_setup.outputDeviceName;
     }
 
     // Keeps staged device names valid for the selected audio system without opening the active
@@ -929,6 +968,18 @@ private:
     juce::AudioDeviceManager::AudioDeviceSetup m_staged_setup;
     juce::String m_staged_device_type;
     std::unique_ptr<juce::AudioIODevice> m_staged_device;
+
+    // Audio system name passed to the most recent scanForDevices call; used by
+    // scanCurrentDeviceTypeIfNeeded to avoid rescanning during apply-triggered refreshes.
+    juce::String m_last_scanned_device_type;
+
+    // Audio system and device names that produced the current m_staged_device; used by
+    // refreshStagedDeviceIfRouteChanged to skip rebuilding the preview device when the route is
+    // unchanged. JUCE's createDevice plus capability probe dominates per-refresh time on
+    // WASAPI and ASIO, so reuse matters for apply() latency.
+    juce::String m_cached_staged_device_type;
+    juce::String m_cached_staged_input_device_name;
+    juce::String m_cached_staged_output_device_name;
 
     // Last project-owned state snapshot returned by state().
     AudioDeviceSettingsState m_state{};

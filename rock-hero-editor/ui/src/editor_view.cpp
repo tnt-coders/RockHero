@@ -1221,7 +1221,16 @@ void EditorView::showAudioDeviceSettingsWindow()
         m_controller.onPlayPausePressed();
     }
 
-    AudioDeviceSettingsWindow::show(*m_audio_devices, m_audio_device_button);
+    // Hand the dispatcher to the settings window so OK can dismiss the dialog immediately and
+    // run apply behind the editor's blocking busy overlay. juce::AudioDeviceManager's apply
+    // occupies the message thread, so the overlay's blocking presentation paints once before
+    // the freeze rather than animating through it.
+    AudioDeviceSettingsWindow::show(
+        *m_audio_devices,
+        m_audio_device_button,
+        [&controller = m_controller](std::function<void()> apply_fn) {
+            controller.onApplyAudioDeviceSettings(std::move(apply_fn));
+        });
 }
 
 // Runs the single pending fence callback after BusyOverlay has crossed its paint path. Showing

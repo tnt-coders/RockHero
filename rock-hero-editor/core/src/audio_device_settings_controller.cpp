@@ -130,8 +130,10 @@ constexpr double g_integer_sample_rate_display_threshold{0.001};
 
 // Begins a settings edit and subscribes for backend refreshes while the window is alive.
 AudioDeviceSettingsController::AudioDeviceSettingsController(
-    common::audio::IAudioDeviceSettings& settings)
+    common::audio::IAudioDeviceSettings& settings,
+    AudioDeviceSettingsApplyDispatcher apply_dispatcher)
     : m_settings(settings)
+    , m_apply_dispatcher(std::move(apply_dispatcher))
     , m_settings_listener(settings, *this)
 {
     m_settings.begin();
@@ -141,6 +143,7 @@ AudioDeviceSettingsController::AudioDeviceSettingsController(
 // lifecycle backstop for abandoning any staged settings transaction.
 AudioDeviceSettingsController::~AudioDeviceSettingsController()
 {
+    m_alive.reset();
     if (!m_finished)
     {
         m_settings.cancel();
@@ -225,6 +228,37 @@ void AudioDeviceSettingsController::onOkRequested()
     if (!m_last_state.ok_enabled)
     {
         updateView();
+        return;
+    }
+
+    if (m_apply_dispatcher)
+    {
+        // Async path: disable editing now so the user sees OK take effect immediately, run apply
+        // behind the dispatcher's busy indicator, and re-enable the view on failure so the
+        // existing in-dialog error label can display the diagnostic. On success the host closes
+        // for real via finishAndClose().
+        if (m_view != nullptr)
+        {
+            m_view->setApplying(true);
+        }
+        m_apply_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
+            if (alive.expired())
+            {
+                return;
+            }
+
+            const auto result = m_settings.apply();
+            updateView();
+            if (result.has_value())
+            {
+                finishAndClose();
+                return;
+            }
+            if (m_view != nullptr)
+            {
+                m_view->setApplying(false);
+            }
+        });
         return;
     }
 

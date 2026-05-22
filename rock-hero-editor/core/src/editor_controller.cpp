@@ -408,6 +408,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onAddPluginRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onOpenPluginRequested(std::string instance_id);
+    void onApplyAudioDeviceSettings(std::function<void()> apply_fn);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
 
@@ -886,6 +887,11 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
+void EditorController::onApplyAudioDeviceSettings(std::function<void()> apply_fn)
+{
+    m_impl->onApplyAudioDeviceSettings(std::move(apply_fn));
+}
+
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
 // to production project IO where a service seam is omitted.
 EditorController::Impl::Impl(
@@ -1342,6 +1348,30 @@ void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
 void EditorController::Impl::onOpenPluginRequested(std::string instance_id)
 {
     runAction(EditorAction::OpenPlugin{std::move(instance_id)});
+}
+
+// Wraps the supplied audio-device apply callable in the editor's busy overlay paint fence so the
+// blocking presentation paints once before juce::AudioDeviceManager::setAudioDeviceSetup occupies
+// the message thread. The settings dialog launcher provides apply_fn already aware of dialog
+// success/failure handling, so this method owns only the busy lifecycle.
+void EditorController::Impl::onApplyAudioDeviceSettings(std::function<void()> apply_fn)
+{
+    if (!apply_fn)
+    {
+        return;
+    }
+
+    const std::uint64_t token = beginBusy(BusyOperation::ChangingAudioDevice);
+    updateView();
+    runAfterBusyOverlayPainted(
+        safeCallback([this, token, captured_apply_fn = std::move(apply_fn)]() mutable {
+            if (token != m_current_busy_token)
+            {
+                return;
+            }
+            captured_apply_fn();
+            finishBusyOperation();
+        }));
 }
 
 // Persists the new device manager state and re-derives view state after a configuration change.

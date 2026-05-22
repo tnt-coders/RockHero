@@ -32,21 +32,23 @@ std::string busyMessage(BusyOperation operation)
     return {};
 }
 
-// Central source of busy-overlay presentation policy. Plugin load uses a static blocking
-// presentation because Tracktion/JUCE instantiation occupies the message thread.
+// Central source of busy-overlay presentation policy. Plugin load and audio-device apply both
+// use a static blocking presentation because the JUCE call that does the work
+// (Tracktion plugin instantiation, juce::AudioDeviceManager::setAudioDeviceSetup) occupies the
+// message thread; an animated bar would freeze and misrepresent progress.
 BusyPresentation busyPresentation(BusyOperation operation) noexcept
 {
     switch (operation)
     {
         case BusyOperation::LoadingPlugin:
         case BusyOperation::LoadingLiveRig:
+        case BusyOperation::ChangingAudioDevice:
             return BusyPresentation::Blocking;
         case BusyOperation::OpeningProject:
         case BusyOperation::ImportingProject:
         case BusyOperation::SavingProject:
         case BusyOperation::SavingProjectAs:
         case BusyOperation::PublishingProject:
-        case BusyOperation::ChangingAudioDevice:
         case BusyOperation::ScanningPlugins:
             return BusyPresentation::Animated;
     }
