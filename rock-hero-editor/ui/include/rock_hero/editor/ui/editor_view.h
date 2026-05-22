@@ -28,7 +28,7 @@
 namespace juce
 {
 // Forward declaration so the settings window can stay out of this public header.
-class AudioDeviceManager;
+class Component;
 } // namespace juce
 
 namespace rock_hero::editor::ui
@@ -230,8 +230,8 @@ private:
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 
-    // Audio device manager hosted by the settings window; null when no backend was provided.
-    juce::AudioDeviceManager* m_audio_device_manager{nullptr};
+    // Audio-device configuration backend hosted by the settings window; null when unavailable.
+    common::audio::IAudioDeviceConfiguration* m_audio_devices{nullptr};
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
