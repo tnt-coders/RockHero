@@ -84,9 +84,8 @@ constexpr double g_sample_rate_match_tolerance{0.001};
 // True when the rate list contains a value close enough to be considered the same selection.
 [[nodiscard]] bool containsSampleRate(const std::vector<double>& rates, double rate)
 {
-    return std::ranges::any_of(rates, [rate](double available) {
-        return std::abs(available - rate) < g_sample_rate_match_tolerance;
-    });
+    return std::ranges::any_of(
+        rates, [rate](double available) { return sampleRatesMatch(available, rate); });
 }
 
 // Picks 48 kHz, then 44.1 kHz, then the first available rate as the studio-standard fallback.
@@ -128,6 +127,12 @@ juce::StringArray preferredAudioDeviceTypeOrder(const juce::StringArray& availab
         result.add(type_name);
     }
     return result;
+}
+
+// Keeps hardware-rate comparisons consistent across policy and UI selection code.
+bool sampleRatesMatch(double lhs, double rhs) noexcept
+{
+    return std::abs(lhs - rhs) < g_sample_rate_match_tolerance;
 }
 
 // Chooses a rate from route-specific hints before falling back to studio-standard defaults.

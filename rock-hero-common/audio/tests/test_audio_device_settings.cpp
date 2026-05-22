@@ -86,6 +86,13 @@ TEST_CASE("Audio device settings sort unknown backends last", "[audio][audio-dev
     CHECK(ordered_types == juce::StringArray{"ASIO", "DirectSound", "WaveOut", "MysteryBackend"});
 }
 
+// Sample-rate comparison uses the shared tolerance that settings policy and UI selection share.
+TEST_CASE("Audio device settings match close sample rates", "[audio][audio-device-settings]")
+{
+    CHECK(sampleRatesMatch(48000.0, 48000.0005));
+    CHECK_FALSE(sampleRatesMatch(48000.0, 48000.002));
+}
+
 // A staged rate that is still available wins over any other source.
 TEST_CASE("Audio device settings keep staged sample rate", "[audio][audio-device-settings]")
 {
