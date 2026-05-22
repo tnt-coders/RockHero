@@ -1,21 +1,12 @@
 #include "audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
-#include <memory>
-#include <utility>
 
 namespace rock_hero::editor::ui
 {
 
 namespace
 {
-
-constexpr char g_audio_system_name[] = "ASIO";
-constexpr char g_input_a[] = "Input A";
-constexpr char g_input_b[] = "Input B";
-constexpr char g_output_a[] = "Output A";
-constexpr char g_output_b[] = "Output B";
-constexpr char g_open_output_b_error[] = "Could not open Output B";
 
 // Finds direct children by component ID so tests observe the same controls users interact with.
 template <class ComponentType>
@@ -29,239 +20,107 @@ template <class ComponentType>
     return *typed_child;
 }
 
-class MockAudioDevice final : public juce::AudioIODevice
+// Captures controller intents emitted by the passive settings view.
+class FakeAudioDeviceSettingsController final : public core::IAudioDeviceSettingsController
 {
 public:
-    MockAudioDevice(
-        juce::String type_name, juce::String output_name, juce::String input_name,
-        juce::String open_error)
-        : juce::AudioIODevice(
-              output_name.isNotEmpty() ? output_name : input_name, std::move(type_name))
-        , m_open_error(std::move(open_error))
-    {}
-
-    [[nodiscard]] juce::StringArray getInputChannelNames() override
+    void onAudioSystemSelected(int choice_id) override
     {
-        return {"Input 1", "Input 2"};
+        selected_audio_system_id = choice_id;
     }
 
-    [[nodiscard]] juce::StringArray getOutputChannelNames() override
+    void onDeviceSelected(int choice_id) override
     {
-        return {"Output 1", "Output 2"};
+        selected_device_id = choice_id;
     }
 
-    [[nodiscard]] juce::Array<double> getAvailableSampleRates() override
+    void onInputDeviceSelected(int choice_id) override
     {
-        return {44100.0, 48000.0, 96000.0};
+        selected_input_device_id = choice_id;
     }
 
-    [[nodiscard]] juce::Array<int> getAvailableBufferSizes() override
+    void onOutputDeviceSelected(int choice_id) override
     {
-        return {128, 256};
+        selected_output_device_id = choice_id;
     }
 
-    [[nodiscard]] int getDefaultBufferSize() override
+    void onInputChannelSelected(int choice_id) override
     {
-        return 128;
+        selected_input_channel_id = choice_id;
     }
 
-    [[nodiscard]] juce::String open(
-        const juce::BigInteger& input_channels, const juce::BigInteger& output_channels,
-        double sample_rate, int buffer_size_samples) override
+    void onStereoOutputPairSelected(int choice_id) override
     {
-        if (m_open_error.isNotEmpty())
-        {
-            m_last_error = m_open_error;
-            return m_open_error;
-        }
-
-        m_input_channels = input_channels;
-        m_output_channels = output_channels;
-        m_sample_rate = sample_rate;
-        m_buffer_size = buffer_size_samples;
-        m_is_open = true;
-        m_last_error.clear();
-        return {};
+        selected_stereo_output_pair_id = choice_id;
     }
 
-    void close() override
+    void onSampleRateSelected(int choice_id) override
     {
-        m_is_open = false;
+        selected_sample_rate_id = choice_id;
     }
 
-    [[nodiscard]] bool isOpen() override
+    void onBufferSizeSelected(int choice_id) override
     {
-        return m_is_open;
+        selected_buffer_size_id = choice_id;
     }
 
-    void start(juce::AudioIODeviceCallback* callback) override
+    void onTestOutputRequested() override
     {
-        m_callback = callback;
-        if (m_callback != nullptr)
-        {
-            m_callback->audioDeviceAboutToStart(this);
-        }
-        m_is_playing = true;
+        ++test_output_call_count;
     }
 
-    void stop() override
+    void onControlPanelRequested() override
     {
-        if (m_is_playing && m_callback != nullptr)
-        {
-            m_callback->audioDeviceStopped();
-        }
-
-        m_is_playing = false;
-        m_callback = nullptr;
+        ++control_panel_call_count;
     }
 
-    [[nodiscard]] bool isPlaying() override
+    void onOkRequested() override
     {
-        return m_is_playing;
+        ++ok_call_count;
     }
 
-    [[nodiscard]] juce::String getLastError() override
+    void onCancelRequested() override
     {
-        return m_last_error;
+        ++cancel_call_count;
     }
 
-    [[nodiscard]] int getCurrentBufferSizeSamples() override
-    {
-        return m_buffer_size;
-    }
-
-    [[nodiscard]] double getCurrentSampleRate() override
-    {
-        return m_sample_rate;
-    }
-
-    [[nodiscard]] int getCurrentBitDepth() override
-    {
-        return 24;
-    }
-
-    [[nodiscard]] juce::BigInteger getActiveOutputChannels() const override
-    {
-        return m_output_channels;
-    }
-
-    [[nodiscard]] juce::BigInteger getActiveInputChannels() const override
-    {
-        return m_input_channels;
-    }
-
-    [[nodiscard]] int getOutputLatencyInSamples() override
-    {
-        return 0;
-    }
-
-    [[nodiscard]] int getInputLatencyInSamples() override
-    {
-        return 0;
-    }
-
-private:
-    juce::String m_open_error;
-    juce::String m_last_error;
-    juce::AudioIODeviceCallback* m_callback{nullptr};
-    juce::BigInteger m_input_channels;
-    juce::BigInteger m_output_channels;
-    double m_sample_rate{48000.0};
-    int m_buffer_size{128};
-    bool m_is_open{false};
-    bool m_is_playing{false};
+    int selected_audio_system_id{};
+    int selected_device_id{};
+    int selected_input_device_id{};
+    int selected_output_device_id{};
+    int selected_input_channel_id{};
+    int selected_stereo_output_pair_id{};
+    int selected_sample_rate_id{};
+    int selected_buffer_size_id{};
+    int test_output_call_count{};
+    int control_panel_call_count{};
+    int ok_call_count{};
+    int cancel_call_count{};
 };
 
-class MockAudioDeviceType final : public juce::AudioIODeviceType
+[[nodiscard]] core::AudioDeviceSettingsViewState splitDeviceState()
 {
-public:
-    explicit MockAudioDeviceType(juce::StringArray failing_outputs = {})
-        : juce::AudioIODeviceType(g_audio_system_name)
-        , m_failing_outputs(std::move(failing_outputs))
-    {}
-
-    void scanForDevices() override
-    {}
-
-    [[nodiscard]] juce::StringArray getDeviceNames(bool want_input_names) const override
-    {
-        return want_input_names ? juce::StringArray{g_input_a, g_input_b}
-                                : juce::StringArray{g_output_a, g_output_b};
-    }
-
-    [[nodiscard]] int getDefaultDeviceIndex(bool /*for_input*/) const override
-    {
-        return 0;
-    }
-
-    [[nodiscard]] int getIndexOfDevice(
-        juce::AudioIODevice* device, bool want_input_names) const override
-    {
-        if (device == nullptr)
-        {
-            return -1;
-        }
-
-        return getDeviceNames(want_input_names).indexOf(device->getName());
-    }
-
-    [[nodiscard]] bool hasSeparateInputsAndOutputs() const override
-    {
-        return true;
-    }
-
-    [[nodiscard]] juce::AudioIODevice* createDevice(
-        const juce::String& output_device_name, const juce::String& input_device_name) override
-    {
-        if (!getDeviceNames(true).contains(input_device_name) ||
-            !getDeviceNames(false).contains(output_device_name))
-        {
-            return nullptr;
-        }
-
-        const juce::String open_error = m_failing_outputs.contains(output_device_name)
-                                            ? juce::String{g_open_output_b_error}
-                                            : juce::String{};
-        return new MockAudioDevice{
-            getTypeName(), output_device_name, input_device_name, open_error
-        };
-    }
-
-private:
-    juce::StringArray m_failing_outputs;
-};
-
-[[nodiscard]] juce::AudioDeviceManager::AudioDeviceSetup initialRouteSetup()
-{
-    juce::AudioDeviceManager::AudioDeviceSetup setup;
-    setup.inputDeviceName = g_input_a;
-    setup.outputDeviceName = g_output_a;
-    setup.useDefaultInputChannels = false;
-    setup.inputChannels.setBit(0);
-    setup.useDefaultOutputChannels = false;
-    setup.outputChannels.setBit(0);
-    setup.outputChannels.setBit(1);
-    setup.sampleRate = 48000.0;
-    setup.bufferSize = 128;
-    return setup;
-}
-
-void openInitialRoute(juce::AudioDeviceManager& manager, juce::StringArray failing_outputs = {})
-{
-    manager.addAudioDeviceType(std::make_unique<MockAudioDeviceType>(std::move(failing_outputs)));
-
-    const juce::String error = manager.setAudioDeviceSetup(initialRouteSetup(), true);
-    REQUIRE(error.isEmpty());
-}
-
-void stageOutputB(AudioDeviceSettingsView& view)
-{
-    auto& output_combo = findRequiredChild<juce::ComboBox>(view, "audio_settings_output_device");
-    REQUIRE(output_combo.getNumItems() == 2);
-
-    output_combo.setSelectedId(2, juce::sendNotificationSync);
-
-    CHECK(output_combo.getText() == g_output_b);
+    return core::AudioDeviceSettingsViewState{
+        .audio_systems = {{.id = 1, .label = "ASIO"}},
+        .selected_audio_system_id = 1,
+        .uses_separate_input_output_devices = true,
+        .input_devices = {{.id = 1, .label = "Input A"}, {.id = 2, .label = "Input B"}},
+        .selected_input_device_id = 1,
+        .output_devices = {{.id = 1, .label = "Output A"}, {.id = 2, .label = "Output B"}},
+        .selected_output_device_id = 1,
+        .input_channels = {{.id = 1, .label = "Input 1"}},
+        .selected_input_channel_id = 1,
+        .stereo_output_pairs = {{.id = 1, .label = "Output 1 + Output 2"}},
+        .selected_stereo_output_pair_id = 1,
+        .sample_rates = {{.id = 1, .label = "44100 Hz"}, {.id = 2, .label = "48000 Hz"}},
+        .selected_sample_rate_id = 2,
+        .buffer_sizes = {{.id = 1, .label = "128 samples"}},
+        .selected_buffer_size_id = 1,
+        .test_output_enabled = true,
+        .control_panel_enabled = true,
+        .ok_enabled = true,
+        .error_message = "Could not open Output B",
+    };
 }
 
 void clickTextButton(AudioDeviceSettingsView& view, const juce::String& component_id)
@@ -273,55 +132,67 @@ void clickTextButton(AudioDeviceSettingsView& view, const juce::String& componen
 
 } // namespace
 
-TEST_CASE("AudioDeviceSettingsView keeps staged route on cancel", "[ui][audio-device-settings]")
+// setState renders choices, selected IDs, visibility, enablement, and error text.
+TEST_CASE("AudioDeviceSettingsView renders controller state", "[ui][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    juce::AudioDeviceManager manager;
-    openInitialRoute(manager);
-    const auto initial_setup = manager.getAudioDeviceSetup();
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
 
-    AudioDeviceSettingsView view{manager};
-    stageOutputB(view);
-    CHECK(manager.getAudioDeviceSetup() == initial_setup);
+    view.setState(splitDeviceState());
 
+    const auto& input_device =
+        findRequiredChild<juce::ComboBox>(view, "audio_settings_input_device");
+    const auto& output_device =
+        findRequiredChild<juce::ComboBox>(view, "audio_settings_output_device");
+    const auto& combined_device = findRequiredChild<juce::ComboBox>(view, "audio_settings_device");
+    const auto& error_label = findRequiredChild<juce::Label>(view, "audio_settings_error");
+    const auto& ok_button = findRequiredChild<juce::TextButton>(view, "audio_settings_ok_button");
+
+    CHECK(input_device.isVisible());
+    CHECK(output_device.isVisible());
+    CHECK_FALSE(combined_device.isVisible());
+    CHECK(output_device.getNumItems() == 2);
+    CHECK(output_device.getSelectedId() == 1);
+    CHECK(error_label.getText() == "Could not open Output B");
+    CHECK(ok_button.isEnabled());
+}
+
+// ComboBox changes emit stable one-based IDs to the controller.
+TEST_CASE("AudioDeviceSettingsView emits selected IDs", "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    auto& output_device = findRequiredChild<juce::ComboBox>(view, "audio_settings_output_device");
+    auto& sample_rate = findRequiredChild<juce::ComboBox>(view, "audio_settings_sample_rate");
+
+    output_device.setSelectedId(2, juce::sendNotificationSync);
+    sample_rate.setSelectedId(1, juce::sendNotificationSync);
+
+    CHECK(controller.selected_output_device_id == 2);
+    CHECK(controller.selected_sample_rate_id == 1);
+}
+
+// Buttons emit the corresponding settings-controller intents.
+TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceSettingsController controller;
+    AudioDeviceSettingsView view{controller};
+    view.setState(splitDeviceState());
+
+    clickTextButton(view, "audio_settings_test_button");
+    clickTextButton(view, "audio_settings_control_panel_button");
+    clickTextButton(view, "audio_settings_ok_button");
     clickTextButton(view, "audio_settings_cancel_button");
 
-    CHECK(manager.getAudioDeviceSetup() == initial_setup);
-}
-
-TEST_CASE("AudioDeviceSettingsView applies staged route on OK", "[ui][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    juce::AudioDeviceManager manager;
-    openInitialRoute(manager);
-
-    AudioDeviceSettingsView view{manager};
-    stageOutputB(view);
-
-    clickTextButton(view, "audio_settings_ok_button");
-
-    const auto applied_setup = manager.getAudioDeviceSetup();
-    CHECK(applied_setup.inputDeviceName == g_input_a);
-    CHECK(applied_setup.outputDeviceName == g_output_b);
-}
-
-TEST_CASE("AudioDeviceSettingsView rolls back failed apply", "[ui][audio-device-settings]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    juce::AudioDeviceManager manager;
-    openInitialRoute(manager, juce::StringArray{g_output_b});
-    const auto initial_setup = manager.getAudioDeviceSetup();
-
-    AudioDeviceSettingsView view{manager};
-    stageOutputB(view);
-
-    clickTextButton(view, "audio_settings_ok_button");
-
-    const auto restored_setup = manager.getAudioDeviceSetup();
-    CHECK(restored_setup == initial_setup);
-
-    const auto& error_label = findRequiredChild<juce::Label>(view, "audio_settings_error");
-    CHECK(error_label.getText() == g_open_output_b_error);
+    CHECK(controller.test_output_call_count == 1);
+    CHECK(controller.control_panel_call_count == 1);
+    CHECK(controller.ok_call_count == 1);
+    CHECK(controller.cancel_call_count == 1);
 }
 
 } // namespace rock_hero::editor::ui

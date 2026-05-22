@@ -692,7 +692,7 @@ EditorView::EditorView(
     common::audio::IThumbnailFactory& thumbnail_factory,
     common::audio::IAudioDeviceConfiguration* audio_devices)
     : m_controller(controller)
-    , m_audio_device_manager(audio_devices != nullptr ? &audio_devices->deviceManager() : nullptr)
+    , m_audio_devices(audio_devices)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
@@ -1211,7 +1211,7 @@ void EditorView::updateAudioDeviceButton()
 // Opens the audio-device settings window when a hardware-configuration backend is available.
 void EditorView::showAudioDeviceSettingsWindow()
 {
-    if (m_audio_device_manager == nullptr)
+    if (m_audio_devices == nullptr)
     {
         return;
     }
@@ -1221,7 +1221,7 @@ void EditorView::showAudioDeviceSettingsWindow()
         m_controller.onPlayPausePressed();
     }
 
-    AudioDeviceSettingsWindow::show(*m_audio_device_manager, m_audio_device_button);
+    AudioDeviceSettingsWindow::show(*m_audio_devices, m_audio_device_button);
 }
 
 // Runs the single pending fence callback after BusyOverlay has crossed its paint path. Showing

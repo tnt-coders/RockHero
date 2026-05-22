@@ -3,7 +3,12 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <vector>
+#include <compare>
+#include <juce_audio_devices/juce_audio_devices.h>
+#include <juce_core/juce_core.h>
+#include <optional>
+#include <rock_hero/common/audio/scoped_listener.h>
+#include <utility>
 
 namespace rock_hero::common::audio
 {
@@ -20,6 +25,40 @@ constexpr char g_windows_audio_exclusive_type_name[] = "Windows Audio (Exclusive
 constexpr char g_direct_sound_type_name[] = "DirectSound";
 constexpr char g_wave_out_type_name[] = "WaveOut";
 constexpr double g_sample_rate_match_tolerance{0.001};
+
+// Creates stable fallback text for settings failures that do not carry backend detail.
+[[nodiscard]] std::string defaultErrorMessage(AudioDeviceSettingsErrorCode code)
+{
+    switch (code)
+    {
+        case AudioDeviceSettingsErrorCode::NoAudioSystem:
+        {
+            return "No audio system is available.";
+        }
+        case AudioDeviceSettingsErrorCode::NoDevice:
+        {
+            return "No audio device is available for the selected audio system.";
+        }
+        case AudioDeviceSettingsErrorCode::ApplyFailed:
+        {
+            return "Could not apply the selected audio device settings.";
+        }
+        case AudioDeviceSettingsErrorCode::RollbackFailed:
+        {
+            return "Could not restore the previous audio device settings.";
+        }
+        case AudioDeviceSettingsErrorCode::TestOutputUnavailable:
+        {
+            return "Test output is unavailable for the selected audio device.";
+        }
+        case AudioDeviceSettingsErrorCode::ControlPanelUnavailable:
+        {
+            return "The selected audio device has no control panel.";
+        }
+    }
+
+    return "Could not complete the audio device settings operation.";
+}
 
 // Treats JUCE's Windows Audio modes as the WASAPI family exposed by the OS.
 [[nodiscard]] bool isWasapiType(const juce::String& type_name) noexcept
@@ -81,31 +120,22 @@ constexpr double g_sample_rate_match_tolerance{0.001};
     return 50;
 }
 
-// True when the rate list contains a value close enough to be considered the same selection.
-[[nodiscard]] bool containsSampleRate(const std::vector<double>& rates, double rate)
+// Collects JUCE device type names so shared settings policy can order by stable names.
+[[nodiscard]] juce::StringArray availableDeviceTypeNames(
+    const juce::OwnedArray<juce::AudioIODeviceType>& device_types)
 {
-    return std::ranges::any_of(
-        rates, [rate](double available) { return sampleRatesMatch(available, rate); });
-}
-
-// Picks 48 kHz, then 44.1 kHz, then the first available rate as the studio-standard fallback.
-[[nodiscard]] double fallbackSampleRate(const std::vector<double>& rates)
-{
-    constexpr std::array preferred_rates{48000.0, 44100.0};
-    for (const double rate : preferred_rates)
+    juce::StringArray type_names;
+    for (const auto* device_type : device_types)
     {
-        if (containsSampleRate(rates, rate))
-        {
-            return rate;
-        }
+        type_names.add(device_type->getTypeName());
     }
-    return rates.empty() ? 0.0 : rates.front();
-}
 
-} // namespace
+    return type_names;
+}
 
 // Applies Rock Hero's default settings order to JUCE's discovered device-system names.
-juce::StringArray preferredAudioDeviceTypeOrder(const juce::StringArray& available_type_names)
+[[nodiscard]] juce::StringArray preferredAudioDeviceTypeOrder(
+    const juce::StringArray& available_type_names)
 {
     // Copy into std::vector because juce::StringArray::sort accepts no custom comparator; the
     // round trip is the smallest way to apply a rank-based ordering.
@@ -129,14 +159,35 @@ juce::StringArray preferredAudioDeviceTypeOrder(const juce::StringArray& availab
     return result;
 }
 
-// Keeps hardware-rate comparisons consistent across policy and UI selection code.
-bool sampleRatesMatch(double lhs, double rhs) noexcept
+// Keeps hardware-rate comparisons consistent across policy and selected-choice derivation.
+[[nodiscard]] bool sampleRatesMatch(double lhs, double rhs) noexcept
 {
     return std::abs(lhs - rhs) < g_sample_rate_match_tolerance;
 }
 
+// True when the rate list contains a value close enough to be considered the same selection.
+[[nodiscard]] bool containsSampleRate(const std::vector<double>& rates, double rate)
+{
+    return std::ranges::any_of(
+        rates, [rate](double available) { return sampleRatesMatch(available, rate); });
+}
+
+// Picks 48 kHz, then 44.1 kHz, then the first available rate as the studio-standard fallback.
+[[nodiscard]] double fallbackSampleRate(const std::vector<double>& rates)
+{
+    constexpr std::array preferred_rates{48000.0, 44100.0};
+    for (const double rate : preferred_rates)
+    {
+        if (containsSampleRate(rates, rate))
+        {
+            return rate;
+        }
+    }
+    return rates.empty() ? 0.0 : rates.front();
+}
+
 // Chooses a rate from route-specific hints before falling back to studio-standard defaults.
-double chooseAudioDeviceSampleRate(
+[[nodiscard]] double chooseAudioDeviceSampleRate(
     const std::vector<double>& available_rates, double staged_rate, double preview_device_rate,
     std::optional<double> active_route_rate)
 {
@@ -155,6 +206,825 @@ double chooseAudioDeviceSampleRate(
     }
 
     return fallbackSampleRate(available_rates);
+}
+
+// Converts JUCE strings into standard strings for the project-owned settings state.
+[[nodiscard]] std::vector<std::string> toStrings(const juce::StringArray& values)
+{
+    std::vector<std::string> result;
+    result.reserve(static_cast<std::size_t>(values.size()));
+    for (const auto& value : values)
+    {
+        result.push_back(value.toStdString());
+    }
+
+    return result;
+}
+
+// Returns a readable channel name, falling back to a numbered label when the driver omits one.
+[[nodiscard]] juce::String channelName(
+    const juce::StringArray& channel_names, int channel_index, const juce::String& fallback_prefix)
+{
+    if (juce::isPositiveAndBelow(channel_index, channel_names.size()) &&
+        channel_names[channel_index].isNotEmpty())
+    {
+        return channel_names[channel_index];
+    }
+
+    return fallback_prefix + " " + juce::String{channel_index + 1};
+}
+
+// Formats a stereo output pair as a single app-level route.
+[[nodiscard]] juce::String outputPairName(
+    const juce::StringArray& channel_names, int left_channel, int right_channel)
+{
+    return channelName(channel_names, left_channel, "Output") + " + " +
+           channelName(channel_names, right_channel, "Output");
+}
+
+// Keeps a requested device name when it still exists, otherwise picks the driver's default.
+[[nodiscard]] juce::String validOrDefaultDeviceName(
+    const juce::String& requested_name, const juce::StringArray& device_names, int default_index)
+{
+    if (device_names.contains(requested_name))
+    {
+        return requested_name;
+    }
+
+    if (juce::isPositiveAndBelow(default_index, device_names.size()))
+    {
+        return device_names[default_index];
+    }
+
+    return device_names.isEmpty() ? juce::String{} : device_names[0];
+}
+
+// Returns the first one-based choice ID whose text matches the selected value.
+[[nodiscard]] int selectedStringId(
+    const juce::StringArray& choices, const juce::String& selected_text) noexcept
+{
+    const int selected_index = choices.indexOf(selected_text);
+    return selected_index >= 0 ? selected_index + 1 : 0;
+}
+
+// Finds the first sample-rate choice that matches the staged rate closely enough.
+[[nodiscard]] int selectedSampleRateId(
+    const std::vector<double>& sample_rates, double current_rate) noexcept
+{
+    for (int index = 0; std::cmp_less(index, sample_rates.size()); ++index)
+    {
+        if (sampleRatesMatch(sample_rates[static_cast<std::size_t>(index)], current_rate))
+        {
+            return index + 1;
+        }
+    }
+
+    return 0;
+}
+
+// Finds the first buffer-size choice that matches the staged buffer size.
+[[nodiscard]] int selectedBufferSizeId(
+    const std::vector<int>& buffer_sizes, int current_size) noexcept
+{
+    for (int index = 0; std::cmp_less(index, buffer_sizes.size()); ++index)
+    {
+        if (buffer_sizes[static_cast<std::size_t>(index)] == current_size)
+        {
+            return index + 1;
+        }
+    }
+
+    return 0;
+}
+
+} // namespace
+
+AudioDeviceSettingsError::AudioDeviceSettingsError(AudioDeviceSettingsErrorCode error_code)
+    : code(error_code)
+    , message(defaultErrorMessage(error_code))
+{}
+
+AudioDeviceSettingsError::AudioDeviceSettingsError(
+    AudioDeviceSettingsErrorCode error_code, std::string message_text)
+    : code(error_code)
+    , message(std::move(message_text))
+{}
+
+struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
+{
+    explicit Impl(IAudioDeviceConfiguration& audio_devices)
+        : m_device_manager(audio_devices.deviceManager())
+        , m_configuration_listener(audio_devices, *this)
+    {
+        begin();
+    }
+
+    ~Impl() override = default;
+
+    Impl(const Impl&) = delete;
+    Impl& operator=(const Impl&) = delete;
+    Impl(Impl&&) = delete;
+    Impl& operator=(Impl&&) = delete;
+
+    // Starts staging from the current active device-manager route.
+    void begin()
+    {
+        m_staged_setup = m_device_manager.getAudioDeviceSetup();
+        m_staged_device_type = m_device_manager.getCurrentAudioDeviceType();
+        refreshState({});
+    }
+
+    // Returns the last derived project-owned settings snapshot.
+    [[nodiscard]] AudioDeviceSettingsState state() const
+    {
+        return m_state;
+    }
+
+    // Selects a backend family and resets dependent route and format fields.
+    void selectAudioSystem(int choice_id)
+    {
+        const juce::StringArray type_names = orderedDeviceTypeNames();
+        if (!juce::isPositiveAndBelow(choice_id - 1, type_names.size()))
+        {
+            return;
+        }
+
+        const juce::String type_name = type_names[choice_id - 1];
+        if (type_name == m_staged_device_type)
+        {
+            return;
+        }
+
+        m_staged_device_type = type_name;
+        m_staged_setup.inputDeviceName.clear();
+        m_staged_setup.outputDeviceName.clear();
+        m_staged_setup.sampleRate = 0.0;
+        m_staged_setup.bufferSize = 0;
+        resetStagedRouteDefaults();
+        refreshState({});
+    }
+
+    // Selects one combined device for backends such as ASIO.
+    void selectDevice(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(choice_id - 1, static_cast<int>(m_state.devices.size())))
+        {
+            return;
+        }
+
+        const juce::String device_name{m_state.devices[static_cast<std::size_t>(choice_id - 1)]};
+        m_staged_setup.inputDeviceName = device_name;
+        m_staged_setup.outputDeviceName = device_name;
+        resetFormatAndRouteDefaults();
+        refreshState({});
+    }
+
+    // Selects the input side of a split input/output backend.
+    void selectInputDevice(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(
+                choice_id - 1, static_cast<int>(m_state.input_devices.size())))
+        {
+            return;
+        }
+
+        m_staged_setup.inputDeviceName =
+            juce::String{m_state.input_devices[static_cast<std::size_t>(choice_id - 1)]};
+        resetFormatAndRouteDefaults();
+        refreshState({});
+    }
+
+    // Selects the output side of a split input/output backend.
+    void selectOutputDevice(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(
+                choice_id - 1, static_cast<int>(m_state.output_devices.size())))
+        {
+            return;
+        }
+
+        m_staged_setup.outputDeviceName =
+            juce::String{m_state.output_devices[static_cast<std::size_t>(choice_id - 1)]};
+        resetFormatAndRouteDefaults();
+        refreshState({});
+    }
+
+    // Replaces the staged input mask with exactly one mono channel.
+    void selectInputChannel(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(
+                choice_id - 1, static_cast<int>(m_state.input_channels.size())))
+        {
+            return;
+        }
+
+        setSingleInputChannel(choice_id - 1);
+        refreshState({});
+    }
+
+    // Replaces the staged output mask with the chosen stereo pair.
+    void selectStereoOutputPair(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(
+                choice_id - 1, static_cast<int>(m_state.stereo_output_pairs.size())))
+        {
+            return;
+        }
+
+        const StereoOutputPair& pair =
+            m_state.stereo_output_pairs[static_cast<std::size_t>(choice_id - 1)];
+        setOutputPair(pair.left_channel, pair.right_channel);
+        refreshState({});
+    }
+
+    // Stores the selected sample rate directly on the staged setup.
+    void selectSampleRate(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(choice_id - 1, static_cast<int>(m_state.sample_rates.size())))
+        {
+            return;
+        }
+
+        m_staged_setup.sampleRate = m_state.sample_rates[static_cast<std::size_t>(choice_id - 1)];
+        refreshState({});
+    }
+
+    // Stores the selected buffer size directly on the staged setup.
+    void selectBufferSize(int choice_id)
+    {
+        if (!juce::isPositiveAndBelow(choice_id - 1, static_cast<int>(m_state.buffer_sizes.size())))
+        {
+            return;
+        }
+
+        m_staged_setup.bufferSize = m_state.buffer_sizes[static_cast<std::size_t>(choice_id - 1)];
+        refreshState({});
+    }
+
+    // Applies the staged setup and restores the active route if the apply attempt fails.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply()
+    {
+        const auto previous_setup = m_device_manager.getAudioDeviceSetup();
+        const juce::String previous_device_type = m_device_manager.getCurrentAudioDeviceType();
+
+        if (m_staged_device_type.isEmpty())
+        {
+            AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::NoAudioSystem};
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        if (m_staged_setup.inputDeviceName.isEmpty() || m_staged_setup.outputDeviceName.isEmpty())
+        {
+            AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::NoDevice};
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        if (m_staged_device_type != m_device_manager.getCurrentAudioDeviceType())
+        {
+            m_device_manager.setCurrentAudioDeviceType(m_staged_device_type, true);
+        }
+
+        const juce::String error_text = m_device_manager.setAudioDeviceSetup(m_staged_setup, true);
+        if (error_text.isNotEmpty())
+        {
+            if (previous_device_type.isNotEmpty() &&
+                previous_device_type != m_device_manager.getCurrentAudioDeviceType())
+            {
+                m_device_manager.setCurrentAudioDeviceType(previous_device_type, true);
+            }
+
+            const juce::String rollback_error =
+                m_device_manager.setAudioDeviceSetup(previous_setup, true);
+            if (rollback_error.isNotEmpty())
+            {
+                AudioDeviceSettingsError error{
+                    AudioDeviceSettingsErrorCode::RollbackFailed, rollback_error.toStdString()
+                };
+                refreshState(error.message);
+                return std::unexpected{std::move(error)};
+            }
+
+            AudioDeviceSettingsError error{
+                AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
+            };
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        refreshState({});
+        return {};
+    }
+
+    // Cancels the staged route only; settings previews never mutate the active device manager.
+    void cancel()
+    {
+        begin();
+    }
+
+    // Plays the active backend's test sound only when it represents the staged route.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> testOutput()
+    {
+        if (!m_state.test_output_enabled)
+        {
+            AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::TestOutputUnavailable};
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        m_device_manager.playTestSound();
+        return {};
+    }
+
+    // Opens the active backend's control panel only when it represents the staged route.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel()
+    {
+        auto* device = m_device_manager.getCurrentAudioDevice();
+        if (!m_state.control_panel_enabled || device == nullptr)
+        {
+            AudioDeviceSettingsError error{AudioDeviceSettingsErrorCode::ControlPanelUnavailable};
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
+        device->showControlPanel();
+        refreshState({});
+        return {};
+    }
+
+    // Registers a settings listener for external backend refreshes.
+    void addListener(IAudioDeviceSettings::Listener& listener)
+    {
+        m_listeners.add(&listener);
+    }
+
+    // Removes a previously registered settings listener.
+    void removeListener(IAudioDeviceSettings::Listener& listener)
+    {
+        m_listeners.remove(&listener);
+    }
+
+    // Keeps staged settings valid when the underlying backend changes outside this workflow.
+    void onAudioDeviceConfigurationChanged() override
+    {
+        refreshState({});
+        m_listeners.call(&IAudioDeviceSettings::Listener::onAudioDeviceSettingsChanged);
+    }
+
+private:
+    // Rebuilds the public settings state while preserving a caller-supplied operation error.
+    void refreshState(std::string error_message)
+    {
+        ensureStagedDeviceType();
+        scanCurrentDeviceType();
+        ensureStagedDeviceNames();
+        m_staged_device = createStagedDevice();
+
+        AudioDeviceSettingsState next_state;
+        next_state.error_message = std::move(error_message);
+
+        refreshDeviceTypes(next_state);
+        refreshDeviceNames(next_state);
+        refreshChannelChoices(next_state);
+        refreshSampleRateChoices(next_state);
+        refreshBufferSizeChoices(next_state);
+        refreshCapabilities(next_state);
+
+        m_state = std::move(next_state);
+    }
+
+    // Returns audio systems ordered according to Rock Hero's default preference.
+    [[nodiscard]] juce::StringArray orderedDeviceTypeNames() const
+    {
+        return preferredAudioDeviceTypeOrder(
+            availableDeviceTypeNames(m_device_manager.getAvailableDeviceTypes()));
+    }
+
+    // Chooses a staged audio system from the active device manager's available types.
+    void ensureStagedDeviceType()
+    {
+        const juce::StringArray type_names = orderedDeviceTypeNames();
+        if (type_names.contains(m_staged_device_type))
+        {
+            return;
+        }
+
+        const juce::String active_device_type = m_device_manager.getCurrentAudioDeviceType();
+        if (type_names.contains(active_device_type))
+        {
+            m_staged_device_type = active_device_type;
+            return;
+        }
+
+        m_staged_device_type = type_names.isEmpty() ? juce::String{} : type_names[0];
+    }
+
+    // Performs the only device-list scan needed for one refresh pass.
+    void scanCurrentDeviceType() const
+    {
+        if (juce::AudioIODeviceType* const type = currentDeviceType(); type != nullptr)
+        {
+            type->scanForDevices();
+        }
+    }
+
+    // Keeps staged device names valid for the selected audio system without opening the active
+    // route.
+    void ensureStagedDeviceNames()
+    {
+        auto* type = currentDeviceType();
+        if (type == nullptr)
+        {
+            m_staged_setup.inputDeviceName.clear();
+            m_staged_setup.outputDeviceName.clear();
+            return;
+        }
+
+        if (type->hasSeparateInputsAndOutputs())
+        {
+            m_staged_setup.inputDeviceName = validOrDefaultDeviceName(
+                m_staged_setup.inputDeviceName,
+                type->getDeviceNames(true),
+                type->getDefaultDeviceIndex(true));
+            m_staged_setup.outputDeviceName = validOrDefaultDeviceName(
+                m_staged_setup.outputDeviceName,
+                type->getDeviceNames(false),
+                type->getDefaultDeviceIndex(false));
+            return;
+        }
+
+        auto device_names = type->getDeviceNames(false);
+        if (device_names.isEmpty())
+        {
+            device_names = type->getDeviceNames(true);
+        }
+
+        const juce::String requested_name = m_staged_setup.outputDeviceName.isNotEmpty()
+                                                ? m_staged_setup.outputDeviceName
+                                                : m_staged_setup.inputDeviceName;
+        const juce::String device_name = validOrDefaultDeviceName(
+            requested_name, device_names, type->getDefaultDeviceIndex(false));
+        m_staged_setup.inputDeviceName = device_name;
+        m_staged_setup.outputDeviceName = device_name;
+    }
+
+    // Populates audio-system choices and selected ID.
+    void refreshDeviceTypes(AudioDeviceSettingsState& next_state) const
+    {
+        const juce::StringArray type_names = orderedDeviceTypeNames();
+        next_state.audio_systems = toStrings(type_names);
+        next_state.selected_audio_system_id = selectedStringId(type_names, m_staged_device_type);
+    }
+
+    // Populates either combined device choices or split input/output device choices.
+    void refreshDeviceNames(AudioDeviceSettingsState& next_state) const
+    {
+        auto* type = currentDeviceType();
+        next_state.uses_separate_input_output_devices =
+            type != nullptr && type->hasSeparateInputsAndOutputs();
+
+        if (type == nullptr)
+        {
+            return;
+        }
+
+        if (next_state.uses_separate_input_output_devices)
+        {
+            const juce::StringArray input_names = type->getDeviceNames(true);
+            const juce::StringArray output_names = type->getDeviceNames(false);
+            next_state.input_devices = toStrings(input_names);
+            next_state.output_devices = toStrings(output_names);
+            next_state.selected_input_device_id =
+                selectedStringId(input_names, m_staged_setup.inputDeviceName);
+            next_state.selected_output_device_id =
+                selectedStringId(output_names, m_staged_setup.outputDeviceName);
+            return;
+        }
+
+        auto device_names = type->getDeviceNames(false);
+        if (device_names.isEmpty())
+        {
+            device_names = type->getDeviceNames(true);
+        }
+
+        const juce::String selected_device = m_staged_setup.outputDeviceName.isNotEmpty()
+                                                 ? m_staged_setup.outputDeviceName
+                                                 : m_staged_setup.inputDeviceName;
+        next_state.devices = toStrings(device_names);
+        next_state.selected_device_id = selectedStringId(device_names, selected_device);
+    }
+
+    // Populates mono input choices and app-level stereo output-pair choices.
+    void refreshChannelChoices(AudioDeviceSettingsState& next_state) const
+    {
+        auto* device = m_staged_device.get();
+        if (device == nullptr)
+        {
+            return;
+        }
+
+        const auto input_names = device->getInputChannelNames();
+        next_state.input_channels.reserve(static_cast<std::size_t>(input_names.size()));
+        for (int index = 0; index < input_names.size(); ++index)
+        {
+            next_state.input_channels.push_back(
+                channelName(input_names, index, "Input").toStdString());
+        }
+
+        const int selected_input = m_staged_setup.inputChannels.findNextSetBit(0);
+        next_state.selected_input_channel_id =
+            juce::isPositiveAndBelow(selected_input, input_names.size()) ? selected_input + 1 : 0;
+
+        const auto output_names = device->getOutputChannelNames();
+        for (int channel_index = 0; channel_index + 1 < output_names.size(); channel_index += 2)
+        {
+            next_state.stereo_output_pairs.push_back(
+                StereoOutputPair{
+                    .left_channel = channel_index,
+                    .right_channel = channel_index + 1,
+                    .label = outputPairName(output_names, channel_index, channel_index + 1)
+                                 .toStdString(),
+                });
+        }
+
+        int selected_output_pair_id = next_state.stereo_output_pairs.empty() ? 0 : 1;
+        for (int index = 0; std::cmp_less(index, next_state.stereo_output_pairs.size()); ++index)
+        {
+            const auto& pair = next_state.stereo_output_pairs[static_cast<std::size_t>(index)];
+            if (m_staged_setup.outputChannels[pair.left_channel] &&
+                m_staged_setup.outputChannels[pair.right_channel])
+            {
+                selected_output_pair_id = index + 1;
+                break;
+            }
+        }
+
+        next_state.selected_stereo_output_pair_id = selected_output_pair_id;
+    }
+
+    // Populates sample-rate choices from the staged device capabilities.
+    void refreshSampleRateChoices(AudioDeviceSettingsState& next_state)
+    {
+        auto* device = m_staged_device.get();
+        if (device == nullptr)
+        {
+            return;
+        }
+
+        for (const auto sample_rate : device->getAvailableSampleRates())
+        {
+            next_state.sample_rates.push_back(sample_rate);
+        }
+
+        // The staged preview device may not be open and may therefore not report a current rate.
+        // If the staged route matches the currently open route, the active device's reported rate
+        // is the same physical device's current rate and is safe to borrow as a fallback.
+        std::optional<double> active_route_rate;
+        if (stagedDeviceNamesMatchActiveRoute())
+        {
+            if (auto* active_device = m_device_manager.getCurrentAudioDevice();
+                active_device != nullptr)
+            {
+                active_route_rate = active_device->getCurrentSampleRate();
+            }
+        }
+
+        const double selected_sample_rate = chooseAudioDeviceSampleRate(
+            next_state.sample_rates,
+            m_staged_setup.sampleRate,
+            device->getCurrentSampleRate(),
+            active_route_rate);
+
+        if (m_staged_setup.sampleRate <= 0.0 && selected_sample_rate > 0.0)
+        {
+            m_staged_setup.sampleRate = selected_sample_rate;
+        }
+
+        next_state.selected_sample_rate_id =
+            selectedSampleRateId(next_state.sample_rates, selected_sample_rate);
+    }
+
+    // Populates buffer-size choices from the staged device capabilities.
+    void refreshBufferSizeChoices(AudioDeviceSettingsState& next_state)
+    {
+        auto* device = m_staged_device.get();
+        if (device == nullptr)
+        {
+            return;
+        }
+
+        if (m_staged_setup.bufferSize <= 0)
+        {
+            const int current_buffer_size = device->getCurrentBufferSizeSamples();
+            m_staged_setup.bufferSize =
+                current_buffer_size > 0 ? current_buffer_size : device->getDefaultBufferSize();
+        }
+
+        for (const auto buffer_size : device->getAvailableBufferSizes())
+        {
+            next_state.buffer_sizes.push_back(buffer_size);
+        }
+
+        next_state.selected_buffer_size_id = selectedBufferSizeId(
+            next_state.buffer_sizes,
+            m_staged_setup.bufferSize > 0 ? m_staged_setup.bufferSize
+                                          : device->getCurrentBufferSizeSamples());
+    }
+
+    // Derives active-device-only capability flags for the staged route.
+    void refreshCapabilities(AudioDeviceSettingsState& next_state) const
+    {
+        auto* device = m_device_manager.getCurrentAudioDevice();
+        const bool can_use_active_device_buttons = stagedRouteMatchesActiveRoute();
+        next_state.test_output_enabled = can_use_active_device_buttons && device != nullptr;
+        next_state.control_panel_enabled =
+            can_use_active_device_buttons && device != nullptr && device->hasControlPanel();
+    }
+
+    // Clears route and format fields whose choices depend on the selected device.
+    void resetFormatAndRouteDefaults()
+    {
+        m_staged_setup.sampleRate = 0.0;
+        m_staged_setup.bufferSize = 0;
+        resetStagedRouteDefaults();
+    }
+
+    // Sets the staged route to one mono input and one stereo output pair.
+    void resetStagedRouteDefaults()
+    {
+        setSingleInputChannel(0);
+        setOutputPair(0, 1);
+    }
+
+    // Returns the currently selected JUCE device type object, if one exists.
+    [[nodiscard]] juce::AudioIODeviceType* currentDeviceType() const
+    {
+        const auto& device_types = m_device_manager.getAvailableDeviceTypes();
+        for (auto* type : device_types)
+        {
+            if (type->getTypeName() == m_staged_device_type)
+            {
+                return type;
+            }
+        }
+
+        return nullptr;
+    }
+
+    // Creates a non-open staged device used only to inspect channel and format capabilities.
+    [[nodiscard]] std::unique_ptr<juce::AudioIODevice> createStagedDevice() const
+    {
+        auto* type = currentDeviceType();
+        if (type == nullptr || m_staged_setup.inputDeviceName.isEmpty() ||
+            m_staged_setup.outputDeviceName.isEmpty())
+        {
+            return nullptr;
+        }
+
+        return std::unique_ptr<juce::AudioIODevice>{type->createDevice(
+            m_staged_setup.outputDeviceName, m_staged_setup.inputDeviceName)};
+    }
+
+    // Reports whether active-device-only buttons apply to the currently staged route.
+    [[nodiscard]] bool stagedRouteMatchesActiveRoute() const
+    {
+        return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
+               m_staged_setup == m_device_manager.getAudioDeviceSetup();
+    }
+
+    // Matches the currently selected device names while ignoring route and format staging edits.
+    [[nodiscard]] bool stagedDeviceNamesMatchActiveRoute() const
+    {
+        const auto active_setup = m_device_manager.getAudioDeviceSetup();
+        return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
+               m_staged_setup.inputDeviceName == active_setup.inputDeviceName &&
+               m_staged_setup.outputDeviceName == active_setup.outputDeviceName;
+    }
+
+    // Replaces the staged input channels with exactly one mono input channel.
+    void setSingleInputChannel(int channel_index)
+    {
+        m_staged_setup.useDefaultInputChannels = false;
+        m_staged_setup.inputChannels.clear();
+        if (channel_index >= 0)
+        {
+            m_staged_setup.inputChannels.setBit(channel_index);
+        }
+    }
+
+    // Replaces the staged output channels with exactly one stereo output pair.
+    void setOutputPair(int left_channel, int right_channel)
+    {
+        m_staged_setup.useDefaultOutputChannels = false;
+        m_staged_setup.outputChannels.clear();
+        m_staged_setup.outputChannels.setBit(left_channel);
+        m_staged_setup.outputChannels.setBit(right_channel);
+    }
+
+    // Audio device manager owned by the shared backend.
+    juce::AudioDeviceManager& m_device_manager;
+
+    // Staged route edited independently from the active device manager until apply().
+    juce::AudioDeviceManager::AudioDeviceSetup m_staged_setup;
+    juce::String m_staged_device_type;
+    std::unique_ptr<juce::AudioIODevice> m_staged_device;
+
+    // Last project-owned state snapshot returned by state().
+    AudioDeviceSettingsState m_state{};
+
+    // Listener surface for product controllers that need to refresh after external changes.
+    juce::ListenerList<IAudioDeviceSettings::Listener> m_listeners;
+
+    // Declared last so listener deregistration runs before referenced state is destroyed.
+    ScopedListener<IAudioDeviceConfiguration, IAudioDeviceConfiguration::Listener>
+        m_configuration_listener;
+};
+
+AudioDeviceSettings::AudioDeviceSettings(IAudioDeviceConfiguration& audio_devices)
+    : m_impl(std::make_unique<Impl>(audio_devices))
+{}
+
+AudioDeviceSettings::~AudioDeviceSettings() = default;
+
+void AudioDeviceSettings::begin()
+{
+    m_impl->begin();
+}
+
+AudioDeviceSettingsState AudioDeviceSettings::state() const
+{
+    return m_impl->state();
+}
+
+void AudioDeviceSettings::selectAudioSystem(int choice_id)
+{
+    m_impl->selectAudioSystem(choice_id);
+}
+
+void AudioDeviceSettings::selectDevice(int choice_id)
+{
+    m_impl->selectDevice(choice_id);
+}
+
+void AudioDeviceSettings::selectInputDevice(int choice_id)
+{
+    m_impl->selectInputDevice(choice_id);
+}
+
+void AudioDeviceSettings::selectOutputDevice(int choice_id)
+{
+    m_impl->selectOutputDevice(choice_id);
+}
+
+void AudioDeviceSettings::selectInputChannel(int choice_id)
+{
+    m_impl->selectInputChannel(choice_id);
+}
+
+void AudioDeviceSettings::selectStereoOutputPair(int choice_id)
+{
+    m_impl->selectStereoOutputPair(choice_id);
+}
+
+void AudioDeviceSettings::selectSampleRate(int choice_id)
+{
+    m_impl->selectSampleRate(choice_id);
+}
+
+void AudioDeviceSettings::selectBufferSize(int choice_id)
+{
+    m_impl->selectBufferSize(choice_id);
+}
+
+std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::apply()
+{
+    return m_impl->apply();
+}
+
+void AudioDeviceSettings::cancel()
+{
+    m_impl->cancel();
+}
+
+std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::testOutput()
+{
+    return m_impl->testOutput();
+}
+
+std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::openControlPanel()
+{
+    return m_impl->openControlPanel();
+}
+
+void AudioDeviceSettings::addListener(Listener& listener)
+{
+    m_impl->addListener(listener);
+}
+
+void AudioDeviceSettings::removeListener(Listener& listener)
+{
+    m_impl->removeListener(listener);
 }
 
 } // namespace rock_hero::common::audio

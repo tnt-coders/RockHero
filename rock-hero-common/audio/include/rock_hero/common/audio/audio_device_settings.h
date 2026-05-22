@@ -1,65 +1,317 @@
 /*!
 \file audio_device_settings.h
-\brief Shared audio-device settings policy for Rock Hero applications.
+\brief Shared audio-device settings workflow for Rock Hero applications.
 */
 
 #pragma once
 
-#include <juce_core/juce_core.h>
-#include <optional>
+#include <expected>
+#include <memory>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::audio
 {
 
-/*!
-\brief Returns audio-device systems in Rock Hero's preferred settings order.
+/*! \brief Stable failure codes for audio-device settings operations. */
+enum class AudioDeviceSettingsErrorCode
+{
+    /*! \brief No audio system is available to configure. */
+    NoAudioSystem,
 
-The result keeps every JUCE-reported audio system visible. Ordering reflects a product judgment
-about which backend a guitar player most likely wants by default on each platform (low-latency
-families first, legacy families later, unrecognized families last), rather than a measured
-latency ranking. The function does not open hardware to compute the order, so settings views stay
-responsive.
+    /*! \brief No usable device is available for the selected audio system. */
+    NoDevice,
 
-\param available_type_names Device-system names reported by JUCE.
-\return Device-system names ordered for Rock Hero's settings default.
-*/
-[[nodiscard]] juce::StringArray preferredAudioDeviceTypeOrder(
-    const juce::StringArray& available_type_names);
+    /*! \brief Applying the staged route failed. */
+    ApplyFailed,
 
-/*!
-\brief Reports whether two sample rates represent the same user-visible choice.
+    /*! \brief Applying failed and restoring the previous route also failed. */
+    RollbackFailed,
 
-\param lhs First sample rate to compare.
-\param rhs Second sample rate to compare.
-\return True when the rates are close enough to select the same hardware setting.
-*/
-[[nodiscard]] bool sampleRatesMatch(double lhs, double rhs) noexcept;
+    /*! \brief Test output is unavailable for the staged route. */
+    TestOutputUnavailable,
+
+    /*! \brief The selected route has no backend control panel to open. */
+    ControlPanelUnavailable,
+};
 
 /*!
-\brief Returns the sample rate an audio-device settings view should select by default.
-
-The available-rate list typically comes from a preview device. Some preview devices are not open
-and therefore cannot report a current rate. This helper picks the best default in priority order:
-
-1. The staged sample rate, when the user already chose one and it is still available.
-2. The preview device's current rate, when the preview device reports one.
-3. The active route's current rate, when it is known to describe the same hardware route.
-4. 48 kHz, then 44.1 kHz, then the first available rate, as a studio-standard fallback.
-
-A non-positive selection at any layer is treated as "no rate to offer," so callers never default
-to zero just because a layer below could not contribute.
-
-\param available_rates Sample rates reported by the preview device.
-\param staged_rate Sample rate the user has staged, or non-positive when unstaged.
-\param preview_device_rate Current rate reported by the preview device, or non-positive when the
-       preview device is not open.
-\param active_route_rate Current rate from the active device when it describes the same route;
-       empty when the active route should not contribute.
-\return The sample rate the settings view should select.
+\brief Typed error value returned by audio-device settings operations.
 */
-[[nodiscard]] double chooseAudioDeviceSampleRate(
-    const std::vector<double>& available_rates, double staged_rate, double preview_device_rate,
-    std::optional<double> active_route_rate);
+struct [[nodiscard]] AudioDeviceSettingsError
+{
+    /*! \brief Stable error code for program behavior. */
+    AudioDeviceSettingsErrorCode code{};
+
+    /*! \brief User-facing or diagnostic error message. */
+    std::string message;
+
+    /*! \brief Creates an error with the default message for its code. */
+    explicit AudioDeviceSettingsError(AudioDeviceSettingsErrorCode error_code);
+
+    /*! \brief Creates an error with operation-specific detail. */
+    AudioDeviceSettingsError(AudioDeviceSettingsErrorCode error_code, std::string message_text);
+};
+
+/*! \brief A user-selectable stereo output route made from two hardware output channels. */
+struct StereoOutputPair
+{
+    /*! \brief Zero-based left output channel index. */
+    int left_channel{};
+
+    /*! \brief Zero-based right output channel index. */
+    int right_channel{};
+
+    /*! \brief Display text for the stereo output pair. */
+    std::string label;
+};
+
+/*! \brief Shared staged audio-device settings state independent of any product UI. */
+struct AudioDeviceSettingsState
+{
+    /*! \brief Audio systems available in Rock Hero's preferred default order. */
+    std::vector<std::string> audio_systems;
+
+    /*! \brief Selected audio-system choice ID, or zero when none is selected. */
+    int selected_audio_system_id{};
+
+    /*! \brief True when the selected audio system exposes separate input/output device lists. */
+    bool uses_separate_input_output_devices{};
+
+    /*! \brief Combined device names for audio systems that use one route selector. */
+    std::vector<std::string> devices;
+
+    /*! \brief Selected combined-device choice ID, or zero when none is selected. */
+    int selected_device_id{};
+
+    /*! \brief Input device names for audio systems that expose separate input devices. */
+    std::vector<std::string> input_devices;
+
+    /*! \brief Selected input-device choice ID, or zero when none is selected. */
+    int selected_input_device_id{};
+
+    /*! \brief Output device names for audio systems that expose separate output devices. */
+    std::vector<std::string> output_devices;
+
+    /*! \brief Selected output-device choice ID, or zero when none is selected. */
+    int selected_output_device_id{};
+
+    /*! \brief Mono input channel names available on the staged route. */
+    std::vector<std::string> input_channels;
+
+    /*! \brief Selected input-channel choice ID, or zero when none is selected. */
+    int selected_input_channel_id{};
+
+    /*! \brief Stereo output pairs available on the staged route. */
+    std::vector<StereoOutputPair> stereo_output_pairs;
+
+    /*! \brief Selected stereo-output-pair choice ID, or zero when none is selected. */
+    int selected_stereo_output_pair_id{};
+
+    /*! \brief Sample rates available on the staged route. */
+    std::vector<double> sample_rates;
+
+    /*! \brief Selected sample-rate choice ID, or zero when none is selected. */
+    int selected_sample_rate_id{};
+
+    /*! \brief Buffer sizes available on the staged route. */
+    std::vector<int> buffer_sizes;
+
+    /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
+    int selected_buffer_size_id{};
+
+    /*! \brief True when the active route can play a test sound for the staged route. */
+    bool test_output_enabled{};
+
+    /*! \brief True when the active route exposes a backend control panel. */
+    bool control_panel_enabled{};
+
+    /*! \brief Last operation error to display, or empty when no error is active. */
+    std::string error_message;
+};
+
+/*!
+\brief Shared audio-device settings workflow boundary.
+*/
+class IAudioDeviceSettings
+{
+public:
+    /*! \brief Listener notified when the settings backend changes outside direct caller control. */
+    class Listener
+    {
+    public:
+        /*! \brief Destroys the listener. */
+        virtual ~Listener() = default;
+
+        /*! \brief Called after the settings state should be re-read. */
+        virtual void onAudioDeviceSettingsChanged() = 0;
+
+    protected:
+        /*! \brief Creates the listener. */
+        Listener() = default;
+
+        /*! \brief Copies the listener. */
+        Listener(const Listener&) = default;
+
+        /*! \brief Moves the listener. */
+        Listener(Listener&&) = default;
+
+        /*!
+        \brief Assigns the listener.
+        \return Reference to this listener.
+        */
+        Listener& operator=(const Listener&) = default;
+
+        /*!
+        \brief Move-assigns the listener.
+        \return Reference to this listener.
+        */
+        Listener& operator=(Listener&&) = default;
+    };
+
+    /*! \brief Destroys the settings boundary. */
+    virtual ~IAudioDeviceSettings() = default;
+
+    /*! \brief Starts a fresh staged edit from the current active route. */
+    virtual void begin() = 0;
+
+    /*!
+    \brief Returns the current staged settings snapshot.
+    \return Current staged settings state.
+    */
+    [[nodiscard]] virtual AudioDeviceSettingsState state() const = 0;
+
+    /*! \brief Selects an audio system by one-based choice ID. */
+    virtual void selectAudioSystem(int choice_id) = 0;
+
+    /*! \brief Selects a combined input/output device by one-based choice ID. */
+    virtual void selectDevice(int choice_id) = 0;
+
+    /*! \brief Selects an input device by one-based choice ID. */
+    virtual void selectInputDevice(int choice_id) = 0;
+
+    /*! \brief Selects an output device by one-based choice ID. */
+    virtual void selectOutputDevice(int choice_id) = 0;
+
+    /*! \brief Selects a mono input channel by one-based choice ID. */
+    virtual void selectInputChannel(int choice_id) = 0;
+
+    /*! \brief Selects a stereo output pair by one-based choice ID. */
+    virtual void selectStereoOutputPair(int choice_id) = 0;
+
+    /*! \brief Selects a sample rate by one-based choice ID. */
+    virtual void selectSampleRate(int choice_id) = 0;
+
+    /*! \brief Selects a buffer size by one-based choice ID. */
+    virtual void selectBufferSize(int choice_id) = 0;
+
+    /*!
+    \brief Applies the staged route to the active audio backend.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> apply() = 0;
+
+    /*! \brief Abandons the staged route without mutating the active audio backend. */
+    virtual void cancel() = 0;
+
+    /*!
+    \brief Plays the backend's test output for the active route.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> testOutput() = 0;
+
+    /*!
+    \brief Opens the backend control panel for the active route.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> openControlPanel() = 0;
+
+    /*!
+    \brief Registers a listener notified after external settings changes.
+    \param listener Listener that should be notified until it is removed.
+    */
+    virtual void addListener(Listener& listener) = 0;
+
+    /*!
+    \brief Removes a previously registered listener.
+    \param listener Listener previously registered with addListener().
+    */
+    virtual void removeListener(Listener& listener) = 0;
+
+protected:
+    /*! \brief Creates the settings boundary. */
+    IAudioDeviceSettings() = default;
+
+    /*! \brief Copies the settings boundary. */
+    IAudioDeviceSettings(const IAudioDeviceSettings&) = default;
+
+    /*! \brief Moves the settings boundary. */
+    IAudioDeviceSettings(IAudioDeviceSettings&&) = default;
+
+    /*!
+    \brief Assigns the settings boundary.
+    \return Reference to this settings boundary.
+    */
+    IAudioDeviceSettings& operator=(const IAudioDeviceSettings&) = default;
+
+    /*!
+    \brief Move-assigns the settings boundary.
+    \return Reference to this settings boundary.
+    */
+    IAudioDeviceSettings& operator=(IAudioDeviceSettings&&) = default;
+};
+
+/*!
+\brief JUCE-backed shared audio-device settings workflow.
+
+The implementation stages route changes independently from the active device manager until
+apply() is called. cancel() and destruction abandon the staged route only.
+*/
+class AudioDeviceSettings final : public IAudioDeviceSettings
+{
+public:
+    /*!
+    \brief Creates settings around an existing audio-device configuration port.
+    \param audio_devices Audio-device configuration backend; must outlive this object.
+    */
+    explicit AudioDeviceSettings(IAudioDeviceConfiguration& audio_devices);
+
+    /*! \brief Releases the backend listener registration. */
+    ~AudioDeviceSettings() override;
+
+    /*! \brief Copying is disabled because the settings object owns listener registration. */
+    AudioDeviceSettings(const AudioDeviceSettings&) = delete;
+
+    /*! \brief Copy assignment is disabled because listener ownership is fixed. */
+    AudioDeviceSettings& operator=(const AudioDeviceSettings&) = delete;
+
+    /*! \brief Moving is disabled because listener identity must remain stable. */
+    AudioDeviceSettings(AudioDeviceSettings&&) = delete;
+
+    /*! \brief Move assignment is disabled because listener identity must remain stable. */
+    AudioDeviceSettings& operator=(AudioDeviceSettings&&) = delete;
+
+    void begin() override;
+    [[nodiscard]] AudioDeviceSettingsState state() const override;
+    void selectAudioSystem(int choice_id) override;
+    void selectDevice(int choice_id) override;
+    void selectInputDevice(int choice_id) override;
+    void selectOutputDevice(int choice_id) override;
+    void selectInputChannel(int choice_id) override;
+    void selectStereoOutputPair(int choice_id) override;
+    void selectSampleRate(int choice_id) override;
+    void selectBufferSize(int choice_id) override;
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply() override;
+    void cancel() override;
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> testOutput() override;
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel() override;
+    void addListener(Listener& listener) override;
+    void removeListener(Listener& listener) override;
+
+private:
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
+};
 
 } // namespace rock_hero::common::audio
