@@ -76,6 +76,17 @@ constexpr std::string_view g_vst3_file_candidate_id_prefix{"vst3-file:"};
     return key;
 }
 
+// Converts JUCE sample-count latency to the millisecond value shown in editor status text.
+[[nodiscard]] double samplesToMilliseconds(int sample_count, double sample_rate_hz) noexcept
+{
+    if (sample_count <= 0 || sample_rate_hz <= 0.0)
+    {
+        return 0.0;
+    }
+
+    return static_cast<double>(sample_count) * 1000.0 / sample_rate_hz;
+}
+
 [[nodiscard]] std::filesystem::path windowsVst3ArchitectureDirectory()
 {
 #if defined(_M_ARM64) || defined(__aarch64__)
@@ -2724,23 +2735,36 @@ juce::AudioDeviceManager& Engine::deviceManager() noexcept
     return m_impl->m_engine->getDeviceManager().deviceManager;
 }
 
-// Returns the currently open device name through the JUCE device manager.
-std::optional<std::string> Engine::currentDeviceName() const
+// Captures open-device timing and route details through the JUCE device manager.
+AudioDeviceStatus Engine::currentDeviceStatus() const
 {
-    const auto* const current_device =
+    auto* const current_device =
         m_impl->m_engine->getDeviceManager().deviceManager.getCurrentAudioDevice();
-    if (current_device == nullptr)
+    if (current_device == nullptr || !current_device->isOpen())
     {
-        return std::nullopt;
+        return {};
     }
 
-    const juce::String name = current_device->getName();
-    if (name.isEmpty())
+    const double sample_rate_hz = current_device->getCurrentSampleRate();
+    if (sample_rate_hz <= 0.0)
     {
-        return std::nullopt;
+        return {};
     }
 
-    return name.toStdString();
+    return AudioDeviceStatus{
+        .open = true,
+        .device_name = current_device->getName().toStdString(),
+        .backend_name = current_device->getTypeName().toStdString(),
+        .sample_rate_hz = sample_rate_hz,
+        .bit_depth = current_device->getCurrentBitDepth(),
+        .input_channels = current_device->getActiveInputChannels().countNumberOfSetBits(),
+        .output_channels = current_device->getActiveOutputChannels().countNumberOfSetBits(),
+        .buffer_size_samples = current_device->getCurrentBufferSizeSamples(),
+        .input_latency_ms =
+            samplesToMilliseconds(current_device->getInputLatencyInSamples(), sample_rate_hz),
+        .output_latency_ms =
+            samplesToMilliseconds(current_device->getOutputLatencyInSamples(), sample_rate_hz),
+    };
 }
 
 // Registers a project-owned device-configuration listener.

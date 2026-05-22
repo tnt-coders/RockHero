@@ -2,6 +2,8 @@
 
 #include "menu_bar_button.h"
 
+#include <cmath>
+
 namespace rock_hero::editor::ui
 {
 
@@ -23,9 +25,10 @@ void paintMenuStyleHighlight(
 
 } // namespace
 
-// Creates a JUCE button with no visible label until the owner supplies one.
+// Creates a JUCE button with no visible label until the owner supplies one. The empty internal
+// name is intentional; owners identify the component via Component::setComponentID.
 MenuBarButton::MenuBarButton()
-    : juce::Button{"MenuBarButton"}
+    : juce::Button{juce::String{}}
 {}
 
 // Adapts the menu-bar action vocabulary to JUCE's button text storage.
@@ -38,6 +41,18 @@ void MenuBarButton::setText(const juce::String& label_text)
 const juce::String& MenuBarButton::getText() const noexcept
 {
     return getButtonText();
+}
+
+// Calculates the width EditorView reserves for the right-aligned menu-bar action.
+int MenuBarButton::preferredWidthForHeight(int height) const
+{
+    constexpr int horizontal_padding{16};
+    const float font_height = static_cast<float>(height > 0 ? height : 1) * 0.7f;
+    const juce::Font font{juce::FontOptions{font_height}};
+    juce::GlyphArrangement arrangement;
+    arrangement.addLineOfText(font, getButtonText(), 0.0f, 0.0f);
+    const juce::Rectangle<float> bounds = arrangement.getBoundingBox(0, -1, true);
+    return static_cast<int>(std::ceil(bounds.getWidth())) + horizontal_padding;
 }
 
 // Renders the button as menu-bar chrome while preserving juce::Button behavior.

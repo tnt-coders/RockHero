@@ -6,7 +6,8 @@ find_package(OpenPSARC REQUIRED)
 # Headless editor workflow and project persistence stay testable without owning JUCE widgets.
 target_sources(
     rock_hero_editor_core
-    PRIVATE src/busy_view_state.cpp
+    PRIVATE src/audio_device_status_text.cpp
+            src/busy_view_state.cpp
             src/editor_action.cpp
             src/editor_action.h
             src/editor_controller.cpp

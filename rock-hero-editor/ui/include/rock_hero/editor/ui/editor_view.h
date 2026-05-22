@@ -188,7 +188,10 @@ private:
     // Returns the editor content area below the menu and transport strips.
     [[nodiscard]] juce::Rectangle<int> trackViewportBounds() const;
 
-    // Applies ASIO routing state to the menu-bar audio-device button.
+    // Positions the menu bar and right-aligned audio-device action across the top strip.
+    void layoutMenuStrip();
+
+    // Applies audio routing state to the menu-bar audio-device button.
     void updateAudioDeviceButton();
 
     // Opens the app-local audio-device configuration dialog.
@@ -242,7 +245,7 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Right-aligned menu-bar action for app-local ASIO device, input, and output controls.
+    // Right-aligned menu-bar action for app-local audio device, input, and output controls.
     MenuBarButton m_audio_device_button;
 
     // Bottom control panel for the plugin chain.
