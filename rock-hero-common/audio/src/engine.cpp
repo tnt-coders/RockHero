@@ -2729,7 +2729,7 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
     operation->on_result(std::unexpected{std::move(error)});
 }
 
-// Exposes the JUCE device manager so settings UI can host the stock device selector directly.
+// Exposes the JUCE device manager so settings UI can present and apply hardware route choices.
 juce::AudioDeviceManager& Engine::deviceManager() noexcept
 {
     return m_impl->m_engine->getDeviceManager().deviceManager;

@@ -35,7 +35,7 @@ public:
     \brief Creates the editor feature and immediately pushes initial state to the view.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for ASIO input/output routing.
+    \param audio_devices Audio-device port used for hardware input/output routing.
     \param plugin_host Plugin-host port used for plugin insertion.
     \param live_rig Live rig port used for tone document save and restore.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
@@ -52,7 +52,7 @@ public:
     \brief Creates the editor feature with plugin hosting but without persistent tone storage.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for ASIO input/output routing.
+    \param audio_devices Audio-device port used for hardware input/output routing.
     \param plugin_host Plugin-host port used for plugin insertion.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
@@ -68,7 +68,7 @@ public:
     \brief Creates the editor feature without a plugin-host backend.
     \param transport Transport used by the controller and read by the view cursor overlay.
     \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for ASIO input/output routing.
+    \param audio_devices Audio-device port used for hardware input/output routing.
     \param thumbnail_factory Factory used during view construction for arrangement waveform.
     \param services Optional controller services used by the composed editor workflow.
     */
