@@ -1,6 +1,6 @@
 /*!
-\file audio_device_settings_component.h
-\brief Private editor UI component for Rock Hero audio hardware routing.
+\file audio_device_settings_view.h
+\brief Private editor UI view for Rock Hero audio hardware routing.
 */
 
 #pragma once
@@ -16,38 +16,38 @@ namespace rock_hero::editor::ui
 /*!
 \brief Presents the app-specific audio-device settings supported by Rock Hero.
 
-The component stages hardware route changes locally while the dialog is open. Pressing OK applies
-the selected route through juce::AudioDeviceManager; Cancel, Escape, and native close leave the
-active device untouched.
+The view stages hardware route changes locally while the window is open. Pressing OK applies the
+selected route through juce::AudioDeviceManager; Cancel, Escape, and native close leave the active
+device untouched.
 */
-class AudioDeviceSettingsComponent final : public juce::Component, private juce::ChangeListener
+class AudioDeviceSettingsView final : public juce::Component, private juce::ChangeListener
 {
 public:
     /*!
-    \brief Creates the audio settings component around the shared device manager.
+    \brief Creates the audio settings view around the shared device manager.
     \param device_manager Device manager owned by the audio backend.
     */
-    explicit AudioDeviceSettingsComponent(juce::AudioDeviceManager& device_manager);
+    explicit AudioDeviceSettingsView(juce::AudioDeviceManager& device_manager);
 
     /*! \brief Removes device-change listeners without mutating the active audio route. */
-    ~AudioDeviceSettingsComponent() override;
+    ~AudioDeviceSettingsView() override;
 
-    /*! \brief Returns the default dialog width for the current control set. */
+    /*! \brief Returns the default window width for the current control set. */
     [[nodiscard]] static int preferredWidth() noexcept;
 
-    /*! \brief Returns the preferred dialog height for the currently visible controls. */
+    /*! \brief Returns the preferred window height for the currently visible controls. */
     [[nodiscard]] int preferredContentHeight() const noexcept;
 
-    /*! \brief Returns the minimum usable dialog width. */
+    /*! \brief Returns the minimum usable window width. */
     [[nodiscard]] static int minimumWidth() noexcept;
 
-    /*! \brief Returns the maximum useful dialog width. */
+    /*! \brief Returns the maximum useful window width. */
     [[nodiscard]] static int maximumWidth() noexcept;
 
-    /*! \brief Returns the maximum useful dialog height. */
+    /*! \brief Returns the maximum useful window height. */
     [[nodiscard]] static int maximumHeight() noexcept;
 
-    /*! \brief Lays out the routing controls and dialog action buttons. */
+    /*! \brief Lays out the routing controls and window action buttons. */
     void resized() override;
 
 private:
@@ -65,13 +65,13 @@ private:
     // Rebuilds all controls from the active device-manager state.
     void refreshControls();
 
-    // Rebuilds driver type choices from the device manager.
+    // Rebuilds audio-system choices from the device manager.
     void refreshDeviceTypes();
 
-    // Scans the currently staged device type once for this refresh pass.
+    // Scans the JUCE device type for the staged audio system once for this refresh pass.
     void scanCurrentDeviceType() const;
 
-    // Rebuilds device-name choices for the current driver type.
+    // Rebuilds device-name choices for the current audio system.
     void refreshDeviceNames();
 
     // Rebuilds the mono input and stereo output-pair choices from the open device.
@@ -86,8 +86,8 @@ private:
     // Enables controls only when their backing choices exist.
     void refreshControlEnablement();
 
-    // Resizes the component and host dialog to match the current form rows.
-    void syncDialogHeightToContent();
+    // Resizes the view and host window to match the current form rows.
+    void syncWindowHeightToContent();
 
     void handleDeviceTypeChanged();
     void handleDeviceChanged();
@@ -105,8 +105,8 @@ private:
     // Applies the staged route to the active device manager and reports any failure.
     void applyAcceptedSetup();
 
-    // Closes the containing DialogWindow, if the component is currently hosted by one.
-    void closeDialog();
+    // Closes the containing DialogWindow, if the view is currently hosted by one.
+    void closeWindow();
 
     // Ensures a staged audio system exists before dependent controls are populated.
     void ensureStagedDeviceType();
