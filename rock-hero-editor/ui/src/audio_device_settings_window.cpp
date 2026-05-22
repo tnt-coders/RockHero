@@ -14,7 +14,8 @@ namespace
 {
 
 // Self-managed modal dialog that can be hidden for async apply without destroying its content.
-class AudioDeviceSettingsDialogWindow final : public juce::DialogWindow
+class AudioDeviceSettingsDialogWindow final : public juce::DialogWindow,
+                                              private juce::ComponentListener
 {
 public:
     explicit AudioDeviceSettingsDialogWindow(juce::Component* centering_component)
@@ -28,6 +29,19 @@ public:
         setResizable(true, true);
         setUsingNativeTitleBar(true);
         setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
+        if (auto* owner = m_centering_component.getComponent())
+        {
+            owner->addComponentListener(this);
+        }
+    }
+
+    // Detaches from the owner component unless the owner itself is already being destroyed.
+    ~AudioDeviceSettingsDialogWindow() override
+    {
+        if (auto* owner = m_centering_component.getComponent())
+        {
+            owner->removeComponentListener(this);
+        }
     }
 
     // Installs owned content and applies the settings-window resize policy before showing.
@@ -105,6 +119,21 @@ public:
     }
 
 private:
+    // The dialog owns settings state that references the audio backend. Do not let the
+    // self-managed window survive the editor component that launched it.
+    void componentBeingDeleted(juce::Component& component) override
+    {
+        if (&component != m_centering_component.getComponent())
+        {
+            return;
+        }
+
+        m_centering_component = nullptr;
+        m_close_requested = true;
+        m_delete_posted = true;
+        delete this;
+    }
+
     // Enters JUCE modality without auto-delete and attaches a guarded finalization callback.
     void enterManagedModalState()
     {
