@@ -1,7 +1,11 @@
 #include "audio_device_settings_component.h"
 
+#include "audio_device_sample_rate_choice.h"
+#include "audio_device_type_policy.h"
+
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -39,6 +43,19 @@ constexpr int g_max_dialog_height{760};
     const int controls_height = formRowsHeight(row_count);
     return (g_content_inset * 2) + controls_height + g_row_gap + g_error_height + g_row_gap +
            g_row_height;
+}
+
+// Collects JUCE device type names so the UI policy can order by stable names.
+[[nodiscard]] juce::StringArray availableDeviceTypeNames(
+    const juce::OwnedArray<juce::AudioIODeviceType>& device_types)
+{
+    juce::StringArray type_names;
+    for (const auto* device_type : device_types)
+    {
+        type_names.add(device_type->getTypeName());
+    }
+
+    return type_names;
 }
 
 // Uses stable one-based ComboBox item IDs for a string list.
@@ -399,14 +416,8 @@ void AudioDeviceSettingsComponent::refreshDeviceTypes()
 {
     ensureStagedDeviceType();
 
-    const auto& device_types = m_device_manager.getAvailableDeviceTypes();
-    juce::StringArray type_names;
-    for (const auto* device_type : device_types)
-    {
-        type_names.add(device_type->getTypeName());
-    }
-
-    type_names.sort(true);
+    const juce::StringArray type_names = audioDeviceTypePickerOrder(
+        availableDeviceTypeNames(m_device_manager.getAvailableDeviceTypes()));
     populateStringCombo(
         m_device_type_combo, type_names, m_staged_device_type, "No audio systems found");
 }
@@ -533,7 +544,7 @@ void AudioDeviceSettingsComponent::refreshChannelChoices()
     m_output_pair_combo.setSelectedId(selected_output_pair_id, juce::dontSendNotification);
 }
 
-// Populates sample-rate choices from the current open device.
+// Populates sample-rate choices from the staged device capabilities.
 void AudioDeviceSettingsComponent::refreshSampleRateChoices()
 {
     m_sample_rates.clear();
@@ -547,11 +558,6 @@ void AudioDeviceSettingsComponent::refreshSampleRateChoices()
         return;
     }
 
-    if (m_staged_setup.sampleRate <= 0.0 && device->getCurrentSampleRate() > 0.0)
-    {
-        m_staged_setup.sampleRate = device->getCurrentSampleRate();
-    }
-
     for (const auto sample_rate : device->getAvailableSampleRates())
     {
         m_sample_rates.push_back(sample_rate);
@@ -559,12 +565,32 @@ void AudioDeviceSettingsComponent::refreshSampleRateChoices()
             sampleRateText(sample_rate), static_cast<int>(m_sample_rates.size()));
     }
 
+    // The staged preview device may not be open and may therefore not report a current rate. If
+    // the staged route matches the currently open route, the active device's reported rate is
+    // the same physical device's current rate and is safe to borrow as a fallback.
+    std::optional<double> active_route_rate;
+    if (stagedDeviceNamesMatchActiveRoute())
+    {
+        if (auto* active_device = m_device_manager.getCurrentAudioDevice();
+            active_device != nullptr)
+        {
+            active_route_rate = active_device->getCurrentSampleRate();
+        }
+    }
+
+    const double selected_sample_rate = chooseDeviceSampleRate(
+        m_sample_rates,
+        m_staged_setup.sampleRate,
+        device->getCurrentSampleRate(),
+        active_route_rate);
+
+    if (m_staged_setup.sampleRate <= 0.0 && selected_sample_rate > 0.0)
+    {
+        m_staged_setup.sampleRate = selected_sample_rate;
+    }
+
     m_sample_rate_combo.setSelectedId(
-        selectedSampleRateId(
-            m_sample_rates,
-            m_staged_setup.sampleRate > 0.0 ? m_staged_setup.sampleRate
-                                            : device->getCurrentSampleRate()),
-        juce::dontSendNotification);
+        selectedSampleRateId(m_sample_rates, selected_sample_rate), juce::dontSendNotification);
 }
 
 // Populates buffer-size choices from the current open device.
@@ -759,31 +785,26 @@ void AudioDeviceSettingsComponent::closeDialog()
 // Chooses a staged audio system from the active device manager's available types.
 void AudioDeviceSettingsComponent::ensureStagedDeviceType()
 {
-    const auto& device_types = m_device_manager.getAvailableDeviceTypes();
+    const juce::StringArray type_names = audioDeviceTypePickerOrder(
+        availableDeviceTypeNames(m_device_manager.getAvailableDeviceTypes()));
 
-    for (const auto* type : device_types)
+    if (type_names.contains(m_staged_device_type))
     {
-        if (type->getTypeName() == m_staged_device_type)
-        {
-            return;
-        }
+        return;
     }
 
     const juce::String active_device_type = m_device_manager.getCurrentAudioDeviceType();
-    for (const auto* type : device_types)
+    if (type_names.contains(active_device_type))
     {
-        if (type->getTypeName() == active_device_type)
-        {
-            m_staged_device_type = active_device_type;
-            return;
-        }
+        m_staged_device_type = active_device_type;
+        return;
     }
 
-    m_staged_device_type =
-        device_types.isEmpty() ? juce::String{} : device_types.getUnchecked(0)->getTypeName();
+    m_staged_device_type = type_names.isEmpty() ? juce::String{} : type_names[0];
 }
 
-// Keeps staged device names valid for the selected audio system without opening the instrument route.
+// Keeps staged device names valid for the selected audio system without opening the instrument
+// route.
 void AudioDeviceSettingsComponent::ensureStagedDeviceNames()
 {
     auto* type = currentDeviceType();
@@ -870,6 +891,19 @@ bool AudioDeviceSettingsComponent::stagedRouteMatchesActiveRoute() const
 {
     return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
            m_staged_setup == m_device_manager.getAudioDeviceSetup();
+}
+
+// Matches the currently selected device names while ignoring route and format staging edits.
+// Single-device backends like ASIO leave inputDeviceName empty (or mirrored), and separate-device
+// backends like DirectSound populate both fields; comparing both names handles both cases without
+// needing currentTypeUsesSeparateDevices because the staged and active setups follow the same
+// JUCE convention for whichever backend is selected.
+bool AudioDeviceSettingsComponent::stagedDeviceNamesMatchActiveRoute() const
+{
+    const auto active_setup = m_device_manager.getAudioDeviceSetup();
+    return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
+           m_staged_setup.inputDeviceName == active_setup.inputDeviceName &&
+           m_staged_setup.outputDeviceName == active_setup.outputDeviceName;
 }
 
 // Copies the currently selected device names into a setup.
