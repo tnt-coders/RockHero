@@ -1,6 +1,7 @@
 #include "audio_device_settings_view.h"
 
 #include <algorithm>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
@@ -74,8 +75,12 @@ void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int
 } // namespace
 
 // Creates the passive settings view and wires user gestures to the controller contract.
-AudioDeviceSettingsView::AudioDeviceSettingsView(core::IAudioDeviceSettingsController& controller)
+AudioDeviceSettingsView::AudioDeviceSettingsView(
+    core::IAudioDeviceSettingsController& controller, ApplyingCallback applying_callback,
+    CloseCallback close_callback)
     : m_controller(controller)
+    , m_applying_callback(std::move(applying_callback))
+    , m_close_callback(std::move(close_callback))
 {
     configureControls();
     applyStateToControls();
@@ -127,7 +132,32 @@ void AudioDeviceSettingsView::setState(const core::AudioDeviceSettingsViewState&
 // Requests modal shutdown from the host DialogWindow.
 void AudioDeviceSettingsView::requestClose()
 {
+    if (m_close_callback)
+    {
+        m_close_callback();
+        return;
+    }
+
     closeWindow();
+}
+
+// Disables editing while the blocking audio-device apply runs and delegates host visibility to the
+// window wrapper that owns JUCE modal lifetime.
+void AudioDeviceSettingsView::setApplying(bool applying)
+{
+    if (m_applying == applying)
+    {
+        return;
+    }
+
+    m_applying = applying;
+    setMouseCursor(applying ? juce::MouseCursor::WaitCursor : juce::MouseCursor::NormalCursor);
+    applyStateToControls();
+    if (m_applying_callback)
+    {
+        m_applying_callback(applying);
+    }
+    repaint();
 }
 
 // Positions route rows, status text, utility buttons, and final window actions.
@@ -298,19 +328,22 @@ void AudioDeviceSettingsView::applyStateToControls()
     m_output_device_label.setVisible(separate_devices);
     m_output_device_combo.setVisible(separate_devices);
 
-    m_device_type_combo.setEnabled(!m_state.audio_systems.empty());
-    m_device_combo.setEnabled(m_device_combo.isVisible() && !m_state.devices.empty());
+    const bool controls_enabled = !m_applying;
+    m_device_type_combo.setEnabled(controls_enabled && !m_state.audio_systems.empty());
+    m_device_combo.setEnabled(
+        controls_enabled && m_device_combo.isVisible() && !m_state.devices.empty());
     m_input_device_combo.setEnabled(
-        m_input_device_combo.isVisible() && !m_state.input_devices.empty());
+        controls_enabled && m_input_device_combo.isVisible() && !m_state.input_devices.empty());
     m_output_device_combo.setEnabled(
-        m_output_device_combo.isVisible() && !m_state.output_devices.empty());
-    m_input_channel_combo.setEnabled(!m_state.input_channels.empty());
-    m_output_pair_combo.setEnabled(!m_state.stereo_output_pairs.empty());
-    m_sample_rate_combo.setEnabled(!m_state.sample_rates.empty());
-    m_buffer_size_combo.setEnabled(!m_state.buffer_sizes.empty());
-    m_test_button.setEnabled(m_state.test_output_enabled);
-    m_control_panel_button.setEnabled(m_state.control_panel_enabled);
-    m_ok_button.setEnabled(m_state.ok_enabled);
+        controls_enabled && m_output_device_combo.isVisible() && !m_state.output_devices.empty());
+    m_input_channel_combo.setEnabled(controls_enabled && !m_state.input_channels.empty());
+    m_output_pair_combo.setEnabled(controls_enabled && !m_state.stereo_output_pairs.empty());
+    m_sample_rate_combo.setEnabled(controls_enabled && !m_state.sample_rates.empty());
+    m_buffer_size_combo.setEnabled(controls_enabled && !m_state.buffer_sizes.empty());
+    m_test_button.setEnabled(controls_enabled && m_state.test_output_enabled);
+    m_control_panel_button.setEnabled(controls_enabled && m_state.control_panel_enabled);
+    m_ok_button.setEnabled(controls_enabled && m_state.ok_enabled);
+    m_cancel_button.setEnabled(controls_enabled);
 
     m_error_label.setText(juce::String{m_state.error_message.c_str()}, juce::dontSendNotification);
 }

@@ -237,6 +237,14 @@ public:
         open_plugin_request_count += 1;
     }
 
+    // Records audio-device apply scheduling; controller-level tests can invoke the captured
+    // callback directly to simulate the busy overlay paint fence firing.
+    void onApplyAudioDeviceSettings(std::function<void()> apply_fn) override
+    {
+        last_audio_device_apply_fn = std::move(apply_fn);
+        apply_audio_device_request_count += 1;
+    }
+
     // Last file passed to onOpenRequested().
     std::optional<std::filesystem::path> last_open_file{};
 
@@ -317,6 +325,12 @@ public:
 
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
+
+    // Last apply callback handed to onApplyAudioDeviceSettings.
+    std::function<void()> last_audio_device_apply_fn{};
+
+    // Number of audio-device apply requests received.
+    int apply_audio_device_request_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
@@ -4155,6 +4169,26 @@ TEST_CASE(
     runner.runPendingCompletions();
 
     CHECK(audio.prepare_song_call_count == 1);
+}
+
+// Audio-device apply is scheduled behind the busy overlay paint fence so the blocking
+// presentation paints once before juce::AudioDeviceManager occupies the message thread.
+TEST_CASE(
+    "EditorController schedules audio device apply via paint fence", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    EditorController controller{transport, audio};
+    FakeEditorView view;
+    controller.attachView(view);
+
+    int apply_call_count = 0;
+    controller.onApplyAudioDeviceSettings([&apply_call_count] { apply_call_count += 1; });
+
+    CHECK(view.busy_overlay_paint_callback_count == 1);
+    CHECK(apply_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK_FALSE(view.last_state->busy.has_value());
 }
 
 } // namespace rock_hero::editor::core

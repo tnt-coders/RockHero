@@ -26,6 +26,17 @@ public:
     /*! \brief Requests that the host close the settings window. */
     virtual void requestClose() = 0;
 
+    /*!
+    \brief Switches the view between editable and applying presentation.
+
+    Used by the asynchronous OK flow: the controller asks the view to disable editing while the
+    editor's busy overlay runs the apply behind a paint fence, then asks the view to restore
+    editing if the apply fails so the user can correct the settings in place.
+
+    \param applying True while an apply is in progress.
+    */
+    virtual void setApplying(bool applying) = 0;
+
 protected:
     /*! \brief Creates the view contract. */
     IAudioDeviceSettingsView() = default;

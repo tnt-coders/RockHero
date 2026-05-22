@@ -174,9 +174,17 @@ public:
         ++close_call_count;
     }
 
+    void setApplying(bool applying) override
+    {
+        last_applying = applying;
+        applying_transitions.push_back(applying);
+    }
+
     AudioDeviceSettingsViewState last_state{};
     int set_state_call_count{};
     int close_call_count{};
+    bool last_applying{false};
+    std::vector<bool> applying_transitions{};
 };
 
 } // namespace
@@ -331,6 +339,91 @@ TEST_CASE(
     controller.attachView(view);
 
     CHECK_FALSE(view.last_state.ok_enabled);
+}
+
+// With a dispatcher supplied, OK marks the view applying first and defers apply through the
+// dispatcher rather than blocking on apply inside onOkRequested().
+TEST_CASE(
+    "AudioDeviceSettingsController defers OK apply through dispatcher",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    std::function<void()> captured_apply;
+    AudioDeviceSettingsController controller{
+        settings,
+        [&captured_apply](std::function<void()> apply_fn) { captured_apply = std::move(apply_fn); }
+    };
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onOkRequested();
+
+    CHECK(view.applying_transitions == std::vector<bool>{true});
+    CHECK(settings.apply_call_count == 0);
+    REQUIRE(captured_apply);
+
+    captured_apply();
+
+    CHECK(settings.apply_call_count == 1);
+    CHECK(view.close_call_count == 1);
+}
+
+// Async OK failure restores editing and pushes the backend error into view state so the existing
+// in-dialog error label can display the diagnostic.
+TEST_CASE(
+    "AudioDeviceSettingsController restores editing on async OK failure",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.next_apply_error = common::audio::AudioDeviceSettingsError{
+        common::audio::AudioDeviceSettingsErrorCode::ApplyFailed,
+        "Could not open Output B",
+    };
+    std::function<void()> captured_apply;
+    AudioDeviceSettingsController controller{
+        settings,
+        [&captured_apply](std::function<void()> apply_fn) { captured_apply = std::move(apply_fn); }
+    };
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onOkRequested();
+    REQUIRE(captured_apply);
+    captured_apply();
+
+    CHECK(view.applying_transitions == std::vector<bool>{true, false});
+    CHECK(view.close_call_count == 0);
+    CHECK(view.last_state.error_message == "Could not open Output B");
+}
+
+// If the host closes the settings window before the paint-fenced apply runs, the deferred
+// continuation must not touch the destroyed controller or its settings backend.
+TEST_CASE(
+    "AudioDeviceSettingsController drops deferred OK apply after destruction",
+    "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    std::function<void()> captured_apply;
+    FakeAudioDeviceSettingsView view;
+    {
+        AudioDeviceSettingsController controller{
+            settings, [&captured_apply](std::function<void()> apply_fn) {
+                captured_apply = std::move(apply_fn);
+            }
+        };
+        controller.attachView(view);
+
+        controller.onOkRequested();
+
+        CHECK(view.applying_transitions == std::vector<bool>{true});
+        CHECK(settings.apply_call_count == 0);
+    }
+
+    REQUIRE(captured_apply);
+    captured_apply();
+
+    CHECK(settings.apply_call_count == 0);
+    CHECK(settings.cancel_call_count == 1);
 }
 
 // Test output and control panel requests are gated by derived state.
