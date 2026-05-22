@@ -29,7 +29,7 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
-constexpr int g_audio_device_button_width{260};
+constexpr int g_audio_device_menu_button_width{260};
 constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
@@ -693,7 +693,7 @@ EditorView::EditorView(
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
     m_audio_device_button.setComponentID("audio_device_button");
-    m_audio_device_button.setButtonText("Audio Device");
+    m_audio_device_button.setText("Audio Device");
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsDialog(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_busy_overlay.setComponentID("busy_overlay");
@@ -809,28 +809,19 @@ void EditorView::paint(juce::Graphics& g)
 void EditorView::resized()
 {
     auto top_area = getLocalBounds();
-    m_menu_bar.setBounds(top_area.removeFromTop(g_menu_bar_height));
+    juce::Rectangle<int> menu_bar_bounds = top_area.removeFromTop(g_menu_bar_height);
+    const juce::Rectangle<int> audio_device_bounds = menu_bar_bounds.removeFromRight(
+        std::min(g_audio_device_menu_button_width, menu_bar_bounds.getWidth()));
+    m_menu_bar.setBounds(menu_bar_bounds);
+    m_audio_device_button.setBounds(audio_device_bounds);
     auto transport_row = top_area.removeFromTop(g_transport_bar_height);
     auto control_row =
         transport_row.withTrimmedLeft(g_content_inset).withTrimmedRight(g_content_inset);
     control_row = control_row.withSizeKeepingCentre(
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
-    const auto take_control_bounds =
-        [](juce::Rectangle<int>& row, int preferred_width, bool remove_gap) {
-            const int width = std::min(preferred_width, row.getWidth());
-            auto bounds = row.removeFromLeft(width);
-            if (remove_gap)
-            {
-                row.removeFromLeft(std::min(g_control_gap, row.getWidth()));
-            }
-            return bounds;
-        };
-
     m_transport_controls.setBounds(
-        take_control_bounds(control_row, g_transport_controls_width, true));
-    m_audio_device_button.setBounds(
-        take_control_bounds(control_row, g_audio_device_button_width, false));
+        control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
     auto bottom_area = trackViewportBounds();
     const int target_signal_chain_panel_height = std::clamp(
         bottom_area.getHeight() / 3,
@@ -1181,17 +1172,17 @@ void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState
     m_plugin_browser_window->toFront(true);
 }
 
-// Applies controller-derived ASIO routing state to the toolbar button.
+// Applies controller-derived ASIO routing state to the menu-bar button.
 void EditorView::updateAudioDeviceButton()
 {
     if (m_state.current_audio_device_name.has_value())
     {
-        m_audio_device_button.setButtonText(
+        m_audio_device_button.setText(
             juce::String{"Audio: "} + juce::String{m_state.current_audio_device_name->c_str()});
     }
     else
     {
-        m_audio_device_button.setButtonText("Audio Device");
+        m_audio_device_button.setText("Audio Device");
     }
 
     m_audio_device_button.setEnabled(m_state.audio_devices_available);
