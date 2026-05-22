@@ -984,16 +984,22 @@ void EditorView::showOpenChooser()
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rhp");
 
+    const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-        [this](const juce::FileChooser& chooser) {
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
             const auto file = chooser.getResult();
             if (!file.existsAsFile())
             {
                 return;
             }
 
-            m_controller.onOpenRequested(
+            safe_this->m_controller.onOpenRequested(
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
@@ -1006,16 +1012,22 @@ void EditorView::showImportChooser()
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rock;*.psarc");
 
+    const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles,
-        [this](const juce::FileChooser& chooser) {
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
             const auto file = chooser.getResult();
             if (!file.existsAsFile())
             {
                 return;
             }
 
-            m_controller.onImportRequested(
+            safe_this->m_controller.onImportRequested(
                 std::filesystem::path{file.getFullPathName().toWideCharPointer()});
         });
 }
@@ -1028,21 +1040,27 @@ void EditorView::showSaveAsChooser(SaveAsChooserPurpose purpose)
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
         "*.rhp");
 
+    const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
             juce::FileBrowserComponent::warnAboutOverwriting,
-        [this, purpose](const juce::FileChooser& chooser) {
+        [safe_this, purpose](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
             const auto file = chooser.getResult();
             if (file.getFullPathName().isEmpty())
             {
                 if (purpose == SaveAsChooserPurpose::DeferredAction)
                 {
-                    m_controller.onSaveAsCancelled();
+                    safe_this->m_controller.onSaveAsCancelled();
                 }
                 return;
             }
 
-            m_controller.onSaveAsRequested(pathWithRhpExtension(file));
+            safe_this->m_controller.onSaveAsRequested(pathWithRhpExtension(file));
         });
 }
 
@@ -1055,17 +1073,23 @@ void EditorView::showPublishChooser()
         publishChooserInitialFile(m_state.suggested_publish_file),
         "*.rock");
 
+    const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
         juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::canSelectFiles |
             juce::FileBrowserComponent::warnAboutOverwriting,
-        [this](const juce::FileChooser& chooser) {
+        [safe_this](const juce::FileChooser& chooser) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
             const auto file = chooser.getResult();
             if (file.getFullPathName().isEmpty())
             {
                 return;
             }
 
-            m_controller.onPublishRequested(pathWithRockExtension(file));
+            safe_this->m_controller.onPublishRequested(pathWithRockExtension(file));
         });
 }
 
@@ -1225,11 +1249,16 @@ void EditorView::showAudioDeviceSettingsWindow()
     // run apply behind the editor's blocking busy overlay. juce::AudioDeviceManager's apply
     // occupies the message thread, so the overlay's blocking presentation paints once before
     // the freeze rather than animating through it.
+    const juce::Component::SafePointer<EditorView> safe_this{this};
     AudioDeviceSettingsWindow::show(
-        *m_audio_devices,
-        m_audio_device_button,
-        [&controller = m_controller](std::function<void()> apply_fn) {
-            controller.onApplyAudioDeviceSettings(std::move(apply_fn));
+        *m_audio_devices, m_audio_device_button, [safe_this](std::function<void()> apply_fn) {
+            if (auto* view = safe_this.getComponent())
+            {
+                view->m_controller.onApplyAudioDeviceSettings(std::move(apply_fn));
+                return;
+            }
+
+            apply_fn();
         });
 }
 
