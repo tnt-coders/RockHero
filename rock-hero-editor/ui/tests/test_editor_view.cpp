@@ -758,37 +758,37 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
-// Verifies the toolbar button reflects the current device name and backend availability.
-TEST_CASE("EditorView projects audio device button state", "[ui][editor-view]")
+// Verifies the menu-bar button reflects the current device name and backend availability.
+TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
-    auto& audio_button = findRequiredChild<juce::TextButton>(view, "audio_device_button");
+    auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
 
     view.setState(core::EditorViewState{});
 
     CHECK_FALSE(audio_button.isEnabled());
-    CHECK(audio_button.getButtonText() == "Audio Device");
+    CHECK(audio_button.getText() == "Audio Device");
 
     core::EditorViewState state;
     state.audio_devices_available = true;
     view.setState(state);
 
     CHECK(audio_button.isEnabled());
-    CHECK(audio_button.getButtonText() == "Audio Device");
+    CHECK(audio_button.getText() == "Audio Device");
 
     state.current_audio_device_name = std::string{"Interface A"};
     view.setState(state);
 
     CHECK(audio_button.isEnabled());
-    CHECK(audio_button.getButtonText() == "Audio: Interface A");
+    CHECK(audio_button.getText() == "Audio: Interface A");
 }
 
-// Verifies the File menu occupies the top application strip instead of an inset control frame.
-TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][editor-view]")
+// Verifies the File menu and audio-device action share the top strip without overlap.
+TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -799,7 +799,9 @@ TEST_CASE("EditorView lays out the File menu flush with the top edge", "[ui][edi
     view.setBounds(0, 0, 500, 200);
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
-    CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 500, 24});
+    auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
+    CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 240, 24});
+    CHECK(audio_button.getBounds() == juce::Rectangle<int>{240, 0, 260, 24});
 }
 
 // Verifies the full-width transport strip sits directly above the track viewport.
@@ -819,9 +821,7 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredChild<SignalChainPanel>(view, "signal_chain_panel");
-    auto& audio_button = findRequiredChild<juce::TextButton>(view, "audio_device_button");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 28, 96, 32});
-    CHECK(audio_button.getBounds() == juce::Rectangle<int>{112, 28, 260, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 160, 484, 32});
     CHECK(
