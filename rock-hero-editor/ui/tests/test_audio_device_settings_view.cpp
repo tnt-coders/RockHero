@@ -64,11 +64,6 @@ public:
         selected_buffer_size_id = choice_id;
     }
 
-    void onTestOutputRequested() override
-    {
-        ++test_output_call_count;
-    }
-
     void onControlPanelRequested() override
     {
         ++control_panel_call_count;
@@ -92,7 +87,6 @@ public:
     int selected_stereo_output_pair_id{};
     int selected_sample_rate_id{};
     int selected_buffer_size_id{};
-    int test_output_call_count{};
     int control_panel_call_count{};
     int ok_call_count{};
     int cancel_call_count{};
@@ -116,7 +110,6 @@ public:
         .selected_sample_rate_id = 2,
         .buffer_sizes = {{.id = 1, .label = "128 samples"}},
         .selected_buffer_size_id = 1,
-        .test_output_enabled = true,
         .control_panel_enabled = true,
         .ok_enabled = true,
         .error_message = "Could not open Output B",
@@ -184,12 +177,10 @@ TEST_CASE("AudioDeviceSettingsView emits button intents", "[ui][audio-device-set
     AudioDeviceSettingsView view{controller};
     view.setState(splitDeviceState());
 
-    clickTextButton(view, "audio_settings_test_button");
     clickTextButton(view, "audio_settings_control_panel_button");
     clickTextButton(view, "audio_settings_ok_button");
     clickTextButton(view, "audio_settings_cancel_button");
 
-    CHECK(controller.test_output_call_count == 1);
     CHECK(controller.control_panel_call_count == 1);
     CHECK(controller.ok_call_count == 1);
     CHECK(controller.cancel_call_count == 1);

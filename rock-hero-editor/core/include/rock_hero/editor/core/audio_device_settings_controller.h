@@ -17,14 +17,16 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Callable used by the controller to defer the apply step behind a host paint fence.
+\brief Callable used by the controller to dispatch audio-device operations behind a host paint
+       fence.
 
-The callable accepts an apply continuation that the host invokes after its busy indicator has
-painted. When no dispatcher is supplied, the controller falls back to running apply synchronously
-inside onOkRequested(). The async path is what the editor uses to present its busy overlay before
-running the blocking device-manager apply.
+The callable accepts an operation continuation that the host invokes after its busy indicator has
+painted. Used by both OK and Cancel because both reopen the audio device, which blocks the
+message thread. When no dispatcher is supplied, the controller falls back to running the
+operation synchronously inside the matching intent handler. The async path is what the editor
+uses to present its busy overlay before running blocking device-manager calls.
 */
-using AudioDeviceSettingsApplyDispatcher = std::function<void(std::function<void()>)>;
+using AudioDeviceSettingsDispatcher = std::function<void(std::function<void()>)>;
 
 /*! \brief Headless editor workflow controller for one audio-device settings window. */
 class AudioDeviceSettingsController final : public IAudioDeviceSettingsController,
@@ -34,11 +36,13 @@ public:
     /*!
     \brief Creates the controller around the shared settings backend.
     \param settings Shared audio-device settings workflow; must outlive this controller.
-    \param apply_dispatcher Optional async-apply hook; when empty, OK runs apply synchronously.
+    \param dispatcher Optional hook used by OK and Cancel to run device-manager operations
+           behind a host paint fence. When empty, OK and Cancel run synchronously inside the
+           matching intent handler.
     */
     explicit AudioDeviceSettingsController(
         common::audio::IAudioDeviceSettings& settings,
-        AudioDeviceSettingsApplyDispatcher apply_dispatcher = {});
+        AudioDeviceSettingsDispatcher dispatcher = {});
 
     /*! \brief Cancels an unfinished settings edit before detaching from the backend. */
     ~AudioDeviceSettingsController() override;
@@ -69,7 +73,6 @@ public:
     void onStereoOutputPairSelected(int choice_id) override;
     void onSampleRateSelected(int choice_id) override;
     void onBufferSizeSelected(int choice_id) override;
-    void onTestOutputRequested() override;
     void onControlPanelRequested() override;
     void onOkRequested() override;
     void onCancelRequested() override;
@@ -86,8 +89,9 @@ private:
     // Shared settings backend that owns staging policy and hardware-side apply behavior.
     common::audio::IAudioDeviceSettings& m_settings;
 
-    // Optional dispatcher used to run apply asynchronously behind a host paint fence.
-    AudioDeviceSettingsApplyDispatcher m_apply_dispatcher;
+    // Optional dispatcher used by OK and Cancel to run device-manager operations behind a host
+    // paint fence.
+    AudioDeviceSettingsDispatcher m_dispatcher;
 
     // Non-owning view binding installed by attachView().
     IAudioDeviceSettingsView* m_view{};

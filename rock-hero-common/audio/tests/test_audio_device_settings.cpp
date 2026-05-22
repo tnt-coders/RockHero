@@ -340,12 +340,15 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
                                });
 }
 
-// Initial state derives route, channel, sample-rate, and buffer-size IDs from the active backend.
+// Initial state derives route, channel, sample-rate, and buffer-size IDs from the active backend
+// and immediately closes the audio device so the user can edit hardware settings without holding
+// it.
 TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
 
     AudioDeviceSettings settings{audio_devices};
     const AudioDeviceSettingsState state = settings.state();
@@ -362,6 +365,7 @@ TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-d
     CHECK(state.stereo_output_pairs[1].label == "Output 3 + Output 4");
     CHECK(state.selected_sample_rate_id == 2);
     CHECK(state.selected_buffer_size_id == 1);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
 // Selection changes update staged state only; the active device manager changes on apply().
@@ -379,7 +383,8 @@ TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-sett
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
 }
 
-// OK/apply commits the staged route through the public settings service.
+// OK/apply commits the staged route through the public settings service. The device should be
+// open with the staged setup after apply() returns successfully.
 TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -394,6 +399,7 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
     CHECK(result.has_value());
     CHECK(applied_setup.inputDeviceName == g_input_a);
     CHECK(applied_setup.outputDeviceName == g_output_b);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
 }
 
 // Switching audio systems should avoid JUCE's fixed 1.5 second type-switch sleep.
@@ -474,7 +480,8 @@ TEST_CASE("AudioDeviceSettings rolls back failed apply", "[audio][audio-device-s
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
 }
 
-// Cancel abandons staged changes without mutating the active route.
+// Cancel reopens the device that was open when settings construction began, regardless of staged
+// edits.
 TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -483,11 +490,71 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     AudioDeviceSettings settings{audio_devices};
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
     settings.selectOutputDevice(2);
+
     settings.cancel();
 
-    CHECK(settings.state().selected_output_device_id == 1);
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+}
+
+// Cancel leaves audio closed when the settings edit was opened from an already-closed route.
+TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+    audio_devices.device_manager.closeAudioDevice();
+    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    settings.selectOutputDevice(2);
+
+    settings.cancel();
+
+    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+}
+
+// Destruction without an explicit cancel restores the device that was open at construction.
+// This is the native-window-close backstop.
+TEST_CASE("AudioDeviceSettings restores device on destruction", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
+
+    {
+        AudioDeviceSettings settings{audio_devices};
+        settings.selectOutputDevice(2);
+        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    }
+
+    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
+}
+
+// Destruction also leaves audio closed when there was no open route to restore.
+TEST_CASE(
+    "AudioDeviceSettings destruction preserves closed route", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeAudioDeviceConfiguration audio_devices;
+    openInitialRoute(audio_devices);
+    audio_devices.device_manager.closeAudioDevice();
+    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
+
+    {
+        AudioDeviceSettings settings{audio_devices};
+        settings.selectOutputDevice(2);
+        REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+    }
+
+    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
 // A closed preview device with no selected sample rate still defaults through the public state.

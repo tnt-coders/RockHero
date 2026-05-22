@@ -149,12 +149,12 @@ public:
         open_plugin_request_count += 1;
     }
 
-    // Records audio-device apply scheduling so EditorView tests stay agnostic of busy overlay
+    // Records audio-device change scheduling so EditorView tests stay agnostic of busy overlay
     // mechanics. The settings flow's own tests cover the dispatcher behavior end-to-end.
-    void onApplyAudioDeviceSettings(std::function<void()> apply_fn) override
+    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
     {
-        last_audio_device_apply_fn = std::move(apply_fn);
-        apply_audio_device_request_count += 1;
+        last_audio_device_change = std::move(change_audio_device);
+        audio_device_change_request_count += 1;
     }
 
     // Last file passed to onOpenRequested().
@@ -238,12 +238,12 @@ public:
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
 
-    // Last apply callback handed to onApplyAudioDeviceSettings; tests can invoke it directly to
-    // simulate the editor's busy overlay paint fence firing.
-    std::function<void()> last_audio_device_apply_fn{};
+    // Last audio-device change callback handed to onAudioDeviceChangeRequested; tests can invoke it
+    // directly to simulate the editor's busy overlay paint fence firing.
+    std::function<void()> last_audio_device_change{};
 
-    // Number of audio-device apply requests received.
-    int apply_audio_device_request_count{0};
+    // Number of audio-device change requests received.
+    int audio_device_change_request_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
