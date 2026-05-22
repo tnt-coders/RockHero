@@ -9,7 +9,12 @@
 
 namespace juce
 {
-class AudioDeviceManager;
+class Component;
+}
+
+namespace rock_hero::common::audio
+{
+class IAudioDeviceConfiguration;
 }
 
 namespace rock_hero::editor::ui
@@ -18,18 +23,19 @@ namespace rock_hero::editor::ui
 /*!
 \brief Opens the audio-device settings window.
 
-The window hosts the Rock Hero audio settings view against the supplied device manager and adds
-cancelable preview semantics around hardware route changes.
+The window hosts the Rock Hero audio settings view against the supplied audio-device configuration
+port.
 */
 class AudioDeviceSettingsWindow final
 {
 public:
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
-    \param device_manager Device manager hosted by the settings view; must outlive the window.
+    \param audio_devices Audio-device configuration backend; must outlive the window.
     \param anchor Launcher component used to find the owning editor window.
     */
-    static void show(juce::AudioDeviceManager& device_manager, juce::Component& anchor);
+    static void show(
+        common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor);
 
 private:
     AudioDeviceSettingsWindow() = default;
