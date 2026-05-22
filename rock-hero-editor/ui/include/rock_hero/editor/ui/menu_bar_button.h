@@ -51,6 +51,13 @@ public:
     */
     [[nodiscard]] const juce::String& getText() const noexcept;
 
+    /*!
+    \brief Returns the preferred width for the current label at a menu-strip height.
+    \param height Menu strip height used to match MenuBarComponent text sizing.
+    \return Preferred width in pixels, including horizontal padding.
+    */
+    [[nodiscard]] int preferredWidthForHeight(int height) const;
+
 private:
     // Paints the hover or pressed highlight and centered label text.
     void paintButton(
