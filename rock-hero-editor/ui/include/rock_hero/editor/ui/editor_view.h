@@ -27,7 +27,7 @@
 
 namespace juce
 {
-// Forward declaration so the settings dialog can stay out of this public header.
+// Forward declaration so the settings window can stay out of this public header.
 class AudioDeviceManager;
 } // namespace juce
 
@@ -67,7 +67,7 @@ public:
     \param controller Controller that receives all user intents emitted by this view.
     \param transport Read-only transport used by cursor drawing and viewport following.
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
-    \param audio_devices Optional device-configuration port hosted by the settings dialog.
+    \param audio_devices Optional device-configuration port hosted by the settings window.
     */
     EditorView(
         core::IEditorController& controller, const common::audio::ITransport& transport,
@@ -194,8 +194,8 @@ private:
     // Applies audio routing state to the menu-bar audio-device button.
     void updateAudioDeviceButton();
 
-    // Opens the app-local audio-device configuration dialog.
-    void showAudioDeviceSettingsDialog();
+    // Opens the audio-device settings window.
+    void showAudioDeviceSettingsWindow();
 
     // Posts the pending busy-overlay fence callback after BusyOverlay has painted once.
     void handleBusyOverlayPainted();
@@ -230,7 +230,7 @@ private:
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 
-    // Audio device manager hosted by the settings dialog; null when no backend was provided.
+    // Audio device manager hosted by the settings window; null when no backend was provided.
     juce::AudioDeviceManager* m_audio_device_manager{nullptr};
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
@@ -245,7 +245,7 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Right-aligned menu-bar action for app-local audio device, input, and output controls.
+    // Right-aligned menu-bar action that opens audio-device settings.
     MenuBarButton m_audio_device_button;
 
     // Bottom control panel for the plugin chain.

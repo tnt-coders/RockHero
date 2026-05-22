@@ -18,8 +18,8 @@ namespace rock_hero::common::audio
 /*!
 \brief Shared notification boundary for the app's audio hardware configuration.
 
-The port exposes the underlying juce::AudioDeviceManager so settings UI can host JUCE's stock
-audio-device selector directly, and broadcasts change notifications so app code can persist and
+The port exposes the underlying juce::AudioDeviceManager so product settings UI can present and
+apply hardware route choices, and broadcasts change notifications so app code can persist and
 re-derive state when the hardware route changes.
 */
 class IAudioDeviceConfiguration

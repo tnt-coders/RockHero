@@ -1,6 +1,6 @@
 #include "editor_view.h"
 
-#include "audio_device_settings_dialog.h"
+#include "audio_device_settings_window.h"
 
 #include <algorithm>
 #include <cmath>
@@ -708,7 +708,7 @@ EditorView::EditorView(
     m_transport_controls.setComponentID("transport_controls");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
-    m_audio_device_button.onClick = [this] { showAudioDeviceSettingsDialog(); };
+    m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
@@ -1208,8 +1208,8 @@ void EditorView::updateAudioDeviceButton()
     m_audio_device_button.setEnabled(m_state.audio_devices_available);
 }
 
-// Opens the audio-device dialog when an audio-device backend is available.
-void EditorView::showAudioDeviceSettingsDialog()
+// Opens the audio-device settings window when a hardware-configuration backend is available.
+void EditorView::showAudioDeviceSettingsWindow()
 {
     if (m_audio_device_manager == nullptr)
     {
@@ -1221,7 +1221,7 @@ void EditorView::showAudioDeviceSettingsDialog()
         m_controller.onPlayPausePressed();
     }
 
-    AudioDeviceSettingsDialog::show(*m_audio_device_manager, m_audio_device_button);
+    AudioDeviceSettingsWindow::show(*m_audio_device_manager, m_audio_device_button);
 }
 
 // Runs the single pending fence callback after BusyOverlay has crossed its paint path. Showing

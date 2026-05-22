@@ -1,11 +1,9 @@
-#include "audio_device_settings_component.h"
-
-#include "audio_device_sample_rate_choice.h"
-#include "audio_device_type_policy.h"
+#include "audio_device_settings_view.h"
 
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <rock_hero/common/audio/audio_device_settings.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -23,8 +21,8 @@ constexpr int g_button_width{96};
 constexpr int g_utility_button_width{116};
 constexpr int g_error_height{32};
 constexpr int g_min_control_rows{6};
-constexpr int g_max_dialog_width{1000};
-constexpr int g_max_dialog_height{760};
+constexpr int g_max_window_width{1000};
+constexpr int g_max_window_height{760};
 
 // Returns the vertical space occupied by a visible form row set.
 [[nodiscard]] int formRowsHeight(int row_count) noexcept
@@ -38,14 +36,14 @@ constexpr int g_max_dialog_height{760};
 }
 
 // Returns a derived height that fits the requested row count without clipping controls.
-[[nodiscard]] int dialogHeightForRows(int row_count) noexcept
+[[nodiscard]] int windowHeightForRows(int row_count) noexcept
 {
     const int controls_height = formRowsHeight(row_count);
     return (g_content_inset * 2) + controls_height + g_row_gap + g_error_height + g_row_gap +
            g_row_height;
 }
 
-// Collects JUCE device type names so the UI policy can order by stable names.
+// Collects JUCE device type names so the shared settings policy can order by stable names.
 [[nodiscard]] juce::StringArray availableDeviceTypeNames(
     const juce::OwnedArray<juce::AudioIODeviceType>& device_types)
 {
@@ -160,7 +158,7 @@ void populateStringCombo(
     return 0;
 }
 
-// Lays out one label/control row when that row is visible for the current driver type.
+// Lays out one label/control row when that row is visible for the current audio system.
 void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int>& area) noexcept
 {
     if (!label.isVisible() && !control.isVisible())
@@ -177,8 +175,8 @@ void layoutRow(juce::Label& label, juce::Component& control, juce::Rectangle<int
 
 } // namespace
 
-// Creates the settings surface and captures the initial state used for Cancel/native close.
-AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(juce::AudioDeviceManager& device_manager)
+// Creates the settings view and captures the initial state used for Cancel/native close.
+AudioDeviceSettingsView::AudioDeviceSettingsView(juce::AudioDeviceManager& device_manager)
     : m_device_manager(device_manager)
     , m_staged_setup(device_manager.getAudioDeviceSetup())
     , m_staged_device_type(device_manager.getCurrentAudioDeviceType())
@@ -188,45 +186,45 @@ AudioDeviceSettingsComponent::AudioDeviceSettingsComponent(juce::AudioDeviceMana
     refreshControls();
 }
 
-// Disconnects from the device manager without altering the instrument route on dialog close.
-AudioDeviceSettingsComponent::~AudioDeviceSettingsComponent()
+// Disconnects from the device manager without altering the active audio route on window close.
+AudioDeviceSettingsView::~AudioDeviceSettingsView()
 {
     m_device_manager.removeChangeListener(this);
 }
 
-// Returns a default width wide enough for typical ASIO device and channel names.
-int AudioDeviceSettingsComponent::preferredWidth() noexcept
+// Returns a default width wide enough for typical audio-system, device, and channel names.
+int AudioDeviceSettingsView::preferredWidth() noexcept
 {
     return g_preferred_width;
 }
 
-// Returns a derived height from the rows visible for the currently selected driver type.
-int AudioDeviceSettingsComponent::preferredContentHeight() const noexcept
+// Returns a derived height from the rows visible for the currently selected audio system.
+int AudioDeviceSettingsView::preferredContentHeight() const noexcept
 {
     const int visible_rows = g_min_control_rows + (m_input_device_combo.isVisible() ? 1 : 0);
-    return dialogHeightForRows(visible_rows);
+    return windowHeightForRows(visible_rows);
 }
 
 // Keeps the route selectors usable without requiring the initial window to be very wide.
-int AudioDeviceSettingsComponent::minimumWidth() noexcept
+int AudioDeviceSettingsView::minimumWidth() noexcept
 {
     return 520;
 }
 
-// Caps dialog resizing at a useful settings-panel width.
-int AudioDeviceSettingsComponent::maximumWidth() noexcept
+// Caps window resizing at a useful settings-window width.
+int AudioDeviceSettingsView::maximumWidth() noexcept
 {
-    return g_max_dialog_width;
+    return g_max_window_width;
 }
 
-// Caps dialog resizing at a useful settings-panel height.
-int AudioDeviceSettingsComponent::maximumHeight() noexcept
+// Caps window resizing at a useful settings-window height.
+int AudioDeviceSettingsView::maximumHeight() noexcept
 {
-    return g_max_dialog_height;
+    return g_max_window_height;
 }
 
-// Positions route rows, status text, utility buttons, and final dialog actions.
-void AudioDeviceSettingsComponent::resized()
+// Positions route rows, status text, utility buttons, and final window actions.
+void AudioDeviceSettingsView::resized()
 {
     auto area = getLocalBounds().reduced(g_content_inset);
     auto button_row = area.removeFromBottom(g_row_height);
@@ -256,7 +254,7 @@ void AudioDeviceSettingsComponent::resized()
 }
 
 // Refreshes controls after the device manager reports an external route change.
-void AudioDeviceSettingsComponent::changeListenerCallback(juce::ChangeBroadcaster* source)
+void AudioDeviceSettingsView::changeListenerCallback(juce::ChangeBroadcaster* source)
 {
     if (source == &m_device_manager && !m_refreshing_controls)
     {
@@ -265,9 +263,9 @@ void AudioDeviceSettingsComponent::changeListenerCallback(juce::ChangeBroadcaste
 }
 
 // Configures labels, callbacks, and static button presentation.
-void AudioDeviceSettingsComponent::configureControls()
+void AudioDeviceSettingsView::configureControls()
 {
-    setComponentID("audio_device_settings_component");
+    setComponentID("audio_device_settings_view");
 
     m_device_type_label.setText("Audio system", juce::dontSendNotification);
     m_device_label.setText("Device", juce::dontSendNotification);
@@ -382,7 +380,7 @@ void AudioDeviceSettingsComponent::configureControls()
 }
 
 // Rebuilds UI choices from the active manager after each route or hardware change.
-void AudioDeviceSettingsComponent::refreshControls()
+void AudioDeviceSettingsView::refreshControls()
 {
     const juce::ScopedValueSetter<bool> refreshing{m_refreshing_controls, true};
     refreshDeviceTypes();
@@ -393,30 +391,30 @@ void AudioDeviceSettingsComponent::refreshControls()
     refreshSampleRateChoices();
     refreshBufferSizeChoices();
     refreshControlEnablement();
-    syncDialogHeightToContent();
+    syncWindowHeightToContent();
     resized();
 }
 
-// Keeps the native dialog height in sync when the backend switches row shape.
-void AudioDeviceSettingsComponent::syncDialogHeightToContent()
+// Keeps the host window height in sync when the audio system switches row shape.
+void AudioDeviceSettingsView::syncWindowHeightToContent()
 {
     const int content_height = preferredContentHeight();
 
-    if (auto* dialog = findParentComponentOfClass<juce::DialogWindow>())
+    if (auto* window = findParentComponentOfClass<juce::DialogWindow>())
     {
-        dialog->setResizeLimits(minimumWidth(), content_height, maximumWidth(), maximumHeight());
+        window->setResizeLimits(minimumWidth(), content_height, maximumWidth(), maximumHeight());
     }
 
     const int content_width = getWidth() > 0 ? getWidth() : preferredWidth();
     setSize(content_width, content_height);
 }
 
-// Populates the audio backend type selector from JUCE's registered device types.
-void AudioDeviceSettingsComponent::refreshDeviceTypes()
+// Populates the audio-system selector from JUCE's registered device types.
+void AudioDeviceSettingsView::refreshDeviceTypes()
 {
     ensureStagedDeviceType();
 
-    const juce::StringArray type_names = audioDeviceTypePickerOrder(
+    const juce::StringArray type_names = common::audio::preferredAudioDeviceTypeOrder(
         availableDeviceTypeNames(m_device_manager.getAvailableDeviceTypes()));
     populateStringCombo(
         m_device_type_combo, type_names, m_staged_device_type, "No audio systems found");
@@ -425,7 +423,7 @@ void AudioDeviceSettingsComponent::refreshDeviceTypes()
 // Performs the only device-list scan needed for one refreshControls() pass. JUCE requires a scan
 // before querying device names or creating a device; doing it here avoids repeating the same
 // driver query in each helper below.
-void AudioDeviceSettingsComponent::scanCurrentDeviceType() const
+void AudioDeviceSettingsView::scanCurrentDeviceType() const
 {
     if (juce::AudioIODeviceType* const type = currentDeviceType(); type != nullptr)
     {
@@ -434,7 +432,7 @@ void AudioDeviceSettingsComponent::scanCurrentDeviceType() const
 }
 
 // Populates either one combined device selector or separate input/output selectors.
-void AudioDeviceSettingsComponent::refreshDeviceNames()
+void AudioDeviceSettingsView::refreshDeviceNames()
 {
     ensureStagedDeviceNames();
 
@@ -487,7 +485,7 @@ void AudioDeviceSettingsComponent::refreshDeviceNames()
 }
 
 // Populates mono input choices and app-level stereo output-pair choices.
-void AudioDeviceSettingsComponent::refreshChannelChoices()
+void AudioDeviceSettingsView::refreshChannelChoices()
 {
     m_output_pairs.clear();
     auto* device = m_staged_device.get();
@@ -545,7 +543,7 @@ void AudioDeviceSettingsComponent::refreshChannelChoices()
 }
 
 // Populates sample-rate choices from the staged device capabilities.
-void AudioDeviceSettingsComponent::refreshSampleRateChoices()
+void AudioDeviceSettingsView::refreshSampleRateChoices()
 {
     m_sample_rates.clear();
     m_sample_rate_combo.clear(juce::dontSendNotification);
@@ -578,7 +576,7 @@ void AudioDeviceSettingsComponent::refreshSampleRateChoices()
         }
     }
 
-    const double selected_sample_rate = chooseDeviceSampleRate(
+    const double selected_sample_rate = common::audio::chooseAudioDeviceSampleRate(
         m_sample_rates,
         m_staged_setup.sampleRate,
         device->getCurrentSampleRate(),
@@ -594,7 +592,7 @@ void AudioDeviceSettingsComponent::refreshSampleRateChoices()
 }
 
 // Populates buffer-size choices from the current open device.
-void AudioDeviceSettingsComponent::refreshBufferSizeChoices()
+void AudioDeviceSettingsView::refreshBufferSizeChoices()
 {
     m_buffer_sizes.clear();
     m_buffer_size_combo.clear(juce::dontSendNotification);
@@ -630,7 +628,7 @@ void AudioDeviceSettingsComponent::refreshBufferSizeChoices()
 }
 
 // Enables only controls with available choices or device support.
-void AudioDeviceSettingsComponent::refreshControlEnablement()
+void AudioDeviceSettingsView::refreshControlEnablement()
 {
     auto* device = m_device_manager.getCurrentAudioDevice();
     const bool can_use_active_device_buttons = stagedRouteMatchesActiveRoute();
@@ -650,7 +648,7 @@ void AudioDeviceSettingsComponent::refreshControlEnablement()
 }
 
 // Switches the current JUCE device type and lets the manager pick that type's current route.
-void AudioDeviceSettingsComponent::handleDeviceTypeChanged()
+void AudioDeviceSettingsView::handleDeviceTypeChanged()
 {
     if (m_device_type_combo.getSelectedItemIndex() < 0)
     {
@@ -674,37 +672,37 @@ void AudioDeviceSettingsComponent::handleDeviceTypeChanged()
 }
 
 // Opens the selected input/output device using Rock Hero's first mono/stereo route.
-void AudioDeviceSettingsComponent::handleDeviceChanged()
+void AudioDeviceSettingsView::handleDeviceChanged()
 {
     applySelectedDevice();
 }
 
 // Applies the selected mono input channel and stereo output pair.
-void AudioDeviceSettingsComponent::handleRouteChanged()
+void AudioDeviceSettingsView::handleRouteChanged()
 {
     applySelectedRoute();
 }
 
 // Applies sample-rate and buffer-size changes while preserving the selected route.
-void AudioDeviceSettingsComponent::handleAudioFormatChanged()
+void AudioDeviceSettingsView::handleAudioFormatChanged()
 {
     applySelectedRoute();
 }
 
-// Applies the staged settings and closes the dialog on success.
-void AudioDeviceSettingsComponent::acceptAndClose()
+// Applies the staged settings and closes the window on success.
+void AudioDeviceSettingsView::acceptAndClose()
 {
     applyAcceptedSetup();
 }
 
-// Restores the captured state and closes the dialog.
-void AudioDeviceSettingsComponent::cancelAndClose()
+// Restores the captured state and closes the window.
+void AudioDeviceSettingsView::cancelAndClose()
 {
-    closeDialog();
+    closeWindow();
 }
 
 // Stages a newly selected device and resets channel choices to the app-supported shape.
-void AudioDeviceSettingsComponent::applySelectedDevice()
+void AudioDeviceSettingsView::applySelectedDevice()
 {
     if (!copySelectedDeviceNames(m_staged_setup))
     {
@@ -719,7 +717,7 @@ void AudioDeviceSettingsComponent::applySelectedDevice()
 }
 
 // Stages current route, sample-rate, and buffer-size selections.
-void AudioDeviceSettingsComponent::applySelectedRoute()
+void AudioDeviceSettingsView::applySelectedRoute()
 {
     if (!copySelectedDeviceNames(m_staged_setup))
     {
@@ -743,8 +741,8 @@ void AudioDeviceSettingsComponent::applySelectedRoute()
     refreshControlEnablement();
 }
 
-// Applies the staged route to the active device manager only when the user accepts the dialog.
-void AudioDeviceSettingsComponent::applyAcceptedSetup()
+// Applies the staged route to the active device manager only when the user accepts the window.
+void AudioDeviceSettingsView::applyAcceptedSetup()
 {
     const auto previous_setup = m_device_manager.getAudioDeviceSetup();
     const juce::String previous_device_type = m_device_manager.getCurrentAudioDeviceType();
@@ -770,22 +768,22 @@ void AudioDeviceSettingsComponent::applyAcceptedSetup()
         return;
     }
 
-    closeDialog();
+    closeWindow();
 }
 
 // Requests modal shutdown from the host DialogWindow.
-void AudioDeviceSettingsComponent::closeDialog()
+void AudioDeviceSettingsView::closeWindow()
 {
-    if (auto* dialog = findParentComponentOfClass<juce::DialogWindow>())
+    if (auto* window = findParentComponentOfClass<juce::DialogWindow>())
     {
-        dialog->exitModalState(0);
+        window->exitModalState(0);
     }
 }
 
 // Chooses a staged audio system from the active device manager's available types.
-void AudioDeviceSettingsComponent::ensureStagedDeviceType()
+void AudioDeviceSettingsView::ensureStagedDeviceType()
 {
-    const juce::StringArray type_names = audioDeviceTypePickerOrder(
+    const juce::StringArray type_names = common::audio::preferredAudioDeviceTypeOrder(
         availableDeviceTypeNames(m_device_manager.getAvailableDeviceTypes()));
 
     if (type_names.contains(m_staged_device_type))
@@ -803,9 +801,9 @@ void AudioDeviceSettingsComponent::ensureStagedDeviceType()
     m_staged_device_type = type_names.isEmpty() ? juce::String{} : type_names[0];
 }
 
-// Keeps staged device names valid for the selected audio system without opening the instrument
+// Keeps staged device names valid for the selected audio system without opening the active audio
 // route.
-void AudioDeviceSettingsComponent::ensureStagedDeviceNames()
+void AudioDeviceSettingsView::ensureStagedDeviceNames()
 {
     auto* type = currentDeviceType();
     if (type == nullptr)
@@ -844,14 +842,14 @@ void AudioDeviceSettingsComponent::ensureStagedDeviceNames()
 }
 
 // Sets the staged route to one mono input and one stereo output pair.
-void AudioDeviceSettingsComponent::resetStagedRouteDefaults()
+void AudioDeviceSettingsView::resetStagedRouteDefaults()
 {
     setSingleInputChannel(m_staged_setup, 0);
     setOutputPair(m_staged_setup, OutputPair{.left_channel = 0, .right_channel = 1});
 }
 
 // Returns the currently selected JUCE device type object, if one exists.
-juce::AudioIODeviceType* AudioDeviceSettingsComponent::currentDeviceType() const
+juce::AudioIODeviceType* AudioDeviceSettingsView::currentDeviceType() const
 {
     const auto& device_types = m_device_manager.getAvailableDeviceTypes();
     for (auto* type : device_types)
@@ -866,14 +864,14 @@ juce::AudioIODeviceType* AudioDeviceSettingsComponent::currentDeviceType() const
 }
 
 // Reports whether the current backend type exposes separate input and output devices.
-bool AudioDeviceSettingsComponent::currentTypeUsesSeparateDevices() const
+bool AudioDeviceSettingsView::currentTypeUsesSeparateDevices() const
 {
     auto* type = currentDeviceType();
     return type != nullptr && type->hasSeparateInputsAndOutputs();
 }
 
 // Creates a non-open staged device used only to inspect channel and format capabilities.
-std::unique_ptr<juce::AudioIODevice> AudioDeviceSettingsComponent::createStagedDevice() const
+std::unique_ptr<juce::AudioIODevice> AudioDeviceSettingsView::createStagedDevice() const
 {
     auto* type = currentDeviceType();
     if (type == nullptr || m_staged_setup.inputDeviceName.isEmpty() ||
@@ -887,7 +885,7 @@ std::unique_ptr<juce::AudioIODevice> AudioDeviceSettingsComponent::createStagedD
 }
 
 // Reports whether active-device-only buttons apply to the currently staged route.
-bool AudioDeviceSettingsComponent::stagedRouteMatchesActiveRoute() const
+bool AudioDeviceSettingsView::stagedRouteMatchesActiveRoute() const
 {
     return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
            m_staged_setup == m_device_manager.getAudioDeviceSetup();
@@ -898,7 +896,7 @@ bool AudioDeviceSettingsComponent::stagedRouteMatchesActiveRoute() const
 // backends like DirectSound populate both fields; comparing both names handles both cases without
 // needing currentTypeUsesSeparateDevices because the staged and active setups follow the same
 // JUCE convention for whichever backend is selected.
-bool AudioDeviceSettingsComponent::stagedDeviceNamesMatchActiveRoute() const
+bool AudioDeviceSettingsView::stagedDeviceNamesMatchActiveRoute() const
 {
     const auto active_setup = m_device_manager.getAudioDeviceSetup();
     return m_staged_device_type == m_device_manager.getCurrentAudioDeviceType() &&
@@ -907,7 +905,7 @@ bool AudioDeviceSettingsComponent::stagedDeviceNamesMatchActiveRoute() const
 }
 
 // Copies the currently selected device names into a setup.
-bool AudioDeviceSettingsComponent::copySelectedDeviceNames(
+bool AudioDeviceSettingsView::copySelectedDeviceNames(
     juce::AudioDeviceManager::AudioDeviceSetup& setup) const
 {
     if (currentTypeUsesSeparateDevices())
@@ -947,7 +945,7 @@ bool AudioDeviceSettingsComponent::copySelectedDeviceNames(
 }
 
 // Replaces the active input channels with exactly one mono input channel.
-void AudioDeviceSettingsComponent::setSingleInputChannel(
+void AudioDeviceSettingsView::setSingleInputChannel(
     juce::AudioDeviceManager::AudioDeviceSetup& setup, int channel_index) const
 {
     setup.useDefaultInputChannels = false;
@@ -959,7 +957,7 @@ void AudioDeviceSettingsComponent::setSingleInputChannel(
 }
 
 // Replaces the active output channels with exactly one stereo output pair.
-void AudioDeviceSettingsComponent::setOutputPair(
+void AudioDeviceSettingsView::setOutputPair(
     juce::AudioDeviceManager::AudioDeviceSetup& setup, OutputPair pair) const
 {
     setup.useDefaultOutputChannels = false;
@@ -969,7 +967,7 @@ void AudioDeviceSettingsComponent::setOutputPair(
 }
 
 // Copies selected sample-rate and buffer-size choices into the setup when available.
-void AudioDeviceSettingsComponent::setSelectedAudioFormat(
+void AudioDeviceSettingsView::setSelectedAudioFormat(
     juce::AudioDeviceManager::AudioDeviceSetup& setup) const
 {
     const int sample_rate_index = m_sample_rate_combo.getSelectedItemIndex();

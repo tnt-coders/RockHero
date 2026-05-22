@@ -755,7 +755,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
-// Verifies the menu-bar button reflects the current device name and backend availability.
+// Verifies the menu-bar button reflects the current audio-device status and backend availability.
 TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
