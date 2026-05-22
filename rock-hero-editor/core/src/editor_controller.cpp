@@ -477,7 +477,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void setLiveRigLoadProgress(std::string message, double fraction);
     void beginLiveRigLoadProgress();
     void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
-    void runAfterBusyOverlayPaintedOrNow(std::function<void()>&& callback);
+    void runAfterBusyOverlayPainted(std::function<void()>&& callback);
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
     void updateView();
@@ -562,6 +562,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     EditorSettings* m_settings;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
+    // updateView() and reportError() tolerate the null window because the constructor's
+    // restoreAudioDeviceState() can synchronously fire onAudioDeviceConfigurationChanged()
+    // before the host wires up a view. runAfterBusyOverlayPainted() does not, because its
+    // callers are all downstream of user UI intents that run only after attachment.
     IEditorView* m_view{nullptr};
 
     // Most recently derived view state used as the seed push at view attachment.
@@ -1158,7 +1162,7 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_s
     }
 
     beginLiveRigLoadProgress();
-    runAfterBusyOverlayPaintedOrNow(
+    runAfterBusyOverlayPainted(
         safeCallback([this, captured_stage = std::move(stage_state)]() mutable {
             startLiveRigLoadStage(std::move(captured_stage), true);
         }));
@@ -1624,7 +1628,7 @@ void EditorController::Impl::beginAddKnownPlugin(
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
     updateView();
-    runAfterBusyOverlayPaintedOrNow(safeCallback([this, state, token]() {
+    runAfterBusyOverlayPainted(safeCallback([this, state, token]() {
         if (token != m_current_busy_token)
         {
             return;
@@ -2089,7 +2093,7 @@ void EditorController::Impl::restoreLiveRig(
             {
                 return;
             }
-            runAfterBusyOverlayPaintedOrNow(
+            runAfterBusyOverlayPainted(
                 safeCallback([this, token, continuation = std::move(next)]() mutable {
                     if (token != m_current_busy_token)
                     {
@@ -2463,7 +2467,8 @@ void EditorController::Impl::persistAudioDeviceState()
 }
 
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the
-// currently attached view if any.
+// currently attached view if any. The null branch covers the construction window during which
+// restoreAudioDeviceState() may fire onAudioDeviceConfigurationChanged() before attachView().
 void EditorController::Impl::updateView()
 {
     m_last_state = deriveViewState();
@@ -2589,20 +2594,17 @@ void EditorController::Impl::updateLiveRigLoadProgress(
     updateView();
 }
 
-// Runs message-thread-only load work after the busy overlay has had a chance to repaint.
-void EditorController::Impl::runAfterBusyOverlayPaintedOrNow(std::function<void()>&& callback)
+// Routes message-thread-only load work through the attached view's busy-overlay paint fence.
+// Every caller is downstream of a user UI intent, so a view must already be attached; the
+// assert pins that precondition.
+void EditorController::Impl::runAfterBusyOverlayPainted(std::function<void()>&& callback)
 {
     if (!callback)
     {
         return;
     }
 
-    if (m_view == nullptr)
-    {
-        callback();
-        return;
-    }
-
+    assert(m_view != nullptr && "runAfterBusyOverlayPainted requires an attached view");
     m_view->runAfterBusyOverlayPainted(std::move(callback));
 }
 
