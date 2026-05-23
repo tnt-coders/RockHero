@@ -108,11 +108,14 @@ Add these public types in
 - Value type used to decide whether stored loudness metadata still describes the current file.
 - Expected fields:
   - `size_bytes`
-  - `last_write_time` (`std::filesystem::file_time_type`)
-- The canonical normalized WAV lives inside a project-owned workspace and is only written by this
-  feature, so size plus mtime is enough to detect "the file changed since we measured it." A
-  content hash is intentionally not used because it adds cost without a real threat model for
-  project-owned audio.
+  - `sha256` (64-character lowercase hex string)
+- Defensive over a "we only write this file ourselves" assumption: cross-machine project moves,
+  archive round-trips that reset mtimes, FAT/exFAT mtime resolution loss, and rare manual edits
+  all defeat size+mtime alone. SHA-256 is computed once during `measureAudioLoudness` and once at
+  the end of `normalizeAudioFile`; both already touch the file, so the marginal cost is one extra
+  file read of ~50 MB (~100 ms) per analysis on a background thread. Implemented via
+  `juce::SHA256(juce::File(path)).toHexString()`, so the implementation footprint is one line and
+  one `juce::juce_cryptography` module link on `rock_hero_common_audio`.
 
 `AudioLoudnessMeasurement`
 
@@ -323,7 +326,8 @@ Add `std::optional<BackingAudioNormalizationPrompt>` to `EditorViewState`.
 
 - Add `audio_normalization.cpp`.
 - Link `rock_hero::juce_audio_formats` privately for readers and WAV writing.
-- Link the chosen loudness dependency privately.
+- Link `rock_hero::juce_cryptography` privately for `juce::SHA256` fingerprinting.
+- Link `libebur128::ebur128` privately (provided by Conan via the local recipes index).
 
 `rock-hero-common/audio/tests/CMakeLists.txt`
 
@@ -485,8 +489,9 @@ real public boundary:
 
 `fingerprintAudioFile`
 
-- Produces `AudioFileFingerprint` (size + last-write-time) from `std::filesystem` queries.
-- No file streaming required; runs in constant time regardless of audio length.
+- Produces `AudioFileFingerprint` (size + sha256 hex string).
+- Size from `std::filesystem::file_size`; hash from `juce::SHA256(juce::File(path)).toHexString()`.
+- Always called on a background thread — never synchronously during project open.
 
 `calculateNormalizationGainDb`
 

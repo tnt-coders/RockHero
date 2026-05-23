@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <expected>
 #include <functional>
@@ -21,6 +22,7 @@
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
+#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_settings.h>
@@ -32,6 +34,7 @@
 #include <string_view>
 #include <system_error>
 #include <type_traits>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -40,6 +43,29 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+// Loudness target the editor renders backing audio against. Held as a constant for now; later
+// versions can route a user-configurable value through EditorSettings.
+constexpr common::core::AudioNormalizationTarget g_default_normalization_target{};
+
+// LU tolerance used by the open-time prompt: assets whose persisted integrated loudness differs
+// from the current target by more than this trigger a normalization recommendation. Matches the
+// EBU R128 broadcast-tolerance value and the perceptual JND for sequential listening; tune after
+// hearing real imported songs through the editor.
+constexpr double g_backing_audio_loudness_tolerance_lu = 1.0;
+
+// Sibling extension used while rendering a normalized replacement so the original file stays in
+// place until the new content has been validated.
+constexpr std::string_view g_normalization_replacement_extension{".normalizing.wav"};
+
+// Returns the sibling path used to render a normalized replacement for the supplied asset.
+[[nodiscard]] std::filesystem::path backingAudioReplacementPath(
+    const std::filesystem::path& audio_path)
+{
+    std::filesystem::path replacement_path = audio_path;
+    replacement_path += std::string{g_normalization_replacement_extension};
+    return replacement_path;
+}
 
 // Production open path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultOpen(
@@ -373,6 +399,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct PluginCatalogTaskState;
     struct ProjectWriteTaskState;
     struct ProjectLoadLiveRigStage;
+    struct BackingAudioMeasureTaskState;
+    struct BackingAudioNormalizeTaskState;
 
     Impl(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
@@ -399,6 +427,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
+    void onBackingAudioNormalizationDecision(BackingAudioNormalizationDecision decision);
     void onPlayPausePressed();
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
@@ -448,6 +477,21 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
+    void scheduleBackingAudioNormalizationCheck();
+    void evaluateBackingAudioNormalizationForCurrentSession();
+    void scheduleBackingAudioNormalizationMeasurement(
+        const std::filesystem::path& audio_path, int affected_arrangement_count);
+    void completeBackingAudioNormalizationMeasurement(
+        const std::shared_ptr<BackingAudioMeasureTaskState>& state);
+    [[nodiscard]] bool isBackingAudioNormalizationCurrent(
+        const common::core::AudioLoudnessMetadata& metadata) const noexcept;
+    [[nodiscard]] bool isMeasurementOutsideTarget(
+        const common::core::AudioLoudnessMeasurement& measurement) const noexcept;
+    void showBackingAudioNormalizationPrompt(BackingAudioNormalizationPrompt prompt);
+    void applyBackingAudioNormalizationPrompt();
+    void completeBackingAudioNormalize(
+        const std::shared_ptr<BackingAudioNormalizeTaskState>& state);
+    void dismissBackingAudioNormalizationPrompt();
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
     void beginAddKnownPlugin(const common::audio::PluginCandidate& plugin_candidate);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
@@ -560,6 +604,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     EditorController::PublishFunction m_publish_function;
     EditorController::ExitFunction m_exit_function;
 
+    // Open-time analysis seam consumed by the (deferred) background normalization check.
+    // Captured here so production composition and tests can inject the function once at
+    // construction time, even though the open-time pipeline that drives it is a follow-up.
+    EditorController::AudioAnalyzeFunction m_audio_analyze_function;
+
+    // Normalization seam consumed when the user accepts an open-time prompt. Same lifecycle and
+    // injection story as m_audio_analyze_function above.
+    AudioNormalizeFunction m_audio_normalize_function;
+
     // Optional app-local settings used to restore startup state and persist exit state.
     EditorSettings* m_settings;
 
@@ -624,6 +677,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // progress. Cleared when busy state ends.
     std::optional<LiveRigProgress> m_live_rig_progress{};
 
+    // Optional open-time normalization prompt. Populated when persisted metadata or a fresh
+    // background measurement reports a backing asset outside the configured tolerance, and
+    // cleared by the user intent handler.
+    std::optional<BackingAudioNormalizationPrompt> m_backing_audio_normalization_prompt{};
+
+    // Latched once per session so the open-time check fires exactly once per project load.
+    // Reset in loadSessionSong() before each new session commits.
+    bool m_backing_audio_normalization_check_done_for_session{false};
+
     // Current busy-operation token used by async callbacks to reject stale work.
     std::uint64_t m_current_busy_token{0};
 
@@ -665,6 +727,30 @@ struct EditorController::Impl::ImportTaskState
     std::filesystem::path file{};
     Project project{};
     std::expected<common::core::Song, ProjectError> result{};
+};
+
+// Per-asset worker state for the open-time background loudness measurement. The completion
+// reads result, builds a prompt, and publishes it through updateView() without touching audio
+// or session state from the worker thread.
+struct EditorController::Impl::BackingAudioMeasureTaskState
+{
+    std::filesystem::path audio_path{};
+    std::string display_name{};
+    int affected_arrangement_count{0};
+    std::expected<common::core::AudioLoudnessAnalysis, common::audio::AudioNormalizationError>
+        result{std::unexpect, common::audio::AudioNormalizationErrorCode::InputFileMissing};
+};
+
+// Per-operation worker state for the accept-prompt normalization render. The worker writes to a
+// sibling replacement path; the completion replaces the original file on the message thread and
+// refreshes the audio backend.
+struct EditorController::Impl::BackingAudioNormalizeTaskState
+{
+    std::filesystem::path audio_path{};
+    std::filesystem::path replacement_path{};
+    common::core::AudioNormalizationTarget target{};
+    std::expected<common::audio::AudioNormalizationOutcome, common::audio::AudioNormalizationError>
+        result{std::unexpect, common::audio::AudioNormalizationErrorCode::InputFileMissing};
 };
 
 // Per-operation state for selected browser-plugin loading. Actual chain mutation happens on
@@ -842,6 +928,12 @@ void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
     m_impl->onUnsavedChangesDecision(decision);
 }
 
+void EditorController::onBackingAudioNormalizationDecision(
+    BackingAudioNormalizationDecision decision)
+{
+    m_impl->onBackingAudioNormalizationDecision(decision);
+}
+
 void EditorController::onPlayPausePressed()
 {
     m_impl->onPlayPausePressed();
@@ -922,6 +1014,14 @@ EditorController::Impl::Impl(
     , m_exit_function(
           services.exit_function ? std::move(services.exit_function)
                                  : EditorController::ExitFunction{defaultExit})
+    , m_audio_analyze_function(
+          services.audio_analyze_function
+              ? std::move(services.audio_analyze_function)
+              : EditorController::AudioAnalyzeFunction{common::audio::measureAudioLoudness})
+    , m_audio_normalize_function(
+          services.audio_normalize_function
+              ? std::move(services.audio_normalize_function)
+              : AudioNormalizeFunction{common::audio::normalizeAudioFile})
     , m_settings(services.settings)
     , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
     , m_transport_listener(transport, *this)
@@ -1062,6 +1162,11 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
     finishBusyOperation();
+
+    // Once the busy overlay is down and the session is committed, evaluate backing audio
+    // against the configured normalization target so the user gets prompted when an opened
+    // project's audio is outside tolerance.
+    scheduleBackingAudioNormalizationCheck();
 }
 
 // Imports a song source and stores the workspace only after audio and Session accept the song.
@@ -1284,6 +1389,307 @@ void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision dec
     runAction(EditorAction::ResolveUnsavedChangesPrompt{decision});
 }
 
+// Routes the user's prompt decision into either the normalize-and-replace pipeline or the
+// silent-dismiss path. Out-of-order responses (e.g. arriving after the prompt was already
+// cleared) are dropped silently.
+void EditorController::Impl::onBackingAudioNormalizationDecision(
+    BackingAudioNormalizationDecision decision)
+{
+    if (!m_backing_audio_normalization_prompt.has_value())
+    {
+        return;
+    }
+    switch (decision)
+    {
+        case BackingAudioNormalizationDecision::Normalize:
+        {
+            applyBackingAudioNormalizationPrompt();
+            return;
+        }
+        case BackingAudioNormalizationDecision::Dismiss:
+        {
+            dismissBackingAudioNormalizationPrompt();
+            return;
+        }
+    }
+}
+
+// Latches the per-session check flag and kicks off the evaluation. Called from
+// finishOpenProjectAfterLiveRigLoad once the project has been committed and the busy overlay has
+// dropped.
+void EditorController::Impl::scheduleBackingAudioNormalizationCheck()
+{
+    if (m_backing_audio_normalization_check_done_for_session)
+    {
+        return;
+    }
+    m_backing_audio_normalization_check_done_for_session = true;
+    evaluateBackingAudioNormalizationForCurrentSession();
+}
+
+// Walks unique backing audio assets in the current session. For the first asset that needs
+// attention the controller either prompts directly (when persisted metadata is enough to decide)
+// or schedules a background measurement. Stops after the first attention candidate; subsequent
+// assets re-surface on the next project open.
+void EditorController::Impl::evaluateBackingAudioNormalizationForCurrentSession()
+{
+    const common::core::Song& song = session().song();
+    if (song.arrangements.empty())
+    {
+        return;
+    }
+
+    // Preserve project order so the asset chosen for the prompt is deterministic across reruns.
+    std::unordered_map<std::string, int> arrangement_counts;
+    std::unordered_map<std::string, const common::core::AudioAsset*> assets_by_path;
+    std::vector<std::string> ordered_paths;
+    ordered_paths.reserve(song.arrangements.size());
+    for (const common::core::Arrangement& arrangement : song.arrangements)
+    {
+        const std::string key = arrangement.audio_asset.path.string();
+        if (assets_by_path.try_emplace(key, &arrangement.audio_asset).second)
+        {
+            ordered_paths.push_back(key);
+        }
+        ++arrangement_counts[key];
+    }
+
+    for (const std::string& key : ordered_paths)
+    {
+        const common::core::AudioAsset& asset = *assets_by_path[key];
+        const int affected = arrangement_counts[key];
+
+        if (asset.loudness_metadata.has_value())
+        {
+            if (isBackingAudioNormalizationCurrent(*asset.loudness_metadata))
+            {
+                continue;
+            }
+            // Persisted metadata is enough to know normalization is recommended; no need to
+            // re-read the file before prompting.
+            showBackingAudioNormalizationPrompt(
+                BackingAudioNormalizationPrompt{
+                    .audio_path = asset.path,
+                    .display_name = asset.path.filename().string(),
+                    .measured = asset.loudness_metadata->analysis.measurement,
+                    .target = g_default_normalization_target,
+                    .affected_arrangement_count = affected,
+                });
+            return;
+        }
+
+        scheduleBackingAudioNormalizationMeasurement(asset.path, affected);
+        return;
+    }
+}
+
+// Submits a background loudness measurement for a single backing audio asset. The completion
+// runs on the message thread; stale completions (e.g. arriving after the session has been
+// replaced) are dropped by checking the per-session latch and the current asset.
+void EditorController::Impl::scheduleBackingAudioNormalizationMeasurement(
+    const std::filesystem::path& audio_path, int affected_arrangement_count)
+{
+    auto state = std::make_shared<BackingAudioMeasureTaskState>();
+    state->audio_path = audio_path;
+    state->display_name = audio_path.filename().string();
+    state->affected_arrangement_count = affected_arrangement_count;
+
+    m_task_runner->submit(
+        [state, measure = m_audio_analyze_function]() {
+            state->result = measure(state->audio_path);
+        },
+        safeCallback([this, state]() { completeBackingAudioNormalizationMeasurement(state); }));
+}
+
+// Handles a completed background measurement. Drops the result when the session changed under
+// the worker (the audio asset is no longer current), an existing prompt was already published
+// for some other reason, or the measurement reported failure.
+void EditorController::Impl::completeBackingAudioNormalizationMeasurement(
+    const std::shared_ptr<BackingAudioMeasureTaskState>& state)
+{
+    if (m_backing_audio_normalization_prompt.has_value())
+    {
+        return;
+    }
+    // Confirm the session still references the asset we just measured before publishing a
+    // prompt against it.
+    const auto& arrangements = session().arrangements();
+    const bool still_referenced = std::ranges::any_of(arrangements, [&](const auto& arrangement) {
+        return arrangement.audio_asset.path == state->audio_path;
+    });
+    if (!still_referenced)
+    {
+        return;
+    }
+    if (!state->result.has_value())
+    {
+        // Background analysis failures are silent: there is no actionable prompt without a
+        // measurement, and surfacing the analyzer's diagnostic to the user during a routine
+        // project open would be noise. Errors will resurface if normalization is later attempted.
+        return;
+    }
+    if (!isMeasurementOutsideTarget(state->result->measurement))
+    {
+        return;
+    }
+
+    showBackingAudioNormalizationPrompt(
+        BackingAudioNormalizationPrompt{
+            .audio_path = state->audio_path,
+            .display_name = state->display_name,
+            .measured = state->result->measurement,
+            .target = g_default_normalization_target,
+            .affected_arrangement_count = state->affected_arrangement_count,
+        });
+}
+
+// Reports whether an already-persisted loudness record satisfies the current target. Mismatched
+// targets always count as stale because the persisted metadata says it was normalized against a
+// different set of values.
+bool EditorController::Impl::isBackingAudioNormalizationCurrent(
+    const common::core::AudioLoudnessMetadata& metadata) const noexcept
+{
+    if (metadata.target != g_default_normalization_target)
+    {
+        return false;
+    }
+    return !isMeasurementOutsideTarget(metadata.analysis.measurement);
+}
+
+// Returns true when a measurement deviates from the current target by more than the configured
+// loudness tolerance, or when its true peak exceeds the configured ceiling.
+bool EditorController::Impl::isMeasurementOutsideTarget(
+    const common::core::AudioLoudnessMeasurement& measurement) const noexcept
+{
+    const double lufs_delta = std::abs(
+        measurement.integrated_loudness_lufs -
+        g_default_normalization_target.integrated_loudness_lufs);
+    if (lufs_delta > g_backing_audio_loudness_tolerance_lu)
+    {
+        return true;
+    }
+    return measurement.true_peak_dbtp > g_default_normalization_target.true_peak_ceiling_dbtp;
+}
+
+// Stores the prompt in controller state and republishes view state so the view can present it.
+void EditorController::Impl::showBackingAudioNormalizationPrompt(
+    BackingAudioNormalizationPrompt prompt)
+{
+    m_backing_audio_normalization_prompt = std::move(prompt);
+    updateView();
+}
+
+// Kicks off the render+replace pipeline for the active prompt. The actual file substitution and
+// session refresh happen in completeBackingAudioNormalize() once the worker finishes.
+void EditorController::Impl::applyBackingAudioNormalizationPrompt()
+{
+    assert(
+        m_backing_audio_normalization_prompt.has_value() &&
+        "applyBackingAudioNormalizationPrompt called without a prompt");
+
+    auto state = std::make_shared<BackingAudioNormalizeTaskState>();
+    state->audio_path = m_backing_audio_normalization_prompt->audio_path;
+    state->replacement_path = backingAudioReplacementPath(state->audio_path);
+    state->target = m_backing_audio_normalization_prompt->target;
+
+    // Drop the prompt now so the busy overlay published by runBusyOperation is not stacked on
+    // top of it from the view's point of view; the user already decided.
+    m_backing_audio_normalization_prompt.reset();
+
+    runBusyOperation(
+        BusyOperation::NormalizingBackingAudio,
+        state,
+        [normalize = m_audio_normalize_function](
+            const std::shared_ptr<BackingAudioNormalizeTaskState>& task_state) {
+            task_state->result =
+                normalize(task_state->audio_path, task_state->replacement_path, task_state->target);
+        },
+        [this](const std::shared_ptr<BackingAudioNormalizeTaskState>& task_state) {
+            completeBackingAudioNormalize(task_state);
+        });
+}
+
+// Applies a finished normalization render: releases audio handles, replaces the original file,
+// rebuilds the session's song with the new loudness metadata, and marks the project dirty so the
+// next Save persists the updated metadata.
+void EditorController::Impl::completeBackingAudioNormalize(
+    const std::shared_ptr<BackingAudioNormalizeTaskState>& state)
+{
+    assert(isBusy() && "completeBackingAudioNormalize called outside a busy operation");
+
+    if (!state->result.has_value())
+    {
+        std::error_code remove_error;
+        std::filesystem::remove(state->replacement_path, remove_error);
+        const std::string message = state->result.error().message;
+        finishBusyOperation();
+        reportError(std::string{"Could not normalize backing audio: "} + message);
+        return;
+    }
+
+    // Stop transport and drop the active arrangement handle so the original file can be replaced
+    // on Windows, where open handles block remove/rename. loadSessionSong() below reactivates
+    // the arrangement against the rewritten file.
+    m_transport.stop();
+    m_audio.clearActiveArrangement();
+
+    std::error_code filesystem_error;
+    std::filesystem::remove(state->audio_path, filesystem_error);
+    if (filesystem_error)
+    {
+        std::filesystem::remove(state->replacement_path, filesystem_error);
+        finishBusyOperation();
+        reportError(
+            std::string{"Could not replace backing audio at "} + state->audio_path.string() + ": " +
+            filesystem_error.message());
+        return;
+    }
+
+    std::filesystem::rename(state->replacement_path, state->audio_path, filesystem_error);
+    if (filesystem_error)
+    {
+        finishBusyOperation();
+        reportError(
+            std::string{"Could not move normalized backing audio into place: "} +
+            filesystem_error.message());
+        return;
+    }
+
+    // Copy the current song, refresh loudness metadata on every arrangement that referenced this
+    // audio path, and reload the session so the audio backend sees the new file content.
+    common::core::Song updated_song = session().song();
+    for (common::core::Arrangement& arrangement : updated_song.arrangements)
+    {
+        if (arrangement.audio_asset.path == state->audio_path)
+        {
+            arrangement.audio_asset.loudness_metadata = state->result->metadata;
+        }
+    }
+
+    std::optional<std::string> selected_arrangement_id;
+    if (const auto* current = session().currentArrangement(); current != nullptr)
+    {
+        selected_arrangement_id = current->id;
+    }
+
+    if (!loadSessionSong(std::move(updated_song), selected_arrangement_id))
+    {
+        finishBusyOperation();
+        reportError("Could not reload session after normalizing backing audio");
+        return;
+    }
+
+    m_has_unsaved_changes = true;
+    finishBusyOperation();
+}
+
+// Clears the prompt without changing the project and republishes view state.
+void EditorController::Impl::dismissBackingAudioNormalizationPrompt()
+{
+    m_backing_audio_normalization_prompt.reset();
+    updateView();
+}
+
 // Ignores the intent until audio activation has committed an arrangement, otherwise toggles
 // playback.
 void EditorController::Impl::onPlayPausePressed()
@@ -1492,19 +1898,24 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             const EditorAction::Id deferred_id = idOf(*m_deferred_action);
             m_has_unsaved_changes = false;
             m_save_requires_destination = false;
-            if (deferred_id != EditorAction::Id::CloseProject)
+            // CloseProject and ExitApplication both close the current project as part of their
+            // own action handler, and ExitApplication additionally needs m_project_file alive
+            // when it captures the value to persist as last_open_project. Closing here first
+            // would zero that path out, so let the replay action do its own close + capture.
+            if (deferred_id == EditorAction::Id::CloseProject ||
+                deferred_id == EditorAction::Id::ExitApplication)
             {
-                EditorAction::ProjectAction replay = std::move(*m_deferred_action);
-                clearDeferredAction();
-                if (closeProject())
-                {
-                    runProjectAction(std::move(replay));
-                }
-                return;
+                continueDeferredAction();
+                break;
             }
 
-            continueDeferredAction();
-            break;
+            EditorAction::ProjectAction replay = std::move(*m_deferred_action);
+            clearDeferredAction();
+            if (closeProject())
+            {
+                runProjectAction(std::move(replay));
+            }
+            return;
         }
         case UnsavedChangesDecision::Cancel:
         {
@@ -1978,6 +2389,8 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         m_plugin_browser_visible = false;
+        m_backing_audio_normalization_prompt.reset();
+        m_backing_audio_normalization_check_done_for_session = false;
         return true;
     }
 
@@ -1986,6 +2399,8 @@ bool EditorController::Impl::closeProject()
     m_audio.clearActiveArrangement();
     m_session.reset();
     m_plugins.clear();
+    m_backing_audio_normalization_prompt.reset();
+    m_backing_audio_normalization_check_done_for_session = false;
 
     auto closed = closeExistingProject(m_project);
     if (!closed.has_value())
@@ -2372,6 +2787,10 @@ bool EditorController::Impl::loadSessionSong(
         assert(committed && "Session rejected backend-accepted project song");
         m_plugins.clear();
         m_plugin_browser_visible = false;
+        // Re-arm the open-time loudness check for the new session and drop any stale prompt
+        // left over from the previous project.
+        m_backing_audio_normalization_check_done_for_session = false;
+        m_backing_audio_normalization_prompt.reset();
     }
     m_session_load_in_progress = false;
 
@@ -2453,6 +2872,14 @@ EditorViewState EditorController::Impl::deriveViewState() const
             busy.progress = m_live_rig_progress->fraction;
         }
         state.busy = busy;
+    }
+
+    // Gate on project_loaded so a lingering prompt from a previous session never renders against
+    // a closed project. Session-replacement paths clear the prompt explicitly through
+    // loadSessionSong(); this is a defensive belt-and-suspenders for other close paths.
+    if (state.project_loaded)
+    {
+        state.backing_audio_normalization_prompt = m_backing_audio_normalization_prompt;
     }
 
     return state;

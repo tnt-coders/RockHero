@@ -1,4 +1,4 @@
-#include "engine.h"
+﻿#include "engine.h"
 
 #include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
@@ -780,8 +780,8 @@ void reportLiveRigLoadProgress(
             }};
         }
 
-        const auto id = core::Json::readRequiredString(plugin_json, "id");
-        const auto tracktion_state = core::Json::readRequiredString(plugin_json, "tracktionState");
+        const auto id = core::Json::tryReadString(plugin_json, "id");
+        const auto tracktion_state = core::Json::tryReadString(plugin_json, "tracktionState");
         if (!id.has_value() || id->empty() || !tracktion_state.has_value() ||
             tracktion_state->empty())
         {
@@ -1008,7 +1008,7 @@ public:
         // replace this with the plugin editor's own constrainer when one is supplied; these
         // values only take effect for editors that allow resizing but don't provide a
         // constrainer of their own. The onscreen amounts also guard against restored bounds
-        // landing on a monitor that no longer exists — the title bar (top) must stay fully
+        // landing on a monitor that no longer exists â€” the title bar (top) must stay fully
         // onscreen so the user can always drag the window back.
         getConstrainer()->setMinimumOnscreenAmounts(0x10000, 50, 30, 50);
         setResizeLimits(100, 50, 4000, 4000);
@@ -1059,7 +1059,7 @@ public:
     // the dying instance, so it must be released now; the replacement editor must be created
     // *after* forceFullReinitialise() finishes installing the new instance, which is why
     // creation is deferred onto the message loop. The "Async" suffix in
-    // UIBehaviour::recreatePluginWindowContentAsync is contractual — Tracktion depends on this
+    // UIBehaviour::recreatePluginWindowContentAsync is contractual â€” Tracktion depends on this
     // being deferred.
     void recreateEditorAsync()
     {

@@ -57,6 +57,9 @@ enum class ProjectErrorCode
 
     /*! \brief The editor project workspace could not be removed. */
     CouldNotCloseWorkspace,
+
+    /*! \brief Loudness normalization of imported backing audio failed. */
+    AudioNormalizationFailed,
 };
 
 /*! \brief Editor project error with a stable code and diagnostic message. */
