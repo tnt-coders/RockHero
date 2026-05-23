@@ -29,10 +29,9 @@ constexpr int g_test_channels = 2;
 // to settle without making tests slow.
 constexpr double g_test_duration_seconds = 1.0;
 
-// Target used by every test that runs the normalization render. Matches the plan's first target.
+// Target used by every test that runs normalization. Peak clamping is implicit at 0 dBFS.
 constexpr common::core::AudioNormalizationTarget g_test_target{
     .integrated_loudness_lufs = -16.0,
-    .true_peak_ceiling_dbtp = -2.0,
 };
 
 // Owns a clean temporary directory for audio normalization test fixtures.
@@ -221,7 +220,7 @@ TEST_CASE(
     const auto result = measureAudioLoudness(input_path);
 
     REQUIRE(result.has_value());
-    CHECK(result->measurement.true_peak_dbtp <= 0.0);
+    CHECK(result->measurement.sample_peak_dbfs <= 0.0);
     CHECK(result->fingerprint.size_bytes > 0);
     CHECK(result->fingerprint.sha256.size() == 64);
     CHECK_FALSE(result->analyzer_id.empty());
@@ -273,38 +272,67 @@ TEST_CASE(
             g_test_target.integrated_loudness_lufs) < 1.0);
 }
 
-// Verifies a signal whose true peak exceeds the ceiling triggers the peak-limited gain branch.
-TEST_CASE("normalizeAudioFile flags peak-ceiling limiting", "[common-audio][audio-normalization]")
+// Verifies gain is clamped so the loudest sample does not exceed 0 dBFS after gain.
+TEST_CASE(
+    "analyzeAudioForGainNormalization clamps gain at sample peak",
+    "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writePeakHeavyWav(temporary_directory.path() / "input.wav");
-    const auto output_path = temporary_directory.path() / "output.wav";
 
-    const auto outcome = normalizeAudioFile(input_path, output_path, g_test_target);
+    const auto metadata = analyzeAudioForGainNormalization(input_path, g_test_target);
 
-    REQUIRE(outcome.has_value());
-    CHECK(outcome->limited_by_peak_ceiling);
-    CHECK(
-        outcome->metadata.analysis.measurement.true_peak_dbtp <=
-        g_test_target.true_peak_ceiling_dbtp + 0.5);
+    REQUIRE(metadata.has_value());
+    // The gain should be clamped so peak + gain <= 0 dBFS.
+    CHECK(metadata->analysis.measurement.sample_peak_dbfs + metadata->applied_gain_db <= 0.01);
 }
 
 // Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense gain.
-TEST_CASE("normalizeAudioFile rejects silent input", "[common-audio][audio-normalization]")
+TEST_CASE(
+    "analyzeAudioForGainNormalization rejects silent input", "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSilentWav(temporary_directory.path() / "input.wav");
-    const auto output_path = temporary_directory.path() / "output.wav";
 
-    const auto result = normalizeAudioFile(input_path, output_path, g_test_target);
+    const auto result = analyzeAudioForGainNormalization(input_path, g_test_target);
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == AudioNormalizationErrorCode::SilentInputCannotBeNormalized);
 }
 
+// Verifies analyzeAudioForGainNormalization surfaces InputFileMissing for a missing file.
+TEST_CASE(
+    "analyzeAudioForGainNormalization returns InputFileMissing",
+    "[common-audio][audio-normalization]")
+{
+    const TemporaryAudioDirectory temporary_directory;
+    const auto result =
+        analyzeAudioForGainNormalization(temporary_directory.path() / "nope.wav", g_test_target);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
+}
+
+// Verifies analyzeAudioForGainNormalization computes the expected gain for a known input.
+TEST_CASE(
+    "analyzeAudioForGainNormalization computes applied gain", "[common-audio][audio-normalization]")
+{
+    const TemporaryAudioDirectory temporary_directory;
+    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
+
+    const auto metadata = analyzeAudioForGainNormalization(input_path, g_test_target);
+
+    REQUIRE(metadata.has_value());
+    CHECK(metadata->applied_gain_db != 0.0);
+    CHECK(metadata->target == g_test_target);
+    CHECK(metadata->analysis.fingerprint.size_bytes > 0);
+    CHECK(metadata->analysis.fingerprint.sha256.size() == 64);
+    CHECK_FALSE(metadata->analysis.analyzer_id.empty());
+}
+
 // Verifies the rendered output's persisted metadata matches a fresh re-measurement of the file.
 TEST_CASE(
-    "normalizeAudioFile metadata matches fresh measurement of the output",
+    "normalizeAudioFile metadata matches fresh re-measurement",
     "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;

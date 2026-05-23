@@ -1,6 +1,7 @@
 # Backing Audio Normalization Plan
 
-Status: planning. No implementation has landed for this plan yet.
+Status: Complete. Superseded for future work by
+`docs/in-progress/backing-audio-lufs-i-gain-normalization-plan.md`.
 
 ## Goal
 

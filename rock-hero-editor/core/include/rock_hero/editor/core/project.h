@@ -21,16 +21,15 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Function that renders a loudness-normalized copy of a source audio file.
+\brief Function that analyzes a source audio file and computes gain normalization metadata.
 
 Injected into Project::import to keep the test surface at the public Project API. Production
-composition defaults this alias to common::audio::normalizeAudioFile; tests pass fakes that
-return a controlled AudioNormalizationOutcome without touching the loudness analyzer.
+composition defaults this alias to common::audio::analyzeAudioForGainNormalization; tests pass
+fakes that return a controlled AudioLoudnessMetadata without touching the loudness analyzer.
 */
-using AudioNormalizeFunction = std::function<
-    std::expected<common::audio::AudioNormalizationOutcome, common::audio::AudioNormalizationError>(
-        const std::filesystem::path& input, const std::filesystem::path& output,
-        const common::core::AudioNormalizationTarget& target)>;
+using AudioAnalyzeForGainFunction = std::function<
+    std::expected<common::core::AudioLoudnessMetadata, common::audio::AudioNormalizationError>(
+        const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)>;
 
 /*!
 \brief Editor-only state persisted by an editor project package.
@@ -99,22 +98,23 @@ public:
     /*!
     \brief Imports a song source into a new unsaved project workspace.
 
-    Every imported arrangement's backing audio is rendered through normalize_audio so the project
-    workspace only ever contains canonical normalized WAV assets. Raw imported audio is deleted
-    after every arrangement has been retargeted to the normalized output.
+    Analyzes each unique backing audio file to compute LUFS-I gain normalization metadata. The
+    audio files are kept as-is; gain is applied during playback and waveform drawing rather than
+    by rendering a new WAV.
 
     \param source_path Song source to import.
     \param importer Importer that understands the source song format.
-    \param target Loudness target the imported backing audio is rendered against.
-    \param normalize_audio Function used to render each unique imported audio asset. Defaults to
-    common::audio::normalizeAudioFile; tests can inject a fake that captures invocations and
-    returns a controlled AudioNormalizationOutcome.
+    \param target Loudness target the imported backing audio is analyzed against.
+    \param analyze_audio Function used to analyze each unique imported audio asset. Defaults to
+    common::audio::analyzeAudioForGainNormalization; tests can inject a fake that returns
+    controlled AudioLoudnessMetadata.
     \return Imported song data, or a typed project failure.
     */
     [[nodiscard]] std::expected<common::core::Song, ProjectError> import(
         const std::filesystem::path& source_path, ISongImporter& importer,
         const common::core::AudioNormalizationTarget& target = {},
-        const AudioNormalizeFunction& normalize_audio = common::audio::normalizeAudioFile);
+        const AudioAnalyzeForGainFunction& analyze_audio =
+            common::audio::analyzeAudioForGainNormalization);
 
     /*!
     \brief Saves the supplied song to the currently open project package.

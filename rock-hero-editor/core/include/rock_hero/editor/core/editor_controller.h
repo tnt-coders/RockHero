@@ -59,12 +59,12 @@ public:
     /*!
     \brief Imports a song source into a project context.
 
-    The controller supplies the normalization function so the import worker can update busy-state
-    copy when Project::import reaches the audio-normalization phase.
+    The controller supplies the analysis function so the import worker can update busy-state
+    copy when Project::import reaches the audio-analysis phase.
     */
     using ImportFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path,
-        const AudioNormalizeFunction& normalize_audio)>;
+        const AudioAnalyzeForGainFunction& analyze_audio)>;
 
     /*! \brief Saves the current song through the project context. */
     using SaveFunction = std::function<std::expected<void, ProjectError>(
@@ -128,15 +128,6 @@ public:
         control the open-time prompt flow without running the real analyzer.
         */
         AudioAnalyzeFunction audio_analyze_function{};
-
-        /*!
-        \brief Renders a normalized backing audio file when the user accepts the open-time prompt.
-
-        Default-constructed in production composition wraps
-        common::audio::normalizeAudioFile; tests inject fakes that synthesize an
-        AudioNormalizationOutcome without writing real audio.
-        */
-        AudioNormalizeFunction audio_normalize_function{};
 
         /*! \brief Optional settings store used for startup restore and exit persistence. */
         EditorSettings* settings{};

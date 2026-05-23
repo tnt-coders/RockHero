@@ -1174,7 +1174,7 @@ void EditorView::presentBackingAudioNormalizationPromptIfNeeded(
     // system-styled dialog without rich formatting.
     juce::String message;
     message << "Loudness of \"" << juce::String::fromUTF8(prompt->display_name.c_str()) << "\" is "
-            << juce::String{prompt->measured.integrated_loudness_lufs, 1}
+            << juce::String{prompt->analysis.measurement.integrated_loudness_lufs, 1}
             << " LUFS, but this project's target is "
             << juce::String{prompt->target.integrated_loudness_lufs, 1} << " LUFS.";
     if (prompt->affected_arrangement_count > 1)

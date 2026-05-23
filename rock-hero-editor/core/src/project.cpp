@@ -33,13 +33,6 @@ using common::core::Arrangement;
 using common::core::AudioAsset;
 using common::core::Song;
 
-// Subdirectory used for canonical normalized backing audio inside the imported song workspace.
-constexpr const char* g_normalized_audio_directory = "audio";
-
-// Suffix appended to source filenames when constructing normalized output paths so input and
-// output never collide even when the source already lives under song/audio/.
-constexpr const char* g_normalized_audio_suffix = ".normalized.wav";
-
 // Creates one workspace directory under the platform temp directory for an open project.
 [[nodiscard]] std::optional<std::filesystem::path> createWorkspaceDirectory(
     std::string& error_message)
@@ -145,51 +138,6 @@ constexpr const char* g_normalized_audio_suffix = ".normalized.wav";
     return unique_paths;
 }
 
-// Chooses a normalized WAV path under song/audio/ that does not collide with the source or with
-// other previously chosen normalized outputs in this import.
-[[nodiscard]] std::filesystem::path uniqueNormalizedAudioPath(
-    const std::filesystem::path& song_directory, const std::filesystem::path& source_path,
-    const std::unordered_map<std::string, std::filesystem::path>& chosen_paths)
-{
-    const std::string stem = source_path.stem().string();
-    const std::filesystem::path audio_directory = song_directory / g_normalized_audio_directory;
-    for (int attempt = 0; attempt < 100; ++attempt)
-    {
-        const std::string suffix =
-            attempt == 0 ? std::string{g_normalized_audio_suffix}
-                         : "-" + std::to_string(attempt + 1) + g_normalized_audio_suffix;
-        const std::filesystem::path candidate =
-            (audio_directory / (stem + suffix)).lexically_normal();
-        const std::string candidate_string = candidate.string();
-        const bool collides_with_source = candidate == source_path.lexically_normal();
-        bool collides_with_existing_choice = false;
-        for (const auto& [_, chosen] : chosen_paths)
-        {
-            if (chosen == candidate)
-            {
-                collides_with_existing_choice = true;
-                break;
-            }
-        }
-        if (!collides_with_source && !collides_with_existing_choice)
-        {
-            return candidate;
-        }
-    }
-    // Fallback if the loop somehow exhausts: deterministic name keyed on the source string hash.
-    return audio_directory /
-           (stem + "-" + std::to_string(std::hash<std::string>{}(source_path.string())) +
-            g_normalized_audio_suffix);
-}
-
-// Per-source result captured during the normalization pass so later steps can rewrite arrangements
-// without re-running the analyzer.
-struct NormalizedAudioOutput
-{
-    std::filesystem::path output_path;
-    common::core::AudioLoudnessMetadata metadata;
-};
-
 // Converts a common::audio::AudioNormalizationError into the project workflow's error type while
 // preserving the underlying diagnostic message for UI surfaces.
 [[nodiscard]] ProjectError projectErrorFromNormalizationError(
@@ -201,90 +149,44 @@ struct NormalizedAudioOutput
     };
 }
 
-// Drives normalize_audio for each unique source path and records the resulting outputs so the
-// arrangement-rewrite pass can update audio_asset references in one place.
-[[nodiscard]] std::expected<std::unordered_map<std::string, NormalizedAudioOutput>, ProjectError>
-normalizeImportedAudioAssets(
-    const std::filesystem::path& song_directory,
+// Analyzes each unique source path and records the resulting loudness metadata so the arrangement
+// update pass can attach it without re-running the analyzer.
+[[nodiscard]] std::expected<
+    std::unordered_map<std::string, common::core::AudioLoudnessMetadata>, ProjectError>
+analyzeImportedAudioAssets(
     const std::vector<std::filesystem::path>& unique_paths,
     const common::core::AudioNormalizationTarget& target,
-    const AudioNormalizeFunction& normalize_audio)
+    const AudioAnalyzeForGainFunction& analyze_audio)
 {
-    std::unordered_map<std::string, std::filesystem::path> chosen_paths;
-    std::unordered_map<std::string, NormalizedAudioOutput> outputs;
-    outputs.reserve(unique_paths.size());
+    std::unordered_map<std::string, common::core::AudioLoudnessMetadata> results;
+    results.reserve(unique_paths.size());
 
     for (const std::filesystem::path& source_path : unique_paths)
     {
-        const std::filesystem::path output_path =
-            uniqueNormalizedAudioPath(song_directory, source_path, chosen_paths);
-
-        auto outcome = normalize_audio(source_path, output_path, target);
-        if (!outcome.has_value())
+        auto metadata = analyze_audio(source_path, target);
+        if (!metadata.has_value())
         {
-            return std::unexpected{projectErrorFromNormalizationError(outcome.error())};
+            return std::unexpected{projectErrorFromNormalizationError(metadata.error())};
         }
-
-        chosen_paths.emplace(source_path.string(), output_path);
-        outputs.emplace(
-            source_path.string(),
-            NormalizedAudioOutput{
-                .output_path = output_path,
-                .metadata = std::move(outcome->metadata),
-            });
+        results.emplace(source_path.string(), std::move(*metadata));
     }
 
-    return outputs;
+    return results;
 }
 
-// Rewrites each arrangement to point at the normalized canonical WAV produced for its source
-// path and attaches the persistable loudness metadata captured during normalization.
-void replaceArrangementAudioAssets(
-    Song& song, const std::unordered_map<std::string, NormalizedAudioOutput>& outputs)
+// Attaches the analyzed loudness metadata to each arrangement's audio asset. Audio file paths
+// are unchanged; gain is applied during playback and waveform drawing.
+void attachLoudnessMetadata(
+    Song& song, const std::unordered_map<std::string, common::core::AudioLoudnessMetadata>& results)
 {
     for (Arrangement& arrangement : song.arrangements)
     {
-        const auto entry = outputs.find(arrangement.audio_asset.path.string());
-        // Every unique source path was visited in normalizeImportedAudioAssets above, so a miss
-        // here would mean an arrangement referenced a path that survived neither the resolve nor
-        // the deduplication pass — a logic error in this file rather than a runtime condition.
-        if (entry == outputs.end())
+        const auto entry = results.find(arrangement.audio_asset.path.string());
+        if (entry == results.end())
         {
             continue;
         }
-        arrangement.audio_asset.path = entry->second.output_path;
-        arrangement.audio_asset.loudness_metadata = entry->second.metadata;
-    }
-}
-
-// Re-runs the workspace containment check after path substitution so a normalized path that
-// somehow escapes song_directory cannot slip past the original resolve step.
-[[nodiscard]] std::expected<void, ProjectError> verifyArrangementAudioContainment(
-    const std::filesystem::path& workspace_directory, const Song& song)
-{
-    for (const Arrangement& arrangement : song.arrangements)
-    {
-        if (!common::core::relativeWorkspacePath(workspace_directory, arrangement.audio_asset.path)
-                 .has_value())
-        {
-            return std::unexpected{ProjectError{
-                ProjectErrorCode::InvalidImportedSong,
-                "Normalized arrangement audio is missing or outside the project workspace",
-            }};
-        }
-    }
-    return std::expected<void, ProjectError>{};
-}
-
-// Deletes the raw imported audio files now that every arrangement has been retargeted to its
-// normalized output. Errors here are intentionally non-fatal because the project workspace is
-// already consistent; the source files are leftovers that can be cleaned up by workspace teardown.
-void removeRawImportedAudioAssets(const std::vector<std::filesystem::path>& raw_paths)
-{
-    for (const std::filesystem::path& raw_path : raw_paths)
-    {
-        std::error_code error;
-        std::filesystem::remove(raw_path, error);
+        arrangement.audio_asset.loudness_metadata = entry->second;
     }
 }
 
@@ -434,7 +336,7 @@ std::expected<Song, ProjectError> Project::load(const std::filesystem::path& pac
 std::expected<Song, ProjectError> Project::import(
     const std::filesystem::path& source_path, ISongImporter& importer,
     const common::core::AudioNormalizationTarget& target,
-    const AudioNormalizeFunction& normalize_audio)
+    const AudioAnalyzeForGainFunction& analyze_audio)
 {
     std::string error_message;
     auto workspace_directory = createWorkspaceDirectory(error_message);
@@ -477,22 +379,13 @@ std::expected<Song, ProjectError> Project::import(
 
     Song song = std::move(*resolved_song);
     const std::vector<std::filesystem::path> unique_source_paths = collectUniqueAudioAssets(song);
-    auto normalized_outputs =
-        normalizeImportedAudioAssets(song_directory, unique_source_paths, target, normalize_audio);
-    if (!normalized_outputs.has_value())
+    auto analysis_results = analyzeImportedAudioAssets(unique_source_paths, target, analyze_audio);
+    if (!analysis_results.has_value())
     {
-        return std::unexpected{std::move(normalized_outputs.error())};
+        return std::unexpected{std::move(analysis_results.error())};
     }
 
-    replaceArrangementAudioAssets(song, *normalized_outputs);
-
-    if (auto containment = verifyArrangementAudioContainment(song_directory, song);
-        !containment.has_value())
-    {
-        return std::unexpected{std::move(containment.error())};
-    }
-
-    removeRawImportedAudioAssets(unique_source_paths);
+    attachLoudnessMetadata(song, *analysis_results);
 
     if (auto close_result = close(); !close_result.has_value())
     {
