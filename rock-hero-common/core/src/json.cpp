@@ -108,8 +108,8 @@ std::expected<juce::var, Json::Error> Json::parseUtf8Document(std::string_view t
     return parseDocument(juce::String::fromUTF8(text.data(), static_cast<int>(text.size())));
 }
 
-// Treats missing and malformed required strings the same so callers can own domain messages.
-std::optional<std::string> Json::readRequiredString(
+// Treats missing and malformed strings the same so callers can own domain error messages.
+std::optional<std::string> Json::tryReadString(
     const juce::var& object, std::string_view property_name)
 {
     const juce::var& property_value = value(object, property_name);
@@ -151,6 +151,32 @@ int Json::readOptionalInt(const juce::var& object, std::string_view property_nam
     }
 
     return static_cast<int>(property_value);
+}
+
+// Accepts both integer and double JSON so authors can write "-16" or "-16.0" interchangeably.
+std::optional<double> Json::tryReadDouble(const juce::var& object, std::string_view property_name)
+{
+    const juce::var& property_value = value(object, property_name);
+    if (!property_value.isDouble() && !property_value.isInt() && !property_value.isInt64())
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<double>(property_value);
+}
+
+// Reject floats so size_bytes-style fields cannot silently truncate; callers report absence
+// through the nullopt return.
+std::optional<std::int64_t> Json::tryReadInt64(
+    const juce::var& object, std::string_view property_name)
+{
+    const juce::var& property_value = value(object, property_name);
+    if (!property_value.isInt() && !property_value.isInt64())
+    {
+        return std::nullopt;
+    }
+
+    return static_cast<std::int64_t>(property_value);
 }
 
 } // namespace rock_hero::common::core

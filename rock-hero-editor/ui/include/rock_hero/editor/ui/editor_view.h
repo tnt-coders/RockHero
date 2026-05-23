@@ -182,6 +182,10 @@ private:
     // Presents a Save As chooser once per controller-requested prompt.
     void presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt);
 
+    // Presents the open-time backing-audio normalization prompt once per controller request.
+    void presentBackingAudioNormalizationPromptIfNeeded(
+        const std::optional<core::BackingAudioNormalizationPrompt>& prompt);
+
     // Presents, refreshes, or closes the plugin browser window from controller state.
     void presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state);
 
@@ -277,6 +281,10 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
+
+    // Last backing-audio normalization prompt already shown to dedupe repeated controller pushes.
+    std::optional<core::BackingAudioNormalizationPrompt>
+        m_last_presented_backing_audio_normalization_prompt{};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

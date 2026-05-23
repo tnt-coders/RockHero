@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <initializer_list>
 #include <juce_core/juce_core.h>
@@ -134,12 +135,44 @@ struct Json
     [[nodiscard]] static std::expected<juce::var, Error> parseUtf8Document(std::string_view text);
 
     /*!
-    \brief Reads a required string property from a JSON object.
+    \brief Attempts to read a string property from a JSON object.
+
+    Returns nullopt when the property is absent or not a string so the caller can report a
+    domain-specific error. Use readOptionalString when an absent value should fall back to a
+    default instead.
+
     \param object Object to read from.
     \param property_name Property name to read.
     \return String value, or empty optional when the property is absent or not a string.
     */
-    [[nodiscard]] static std::optional<std::string> readRequiredString(
+    [[nodiscard]] static std::optional<std::string> tryReadString(
+        const juce::var& object, std::string_view property_name);
+
+    /*!
+    \brief Attempts to read a numeric property from a JSON object as a double.
+
+    Accepts both integer and double JSON values so loudness fields written as `-16` and `-16.0`
+    deserialize identically. Returns nullopt when the property is absent or not numeric so the
+    caller can report a domain-specific error.
+
+    \param object Object to read from.
+    \param property_name Property name to read.
+    \return Numeric value, or empty optional when the property is absent or not numeric.
+    */
+    [[nodiscard]] static std::optional<double> tryReadDouble(
+        const juce::var& object, std::string_view property_name);
+
+    /*!
+    \brief Attempts to read an integer property from a JSON object as a 64-bit signed integer.
+
+    Rejects floating-point values to keep callers like size_bytes from silently truncating.
+    Returns nullopt when the property is absent or not an integer.
+
+    \param object Object to read from.
+    \param property_name Property name to read.
+    \return Integer value, or empty optional when the property is absent or not an integer.
+    */
+    [[nodiscard]] static std::optional<std::int64_t> tryReadInt64(
         const juce::var& object, std::string_view property_name);
 
     /*!

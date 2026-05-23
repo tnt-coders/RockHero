@@ -187,6 +187,12 @@ target_include_directories(rock_hero_juce_audio_formats SYSTEM
 target_link_libraries(rock_hero_juce_audio_formats PUBLIC Ogg::ogg Vorbis::vorbis Vorbis::vorbisenc
                                                           Vorbis::vorbisfile)
 
+# JUCE module declaration: Source header:
+# external/tracktion_engine/modules/juce/modules/juce_cryptography/juce_cryptography.h Declared
+# deps: juce_core. Used by common/audio for SHA-256 file fingerprints on backing audio.
+rock_hero_add_external_juce_module_wrapper(rock_hero_juce_cryptography juce::juce_cryptography
+                                           PUBLIC_DEPS rock_hero::juce_core)
+
 # JUCE module declaration and docs: Source header:
 # external/tracktion_engine/modules/juce_audio_processors_headless/ juce_audio_processors_headless.h
 # https://docs.juce.com/master/group__juce__audio__processors__headless.html Declared deps:

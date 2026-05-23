@@ -67,6 +67,19 @@ public:
     */
     virtual void onUnsavedChangesDecision(UnsavedChangesDecision decision) = 0;
 
+    /*!
+    \brief Handles the user's response to a recommended backing-audio normalization prompt.
+
+    On Normalize, the controller schedules the normalization render behind the editor's busy
+    overlay, replaces the project's backing audio file, updates the song's loudness metadata,
+    marks the project dirty, and refreshes playback/waveform state. On Dismiss, the controller
+    clears the prompt without changing the project.
+
+    \param decision Decision selected by the user.
+    */
+    virtual void onBackingAudioNormalizationDecision(
+        BackingAudioNormalizationDecision decision) = 0;
+
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;
 

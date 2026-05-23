@@ -74,6 +74,10 @@ namespace
         {
             return "Could not remove project workspace.";
         }
+        case ProjectErrorCode::AudioNormalizationFailed:
+        {
+            return "Could not normalize imported backing audio.";
+        }
     }
 
     return "Project operation failed.";

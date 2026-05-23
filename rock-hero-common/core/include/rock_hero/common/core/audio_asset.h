@@ -6,6 +6,8 @@
 #pragma once
 
 #include <filesystem>
+#include <optional>
+#include <rock_hero/common/core/audio_loudness_metadata.h>
 
 namespace rock_hero::common::core
 {
@@ -22,10 +24,19 @@ struct AudioAsset
     std::filesystem::path path;
 
     /*!
-    \brief Compares two asset references by their stored path value.
+    \brief Loudness record describing the asset when last normalized or analyzed.
+
+    Present after the editor has normalized this asset against a known target and persisted the
+    resulting analysis. Absent for assets loaded from older project packages that pre-date
+    loudness metadata; open-time policy schedules background analysis in that case.
+    */
+    std::optional<AudioLoudnessMetadata> loudness_metadata;
+
+    /*!
+    \brief Compares two asset references by their stored fields.
     \param lhs Left-hand asset reference.
     \param rhs Right-hand asset reference.
-    \return True when both assets store equal paths.
+    \return True when both assets store equal fields.
     */
     friend bool operator==(const AudioAsset& lhs, const AudioAsset& rhs) = default;
 };

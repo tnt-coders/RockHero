@@ -766,6 +766,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    presentBackingAudioNormalizationPromptIfNeeded(m_state.backing_audio_normalization_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
     repaint();
@@ -1146,6 +1147,65 @@ void EditorView::presentUnsavedChangesPromptIfNeeded(
                     break;
                 }
             }
+        });
+}
+
+// Shows the backing-audio normalization prompt once per distinct controller request and routes
+// the user's button choice back through the editor controller intent surface. Same dedupe shape
+// as the unsaved-changes prompt above so a re-pushed equal prompt does not reopen the dialog.
+void EditorView::presentBackingAudioNormalizationPromptIfNeeded(
+    const std::optional<core::BackingAudioNormalizationPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_backing_audio_normalization_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_backing_audio_normalization_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_presented_backing_audio_normalization_prompt = prompt;
+
+    // Build a short summary so the user sees what is being asked and what will change. Keeping
+    // the wording compact since juce::NativeMessageBox renders this as a plain string in a
+    // system-styled dialog without rich formatting.
+    juce::String message;
+    message << "Loudness of \"" << juce::String::fromUTF8(prompt->display_name.c_str()) << "\" is "
+            << juce::String{prompt->measured.integrated_loudness_lufs, 1}
+            << " LUFS, but this project's target is "
+            << juce::String{prompt->target.integrated_loudness_lufs, 1} << " LUFS.";
+    if (prompt->affected_arrangement_count > 1)
+    {
+        message << "\n\n"
+                << juce::String{prompt->affected_arrangement_count}
+                << " arrangements use this backing audio.";
+    }
+    message << "\n\nNormalize the backing audio now?";
+
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    juce::NativeMessageBox::showAsync(
+        juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::QuestionIcon)
+            .withTitle("Normalize backing audio?")
+            .withMessage(message)
+            .withButton("Normalize")
+            .withButton("Not now")
+            .withAssociatedComponent(this),
+        [safe_this](int button_index) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+            // NativeMessageBox returns 0 for the first button (Normalize) and 1 for the second
+            // (Not now). Any other return value (escape key, window close) is treated as Dismiss
+            // so the project is left untouched.
+            const core::BackingAudioNormalizationDecision decision =
+                button_index == 0 ? core::BackingAudioNormalizationDecision::Normalize
+                                  : core::BackingAudioNormalizationDecision::Dismiss;
+            safe_this->m_controller.onBackingAudioNormalizationDecision(decision);
         });
 }
 
