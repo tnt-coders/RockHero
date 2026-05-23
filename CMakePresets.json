@@ -10,26 +10,14 @@
             "inherits": [
                 "default-debug",
                 "conan-debug"
-            ],
-            "cacheVariables": {
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES":
-                    "${sourceDir}/conan-recipes/cmake/LocalConanRecipesProvider.cmake",
-                "LOCAL_CONAN_RECIPES_ALLOWED_PACKAGES": "libebur128/*",
-                "LOCAL_CONAN_RECIPES_REMOTE_NAME": "rock_hero_local_recipes"
-            }
+            ]
         },
         {
             "name": "release",
             "inherits": [
                 "default-release",
                 "conan-release"
-            ],
-            "cacheVariables": {
-                "CMAKE_PROJECT_TOP_LEVEL_INCLUDES":
-                    "${sourceDir}/conan-recipes/cmake/LocalConanRecipesProvider.cmake",
-                "LOCAL_CONAN_RECIPES_ALLOWED_PACKAGES": "libebur128/*",
-                "LOCAL_CONAN_RECIPES_REMOTE_NAME": "rock_hero_local_recipes"
-            }
+            ]
         }
     ],
     "buildPresets": [
