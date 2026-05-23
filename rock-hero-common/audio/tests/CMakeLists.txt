@@ -11,6 +11,7 @@ add_executable(
     rock_hero_common_audio_tests
     test_audio.cpp
     test_audio_device_settings.cpp
+    test_audio_normalization.cpp
     test_edit.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
