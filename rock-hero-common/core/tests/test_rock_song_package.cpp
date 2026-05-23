@@ -133,22 +133,24 @@ void writeAudioFile(const std::filesystem::path& path)
         .target =
             AudioNormalizationTarget{
                 .integrated_loudness_lufs = -16.0,
-                .true_peak_ceiling_dbtp = -2.0,
             },
-        .analysis = AudioLoudnessAnalysis{
-            .measurement =
-                AudioLoudnessMeasurement{
-                    .integrated_loudness_lufs = -15.75,
-                    .true_peak_dbtp = -2.5,
-                },
-            .fingerprint =
-                AudioFileFingerprint{
-                    .size_bytes = 5,
-                    .sha256 = "8a45c2e07a3e83dc6b6f8e3f4f9b4d4e2a1b9c6f6c0e8a3a2b1c9d8e7f6a5b4c",
-                },
-            .analyzer_id = "libebur128",
-            .analyzer_version = "1.2.6",
-        },
+        .analysis =
+            AudioLoudnessAnalysis{
+                .measurement =
+                    AudioLoudnessMeasurement{
+                        .integrated_loudness_lufs = -15.75,
+                        .sample_peak_dbfs = -2.5,
+                    },
+                .fingerprint =
+                    AudioFileFingerprint{
+                        .size_bytes = 5,
+                        .sha256 =
+                            "8a45c2e07a3e83dc6b6f8e3f4f9b4d4e2a1b9c6f6c0e8a3a2b1c9d8e7f6a5b4c",
+                    },
+                .analyzer_id = "libebur128-lufs-i",
+                .analyzer_version = "1.2.6",
+            },
+        .applied_gain_db = -0.25,
     };
 }
 

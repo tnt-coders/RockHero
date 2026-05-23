@@ -32,7 +32,7 @@ enum class UnsavedChangesDecision : std::uint8_t
 /*! \brief User choice returned from the backing-audio normalization prompt. */
 enum class BackingAudioNormalizationDecision : std::uint8_t
 {
-    /*! \brief Render normalized audio and replace the project's backing file. */
+    /*! \brief Apply gain normalization to the project's backing audio metadata. */
     Normalize,
     /*! \brief Leave the project's backing audio unchanged. */
     Dismiss,
@@ -43,8 +43,8 @@ enum class BackingAudioNormalizationDecision : std::uint8_t
 background analysis of the project's backing audio.
 
 The controller publishes this state in EditorViewState only when background analysis has finished
-and the measured loudness or peak is outside the configured tolerance, so the view can render a
-prompt asking whether to normalize. The view routes the user's response through
+and the measured loudness is outside the configured tolerance, so the view can render a prompt
+asking whether to normalize. The view routes the user's response through
 IEditorController::onBackingAudioNormalizationDecision.
 */
 struct BackingAudioNormalizationPrompt
@@ -55,10 +55,10 @@ struct BackingAudioNormalizationPrompt
     /*! \brief User-facing label for the asset, typically the song title or filename. */
     std::string display_name;
 
-    /*! \brief Loudness measurement that triggered the prompt. */
-    common::core::AudioLoudnessMeasurement measured;
+    /*! \brief Full analysis used to build metadata when the user accepts. */
+    common::core::AudioLoudnessAnalysis analysis;
 
-    /*! \brief Target the controller would render against if the user accepts. */
+    /*! \brief Target the controller would apply if the user accepts. */
     common::core::AudioNormalizationTarget target;
 
     /*!
