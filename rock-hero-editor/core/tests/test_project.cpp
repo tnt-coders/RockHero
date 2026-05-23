@@ -379,109 +379,80 @@ void writeUnsafeAssetProjectPackage(
         });
 }
 
-// Records each invocation of the test-time normalize_audio seam so import tests can assert that
-// every unique source path is rendered exactly once.
-struct FakeNormalizeAudioInvocation
+// Records each invocation of the test-time analyze_audio seam so import tests can assert that
+// every unique source path is analyzed exactly once.
+struct FakeAnalyzeAudioInvocation
 {
     std::filesystem::path input;
-    std::filesystem::path output;
     common::core::AudioNormalizationTarget target;
 };
 
-// Test seam used in place of common::audio::normalizeAudioFile so import tests do not depend on a
-// real WAV reader, the loudness analyzer, or libebur128. The fake writes a deterministic stub
-// payload to the requested output path and returns a synthetic outcome that round-trips through
-// Project::import the same way a real outcome would.
-class FakeNormalizeAudio final
+// Test seam used in place of common::audio::analyzeAudioForGainNormalization so import tests do
+// not depend on a real WAV reader, the loudness analyzer, or libebur128. The fake returns a
+// synthetic metadata record that round-trips through Project::import the same way a real
+// analysis would.
+class FakeAnalyzeAudio final
 {
 public:
     // Builds the std::function seam expected by Project::import. The returned function captures
     // a reference to *this so test cases can inspect invocations after import completes.
-    [[nodiscard]] AudioNormalizeFunction function()
+    [[nodiscard]] AudioAnalyzeForGainFunction function()
     {
         return [this](
                    const std::filesystem::path& input,
-                   const std::filesystem::path& output,
                    const common::core::AudioNormalizationTarget& target) {
-            return invoke(input, output, target);
+            return invoke(input, target);
         };
     }
 
-    // Records the input/output/target tuple, writes a stub payload to output, and returns a
-    // synthetic outcome reflecting the requested target.
+    // Records the input/target tuple and returns a synthetic metadata record.
     [[nodiscard]] std::expected<
-        common::audio::AudioNormalizationOutcome, common::audio::AudioNormalizationError>
-    invoke(
-        const std::filesystem::path& input, const std::filesystem::path& output,
-        const common::core::AudioNormalizationTarget& target)
+        common::core::AudioLoudnessMetadata, common::audio::AudioNormalizationError>
+    invoke(const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
     {
         invocations.push_back(
-            FakeNormalizeAudioInvocation{
+            FakeAnalyzeAudioInvocation{
                 .input = input,
-                .output = output,
                 .target = target,
             });
 
-        std::error_code error;
-        std::filesystem::create_directories(output.parent_path(), error);
-        std::ofstream stub_file{output, std::ios::binary};
-        if (!stub_file.is_open())
-        {
-            return std::unexpected{common::audio::AudioNormalizationError{
-                common::audio::AudioNormalizationErrorCode::CouldNotCreateOutputFile,
-            }};
-        }
-        stub_file << "normalized";
-
-        return common::audio::AudioNormalizationOutcome{
-            .metadata =
-                common::core::AudioLoudnessMetadata{
-                    .target = target,
-                    .analysis =
-                        common::core::AudioLoudnessAnalysis{
-                            .measurement =
-                                common::core::AudioLoudnessMeasurement{
-                                    .integrated_loudness_lufs = target.integrated_loudness_lufs,
-                                    .true_peak_dbtp = target.true_peak_ceiling_dbtp - 0.5,
-                                },
-                            .fingerprint =
-                                common::core::AudioFileFingerprint{
-                                    .size_bytes = 10,
-                                    .sha256 = std::string(64, 'a'),
-                                },
-                            .analyzer_id = "fake-normalizer",
-                            .analyzer_version = "1.0.0",
+        return common::core::AudioLoudnessMetadata{
+            .target = target,
+            .analysis =
+                common::core::AudioLoudnessAnalysis{
+                    .measurement =
+                        common::core::AudioLoudnessMeasurement{
+                            .integrated_loudness_lufs = -12.0,
+                            .sample_peak_dbfs = -3.0,
                         },
-                },
-            .source_measurement =
-                common::core::AudioLoudnessMeasurement{
-                    .integrated_loudness_lufs = -12.0,
-                    .true_peak_dbtp = -3.0,
+                    .fingerprint =
+                        common::core::AudioFileFingerprint{
+                            .size_bytes = 10,
+                            .sha256 = std::string(64, 'a'),
+                        },
+                    .analyzer_id = "fake-analyzer",
+                    .analyzer_version = "1.0.0",
                 },
             .applied_gain_db = -4.0,
-            .limited_by_peak_ceiling = false,
         };
     }
 
     // Captured per-invocation data. Tests read this after Project::import returns.
-    std::vector<FakeNormalizeAudioInvocation> invocations;
+    std::vector<FakeAnalyzeAudioInvocation> invocations;
 };
 
-// Returns a fake normalize_audio that fails every invocation with the supplied error code so
+// Returns a fake analyze_audio that fails every invocation with the supplied error code so
 // tests can verify that Project::import surfaces AudioNormalizationFailed without partially
 // committing the imported workspace.
-[[nodiscard]] AudioNormalizeFunction makeFailingNormalizeAudio(
+[[nodiscard]] AudioAnalyzeForGainFunction makeFailingAnalyzeAudio(
     common::audio::AudioNormalizationErrorCode error_code)
 {
     return [error_code](
-               const std::filesystem::path&,
-               const std::filesystem::path&,
-               const common::core::AudioNormalizationTarget&) {
-        return std::expected<
-            common::audio::AudioNormalizationOutcome,
-            common::audio::AudioNormalizationError>{
-            std::unexpect, common::audio::AudioNormalizationError{error_code}
-        };
+               const std::filesystem::path&, const common::core::AudioNormalizationTarget&) {
+        return std::
+            expected<common::core::AudioLoudnessMetadata, common::audio::AudioNormalizationError>{
+                std::unexpect, common::audio::AudioNormalizationError{error_code}
+            };
     };
 }
 
@@ -537,7 +508,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     const std::filesystem::path path = directory.path() / "song.rock";
     writeMinimalRockSongPackage(path);
 
-    FakeNormalizeAudio fake_normalize;
+    FakeAnalyzeAudio fake_normalize;
 
     Project project;
     RockSongImporter importer;
@@ -558,7 +529,7 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     CHECK_FALSE(
         std::filesystem::exists(project.workspaceDirectory() / "song" / "audio" / "backing.wav"));
     REQUIRE(arrangement.audio_asset.loudness_metadata.has_value());
-    CHECK(arrangement.audio_asset.loudness_metadata->analysis.analyzer_id == "fake-normalizer");
+    CHECK(arrangement.audio_asset.loudness_metadata->analysis.analyzer_id == "fake-analyzer");
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
     REQUIRE(fake_normalize.invocations.size() == 1);
@@ -606,7 +577,7 @@ TEST_CASE("Project import normalizes each unique source audio once", "[core][pro
             },
         });
 
-    FakeNormalizeAudio fake_normalize;
+    FakeAnalyzeAudio fake_normalize;
     Project project;
     RockSongImporter importer;
     const auto result = project.import(
@@ -624,9 +595,9 @@ TEST_CASE("Project import normalizes each unique source audio once", "[core][pro
     REQUIRE(fake_normalize.invocations.size() == 1);
 }
 
-// Verifies normalize_audio failures propagate as AudioNormalizationFailed without leaving the
+// Verifies analyze_audio failures propagate as AudioNormalizationFailed without leaving the
 // previous Project context behind.
-TEST_CASE("Project import surfaces AudioNormalizationFailed on render failure", "[core][project]")
+TEST_CASE("Project import surfaces AudioNormalizationFailed on analysis failure", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rock";
@@ -638,7 +609,8 @@ TEST_CASE("Project import surfaces AudioNormalizationFailed on render failure", 
         path,
         importer,
         common::core::AudioNormalizationTarget{},
-        makeFailingNormalizeAudio(common::audio::AudioNormalizationErrorCode::OutputRenderFailed));
+        makeFailingAnalyzeAudio(
+            common::audio::AudioNormalizationErrorCode::LoudnessMeasurementFailed));
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == ProjectErrorCode::AudioNormalizationFailed);

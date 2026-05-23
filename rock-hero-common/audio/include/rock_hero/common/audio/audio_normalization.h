@@ -85,11 +85,8 @@ struct [[nodiscard]] AudioNormalizationError
 /*!
 \brief In-memory result of a successful normalization render.
 
-Contains the durable metadata the caller should attach to the output AudioAsset and contextual
-render details (source measurement, applied gain, peak-ceiling clip flag) that are only useful to
-the immediate caller for logging and tests. The contextual fields are intentionally not part of
-the persisted AudioLoudnessMetadata because they cannot be reconstructed once the source audio is
-gone and they do not contribute to staleness checks.
+Contains the durable metadata the caller should attach to the output AudioAsset and the source
+measurement before gain was applied for logging and tests.
 */
 struct AudioNormalizationOutcome
 {
@@ -101,11 +98,6 @@ struct AudioNormalizationOutcome
 
     /*! \brief Gain in decibels actually applied during the render. */
     double applied_gain_db{0.0};
-
-    /*! \brief Set when the requested gain was reduced to keep true peak under the configured
-       ceiling. The output is intentionally quieter than the LUFS target in this case because
-       avoiding clipping outranks hitting the exact LUFS value. */
-    bool limited_by_peak_ceiling{false};
 };
 
 /*!
@@ -124,14 +116,28 @@ fingerprint.
 measureAudioLoudness(const std::filesystem::path& input);
 
 /*!
+\brief Analyzes a source audio file and computes the gain needed to hit a loudness target.
+
+Measures integrated loudness and sample peak, fingerprints the source file, and computes the
+applied gain. The gain is clamped so the loudest sample after gain does not exceed 0 dBFS. No
+new audio file is rendered; the returned metadata is intended to be stored on the AudioAsset
+and applied during playback and waveform drawing.
+
+\param input Absolute path to the source audio file.
+\param target Loudness target the gain should be computed against.
+\return Loudness metadata including the computed gain, or a recoverable failure.
+*/
+[[nodiscard]] std::expected<common::core::AudioLoudnessMetadata, AudioNormalizationError>
+analyzeAudioForGainNormalization(
+    const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target);
+
+/*!
 \brief Renders a loudness-normalized copy of an input audio file.
 
 Implements gain-only normalization: the analyzer measures the input, the helper picks the gain
-that hits the target LUFS without exceeding the configured true peak ceiling, and the renderer
-streams the input through a WAV writer applying that gain. The first pass intentionally does not
-apply limiting; if the peak ceiling would be exceeded, the gain is reduced and
-AudioNormalizationOutcome::limited_by_peak_ceiling is set. The renderer preserves the input's
-sample rate and channel count and does not resample.
+that hits the target LUFS without exceeding 0 dBFS sample peak, and the renderer streams the
+input through a WAV writer applying that gain. The renderer preserves the input's sample rate
+and channel count and does not resample.
 
 The output is written to a temporary sibling path first and only moved to the final location
 after the rendered file has been reopened, measured, and fingerprinted. Failures clean up the

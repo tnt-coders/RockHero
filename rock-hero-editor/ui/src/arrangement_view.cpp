@@ -235,8 +235,17 @@ void ArrangementView::paint(juce::Graphics& g)
         return;
     }
 
+    // Scale the waveform by the normalization gain so the displayed amplitude matches playback.
+    float vertical_zoom = 1.0f;
+    if (m_state.audio_asset.has_value() && m_state.audio_asset->loudness_metadata.has_value())
+    {
+        vertical_zoom = static_cast<float>(
+            std::pow(10.0, m_state.audio_asset->loudness_metadata->applied_gain_db / 20.0));
+    }
+
     g.setColour(juce::Colours::lightgreen);
-    if (!m_thumbnail->drawChannels(g, draw_request->bounds, draw_request->visible_range, 1.0f))
+    if (!m_thumbnail->drawChannels(
+            g, draw_request->bounds, draw_request->visible_range, vertical_zoom))
     {
         g.setColour(juce::Colours::grey);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);

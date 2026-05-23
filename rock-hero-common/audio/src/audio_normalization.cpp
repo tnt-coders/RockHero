@@ -33,8 +33,9 @@ constexpr int g_output_bit_depth = 24;
 constexpr double g_silent_loudness_threshold_lufs = -70.0;
 
 // Stable analyzer identifier persisted on AudioLoudnessAnalysis. Editor-side staleness checks
-// treat measurements with a different analyzer_id as incomparable.
-constexpr const char* g_analyzer_id = "libebur128";
+// treat measurements with a different analyzer_id as incomparable. Changed from "libebur128"
+// when the analyzer switched from true peak to sample peak so old metadata triggers re-analysis.
+constexpr const char* g_analyzer_id = "libebur128-lufs-i";
 
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
 [[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
@@ -111,7 +112,7 @@ void registerBasicAudioFormats(juce::AudioFormatManager& format_manager)
     Ebur128StateOwner state{ebur128_init(
         channels,
         static_cast<unsigned long>(reader.sampleRate),
-        EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK)};
+        EBUR128_MODE_I | EBUR128_MODE_SAMPLE_PEAK)};
     if (state == nullptr)
     {
         error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
@@ -171,28 +172,28 @@ void registerBasicAudioFormats(juce::AudioFormatManager& format_manager)
         return std::nullopt;
     }
 
-    double max_true_peak_linear = 0.0;
+    double max_sample_peak_linear = 0.0;
     for (unsigned int ch = 0; ch < channels; ++ch)
     {
         double channel_peak_linear = 0.0;
-        if (ebur128_true_peak(state.get(), ch, &channel_peak_linear) != EBUR128_SUCCESS)
+        if (ebur128_sample_peak(state.get(), ch, &channel_peak_linear) != EBUR128_SUCCESS)
         {
             error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-            error_message = "Could not compute true peak";
+            error_message = "Could not compute sample peak";
             return std::nullopt;
         }
-        max_true_peak_linear = std::max(max_true_peak_linear, channel_peak_linear);
+        max_sample_peak_linear = std::max(max_sample_peak_linear, channel_peak_linear);
     }
 
-    // libebur128 reports linear amplitude for peaks; convert to dBTP so persisted metadata stays
-    // in the same units as the configured peak ceiling.
-    const double true_peak_dbtp = max_true_peak_linear > 0.0
-                                      ? 20.0 * std::log10(max_true_peak_linear)
-                                      : -std::numeric_limits<double>::infinity();
+    // libebur128 reports linear amplitude for peaks; convert to dBFS so persisted metadata uses
+    // a consistent scale for the gain clamp calculation.
+    const double sample_peak_dbfs = max_sample_peak_linear > 0.0
+                                        ? 20.0 * std::log10(max_sample_peak_linear)
+                                        : -std::numeric_limits<double>::infinity();
 
     return common::core::AudioLoudnessMeasurement{
         .integrated_loudness_lufs = integrated,
-        .true_peak_dbtp = true_peak_dbtp,
+        .sample_peak_dbfs = sample_peak_dbfs,
     };
 }
 
@@ -224,25 +225,16 @@ void registerBasicAudioFormats(juce::AudioFormatManager& format_manager)
     };
 }
 
-// Pure helper for the gain formula. Returned gain is dB; limited flag is true when the peak
-// ceiling forced the gain lower than the requested LUFS delta.
-struct NormalizationGain
-{
-    double gain_db{0.0};
-    bool limited_by_peak_ceiling{false};
-};
-[[nodiscard]] NormalizationGain calculateNormalizationGainDb(
+// Pure helper for the gain formula. Clamps the LUFS-I delta against the sample-peak headroom
+// so the loudest sample after gain does not exceed 0 dBFS.
+[[nodiscard]] double calculateNormalizationGainDb(
     const common::core::AudioLoudnessMeasurement& source,
     const common::core::AudioNormalizationTarget& target) noexcept
 {
     const double desired_gain_db =
         target.integrated_loudness_lufs - source.integrated_loudness_lufs;
-    const double peak_limited_gain_db = target.true_peak_ceiling_dbtp - source.true_peak_dbtp;
-    const double applied = std::min(desired_gain_db, peak_limited_gain_db);
-    return NormalizationGain{
-        .gain_db = applied,
-        .limited_by_peak_ceiling = applied < desired_gain_db,
-    };
+    const double peak_headroom_db = 0.0 - source.sample_peak_dbfs;
+    return std::min(desired_gain_db, peak_headroom_db);
 }
 
 // Streams the reader's audio through a 24-bit WAV writer applying a single uniform gain. Uses a
@@ -531,6 +523,76 @@ std::expected<common::core::AudioLoudnessAnalysis, AudioNormalizationError> meas
     };
 }
 
+// Public boundary: analyzes a source file and computes the gain needed to hit the target.
+std::expected<common::core::AudioLoudnessMetadata, AudioNormalizationError>
+analyzeAudioForGainNormalization(
+    const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
+{
+    if (input.empty())
+    {
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::InputFileMissing,
+        }};
+    }
+
+    std::error_code filesystem_error;
+    if (!std::filesystem::is_regular_file(input, filesystem_error))
+    {
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::InputFileMissing,
+        }};
+    }
+
+    juce::AudioFormatManager format_manager;
+    registerBasicAudioFormats(format_manager);
+    auto reader = openAudioReader(format_manager, input);
+    if (reader == nullptr)
+    {
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::CouldNotOpenInput,
+        }};
+    }
+
+    AudioNormalizationErrorCode error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
+    std::string error_message;
+    auto measurement = runLoudnessAnalyzer(*reader, error_code, error_message);
+    if (!measurement.has_value())
+    {
+        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
+    }
+
+    if (!std::isfinite(measurement->integrated_loudness_lufs) ||
+        measurement->integrated_loudness_lufs < g_silent_loudness_threshold_lufs)
+    {
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::SilentInputCannotBeNormalized,
+        }};
+    }
+
+    auto fingerprint = fingerprintAudioFile(input, error_message);
+    if (!fingerprint.has_value())
+    {
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+            std::move(error_message),
+        }};
+    }
+
+    const double applied_gain_db = calculateNormalizationGainDb(*measurement, target);
+
+    return common::core::AudioLoudnessMetadata{
+        .target = target,
+        .analysis =
+            common::core::AudioLoudnessAnalysis{
+                .measurement = *measurement,
+                .fingerprint = *std::move(fingerprint),
+                .analyzer_id = g_analyzer_id,
+                .analyzer_version = libebur128Version(),
+            },
+        .applied_gain_db = applied_gain_db,
+    };
+}
+
 // Public boundary: renders a gain-normalized WAV copy of the supplied input file.
 std::expected<AudioNormalizationOutcome, AudioNormalizationError> normalizeAudioFile(
     const std::filesystem::path& input, const std::filesystem::path& output,
@@ -585,8 +647,8 @@ std::expected<AudioNormalizationOutcome, AudioNormalizationError> normalizeAudio
         }};
     }
 
-    const NormalizationGain gain = calculateNormalizationGainDb(*source_measurement, target);
-    const double gain_linear = std::pow(10.0, gain.gain_db / 20.0);
+    const double gain_db = calculateNormalizationGainDb(*source_measurement, target);
+    const double gain_linear = std::pow(10.0, gain_db / 20.0);
 
     const std::filesystem::path temporary_output = temporaryOutputPath(output);
     if (!renderNormalizedAudioFile(
@@ -627,10 +689,10 @@ std::expected<AudioNormalizationOutcome, AudioNormalizationError> normalizeAudio
             common::core::AudioLoudnessMetadata{
                 .target = target,
                 .analysis = *std::move(rendered_analysis),
+                .applied_gain_db = gain_db,
             },
         .source_measurement = *source_measurement,
-        .applied_gain_db = gain.gain_db,
-        .limited_by_peak_ceiling = gain.limited_by_peak_ceiling,
+        .applied_gain_db = gain_db,
     };
 }
 
