@@ -56,27 +56,21 @@ Relevant local findings:
   That confirms Tracktion has utility peak normalization code, not the import loudness policy
   needed here.
 
-The best external candidate is `libebur128`:
+The chosen external dependency is `libebur128`:
 
 - upstream: <https://github.com/jiixyj/libebur128>
 - license: MIT
 - stated purpose: EBU R128 loudness normalization support
 - useful capabilities: integrated loudness, loudness range, true peak scanning
 
-Conan status needs one last implementation-time verification. A web check of ConanCenter did not
-surface a `libebur128` recipe page, and ConanCenter's recipe search page returned no visible recipe
-results for that name. Before implementation, run the current build-environment equivalent of:
+Dependency route is decided. The project ships a Conan 2 recipe for `libebur128/1.2.6` under the
+`conan-recipes/` submodule (`conan-recipes/recipes/libebur128/all/conanfile.py`). The
+`project-config/cmake-conan` provider auto-registers that checkout as a `--recipes-only`
+local-recipes-index remote during configure, so `conanfile.txt` only needs the bare
+`libebur128/1.2.6` requirement. No ConanCenter fallback is needed.
 
-```powershell
-conan list "libebur128/*" -r=conancenter
-```
-
-If ConanCenter has a usable recipe, prefer that. If not, the next best options are:
-
-1. Add a project-owned Conan recipe for `libebur128`.
-2. Vendor `libebur128` only if the Conan route is impractical.
-3. Implement the BS.1770 / EBU R128 measurement locally only if dependency management becomes the
-   larger maintenance risk.
+The remaining verification work is to confirm the recipe builds clean on MSVC and that the
+`test_package` step passes once locally before relying on it for normalization work.
 
 Avoid FFmpeg for the first pass. It is heavier than this feature needs, complicates packaging, and
 would likely push the implementation toward external-process behavior instead of a small
@@ -114,10 +108,11 @@ Add these public types in
 - Value type used to decide whether stored loudness metadata still describes the current file.
 - Expected fields:
   - `size_bytes`
-  - `sha256`
-- Prefer a content hash over modification time because `.rhp` and `.rock` extraction can rewrite
-  filesystem timestamps. The hash can be produced while validating the rendered WAV; do not
-  recompute it synchronously during project open.
+  - `last_write_time` (`std::filesystem::file_time_type`)
+- The canonical normalized WAV lives inside a project-owned workspace and is only written by this
+  feature, so size plus mtime is enough to detect "the file changed since we measured it." A
+  content hash is intentionally not used because it adds cost without a real threat model for
+  project-owned audio.
 
 `AudioLoudnessMeasurement`
 
@@ -129,19 +124,36 @@ Add these public types in
 If the chosen analyzer cannot provide true peak in the first pass, use sample-peak field names and
 do not expose the value as `dBTP`.
 
+`AudioLoudnessAnalysis`
+
+- Value type bundling everything a single read of the file produces.
+- Expected fields:
+  - `measurement` (`AudioLoudnessMeasurement`)
+  - `fingerprint` (`AudioFileFingerprint`)
+  - `analyzer_id`
+  - `analyzer_version`
+- Returned by `measureAudioLoudness`. Embedded inside `AudioLoudnessMetadata`. Having one shape
+  for "what we just read off disk" avoids reshaping between the analyzer return value and the
+  persisted record.
+
 `AudioLoudnessMetadata`
 
 - Value type persisted on `AudioAsset`.
 - Expected fields:
-  - `target_integrated_loudness_lufs`
-  - `target_true_peak_ceiling_dbtp`
-  - `measurement`
-  - `applied_gain_db`
-  - `limited_by_peak_ceiling`
-  - `analyzer_id`
-  - `analyzer_version`
-  - `fingerprint`
+  - `target` (`AudioNormalizationTarget`)
+  - `analysis` (`AudioLoudnessAnalysis`)
+- Persists *what the file is* plus *what target it was normalized against*. Render-operation
+  trivia (`applied_gain_db`, `limited_by_peak_ceiling`) is intentionally not persisted: it is
+  available in the normalization return value for logging and tests, but once the source audio is
+  deleted those fields cannot be reconstructed or verified and so do not belong in durable schema.
 - This type is durable package data, so keep it framework-free and independent of `common/audio`.
+
+`AudioNormalizationTarget`
+
+- Value type containing the requested integrated loudness and peak ceiling.
+- Initial defaults: `integrated_loudness_lufs = -16.0`, `true_peak_ceiling_dbtp = -2.0`.
+- Placed in `common/core` (not `common/audio`) because it is referenced by the durable
+  `AudioLoudnessMetadata`.
 
 Modify `AudioAsset` to carry:
 
@@ -152,44 +164,18 @@ std::optional<AudioLoudnessMetadata> loudness_metadata;
 Add these public types in
 `rock-hero-common/audio/include/rock_hero/common/audio/audio_normalization.h`.
 
-`AudioNormalizationTarget`
+`AudioNormalizationOutcome`
 
-- Value type containing the requested integrated loudness and peak ceiling.
-- Initial defaults: `integrated_loudness_lufs = -16.0`, `true_peak_ceiling_dbtp = -2.0`.
-
-`AudioNormalizationRequest`
-
-- Value type containing the input file path, output file path, and target.
-- The output path should be a final `.wav` path; the implementation can use a temporary sibling
-  path internally before replacing it.
-
-`AudioLoudnessAnalysisRequest`
-
-- Value type containing the input file path and requested analyzer options.
-- Used for background checks on existing projects without rendering a new file.
-
-`AudioLoudnessAnalysisResult`
-
-- Value type containing the measured loudness, file fingerprint, analyzer identity, and analyzer
-  version.
-- This result should be enough for editor/core to decide whether to show a normalization prompt.
-
-`AudioNormalizationResult`
-
-- Value type reporting the input measurement, applied gain, rendered output measurement, and
-  metadata to persist on the output `AudioAsset`.
+- In-memory value returned by `normalizeAudioFile`, containing the durable metadata to persist
+  plus render-operation context that is only useful to the immediate caller.
 - Expected fields:
-  - `output_path`
-  - `source_integrated_loudness_lufs`
-  - `source_true_peak_dbtp`
+  - `metadata` (`AudioLoudnessMetadata`) — attached to the output `AudioAsset`.
+  - `source_measurement` (`AudioLoudnessMeasurement`) — what the input read as before gain was
+    applied.
   - `applied_gain_db`
-  - `output_integrated_loudness_lufs`
-  - `output_true_peak_dbtp`
   - `limited_by_peak_ceiling`
-  - `output_loudness_metadata`
-
-If the chosen analyzer cannot provide true peak in the first pass, rename the peak fields to
-sample-peak names and do not call the `-2 dB` ceiling `dBTP` in code or UI.
+- Not persisted. If the analyzer cannot provide true peak in the first pass, rename the peak
+  fields to sample-peak names and do not call the `-2 dB` ceiling `dBTP` in code or UI.
 
 `AudioNormalizationErrorCode`
 
@@ -219,18 +205,27 @@ sample-peak names and do not call the `-2 dB` ceiling `dBTP` in code or UI.
 - Public free function:
 
 ```cpp
-[[nodiscard]] std::expected<AudioNormalizationResult, AudioNormalizationError> normalizeAudioFile(
-    const AudioNormalizationRequest& request);
+[[nodiscard]] std::expected<AudioNormalizationOutcome, AudioNormalizationError> normalizeAudioFile(
+    const std::filesystem::path& input,
+    const std::filesystem::path& output,
+    const common::core::AudioNormalizationTarget& target);
 ```
 
-`analyzeAudioFile`
+The implementation may use a temporary sibling path internally before replacing the final output
+path.
+
+`measureAudioLoudness`
 
 - Public free function:
 
 ```cpp
-[[nodiscard]] std::expected<AudioLoudnessAnalysisResult, AudioNormalizationError> analyzeAudioFile(
-    const AudioLoudnessAnalysisRequest& request);
+[[nodiscard]] std::expected<common::core::AudioLoudnessAnalysis, AudioNormalizationError>
+measureAudioLoudness(const std::filesystem::path& input);
 ```
+
+Used for background checks on existing projects without rendering a new file. Returns the same
+shape that is embedded inside the durable metadata, so editor/core can compare a fresh analysis
+against `AudioLoudnessMetadata::analysis` field-for-field.
 
 Use the same error domain as normalization unless analysis grows enough distinct failure modes to
 justify a separate public error type.
@@ -242,18 +237,22 @@ Add this alias in `rock-hero-editor/core/include/rock_hero/editor/core/project.h
 
 ```cpp
 using AudioNormalizeFunction = std::function<
-    std::expected<common::audio::AudioNormalizationResult, common::audio::AudioNormalizationError>(
-        const common::audio::AudioNormalizationRequest&)>;
+    std::expected<common::audio::AudioNormalizationOutcome, common::audio::AudioNormalizationError>(
+        const std::filesystem::path& input,
+        const std::filesystem::path& output,
+        const common::core::AudioNormalizationTarget& target)>;
 ```
 
-Then extend `Project::import` with an optional function parameter defaulting to
-`common::audio::normalizeAudioFile`. This keeps tests public-API oriented without adding another
-interface:
+Then extend `Project::import` with an optional target and normalization function defaulting to
+`common::audio::normalizeAudioFile`. Passing the target as a separate parameter keeps test fakes
+target-agnostic — they can ignore the target value entirely instead of having to round-trip it
+through the bound function:
 
 ```cpp
 [[nodiscard]] std::expected<common::core::Song, ProjectError> import(
     const std::filesystem::path& source_path,
     ISongImporter& importer,
+    const common::core::AudioNormalizationTarget& target = {},
     const AudioNormalizeFunction& normalize_audio = common::audio::normalizeAudioFile);
 ```
 
@@ -261,13 +260,15 @@ Add this alias in the editor/core boundary that schedules background project che
 
 ```cpp
 using AudioAnalyzeFunction = std::function<
-    std::expected<common::audio::AudioLoudnessAnalysisResult,
+    std::expected<common::core::AudioLoudnessAnalysis,
                   common::audio::AudioNormalizationError>(
-        const common::audio::AudioLoudnessAnalysisRequest&)>;
+        const std::filesystem::path& input)>;
 ```
 
 Expose this through `EditorController::Services`, along with a normalization function for accepted
-open-time prompts, so controller tests can cover the workflow through public controller APIs.
+open-time prompts, so controller tests can cover the workflow through public controller APIs. The
+controller layer owns the active `AudioNormalizationTarget` value; the analyze and normalize
+functions injected into `Services` do not need to know it.
 
 Add these view-state types in `rock-hero-editor/core/include/rock_hero/editor/core/editor_view_state.h`
 if the prompt is implemented as durable controller state:
@@ -303,7 +304,7 @@ Add `std::optional<BackingAudioNormalizationPrompt>` to `EditorViewState`.
 
 `rock-hero-common/audio/tests/test_audio_normalization.cpp`
 
-- Tests through the public `analyzeAudioFile` and `normalizeAudioFile` APIs.
+- Tests through the public `measureAudioLoudness` and `normalizeAudioFile` APIs.
 - Generate small WAV fixtures inside the test temp directory instead of committing large audio
   binaries unless fixture stability becomes more important than size.
 
@@ -339,7 +340,7 @@ Add `std::optional<BackingAudioNormalizationPrompt>` to `EditorViewState`.
 - Rename the current private `normalizeImportedSong` helper because it does not normalize audio.
   Suggested name: `resolveImportedSongAudioPaths`.
 - Add import-time normalization and canonical asset replacement.
-- Attach `AudioLoudnessMetadata` from `AudioNormalizationResult` to the normalized `AudioAsset`.
+- Attach `AudioNormalizationOutcome::metadata` to the normalized `AudioAsset`.
 - Translate `AudioNormalizationError` to `ProjectError`.
 
 `rock-hero-common/core/include/rock_hero/common/core/audio_asset.h`
@@ -401,10 +402,14 @@ Add `std::optional<BackingAudioNormalizationPrompt>` to `EditorViewState`.
 2. `Project::import` validates that imported arrangements exist and reference audio inside the
    song workspace.
 3. `Project::import` gathers unique imported `AudioAsset` paths.
-4. For each unique audio path, create a unique sibling canonical WAV path under `song/audio/`.
+4. For each unique audio path, create a unique sibling canonical WAV path under `song/audio/`. The
+   normalized path must itself be inside the song workspace — the existing
+   `relativeWorkspacePath` containment check is run again after substitution, so a normalized
+   path that escapes the workspace fails with `InvalidImportedSong` just like a malformed source
+   path would.
 5. Call `normalize_audio` for each unique source path.
 6. Replace every arrangement reference to the raw source path with the normalized WAV asset,
-   including the returned loudness metadata.
+   including the returned loudness metadata (from `AudioNormalizationOutcome::metadata`).
 7. Delete raw unnormalized audio files that are no longer referenced.
 8. Resolve final arrangement audio paths against the project workspace.
 9. Commit the imported project workspace to the `Project` instance.
@@ -421,7 +426,7 @@ Opening a project should not synchronously analyze LUFS. Use this flow instead:
 2. For each unique backing `AudioAsset`, inspect `loudness_metadata`.
 3. If metadata exists, matches the current target and analyzer identity, and its fingerprint is
    trusted, do nothing.
-4. If metadata is missing or stale, schedule `analyzeAudioFile` on editor background work.
+4. If metadata is missing or stale, schedule `measureAudioLoudness` on editor background work.
 5. When analysis completes, compare measured loudness and peak to the current target.
 6. If normalization is recommended, publish `BackingAudioNormalizationPrompt` in
    `EditorViewState`.
@@ -471,16 +476,17 @@ real public boundary:
 
 - Opens the input file and translates reader failures to `AudioNormalizationError`.
 
-`measureAudioLoudness`
+`runLoudnessAnalyzer`
 
 - Streams decoded audio blocks into the chosen loudness analyzer.
-- Returns integrated loudness and true peak.
+- Returns `AudioLoudnessMeasurement` (integrated loudness and true peak).
+- Distinct from the public `measureAudioLoudness` free function, which composes this helper with
+  `fingerprintAudioFile` and analyzer-identity strings to produce a full `AudioLoudnessAnalysis`.
 
 `fingerprintAudioFile`
 
-- Produces `AudioFileFingerprint` while streaming file data.
-- Prefer computing the hash during analysis or output validation rather than as a separate
-  project-open step.
+- Produces `AudioFileFingerprint` (size + last-write-time) from `std::filesystem` queries.
+- No file streaming required; runs in constant time regardless of audio length.
 
 `calculateNormalizationGainDb`
 
@@ -496,7 +502,8 @@ real public boundary:
 `validateRenderedAudioFile`
 
 - Reopens and measures the rendered WAV so the result reports the actual output.
-- Produces the `AudioLoudnessMetadata` value that should be attached to the output `AudioAsset`.
+- Produces the `AudioLoudnessAnalysis` value that becomes
+  `AudioNormalizationOutcome::metadata.analysis`, which is attached to the output `AudioAsset`.
 
 `removePartialOutputOnFailure`
 
@@ -563,26 +570,33 @@ In `editor_controller.cpp`, keep open-time detection behind controller workflow:
 
 `rock-hero-common/audio/tests/test_audio_normalization.cpp`
 
-- Analysis returns measured loudness and fingerprint for a generated WAV.
-- Missing input returns `InputFileMissing`.
+- `measureAudioLoudness` returns measurement and fingerprint for a generated WAV.
+- Missing input returns `InputFileMissing` from both `measureAudioLoudness` and
+  `normalizeAudioFile`.
 - Empty output path returns `OutputPathRequired`.
 - Unsupported input returns `UnsupportedInputFormat` or `CouldNotOpenInput`, depending on the
   failure point.
 - A generated sine/noise WAV louder than `-16 LUFS` is rendered quieter.
 - A generated sine/noise WAV quieter than `-16 LUFS` is rendered louder.
-- Peak-ceiling behavior caps the gain and marks `limited_by_peak_ceiling`.
+- Peak-ceiling behavior caps the gain and sets `AudioNormalizationOutcome::limited_by_peak_ceiling`
+  to true.
 - Silent input returns `SilentInputCannotBeNormalized`.
 - Failure cleanup removes temporary output files.
-- Normalization result contains metadata that matches the rendered output file.
+- `AudioNormalizationOutcome::metadata.analysis` matches a fresh `measureAudioLoudness` reading of
+  the rendered output file (within LUFS/peak tolerance).
 
 Use tolerance-based assertions for LUFS and peak values. Exact values will vary slightly by analyzer
 and generated fixture.
 
 `rock-hero-common/core/tests`
 
-- Song packages without audio loudness metadata still load.
-- Song packages with valid audio loudness metadata round-trip the metadata.
-- Malformed optional loudness metadata fails with `InvalidAudioAsset`.
+- Song packages without an audio loudness metadata field still load (older packages remain valid).
+- Song packages with an explicit `null` loudness metadata field load identically to packages with
+  the field omitted entirely.
+- Song packages with valid audio loudness metadata round-trip every field: target, analysis
+  measurement, fingerprint, and analyzer identity.
+- Malformed optional loudness metadata fails with `InvalidAudioAsset` only when the metadata
+  object is present.
 
 `rock-hero-editor/core/tests/test_project.cpp`
 
@@ -610,11 +624,11 @@ and generated fixture.
 
 Before implementation starts:
 
-1. Confirm the dependency route for `libebur128`.
+1. Verify the project-owned `libebur128/1.2.6` Conan recipe builds clean on MSVC and that its
+   `test_package` step passes.
 2. Confirm whether the first WAV writer should be 24-bit PCM or 32-bit float.
 3. Confirm the initial prompt tolerance for "needs normalization".
-4. Confirm the fingerprint format, most likely SHA-256 plus file size.
-5. Re-check whether any existing tests assert raw imported audio filenames.
+4. Re-check whether any existing tests assert raw imported audio filenames.
 
 Before implementation is considered complete:
 
