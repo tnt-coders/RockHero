@@ -39,19 +39,19 @@ struct AudioFileFingerprint
 };
 
 /*!
-\brief Integrated loudness and peak measurement for one audio file.
+\brief Integrated loudness and sample peak measurement for one audio file.
 
-Produced by the common/audio loudness analyzer and embedded inside AudioLoudnessAnalysis. Both
-fields use the EBU R128 loudness scale: integrated loudness is reported in LUFS and true peak
-is reported in dBTP.
+Produced by the common/audio loudness analyzer and embedded inside AudioLoudnessAnalysis.
+Integrated loudness is reported in LUFS; sample peak is reported in dBFS (the maximum
+absolute sample value across all channels, with no oversampling).
 */
 struct AudioLoudnessMeasurement
 {
     /*! \brief Integrated loudness in LUFS over the full file duration. */
     double integrated_loudness_lufs{0.0};
 
-    /*! \brief True peak level in dBTP across all channels. */
-    double true_peak_dbtp{0.0};
+    /*! \brief Maximum absolute sample value in dBFS across all channels. */
+    double sample_peak_dbfs{0.0};
 
     /*!
     \brief Compares two measurements by their stored fields.
@@ -101,19 +101,16 @@ struct AudioLoudnessAnalysis
 };
 
 /*!
-\brief Target loudness and peak ceiling used when normalizing a backing audio file.
+\brief Target loudness used when normalizing a backing audio file.
 
-Defaults match the initial backing-audio normalization target: -16 LUFS integrated, -2 dBTP true
-peak ceiling. Persisted on AudioLoudnessMetadata so a reopened project can tell whether existing
-audio was normalized to the currently-configured target.
+Persisted on AudioLoudnessMetadata so a reopened project can tell whether existing audio was
+normalized to the currently-configured target. The peak clamp is implicit: applied gain is
+clamped so the loudest sample does not exceed 0 dBFS.
 */
 struct AudioNormalizationTarget
 {
     /*! \brief Requested integrated loudness in LUFS. */
     double integrated_loudness_lufs{-16.0};
-
-    /*! \brief Maximum allowed true peak in dBTP. */
-    double true_peak_ceiling_dbtp{-2.0};
 
     /*!
     \brief Compares two targets by their stored fields.
@@ -128,18 +125,27 @@ struct AudioNormalizationTarget
 /*!
 \brief Durable loudness record persisted on an AudioAsset.
 
-Stores what the file is (analysis) and what target it was normalized against (target).
-Render-operation trivia such as the applied gain or peak-ceiling clip flag is intentionally not
-persisted because it cannot be reconstructed once the original source audio is gone and adds no
-value to staleness checks. Persisted by the song package; consumed by editor open-time policy.
+Stores what the file is (analysis), what target it was normalized against (target), and the
+gain that should be applied during playback and waveform drawing (applied_gain_db). The gain
+is the single source of truth for playback volume scaling and waveform vertical zoom.
+Persisted by the song package; consumed by editor open-time policy and the audio backend.
 */
 struct AudioLoudnessMetadata
 {
-    /*! \brief Normalization target the file was rendered against. */
+    /*! \brief Normalization target the file was analyzed against. */
     AudioNormalizationTarget target;
 
-    /*! \brief Analysis of the file at the time normalization completed. */
+    /*! \brief Analysis of the source file at the time normalization was computed. */
     AudioLoudnessAnalysis analysis;
+
+    /*!
+    \brief Gain in decibels to apply during playback and waveform drawing.
+
+    Computed as the minimum of the LUFS-I delta (target minus measured) and the sample-peak
+    headroom (0 dBFS minus measured peak), so the loudest sample after gain never exceeds
+    0 dBFS.
+    */
+    double applied_gain_db{0.0};
 
     /*!
     \brief Compares two metadata records by their stored fields.

@@ -1,6 +1,8 @@
 # Backing Audio Normalization Check Latency
 
-Status: deferred. Revisit only if the open-time prompt feels too slow on real songs.
+Status: deferred. Mostly superseded by the LUFS-I gain normalization plan which dropped true
+peak in favor of sample peak, eliminating the dominant analysis cost. Revisit only if the
+open-time prompt still feels too slow on real songs.
 
 ## Why This Exists
 
