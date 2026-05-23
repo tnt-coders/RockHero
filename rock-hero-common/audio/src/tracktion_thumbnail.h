@@ -62,6 +62,12 @@ private:
 
     // Cached source duration used to reject invalid draw ranges before calling Tracktion.
     double m_source_length_seconds{0.0};
+
+    // Path of the currently loaded source. Tracktion identifies audio files for thumbnail
+    // caching purely by full path hash, so calling setNewFile with the same path is a no-op
+    // even if the bytes on disk changed. We compare against this to know when to evict the
+    // cached thumbnail entries through AudioFileManager::callListenersOnMessageThread.
+    juce::File m_current_source_file{};
 };
 
 } // namespace rock_hero::common::audio

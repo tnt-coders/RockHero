@@ -27,6 +27,12 @@ TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Componen
 {}
 
 // Translates the project-owned asset path into JUCE/Tracktion file types at the adapter boundary.
+// Tracktion identifies audio files for thumbnail caching by full-path hash only (see
+// getAudioFileHash in tracktion_AudioFile.cpp), so a setNewFile call with the same path skips
+// the change notification even when the file's bytes on disk have been replaced. Detect that
+// case here and explicitly evict Tracktion's cached thumbnail entries so the waveform redraws
+// against the new content immediately rather than waiting for whatever side path eventually
+// invalidates the stale thumb.
 void TracktionThumbnail::setSource(const common::core::AudioAsset& audio_asset)
 {
     const auto path_text = audio_asset.path.wstring();
@@ -34,7 +40,18 @@ void TracktionThumbnail::setSource(const common::core::AudioAsset& audio_asset)
     const tracktion::AudioFile audio_file(m_engine, file);
     m_source_length_seconds = audio_file.getLength();
     m_has_source = m_source_length_seconds > 0.0;
+
+    const bool same_path_as_before = m_current_source_file == file;
+    m_current_source_file = file;
     m_thumbnail.setNewFile(audio_file);
+    if (same_path_as_before)
+    {
+        // forceFileUpdate() re-parses the file info, releases cached readers, and notifies all
+        // active SmartThumbnails for this path. It is the public, message-thread-only API for
+        // "the bytes at this path have changed". Does nothing if Tracktion has never loaded
+        // the file before, which is fine because there is no stale cache to evict in that case.
+        m_engine.getAudioFileManager().forceFileUpdate(audio_file);
+    }
 }
 
 // Reports whether the most recent source assignment produced drawable source data.

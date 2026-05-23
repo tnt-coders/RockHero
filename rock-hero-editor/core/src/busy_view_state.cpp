@@ -28,7 +28,7 @@ std::string busyMessage(BusyOperation operation)
         case BusyOperation::LoadingLiveRig:
             return "Loading live rig...";
         case BusyOperation::NormalizingBackingAudio:
-            return "Normalizing backing audio...";
+            return "Normalizing audio...";
     }
 
     return {};
