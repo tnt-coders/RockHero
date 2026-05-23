@@ -1,5 +1,7 @@
 # Full Project Architecture Code Review
 
+Core parts of this are completed so moving to completed for now. In the future another fresh review may be done.
+
 Date: 2026-05-22
 
 ## Scope

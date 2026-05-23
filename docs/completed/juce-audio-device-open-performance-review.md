@@ -1,6 +1,6 @@
 # JUCE Audio Device Open Performance Review
 
-Status: in progress
+Status: complete - further analysis is deferred until a real problem is noticed
 
 Last reviewed: 2026-05-22
 
