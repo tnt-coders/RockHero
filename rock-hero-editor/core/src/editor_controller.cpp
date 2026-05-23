@@ -74,9 +74,11 @@ constexpr std::string_view g_normalization_replacement_extension{".normalizing.w
     return project.load(file);
 }
 
-// Production import path used when tests do not provide a custom seam.
+// Production import path used when tests do not provide a custom seam. The controller supplies a
+// normalizer wrapper so it can update busy-state copy when Project::import reaches that phase.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultImport(
-    Project& project, const std::filesystem::path& file)
+    Project& project, const std::filesystem::path& file,
+    const AudioNormalizeFunction& normalize_audio)
 {
     std::string extension = file.extension().string();
     std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
@@ -86,13 +88,13 @@ constexpr std::string_view g_normalization_replacement_extension{".normalizing.w
     if (extension == ".rock")
     {
         RockSongImporter importer;
-        return project.import(file, importer);
+        return project.import(file, importer, g_default_normalization_target, normalize_audio);
     }
 
     if (extension == ".psarc")
     {
         PsarcSongImporter importer;
-        return project.import(file, importer);
+        return project.import(file, importer, g_default_normalization_target, normalize_audio);
     }
 
     return std::unexpected{ProjectError{
@@ -517,6 +519,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] EditorViewState deriveViewState() const;
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
+    void transitionBusyOperation(BusyOperation operation, std::uint64_t token);
+    [[nodiscard]] AudioNormalizeFunction makeImportAudioNormalizeFunction(std::uint64_t token);
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
@@ -1181,15 +1185,23 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
-    runBusyOperation(
-        BusyOperation::ImportingProject,
-        state,
-        [import_function = m_import_function](const std::shared_ptr<ImportTaskState>& task_state) {
-            task_state->result = import_function(task_state->project, task_state->file);
+
+    const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
+    updateView();
+
+    m_task_runner->submit(
+        [state,
+         import_function = m_import_function,
+         normalize_audio = makeImportAudioNormalizeFunction(token)] {
+            state->result = import_function(state->project, state->file, normalize_audio);
         },
-        [this](const std::shared_ptr<ImportTaskState>& task_state) {
-            completeImportSongSource(task_state);
-        });
+        safeCallback([this, state, token]() mutable {
+            if (token != m_current_busy_token)
+            {
+                return;
+            }
+            completeImportSongSource(state);
+        }));
 }
 
 // Applies the worker's import result on the message thread. runBusyOperation already verified
@@ -2986,6 +2998,60 @@ std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
     m_current_busy_token += 1;
     m_busy_operation = operation;
     return m_current_busy_token;
+}
+
+// Moves an in-flight busy operation into a new visible phase without changing its token. This is
+// used by import, whose worker owns multiple long phases but still has one completion callback.
+void EditorController::Impl::transitionBusyOperation(BusyOperation operation, std::uint64_t token)
+{
+    if (token != m_current_busy_token || !m_busy_operation.has_value())
+    {
+        return;
+    }
+
+    m_busy_operation = operation;
+    m_live_rig_progress.reset();
+    updateView();
+}
+
+// Wraps the import normalizer so the first audio render promotes the busy overlay from
+// "Importing project..." to "Normalizing audio...". The promotion is marshaled back to the
+// message thread in production; headless tests without a MessageManager apply it synchronously.
+AudioNormalizeFunction EditorController::Impl::makeImportAudioNormalizeFunction(std::uint64_t token)
+{
+    auto notification_sent = std::make_shared<bool>(false);
+    auto notify_normalizing = [controller = this, alive = std::weak_ptr<bool>{m_alive}, token] {
+        auto publish = [controller, alive, token] {
+            if (alive.expired())
+            {
+                return;
+            }
+            controller->transitionBusyOperation(BusyOperation::NormalizingBackingAudio, token);
+        };
+
+        if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
+        {
+            publish();
+            return;
+        }
+
+        juce::MessageManager::callAsync(std::move(publish));
+    };
+
+    return [normalize_audio = m_audio_normalize_function,
+            notification_sent,
+            notify_normalizing = std::move(notify_normalizing)](
+               const std::filesystem::path& input,
+               const std::filesystem::path& output,
+               const common::core::AudioNormalizationTarget& target) mutable {
+        if (!*notification_sent)
+        {
+            *notification_sent = true;
+            notify_normalizing();
+        }
+
+        return normalize_audio(input, output, target);
+    };
 }
 
 // Normal operation completion: clears busy state and pushes the resulting view state so the
