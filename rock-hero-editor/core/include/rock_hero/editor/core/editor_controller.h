@@ -56,9 +56,15 @@ public:
     using OpenFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path)>;
 
-    /*! \brief Imports a song source into a project context. */
+    /*!
+    \brief Imports a song source into a project context.
+
+    The controller supplies the normalization function so the import worker can update busy-state
+    copy when Project::import reaches the audio-normalization phase.
+    */
     using ImportFunction = std::function<std::expected<common::core::Song, ProjectError>(
-        Project& project, const std::filesystem::path& path)>;
+        Project& project, const std::filesystem::path& path,
+        const AudioNormalizeFunction& normalize_audio)>;
 
     /*! \brief Saves the current song through the project context. */
     using SaveFunction = std::function<std::expected<void, ProjectError>(
