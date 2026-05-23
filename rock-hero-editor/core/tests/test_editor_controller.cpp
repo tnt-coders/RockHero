@@ -998,9 +998,10 @@ public:
     // Returns the bound import callback shape expected by EditorController services.
     [[nodiscard]] EditorController::ImportFunction importFunction() noexcept
     {
-        return [this](Project& project, const std::filesystem::path& file) {
-            return import(project, file);
-        };
+        return [this](
+                   Project& project,
+                   const std::filesystem::path& file,
+                   const AudioNormalizeFunction&) { return import(project, file); };
     }
 
     // Returns the bound save callback shape expected by EditorController services.
@@ -3534,6 +3535,92 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::ImportingProject);
     CHECK(busy->message == "Importing project...");
+}
+
+// Import promotes the busy overlay when Project::import reaches its normalization callback.
+TEST_CASE("EditorController import reports audio normalization", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    DeferredEditorTaskRunner runner;
+    int normalize_call_count = 0;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .import_function = [](Project&,
+                                  const std::filesystem::path&,
+                                  const AudioNormalizeFunction& normalize_audio)
+                -> std::expected<common::core::Song, ProjectError> {
+                auto normalized = normalize_audio(
+                    std::filesystem::path{"source.wav"},
+                    std::filesystem::path{"normalized.wav"},
+                    common::core::AudioNormalizationTarget{});
+                if (!normalized.has_value())
+                {
+                    return std::unexpected{ProjectError{
+                        ProjectErrorCode::AudioNormalizationFailed,
+                        normalized.error().message,
+                    }};
+                }
+
+                return std::expected<common::core::Song, ProjectError>{makeSong(
+                    std::filesystem::path{"normalized.wav"})};
+            },
+            .audio_normalize_function =
+                [&normalize_call_count](
+                    const std::filesystem::path&,
+                    const std::filesystem::path&,
+                    const common::core::AudioNormalizationTarget& target) {
+                    ++normalize_call_count;
+                    return std::expected<
+                        common::audio::AudioNormalizationOutcome,
+                        common::audio::AudioNormalizationError>{
+                        common::audio::AudioNormalizationOutcome{
+                            .metadata =
+                                common::core::AudioLoudnessMetadata{
+                                    .target = target,
+                                    .analysis =
+                                        common::core::AudioLoudnessAnalysis{
+                                            .measurement =
+                                                common::core::AudioLoudnessMeasurement{
+                                                    .integrated_loudness_lufs = -16.0,
+                                                    .true_peak_dbtp = -2.0,
+                                                },
+                                            .fingerprint =
+                                                common::core::AudioFileFingerprint{
+                                                    .size_bytes = 1,
+                                                    .sha256 = std::string(64, 'a'),
+                                                },
+                                            .analyzer_id = "test",
+                                            .analyzer_version = "1",
+                                        },
+                                },
+                            .source_measurement =
+                                common::core::AudioLoudnessMeasurement{
+                                    .integrated_loudness_lufs = -12.0,
+                                    .true_peak_dbtp = -1.0,
+                                },
+                            .applied_gain_db = -4.0,
+                            .limited_by_peak_ceiling = true,
+                        }
+                    };
+                },
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const BusyViewState* busy = busyOrNull(*state);
+    REQUIRE(busy != nullptr);
+    CHECK(busy->operation == BusyOperation::NormalizingBackingAudio);
+    CHECK(busy->message == "Normalizing audio...");
+    CHECK(normalize_call_count == 1);
 }
 
 // Save sets busy=SavingProject before the deferred write completion restores normal state.

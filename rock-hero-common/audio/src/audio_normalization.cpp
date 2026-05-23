@@ -278,26 +278,27 @@ struct NormalizationGain
         return false;
     }
 
+    // Transfer the file stream into a base-class unique_ptr so the modern createWriterFor()
+    // overload (which takes std::unique_ptr<juce::OutputStream>& and is the supported API on
+    // JUCE 8) accepts it directly. The new overload returns the writer as a unique_ptr and
+    // moves ownership of the stream into the writer on success; on failure the unique_ptr is
+    // left intact so its destructor still frees the stream.
+    std::unique_ptr<juce::OutputStream> output_stream{std::move(file_stream)};
     juce::WavAudioFormat wav_format;
-    juce::FileOutputStream* const stream_ptr = file_stream.get();
-    std::unique_ptr<juce::AudioFormatWriter> writer{wav_format.createWriterFor(
-        stream_ptr,
-        reader.sampleRate,
-        static_cast<unsigned int>(reader.numChannels),
-        g_output_bit_depth,
-        juce::StringPairArray{},
-        0)};
+    const auto writer_options =
+        juce::AudioFormatWriterOptions{}
+            .withSampleRate(reader.sampleRate)
+            .withNumChannels(static_cast<int>(reader.numChannels))
+            .withBitsPerSample(g_output_bit_depth)
+            .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::integral);
+    std::unique_ptr<juce::AudioFormatWriter> writer =
+        wav_format.createWriterFor(output_stream, writer_options);
     if (writer == nullptr)
     {
-        // createWriterFor returns nullptr on failure and does NOT take ownership of the stream
-        // in that case, so the unique_ptr above keeps freeing the stream for us.
         error_code = AudioNormalizationErrorCode::CouldNotCreateOutputFile;
         error_message = "Could not create WAV writer for output file";
         return false;
     }
-    // On success the writer takes ownership of the stream. Release the unique_ptr so it does
-    // not double-free.
-    file_stream.release();
 
     const auto channel_count = static_cast<int>(reader.numChannels);
     juce::AudioBuffer<float> buffer{channel_count, g_block_frames};
