@@ -1,4 +1,4 @@
-#include "rock_song_package.h"
+﻿#include "rock_song_package.h"
 
 #include <algorithm>
 #include <array>
@@ -14,6 +14,7 @@
 #include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/workspace_paths.h>
@@ -217,6 +218,213 @@ constexpr int g_zip_compression_level = 9;
     };
 }
 
+// Treats absent and null loudness fields identically; both are how older packages and explicit
+// null entries appear after JUCE's JSON parser.
+[[nodiscard]] bool isAbsentLoudnessField(const juce::var& property_value)
+{
+    return property_value.isVoid() || property_value.isUndefined();
+}
+
+// Reads the file size + SHA-256 pair embedded in a loudness analysis record.
+[[nodiscard]] std::optional<AudioFileFingerprint> readAudioFileFingerprint(
+    const juce::var& fingerprint_json, std::string& error_message)
+{
+    if (!fingerprint_json.isObject())
+    {
+        error_message = "loudness fingerprint must be an object";
+        return std::nullopt;
+    }
+
+    const auto size_bytes = Json::tryReadInt64(fingerprint_json, "sizeBytes");
+    const auto sha256 = Json::tryReadString(fingerprint_json, "sha256");
+    if (!size_bytes.has_value() || *size_bytes < 0 || !sha256.has_value())
+    {
+        error_message = "loudness fingerprint requires non-negative sizeBytes and sha256 fields";
+        return std::nullopt;
+    }
+
+    return AudioFileFingerprint{
+        .size_bytes = static_cast<std::uint64_t>(*size_bytes),
+        .sha256 = *sha256,
+    };
+}
+
+// Reads the integrated loudness + true peak pair shared by analysis and persisted measurements.
+[[nodiscard]] std::optional<AudioLoudnessMeasurement> readAudioLoudnessMeasurement(
+    const juce::var& measurement_json, std::string& error_message)
+{
+    if (!measurement_json.isObject())
+    {
+        error_message = "loudness measurement must be an object";
+        return std::nullopt;
+    }
+
+    const auto integrated = Json::tryReadDouble(measurement_json, "integratedLoudnessLufs");
+    const auto true_peak = Json::tryReadDouble(measurement_json, "truePeakDbtp");
+    if (!integrated.has_value() || !true_peak.has_value())
+    {
+        error_message =
+            "loudness measurement requires integratedLoudnessLufs and truePeakDbtp fields";
+        return std::nullopt;
+    }
+
+    return AudioLoudnessMeasurement{
+        .integrated_loudness_lufs = *integrated,
+        .true_peak_dbtp = *true_peak,
+    };
+}
+
+// Reads the analysis record persisted inside loudnessMetadata.analysis.
+[[nodiscard]] std::optional<AudioLoudnessAnalysis> readAudioLoudnessAnalysis(
+    const juce::var& analysis_json, std::string& error_message)
+{
+    if (!analysis_json.isObject())
+    {
+        error_message = "loudness analysis must be an object";
+        return std::nullopt;
+    }
+
+    auto measurement =
+        readAudioLoudnessMeasurement(Json::value(analysis_json, "measurement"), error_message);
+    if (!measurement.has_value())
+    {
+        return std::nullopt;
+    }
+
+    auto fingerprint =
+        readAudioFileFingerprint(Json::value(analysis_json, "fingerprint"), error_message);
+    if (!fingerprint.has_value())
+    {
+        return std::nullopt;
+    }
+
+    const auto analyzer_id = Json::tryReadString(analysis_json, "analyzerId");
+    const auto analyzer_version = Json::tryReadString(analysis_json, "analyzerVersion");
+    if (!analyzer_id.has_value() || !analyzer_version.has_value())
+    {
+        error_message = "loudness analysis requires analyzerId and analyzerVersion fields";
+        return std::nullopt;
+    }
+
+    return AudioLoudnessAnalysis{
+        .measurement = *measurement,
+        .fingerprint = *std::move(fingerprint),
+        .analyzer_id = *analyzer_id,
+        .analyzer_version = *analyzer_version,
+    };
+}
+
+// Reads the target the file was normalized against.
+[[nodiscard]] std::optional<AudioNormalizationTarget> readAudioNormalizationTarget(
+    const juce::var& target_json, std::string& error_message)
+{
+    if (!target_json.isObject())
+    {
+        error_message = "loudness target must be an object";
+        return std::nullopt;
+    }
+
+    const auto integrated = Json::tryReadDouble(target_json, "integratedLoudnessLufs");
+    const auto ceiling = Json::tryReadDouble(target_json, "truePeakCeilingDbtp");
+    if (!integrated.has_value() || !ceiling.has_value())
+    {
+        error_message =
+            "loudness target requires integratedLoudnessLufs and truePeakCeilingDbtp fields";
+        return std::nullopt;
+    }
+
+    return AudioNormalizationTarget{
+        .integrated_loudness_lufs = *integrated,
+        .true_peak_ceiling_dbtp = *ceiling,
+    };
+}
+
+// Reads the optional loudness record persisted on an audio asset entry. Absent and explicit-null
+// fields produce an empty optional without error; only malformed objects fail.
+[[nodiscard]] bool readOptionalAudioLoudnessMetadata(
+    const juce::var& metadata_json, std::optional<AudioLoudnessMetadata>& metadata,
+    std::string& error_message)
+{
+    metadata.reset();
+    if (isAbsentLoudnessField(metadata_json))
+    {
+        return true;
+    }
+
+    if (!metadata_json.isObject())
+    {
+        error_message = "loudnessMetadata must be an object when present";
+        return false;
+    }
+
+    auto target = readAudioNormalizationTarget(Json::value(metadata_json, "target"), error_message);
+    if (!target.has_value())
+    {
+        return false;
+    }
+
+    auto analysis =
+        readAudioLoudnessAnalysis(Json::value(metadata_json, "analysis"), error_message);
+    if (!analysis.has_value())
+    {
+        return false;
+    }
+
+    metadata = AudioLoudnessMetadata{
+        .target = *target,
+        .analysis = *std::move(analysis),
+    };
+    return true;
+}
+
+// Builds the JSON representation of an AudioFileFingerprint.
+[[nodiscard]] juce::var makeAudioFileFingerprintJson(const AudioFileFingerprint& fingerprint)
+{
+    return Json::makeObject({
+        {"sizeBytes", juce::var{static_cast<juce::int64>(fingerprint.size_bytes)}},
+        {"sha256", Json::makeString(fingerprint.sha256)},
+    });
+}
+
+// Builds the JSON representation of an AudioLoudnessMeasurement.
+[[nodiscard]] juce::var makeAudioLoudnessMeasurementJson(
+    const AudioLoudnessMeasurement& measurement)
+{
+    return Json::makeObject({
+        {"integratedLoudnessLufs", juce::var{measurement.integrated_loudness_lufs}},
+        {"truePeakDbtp", juce::var{measurement.true_peak_dbtp}},
+    });
+}
+
+// Builds the JSON representation of an AudioLoudnessAnalysis.
+[[nodiscard]] juce::var makeAudioLoudnessAnalysisJson(const AudioLoudnessAnalysis& analysis)
+{
+    return Json::makeObject({
+        {"measurement", makeAudioLoudnessMeasurementJson(analysis.measurement)},
+        {"fingerprint", makeAudioFileFingerprintJson(analysis.fingerprint)},
+        {"analyzerId", Json::makeString(analysis.analyzer_id)},
+        {"analyzerVersion", Json::makeString(analysis.analyzer_version)},
+    });
+}
+
+// Builds the JSON representation of an AudioNormalizationTarget.
+[[nodiscard]] juce::var makeAudioNormalizationTargetJson(const AudioNormalizationTarget& target)
+{
+    return Json::makeObject({
+        {"integratedLoudnessLufs", juce::var{target.integrated_loudness_lufs}},
+        {"truePeakCeilingDbtp", juce::var{target.true_peak_ceiling_dbtp}},
+    });
+}
+
+// Builds the JSON representation of a persisted AudioLoudnessMetadata record.
+[[nodiscard]] juce::var makeAudioLoudnessMetadataJson(const AudioLoudnessMetadata& metadata)
+{
+    return Json::makeObject({
+        {"target", makeAudioNormalizationTargetJson(metadata.target)},
+        {"analysis", makeAudioLoudnessAnalysisJson(metadata.analysis)},
+    });
+}
+
 // Reads song audio assets into an ID map keyed only inside song package IO.
 [[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
     const std::filesystem::path& directory, const juce::var& song_document,
@@ -239,8 +447,8 @@ constexpr int g_zip_compression_level = 9;
             return std::nullopt;
         }
 
-        const auto id = Json::readRequiredString(asset_json, "id");
-        const auto relative_path = Json::readRequiredString(asset_json, "path");
+        const auto id = Json::tryReadString(asset_json, "id");
+        const auto relative_path = Json::tryReadString(asset_json, "path");
         if (!id.has_value() || id->empty() || !relative_path.has_value())
         {
             error_message = "audio asset entries require non-empty id and path fields";
@@ -254,8 +462,19 @@ constexpr int g_zip_compression_level = 9;
             return std::nullopt;
         }
 
-        const auto inserted =
-            audio_assets.emplace(*id, AudioAsset{resolved_path->lexically_normal()});
+        std::optional<AudioLoudnessMetadata> loudness_metadata;
+        if (!readOptionalAudioLoudnessMetadata(
+                Json::value(asset_json, "loudnessMetadata"), loudness_metadata, error_message))
+        {
+            return std::nullopt;
+        }
+
+        const auto inserted = audio_assets.emplace(
+            *id,
+            AudioAsset{
+                .path = resolved_path->lexically_normal(),
+                .loudness_metadata = std::move(loudness_metadata),
+            });
         if (!inserted.second)
         {
             error_message = "duplicate audio asset id: " + *id;
@@ -291,10 +510,10 @@ constexpr int g_zip_compression_level = 9;
             return std::nullopt;
         }
 
-        const auto id = Json::readRequiredString(arrangement_json, "id");
-        const auto part_text = Json::readRequiredString(arrangement_json, "part");
-        const auto arrangement_file = Json::readRequiredString(arrangement_json, "file");
-        const auto audio_id = Json::readRequiredString(arrangement_json, "audio");
+        const auto id = Json::tryReadString(arrangement_json, "id");
+        const auto part_text = Json::tryReadString(arrangement_json, "part");
+        const auto arrangement_file = Json::tryReadString(arrangement_json, "file");
+        const auto audio_id = Json::tryReadString(arrangement_json, "audio");
         std::string tone_document_ref;
         if (!id.has_value() || id->empty() || !part_text.has_value() ||
             !arrangement_file.has_value() || !audio_id.has_value())
@@ -741,11 +960,19 @@ struct SongDocumentForSave
         {
             const std::string generated_id =
                 "audio-" + std::to_string(audio_ids_by_path.size() + 1);
-            audio_assets.append(
-                Json::makeObject({
-                    {"id", Json::makeString(generated_id)},
-                    {"path", Json::makeString(relative_audio_name)},
-                }));
+            juce::var audio_entry = Json::makeObject({
+                {"id", Json::makeString(generated_id)},
+                {"path", Json::makeString(relative_audio_name)},
+            });
+            // Persist loudness metadata only when the in-memory asset carries it. Older assets
+            // without metadata round-trip without growing song.json.
+            if (arrangement.audio_asset.loudness_metadata.has_value())
+            {
+                audio_entry.getDynamicObject()->setProperty(
+                    Json::identifier("loudnessMetadata"),
+                    makeAudioLoudnessMetadataJson(*arrangement.audio_asset.loudness_metadata));
+            }
+            audio_assets.append(audio_entry);
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 

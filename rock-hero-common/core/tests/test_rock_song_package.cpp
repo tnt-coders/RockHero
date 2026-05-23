@@ -1,8 +1,10 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <fstream>
+#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
@@ -121,6 +123,40 @@ void writeAudioFile(const std::filesystem::path& path)
 {
     Song song = makeSong(audio_path);
     song.arrangements.front().tone_document_ref = toneDocumentRef();
+    return song;
+}
+
+// Builds a representative loudness metadata record used by round-trip tests.
+[[nodiscard]] AudioLoudnessMetadata makeLoudnessMetadata()
+{
+    return AudioLoudnessMetadata{
+        .target =
+            AudioNormalizationTarget{
+                .integrated_loudness_lufs = -16.0,
+                .true_peak_ceiling_dbtp = -2.0,
+            },
+        .analysis = AudioLoudnessAnalysis{
+            .measurement =
+                AudioLoudnessMeasurement{
+                    .integrated_loudness_lufs = -15.75,
+                    .true_peak_dbtp = -2.5,
+                },
+            .fingerprint =
+                AudioFileFingerprint{
+                    .size_bytes = 5,
+                    .sha256 = "8a45c2e07a3e83dc6b6f8e3f4f9b4d4e2a1b9c6f6c0e8a3a2b1c9d8e7f6a5b4c",
+                },
+            .analyzer_id = "libebur128",
+            .analyzer_version = "1.2.6",
+        },
+    };
+}
+
+// Builds a song whose backing audio carries persisted loudness metadata.
+[[nodiscard]] Song makeSongWithLoudnessMetadata(const std::filesystem::path& audio_path)
+{
+    Song song = makeSong(audio_path);
+    song.arrangements.front().audio_asset.loudness_metadata = makeLoudnessMetadata();
     return song;
 }
 
@@ -353,6 +389,147 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
     REQUIRE_FALSE(read_song.has_value());
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
     CHECK(read_song.error().message.find("tone document") != std::string::npos);
+}
+
+// Verifies songs whose backing audio carries loudness metadata round-trip every persisted field.
+TEST_CASE("Rock song package round-trips loudness metadata", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written = writeRockSongPackageDirectory(
+        package_directory, makeSongWithLoudnessMetadata(source_audio));
+
+    REQUIRE(written.has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    const auto& loudness_metadata = read_song->arrangements.front().audio_asset.loudness_metadata;
+    REQUIRE(loudness_metadata.has_value());
+    CHECK(*loudness_metadata == makeLoudnessMetadata());
+}
+
+// Verifies older packages whose audio entries omit loudnessMetadata still load with empty optional.
+TEST_CASE("Rock song package without loudness metadata still loads", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK_FALSE(read_song->arrangements.front().audio_asset.loudness_metadata.has_value());
+}
+
+// Verifies an explicit JSON null loudness metadata field loads identically to an omitted field.
+TEST_CASE(
+    "Rock song package treats explicit null loudness metadata as absent",
+    "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav",
+                    "loudnessMetadata": null
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK_FALSE(read_song->arrangements.front().audio_asset.loudness_metadata.has_value());
+}
+
+// Verifies malformed loudnessMetadata objects fail with InvalidAudioAsset only when present.
+TEST_CASE("Rock song package rejects malformed loudness metadata", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav",
+                    "loudnessMetadata": {
+                        "target": {
+                            "integratedLoudnessLufs": -16.0,
+                            "truePeakCeilingDbtp": -2.0
+                        }
+                    }
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
 }
 
 } // namespace rock_hero::common::core
