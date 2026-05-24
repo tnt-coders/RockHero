@@ -7,7 +7,9 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <rock_hero/common/audio/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
+#include <rock_hero/editor/ui/audio_level_meter.h>
 #include <string>
 #include <vector>
 
@@ -109,6 +111,14 @@ public:
     void setState(const core::SignalChainViewState& state);
 
     /*!
+    \brief Applies live-rig post-fader meter levels.
+    \param input_level Level after the input gain fader.
+    \param output_level Level after the output gain fader.
+    */
+    void setMeterLevels(
+        common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level);
+
+    /*!
     \brief Paints the panel background, title, and plugin chain.
     \param g Graphics context used for drawing.
     */
@@ -135,8 +145,14 @@ private:
     // Input gain slider positioned on the left side of the plugin chain.
     juce::Slider m_input_gain_slider;
 
+    // Post-input-gain peak meter positioned beside the input slider.
+    AudioLevelMeter m_input_meter;
+
     // Output gain slider positioned on the right side of the plugin chain.
     juce::Slider m_output_gain_slider;
+
+    // Post-output-gain peak meter positioned beside the output slider.
+    AudioLevelMeter m_output_meter;
 
     // Child row controls for the current plugin chain.
     std::vector<std::unique_ptr<PluginRowView>> m_plugin_rows;

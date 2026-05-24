@@ -11,6 +11,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_audio_meter_source.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/timeline.h>
@@ -18,6 +19,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/ui/arrangement_view.h>
+#include <rock_hero/editor/ui/audio_level_meter.h>
 #include <rock_hero/editor/ui/busy_overlay.h>
 #include <rock_hero/editor/ui/menu_bar_button.h>
 #include <rock_hero/editor/ui/plugin_browser_window.h>
@@ -68,11 +70,13 @@ public:
     \param transport Read-only transport used by cursor drawing and viewport following.
     \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
     \param audio_devices Optional device-configuration port hosted by the settings window.
+    \param audio_meters Optional meter source sampled for continuous level display.
     */
     EditorView(
         core::IEditorController& controller, const common::audio::ITransport& transport,
         common::audio::IThumbnailFactory& thumbnail_factory,
-        common::audio::IAudioDeviceConfiguration* audio_devices = nullptr);
+        common::audio::IAudioDeviceConfiguration* audio_devices = nullptr,
+        const common::audio::IAudioMeterSource* audio_meters = nullptr);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -198,6 +202,9 @@ private:
     // Applies audio routing state to the menu-bar audio-device button.
     void updateAudioDeviceButton();
 
+    // Samples continuous meter display data from the audio backend.
+    void refreshAudioMeters();
+
     // Opens the audio-device settings window.
     void showAudioDeviceSettingsWindow();
 
@@ -243,6 +250,9 @@ private:
     // Audio-device configuration backend hosted by the settings window; null when unavailable.
     common::audio::IAudioDeviceConfiguration* m_audio_devices{nullptr};
 
+    // Optional read-only meter source sampled at display cadence.
+    const common::audio::IAudioMeterSource* m_audio_meters{nullptr};
+
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
 
@@ -254,6 +264,9 @@ private:
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
+
+    // Transport-bar meter for the final mix output.
+    AudioLevelMeter m_master_output_meter;
 
     // Right-aligned menu-bar action that opens audio-device settings.
     MenuBarButton m_audio_device_button;
@@ -278,6 +291,9 @@ private:
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
+
+    // Vblank callback used for continuous meter refresh without controller state churn.
+    juce::VBlankAttachment m_meter_vblank_attachment;
 
     // Pending single-shot callback waiting for the next busy overlay paint.
     std::function<void()> m_after_busy_overlay_paint;

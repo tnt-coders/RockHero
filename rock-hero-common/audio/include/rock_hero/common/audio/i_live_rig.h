@@ -188,27 +188,27 @@ public:
     \brief Reads the current input gain applied before the signal chain.
     \return Current input gain, or the default when no structural gain plugin exists.
     */
-    [[nodiscard]] virtual Gain liveRigInputGain() const = 0;
+    [[nodiscard]] virtual Gain inputGain() const = 0;
 
     /*!
     \brief Reads the current output gain applied after the signal chain.
     \return Current output gain, or the default when no structural gain plugin exists.
     */
-    [[nodiscard]] virtual Gain liveRigOutputGain() const = 0;
+    [[nodiscard]] virtual Gain outputGain() const = 0;
 
     /*!
     \brief Sets the input gain applied before the signal chain.
     \param gain Desired input gain; clamped to the accepted range.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<void, LiveRigError> setLiveRigInputGain(Gain gain) = 0;
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setInputGain(Gain gain) = 0;
 
     /*!
     \brief Sets the output gain applied after the signal chain.
     \param gain Desired output gain; clamped to the accepted range.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<void, LiveRigError> setLiveRigOutputGain(Gain gain) = 0;
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setOutputGain(Gain gain) = 0;
 
 protected:
     /*! \brief Creates the live rig interface. */

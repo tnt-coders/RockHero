@@ -9,6 +9,7 @@ add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)
 target_sources(
     rock_hero_editor_ui
     PRIVATE src/arrangement_view.cpp
+            src/audio_level_meter.cpp
             src/audio_device_settings_view.cpp
             src/audio_device_settings_window.cpp
             src/busy_overlay.cpp
