@@ -634,8 +634,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool m_save_requires_destination{false};
 
     // Project file that was open before an import replaced the session. Populated by the import
-    // commit so close-with-discard can re-open the displaced project instead of leaving the
-    // editor empty. Cleared on successful save, explicit open, or close of a saved project.
+    // commit or by a discard-confirmed import that first closes a dirty saved project, so
+    // close-with-discard can re-open the displaced project instead of leaving the editor empty.
+    // Cleared on successful save, explicit open, or close of a saved project.
     std::filesystem::path m_displaced_project_file{};
 
     // True once current session changes need to be saved or discarded before replacement.
@@ -1203,7 +1204,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         return;
     }
 
-    m_displaced_project_file = m_project_file;
+    m_displaced_project_file = !m_project_file.empty() ? m_project_file : m_displaced_project_file;
     m_project = std::move(state->project);
     m_project_file.clear();
     m_save_requires_destination = true;
@@ -1602,6 +1603,12 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
         case UnsavedChangesDecision::Discard:
         {
             const EditorAction::Id deferred_id = idOf(*m_deferred_action);
+            std::filesystem::path displaced_by_import;
+            if (deferred_id == EditorAction::Id::ImportSong)
+            {
+                displaced_by_import =
+                    !m_project_file.empty() ? m_project_file : m_displaced_project_file;
+            }
             m_has_unsaved_changes = false;
             m_save_requires_destination = false;
             // CloseProject and ExitApplication both close the current project as part of their
@@ -1619,6 +1626,10 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             clearDeferredAction();
             if (closeProject())
             {
+                if (!displaced_by_import.empty())
+                {
+                    m_displaced_project_file = std::move(displaced_by_import);
+                }
                 runProjectAction(std::move(replay));
             }
             return;
