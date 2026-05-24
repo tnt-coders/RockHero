@@ -461,13 +461,12 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     CHECK(audio_type.scan_call_count == initial_scan_count + 1);
 }
 
-// Apply failures return a typed error and restore the previous active route.
-TEST_CASE("AudioDeviceSettings rolls back failed apply", "[audio][audio-device-settings]")
+// Apply failures return a typed error and leave the backend closed.
+TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
-    const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
     AudioDeviceSettings settings{audio_devices};
     settings.selectOutputDevice(2);
@@ -477,7 +476,11 @@ TEST_CASE("AudioDeviceSettings rolls back failed apply", "[audio][audio-device-s
     CHECK(result.error().code == AudioDeviceSettingsErrorCode::ApplyFailed);
     CHECK(result.error().message == g_open_output_b_error);
     CHECK(settings.state().error_message == g_open_output_b_error);
-    CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
+
+    settings.cancel();
+
+    CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
 
 // Cancel reopens the device that was open when settings construction began, regardless of staged
