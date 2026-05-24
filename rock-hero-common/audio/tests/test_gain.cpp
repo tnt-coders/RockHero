@@ -16,8 +16,10 @@ TEST_CASE("Gain defaults to 0 dB", "[audio][gain]")
 TEST_CASE("clampGain passes through in-range values", "[audio][gain]")
 {
     CHECK(clampGain(Gain{0.0}).db == 0.0);
-    CHECK(clampGain(Gain{-30.0}).db == -30.0);
+    CHECK(clampGain(Gain{-12.0}).db == -12.0);
     CHECK(clampGain(Gain{3.0}).db == 3.0);
+    CHECK(clampGain(Gain{-24.0}).db == -24.0);
+    CHECK(clampGain(Gain{24.0}).db == 24.0);
     CHECK(clampGain(Gain{minimumGainDb()}).db == minimumGainDb());
     CHECK(clampGain(Gain{maximumGainDb()}).db == maximumGainDb());
 }
@@ -26,14 +28,14 @@ TEST_CASE("clampGain passes through in-range values", "[audio][gain]")
 TEST_CASE("clampGain clamps below minimum", "[audio][gain]")
 {
     CHECK(clampGain(Gain{-100.0}).db == minimumGainDb());
-    CHECK(clampGain(Gain{-61.0}).db == minimumGainDb());
+    CHECK(clampGain(Gain{-25.0}).db == minimumGainDb());
 }
 
 // Verifies that clampGain clamps values above the maximum.
 TEST_CASE("clampGain clamps above maximum", "[audio][gain]")
 {
     CHECK(clampGain(Gain{100.0}).db == maximumGainDb());
-    CHECK(clampGain(Gain{12.0}).db == maximumGainDb());
+    CHECK(clampGain(Gain{25.0}).db == maximumGainDb());
 }
 
 // Verifies that gain equality compares by dB value.

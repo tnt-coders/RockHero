@@ -435,13 +435,13 @@ TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engin
     const TemporarySongDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
-    const auto input_result = live_rig.setInputGain(Gain{3.0});
-    const auto output_result = live_rig.setOutputGain(Gain{-6.0});
+    const auto input_result = live_rig.setInputGain(Gain{24.0});
+    const auto output_result = live_rig.setOutputGain(Gain{-24.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
-    CHECK(live_rig.inputGain().db == Catch::Approx(3.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-6.0));
+    CHECK(live_rig.inputGain().db == Catch::Approx(24.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-24.0));
 
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
@@ -452,17 +452,17 @@ TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engin
 
     REQUIRE(snapshot.has_value());
     CHECK(snapshot->plugins.empty());
-    CHECK(snapshot->input_gain.db == Catch::Approx(3.0));
-    CHECK(snapshot->output_gain.db == Catch::Approx(-6.0));
+    CHECK(snapshot->input_gain.db == Catch::Approx(24.0));
+    CHECK(snapshot->output_gain.db == Catch::Approx(-24.0));
 }
 
-// Verifies the adapter clamps requested gain to the Tracktion-backed public range.
+// Verifies the adapter accepts symmetric trim and clamps requested gain to the public range.
 TEST_CASE("Engine live rig gain setters clamp to range", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
 
-    const auto input_result = live_rig.setInputGain(Gain{12.0});
+    const auto input_result = live_rig.setInputGain(Gain{25.0});
     const auto output_result = live_rig.setOutputGain(Gain{-100.0});
 
     REQUIRE(input_result.has_value());
