@@ -9,7 +9,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
+#include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/editor/core/project.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
@@ -389,7 +389,7 @@ struct FakeAnalyzeAudioInvocation
 
 // Test seam used in place of common::audio::analyzeAudioForGainNormalization so import tests do
 // not depend on a real WAV reader, the loudness analyzer, or libebur128. The fake returns a
-// synthetic metadata record that round-trips through Project::import the same way a real
+// synthetic normalization record that round-trips through Project::import the same way a real
 // analysis would.
 class FakeAnalyzeAudio final
 {
@@ -405,9 +405,9 @@ public:
         };
     }
 
-    // Records the input/target tuple and returns a synthetic metadata record.
+    // Records the input/target tuple and returns a synthetic normalization record.
     [[nodiscard]] std::expected<
-        common::core::AudioLoudnessMetadata, common::audio::AudioNormalizationError>
+        common::core::AudioNormalization, common::audio::AudioNormalizationError>
     invoke(const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
     {
         invocations.push_back(
@@ -416,24 +416,9 @@ public:
                 .target = target,
             });
 
-        return common::core::AudioLoudnessMetadata{
-            .target = target,
-            .analysis =
-                common::core::AudioLoudnessAnalysis{
-                    .measurement =
-                        common::core::AudioLoudnessMeasurement{
-                            .integrated_loudness_lufs = -12.0,
-                            .sample_peak_dbfs = -3.0,
-                        },
-                    .fingerprint =
-                        common::core::AudioFileFingerprint{
-                            .size_bytes = 10,
-                            .sha256 = std::string(64, 'a'),
-                        },
-                    .analyzer_id = "fake-analyzer",
-                    .analyzer_version = "1.0.0",
-                },
-            .applied_gain_db = -4.0,
+        return common::core::AudioNormalization{
+            .gain_db = -4.0,
+            .validation_sha256 = std::string(64, 'a'),
         };
     }
 
@@ -447,13 +432,13 @@ public:
 [[nodiscard]] AudioAnalyzeForGainFunction makeFailingAnalyzeAudio(
     common::audio::AudioNormalizationErrorCode error_code)
 {
-    return [error_code](
-               const std::filesystem::path&, const common::core::AudioNormalizationTarget&) {
-        return std::
-            expected<common::core::AudioLoudnessMetadata, common::audio::AudioNormalizationError>{
-                std::unexpect, common::audio::AudioNormalizationError{error_code}
-            };
-    };
+    return
+        [error_code](const std::filesystem::path&, const common::core::AudioNormalizationTarget&) {
+            return std::
+                expected<common::core::AudioNormalization, common::audio::AudioNormalizationError>{
+                    std::unexpect, common::audio::AudioNormalizationError{error_code}
+                };
+        };
 }
 
 // Creates a song that can be saved into a package from an external audio file.
@@ -485,7 +470,8 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     writeMinimalProjectPackage(path);
 
     Project project;
-    const auto result = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto result = project.load(path, {}, fake_analyze.function());
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -497,8 +483,31 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
         project.editorState().selected_arrangement ==
         std::optional<std::string>{g_lead_arrangement_id});
     CHECK(project.editorState().cursor_position == TimePosition{0.0});
+    REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
+    CHECK(result->arrangements.front().audio_asset.normalization->gain_db == -4.0);
+    CHECK(project.audioNormalizationUpdatedOnLoad());
     CHECK(project.path() == path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
+}
+
+// Verifies project load fails before commit when required normalization analysis fails.
+TEST_CASE("Project load surfaces AudioNormalizationFailed", "[core][project]")
+{
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path path = directory.path() / "song.rhp";
+    writeMinimalProjectPackage(path);
+
+    Project project;
+    const auto result = project.load(
+        path,
+        common::core::AudioNormalizationTarget{},
+        makeFailingAnalyzeAudio(
+            common::audio::AudioNormalizationErrorCode::LoudnessMeasurementFailed));
+
+    CHECK_FALSE(result.has_value());
+    CHECK(result.error().code == ProjectErrorCode::AudioNormalizationFailed);
+    CHECK(project.workspaceDirectory().empty());
+    CHECK_FALSE(project.audioNormalizationUpdatedOnLoad());
 }
 
 // Verifies .rock native song packages import into an unsaved editor project workspace.
@@ -527,8 +536,8 @@ TEST_CASE("Project imports a native song package", "[core][project]")
         project.workspaceDirectory() / "song" / "audio" / "backing.wav";
     CHECK(arrangement.audio_asset.path == imported_audio_path);
     CHECK(std::filesystem::exists(imported_audio_path));
-    REQUIRE(arrangement.audio_asset.loudness_metadata.has_value());
-    CHECK(arrangement.audio_asset.loudness_metadata->analysis.analyzer_id == "fake-analyzer");
+    REQUIRE(arrangement.audio_asset.normalization.has_value());
+    CHECK(arrangement.audio_asset.normalization->gain_db == -4.0);
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
     REQUIRE(fake_analyze.invocations.size() == 1);
@@ -587,10 +596,10 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
     CHECK(
         result->arrangements.front().audio_asset.path ==
         result->arrangements.back().audio_asset.path);
-    REQUIRE(result->arrangements.front().audio_asset.loudness_metadata.has_value());
+    REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
     CHECK(
-        result->arrangements.front().audio_asset.loudness_metadata ==
-        result->arrangements.back().audio_asset.loudness_metadata);
+        result->arrangements.front().audio_asset.normalization ==
+        result->arrangements.back().audio_asset.normalization);
     REQUIRE(fake_analyze.invocations.size() == 1);
 }
 
@@ -624,7 +633,8 @@ TEST_CASE("Project close removes workspace and clears context", "[core][project]
     writeMinimalProjectPackage(path);
 
     Project project;
-    const auto result = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto result = project.load(path, {}, fake_analyze.function());
     REQUIRE(result.has_value());
 
     const std::filesystem::path workspace_directory = project.workspaceDirectory();
@@ -667,7 +677,8 @@ TEST_CASE("Project rejects package wrapped in one root directory", "[core][proje
         });
 
     Project project;
-    const auto result = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto result = project.load(path, {}, fake_analyze.function());
 
     CHECK_FALSE(result.has_value());
     CHECK(result.error().code == ProjectErrorCode::MissingProjectDocument);
@@ -682,7 +693,8 @@ TEST_CASE("Project loads arrangements from song.json", "[core][project]")
     writeTwoArrangementProjectPackage(path);
 
     Project project;
-    const auto result = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto result = project.load(path, {}, fake_analyze.function());
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -705,7 +717,8 @@ TEST_CASE("Project loads stale selected arrangement state", "[core][project]")
     writeTwoArrangementProjectPackage(path, "song/song.json", "missing");
 
     Project project;
-    const auto result = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto result = project.load(path, {}, fake_analyze.function());
 
     REQUIRE(result.has_value());
     CHECK(project.editorState().selected_arrangement == std::optional<std::string>{"missing"});
@@ -779,7 +792,8 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     writeMinimalProjectPackage(path);
 
     Project project;
-    auto song = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    auto song = project.load(path, {}, fake_analyze.function());
     REQUIRE(song.has_value());
     song->metadata.title = "Updated Title";
     song->metadata.artist = "Updated Artist";
@@ -795,7 +809,8 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     REQUIRE(saved.has_value());
 
     Project reloaded_project;
-    const auto reloaded_song = reloaded_project.load(path);
+    FakeAnalyzeAudio reloaded_fake_analyze;
+    const auto reloaded_song = reloaded_project.load(path, {}, reloaded_fake_analyze.function());
     REQUIRE(reloaded_song.has_value());
     CHECK(reloaded_song->metadata.title == "Updated Title");
     CHECK(reloaded_song->metadata.artist == "Updated Artist");
@@ -820,7 +835,8 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     }
 
     Project project;
-    auto song = project.load(path);
+    FakeAnalyzeAudio fake_analyze;
+    auto song = project.load(path, {}, fake_analyze.function());
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
     song->arrangements.front().audio_asset = AudioAsset{external_audio_path};
@@ -829,7 +845,8 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     REQUIRE(saved.has_value());
 
     Project reloaded_project;
-    const auto reloaded_song = reloaded_project.load(path);
+    FakeAnalyzeAudio reloaded_fake_analyze;
+    const auto reloaded_song = reloaded_project.load(path, {}, reloaded_fake_analyze.function());
     REQUIRE(reloaded_song.has_value());
     REQUIRE(reloaded_song->arrangements.size() == 1);
     const AudioAsset& reloaded_audio_asset = reloaded_song->arrangements.front().audio_asset;
@@ -857,7 +874,9 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
 
     Project reloaded_project;
-    const auto reloaded_song = reloaded_project.load(project_package_path);
+    FakeAnalyzeAudio fake_analyze;
+    const auto reloaded_song =
+        reloaded_project.load(project_package_path, {}, fake_analyze.function());
     REQUIRE(reloaded_song.has_value());
     CHECK(reloaded_song->metadata.title == "Imported Song");
     CHECK(reloaded_song->metadata.artist == "Imported Artist");
@@ -875,7 +894,8 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
     writeMinimalProjectPackage(project_path);
 
     Project project;
-    auto song = project.load(project_path);
+    FakeAnalyzeAudio fake_analyze;
+    auto song = project.load(project_path, {}, fake_analyze.function());
     REQUIRE(song.has_value());
     song->metadata.title = "Published Title";
 

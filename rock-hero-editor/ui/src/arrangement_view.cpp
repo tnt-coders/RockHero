@@ -237,10 +237,10 @@ void ArrangementView::paint(juce::Graphics& g)
 
     // Scale the waveform by the normalization gain so the displayed amplitude matches playback.
     float vertical_zoom = 1.0f;
-    if (m_state.audio_asset.has_value() && m_state.audio_asset->loudness_metadata.has_value())
+    if (m_state.audio_asset.has_value() && m_state.audio_asset->normalization.has_value())
     {
-        vertical_zoom = static_cast<float>(
-            std::pow(10.0, m_state.audio_asset->loudness_metadata->applied_gain_db / 20.0));
+        vertical_zoom =
+            static_cast<float>(std::pow(10.0, m_state.audio_asset->normalization->gain_db / 20.0));
     }
 
     g.setColour(juce::Colours::lightgreen);
