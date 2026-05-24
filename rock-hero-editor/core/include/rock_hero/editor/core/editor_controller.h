@@ -129,6 +129,15 @@ public:
         */
         AudioAnalyzeFunction audio_analyze_function{};
 
+        /*!
+        \brief Computes gain-normalization metadata for imported backing audio.
+
+        Default-constructed in production composition wraps
+        common::audio::analyzeAudioForGainNormalization; tests inject fakes that return canned
+        metadata to control import behavior without running the real analyzer.
+        */
+        AudioAnalyzeForGainFunction audio_analyze_for_gain_function{};
+
         /*! \brief Optional settings store used for startup restore and exit persistence. */
         EditorSettings* settings{};
 

@@ -33,8 +33,7 @@ constexpr int g_output_bit_depth = 24;
 constexpr double g_silent_loudness_threshold_lufs = -70.0;
 
 // Stable analyzer identifier persisted on AudioLoudnessAnalysis. Editor-side staleness checks
-// treat measurements with a different analyzer_id as incomparable. Changed from "libebur128"
-// when the analyzer switched from true peak to sample peak so old metadata triggers re-analysis.
+// treat measurements with a different analyzer_id as incomparable.
 constexpr const char* g_analyzer_id = "libebur128-lufs-i";
 
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
