@@ -10,8 +10,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/common/core/session.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
@@ -54,14 +52,10 @@ class EditorController final : public IEditorController
 public:
     /*! \brief Opens an editor project package into a project context. */
     using OpenFunction = std::function<std::expected<common::core::Song, ProjectError>(
-        Project& project, const std::filesystem::path& path)>;
+        Project& project, const std::filesystem::path& path,
+        const AudioAnalyzeForGainFunction& analyze_audio)>;
 
-    /*!
-    \brief Imports a song source into a project context.
-
-    The controller supplies the analysis function so the import worker can update busy-state
-    copy when Project::import reaches the audio-analysis phase.
-    */
+    /*! \brief Imports a song source into a project context. */
     using ImportFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path,
         const AudioAnalyzeForGainFunction& analyze_audio)>;
@@ -81,17 +75,6 @@ public:
 
     /*! \brief Requests host exit after controller-level shutdown policy has completed. */
     using ExitFunction = std::function<void()>;
-
-    /*!
-    \brief Measures the loudness of an opened project's backing audio asset.
-
-    Called on a background thread after project open succeeds. The controller compares the
-    returned analysis against the asset's persisted loudness metadata and the configured target
-    to decide whether to publish a BackingAudioNormalizationPrompt.
-    */
-    using AudioAnalyzeFunction = std::function<
-        std::expected<common::core::AudioLoudnessAnalysis, common::audio::AudioNormalizationError>(
-            const std::filesystem::path& input)>;
 
     /*!
     \brief Optional services used by the editor controller.
@@ -121,20 +104,7 @@ public:
         ExitFunction exit_function{};
 
         /*!
-        \brief Measures backing audio loudness on a background thread after project open.
-
-        Default-constructed in production composition wraps
-        common::audio::measureAudioLoudness; tests inject fakes that return canned analyses to
-        control the open-time prompt flow without running the real analyzer.
-        */
-        AudioAnalyzeFunction audio_analyze_function{};
-
-        /*!
-        \brief Computes gain-normalization metadata for imported backing audio.
-
-        Default-constructed in production composition wraps
-        common::audio::analyzeAudioForGainNormalization; tests inject fakes that return canned
-        metadata to control import behavior without running the real analyzer.
+        \brief Analyzes backing audio when project normalization metadata is missing or stale.
         */
         AudioAnalyzeForGainFunction audio_analyze_for_gain_function{};
 
@@ -334,12 +304,6 @@ public:
     \param decision Decision selected by the user.
     */
     void onUnsavedChangesDecision(UnsavedChangesDecision decision) override;
-
-    /*!
-    \brief Handles a decision from the backing-audio normalization prompt.
-    \param decision Decision selected by the user.
-    */
-    void onBackingAudioNormalizationDecision(BackingAudioNormalizationDecision decision) override;
 
     /*!
     \brief Handles a play/pause button press from the editor UI.

@@ -4,7 +4,7 @@
 #include <expected>
 #include <filesystem>
 #include <fstream>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
+#include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
@@ -126,39 +126,20 @@ void writeAudioFile(const std::filesystem::path& path)
     return song;
 }
 
-// Builds a representative loudness metadata record used by round-trip tests.
-[[nodiscard]] AudioLoudnessMetadata makeLoudnessMetadata()
+// Builds a representative normalization record used by round-trip tests.
+[[nodiscard]] AudioNormalization makeNormalization()
 {
-    return AudioLoudnessMetadata{
-        .target =
-            AudioNormalizationTarget{
-                .integrated_loudness_lufs = -16.0,
-            },
-        .analysis =
-            AudioLoudnessAnalysis{
-                .measurement =
-                    AudioLoudnessMeasurement{
-                        .integrated_loudness_lufs = -15.75,
-                        .sample_peak_dbfs = -2.5,
-                    },
-                .fingerprint =
-                    AudioFileFingerprint{
-                        .size_bytes = 5,
-                        .sha256 =
-                            "8a45c2e07a3e83dc6b6f8e3f4f9b4d4e2a1b9c6f6c0e8a3a2b1c9d8e7f6a5b4c",
-                    },
-                .analyzer_id = "libebur128-lufs-i",
-                .analyzer_version = "1.2.6",
-            },
-        .applied_gain_db = -0.25,
+    return AudioNormalization{
+        .gain_db = -0.25,
+        .validation_sha256 = std::string(64, 'a'),
     };
 }
 
-// Builds a song whose backing audio carries persisted loudness metadata.
-[[nodiscard]] Song makeSongWithLoudnessMetadata(const std::filesystem::path& audio_path)
+// Builds a song whose backing audio carries persisted normalization metadata.
+[[nodiscard]] Song makeSongWithNormalization(const std::filesystem::path& audio_path)
 {
     Song song = makeSong(audio_path);
-    song.arrangements.front().audio_asset.loudness_metadata = makeLoudnessMetadata();
+    song.arrangements.front().audio_asset.normalization = makeNormalization();
     return song;
 }
 
@@ -393,16 +374,16 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
     CHECK(read_song.error().message.find("tone document") != std::string::npos);
 }
 
-// Verifies songs whose backing audio carries loudness metadata round-trip every persisted field.
-TEST_CASE("Rock song package round-trips loudness metadata", "[core][rock-song-package]")
+// Verifies songs whose backing audio carries normalization metadata round-trip every persisted field.
+TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
     writeAudioFile(source_audio);
 
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    const auto written = writeRockSongPackageDirectory(
-        package_directory, makeSongWithLoudnessMetadata(source_audio));
+    const auto written =
+        writeRockSongPackageDirectory(package_directory, makeSongWithNormalization(source_audio));
 
     REQUIRE(written.has_value());
 
@@ -410,13 +391,13 @@ TEST_CASE("Rock song package round-trips loudness metadata", "[core][rock-song-p
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    const auto& loudness_metadata = read_song->arrangements.front().audio_asset.loudness_metadata;
-    REQUIRE(loudness_metadata.has_value());
-    CHECK(*loudness_metadata == makeLoudnessMetadata());
+    const auto& normalization = read_song->arrangements.front().audio_asset.normalization;
+    REQUIRE(normalization.has_value());
+    CHECK(*normalization == makeNormalization());
 }
 
-// Verifies older packages whose audio entries omit loudnessMetadata still load with empty optional.
-TEST_CASE("Rock song package without loudness metadata still loads", "[core][rock-song-package]")
+// Verifies older packages whose audio entries omit normalization still load with empty optional.
+TEST_CASE("Rock song package without normalization still loads", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -449,13 +430,12 @@ TEST_CASE("Rock song package without loudness metadata still loads", "[core][roc
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK_FALSE(read_song->arrangements.front().audio_asset.loudness_metadata.has_value());
+    CHECK_FALSE(read_song->arrangements.front().audio_asset.normalization.has_value());
 }
 
-// Verifies an explicit JSON null loudness metadata field loads identically to an omitted field.
+// Verifies an explicit JSON null normalization field loads identically to an omitted field.
 TEST_CASE(
-    "Rock song package treats explicit null loudness metadata as absent",
-    "[core][rock-song-package]")
+    "Rock song package treats explicit null normalization as absent", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -468,7 +448,7 @@ TEST_CASE(
                 {
                     "id": "backing",
                     "path": "audio/backing.wav",
-                    "loudnessMetadata": null
+                    "normalization": null
                 }
             ],
             "arrangements": [
@@ -489,11 +469,12 @@ TEST_CASE(
 
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
-    CHECK_FALSE(read_song->arrangements.front().audio_asset.loudness_metadata.has_value());
+    CHECK_FALSE(read_song->arrangements.front().audio_asset.normalization.has_value());
 }
 
-// Verifies malformed loudnessMetadata objects fail with InvalidAudioAsset only when present.
-TEST_CASE("Rock song package rejects malformed loudness metadata", "[core][rock-song-package]")
+// Verifies incomplete normalization records load as absent so open-time analysis can repair them.
+TEST_CASE(
+    "Rock song package treats incomplete normalization as absent", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
@@ -506,10 +487,8 @@ TEST_CASE("Rock song package rejects malformed loudness metadata", "[core][rock-
                 {
                     "id": "backing",
                     "path": "audio/backing.wav",
-                    "loudnessMetadata": {
-                        "target": {
-                            "integratedLoudnessLufs": -16.0
-                        }
+                    "normalization": {
+                        "gainDb": -4.0
                     }
                 }
             ],
@@ -529,8 +508,9 @@ TEST_CASE("Rock song package rejects malformed loudness metadata", "[core][rock-
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
-    REQUIRE_FALSE(read_song.has_value());
-    CHECK(read_song.error().code == SongPackageErrorCode::InvalidAudioAsset);
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK_FALSE(read_song->arrangements.front().audio_asset.normalization.has_value());
 }
 
 } // namespace rock_hero::common::core

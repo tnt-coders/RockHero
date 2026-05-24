@@ -48,8 +48,8 @@ enum class BusyOperation : std::uint8_t
     /*! \brief Restoring a saved live rig chain during project load. */
     LoadingLiveRig,
 
-    /*! \brief Rendering normalized backing audio during import or after an open-time prompt. */
-    NormalizingBackingAudio,
+    /*! \brief Analyzing backing audio while validating normalization metadata. */
+    AnalyzingBackingAudio,
 };
 
 /*!

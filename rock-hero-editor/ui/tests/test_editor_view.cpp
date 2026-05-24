@@ -91,14 +91,6 @@ public:
         unsaved_changes_decision_count += 1;
     }
 
-    // Captures decisions selected through the backing-audio normalization dialog.
-    void onBackingAudioNormalizationDecision(
-        core::BackingAudioNormalizationDecision decision) override
-    {
-        last_backing_audio_normalization_decision = decision;
-        backing_audio_normalization_decision_count += 1;
-    }
-
     // Counts play/pause intents emitted by keyboard or transport controls.
     void onPlayPausePressed() override
     {
@@ -192,9 +184,6 @@ public:
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
 
-    std::optional<core::BackingAudioNormalizationDecision>
-        last_backing_audio_normalization_decision{};
-
     // Number of open intents received.
     int open_request_count{0};
 
@@ -221,8 +210,6 @@ public:
 
     // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
-
-    int backing_audio_normalization_decision_count{0};
 
     // Number of play/pause intents received.
     int play_pause_press_count{0};

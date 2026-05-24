@@ -27,8 +27,8 @@ std::string busyMessage(BusyOperation operation)
             return "Scanning plugins...";
         case BusyOperation::LoadingLiveRig:
             return "Loading live rig...";
-        case BusyOperation::NormalizingBackingAudio:
-            return "Normalizing audio...";
+        case BusyOperation::AnalyzingBackingAudio:
+            return "Analyzing audio...";
     }
 
     return {};
@@ -52,7 +52,7 @@ BusyPresentation busyPresentation(BusyOperation operation) noexcept
         case BusyOperation::SavingProjectAs:
         case BusyOperation::PublishingProject:
         case BusyOperation::ScanningPlugins:
-        case BusyOperation::NormalizingBackingAudio:
+        case BusyOperation::AnalyzingBackingAudio:
             return BusyPresentation::Animated;
     }
 

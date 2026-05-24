@@ -76,7 +76,7 @@ namespace
         }
         case ProjectErrorCode::AudioNormalizationFailed:
         {
-            return "Could not normalize imported backing audio.";
+            return "Could not normalize backing audio.";
         }
     }
 

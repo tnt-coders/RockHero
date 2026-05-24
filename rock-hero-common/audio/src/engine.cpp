@@ -2114,10 +2114,9 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
     }
 
     // Apply persisted normalization gain so playback volume matches the analyzed loudness target.
-    if (arrangement.audio_asset.loudness_metadata.has_value())
+    if (arrangement.audio_asset.normalization.has_value())
     {
-        wave_clip->setGainDB(
-            static_cast<float>(arrangement.audio_asset.loudness_metadata->applied_gain_db));
+        wave_clip->setGainDB(static_cast<float>(arrangement.audio_asset.normalization->gain_db));
     }
 
     m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
