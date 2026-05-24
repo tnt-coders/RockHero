@@ -67,6 +67,12 @@ public:
     */
     virtual void onUnsavedChangesDecision(UnsavedChangesDecision decision) = 0;
 
+    /*!
+    \brief Handles the user's response to a previous interrupted startup restore.
+    \param decision Decision selected by the user.
+    */
+    virtual void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) = 0;
+
     /*! \brief Handles a play/pause button press from the editor UI. */
     virtual void onPlayPausePressed() = 0;
 

@@ -56,6 +56,18 @@ public:
     void setLastOpenProject(std::optional<std::filesystem::path> project_file);
 
     /*!
+    \brief Reads the project path whose previous startup restore did not finish.
+    \return Interrupted restore path, or empty when startup restore can proceed normally.
+    */
+    [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const;
+
+    /*!
+    \brief Stores or clears the project path whose startup restore is in progress.
+    \param project_file Interrupted restore path, or empty to clear the recovery prompt state.
+    */
+    void setInterruptedRestoreProject(std::optional<std::filesystem::path> project_file);
+
+    /*!
     \brief Reads the serialized audio-device manager state stored by a previous editor session.
     \return Stored XML state, or empty when no audio-device state should be restored.
     */

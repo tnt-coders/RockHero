@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <rock_hero/common/audio/audio_normalization.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <string>
 #include <system_error>
 #include <utility>
@@ -38,16 +39,6 @@ constexpr const char* g_hash_version = "RockHeroNormalizationV1";
 
 // Buffer size used between JUCE's 64-byte SHA-256 block reader and the backing file stream.
 constexpr int g_hash_stream_buffer_bytes = 65536;
-
-// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
-[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String::fromUTF8(path.string().c_str())};
-#endif
-}
 
 // Frees libebur128 state through the library's pointer-to-pointer destroy contract.
 struct Ebur128StateDeleter
@@ -322,7 +313,9 @@ private:
     const std::string gain_text = formatGainForHash(gain_db);
     std::string prefix = std::string{g_hash_version} + "\ngainDb=" + gain_text + "\naudioBytes\n";
 
-    ValidationHashInputStream hash_input{std::move(prefix), juceFileFromPath(audio_path)};
+    ValidationHashInputStream hash_input{
+        std::move(prefix), common::core::juceFileFromPath(audio_path)
+    };
     if (hash_input.failedToOpen())
     {
         error_message = "Could not open file for validation hashing: " + hash_input.errorMessage();
@@ -408,7 +401,7 @@ analyzeAudioForGainNormalization(
     juce::AudioFormatManager format_manager;
     format_manager.registerBasicFormats();
     auto reader = std::unique_ptr<juce::AudioFormatReader>{format_manager.createReaderFor(
-        juceFileFromPath(input))};
+        common::core::juceFileFromPath(input))};
     if (reader == nullptr)
     {
         return std::unexpected{AudioNormalizationError{
