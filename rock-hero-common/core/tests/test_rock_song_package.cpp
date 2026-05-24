@@ -508,8 +508,7 @@ TEST_CASE("Rock song package rejects malformed loudness metadata", "[core][rock-
                     "path": "audio/backing.wav",
                     "loudnessMetadata": {
                         "target": {
-                            "integratedLoudnessLufs": -16.0,
-                            "truePeakCeilingDbtp": -2.0
+                            "integratedLoudnessLufs": -16.0
                         }
                     }
                 }

@@ -508,12 +508,12 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     const std::filesystem::path path = directory.path() / "song.rock";
     writeMinimalRockSongPackage(path);
 
-    FakeAnalyzeAudio fake_normalize;
+    FakeAnalyzeAudio fake_analyze;
 
     Project project;
     RockSongImporter importer;
     const auto result = project.import(
-        path, importer, common::core::AudioNormalizationTarget{}, fake_normalize.function());
+        path, importer, common::core::AudioNormalizationTarget{}, fake_analyze.function());
 
     REQUIRE(result.has_value());
     CHECK(result->metadata.title == "Monument");
@@ -523,21 +523,20 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     CHECK(arrangement.id == g_lead_arrangement_id);
     CHECK(arrangement.part == Part::Lead);
     CHECK(std::filesystem::is_regular_file(arrangement.audio_asset.path));
-    // The arrangement now references the normalized output, not the raw imported file. The raw
-    // imported file is deleted after retargeting.
-    CHECK(arrangement.audio_asset.path != project.workspaceDirectory() / "song/audio/backing.wav");
-    CHECK_FALSE(
-        std::filesystem::exists(project.workspaceDirectory() / "song" / "audio" / "backing.wav"));
+    const std::filesystem::path imported_audio_path =
+        project.workspaceDirectory() / "song" / "audio" / "backing.wav";
+    CHECK(arrangement.audio_asset.path == imported_audio_path);
+    CHECK(std::filesystem::exists(imported_audio_path));
     REQUIRE(arrangement.audio_asset.loudness_metadata.has_value());
     CHECK(arrangement.audio_asset.loudness_metadata->analysis.analyzer_id == "fake-analyzer");
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
-    REQUIRE(fake_normalize.invocations.size() == 1);
+    REQUIRE(fake_analyze.invocations.size() == 1);
 }
 
-// Verifies arrangements sharing one source audio path get a single normalize call and identical
+// Verifies arrangements sharing one source audio path get a single analysis call and identical
 // metadata, matching the dedupe contract described in the normalization plan.
-TEST_CASE("Project import normalizes each unique source audio once", "[core][project]")
+TEST_CASE("Project import analyzes each unique source audio once", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
     const std::filesystem::path path = directory.path() / "song.rock";
@@ -577,11 +576,11 @@ TEST_CASE("Project import normalizes each unique source audio once", "[core][pro
             },
         });
 
-    FakeAnalyzeAudio fake_normalize;
+    FakeAnalyzeAudio fake_analyze;
     Project project;
     RockSongImporter importer;
     const auto result = project.import(
-        path, importer, common::core::AudioNormalizationTarget{}, fake_normalize.function());
+        path, importer, common::core::AudioNormalizationTarget{}, fake_analyze.function());
 
     REQUIRE(result.has_value());
     REQUIRE(result->arrangements.size() == 2);
@@ -592,7 +591,7 @@ TEST_CASE("Project import normalizes each unique source audio once", "[core][pro
     CHECK(
         result->arrangements.front().audio_asset.loudness_metadata ==
         result->arrangements.back().audio_asset.loudness_metadata);
-    REQUIRE(fake_normalize.invocations.size() == 1);
+    REQUIRE(fake_analyze.invocations.size() == 1);
 }
 
 // Verifies analyze_audio failures propagate as AudioNormalizationFailed without leaving the

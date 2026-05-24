@@ -101,7 +101,7 @@ struct AudioNormalizationOutcome
 };
 
 /*!
-\brief Measures integrated loudness and true peak of an existing audio file.
+\brief Measures integrated loudness and sample peak of an existing audio file.
 
 Used by the editor on a background thread to check whether a project's backing audio asset still
 matches the current normalization target. Returns the same analysis shape that is embedded inside

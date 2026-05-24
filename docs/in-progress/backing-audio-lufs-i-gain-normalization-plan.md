@@ -10,8 +10,7 @@ In progress. This supersedes the rendered-WAV normalization direction from
 The current loudness path is correct enough to work, but it is too slow for large-scale use. Even
 "check only" analysis currently pays costs that are not needed for Rock Hero's backing-track goal:
 
-- libebur128 is opened with `EBUR128_MODE_I | EBUR128_MODE_TRUE_PEAK`.
-- True peak analysis uses oversampling and is considerably slower than integrated loudness only.
+- libebur128 currently does more peak work than the backing-track goal requires.
 - `measureAudioLoudness` performs a full decoded audio pass, then `fingerprintAudioFile` performs a
   second file pass.
 - Normalization renders a new WAV, reopens the rendered output, remeasures it, fingerprints it, and
@@ -36,7 +35,7 @@ measured integrated loudness is `-20 LUFS-I` should persist an applied gain of `
 ## Non-Goals
 
 - Do not render a new normalized WAV as the normal workflow.
-- Do not true-peak-limit backing audio.
+- Do not add a separate limiting pass for backing audio.
 - Do not add a mixer, per-song backing gain UI, or automation as part of this work.
 - Do not normalize guitar tone, live input, or plugin output.
 - Do not block project open on a full LUFS-I analysis when metadata can be trusted.
@@ -47,11 +46,11 @@ measured integrated loudness is `-20 LUFS-I` should persist an applied gain of `
 - Configure libebur128 with `EBUR128_MODE_I | EBUR128_MODE_SAMPLE_PEAK` for backing-track
   normalization. Sample peak tracks the maximum absolute sample value during the analysis pass with
   no oversampling overhead, so it is essentially free alongside the integrated loudness scan.
-- Use sample peak to clamp the applied gain so normalized playback never exceeds 0 dBFS. This
-  replaces true-peak-ceiling limiting with a simpler, faster guarantee: the loudest sample in the
-  source file, after gain, will not clip. Inter-sample peaks are not tracked; sample-peak accuracy
-  is sufficient for a backing-track gain decision.
-- Drop true peak from the backing-audio normalization target and currentness checks.
+- Use sample peak to clamp the applied gain so normalized playback never exceeds 0 dBFS. The
+  guarantee is simple and fast: the loudest sample in the source file, after gain, will not clip.
+  Inter-sample peaks are not tracked; sample-peak accuracy is sufficient for a backing-track gain
+  decision.
+- Use sample peak only as a 0 dBFS gain clamp.
 - Treat normalization as a gain decision, not an audio-file rewrite.
 - Persist the gain decision in project metadata.
 - Draw the waveform with the same gain scale used for playback so the visible waveform matches what
@@ -66,10 +65,10 @@ gain Rock Hero applies to it:
 
 - `AudioLoudnessMeasurement`
   - Keep `integrated_loudness_lufs`.
-  - Replace `true_peak_dbtp` with `sample_peak_dbfs` (maximum absolute sample value in dBFS).
+  - Keep `sample_peak_dbfs` (maximum absolute sample value in dBFS).
 - `AudioNormalizationTarget`
   - Keep `integrated_loudness_lufs`.
-  - Remove `true_peak_ceiling_dbtp`. The peak clamp is implicitly 0 dBFS (do not clip).
+  - The peak clamp is implicitly 0 dBFS (do not clip).
 - `AudioLoudnessAnalysis`
   - Keep `fingerprint` as the fingerprint of `AudioAsset::path`.
   - Keep `measurement`.
@@ -98,11 +97,8 @@ This value is the single source of truth for playback and waveform scaling.
 Package loading should remain backward-compatible:
 
 - Older packages without loudness metadata still load.
-- Existing metadata that contains true-peak fields should still parse.
 - New saves should write the LUFS-I fields and `appliedGainDb`.
-- New saves should omit true-peak fields once the migration is complete.
-- If old metadata has a current fingerprint and target but lacks `appliedGainDb`, compute it from
-  target LUFS-I minus measured LUFS-I during load or first metadata refresh.
+- Projects that already contain older loudness metadata must be migrated manually if needed.
 
 If the analyzer identifier, target LUFS-I, source file size, or source file hash does not match,
 the metadata is stale and should be refreshed in the background.
@@ -203,8 +199,8 @@ waveform aligned with normalized playback while avoiding unnecessary thumbnail w
 
 ## Testing Strategy
 
-- Add common-core serialization tests for new metadata, old metadata with true-peak fields, missing
-  metadata, and malformed optional metadata.
+- Add common-core serialization tests for new metadata, missing metadata, and malformed optional
+  metadata.
 - Add audio tests proving LUFS-I analysis uses integrated mode only and computes the expected
   `applied_gain_db` for generated fixtures.
 - Add controller tests for trusted hash metadata, stale target metadata, size mismatch, and hash

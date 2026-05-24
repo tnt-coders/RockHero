@@ -1228,6 +1228,31 @@ private:
     return song;
 }
 
+// Builds metadata for a source file whose raw LUFS is outside target but whose applied gain is
+// already current under the gain-normalization policy.
+[[nodiscard]] common::core::AudioLoudnessMetadata makeCurrentGainMetadata()
+{
+    return common::core::AudioLoudnessMetadata{
+        .target = common::core::AudioNormalizationTarget{},
+        .analysis =
+            common::core::AudioLoudnessAnalysis{
+                .measurement =
+                    common::core::AudioLoudnessMeasurement{
+                        .integrated_loudness_lufs = -12.0,
+                        .sample_peak_dbfs = -3.0,
+                    },
+                .fingerprint =
+                    common::core::AudioFileFingerprint{
+                        .size_bytes = 42,
+                        .sha256 = std::string(64, 'b'),
+                    },
+                .analyzer_id = "libebur128-lufs-i",
+                .analyzer_version = "1.2.6",
+            },
+        .applied_gain_db = -4.0,
+    };
+}
+
 // Builds song data with two arrangements so controller selection policy can be tested.
 [[nodiscard]] common::core::Song makeTwoArrangementSong(
     std::filesystem::path lead_path, std::filesystem::path bass_path)
@@ -1565,6 +1590,49 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
         CHECK_FALSE(loaded_state.signal_chain.remove_plugins_enabled);
         CHECK(loaded_state.signal_chain.plugins.empty());
     }
+}
+
+// Persisted gain metadata is current when the stored gain matches the policy, even if the raw
+// source measurement itself is outside the target.
+TEST_CASE("EditorController treats applied gain metadata as current", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    FakeProjectServices project_services;
+    common::core::Song song = makeSong(std::filesystem::path{"song.wav"});
+    song.arrangements.front().audio_asset.loudness_metadata = makeCurrentGainMetadata();
+    project_services.next_song = std::move(song);
+    int analyze_call_count = 0;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .audio_analyze_function = [&analyze_call_count](const std::filesystem::path&)
+                -> std::expected<
+                    common::core::AudioLoudnessAnalysis,
+                    common::audio::AudioNormalizationError> {
+                ++analyze_call_count;
+                return std::unexpected{common::audio::AudioNormalizationError{
+                    common::audio::AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+                }};
+            },
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->backing_audio_normalization_prompt.has_value());
+    CHECK(analyze_call_count == 0);
+    REQUIRE(audio.last_active_audio_asset.has_value());
+    REQUIRE(audio.last_active_audio_asset->loudness_metadata.has_value());
+    CHECK(audio.last_active_audio_asset->loudness_metadata->applied_gain_db == -4.0);
 }
 
 // Opening the plugin browser makes it visible from the already-known catalog only.
@@ -3567,6 +3635,15 @@ TEST_CASE("EditorController import reports audio analysis", "[core][editor-contr
                 return std::expected<common::core::Song, ProjectError>{makeSong(
                     std::filesystem::path{"source.wav"})};
             },
+            .audio_analyze_for_gain_function =
+                [](const std::filesystem::path&,
+                   const common::core::AudioNormalizationTarget& target) {
+                    common::core::AudioLoudnessMetadata metadata = makeCurrentGainMetadata();
+                    metadata.target = target;
+                    return std::expected<
+                        common::core::AudioLoudnessMetadata,
+                        common::audio::AudioNormalizationError>{std::move(metadata)};
+                },
             .task_runner = &runner,
         }
     };
@@ -3865,6 +3942,9 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
 
     project_services.next_song = makeSong(std::filesystem::path{"loaded.wav"});
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
+    runner.runPendingCompletions();
+    // The loaded fixture has no loudness metadata, so open schedules one background check.
+    // Drain it here; this test's pending-count assertion is about the next open request.
     runner.runPendingCompletions();
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;

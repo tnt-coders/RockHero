@@ -18,7 +18,7 @@ namespace
 {
 
 // Sample rate used by every generated WAV fixture. Matches typical backing audio so the analyzer
-// runs through the same resampling and true-peak paths it will hit at import time.
+// sees the same WAV shape it will hit at import time.
 constexpr int g_test_sample_rate = 48000;
 
 // Test fixtures use stereo audio because that is the dominant backing-audio shape and exercises
@@ -115,18 +115,23 @@ private:
     REQUIRE(!stream->failedToOpen());
     REQUIRE(stream->setPosition(0));
     REQUIRE(!stream->truncate().failed());
-    juce::FileOutputStream* const raw_stream = stream.get();
-    const std::unique_ptr<juce::AudioFormatWriter> writer{wav_format.createWriterFor(
-        raw_stream, g_test_sample_rate, g_test_channels, 24, juce::StringPairArray{}, 0)};
+    std::unique_ptr<juce::OutputStream> output_stream{std::move(stream)};
+    const auto writer_options =
+        juce::AudioFormatWriterOptions{}
+            .withSampleRate(g_test_sample_rate)
+            .withNumChannels(g_test_channels)
+            .withBitsPerSample(24)
+            .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::integral);
+    std::unique_ptr<juce::AudioFormatWriter> writer =
+        wav_format.createWriterFor(output_stream, writer_options);
     REQUIRE(writer != nullptr);
-    stream.release();
     REQUIRE(writer->writeFromAudioSampleBuffer(buffer, 0, total_samples));
     return path;
 }
 
 // Writes a fixture that pairs a brief high-amplitude transient with a long quiet bed so the
-// integrated loudness stays well below the normalization target while true peak sits above the
-// ceiling. Used to exercise the peak-limited gain branch.
+// integrated loudness stays well below the normalization target while sample peak leaves little
+// headroom. Used to exercise the gain-clamping branch.
 [[nodiscard]] std::filesystem::path writePeakHeavyWav(const std::filesystem::path& path)
 {
     const int total_samples = static_cast<int>(g_test_duration_seconds * g_test_sample_rate);
@@ -151,11 +156,16 @@ private:
     REQUIRE(!stream->failedToOpen());
     REQUIRE(stream->setPosition(0));
     REQUIRE(!stream->truncate().failed());
-    juce::FileOutputStream* const raw_stream = stream.get();
-    const std::unique_ptr<juce::AudioFormatWriter> writer{wav_format.createWriterFor(
-        raw_stream, g_test_sample_rate, g_test_channels, 24, juce::StringPairArray{}, 0)};
+    std::unique_ptr<juce::OutputStream> output_stream{std::move(stream)};
+    const auto writer_options =
+        juce::AudioFormatWriterOptions{}
+            .withSampleRate(g_test_sample_rate)
+            .withNumChannels(g_test_channels)
+            .withBitsPerSample(24)
+            .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::integral);
+    std::unique_ptr<juce::AudioFormatWriter> writer =
+        wav_format.createWriterFor(output_stream, writer_options);
     REQUIRE(writer != nullptr);
-    stream.release();
     REQUIRE(writer->writeFromAudioSampleBuffer(buffer, 0, total_samples));
     return path;
 }
