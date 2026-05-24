@@ -26,9 +26,6 @@ enum class AudioDeviceSettingsErrorCode
     /*! \brief Applying the staged route failed. */
     ApplyFailed,
 
-    /*! \brief Applying failed and restoring the previous route also failed. */
-    RollbackFailed,
-
     /*! \brief The selected route has no backend control panel to open. */
     ControlPanelUnavailable,
 };

@@ -43,10 +43,6 @@ constexpr double g_sample_rate_match_tolerance{0.001};
         {
             return "Could not apply the selected audio device settings.";
         }
-        case AudioDeviceSettingsErrorCode::RollbackFailed:
-        {
-            return "Could not restore the previous audio device settings.";
-        }
         case AudioDeviceSettingsErrorCode::ControlPanelUnavailable:
         {
             return "The selected audio device has no control panel.";
@@ -487,9 +483,9 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
         refreshState({});
     }
 
-    // Opens the staged route. If the open fails, restores the previous route captured by the
-    // constructor when there is one to restore. With the device closed during the settings edit,
-    // setCurrentAudioDeviceType() does not incur JUCE's 1.5 second open-device release sleep.
+    // Opens the staged route. If the open fails, leaves the backend closed. With the device
+    // closed during the settings edit, setCurrentAudioDeviceType() does not incur JUCE's 1.5
+    // second open-device release sleep.
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply()
     {
         if (m_staged_device_type.isEmpty())
@@ -521,21 +517,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return {};
         }
 
-        const juce::String rollback_error =
-            m_restore_pending ? restorePreviousRoute() : juce::String{};
-        if (rollback_error.isNotEmpty())
-        {
-            // Rollback failed — the backend is in a broken state. Leave m_restore_pending true
-            // so the destructor gets one more chance to restore the previous route.
-            AudioDeviceSettingsError error{
-                AudioDeviceSettingsErrorCode::RollbackFailed, rollback_error.toStdString()
-            };
-            refreshState(error.message);
-            return std::unexpected{std::move(error)};
-        }
-
-        // Rollback succeeded — the previous route is active again, so subsequent cancel and
-        // destruction have nothing more to restore.
+        m_device_manager.closeAudioDevice();
         m_restore_pending = false;
         AudioDeviceSettingsError error{
             AudioDeviceSettingsErrorCode::ApplyFailed, error_text.toStdString()
@@ -1011,13 +993,13 @@ private:
     // Audio device manager owned by the shared backend.
     juce::AudioDeviceManager& m_device_manager;
 
-    // Route active when the settings edit was constructed. cancel() reopens this, and
-    // apply()-on-failure rolls back to it.
+    // Route active when the settings edit was constructed. cancel() and destructor fallback
+    // reopen this until an apply open attempt succeeds or fails.
     juce::AudioDeviceManager::AudioDeviceSetup m_previous_setup;
     juce::String m_previous_device_type;
 
-    // True between construction and a successful apply or cancel when there was an actually-open
-    // device to restore. Gates cancel(), apply rollback, and ~Impl() so they cannot accidentally
+    // True between construction and an apply open attempt or cancel when there was an
+    // actually-open device to restore. Gates cancel() and ~Impl() so they cannot accidentally
     // start audio from an originally-closed state.
     bool m_restore_pending{false};
 
