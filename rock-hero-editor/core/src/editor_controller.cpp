@@ -8,6 +8,7 @@
 #include <cctype>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <expected>
 #include <functional>
@@ -15,6 +16,7 @@
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
@@ -22,7 +24,6 @@
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_settings.h>
@@ -44,42 +45,15 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Loudness target the editor renders backing audio against. Held as a constant for now; later
-// versions can route a user-configurable value through EditorSettings.
-constexpr common::core::AudioNormalizationTarget g_default_normalization_target{};
-
-// LU tolerance used by the open-time prompt: assets whose persisted integrated loudness differs
-// from the current target by more than this trigger a normalization recommendation. Matches the
-// EBU R128 broadcast-tolerance value and the perceptual JND for sequential listening; tune after
-// hearing real imported songs through the editor.
-constexpr double g_backing_audio_loudness_tolerance_lu = 1.0;
-
-// Tolerance for comparing persisted gain metadata against the current gain policy. JSON
-// round-tripping should preserve this exactly, but keeping a narrow tolerance avoids treating
-// harmless decimal representation changes as stale.
-constexpr double g_backing_audio_gain_tolerance_db = 0.01;
-
-// Computes the gain applied by the current backing-audio normalization policy.
-[[nodiscard]] double calculateBackingAudioGainDb(
-    const common::core::AudioLoudnessMeasurement& measurement,
-    const common::core::AudioNormalizationTarget& target) noexcept
-{
-    const double desired_gain_db =
-        target.integrated_loudness_lufs - measurement.integrated_loudness_lufs;
-    const double peak_headroom_db = 0.0 - measurement.sample_peak_dbfs;
-    return std::min(desired_gain_db, peak_headroom_db);
-}
-
 // Production open path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultOpen(
-    Project& project, const std::filesystem::path& file)
+    Project& project, const std::filesystem::path& file,
+    const AudioAnalyzeForGainFunction& analyze_audio)
 {
-    return project.load(file);
+    return project.load(file, {}, analyze_audio);
 }
 
-// Production import path used when tests do not provide a custom seam. The controller supplies
-// an analysis function so Project::import can compute gain normalization metadata for each
-// unique backing audio file without rendering new WAVs.
+// Production import path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultImport(
     Project& project, const std::filesystem::path& file,
     const AudioAnalyzeForGainFunction& analyze_audio)
@@ -92,13 +66,13 @@ constexpr double g_backing_audio_gain_tolerance_db = 0.01;
     if (extension == ".rock")
     {
         RockSongImporter importer;
-        return project.import(file, importer, g_default_normalization_target, analyze_audio);
+        return project.import(file, importer, {}, analyze_audio);
     }
 
     if (extension == ".psarc")
     {
         PsarcSongImporter importer;
-        return project.import(file, importer, g_default_normalization_target, analyze_audio);
+        return project.import(file, importer, {}, analyze_audio);
     }
 
     return std::unexpected{ProjectError{
@@ -380,6 +354,33 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
            " of " + std::to_string(progress.total_plugins) + ")...";
 }
 
+// Lets a worker wait briefly for a message-thread busy-state paint without ever blocking the
+// message thread itself. The timeout prevents a hidden, minimized, or tearing-down view from
+// turning a cosmetic paint fence into a stuck project load.
+class AnalysisPaintGate final
+{
+public:
+    void release()
+    {
+        {
+            const std::lock_guard lock{m_mutex};
+            m_released = true;
+        }
+        m_condition.notify_one();
+    }
+
+    void wait()
+    {
+        std::unique_lock lock{m_mutex};
+        m_condition.wait_for(lock, std::chrono::milliseconds{250}, [this] { return m_released; });
+    }
+
+private:
+    std::mutex m_mutex;
+    std::condition_variable m_condition;
+    bool m_released{false};
+};
+
 } // namespace
 
 // Owns every implementation detail that does not need to be part of the public controller type.
@@ -405,7 +406,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     struct PluginCatalogTaskState;
     struct ProjectWriteTaskState;
     struct ProjectLoadLiveRigStage;
-    struct BackingAudioMeasureTaskState;
 
     Impl(
         common::audio::ITransport& transport, common::audio::IAudio& audio,
@@ -432,7 +432,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
-    void onBackingAudioNormalizationDecision(BackingAudioNormalizationDecision decision);
     void onPlayPausePressed();
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
@@ -482,19 +481,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
-    void scheduleBackingAudioNormalizationCheck();
-    void evaluateBackingAudioNormalizationForCurrentSession();
-    void scheduleBackingAudioNormalizationMeasurement(
-        const std::filesystem::path& audio_path, int affected_arrangement_count);
-    void completeBackingAudioNormalizationMeasurement(
-        const std::shared_ptr<BackingAudioMeasureTaskState>& state);
-    [[nodiscard]] bool isBackingAudioNormalizationCurrent(
-        const common::core::AudioLoudnessMetadata& metadata) const noexcept;
-    [[nodiscard]] bool isMeasurementOutsideTarget(
-        const common::core::AudioLoudnessMeasurement& measurement) const noexcept;
-    void showBackingAudioNormalizationPrompt(BackingAudioNormalizationPrompt prompt);
-    void applyBackingAudioNormalizationPrompt();
-    void dismissBackingAudioNormalizationPrompt();
+    [[nodiscard]] AudioAnalyzeForGainFunction makeBusyAudioAnalyzeForGainFunction(
+        std::uint64_t token);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
     void beginAddKnownPlugin(const common::audio::PluginCandidate& plugin_candidate);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
@@ -521,7 +509,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
     void transitionBusyOperation(BusyOperation operation, std::uint64_t token);
-    [[nodiscard]] AudioAnalyzeForGainFunction makeImportAudioAnalyzeFunction(std::uint64_t token);
+    void transitionBusyOperationAfterPaint(
+        BusyOperation operation, std::uint64_t token, std::shared_ptr<AnalysisPaintGate> gate);
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
@@ -604,18 +593,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Project IO and host-exit seams supplied by production composition or tests.
     EditorController::OpenFunction m_open_function;
     EditorController::ImportFunction m_import_function;
+    AudioAnalyzeForGainFunction m_audio_analyze_for_gain_function;
     EditorController::SaveFunction m_save_function;
     EditorController::SaveAsFunction m_save_as_function;
     EditorController::PublishFunction m_publish_function;
     EditorController::ExitFunction m_exit_function;
-
-    // Open-time analysis seam consumed by the (deferred) background normalization check.
-    // Captured here so production composition and tests can inject the function once at
-    // construction time, even though the open-time pipeline that drives it is a follow-up.
-    EditorController::AudioAnalyzeFunction m_audio_analyze_function;
-
-    // Import-time analysis seam consumed when a project import computes gain metadata.
-    AudioAnalyzeForGainFunction m_audio_analyze_for_gain_function;
 
     // Optional app-local settings used to restore startup state and persist exit state.
     EditorSettings* m_settings;
@@ -686,15 +668,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // progress. Cleared when busy state ends.
     std::optional<LiveRigProgress> m_live_rig_progress{};
 
-    // Optional open-time normalization prompt. Populated when persisted metadata or a fresh
-    // background measurement reports a backing asset outside the configured tolerance, and
-    // cleared by the user intent handler.
-    std::optional<BackingAudioNormalizationPrompt> m_backing_audio_normalization_prompt{};
-
-    // Latched once per session so the open-time check fires exactly once per project load.
-    // Reset in loadSessionSong() before each new session commits.
-    bool m_backing_audio_normalization_check_done_for_session{false};
-
     // Current busy-operation token used by async callbacks to reject stale work.
     std::uint64_t m_current_busy_token{0};
 
@@ -736,18 +709,6 @@ struct EditorController::Impl::ImportTaskState
     std::filesystem::path file{};
     Project project{};
     std::expected<common::core::Song, ProjectError> result{};
-};
-
-// Per-asset worker state for the open-time background loudness measurement. The completion
-// reads result, builds a prompt, and publishes it through updateView() without touching audio
-// or session state from the worker thread.
-struct EditorController::Impl::BackingAudioMeasureTaskState
-{
-    std::filesystem::path audio_path{};
-    std::string display_name{};
-    int affected_arrangement_count{0};
-    std::expected<common::core::AudioLoudnessAnalysis, common::audio::AudioNormalizationError>
-        result{std::unexpect, common::audio::AudioNormalizationErrorCode::InputFileMissing};
 };
 
 // Per-operation state for selected browser-plugin loading. Actual chain mutation happens on
@@ -925,12 +886,6 @@ void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
     m_impl->onUnsavedChangesDecision(decision);
 }
 
-void EditorController::onBackingAudioNormalizationDecision(
-    BackingAudioNormalizationDecision decision)
-{
-    m_impl->onBackingAudioNormalizationDecision(decision);
-}
-
 void EditorController::onPlayPausePressed()
 {
     m_impl->onPlayPausePressed();
@@ -999,6 +954,10 @@ EditorController::Impl::Impl(
     , m_import_function(
           services.import_function ? std::move(services.import_function)
                                    : EditorController::ImportFunction{defaultImport})
+    , m_audio_analyze_for_gain_function(
+          services.audio_analyze_for_gain_function
+              ? std::move(services.audio_analyze_for_gain_function)
+              : AudioAnalyzeForGainFunction{common::audio::analyzeAudioForGainNormalization})
     , m_save_function(
           services.save_function ? std::move(services.save_function)
                                  : EditorController::SaveFunction{defaultSave})
@@ -1011,14 +970,6 @@ EditorController::Impl::Impl(
     , m_exit_function(
           services.exit_function ? std::move(services.exit_function)
                                  : EditorController::ExitFunction{defaultExit})
-    , m_audio_analyze_function(
-          services.audio_analyze_function
-              ? std::move(services.audio_analyze_function)
-              : EditorController::AudioAnalyzeFunction{common::audio::measureAudioLoudness})
-    , m_audio_analyze_for_gain_function(
-          services.audio_analyze_for_gain_function
-              ? std::move(services.audio_analyze_for_gain_function)
-              : AudioAnalyzeForGainFunction{common::audio::analyzeAudioForGainNormalization})
     , m_settings(services.settings)
     , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
     , m_transport_listener(transport, *this)
@@ -1068,19 +1019,25 @@ void EditorController::Impl::openProject(
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
     state->clear_last_open_project_on_failure = clear_last_open_project_on_failure;
-    runBusyOperation(
-        BusyOperation::OpeningProject,
-        state,
-        [open_function = m_open_function](const std::shared_ptr<OpenTaskState>& task_state) {
-            task_state->result = open_function(task_state->project, task_state->file);
+    const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
+    AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
+    updateView();
+
+    m_task_runner->submit(
+        [state, open_function = m_open_function, analyze_audio = std::move(analyze_audio)] {
+            state->result = open_function(state->project, state->file, analyze_audio);
         },
-        [this](const std::shared_ptr<OpenTaskState>& task_state) {
-            completeOpenProject(task_state);
-        });
+        safeCallback([this, state, token]() mutable {
+            if (token != m_current_busy_token)
+            {
+                return;
+            }
+            completeOpenProject(state);
+        }));
 }
 
-// Applies the worker's open result on the message thread. runBusyOperation already verified
-// that the busy token still matches before invoking this finalizer.
+// Applies the worker's open result on the message thread. The submitted completion already
+// verified that the busy token still matches before invoking this finalizer.
 void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskState>& state)
 {
     assert(isBusy() && "completeOpenProject called outside a busy operation");
@@ -1154,17 +1111,12 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_displaced_project_file.clear();
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
-    m_has_unsaved_changes = false;
+    m_has_unsaved_changes = m_project->audioNormalizationUpdatedOnLoad();
     clearDeferredAction();
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
     finishBusyOperation();
-
-    // Once the busy overlay is down and the session is committed, evaluate backing audio
-    // against the configured normalization target so the user gets prompted when an opened
-    // project's audio is outside tolerance.
-    scheduleBackingAudioNormalizationCheck();
 }
 
 // Imports a song source and stores the workspace only after audio and Session accept the song.
@@ -1181,12 +1133,11 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
     state->file = file;
 
     const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
+    AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
     updateView();
 
     m_task_runner->submit(
-        [state,
-         import_function = m_import_function,
-         analyze_audio = makeImportAudioAnalyzeFunction(token)] {
+        [state, import_function = m_import_function, analyze_audio = std::move(analyze_audio)] {
             state->result = import_function(state->project, state->file, analyze_audio);
         },
         safeCallback([this, state, token]() mutable {
@@ -1198,8 +1149,8 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
         }));
 }
 
-// Applies the worker's import result on the message thread. runBusyOperation already verified
-// that the busy token still matches before invoking this finalizer.
+// Applies the worker's import result on the message thread. The submitted completion already
+// verified that the busy token still matches before invoking this finalizer.
 void EditorController::Impl::completeImportSongSource(const std::shared_ptr<ImportTaskState>& state)
 {
     assert(isBusy() && "completeImportSongSource called outside a busy operation");
@@ -1262,6 +1213,55 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
     finishBusyOperation();
+}
+
+// Wraps open/import analysis so the project worker can tell the message thread when it has
+// entered the potentially slow LUFS-I phase without moving the analyzer itself onto the UI thread.
+AudioAnalyzeForGainFunction EditorController::Impl::makeBusyAudioAnalyzeForGainFunction(
+    std::uint64_t token)
+{
+    return [analyze_audio = m_audio_analyze_for_gain_function,
+            alive = std::weak_ptr<bool>{m_alive},
+            token,
+            controller = this](
+               const std::filesystem::path& input,
+               const common::core::AudioNormalizationTarget& target) {
+        auto publish_analysis_state = [alive, token, controller] {
+            if (alive.expired())
+            {
+                return;
+            }
+            controller->transitionBusyOperation(BusyOperation::AnalyzingBackingAudio, token);
+        };
+
+        juce::MessageManager* const message_manager =
+            juce::MessageManager::getInstanceWithoutCreating();
+        if (message_manager == nullptr || message_manager->isThisTheMessageThread())
+        {
+            publish_analysis_state();
+        }
+        else
+        {
+            auto paint_gate = std::make_shared<AnalysisPaintGate>();
+            const bool posted =
+                juce::MessageManager::callAsync([alive, token, controller, paint_gate] {
+                    if (alive.expired())
+                    {
+                        paint_gate->release();
+                        return;
+                    }
+                    controller->transitionBusyOperationAfterPaint(
+                        BusyOperation::AnalyzingBackingAudio, token, paint_gate);
+                });
+            if (!posted)
+            {
+                paint_gate->release();
+            }
+            paint_gate->wait();
+        }
+
+        return analyze_audio(input, target);
+    };
 }
 
 // Runs the shared project-load live-rig stage. Tone-bearing arrangements switch the busy overlay
@@ -1394,258 +1394,6 @@ void EditorController::Impl::onExitRequested()
 void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision decision)
 {
     runAction(EditorAction::ResolveUnsavedChangesPrompt{decision});
-}
-
-// Routes the user's prompt decision into either metadata gain application or the silent-dismiss
-// path. Out-of-order responses (e.g. arriving after the prompt was already cleared) are dropped
-// silently.
-void EditorController::Impl::onBackingAudioNormalizationDecision(
-    BackingAudioNormalizationDecision decision)
-{
-    if (!m_backing_audio_normalization_prompt.has_value())
-    {
-        return;
-    }
-    switch (decision)
-    {
-        case BackingAudioNormalizationDecision::Normalize:
-        {
-            applyBackingAudioNormalizationPrompt();
-            return;
-        }
-        case BackingAudioNormalizationDecision::Dismiss:
-        {
-            dismissBackingAudioNormalizationPrompt();
-            return;
-        }
-    }
-}
-
-// Latches the per-session check flag and kicks off the evaluation. Called from
-// finishOpenProjectAfterLiveRigLoad once the project has been committed and the busy overlay has
-// dropped.
-void EditorController::Impl::scheduleBackingAudioNormalizationCheck()
-{
-    if (m_backing_audio_normalization_check_done_for_session)
-    {
-        return;
-    }
-    m_backing_audio_normalization_check_done_for_session = true;
-    evaluateBackingAudioNormalizationForCurrentSession();
-}
-
-// Walks unique backing audio assets in the current session. For the first asset that needs
-// attention the controller either prompts directly (when persisted metadata is enough to decide)
-// or schedules a background measurement. Stops after the first attention candidate; subsequent
-// assets re-surface on the next project open.
-void EditorController::Impl::evaluateBackingAudioNormalizationForCurrentSession()
-{
-    const common::core::Song& song = session().song();
-    if (song.arrangements.empty())
-    {
-        return;
-    }
-
-    // Preserve project order so the asset chosen for the prompt is deterministic across reruns.
-    std::unordered_map<std::string, int> arrangement_counts;
-    std::unordered_map<std::string, const common::core::AudioAsset*> assets_by_path;
-    std::vector<std::string> ordered_paths;
-    ordered_paths.reserve(song.arrangements.size());
-    for (const common::core::Arrangement& arrangement : song.arrangements)
-    {
-        const std::string key = arrangement.audio_asset.path.string();
-        if (assets_by_path.try_emplace(key, &arrangement.audio_asset).second)
-        {
-            ordered_paths.push_back(key);
-        }
-        ++arrangement_counts[key];
-    }
-
-    for (const std::string& key : ordered_paths)
-    {
-        const common::core::AudioAsset& asset = *assets_by_path[key];
-        const int affected = arrangement_counts[key];
-
-        if (asset.loudness_metadata.has_value())
-        {
-            if (isBackingAudioNormalizationCurrent(*asset.loudness_metadata))
-            {
-                continue;
-            }
-            // Persisted metadata is enough to know normalization is recommended; no need to
-            // re-read the file before prompting.
-            showBackingAudioNormalizationPrompt(
-                BackingAudioNormalizationPrompt{
-                    .audio_path = asset.path,
-                    .display_name = asset.path.filename().string(),
-                    .analysis = asset.loudness_metadata->analysis,
-                    .target = g_default_normalization_target,
-                    .affected_arrangement_count = affected,
-                });
-            return;
-        }
-
-        scheduleBackingAudioNormalizationMeasurement(asset.path, affected);
-        return;
-    }
-}
-
-// Submits a background loudness measurement for a single backing audio asset. The completion
-// runs on the message thread; stale completions (e.g. arriving after the session has been
-// replaced) are dropped by checking the per-session latch and the current asset.
-void EditorController::Impl::scheduleBackingAudioNormalizationMeasurement(
-    const std::filesystem::path& audio_path, int affected_arrangement_count)
-{
-    auto state = std::make_shared<BackingAudioMeasureTaskState>();
-    state->audio_path = audio_path;
-    state->display_name = audio_path.filename().string();
-    state->affected_arrangement_count = affected_arrangement_count;
-
-    m_task_runner->submit(
-        [state, measure = m_audio_analyze_function]() {
-            state->result = measure(state->audio_path);
-        },
-        safeCallback([this, state]() { completeBackingAudioNormalizationMeasurement(state); }));
-}
-
-// Handles a completed background measurement. Drops the result when the session changed under
-// the worker (the audio asset is no longer current), an existing prompt was already published
-// for some other reason, or the measurement reported failure.
-void EditorController::Impl::completeBackingAudioNormalizationMeasurement(
-    const std::shared_ptr<BackingAudioMeasureTaskState>& state)
-{
-    if (m_backing_audio_normalization_prompt.has_value())
-    {
-        return;
-    }
-    // Confirm the session still references the asset we just measured before publishing a
-    // prompt against it.
-    const auto& arrangements = session().arrangements();
-    const bool still_referenced = std::ranges::any_of(arrangements, [&](const auto& arrangement) {
-        return arrangement.audio_asset.path == state->audio_path;
-    });
-    if (!still_referenced)
-    {
-        return;
-    }
-    if (!state->result.has_value())
-    {
-        // Background analysis failures are silent: there is no actionable prompt without a
-        // measurement, and surfacing the analyzer's diagnostic to the user during a routine
-        // project open would be noise. Errors will resurface if normalization is later attempted.
-        return;
-    }
-    if (!isMeasurementOutsideTarget(state->result->measurement))
-    {
-        return;
-    }
-
-    showBackingAudioNormalizationPrompt(
-        BackingAudioNormalizationPrompt{
-            .audio_path = state->audio_path,
-            .display_name = state->display_name,
-            .analysis = *state->result,
-            .target = g_default_normalization_target,
-            .affected_arrangement_count = state->affected_arrangement_count,
-        });
-}
-
-// Reports whether an already-persisted loudness record satisfies the current target. Mismatched
-// targets always count as stale because the persisted metadata says it was normalized against a
-// different set of values.
-bool EditorController::Impl::isBackingAudioNormalizationCurrent(
-    const common::core::AudioLoudnessMetadata& metadata) const noexcept
-{
-    if (metadata.target != g_default_normalization_target)
-    {
-        return false;
-    }
-
-    const auto& measurement = metadata.analysis.measurement;
-    if (!std::isfinite(measurement.integrated_loudness_lufs) ||
-        !std::isfinite(measurement.sample_peak_dbfs) || !std::isfinite(metadata.applied_gain_db))
-    {
-        return false;
-    }
-
-    const double expected_gain_db = calculateBackingAudioGainDb(measurement, metadata.target);
-    return std::abs(metadata.applied_gain_db - expected_gain_db) <=
-           g_backing_audio_gain_tolerance_db;
-}
-
-// Returns true when a measurement's integrated loudness deviates from the current target by
-// more than the configured tolerance.
-bool EditorController::Impl::isMeasurementOutsideTarget(
-    const common::core::AudioLoudnessMeasurement& measurement) const noexcept
-{
-    const double lufs_delta = std::abs(
-        measurement.integrated_loudness_lufs -
-        g_default_normalization_target.integrated_loudness_lufs);
-    return lufs_delta > g_backing_audio_loudness_tolerance_lu;
-}
-
-// Stores the prompt in controller state and republishes view state so the view can present it.
-void EditorController::Impl::showBackingAudioNormalizationPrompt(
-    BackingAudioNormalizationPrompt prompt)
-{
-    m_backing_audio_normalization_prompt = std::move(prompt);
-    updateView();
-}
-
-// Applies gain metadata for the active prompt and reloads the session so playback sees it.
-void EditorController::Impl::applyBackingAudioNormalizationPrompt()
-{
-    assert(
-        m_backing_audio_normalization_prompt.has_value() &&
-        "applyBackingAudioNormalizationPrompt called without a prompt");
-
-    const auto& prompt = *m_backing_audio_normalization_prompt;
-
-    // Compute the gain that hits the target LUFS-I without exceeding 0 dBFS sample peak.
-    const double applied_gain_db =
-        calculateBackingAudioGainDb(prompt.analysis.measurement, prompt.target);
-
-    const common::core::AudioLoudnessMetadata metadata{
-        .target = prompt.target,
-        .analysis = prompt.analysis,
-        .applied_gain_db = applied_gain_db,
-    };
-
-    // Update metadata on every arrangement that references this audio file and reload the
-    // session so the audio backend applies the new gain.
-    const std::filesystem::path audio_path = prompt.audio_path;
-    m_backing_audio_normalization_prompt.reset();
-
-    common::core::Song updated_song = session().song();
-    for (common::core::Arrangement& arrangement : updated_song.arrangements)
-    {
-        if (arrangement.audio_asset.path == audio_path)
-        {
-            arrangement.audio_asset.loudness_metadata = metadata;
-        }
-    }
-
-    std::optional<std::string> selected_arrangement_id;
-    if (const auto* current = session().currentArrangement(); current != nullptr)
-    {
-        selected_arrangement_id = current->id;
-    }
-
-    if (!loadSessionSong(std::move(updated_song), selected_arrangement_id))
-    {
-        reportError("Could not reload session after applying normalization metadata");
-        return;
-    }
-
-    m_has_unsaved_changes = true;
-    updateView();
-}
-
-// Clears the prompt without changing the project and republishes view state.
-void EditorController::Impl::dismissBackingAudioNormalizationPrompt()
-{
-    m_backing_audio_normalization_prompt.reset();
-    updateView();
 }
 
 // Ignores the intent until audio activation has committed an arrangement, otherwise toggles
@@ -2363,8 +2111,6 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         m_plugin_browser_visible = false;
-        m_backing_audio_normalization_prompt.reset();
-        m_backing_audio_normalization_check_done_for_session = false;
         return true;
     }
 
@@ -2373,8 +2119,6 @@ bool EditorController::Impl::closeProject()
     m_audio.clearActiveArrangement();
     m_session.reset();
     m_plugins.clear();
-    m_backing_audio_normalization_prompt.reset();
-    m_backing_audio_normalization_check_done_for_session = false;
 
     auto closed = closeExistingProject(m_project);
     if (!closed.has_value())
@@ -2764,10 +2508,6 @@ bool EditorController::Impl::loadSessionSong(
         assert(committed && "Session rejected backend-accepted project song");
         m_plugins.clear();
         m_plugin_browser_visible = false;
-        // Re-arm the open-time loudness check for the new session and drop any stale prompt
-        // left over from the previous project.
-        m_backing_audio_normalization_check_done_for_session = false;
-        m_backing_audio_normalization_prompt.reset();
     }
     m_session_load_in_progress = false;
 
@@ -2849,14 +2589,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
             busy.progress = m_live_rig_progress->fraction;
         }
         state.busy = busy;
-    }
-
-    // Gate on project_loaded so a lingering prompt from a previous session never renders against
-    // a closed project. Session-replacement paths clear the prompt explicitly through
-    // loadSessionSong(); this is a defensive belt-and-suspenders for other close paths.
-    if (state.project_loaded)
-    {
-        state.backing_audio_normalization_prompt = m_backing_audio_normalization_prompt;
     }
 
     return state;
@@ -2965,8 +2697,8 @@ std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
     return m_current_busy_token;
 }
 
-// Moves an in-flight busy operation into a new visible phase without changing its token. This is
-// used by import, whose worker owns multiple long phases but still has one completion callback.
+// Moves an in-flight busy operation into a new visible phase without changing its token. Project
+// open/import workers use this when validation enters audio analysis but still has one completion.
 void EditorController::Impl::transitionBusyOperation(BusyOperation operation, std::uint64_t token)
 {
     if (token != m_current_busy_token || !m_busy_operation.has_value())
@@ -2979,44 +2711,30 @@ void EditorController::Impl::transitionBusyOperation(BusyOperation operation, st
     updateView();
 }
 
-// Wraps the import analyzer so the first audio analysis promotes the busy overlay from
-// "Importing project..." to "Analyzing audio...". The promotion is marshaled back to the
-// message thread in production; headless tests without a MessageManager apply it synchronously.
-AudioAnalyzeForGainFunction EditorController::Impl::makeImportAudioAnalyzeFunction(
-    std::uint64_t token)
+// Moves to a visible phase and releases the worker after that phase has had a chance to paint.
+// This is only a presentation fence; the expensive audio work still runs on the worker thread.
+void EditorController::Impl::transitionBusyOperationAfterPaint(
+    BusyOperation operation, std::uint64_t token, std::shared_ptr<AnalysisPaintGate> gate)
 {
-    auto notification_sent = std::make_shared<bool>(false);
-    auto notify_analyzing = [controller = this, alive = std::weak_ptr<bool>{m_alive}, token] {
-        auto publish = [controller, alive, token] {
-            if (alive.expired())
-            {
-                return;
-            }
-            controller->transitionBusyOperation(BusyOperation::NormalizingBackingAudio, token);
-        };
+    if (gate == nullptr)
+    {
+        return;
+    }
 
-        if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
-        {
-            publish();
-            return;
-        }
+    if (token != m_current_busy_token || !m_busy_operation.has_value())
+    {
+        gate->release();
+        return;
+    }
 
-        juce::MessageManager::callAsync(std::move(publish));
-    };
+    transitionBusyOperation(operation, token);
+    if (m_view == nullptr)
+    {
+        gate->release();
+        return;
+    }
 
-    return [analyze_audio = m_audio_analyze_for_gain_function,
-            notification_sent,
-            notify_analyzing = std::move(notify_analyzing)](
-               const std::filesystem::path& input,
-               const common::core::AudioNormalizationTarget& target) mutable {
-        if (!*notification_sent)
-        {
-            *notification_sent = true;
-            notify_analyzing();
-        }
-
-        return analyze_audio(input, target);
-    };
+    runAfterBusyOverlayPainted([gate = std::move(gate)] { gate->release(); });
 }
 
 // Normal operation completion: clears busy state and pushes the resulting view state so the

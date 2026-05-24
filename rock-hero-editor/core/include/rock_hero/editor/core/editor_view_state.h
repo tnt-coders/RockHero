@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
 #include <rock_hero/editor/core/audio_device_status_text.h>
@@ -27,57 +26,6 @@ enum class UnsavedChangesDecision : std::uint8_t
     Save,
     Discard,
     Cancel,
-};
-
-/*! \brief User choice returned from the backing-audio normalization prompt. */
-enum class BackingAudioNormalizationDecision : std::uint8_t
-{
-    /*! \brief Apply gain normalization to the project's backing audio metadata. */
-    Normalize,
-    /*! \brief Leave the project's backing audio unchanged. */
-    Dismiss,
-};
-
-/*!
-\brief Describes a recommended normalization the controller has identified after open-time
-background analysis of the project's backing audio.
-
-The controller publishes this state in EditorViewState only when background analysis has finished
-and the measured loudness is outside the configured tolerance, so the view can render a prompt
-asking whether to normalize. The view routes the user's response through
-IEditorController::onBackingAudioNormalizationDecision.
-*/
-struct BackingAudioNormalizationPrompt
-{
-    /*! \brief Workspace-resolved path of the asset that triggered the prompt. */
-    std::filesystem::path audio_path;
-
-    /*! \brief User-facing label for the asset, typically the song title or filename. */
-    std::string display_name;
-
-    /*! \brief Full analysis used to build metadata when the user accepts. */
-    common::core::AudioLoudnessAnalysis analysis;
-
-    /*! \brief Target the controller would apply if the user accepts. */
-    common::core::AudioNormalizationTarget target;
-
-    /*!
-    \brief Number of arrangements that reference this asset.
-
-    Surfaced so the prompt can tell the user how many arrangements will be affected by accepting
-    the normalization.
-    */
-    int affected_arrangement_count{0};
-
-    /*!
-    \brief Compares two prompt requests by their stored fields.
-    \param lhs Left-hand prompt request.
-    \param rhs Right-hand prompt request.
-    \return True when both prompt requests store equal fields.
-    */
-    friend bool operator==(
-        const BackingAudioNormalizationPrompt& lhs,
-        const BackingAudioNormalizationPrompt& rhs) = default;
 };
 
 /*!
@@ -215,15 +163,6 @@ struct EditorViewState
     intents until the operation completes or is superseded.
     */
     std::optional<BusyViewState> busy;
-
-    /*!
-    \brief Recommended backing-audio normalization prompt, if any.
-
-    Set after background loudness analysis of the open project finds an asset outside the
-    configured tolerance. The view renders this as a non-blocking prompt and routes the user's
-    decision through IEditorController::onBackingAudioNormalizationDecision.
-    */
-    std::optional<BackingAudioNormalizationPrompt> backing_audio_normalization_prompt;
 
     /*!
     \brief Compares two editor view states by their stored values.

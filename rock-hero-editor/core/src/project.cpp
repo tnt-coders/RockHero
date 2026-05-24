@@ -14,7 +14,7 @@
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/archive_io.h>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
+#include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <string>
@@ -149,16 +149,16 @@ using common::core::Song;
     };
 }
 
-// Analyzes each unique source path and records the resulting loudness metadata so the arrangement
-// update pass can attach it without re-running the analyzer.
+// Analyzes each unique source path and records the resulting normalization metadata so the
+// arrangement update pass can attach it without re-running the analyzer.
 [[nodiscard]] std::expected<
-    std::unordered_map<std::string, common::core::AudioLoudnessMetadata>, ProjectError>
+    std::unordered_map<std::string, common::core::AudioNormalization>, ProjectError>
 analyzeImportedAudioAssets(
     const std::vector<std::filesystem::path>& unique_paths,
     const common::core::AudioNormalizationTarget& target,
     const AudioAnalyzeForGainFunction& analyze_audio)
 {
-    std::unordered_map<std::string, common::core::AudioLoudnessMetadata> results;
+    std::unordered_map<std::string, common::core::AudioNormalization> results;
     results.reserve(unique_paths.size());
 
     for (const std::filesystem::path& source_path : unique_paths)
@@ -174,10 +174,10 @@ analyzeImportedAudioAssets(
     return results;
 }
 
-// Attaches the analyzed loudness metadata to each arrangement's audio asset. Audio file paths
+// Attaches the analyzed normalization metadata to each arrangement's audio asset. Audio file paths
 // are unchanged; gain is applied during playback and waveform drawing.
-void attachLoudnessMetadata(
-    Song& song, const std::unordered_map<std::string, common::core::AudioLoudnessMetadata>& results)
+void attachNormalizationMetadata(
+    Song& song, const std::unordered_map<std::string, common::core::AudioNormalization>& results)
 {
     for (Arrangement& arrangement : song.arrangements)
     {
@@ -186,8 +186,64 @@ void attachLoudnessMetadata(
         {
             continue;
         }
-        arrangement.audio_asset.loudness_metadata = entry->second;
+        arrangement.audio_asset.normalization = entry->second;
     }
+}
+
+// Validates loaded normalization metadata and repairs any missing or stale records before the
+// project is returned to the editor. Existing valid records are copied to sibling arrangements
+// that share the same audio file so one backing asset has one authoritative gain.
+[[nodiscard]] std::expected<bool, ProjectError> ensureLoadedAudioNormalization(
+    Song& song, const common::core::AudioNormalizationTarget& target,
+    const AudioAnalyzeForGainFunction& analyze_audio)
+{
+    bool updated = false;
+    const std::vector<std::filesystem::path> unique_paths = collectUniqueAudioAssets(song);
+    for (const std::filesystem::path& audio_path : unique_paths)
+    {
+        std::optional<common::core::AudioNormalization> valid_normalization;
+        const common::core::AudioNormalization* stored_normalization = nullptr;
+        for (const Arrangement& arrangement : song.arrangements)
+        {
+            if (arrangement.audio_asset.path != audio_path ||
+                !arrangement.audio_asset.normalization.has_value())
+            {
+                continue;
+            }
+
+            stored_normalization = &*arrangement.audio_asset.normalization;
+            break;
+        }
+
+        if (stored_normalization != nullptr &&
+            common::audio::validateAudioNormalization(audio_path, *stored_normalization))
+        {
+            valid_normalization = *stored_normalization;
+        }
+
+        if (!valid_normalization.has_value())
+        {
+            auto analyzed_normalization = analyze_audio(audio_path, target);
+            if (!analyzed_normalization.has_value())
+            {
+                return std::unexpected{projectErrorFromNormalizationError(
+                    analyzed_normalization.error())};
+            }
+            valid_normalization = std::move(*analyzed_normalization);
+        }
+
+        for (Arrangement& arrangement : song.arrangements)
+        {
+            if (arrangement.audio_asset.path == audio_path &&
+                arrangement.audio_asset.normalization != valid_normalization)
+            {
+                arrangement.audio_asset.normalization = valid_normalization;
+                updated = true;
+            }
+        }
+    }
+
+    return updated;
 }
 
 } // namespace
@@ -202,6 +258,7 @@ Project::~Project() noexcept
             m_path.clear();
             m_workspace_directory.clear();
             m_editor_state = ProjectEditorState{};
+            m_audio_normalization_updated_on_load = false;
         }
     }
     catch (...)
@@ -209,6 +266,7 @@ Project::~Project() noexcept
         m_path.clear();
         m_workspace_directory.clear();
         m_editor_state = ProjectEditorState{};
+        m_audio_normalization_updated_on_load = false;
     }
 }
 
@@ -217,6 +275,8 @@ Project::Project(Project&& other) noexcept
     : m_path(std::exchange(other.m_path, {}))
     , m_workspace_directory(std::exchange(other.m_workspace_directory, {}))
     , m_editor_state(std::exchange(other.m_editor_state, {}))
+    , m_audio_normalization_updated_on_load(
+          std::exchange(other.m_audio_normalization_updated_on_load, false))
 {}
 
 // Removes the old workspace before taking ownership from another project.
@@ -231,6 +291,7 @@ Project& Project::operator=(Project&& other) noexcept
                 m_path.clear();
                 m_workspace_directory.clear();
                 m_editor_state = ProjectEditorState{};
+                m_audio_normalization_updated_on_load = false;
             }
         }
         catch (...)
@@ -238,11 +299,14 @@ Project& Project::operator=(Project&& other) noexcept
             m_path.clear();
             m_workspace_directory.clear();
             m_editor_state = ProjectEditorState{};
+            m_audio_normalization_updated_on_load = false;
         }
 
         m_path = std::exchange(other.m_path, {});
         m_workspace_directory = std::exchange(other.m_workspace_directory, {});
         m_editor_state = std::exchange(other.m_editor_state, {});
+        m_audio_normalization_updated_on_load =
+            std::exchange(other.m_audio_normalization_updated_on_load, false);
     }
 
     return *this;
@@ -266,8 +330,16 @@ const ProjectEditorState& Project::editorState() const noexcept
     return m_editor_state;
 }
 
+// Reports whether load repaired normalization metadata that has not yet been saved.
+bool Project::audioNormalizationUpdatedOnLoad() const noexcept
+{
+    return m_audio_normalization_updated_on_load;
+}
+
 // Opens the project package archive, extracts it safely, and reads the song document.
-std::expected<Song, ProjectError> Project::load(const std::filesystem::path& package_path)
+std::expected<Song, ProjectError> Project::load(
+    const std::filesystem::path& package_path, const common::core::AudioNormalizationTarget& target,
+    const AudioAnalyzeForGainFunction& analyze_audio)
 {
     std::error_code filesystem_error;
     if (!std::filesystem::is_regular_file(package_path, filesystem_error))
@@ -319,7 +391,14 @@ std::expected<Song, ProjectError> Project::load(const std::filesystem::path& pac
     }
 
     Song song = std::move(*loaded_song);
+    auto normalization_result = ensureLoadedAudioNormalization(song, target, analyze_audio);
+    if (!normalization_result.has_value())
+    {
+        return std::unexpected{std::move(normalization_result.error())};
+    }
+
     loaded_project.m_editor_state = std::move(*editor_state);
+    loaded_project.m_audio_normalization_updated_on_load = *normalization_result;
     // TODO: Surface a non-fatal load warning if selectedArrangement no longer matches any
     // arrangement ID; EditorController currently falls back to the first arrangement silently.
     if (auto close_result = close(); !close_result.has_value())
@@ -385,7 +464,7 @@ std::expected<Song, ProjectError> Project::import(
         return std::unexpected{std::move(analysis_results.error())};
     }
 
-    attachLoudnessMetadata(song, *analysis_results);
+    attachNormalizationMetadata(song, *analysis_results);
 
     if (auto close_result = close(); !close_result.has_value())
     {
@@ -440,6 +519,7 @@ std::expected<void, ProjectError> Project::save(const Song& song, ProjectEditorS
     }
 
     m_editor_state = std::move(editor_state);
+    m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 
@@ -496,6 +576,7 @@ std::expected<void, ProjectError> Project::saveAs(
         }
 
         saved_project.m_editor_state = std::move(editor_state);
+        saved_project.m_audio_normalization_updated_on_load = false;
         *this = std::move(saved_project);
         return std::expected<void, ProjectError>{};
     }
@@ -518,6 +599,7 @@ std::expected<void, ProjectError> Project::saveAs(
 
     m_path = path;
     m_editor_state = std::move(editor_state);
+    m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 
@@ -571,6 +653,7 @@ std::expected<void, ProjectError> Project::close()
     {
         m_path.clear();
         m_editor_state = ProjectEditorState{};
+        m_audio_normalization_updated_on_load = false;
         return std::expected<void, ProjectError>{};
     }
 
@@ -607,6 +690,7 @@ std::expected<void, ProjectError> Project::close()
     m_path.clear();
     m_workspace_directory.clear();
     m_editor_state = ProjectEditorState{};
+    m_audio_normalization_updated_on_load = false;
     return std::expected<void, ProjectError>{};
 }
 

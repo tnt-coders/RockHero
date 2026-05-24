@@ -7,7 +7,7 @@
 
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
+#include <rock_hero/common/core/audio_normalization.h>
 
 namespace rock_hero::common::core
 {
@@ -24,13 +24,14 @@ struct AudioAsset
     std::filesystem::path path;
 
     /*!
-    \brief Loudness record describing the asset when last normalized or analyzed.
+    \brief Normalization record describing the playback gain and its validation hash.
 
-    Present after the editor has normalized this asset against a known target and persisted the
-    resulting analysis. Absent for assets loaded from older project packages that pre-date
-    loudness metadata; open-time policy schedules background analysis in that case.
+    Present after the editor has analyzed this asset against a loudness target and persisted the
+    resulting gain. Absent for assets loaded from packages that pre-date normalization metadata
+    or from formats that do not carry it; the open/import flow analyzes those before the project
+    becomes usable.
     */
-    std::optional<AudioLoudnessMetadata> loudness_metadata;
+    std::optional<AudioNormalization> normalization;
 
     /*!
     \brief Compares two asset references by their stored fields.
