@@ -165,6 +165,14 @@ std::optional<double> Json::tryReadDouble(const juce::var& object, std::string_v
     return static_cast<double>(property_value);
 }
 
+// Keeps optional double fields lenient for gain and other numeric metadata that can be absent in
+// older tone documents.
+double Json::readOptionalDouble(
+    const juce::var& object, std::string_view property_name, double fallback)
+{
+    return tryReadDouble(object, property_name).value_or(fallback);
+}
+
 // Reject floats so size_bytes-style fields cannot silently truncate; callers report absence
 // through the nullopt return.
 std::optional<std::int64_t> Json::tryReadInt64(

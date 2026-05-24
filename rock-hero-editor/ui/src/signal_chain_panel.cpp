@@ -1,6 +1,7 @@
 #include "signal_chain_panel.h"
 
 #include <algorithm>
+#include <rock_hero/common/audio/gain.h>
 #include <string>
 #include <utility>
 
@@ -18,6 +19,7 @@ constexpr int g_plugin_row_height{24};
 constexpr int g_plugin_row_gap{4};
 constexpr int g_remove_button_width{72};
 constexpr int g_row_button_gap{8};
+constexpr int g_gain_slider_width{72};
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
@@ -150,6 +152,18 @@ private:
     bool m_is_hovered{false};
 };
 
+// Configures a vertical gain slider with the shared gain range and dB suffix.
+void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
+{
+    slider.setComponentID(component_id);
+    slider.setSliderStyle(juce::Slider::LinearVertical);
+    slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
+    slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
+    slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, g_gain_slider_width, 18);
+    slider.setTextValueSuffix(" dB");
+}
+
 // Creates the panel controls and routes the add command through the owner.
 SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
@@ -159,6 +173,19 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     m_add_plugin_button.setButtonText("Add Plugin");
     m_add_plugin_button.onClick = [this] { m_listener.onAddPluginPressed(); };
     addAndMakeVisible(m_add_plugin_button);
+
+    configureGainSlider(m_input_gain_slider, "input_gain_slider");
+    m_input_gain_slider.onValueChange = [this] {
+        m_listener.onInputGainChanged(m_input_gain_slider.getValue());
+    };
+    addAndMakeVisible(m_input_gain_slider);
+
+    configureGainSlider(m_output_gain_slider, "output_gain_slider");
+    m_output_gain_slider.onValueChange = [this] {
+        m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
+    };
+    addAndMakeVisible(m_output_gain_slider);
+
     setState(core::SignalChainViewState{});
 }
 
@@ -170,12 +197,16 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
 {
     m_state = state;
     m_add_plugin_button.setEnabled(m_state.add_plugin_enabled);
+    m_input_gain_slider.setEnabled(m_state.gain_controls_enabled);
+    m_output_gain_slider.setEnabled(m_state.gain_controls_enabled);
+    m_input_gain_slider.setValue(m_state.input_gain_db, juce::dontSendNotification);
+    m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     rebuildPluginRows();
     resized();
     repaint();
 }
 
-// Draws a compact plugin-chain panel without introducing plugin-host policy into the widget.
+// Draws a compact plugin-chain panel with gain labels and an empty-chain placeholder.
 void SignalChainPanel::paint(juce::Graphics& g)
 {
     const auto bounds = getLocalBounds();
@@ -184,6 +215,22 @@ void SignalChainPanel::paint(juce::Graphics& g)
     g.drawRect(bounds);
 
     auto area = bounds.reduced(g_panel_inset);
+
+    // Input gain label above the left slider.
+    const auto input_label_area =
+        area.removeFromLeft(g_gain_slider_width).removeFromTop(g_header_height);
+    g.setColour(juce::Colours::white);
+    g.setFont(juce::FontOptions{12.0f});
+    g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
+
+    // Output gain label above the right slider.
+    const auto output_label_area =
+        area.removeFromRight(g_gain_slider_width).removeFromTop(g_header_height);
+    g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
+
+    // Center header with title.
+    area.removeFromLeft(g_panel_inset);
+    area.removeFromRight(g_panel_inset);
     auto header = area.removeFromTop(g_header_height);
     header.removeFromRight(g_add_button_width + g_panel_inset);
 
@@ -203,10 +250,26 @@ void SignalChainPanel::paint(juce::Graphics& g)
     }
 }
 
-// Keeps the add button in the header area and lays out visible plugin rows in the body.
+// Keeps the add button in the header area, gain sliders on the sides, and plugin rows in the
+// center.
 void SignalChainPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
+
+    // Input gain slider on the left, spanning the full panel height minus insets.
+    auto input_slider_area = area.removeFromLeft(g_gain_slider_width);
+    input_slider_area.removeFromTop(g_header_height);
+    m_input_gain_slider.setBounds(input_slider_area);
+
+    // Output gain slider on the right.
+    auto output_slider_area = area.removeFromRight(g_gain_slider_width);
+    output_slider_area.removeFromTop(g_header_height);
+    m_output_gain_slider.setBounds(output_slider_area);
+
+    // Leave a gap between the sliders and the center content.
+    area.removeFromLeft(g_panel_inset);
+    area.removeFromRight(g_panel_inset);
+
     auto header = area.removeFromTop(g_header_height);
     m_add_plugin_button.setBounds(
         header.removeFromRight(g_add_button_width)

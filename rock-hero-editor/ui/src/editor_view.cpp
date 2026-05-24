@@ -1401,6 +1401,26 @@ void EditorView::onOpenPluginPressed(std::string instance_id)
     m_controller.onOpenPluginRequested(std::move(instance_id));
 }
 
+// Forwards input gain slider changes to the controller when gain controls are enabled.
+void EditorView::onInputGainChanged(double gain_db)
+{
+    if (!m_state.signal_chain.gain_controls_enabled)
+    {
+        return;
+    }
+    m_controller.onInputGainChanged(gain_db);
+}
+
+// Forwards output gain slider changes to the controller when gain controls are enabled.
+void EditorView::onOutputGainChanged(double gain_db)
+{
+    if (!m_state.signal_chain.gain_controls_enabled)
+    {
+        return;
+    }
+    m_controller.onOutputGainChanged(gain_db);
+}
+
 // Forwards browser rescan intent to the workflow controller.
 void EditorView::onPluginBrowserScanRequested()
 {

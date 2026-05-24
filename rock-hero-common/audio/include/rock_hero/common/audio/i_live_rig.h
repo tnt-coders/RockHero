@@ -9,6 +9,7 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/live_rig_error.h>
 #include <string>
 #include <vector>
@@ -59,6 +60,12 @@ struct [[nodiscard]] LiveRigSnapshot
 
     /*! \brief Captured chain state for the editor signal-chain panel. */
     std::vector<LiveRigPlugin> plugins;
+
+    /*! \brief Captured input gain before the signal chain. */
+    Gain input_gain;
+
+    /*! \brief Captured output gain after the signal chain. */
+    Gain output_gain;
 };
 
 /*! \brief Progress reported while restoring plugins into the live rig. */
@@ -119,13 +126,19 @@ struct [[nodiscard]] LiveRigLoadResult
 {
     /*! \brief Restored chain state for the editor signal-chain panel. */
     std::vector<LiveRigPlugin> plugins;
+
+    /*! \brief Restored input gain before the signal chain. */
+    Gain input_gain;
+
+    /*! \brief Restored output gain after the signal chain. */
+    Gain output_gain;
 };
 
 /*!
 \brief Callback invoked on the message thread once an async live rig load has fully finished.
 
-Fires exactly once per loadRig() call, after every plugin in the chain has been restored or after
-the operation fails. Per-plugin updates during the load are delivered through
+Fires exactly once per loadLiveRig() call, after every plugin in the chain has been restored or
+after the operation fails. Per-plugin updates during the load are delivered through
 LiveRigLoadProgressCallback instead.
 */
 using LiveRigLoadResultCallback =
@@ -163,13 +176,39 @@ public:
     \param request Song workspace, tone document reference, and optional progress callback.
     \param completion Callback invoked once the operation finishes or fails.
     */
-    virtual void loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result) = 0;
+    virtual void loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback completion) = 0;
 
     /*!
     \brief Clears the active live rig chain.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<void, LiveRigError> clearRig() = 0;
+    [[nodiscard]] virtual std::expected<void, LiveRigError> clearLiveRig() = 0;
+
+    /*!
+    \brief Reads the current input gain applied before the signal chain.
+    \return Current input gain, or the default when no structural gain plugin exists.
+    */
+    [[nodiscard]] virtual Gain liveRigInputGain() const = 0;
+
+    /*!
+    \brief Reads the current output gain applied after the signal chain.
+    \return Current output gain, or the default when no structural gain plugin exists.
+    */
+    [[nodiscard]] virtual Gain liveRigOutputGain() const = 0;
+
+    /*!
+    \brief Sets the input gain applied before the signal chain.
+    \param gain Desired input gain; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setLiveRigInputGain(Gain gain) = 0;
+
+    /*!
+    \brief Sets the output gain applied after the signal chain.
+    \param gain Desired output gain; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, LiveRigError> setLiveRigOutputGain(Gain gain) = 0;
 
 protected:
     /*! \brief Creates the live rig interface. */

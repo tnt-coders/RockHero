@@ -46,6 +46,18 @@ public:
         */
         virtual void onOpenPluginPressed(std::string instance_id) = 0;
 
+        /*!
+        \brief Called when the user adjusts the input gain slider.
+        \param gain_db New input gain in decibels.
+        */
+        virtual void onInputGainChanged(double gain_db) = 0;
+
+        /*!
+        \brief Called when the user adjusts the output gain slider.
+        \param gain_db New output gain in decibels.
+        */
+        virtual void onOutputGainChanged(double gain_db) = 0;
+
     protected:
         /*! \brief Creates the listener interface. */
         Listener() = default;
@@ -119,6 +131,12 @@ private:
 
     // Button that opens plugin selection through the owning editor view.
     juce::TextButton m_add_plugin_button;
+
+    // Input gain slider positioned on the left side of the plugin chain.
+    juce::Slider m_input_gain_slider;
+
+    // Output gain slider positioned on the right side of the plugin chain.
+    juce::Slider m_output_gain_slider;
 
     // Child row controls for the current plugin chain.
     std::vector<std::unique_ptr<PluginRowView>> m_plugin_rows;

@@ -222,6 +222,12 @@ private:
     // SignalChainPanel::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;
 
+    // SignalChainPanel::Listener implementation.
+    void onInputGainChanged(double gain_db) override;
+
+    // SignalChainPanel::Listener implementation.
+    void onOutputGainChanged(double gain_db) override;
+
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserScanRequested() override;
 

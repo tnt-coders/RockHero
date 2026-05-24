@@ -7,6 +7,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
@@ -156,6 +157,20 @@ public:
         open_plugin_request_count += 1;
     }
 
+    // Records input gain change intents emitted by the signal-chain panel.
+    void onInputGainChanged(double gain_db) override
+    {
+        last_input_gain_db = gain_db;
+        input_gain_change_count += 1;
+    }
+
+    // Records output gain change intents emitted by the signal-chain panel.
+    void onOutputGainChanged(double gain_db) override
+    {
+        last_output_gain_db = gain_db;
+        output_gain_change_count += 1;
+    }
+
     // Records audio-device change scheduling so EditorView tests stay agnostic of busy overlay
     // mechanics. The settings flow's own tests cover the dispatcher behavior end-to-end.
     void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
@@ -250,6 +265,18 @@ public:
 
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
+
+    // Last input gain value emitted by the signal-chain panel.
+    std::optional<double> last_input_gain_db{};
+
+    // Last output gain value emitted by the signal-chain panel.
+    std::optional<double> last_output_gain_db{};
+
+    // Number of input gain change intents received.
+    int input_gain_change_count{0};
+
+    // Number of output gain change intents received.
+    int output_gain_change_count{0};
 
     // Last audio-device change callback handed to onAudioDeviceChangeRequested; tests can invoke it
     // directly to simulate the editor's busy overlay paint fence firing.
@@ -1445,6 +1472,99 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
     view.runAfterBusyOverlayPainted([&callback_count] { callback_count += 1; });
 
     CHECK(callback_count == 1);
+}
+
+// Verifies that gain sliders exist and are disabled by default.
+TEST_CASE("Gain sliders present and disabled by default", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+
+    CHECK_FALSE(input_slider.isEnabled());
+    CHECK_FALSE(output_slider.isEnabled());
+    CHECK(input_slider.isDoubleClickReturnEnabled());
+    CHECK(output_slider.isDoubleClickReturnEnabled());
+    CHECK(input_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
+    CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
+}
+
+// Verifies that gain sliders enable when gain controls are enabled in view state.
+TEST_CASE("Gain sliders follow gain_controls_enabled", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .gain_controls_enabled = true,
+                .input_gain_db = 6.0,
+                .output_gain_db = -3.0,
+            },
+        });
+
+    CHECK(input_slider.isEnabled());
+    CHECK(output_slider.isEnabled());
+    CHECK(input_slider.getValue() == 6.0);
+    CHECK(output_slider.getValue() == -3.0);
+}
+
+// Verifies that moving the input gain slider emits a controller intent.
+TEST_CASE("Input gain slider emits controller intent", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .gain_controls_enabled = true,
+            },
+        });
+
+    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    input_slider.setValue(4.5, juce::sendNotificationSync);
+
+    CHECK(controller.input_gain_change_count == 1);
+    CHECK(controller.last_input_gain_db == std::optional{4.5});
+}
+
+// Verifies that moving the output gain slider emits a controller intent.
+TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .gain_controls_enabled = true,
+            },
+        });
+
+    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+    output_slider.setValue(-6.0, juce::sendNotificationSync);
+
+    CHECK(controller.output_gain_change_count == 1);
+    CHECK(controller.last_output_gain_db == std::optional{-6.0});
 }
 
 } // namespace rock_hero::editor::ui

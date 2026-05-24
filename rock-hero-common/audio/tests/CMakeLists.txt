@@ -13,6 +13,7 @@ add_executable(
     test_audio_device_settings.cpp
     test_audio_normalization.cpp
     test_edit.cpp
+    test_gain.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp
