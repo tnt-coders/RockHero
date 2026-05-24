@@ -179,13 +179,6 @@ public:
         unsaved_changes_decision_count += 1;
     }
 
-    // Captures decisions passed back from the open-time backing-audio normalization prompt.
-    void onBackingAudioNormalizationDecision(BackingAudioNormalizationDecision decision) override
-    {
-        last_backing_audio_normalization_decision = decision;
-        backing_audio_normalization_decision_count += 1;
-    }
-
     // Counts play/pause transport intents emitted by the view.
     void onPlayPausePressed() override
     {
@@ -279,8 +272,6 @@ public:
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
 
-    std::optional<BackingAudioNormalizationDecision> last_backing_audio_normalization_decision{};
-
     // Number of open intents received.
     int open_request_count{0};
 
@@ -307,8 +298,6 @@ public:
 
     // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
-
-    int backing_audio_normalization_decision_count{0};
 
     // Number of play/pause intents received.
     int play_pause_press_count{0};
@@ -990,9 +979,10 @@ public:
     // Returns the bound callback shape expected by EditorController services.
     [[nodiscard]] EditorController::OpenFunction openFunction() noexcept
     {
-        return [this](Project& project, const std::filesystem::path& file) {
-            return open(project, file);
-        };
+        return [this](
+                   Project& project,
+                   const std::filesystem::path& file,
+                   const AudioAnalyzeForGainFunction&) { return open(project, file); };
     }
 
     // Returns the bound import callback shape expected by EditorController services.
@@ -1228,28 +1218,65 @@ private:
     return song;
 }
 
-// Builds metadata for a source file whose raw LUFS is outside target but whose applied gain is
-// already current under the gain-normalization policy.
-[[nodiscard]] common::core::AudioLoudnessMetadata makeCurrentGainMetadata()
+// Builds a normalization record representing an already-analyzed asset whose gain is current.
+[[nodiscard]] common::core::AudioNormalization makeCurrentNormalization()
 {
-    return common::core::AudioLoudnessMetadata{
-        .target = common::core::AudioNormalizationTarget{},
-        .analysis =
-            common::core::AudioLoudnessAnalysis{
-                .measurement =
-                    common::core::AudioLoudnessMeasurement{
-                        .integrated_loudness_lufs = -12.0,
-                        .sample_peak_dbfs = -3.0,
-                    },
-                .fingerprint =
-                    common::core::AudioFileFingerprint{
-                        .size_bytes = 42,
-                        .sha256 = std::string(64, 'b'),
-                    },
-                .analyzer_id = "libebur128-lufs-i",
-                .analyzer_version = "1.2.6",
-            },
-        .applied_gain_db = -4.0,
+    return common::core::AudioNormalization{
+        .gain_db = -4.0,
+        .validation_sha256 = std::string(64, 'b'),
+    };
+}
+
+// Returns a successful analyzer seam for controller tests that need to trigger the busy-state
+// transition without using the real loudness analyzer.
+[[nodiscard]] AudioAnalyzeForGainFunction makeSuccessfulControllerAnalyzeFunction(
+    int& analyze_call_count)
+{
+    return
+        [&analyze_call_count](
+            const std::filesystem::path&, const common::core::AudioNormalizationTarget&)
+            -> std::
+                expected<common::core::AudioNormalization, common::audio::AudioNormalizationError> {
+                    ++analyze_call_count;
+                    return makeCurrentNormalization();
+                };
+}
+
+// Builds an open seam that enters the analyzer callback before returning loaded song data.
+[[nodiscard]] EditorController::OpenFunction makeAnalyzingOpenFunction(
+    std::filesystem::path audio_path)
+{
+    return [audio_path = std::move(audio_path)](
+               Project&,
+               const std::filesystem::path&,
+               const AudioAnalyzeForGainFunction& analyze_audio)
+               -> std::expected<common::core::Song, ProjectError> {
+        auto normalization = analyze_audio(audio_path, {});
+        common::core::Song song = makeSong(audio_path);
+        if (normalization.has_value())
+        {
+            song.arrangements.front().audio_asset.normalization = *normalization;
+        }
+        return song;
+    };
+}
+
+// Builds an import seam that enters the analyzer callback before returning imported song data.
+[[nodiscard]] EditorController::ImportFunction makeAnalyzingImportFunction(
+    std::filesystem::path audio_path)
+{
+    return [audio_path = std::move(audio_path)](
+               Project&,
+               const std::filesystem::path&,
+               const AudioAnalyzeForGainFunction& analyze_audio)
+               -> std::expected<common::core::Song, ProjectError> {
+        auto normalization = analyze_audio(audio_path, {});
+        common::core::Song song = makeSong(audio_path);
+        if (normalization.has_value())
+        {
+            song.arrangements.front().audio_asset.normalization = *normalization;
+        }
+        return song;
     };
 }
 
@@ -1592,33 +1619,22 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     }
 }
 
-// Persisted gain metadata is current when the stored gain matches the policy, even if the raw
-// source measurement itself is outside the target.
-TEST_CASE("EditorController treats applied gain metadata as current", "[core][editor-controller]")
+// Persisted normalization metadata is forwarded to the audio backend through the loaded session.
+TEST_CASE("EditorController forwards normalization to audio backend", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     FakeProjectServices project_services;
     common::core::Song song = makeSong(std::filesystem::path{"song.wav"});
-    song.arrangements.front().audio_asset.loudness_metadata = makeCurrentGainMetadata();
+    song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
     project_services.next_song = std::move(song);
-    int analyze_call_count = 0;
     EditorController controller{
         transport,
         audio,
         audio_devices,
         EditorController::Services{
             .open_function = project_services.openFunction(),
-            .audio_analyze_function = [&analyze_call_count](const std::filesystem::path&)
-                -> std::expected<
-                    common::core::AudioLoudnessAnalysis,
-                    common::audio::AudioNormalizationError> {
-                ++analyze_call_count;
-                return std::unexpected{common::audio::AudioNormalizationError{
-                    common::audio::AudioNormalizationErrorCode::LoudnessMeasurementFailed,
-                }};
-            },
         }
     };
     FakeEditorView view;
@@ -1626,13 +1642,9 @@ TEST_CASE("EditorController treats applied gain metadata as current", "[core][ed
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    CHECK_FALSE(state->backing_audio_normalization_prompt.has_value());
-    CHECK(analyze_call_count == 0);
     REQUIRE(audio.last_active_audio_asset.has_value());
-    REQUIRE(audio.last_active_audio_asset->loudness_metadata.has_value());
-    CHECK(audio.last_active_audio_asset->loudness_metadata->applied_gain_db == -4.0);
+    REQUIRE(audio.last_active_audio_asset->normalization.has_value());
+    CHECK(audio.last_active_audio_asset->normalization->gain_db == -4.0);
 }
 
 // Opening the plugin browser makes it visible from the already-known catalog only.
@@ -3576,6 +3588,37 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
     CHECK(busy->cancel_enabled == false);
 }
 
+// Open-time normalization validation reports the distinct audio-analysis busy phase.
+TEST_CASE("EditorController open reports audio analysis state", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    DeferredEditorTaskRunner runner;
+    int analyze_call_count = 0;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = makeAnalyzingOpenFunction(std::filesystem::path{"source.wav"}),
+            .audio_analyze_for_gain_function =
+                makeSuccessfulControllerAnalyzeFunction(analyze_call_count),
+            .task_runner = &runner,
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    const BusyViewState* busy = busyOrNull(*state);
+    REQUIRE(busy != nullptr);
+    CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
+    CHECK(busy->message == "Analyzing audio...");
+    CHECK(analyze_call_count == 1);
+}
+
 // Import sets busy=ImportingProject with the default message before the worker's completion runs.
 TEST_CASE("EditorController import begins busy with default message", "[core][editor-controller]")
 {
@@ -3605,8 +3648,8 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     CHECK(busy->message == "Importing project...");
 }
 
-// Import promotes the busy overlay when Project::import reaches its analysis callback.
-TEST_CASE("EditorController import reports audio analysis", "[core][editor-controller]")
+// Import-time normalization validation reports the distinct audio-analysis busy phase.
+TEST_CASE("EditorController import reports audio analysis state", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -3616,34 +3659,9 @@ TEST_CASE("EditorController import reports audio analysis", "[core][editor-contr
         transport,
         audio,
         EditorController::Services{
-            .import_function = [&analyze_call_count](
-                                   Project&,
-                                   const std::filesystem::path&,
-                                   const AudioAnalyzeForGainFunction& analyze_audio)
-                -> std::expected<common::core::Song, ProjectError> {
-                auto metadata = analyze_audio(
-                    std::filesystem::path{"source.wav"}, common::core::AudioNormalizationTarget{});
-                if (!metadata.has_value())
-                {
-                    return std::unexpected{ProjectError{
-                        ProjectErrorCode::AudioNormalizationFailed,
-                        metadata.error().message,
-                    }};
-                }
-                ++analyze_call_count;
-
-                return std::expected<common::core::Song, ProjectError>{makeSong(
-                    std::filesystem::path{"source.wav"})};
-            },
+            .import_function = makeAnalyzingImportFunction(std::filesystem::path{"source.wav"}),
             .audio_analyze_for_gain_function =
-                [](const std::filesystem::path&,
-                   const common::core::AudioNormalizationTarget& target) {
-                    common::core::AudioLoudnessMetadata metadata = makeCurrentGainMetadata();
-                    metadata.target = target;
-                    return std::expected<
-                        common::core::AudioLoudnessMetadata,
-                        common::audio::AudioNormalizationError>{std::move(metadata)};
-                },
+                makeSuccessfulControllerAnalyzeFunction(analyze_call_count),
             .task_runner = &runner,
         }
     };
@@ -3656,8 +3674,8 @@ TEST_CASE("EditorController import reports audio analysis", "[core][editor-contr
     REQUIRE(state != nullptr);
     const BusyViewState* busy = busyOrNull(*state);
     REQUIRE(busy != nullptr);
-    CHECK(busy->operation == BusyOperation::NormalizingBackingAudio);
-    CHECK(busy->message == "Normalizing audio...");
+    CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
+    CHECK(busy->message == "Analyzing audio...");
     CHECK(analyze_call_count == 1);
 }
 
@@ -3943,8 +3961,8 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     project_services.next_song = makeSong(std::filesystem::path{"loaded.wav"});
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     runner.runPendingCompletions();
-    // The loaded fixture has no loudness metadata, so open schedules one background check.
-    // Drain it here; this test's pending-count assertion is about the next open request.
+    // Drain the completed load here; this test's pending-count assertion is about the next open
+    // request.
     runner.runPendingCompletions();
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;

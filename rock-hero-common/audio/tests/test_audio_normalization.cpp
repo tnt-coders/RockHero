@@ -1,13 +1,12 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <memory>
 #include <numbers>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/audio_loudness_metadata.h>
+#include <rock_hero/common/core/audio_normalization.h>
 #include <string>
 #include <vector>
 
@@ -28,11 +27,6 @@ constexpr int g_test_channels = 2;
 // Duration used by every generated WAV fixture. One second is long enough for libebur128's gating
 // to settle without making tests slow.
 constexpr double g_test_duration_seconds = 1.0;
-
-// Target used by every test that runs normalization. Peak clamping is implicit at 0 dBFS.
-constexpr common::core::AudioNormalizationTarget g_test_target{
-    .integrated_loudness_lufs = -16.0,
-};
 
 // Owns a clean temporary directory for audio normalization test fixtures.
 class TemporaryAudioDirectory final
@@ -129,47 +123,6 @@ private:
     return path;
 }
 
-// Writes a fixture that pairs a brief high-amplitude transient with a long quiet bed so the
-// integrated loudness stays well below the normalization target while sample peak leaves little
-// headroom. Used to exercise the gain-clamping branch.
-[[nodiscard]] std::filesystem::path writePeakHeavyWav(const std::filesystem::path& path)
-{
-    const int total_samples = static_cast<int>(g_test_duration_seconds * g_test_sample_rate);
-    juce::AudioBuffer<float> buffer{g_test_channels, total_samples};
-    buffer.clear();
-    constexpr double quiet_amplitude = 0.02;
-    constexpr double transient_amplitude = 0.95;
-    constexpr int transient_samples = 64;
-    for (int sample = 0; sample < total_samples; ++sample)
-    {
-        const double t = static_cast<double>(sample) / g_test_sample_rate;
-        const double base = quiet_amplitude * std::sin(2.0 * std::numbers::pi * 1000.0 * t);
-        const double value = sample < transient_samples ? transient_amplitude : base;
-        for (int channel = 0; channel < g_test_channels; ++channel)
-        {
-            buffer.setSample(channel, sample, static_cast<float>(value));
-        }
-    }
-
-    juce::WavAudioFormat wav_format;
-    auto stream = std::make_unique<juce::FileOutputStream>(juceFileFromPath(path));
-    REQUIRE(!stream->failedToOpen());
-    REQUIRE(stream->setPosition(0));
-    REQUIRE(!stream->truncate().failed());
-    std::unique_ptr<juce::OutputStream> output_stream{std::move(stream)};
-    const auto writer_options =
-        juce::AudioFormatWriterOptions{}
-            .withSampleRate(g_test_sample_rate)
-            .withNumChannels(g_test_channels)
-            .withBitsPerSample(24)
-            .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::integral);
-    std::unique_ptr<juce::AudioFormatWriter> writer =
-        wav_format.createWriterFor(output_stream, writer_options);
-    REQUIRE(writer != nullptr);
-    REQUIRE(writer->writeFromAudioSampleBuffer(buffer, 0, total_samples));
-    return path;
-}
-
 // Writes a fixture filled with zero samples to drive the silent-input branch.
 [[nodiscard]] std::filesystem::path writeSilentWav(const std::filesystem::path& path)
 {
@@ -178,123 +131,17 @@ private:
 
 } // namespace
 
-// Verifies the analysis boundary surfaces a stable error when the input file does not exist.
+// Verifies analyzeAudioForGainNormalization surfaces InputFileMissing for a missing file.
 TEST_CASE(
-    "measureAudioLoudness returns InputFileMissing for missing input",
+    "analyzeAudioForGainNormalization returns InputFileMissing",
     "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
-    const auto result = measureAudioLoudness(temporary_directory.path() / "does_not_exist.wav");
+    const auto result = analyzeAudioForGainNormalization(
+        temporary_directory.path() / "nope.wav", common::core::AudioNormalizationTarget{});
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
-}
-
-// Verifies the normalization boundary surfaces InputFileMissing before any render work runs.
-TEST_CASE(
-    "normalizeAudioFile returns InputFileMissing for missing input",
-    "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto result = normalizeAudioFile(
-        temporary_directory.path() / "does_not_exist.wav",
-        temporary_directory.path() / "output.wav",
-        g_test_target);
-
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
-}
-
-// Verifies the normalization boundary rejects empty output paths before doing any I/O.
-TEST_CASE(
-    "normalizeAudioFile returns OutputPathRequired for empty output",
-    "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
-
-    const auto result = normalizeAudioFile(input_path, {}, g_test_target);
-
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == AudioNormalizationErrorCode::OutputPathRequired);
-}
-
-// Verifies measureAudioLoudness reads back deterministic measurement and fingerprint values.
-TEST_CASE(
-    "measureAudioLoudness reports measurement and fingerprint",
-    "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
-
-    const auto result = measureAudioLoudness(input_path);
-
-    REQUIRE(result.has_value());
-    CHECK(result->measurement.sample_peak_dbfs <= 0.0);
-    CHECK(result->fingerprint.size_bytes > 0);
-    CHECK(result->fingerprint.sha256.size() == 64);
-    CHECK_FALSE(result->analyzer_id.empty());
-    CHECK_FALSE(result->analyzer_version.empty());
-}
-
-// Verifies a sine louder than the target is rendered quieter and reports the negative gain.
-TEST_CASE(
-    "normalizeAudioFile quietens loud input toward target", "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
-    const auto output_path = temporary_directory.path() / "output.wav";
-
-    const auto outcome = normalizeAudioFile(input_path, output_path, g_test_target);
-
-    REQUIRE(outcome.has_value());
-    CHECK(outcome->applied_gain_db < 0.0);
-    CHECK(std::filesystem::is_regular_file(output_path));
-    CHECK_FALSE(
-        std::filesystem::exists(std::filesystem::path{output_path}.replace_extension(".wav.tmp")));
-
-    const auto rendered = measureAudioLoudness(output_path);
-    REQUIRE(rendered.has_value());
-    CHECK(
-        std::abs(
-            rendered->measurement.integrated_loudness_lufs -
-            g_test_target.integrated_loudness_lufs) < 1.0);
-}
-
-// Verifies a quiet sine is rendered louder and the applied gain is positive.
-TEST_CASE(
-    "normalizeAudioFile boosts quiet input toward target", "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.05);
-    const auto output_path = temporary_directory.path() / "output.wav";
-
-    const auto outcome = normalizeAudioFile(input_path, output_path, g_test_target);
-
-    REQUIRE(outcome.has_value());
-    CHECK(outcome->applied_gain_db > 0.0);
-
-    const auto rendered = measureAudioLoudness(output_path);
-    REQUIRE(rendered.has_value());
-    CHECK(
-        std::abs(
-            rendered->measurement.integrated_loudness_lufs -
-            g_test_target.integrated_loudness_lufs) < 1.0);
-}
-
-// Verifies gain is clamped so the loudest sample does not exceed 0 dBFS after gain.
-TEST_CASE(
-    "analyzeAudioForGainNormalization clamps gain at sample peak",
-    "[common-audio][audio-normalization]")
-{
-    const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writePeakHeavyWav(temporary_directory.path() / "input.wav");
-
-    const auto metadata = analyzeAudioForGainNormalization(input_path, g_test_target);
-
-    REQUIRE(metadata.has_value());
-    // The gain should be clamped so peak + gain <= 0 dBFS.
-    CHECK(metadata->analysis.measurement.sample_peak_dbfs + metadata->applied_gain_db <= 0.01);
 }
 
 // Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense gain.
@@ -304,64 +151,85 @@ TEST_CASE(
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSilentWav(temporary_directory.path() / "input.wav");
 
-    const auto result = analyzeAudioForGainNormalization(input_path, g_test_target);
+    const auto result =
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == AudioNormalizationErrorCode::SilentInputCannotBeNormalized);
 }
 
-// Verifies analyzeAudioForGainNormalization surfaces InputFileMissing for a missing file.
+// Verifies analyzeAudioForGainNormalization computes a non-zero gain and a 64-char validation hash.
 TEST_CASE(
-    "analyzeAudioForGainNormalization returns InputFileMissing",
+    "analyzeAudioForGainNormalization computes gain and validation hash",
     "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
+    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
+
     const auto result =
-        analyzeAudioForGainNormalization(temporary_directory.path() / "nope.wav", g_test_target);
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
-    REQUIRE_FALSE(result.has_value());
-    CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
+    REQUIRE(result.has_value());
+    CHECK(result->gain_db != 0.0);
+    CHECK(result->validation_sha256.size() == 64);
 }
 
-// Verifies analyzeAudioForGainNormalization computes the expected gain for a known input.
+// Verifies validateAudioNormalization confirms a freshly computed normalization record.
 TEST_CASE(
-    "analyzeAudioForGainNormalization computes applied gain", "[common-audio][audio-normalization]")
+    "validateAudioNormalization confirms fresh analysis", "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
     const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
 
-    const auto metadata = analyzeAudioForGainNormalization(input_path, g_test_target);
+    const auto normalization =
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
 
-    REQUIRE(metadata.has_value());
-    CHECK(metadata->applied_gain_db != 0.0);
-    CHECK(metadata->target == g_test_target);
-    CHECK(metadata->analysis.fingerprint.size_bytes > 0);
-    CHECK(metadata->analysis.fingerprint.sha256.size() == 64);
-    CHECK_FALSE(metadata->analysis.analyzer_id.empty());
+    REQUIRE(normalization.has_value());
+    CHECK(validateAudioNormalization(input_path, *normalization));
 }
 
-// Verifies the rendered output's persisted metadata matches a fresh re-measurement of the file.
+// Verifies validateAudioNormalization rejects a normalization record with a tampered gain.
+TEST_CASE("validateAudioNormalization rejects tampered gain", "[common-audio][audio-normalization]")
+{
+    const TemporaryAudioDirectory temporary_directory;
+    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
+
+    auto normalization =
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
+
+    REQUIRE(normalization.has_value());
+    normalization->gain_db += 1.0;
+    CHECK_FALSE(validateAudioNormalization(input_path, *normalization));
+}
+
+// Verifies the validation hash covers the raw backing audio bytes, not only the stored gain.
 TEST_CASE(
-    "normalizeAudioFile metadata matches fresh re-measurement",
+    "validateAudioNormalization rejects changed audio bytes", "[common-audio][audio-normalization]")
+{
+    const TemporaryAudioDirectory temporary_directory;
+    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
+
+    const auto normalization =
+        analyzeAudioForGainNormalization(input_path, common::core::AudioNormalizationTarget{});
+
+    REQUIRE(normalization.has_value());
+    [[maybe_unused]] const auto overwritten_path = writeSineWaveWav(input_path, 0.25);
+    CHECK_FALSE(validateAudioNormalization(input_path, *normalization));
+}
+
+// Verifies validateAudioNormalization returns false for a missing input file.
+TEST_CASE(
+    "validateAudioNormalization returns false for missing input",
     "[common-audio][audio-normalization]")
 {
     const TemporaryAudioDirectory temporary_directory;
-    const auto input_path = writeSineWaveWav(temporary_directory.path() / "input.wav", 0.5);
-    const auto output_path = temporary_directory.path() / "output.wav";
+    const common::core::AudioNormalization normalization{
+        .gain_db = -4.0,
+        .validation_sha256 = std::string(64, 'a'),
+    };
 
-    const auto outcome = normalizeAudioFile(input_path, output_path, g_test_target);
-
-    REQUIRE(outcome.has_value());
-    const auto fresh = measureAudioLoudness(output_path);
-    REQUIRE(fresh.has_value());
-    CHECK(
-        std::abs(
-            outcome->metadata.analysis.measurement.integrated_loudness_lufs -
-            fresh->measurement.integrated_loudness_lufs) < 0.1);
-    CHECK(outcome->metadata.analysis.fingerprint == fresh->fingerprint);
-    CHECK(outcome->metadata.analysis.analyzer_id == fresh->analyzer_id);
-    CHECK(outcome->metadata.analysis.analyzer_version == fresh->analyzer_version);
-    CHECK(outcome->metadata.target == g_test_target);
+    CHECK_FALSE(
+        validateAudioNormalization(temporary_directory.path() / "missing.wav", normalization));
 }
 
 } // namespace rock_hero::common::audio

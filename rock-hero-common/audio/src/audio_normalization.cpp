@@ -1,6 +1,9 @@
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <ebur128.h>
 #include <filesystem>
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -20,21 +23,21 @@ namespace rock_hero::common::audio
 namespace
 {
 
-// Block size used by both the analyzer scan and the render pass. Tuned for cache-friendly reads
-// while keeping the per-channel buffer small enough that interleaving stays cheap.
+// Block size used by the analyzer scan. Tuned for cache-friendly reads while keeping the
+// per-channel buffer small enough that interleaving stays cheap.
 constexpr int g_block_frames = 8192;
-
-// Bit depth used by the canonical normalized WAV writer. 24-bit PCM keeps file size in line with
-// typical backing audio while staying well above the analyzer's measurement noise floor.
-constexpr int g_output_bit_depth = 24;
 
 // Loudness below this floor is treated as silent for the purposes of normalization. Anything
 // quieter has too little signal energy for libebur128 to produce a reliable integrated value.
 constexpr double g_silent_loudness_threshold_lufs = -70.0;
 
-// Stable analyzer identifier persisted on AudioLoudnessAnalysis. Editor-side staleness checks
-// treat measurements with a different analyzer_id as incomparable.
-constexpr const char* g_analyzer_id = "libebur128-lufs-i";
+// Version marker baked into the validation hash so changing the normalization algorithm (e.g.
+// target LUFS, gain formula, or peak strategy) can invalidate all existing hashes by bumping
+// the version number.
+constexpr const char* g_hash_version = "RockHeroNormalizationV1";
+
+// Buffer size used between JUCE's 64-byte SHA-256 block reader and the backing file stream.
+constexpr int g_hash_stream_buffer_bytes = 65536;
 
 // Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
 [[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
@@ -44,17 +47,6 @@ constexpr const char* g_analyzer_id = "libebur128-lufs-i";
 #else
     return juce::File{juce::String::fromUTF8(path.string().c_str())};
 #endif
-}
-
-// Reads libebur128's runtime version so persisted measurements record the exact library revision
-// they were produced with rather than a hard-coded constant.
-[[nodiscard]] std::string libebur128Version()
-{
-    int major = 0;
-    int minor = 0;
-    int patch = 0;
-    ebur128_get_version(&major, &minor, &patch);
-    return std::to_string(major) + "." + std::to_string(minor) + "." + std::to_string(patch);
 }
 
 // Frees libebur128 state through the library's pointer-to-pointer destroy contract.
@@ -71,32 +63,21 @@ struct Ebur128StateDeleter
 };
 using Ebur128StateOwner = std::unique_ptr<ebur128_state, Ebur128StateDeleter>;
 
-// Registers the JUCE formats that current backing-audio imports produce. AudioFormatManager is
-// non-copyable, so callers pass an existing instance by reference rather than constructing one
-// through a return-by-value helper.
-void registerBasicAudioFormats(juce::AudioFormatManager& format_manager)
-{
-    format_manager.registerBasicFormats();
-}
-
-// Reports whether a JUCE reader's channel count is supported by the first-pass normalizer.
+// Reports whether a JUCE reader's channel count is supported by the analyzer.
 [[nodiscard]] bool isSupportedChannelCount(unsigned int channels) noexcept
 {
     return channels == 1 || channels == 2;
 }
 
-// Opens a reader on the supplied audio file. The caller treats any null result as a failure mode
-// distinct from "the format is supported but the audio is malformed".
-[[nodiscard]] std::unique_ptr<juce::AudioFormatReader> openAudioReader(
-    juce::AudioFormatManager& format_manager, const std::filesystem::path& input_path)
+// Measurement values produced by the LUFS-I + sample peak analyzer. Runtime-only; not persisted.
+struct LoudnessMeasurement
 {
-    return std::unique_ptr<juce::AudioFormatReader>{format_manager.createReaderFor(
-        juceFileFromPath(input_path))};
-}
+    double integrated_loudness_lufs{0.0};
+    double sample_peak_dbfs{0.0};
+};
 
 // Streams decoded blocks from a JUCE reader through libebur128 to produce a single measurement.
-// Returns an error code on analyzer failure so callers can map it to AudioNormalizationError.
-[[nodiscard]] std::optional<common::core::AudioLoudnessMeasurement> runLoudnessAnalyzer(
+[[nodiscard]] std::optional<LoudnessMeasurement> runLoudnessAnalyzer(
     juce::AudioFormatReader& reader, AudioNormalizationErrorCode& error_code,
     std::string& error_message)
 {
@@ -184,217 +165,173 @@ void registerBasicAudioFormats(juce::AudioFormatManager& format_manager)
         max_sample_peak_linear = std::max(max_sample_peak_linear, channel_peak_linear);
     }
 
-    // libebur128 reports linear amplitude for peaks; convert to dBFS so persisted metadata uses
-    // a consistent scale for the gain clamp calculation.
     const double sample_peak_dbfs = max_sample_peak_linear > 0.0
                                         ? 20.0 * std::log10(max_sample_peak_linear)
                                         : -std::numeric_limits<double>::infinity();
 
-    return common::core::AudioLoudnessMeasurement{
+    return LoudnessMeasurement{
         .integrated_loudness_lufs = integrated,
         .sample_peak_dbfs = sample_peak_dbfs,
     };
 }
 
-// Produces a size + SHA-256 fingerprint of an existing file. Size comes from std::filesystem so
-// the cost is constant; the hash is computed by streaming the file through juce::SHA256.
-[[nodiscard]] std::optional<common::core::AudioFileFingerprint> fingerprintAudioFile(
-    const std::filesystem::path& path, std::string& error_message)
+// Rounds a gain value to one decimal place (0.1 dB precision).
+[[nodiscard]] double roundGainToOneDecimal(double gain_db) noexcept
 {
-    std::error_code filesystem_error;
-    const std::uintmax_t file_size = std::filesystem::file_size(path, filesystem_error);
-    if (filesystem_error)
-    {
-        error_message = "Could not read file size: " + filesystem_error.message();
-        return std::nullopt;
-    }
-
-    juce::FileInputStream input_stream{juceFileFromPath(path)};
-    if (input_stream.failedToOpen())
-    {
-        error_message = "Could not open file for hashing: " +
-                        input_stream.getStatus().getErrorMessage().toStdString();
-        return std::nullopt;
-    }
-
-    const juce::SHA256 hash{input_stream};
-    return common::core::AudioFileFingerprint{
-        .size_bytes = static_cast<std::uint64_t>(file_size),
-        .sha256 = hash.toHexString().toLowerCase().toStdString(),
-    };
+    return std::round(gain_db * 10.0) / 10.0;
 }
 
-// Pure helper for the gain formula. Clamps the LUFS-I delta against the sample-peak headroom
-// so the loudest sample after gain does not exceed 0 dBFS.
-[[nodiscard]] double calculateNormalizationGainDb(
-    const common::core::AudioLoudnessMeasurement& source,
-    const common::core::AudioNormalizationTarget& target) noexcept
+// Formats a gain value at one decimal place for use in the validation hash. Deterministic
+// across all compilers because fixed one-decimal formatting has no implementation freedom.
+[[nodiscard]] std::string formatGainForHash(double gain_db)
 {
-    const double desired_gain_db =
-        target.integrated_loudness_lufs - source.integrated_loudness_lufs;
-    const double peak_headroom_db = 0.0 - source.sample_peak_dbfs;
-    return std::min(desired_gain_db, peak_headroom_db);
+    // snprintf with "%.1f" is deterministic for one-decimal formatting across all platforms.
+    std::array<char, 32> buf{};
+    const int len = std::snprintf(buf.data(), buf.size(), "%.1f", gain_db);
+    return std::string{buf.data(), static_cast<std::size_t>(len)};
 }
 
-// Streams the reader's audio through a 24-bit WAV writer applying a single uniform gain. Uses a
-// temporary stream-owning scope so the writer's destructor flushes before validation begins.
-[[nodiscard]] bool renderNormalizedAudioFile(
-    juce::AudioFormatReader& reader, const std::filesystem::path& output_path, double gain_linear,
-    AudioNormalizationErrorCode& error_code, std::string& error_message)
+// Presents the hash prefix and audio file as one stream so SHA-256 does not need a full-file
+// MemoryBlock. The worker still reads the whole file, but it no longer allocates and copies the
+// complete backing track before hashing.
+class ValidationHashInputStream final : public juce::InputStream
 {
-    std::error_code filesystem_error;
-    if (!output_path.parent_path().empty())
+public:
+    ValidationHashInputStream(std::string prefix, const juce::File& audio_file)
+        : m_prefix(std::move(prefix))
+        , m_file_stream(audio_file)
+        , m_file_length(std::max<juce::int64>(0, m_file_stream.getTotalLength()))
+    {}
+
+    [[nodiscard]] bool failedToOpen() const noexcept
     {
-        std::filesystem::create_directories(output_path.parent_path(), filesystem_error);
-        if (filesystem_error)
+        return m_file_stream.failedToOpen();
+    }
+
+    [[nodiscard]] std::string errorMessage() const
+    {
+        return m_file_stream.getStatus().getErrorMessage().toStdString();
+    }
+
+    [[nodiscard]] juce::int64 getTotalLength() override
+    {
+        return prefixLength() + m_file_length;
+    }
+
+    [[nodiscard]] bool isExhausted() override
+    {
+        return m_position >= getTotalLength();
+    }
+
+    int read(void* destination_buffer, int max_bytes_to_read) override
+    {
+        if (destination_buffer == nullptr || max_bytes_to_read <= 0)
         {
-            error_code = AudioNormalizationErrorCode::CouldNotCreateOutputDirectory;
-            error_message = "Could not create output directory: " + filesystem_error.message();
-            return false;
+            return 0;
         }
-    }
 
-    auto file_stream = std::make_unique<juce::FileOutputStream>(juceFileFromPath(output_path));
-    if (file_stream->failedToOpen())
-    {
-        error_code = AudioNormalizationErrorCode::CouldNotCreateOutputFile;
-        error_message = "Could not open output file for writing: " +
-                        file_stream->getStatus().getErrorMessage().toStdString();
-        return false;
-    }
-    if (!file_stream->setPosition(0) || file_stream->truncate().failed())
-    {
-        error_code = AudioNormalizationErrorCode::CouldNotCreateOutputFile;
-        error_message = "Could not truncate output file before writing";
-        return false;
-    }
+        auto* output = static_cast<char*>(destination_buffer);
+        int bytes_read = 0;
+        const juce::int64 prefix_length = prefixLength();
 
-    // Transfer the file stream into a base-class unique_ptr so the modern createWriterFor()
-    // overload (which takes std::unique_ptr<juce::OutputStream>& and is the supported API on
-    // JUCE 8) accepts it directly. The new overload returns the writer as a unique_ptr and
-    // moves ownership of the stream into the writer on success; on failure the unique_ptr is
-    // left intact so its destructor still frees the stream.
-    std::unique_ptr<juce::OutputStream> output_stream{std::move(file_stream)};
-    juce::WavAudioFormat wav_format;
-    const auto writer_options =
-        juce::AudioFormatWriterOptions{}
-            .withSampleRate(reader.sampleRate)
-            .withNumChannels(static_cast<int>(reader.numChannels))
-            .withBitsPerSample(g_output_bit_depth)
-            .withSampleFormat(juce::AudioFormatWriterOptions::SampleFormat::integral);
-    std::unique_ptr<juce::AudioFormatWriter> writer =
-        wav_format.createWriterFor(output_stream, writer_options);
-    if (writer == nullptr)
-    {
-        error_code = AudioNormalizationErrorCode::CouldNotCreateOutputFile;
-        error_message = "Could not create WAV writer for output file";
-        return false;
-    }
-
-    const auto channel_count = static_cast<int>(reader.numChannels);
-    juce::AudioBuffer<float> buffer{channel_count, g_block_frames};
-    std::int64_t sample_pos = 0;
-    const std::int64_t total_samples = reader.lengthInSamples;
-    while (sample_pos < total_samples)
-    {
-        const int frames_this_block =
-            static_cast<int>(std::min<std::int64_t>(g_block_frames, total_samples - sample_pos));
-        buffer.clear();
-        if (!reader.read(
-                buffer.getArrayOfWritePointers(), channel_count, sample_pos, frames_this_block))
+        if (m_position < prefix_length)
         {
-            error_code = AudioNormalizationErrorCode::InvalidInputAudio;
-            error_message = "Could not read input audio block during render";
+            const auto prefix_position = static_cast<std::size_t>(m_position);
+            const int remaining_prefix_bytes = static_cast<int>(prefix_length - m_position);
+            const int prefix_bytes_to_read = std::min(max_bytes_to_read, remaining_prefix_bytes);
+
+            std::memcpy(
+                output,
+                m_prefix.data() + prefix_position,
+                static_cast<std::size_t>(prefix_bytes_to_read));
+
+            output += prefix_bytes_to_read;
+            max_bytes_to_read -= prefix_bytes_to_read;
+            bytes_read += prefix_bytes_to_read;
+            m_position += prefix_bytes_to_read;
+        }
+
+        if (max_bytes_to_read <= 0)
+        {
+            return bytes_read;
+        }
+
+        const int file_bytes_read = m_file_stream.read(output, max_bytes_to_read);
+        if (file_bytes_read <= 0)
+        {
+            return bytes_read;
+        }
+
+        m_position += file_bytes_read;
+        return bytes_read + file_bytes_read;
+    }
+
+    [[nodiscard]] juce::int64 getPosition() override
+    {
+        return m_position;
+    }
+
+    bool setPosition(juce::int64 new_position) override
+    {
+        if (new_position < 0)
+        {
             return false;
         }
 
-        buffer.applyGain(0, frames_this_block, static_cast<float>(gain_linear));
-
-        if (!writer->writeFromAudioSampleBuffer(buffer, 0, frames_this_block))
+        const juce::int64 prefix_length = prefixLength();
+        if (new_position < prefix_length)
         {
-            error_code = AudioNormalizationErrorCode::OutputRenderFailed;
-            error_message = "Could not write output audio block";
+            if (!m_file_stream.setPosition(0))
+            {
+                return false;
+            }
+            m_position = new_position;
+            return true;
+        }
+
+        if (!m_file_stream.setPosition(new_position - prefix_length))
+        {
             return false;
         }
 
-        sample_pos += frames_this_block;
+        m_position = prefix_length + m_file_stream.getPosition();
+        return m_position == new_position;
     }
 
-    return true;
-}
+private:
+    [[nodiscard]] juce::int64 prefixLength() const noexcept
+    {
+        return static_cast<juce::int64>(m_prefix.size());
+    }
 
-// Reopens a rendered output file, runs a fresh measurement, and fingerprints it. The returned
-// analysis is what the caller persists on the output AudioAsset's loudness metadata. Opens
-// through WavAudioFormat directly rather than the format manager because the temporary output
-// path ends in ".tmp" — AudioFormatManager dispatches by file extension and would not match a
-// recognized format for that suffix, returning nullptr even though we just wrote a valid WAV.
-[[nodiscard]] std::optional<common::core::AudioLoudnessAnalysis> validateRenderedAudioFile(
-    const std::filesystem::path& output_path, AudioNormalizationErrorCode& error_code,
-    std::string& error_message)
+    std::string m_prefix;
+    juce::FileInputStream m_file_stream;
+    juce::int64 m_file_length{0};
+    juce::int64 m_position{0};
+};
+
+// Computes the validation hash from the version prefix, gain text, and raw audio file bytes.
+// The hash input is:
+//   RockHeroNormalizationV1\n
+//   gainDb=<one-decimal text>\n
+//   audioBytes\n
+//   <raw file bytes>
+[[nodiscard]] std::optional<std::string> computeValidationHash(
+    const std::filesystem::path& audio_path, double gain_db, std::string& error_message)
 {
-    auto file_stream = std::make_unique<juce::FileInputStream>(juceFileFromPath(output_path));
-    if (file_stream->failedToOpen())
+    const std::string gain_text = formatGainForHash(gain_db);
+    std::string prefix = std::string{g_hash_version} + "\ngainDb=" + gain_text + "\naudioBytes\n";
+
+    ValidationHashInputStream hash_input{std::move(prefix), juceFileFromPath(audio_path)};
+    if (hash_input.failedToOpen())
     {
-        error_code = AudioNormalizationErrorCode::OutputValidationFailed;
-        error_message = "Could not open rendered output for validation: " +
-                        file_stream->getStatus().getErrorMessage().toStdString();
+        error_message = "Could not open file for validation hashing: " + hash_input.errorMessage();
         return std::nullopt;
     }
 
-    juce::WavAudioFormat wav_format;
-    juce::FileInputStream* const stream_ptr = file_stream.get();
-    std::unique_ptr<juce::AudioFormatReader> reader{wav_format.createReaderFor(
-        stream_ptr, /*deleteStreamIfOpeningFails=*/false)};
-    if (reader == nullptr)
-    {
-        // createReaderFor returned null and we passed false, so the unique_ptr above still owns
-        // the stream and will free it.
-        error_code = AudioNormalizationErrorCode::OutputValidationFailed;
-        error_message = "Could not parse rendered output as a WAV file";
-        return std::nullopt;
-    }
-    // On success the reader took ownership of the stream.
-    file_stream.release();
-
-    auto measurement = runLoudnessAnalyzer(*reader, error_code, error_message);
-    if (!measurement.has_value())
-    {
-        // Promote any analyzer failure during validation to OutputValidationFailed so callers
-        // see a single code regardless of which underlying read or analyzer call failed.
-        error_code = AudioNormalizationErrorCode::OutputValidationFailed;
-        return std::nullopt;
-    }
-
-    auto fingerprint = fingerprintAudioFile(output_path, error_message);
-    if (!fingerprint.has_value())
-    {
-        error_code = AudioNormalizationErrorCode::OutputValidationFailed;
-        return std::nullopt;
-    }
-
-    return common::core::AudioLoudnessAnalysis{
-        .measurement = *measurement,
-        .fingerprint = *std::move(fingerprint),
-        .analyzer_id = g_analyzer_id,
-        .analyzer_version = libebur128Version(),
-    };
-}
-
-// Removes a temporary or partially-written output file on failure. Cleanup errors are surfaced
-// so the caller can report them, but they do not override the original failure code.
-void removePartialOutputOnFailure(const std::filesystem::path& path)
-{
-    std::error_code error;
-    std::filesystem::remove(path, error);
-}
-
-// Builds a sibling .tmp path so the canonical output is replaced atomically only after the
-// rendered file has been validated.
-[[nodiscard]] std::filesystem::path temporaryOutputPath(const std::filesystem::path& output)
-{
-    std::filesystem::path temporary_path = output;
-    temporary_path += ".tmp";
-    return temporary_path;
+    juce::BufferedInputStream buffered_hash_input{hash_input, g_hash_stream_buffer_bytes};
+    const juce::SHA256 hash{buffered_hash_input};
+    return hash.toHexString().toLowerCase().toStdString();
 }
 
 // Centralises default error messages so AudioNormalizationError stays consistent regardless of
@@ -406,10 +343,6 @@ void removePartialOutputOnFailure(const std::filesystem::path& path)
         case AudioNormalizationErrorCode::InputFileMissing:
         {
             return "Input audio file does not exist";
-        }
-        case AudioNormalizationErrorCode::OutputPathRequired:
-        {
-            return "Output audio file path is required";
         }
         case AudioNormalizationErrorCode::CouldNotOpenInput:
         {
@@ -423,14 +356,6 @@ void removePartialOutputOnFailure(const std::filesystem::path& path)
         {
             return "Input audio is invalid or could not be read";
         }
-        case AudioNormalizationErrorCode::CouldNotCreateOutputDirectory:
-        {
-            return "Could not create output audio directory";
-        }
-        case AudioNormalizationErrorCode::CouldNotCreateOutputFile:
-        {
-            return "Could not create output audio file";
-        }
         case AudioNormalizationErrorCode::LoudnessMeasurementFailed:
         {
             return "Loudness measurement failed";
@@ -439,17 +364,9 @@ void removePartialOutputOnFailure(const std::filesystem::path& path)
         {
             return "Input audio is effectively silent and cannot be normalized";
         }
-        case AudioNormalizationErrorCode::OutputRenderFailed:
+        case AudioNormalizationErrorCode::ValidationHashFailed:
         {
-            return "Could not render normalized audio";
-        }
-        case AudioNormalizationErrorCode::OutputValidationFailed:
-        {
-            return "Could not validate normalized audio output";
-        }
-        case AudioNormalizationErrorCode::TemporaryOutputCleanupFailed:
-        {
-            return "Could not remove temporary normalization output";
+            return "Could not compute validation hash for audio file";
         }
     }
 
@@ -468,62 +385,8 @@ AudioNormalizationError::AudioNormalizationError(
     , message(std::move(message_text))
 {}
 
-// Public boundary: composes the analyzer scan and fingerprint pass into a single analysis result.
-std::expected<common::core::AudioLoudnessAnalysis, AudioNormalizationError> measureAudioLoudness(
-    const std::filesystem::path& input)
-{
-    if (input.empty())
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::InputFileMissing,
-        }};
-    }
-
-    std::error_code filesystem_error;
-    if (!std::filesystem::is_regular_file(input, filesystem_error))
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::InputFileMissing,
-        }};
-    }
-
-    juce::AudioFormatManager format_manager;
-    registerBasicAudioFormats(format_manager);
-    auto reader = openAudioReader(format_manager, input);
-    if (reader == nullptr)
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::CouldNotOpenInput,
-        }};
-    }
-
-    AudioNormalizationErrorCode error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-    std::string error_message;
-    auto measurement = runLoudnessAnalyzer(*reader, error_code, error_message);
-    if (!measurement.has_value())
-    {
-        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
-    }
-
-    auto fingerprint = fingerprintAudioFile(input, error_message);
-    if (!fingerprint.has_value())
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::LoudnessMeasurementFailed,
-            std::move(error_message),
-        }};
-    }
-
-    return common::core::AudioLoudnessAnalysis{
-        .measurement = *measurement,
-        .fingerprint = *std::move(fingerprint),
-        .analyzer_id = g_analyzer_id,
-        .analyzer_version = libebur128Version(),
-    };
-}
-
-// Public boundary: analyzes a source file and computes the gain needed to hit the target.
-std::expected<common::core::AudioLoudnessMetadata, AudioNormalizationError>
+// Public boundary: analyzes a source file, computes gain, and produces validation hash.
+std::expected<common::core::AudioNormalization, AudioNormalizationError>
 analyzeAudioForGainNormalization(
     const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)
 {
@@ -543,8 +406,9 @@ analyzeAudioForGainNormalization(
     }
 
     juce::AudioFormatManager format_manager;
-    registerBasicAudioFormats(format_manager);
-    auto reader = openAudioReader(format_manager, input);
+    format_manager.registerBasicFormats();
+    auto reader = std::unique_ptr<juce::AudioFormatReader>{format_manager.createReaderFor(
+        juceFileFromPath(input))};
     if (reader == nullptr)
     {
         return std::unexpected{AudioNormalizationError{
@@ -568,131 +432,44 @@ analyzeAudioForGainNormalization(
         }};
     }
 
-    auto fingerprint = fingerprintAudioFile(input, error_message);
-    if (!fingerprint.has_value())
+    // Compute gain clamped so the loudest sample after gain does not exceed 0 dBFS.
+    const double desired_gain_db =
+        target.integrated_loudness_lufs - measurement->integrated_loudness_lufs;
+    const double peak_headroom_db = 0.0 - measurement->sample_peak_dbfs;
+    const double gain_db = roundGainToOneDecimal(std::min(desired_gain_db, peak_headroom_db));
+
+    auto validation_sha256 = computeValidationHash(input, gain_db, error_message);
+    if (!validation_sha256.has_value())
     {
         return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+            AudioNormalizationErrorCode::ValidationHashFailed,
             std::move(error_message),
         }};
     }
 
-    const double applied_gain_db = calculateNormalizationGainDb(*measurement, target);
-
-    return common::core::AudioLoudnessMetadata{
-        .target = target,
-        .analysis =
-            common::core::AudioLoudnessAnalysis{
-                .measurement = *measurement,
-                .fingerprint = *std::move(fingerprint),
-                .analyzer_id = g_analyzer_id,
-                .analyzer_version = libebur128Version(),
-            },
-        .applied_gain_db = applied_gain_db,
+    return common::core::AudioNormalization{
+        .gain_db = gain_db,
+        .validation_sha256 = std::move(*validation_sha256),
     };
 }
 
-// Public boundary: renders a gain-normalized WAV copy of the supplied input file.
-std::expected<AudioNormalizationOutcome, AudioNormalizationError> normalizeAudioFile(
-    const std::filesystem::path& input, const std::filesystem::path& output,
-    const common::core::AudioNormalizationTarget& target)
+// Public boundary: validates stored normalization against the current audio file.
+bool validateAudioNormalization(
+    const std::filesystem::path& input, const common::core::AudioNormalization& normalization)
 {
-    if (input.empty())
+    if (normalization.validation_sha256.empty())
     {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::InputFileMissing,
-        }};
-    }
-    if (output.empty())
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::OutputPathRequired,
-        }};
+        return false;
     }
 
-    std::error_code filesystem_error;
-    if (!std::filesystem::is_regular_file(input, filesystem_error))
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::InputFileMissing,
-        }};
-    }
-
-    juce::AudioFormatManager format_manager;
-    registerBasicAudioFormats(format_manager);
-    auto reader = openAudioReader(format_manager, input);
-    if (reader == nullptr)
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::CouldNotOpenInput,
-        }};
-    }
-
-    AudioNormalizationErrorCode error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
     std::string error_message;
-    auto source_measurement = runLoudnessAnalyzer(*reader, error_code, error_message);
-    if (!source_measurement.has_value())
+    const auto current_hash = computeValidationHash(input, normalization.gain_db, error_message);
+    if (!current_hash.has_value())
     {
-        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
+        return false;
     }
 
-    // Inputs below the silence threshold (or with non-finite measured loudness) carry too little
-    // signal energy for gain-only normalization to produce a meaningful result.
-    if (!std::isfinite(source_measurement->integrated_loudness_lufs) ||
-        source_measurement->integrated_loudness_lufs < g_silent_loudness_threshold_lufs)
-    {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::SilentInputCannotBeNormalized,
-        }};
-    }
-
-    const double gain_db = calculateNormalizationGainDb(*source_measurement, target);
-    const double gain_linear = std::pow(10.0, gain_db / 20.0);
-
-    const std::filesystem::path temporary_output = temporaryOutputPath(output);
-    if (!renderNormalizedAudioFile(
-            *reader, temporary_output, gain_linear, error_code, error_message))
-    {
-        removePartialOutputOnFailure(temporary_output);
-        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
-    }
-
-    auto rendered_analysis = validateRenderedAudioFile(temporary_output, error_code, error_message);
-    if (!rendered_analysis.has_value())
-    {
-        removePartialOutputOnFailure(temporary_output);
-        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
-    }
-
-    // Replace the final output path atomically when possible. std::filesystem::rename overwrites
-    // existing files on POSIX and on Windows when both paths resolve to the same volume.
-    std::filesystem::rename(temporary_output, output, filesystem_error);
-    if (filesystem_error)
-    {
-        // Fall back to remove + copy when rename across volumes (or other rare cases) fails.
-        std::error_code remove_error;
-        std::filesystem::remove(output, remove_error);
-        std::filesystem::rename(temporary_output, output, filesystem_error);
-        if (filesystem_error)
-        {
-            removePartialOutputOnFailure(temporary_output);
-            return std::unexpected{AudioNormalizationError{
-                AudioNormalizationErrorCode::OutputRenderFailed,
-                "Could not move normalized output into place: " + filesystem_error.message(),
-            }};
-        }
-    }
-
-    return AudioNormalizationOutcome{
-        .metadata =
-            common::core::AudioLoudnessMetadata{
-                .target = target,
-                .analysis = *std::move(rendered_analysis),
-                .applied_gain_db = gain_db,
-            },
-        .source_measurement = *source_measurement,
-        .applied_gain_db = gain_db,
-    };
+    return *current_hash == normalization.validation_sha256;
 }
 
 } // namespace rock_hero::common::audio
