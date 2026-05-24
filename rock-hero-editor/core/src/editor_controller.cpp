@@ -242,15 +242,6 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
     return states;
 }
 
-// Controller-internal result of restoring a live rig, carrying both the plugin view states and the
-// restored gain values so the controller can update all state in one callback.
-struct LiveRigRestoreResult
-{
-    std::vector<PluginViewState> plugins;
-    double input_gain_db{0.0};
-    double output_gain_db{0.0};
-};
-
 // Maps write actions to the busy operation shown while the worker owns Project IO.
 [[nodiscard]] BusyOperation busyOperationForProjectWrite(EditorAction::Id action) noexcept
 {
@@ -508,7 +499,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
         const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-        std::function<void(std::expected<LiveRigRestoreResult, std::string>)> on_loaded);
+        std::function<void(std::expected<common::audio::LiveRigLoadResult, std::string>)>
+            on_loaded);
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
@@ -1383,50 +1375,51 @@ void EditorController::Impl::startLiveRigLoadStage(
         song_directory,
         report_progress,
         token,
-        safeCallback([this, token, report_progress, captured_stage = std::move(stage_state)](
-                         std::expected<LiveRigRestoreResult, std::string> rig_result) mutable {
-            if (token != m_current_busy_token)
-            {
-                return;
-            }
-            if (!rig_result.has_value())
-            {
-                captured_stage.finish(std::unexpected{std::move(rig_result.error())});
-                return;
-            }
+        safeCallback(
+            [this, token, report_progress, captured_stage = std::move(stage_state)](
+                std::expected<common::audio::LiveRigLoadResult, std::string> rig_result) mutable {
+                if (token != m_current_busy_token)
+                {
+                    return;
+                }
+                if (!rig_result.has_value())
+                {
+                    captured_stage.finish(std::unexpected{std::move(rig_result.error())});
+                    return;
+                }
 
-            m_plugins = std::move(rig_result->plugins);
-            m_input_gain_db = rig_result->input_gain_db;
-            m_output_gain_db = rig_result->output_gain_db;
-            if (!report_progress)
-            {
-                captured_stage.finish({});
-                return;
-            }
+                m_plugins = makePluginViewStates(rig_result->plugins);
+                m_input_gain_db = rig_result->input_gain.db;
+                m_output_gain_db = rig_result->output_gain.db;
+                if (!report_progress)
+                {
+                    captured_stage.finish({});
+                    return;
+                }
 
-            setLiveRigLoadProgress("Live rig loaded.", 1.0);
-            updateView();
+                setLiveRigLoadProgress("Live rig loaded.", 1.0);
+                updateView();
 
-            // No message thread in unit tests; finish synchronously so tests don't deadlock.
-            if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
-            {
-                captured_stage.finish({});
-                return;
-            }
+                // No message thread in unit tests; finish synchronously so tests don't deadlock.
+                if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
+                {
+                    captured_stage.finish({});
+                    return;
+                }
 
-            // Wall-clock delay so the 100% state stays visible long enough for the user to see.
-            // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
-            constexpr std::chrono::milliseconds minimum_completion_display_time{500};
-            juce::Timer::callAfterDelay(
-                static_cast<int>(minimum_completion_display_time.count()),
-                safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
-                    if (token != m_current_busy_token)
-                    {
-                        return;
-                    }
-                    timer_stage.finish({});
-                }));
-        }));
+                // Wall-clock delay so the 100% state stays visible long enough for the user to see.
+                // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
+                constexpr std::chrono::milliseconds minimum_completion_display_time{500};
+                juce::Timer::callAfterDelay(
+                    static_cast<int>(minimum_completion_display_time.count()),
+                    safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
+                        if (token != m_current_busy_token)
+                        {
+                            return;
+                        }
+                        timer_stage.finish({});
+                    }));
+            }));
 }
 
 // Saves to the current destination when one exists; Save As is responsible for destination choice.
@@ -2018,7 +2011,7 @@ void EditorController::Impl::onInputGainChanged(double gain_db)
         return;
     }
 
-    const auto result = m_live_rig->setLiveRigInputGain(gain);
+    const auto result = m_live_rig->setInputGain(gain);
     if (!result.has_value())
     {
         reportError(std::string{"Could not set input gain: "} + result.error().message);
@@ -2048,7 +2041,7 @@ void EditorController::Impl::onOutputGainChanged(double gain_db)
         return;
     }
 
-    const auto result = m_live_rig->setLiveRigOutputGain(gain);
+    const auto result = m_live_rig->setOutputGain(gain);
     if (!result.has_value())
     {
         reportError(std::string{"Could not set output gain: "} + result.error().message);
@@ -2404,11 +2397,11 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 
 // Restores the selected arrangement's saved tone document after the backing audio is active.
 // Live rig restore runs cooperatively on the message thread inside the audio adapter, so this
-// method always returns immediately and routes the plugin view-state result through the on_loaded
-// callback without mutating controller state.
+// method always returns immediately and routes the audio load result through the on_loaded callback
+// without mutating controller state.
 void EditorController::Impl::restoreLiveRig(
     const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-    std::function<void(std::expected<LiveRigRestoreResult, std::string>)> on_loaded)
+    std::function<void(std::expected<common::audio::LiveRigLoadResult, std::string>)> on_loaded)
 {
     if (!on_loaded)
     {
@@ -2417,14 +2410,14 @@ void EditorController::Impl::restoreLiveRig(
 
     if (m_live_rig == nullptr)
     {
-        on_loaded(LiveRigRestoreResult{});
+        on_loaded(common::audio::LiveRigLoadResult{});
         return;
     }
 
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr)
     {
-        on_loaded(LiveRigRestoreResult{});
+        on_loaded(common::audio::LiveRigLoadResult{});
         return;
     }
 
@@ -2476,12 +2469,7 @@ void EditorController::Impl::restoreLiveRig(
                     completion(std::unexpected{loaded.error().message});
                     return;
                 }
-                completion(
-                    LiveRigRestoreResult{
-                        .plugins = makePluginViewStates(loaded->plugins),
-                        .input_gain_db = loaded->input_gain.db,
-                        .output_gain_db = loaded->output_gain.db,
-                    });
+                completion(std::move(*loaded));
             }));
 }
 
