@@ -1,6 +1,7 @@
 #include "tracktion_thumbnail.h"
 
 #include <cmath>
+#include <rock_hero/common/core/juce_path.h>
 
 namespace rock_hero::common::audio
 {
@@ -35,8 +36,7 @@ TracktionThumbnail::TracktionThumbnail(tracktion::Engine& engine, juce::Componen
 // invalidates the stale thumb.
 void TracktionThumbnail::setSource(const common::core::AudioAsset& audio_asset)
 {
-    const auto path_text = audio_asset.path.wstring();
-    const juce::File file{juce::String{path_text.c_str()}};
+    const juce::File file = common::core::juceFileFromPath(audio_asset.path);
     const tracktion::AudioFile audio_file(m_engine, file);
     m_source_length_seconds = audio_file.getLength();
     m_has_source = m_source_length_seconds > 0.0;

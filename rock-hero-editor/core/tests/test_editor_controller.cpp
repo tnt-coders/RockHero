@@ -179,6 +179,13 @@ public:
         unsaved_changes_decision_count += 1;
     }
 
+    // Captures the latest interrupted-restore decision passed back from the view.
+    void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) override
+    {
+        last_restore_interrupted_decision = decision;
+        restore_interrupted_decision_count += 1;
+    }
+
     // Counts play/pause transport intents emitted by the view.
     void onPlayPausePressed() override
     {
@@ -272,6 +279,9 @@ public:
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
 
+    // Last interrupted-restore decision emitted by the view.
+    std::optional<RestoreInterruptedDecision> last_restore_interrupted_decision{};
+
     // Number of open intents received.
     int open_request_count{0};
 
@@ -298,6 +308,9 @@ public:
 
     // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
+
+    // Number of interrupted-restore decisions received.
+    int restore_interrupted_decision_count{0};
 
     // Number of play/pause intents received.
     int play_pause_press_count{0};
@@ -1413,6 +1426,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.plugin_browser.plugins.empty());
     CHECK_FALSE(empty_state.unsaved_changes_prompt.has_value());
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
+    CHECK_FALSE(empty_state.restore_interrupted_prompt.has_value());
 
     const common::core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
     const EditorViewState loaded_state{
@@ -1470,6 +1484,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
             },
         .unsaved_changes_prompt = UnsavedChangesPrompt{EditorActionId::CloseProject},
         .save_as_prompt = SaveAsPrompt{EditorActionId::CloseProject},
+        .restore_interrupted_prompt =
+            RestoreInterruptedPrompt{std::filesystem::path{"interrupted.rhp"}},
         .busy = std::nullopt,
     };
 
@@ -1491,6 +1507,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         loaded_state.unsaved_changes_prompt ==
         std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
     CHECK(loaded_state.save_as_prompt == std::optional{SaveAsPrompt{EditorActionId::CloseProject}});
+    CHECK(
+        loaded_state.restore_interrupted_prompt ==
+        std::optional{RestoreInterruptedPrompt{std::filesystem::path{"interrupted.rhp"}}});
 }
 
 // Verifies a fake controller can receive editor intents without JUCE callback types.
@@ -1511,6 +1530,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onCloseRequested();
     controller.onExitRequested();
     controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+    controller.onRestoreInterruptedDecision(RestoreInterruptedDecision::Retry);
     controller.onPlayPausePressed();
     controller.onStopPressed();
     controller.onWaveformClicked(0.75);
@@ -1536,6 +1556,10 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.unsaved_changes_decision_count == 1);
     CHECK(
         controller.last_unsaved_changes_decision == std::optional{UnsavedChangesDecision::Discard});
+    CHECK(controller.restore_interrupted_decision_count == 1);
+    CHECK(
+        controller.last_restore_interrupted_decision ==
+        std::optional{RestoreInterruptedDecision::Retry});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
     CHECK(controller.waveform_click_count == 1);
@@ -2354,6 +2378,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.signal_chain.plugins.empty());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
         CHECK_FALSE(state.save_as_prompt.has_value());
+        CHECK_FALSE(state.restore_interrupted_prompt.has_value());
     }
     CHECK(audio.set_active_arrangement_call_count == 0);
 }
@@ -2740,6 +2765,7 @@ TEST_CASE("EditorController clears missing restore path", "[core][editor-control
 
     CHECK(project_services.open_call_count == 0);
     CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
 }
 
 // Valid restore paths are opened and kept when the controller accepts the project.
@@ -2768,6 +2794,7 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     CHECK(project_services.last_open_file == std::optional{files.projectFile()});
     CHECK(controller.currentProjectFile() == std::optional{files.projectFile()});
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
 }
 
 // Startup restore leaves the saved path intact until the async open completion resolves.
@@ -2798,11 +2825,200 @@ TEST_CASE("EditorController restore keeps path while open is pending", "[core][e
     CHECK(project_services.last_open_file == std::optional{files.projectFile()});
     CHECK_FALSE(controller.currentProjectFile().has_value());
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK(settings.interruptedRestoreProject() == std::optional{files.projectFile()});
 
     runner.runPendingCompletions();
 
     CHECK(controller.currentProjectFile() == std::optional{files.projectFile()});
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+}
+
+// Exiting while startup restore is pending leaves a recovery marker for the next launch.
+TEST_CASE(
+    "EditorController exit during pending restore marks interrupted", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"exit_pending_restore_path"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    int exit_call_count = 0;
+    std::optional<std::filesystem::path> setting_seen_at_exit{};
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .exit_function =
+                [&exit_call_count, &setting_seen_at_exit, &settings] {
+                    setting_seen_at_exit = settings.lastOpenProject();
+                    ++exit_call_count;
+                },
+            .settings = &settings,
+            .task_runner = &runner,
+        },
+    };
+
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.restoreLastOpenProject();
+    controller.onExitRequested();
+
+    CHECK(exit_call_count == 1);
+    CHECK(setting_seen_at_exit == std::optional{files.projectFile()});
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK(settings.interruptedRestoreProject() == std::optional{files.projectFile()});
+
+    runner.runPendingCompletions();
+
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK(settings.interruptedRestoreProject() == std::optional{files.projectFile()});
+    CHECK(audio.set_active_arrangement_call_count == 0);
+}
+
+// An interrupted restore marker pauses auto-open and asks the user whether to retry.
+TEST_CASE("EditorController prompts after interrupted restore", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"interrupted_restore_prompt"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    settings.setInterruptedRestoreProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.restoreLastOpenProject();
+
+    CHECK(project_services.open_call_count == 0);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(
+        state->restore_interrupted_prompt ==
+        std::optional{RestoreInterruptedPrompt{files.projectFile()}});
+    CHECK_FALSE(state->busy.has_value());
+}
+
+// OK on the interrupted-restore prompt retries the same project and clears the marker on success.
+TEST_CASE("EditorController retries interrupted restore prompt", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"interrupted_restore_retry"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    settings.setInterruptedRestoreProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+            .task_runner = &runner,
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.restoreLastOpenProject();
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onRestoreInterruptedDecision(RestoreInterruptedDecision::Retry);
+
+    CHECK(project_services.open_call_count == 1);
+    CHECK(project_services.last_open_file == std::optional{files.projectFile()});
+    CHECK(settings.interruptedRestoreProject() == std::optional{files.projectFile()});
+    const EditorViewState* busy_state = stateOrNull(view.last_state);
+    REQUIRE(busy_state != nullptr);
+    CHECK_FALSE(busy_state->restore_interrupted_prompt.has_value());
+    CHECK(busy_state->busy.has_value());
+
+    runner.runPendingCompletions();
+
+    CHECK(controller.currentProjectFile() == std::optional{files.projectFile()});
+    CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+}
+
+// Cancel on the interrupted-restore prompt starts empty and suppresses future auto-open.
+TEST_CASE("EditorController cancels interrupted restore prompt", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"interrupted_restore_cancel"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    settings.setInterruptedRestoreProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.restoreLastOpenProject();
+    controller.onRestoreInterruptedDecision(RestoreInterruptedDecision::Cancel);
+
+    CHECK(project_services.open_call_count == 0);
+    CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->restore_interrupted_prompt.has_value());
+    CHECK_FALSE(state->busy.has_value());
+}
+
+// Missing interrupted-restore paths are removed from both recovery and auto-open state.
+TEST_CASE("EditorController clears missing interrupted restore", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"missing_interrupted_restore"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setLastOpenProject(files.projectFile());
+    settings.setInterruptedRestoreProject(files.projectFile());
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.restoreLastOpenProject();
+
+    CHECK(project_services.open_call_count == 0);
+    CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->restore_interrupted_prompt.has_value());
 }
 
 // A stored project path rejected by open is removed from future startup restore state.
@@ -2829,6 +3045,7 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     CHECK(project_services.open_call_count == 1);
     CHECK_FALSE(controller.currentProjectFile().has_value());
     CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
 }
 
 // Startup restore clears failed paths only from the async completion path, not scheduling.
@@ -2856,11 +3073,13 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
 
     CHECK(project_services.open_call_count == 1);
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
+    CHECK(settings.interruptedRestoreProject() == std::optional{files.projectFile()});
 
     runner.runPendingCompletions();
 
     CHECK_FALSE(controller.currentProjectFile().has_value());
     CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
 }
 
 // A restore request fired while the controller already has dirty work routes through the same

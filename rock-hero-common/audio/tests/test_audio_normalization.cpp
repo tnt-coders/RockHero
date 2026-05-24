@@ -7,6 +7,7 @@
 #include <numbers>
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/audio_normalization.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <string>
 #include <vector>
 
@@ -75,16 +76,6 @@ private:
     std::filesystem::path m_path;
 };
 
-// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
-[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String::fromUTF8(path.string().c_str())};
-#endif
-}
-
 // Writes a stereo sine-wave WAV fixture at the requested amplitude. Returns the produced path so
 // callers can chain it into normalization calls without re-deriving the filename.
 [[nodiscard]] std::filesystem::path writeSineWaveWav(
@@ -105,7 +96,7 @@ private:
     }
 
     juce::WavAudioFormat wav_format;
-    auto stream = std::make_unique<juce::FileOutputStream>(juceFileFromPath(path));
+    auto stream = std::make_unique<juce::FileOutputStream>(common::core::juceFileFromPath(path));
     REQUIRE(!stream->failedToOpen());
     REQUIRE(stream->setPosition(0));
     REQUIRE(!stream->truncate().failed());
