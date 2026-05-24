@@ -182,6 +182,10 @@ private:
     // Presents a Save As chooser once per controller-requested prompt.
     void presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPrompt>& prompt);
 
+    // Presents an interrupted startup-restore prompt once per prompt request.
+    void presentRestoreInterruptedPromptIfNeeded(
+        const std::optional<core::RestoreInterruptedPrompt>& prompt);
+
     // Presents, refreshes, or closes the plugin browser window from controller state.
     void presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state);
 
@@ -277,6 +281,9 @@ private:
 
     // Last Save As prompt already shown to avoid re-opening choosers on repeated pushes.
     std::optional<core::SaveAsPrompt> m_last_presented_save_as_prompt{};
+
+    // Last restore-interrupted prompt shown to avoid re-opening dialogs on repeated pushes.
+    std::optional<core::RestoreInterruptedPrompt> m_last_presented_restore_interrupted_prompt{};
 
     // True after the editor has made its one startup focus request.
     bool m_has_requested_initial_keyboard_focus{false};

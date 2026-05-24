@@ -1,5 +1,7 @@
 #include "editor_settings.h"
 
+#include <rock_hero/common/core/juce_path.h>
+
 namespace rock_hero::editor::core
 {
 
@@ -7,37 +9,8 @@ namespace
 {
 
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
+constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
-
-// Converts a stored JUCE string into the platform-native filesystem path type.
-[[nodiscard]] std::filesystem::path pathFromSettingsValue(const juce::String& value)
-{
-#if JUCE_WINDOWS
-    return std::filesystem::path{value.toWideCharPointer()};
-#else
-    return std::filesystem::path{value.toStdString()};
-#endif
-}
-
-// Converts a native filesystem path into the JUCE file object used by PropertiesFile.
-[[nodiscard]] juce::File fileFromPath(const std::filesystem::path& path)
-{
-#if JUCE_WINDOWS
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String{path.string()}};
-#endif
-}
-
-// Converts a filesystem path into a JUCE string without losing Windows wide characters.
-[[nodiscard]] juce::String settingsValueFromPath(const std::filesystem::path& path)
-{
-#if JUCE_WINDOWS
-    return juce::String{path.wstring().c_str()};
-#else
-    return juce::String{path.string()};
-#endif
-}
 
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
@@ -65,7 +38,7 @@ EditorSettings::EditorSettings()
 
 // Opens an explicit settings file so lifecycle behavior can be exercised in isolation.
 EditorSettings::EditorSettings(const std::filesystem::path& settings_file)
-    : m_properties(fileFromPath(settings_file), editorSettingsOptions())
+    : m_properties(common::core::juceFileFromPath(settings_file), editorSettingsOptions())
 {}
 
 // Reads the last editor project path stored by a previous allowed editor exit.
@@ -77,7 +50,7 @@ std::optional<std::filesystem::path> EditorSettings::lastOpenProject() const
         return std::nullopt;
     }
 
-    return pathFromSettingsValue(value);
+    return common::core::pathFromJuceString(value);
 }
 
 // Stores or clears the editor project path to restore on the next editor launch.
@@ -85,11 +58,40 @@ void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> pro
 {
     if (project_file.has_value() && !project_file->empty())
     {
-        m_properties.setValue(g_last_open_project_key, settingsValueFromPath(*project_file));
+        m_properties.setValue(
+            g_last_open_project_key, common::core::juceStringFromPath(*project_file));
     }
     else
     {
         m_properties.removeValue(g_last_open_project_key);
+    }
+
+    m_properties.saveIfNeeded();
+}
+
+// Reads the project path whose previous startup restore was interrupted before completion.
+std::optional<std::filesystem::path> EditorSettings::interruptedRestoreProject() const
+{
+    const juce::String value = m_properties.getValue(g_interrupted_restore_project_key);
+    if (value.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    return common::core::pathFromJuceString(value);
+}
+
+// Stores or clears the startup-restore interruption marker used to avoid retry loops.
+void EditorSettings::setInterruptedRestoreProject(std::optional<std::filesystem::path> project_file)
+{
+    if (project_file.has_value() && !project_file->empty())
+    {
+        m_properties.setValue(
+            g_interrupted_restore_project_key, common::core::juceStringFromPath(*project_file));
+    }
+    else
+    {
+        m_properties.removeValue(g_interrupted_restore_project_key);
     }
 
     m_properties.saveIfNeeded();
