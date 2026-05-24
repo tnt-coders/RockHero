@@ -368,6 +368,18 @@ public:
     void onOpenPluginRequested(std::string instance_id) override;
 
     /*!
+    \brief Handles a change to the input gain slider.
+    \param gain_db Desired input gain in decibels.
+    */
+    void onInputGainChanged(double gain_db) override;
+
+    /*!
+    \brief Handles a change to the output gain slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    void onOutputGainChanged(double gain_db) override;
+
+    /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
     \param change_audio_device Callable run after the busy overlay paints.
     */
