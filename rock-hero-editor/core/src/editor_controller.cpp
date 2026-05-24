@@ -54,6 +54,22 @@ constexpr common::core::AudioNormalizationTarget g_default_normalization_target{
 // hearing real imported songs through the editor.
 constexpr double g_backing_audio_loudness_tolerance_lu = 1.0;
 
+// Tolerance for comparing persisted gain metadata against the current gain policy. JSON
+// round-tripping should preserve this exactly, but keeping a narrow tolerance avoids treating
+// harmless decimal representation changes as stale.
+constexpr double g_backing_audio_gain_tolerance_db = 0.01;
+
+// Computes the gain applied by the current backing-audio normalization policy.
+[[nodiscard]] double calculateBackingAudioGainDb(
+    const common::core::AudioLoudnessMeasurement& measurement,
+    const common::core::AudioNormalizationTarget& target) noexcept
+{
+    const double desired_gain_db =
+        target.integrated_loudness_lufs - measurement.integrated_loudness_lufs;
+    const double peak_headroom_db = 0.0 - measurement.sample_peak_dbfs;
+    return std::min(desired_gain_db, peak_headroom_db);
+}
+
 // Production open path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultOpen(
     Project& project, const std::filesystem::path& file)
@@ -598,6 +614,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // construction time, even though the open-time pipeline that drives it is a follow-up.
     EditorController::AudioAnalyzeFunction m_audio_analyze_function;
 
+    // Import-time analysis seam consumed when a project import computes gain metadata.
+    AudioAnalyzeForGainFunction m_audio_analyze_for_gain_function;
+
     // Optional app-local settings used to restore startup state and persist exit state.
     EditorSettings* m_settings;
 
@@ -996,6 +1015,10 @@ EditorController::Impl::Impl(
           services.audio_analyze_function
               ? std::move(services.audio_analyze_function)
               : EditorController::AudioAnalyzeFunction{common::audio::measureAudioLoudness})
+    , m_audio_analyze_for_gain_function(
+          services.audio_analyze_for_gain_function
+              ? std::move(services.audio_analyze_for_gain_function)
+              : AudioAnalyzeForGainFunction{common::audio::analyzeAudioForGainNormalization})
     , m_settings(services.settings)
     , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
     , m_transport_listener(transport, *this)
@@ -1373,9 +1396,9 @@ void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision dec
     runAction(EditorAction::ResolveUnsavedChangesPrompt{decision});
 }
 
-// Routes the user's prompt decision into either the normalize-and-replace pipeline or the
-// silent-dismiss path. Out-of-order responses (e.g. arriving after the prompt was already
-// cleared) are dropped silently.
+// Routes the user's prompt decision into either metadata gain application or the silent-dismiss
+// path. Out-of-order responses (e.g. arriving after the prompt was already cleared) are dropped
+// silently.
 void EditorController::Impl::onBackingAudioNormalizationDecision(
     BackingAudioNormalizationDecision decision)
 {
@@ -1537,7 +1560,17 @@ bool EditorController::Impl::isBackingAudioNormalizationCurrent(
     {
         return false;
     }
-    return !isMeasurementOutsideTarget(metadata.analysis.measurement);
+
+    const auto& measurement = metadata.analysis.measurement;
+    if (!std::isfinite(measurement.integrated_loudness_lufs) ||
+        !std::isfinite(measurement.sample_peak_dbfs) || !std::isfinite(metadata.applied_gain_db))
+    {
+        return false;
+    }
+
+    const double expected_gain_db = calculateBackingAudioGainDb(measurement, metadata.target);
+    return std::abs(metadata.applied_gain_db - expected_gain_db) <=
+           g_backing_audio_gain_tolerance_db;
 }
 
 // Returns true when a measurement's integrated loudness deviates from the current target by
@@ -1559,8 +1592,7 @@ void EditorController::Impl::showBackingAudioNormalizationPrompt(
     updateView();
 }
 
-// Kicks off the render+replace pipeline for the active prompt. The actual file substitution and
-// session refresh happen in completeBackingAudioNormalize() once the worker finishes.
+// Applies gain metadata for the active prompt and reloads the session so playback sees it.
 void EditorController::Impl::applyBackingAudioNormalizationPrompt()
 {
     assert(
@@ -1570,10 +1602,8 @@ void EditorController::Impl::applyBackingAudioNormalizationPrompt()
     const auto& prompt = *m_backing_audio_normalization_prompt;
 
     // Compute the gain that hits the target LUFS-I without exceeding 0 dBFS sample peak.
-    const double desired_gain_db = prompt.target.integrated_loudness_lufs -
-                                   prompt.analysis.measurement.integrated_loudness_lufs;
-    const double peak_headroom_db = 0.0 - prompt.analysis.measurement.sample_peak_dbfs;
-    const double applied_gain_db = std::min(desired_gain_db, peak_headroom_db);
+    const double applied_gain_db =
+        calculateBackingAudioGainDb(prompt.analysis.measurement, prompt.target);
 
     const common::core::AudioLoudnessMetadata metadata{
         .target = prompt.target,
@@ -2974,7 +3004,9 @@ AudioAnalyzeForGainFunction EditorController::Impl::makeImportAudioAnalyzeFuncti
         juce::MessageManager::callAsync(std::move(publish));
     };
 
-    return [notification_sent, notify_analyzing = std::move(notify_analyzing)](
+    return [analyze_audio = m_audio_analyze_for_gain_function,
+            notification_sent,
+            notify_analyzing = std::move(notify_analyzing)](
                const std::filesystem::path& input,
                const common::core::AudioNormalizationTarget& target) mutable {
         if (!*notification_sent)
@@ -2983,7 +3015,7 @@ AudioAnalyzeForGainFunction EditorController::Impl::makeImportAudioAnalyzeFuncti
             notify_analyzing();
         }
 
-        return common::audio::analyzeAudioForGainNormalization(input, target);
+        return analyze_audio(input, target);
     };
 }
 
