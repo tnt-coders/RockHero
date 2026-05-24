@@ -23,6 +23,15 @@ struct SignalChainViewState
     /*! \brief Current linear plugin chain. */
     std::vector<PluginViewState> plugins;
 
+    /*! \brief Enables or disables the input and output gain controls. */
+    bool gain_controls_enabled{false};
+
+    /*! \brief Current input gain in decibels, before the signal chain. */
+    double input_gain_db{0.0};
+
+    /*! \brief Current output gain in decibels, after the signal chain. */
+    double output_gain_db{0.0};
+
     /*!
     \brief Compares two signal-chain view states by their stored values.
     \param lhs Left-hand signal-chain view state.

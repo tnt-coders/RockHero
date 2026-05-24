@@ -240,13 +240,39 @@ public:
     \param request Song workspace, tone document reference, and optional progress callback.
     \param completion Callback invoked once the operation finishes or fails.
     */
-    void loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result) override;
+    void loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback completion) override;
 
     /*!
     \brief Clears the active live rig chain.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] std::expected<void, LiveRigError> clearRig() override;
+    [[nodiscard]] std::expected<void, LiveRigError> clearLiveRig() override;
+
+    /*!
+    \brief Reads the current input gain applied before the signal chain.
+    \return Current input gain, or the default when no structural gain plugin exists.
+    */
+    [[nodiscard]] Gain liveRigInputGain() const override;
+
+    /*!
+    \brief Reads the current output gain applied after the signal chain.
+    \return Current output gain, or the default when no structural gain plugin exists.
+    */
+    [[nodiscard]] Gain liveRigOutputGain() const override;
+
+    /*!
+    \brief Sets the input gain applied before the signal chain.
+    \param gain Desired input gain; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> setLiveRigInputGain(Gain gain) override;
+
+    /*!
+    \brief Sets the output gain applied after the signal chain.
+    \param gain Desired output gain; clamped to the accepted range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveRigError> setLiveRigOutputGain(Gain gain) override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.

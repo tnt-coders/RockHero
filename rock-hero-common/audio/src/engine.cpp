@@ -355,6 +355,8 @@ struct PluginRecord
 struct ToneDocument
 {
     std::vector<PluginRecord> chain;
+    Gain input_gain;
+    Gain output_gain;
 };
 
 // Per-call state for an in-flight async live rig load. Lives on the heap inside Engine::Impl so
@@ -379,6 +381,10 @@ struct LiveRigLoadOperation
 
     // Callback fired exactly once when the load finishes or fails.
     LiveRigLoadResultCallback on_result;
+
+    // Gain values from the parsed tone document, applied after all external plugins are restored.
+    Gain input_gain;
+    Gain output_gain;
 };
 
 // Records recoverable instrument-route failures without turning an internal bind into a public
@@ -649,6 +655,8 @@ void reportLiveRigLoadProgress(
             {"name", core::Json::makeString("Default")},
             {"chain", chain},
             {"automation", core::Json::makeArray()},
+            {"inputGainDb", juce::var{document.input_gain.db}},
+            {"outputGainDb", juce::var{document.output_gain.db}},
         }));
 
     juce::var tone_clips = core::Json::makeArray();
@@ -810,6 +818,12 @@ void reportLiveRigLoadProgress(
                 .tracktion_state_ref = *tracktion_state,
             });
     }
+
+    // Gain fields are additive; older tones without them default to 0.0 dB.
+    document.input_gain = clampGain(
+        Gain{core::Json::readOptionalDouble(default_slot_json, "inputGainDb", defaultGainDb())});
+    document.output_gain = clampGain(
+        Gain{core::Json::readOptionalDouble(default_slot_json, "outputGainDb", defaultGainDb())});
 
     return document;
 }
@@ -1225,6 +1239,12 @@ private:
     // Stable ID for the Tracktion track that owns instrument input and future plugin FX.
     tracktion::EditItemID m_instrument_track_id;
 
+    // Stable IDs for the structural VolumeAndPanPlugin instances used as input and output gain
+    // points around the external plugin chain. These are hidden from the LiveRigPlugin vector
+    // and from the removable plugin rows in the editor.
+    tracktion::EditItemID m_input_gain_plugin_id;
+    tracktion::EditItemID m_output_gain_plugin_id;
+
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
@@ -1292,8 +1312,8 @@ private:
             logInstrumentMonitoringFailure("backing track was not created");
         }
 
-        // Keep the authored signal chain empty until Tracktion built-ins are modeled in the
-        // editor state and tone schema.
+        // Structural gain plugins are managed explicitly by ensureStructuralGainPlugins()
+        // rather than relying on Tracktion's default plugin insertion.
         constexpr bool add_default_plugins = false;
         const tracktion::AudioTrack::Ptr instrument_track = m_edit->insertNewAudioTrack(
             tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr, add_default_plugins);
@@ -1738,6 +1758,183 @@ private:
         }
 
         return nullptr;
+    }
+
+    // Reports whether the given plugin is one of the structural gain points managed by the engine.
+    [[nodiscard]] bool isStructuralGainPlugin(const tracktion::Plugin* plugin) const
+    {
+        if (plugin == nullptr)
+        {
+            return false;
+        }
+        return plugin->itemID == m_input_gain_plugin_id ||
+               plugin->itemID == m_output_gain_plugin_id;
+    }
+
+    // Finds a structural VolumeAndPanPlugin by its stored EditItemID, or null if not present.
+    [[nodiscard]] tracktion::VolumeAndPanPlugin* findStructuralGainPlugin(
+        tracktion::EditItemID plugin_id) const
+    {
+        if (!plugin_id.isValid())
+        {
+            return nullptr;
+        }
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return nullptr;
+        }
+        for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+        {
+            if (plugin != nullptr && plugin->itemID == plugin_id)
+            {
+                return dynamic_cast<tracktion::VolumeAndPanPlugin*>(plugin);
+            }
+        }
+        return nullptr;
+    }
+
+    // Creates a VolumeAndPanPlugin on the instrument track at the given index and returns it.
+    [[nodiscard]] std::expected<tracktion::VolumeAndPanPlugin*, LiveRigError>
+    createVolumeAndPanPlugin(int insert_index)
+    {
+        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+        }
+        const tracktion::Plugin::Ptr plugin = m_edit->getPluginCache().createNewPlugin(
+            tracktion::VolumeAndPanPlugin::xmlTypeName, {});
+        if (plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not create structural live rig gain plugin",
+            }};
+        }
+        instrument_track->pluginList.insertPlugin(plugin, insert_index, nullptr);
+        auto* const volume_and_pan = dynamic_cast<tracktion::VolumeAndPanPlugin*>(plugin.get());
+        if (volume_and_pan == nullptr || !instrument_track->pluginList.contains(volume_and_pan))
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not insert structural live rig gain plugin",
+            }};
+        }
+
+        // Center the pan so the structural plugin only controls volume.
+        volume_and_pan->setPan(0.0f);
+        return volume_and_pan;
+    }
+
+    // Reports whether the hidden gain plugins are missing or displaced from their fixed slots.
+    [[nodiscard]] bool structuralGainPluginsNeedUpdate() const
+    {
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return true;
+        }
+
+        const auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
+        const auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
+        if (input_plugin == nullptr || output_plugin == nullptr)
+        {
+            return true;
+        }
+
+        const auto& plugin_list = instrument_track->pluginList.getPlugins();
+        if (plugin_list.size() < 2 || plugin_list[0] == nullptr || plugin_list.getLast() == nullptr)
+        {
+            return true;
+        }
+
+        return plugin_list[0]->itemID != m_input_gain_plugin_id ||
+               plugin_list.getLast()->itemID != m_output_gain_plugin_id;
+    }
+
+    // Ensures the input and output structural gain plugins exist on the instrument track at the
+    // correct positions: input at index 0, output at the end.
+    [[nodiscard]] std::expected<bool, LiveRigError> ensureStructuralGainPlugins()
+    {
+        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+        }
+
+        bool changed = false;
+
+        // Input gain: must be the first plugin on the track.
+        if (auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
+            input_plugin == nullptr)
+        {
+            auto created_input_plugin = createVolumeAndPanPlugin(0);
+            if (!created_input_plugin.has_value())
+            {
+                return std::unexpected{std::move(created_input_plugin.error())};
+            }
+            m_input_gain_plugin_id = (*created_input_plugin)->itemID;
+            changed = true;
+        }
+        else if (instrument_track->pluginList.indexOf(input_plugin) != 0)
+        {
+            // Moving an existing plugin through insertPlugin() reorders its ValueTree child.
+            instrument_track->pluginList.insertPlugin(input_plugin, 0, nullptr);
+            changed = true;
+        }
+
+        // Output gain: must be the last plugin on the track.
+        if (auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
+            output_plugin == nullptr)
+        {
+            auto created_output_plugin = createVolumeAndPanPlugin(-1);
+            if (!created_output_plugin.has_value())
+            {
+                return std::unexpected{std::move(created_output_plugin.error())};
+            }
+            m_output_gain_plugin_id = (*created_output_plugin)->itemID;
+            changed = true;
+        }
+        else if (
+            instrument_track->pluginList.indexOf(output_plugin) !=
+            instrument_track->pluginList.size() - 1
+        )
+        {
+            // Keep output gain after every audible plugin so it represents the rig's final level.
+            instrument_track->pluginList.insertPlugin(output_plugin, -1, nullptr);
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    // Reads the dB value from a structural VolumeAndPanPlugin, returning default if absent.
+    [[nodiscard]] Gain readGainFromPlugin(tracktion::EditItemID plugin_id) const
+    {
+        const auto* const plugin = findStructuralGainPlugin(plugin_id);
+        if (plugin == nullptr)
+        {
+            return Gain{};
+        }
+        return Gain{static_cast<double>(plugin->getVolumeDb())};
+    }
+
+    // Applies a gain value to a structural VolumeAndPanPlugin.
+    [[nodiscard]] std::expected<void, LiveRigError> applyGainToPlugin(
+        tracktion::EditItemID plugin_id, Gain gain)
+    {
+        auto* const plugin = findStructuralGainPlugin(plugin_id);
+        if (plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig gain plugin is missing",
+            }};
+        }
+
+        plugin->setVolumeDb(static_cast<float>(gain.db));
+        return {};
     }
 
     // Detects the moment Tracktion playback has reached or passed the loaded audio duration.
@@ -2255,19 +2452,37 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
         }
     }
 
-    instrument_track->pluginList.insertPlugin(plugin, -1, nullptr);
-    const int inserted_index = instrument_track->pluginList.indexOf(plugin.get());
-    if (inserted_index < 0)
+    // Insert before the structural output gain plugin so it stays at the end of the chain.
+    const int insert_position = m_output_gain_plugin_id.isValid()
+                                    ? instrument_track->pluginList.indexOf(
+                                          findStructuralGainPlugin(m_output_gain_plugin_id))
+                                    : -1;
+    instrument_track->pluginList.insertPlugin(plugin, insert_position, nullptr);
+    if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
     {
         rebuildInstrumentMonitoringGraph();
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
+    }
+
+    // Compute the external-only chain index by counting non-structural plugins before this one.
+    std::size_t external_chain_index = 0;
+    for (tracktion::Plugin* const list_plugin : instrument_track->pluginList)
+    {
+        if (list_plugin == plugin.get())
+        {
+            break;
+        }
+        if (list_plugin != nullptr && !isStructuralGainPlugin(list_plugin))
+        {
+            ++external_chain_index;
+        }
     }
 
     rebuildInstrumentMonitoringGraph();
     return PluginHandle{
         .instance_id = plugin->itemID.toString().toStdString(),
         .plugin_id = resolved_plugin_id,
-        .chain_index = static_cast<std::size_t>(inserted_index),
+        .chain_index = external_chain_index,
     };
 }
 
@@ -2293,7 +2508,7 @@ std::expected<void, PluginHostError> Engine::removePlugin(const std::string& ins
     }
 
     tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
-    if (plugin == nullptr)
+    if (plugin == nullptr || m_impl->isStructuralGainPlugin(plugin))
     {
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginInstanceNotFound,
@@ -2348,14 +2563,14 @@ std::expected<void, PluginHostError> Engine::openPluginWindow(const std::string&
 }
 
 // Clears the instrument plugin chain without touching the active backing arrangement.
-std::expected<void, LiveRigError> Engine::clearRig()
+std::expected<void, LiveRigError> Engine::clearLiveRig()
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
     }
 
-    // Clear also cancels cooperative restore steps queued by loadRig(); otherwise stale
+    // Clear also cancels cooperative restore steps queued by loadLiveRig(); otherwise stale
     // continuations could rebuild the chain after the editor has closed the project.
     m_impl->m_load_op.reset();
 
@@ -2367,7 +2582,87 @@ std::expected<void, LiveRigError> Engine::clearRig()
 
     m_impl->stopTransportAndReleaseContext();
     instrument_track->pluginList.clear();
+    m_impl->m_input_gain_plugin_id = {};
+    m_impl->m_output_gain_plugin_id = {};
     m_impl->rebuildInstrumentMonitoringGraph();
+    return {};
+}
+
+// Reads the current input gain from the structural VolumeAndPanPlugin.
+Gain Engine::liveRigInputGain() const
+{
+    return m_impl->readGainFromPlugin(m_impl->m_input_gain_plugin_id);
+}
+
+// Reads the current output gain from the structural VolumeAndPanPlugin.
+Gain Engine::liveRigOutputGain() const
+{
+    return m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+}
+
+// Sets the input gain on the structural VolumeAndPanPlugin before the signal chain.
+std::expected<void, LiveRigError> Engine::setLiveRigInputGain(Gain gain)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    gain = clampGain(gain);
+    if (m_impl->structuralGainPluginsNeedUpdate())
+    {
+        m_impl->stopTransportAndReleaseContext();
+    }
+
+    auto ensured = m_impl->ensureStructuralGainPlugins();
+    if (!ensured.has_value())
+    {
+        return std::unexpected{std::move(ensured.error())};
+    }
+
+    auto applied = m_impl->applyGainToPlugin(m_impl->m_input_gain_plugin_id, gain);
+    if (!applied.has_value())
+    {
+        return std::unexpected{std::move(applied.error())};
+    }
+
+    if (*ensured)
+    {
+        m_impl->rebuildInstrumentMonitoringGraph();
+    }
+    return {};
+}
+
+// Sets the output gain on the structural VolumeAndPanPlugin after the signal chain.
+std::expected<void, LiveRigError> Engine::setLiveRigOutputGain(Gain gain)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+    }
+
+    gain = clampGain(gain);
+    if (m_impl->structuralGainPluginsNeedUpdate())
+    {
+        m_impl->stopTransportAndReleaseContext();
+    }
+
+    auto ensured = m_impl->ensureStructuralGainPlugins();
+    if (!ensured.has_value())
+    {
+        return std::unexpected{std::move(ensured.error())};
+    }
+
+    auto applied = m_impl->applyGainToPlugin(m_impl->m_output_gain_plugin_id, gain);
+    if (!applied.has_value())
+    {
+        return std::unexpected{std::move(applied.error())};
+    }
+
+    if (*ensured)
+    {
+        m_impl->rebuildInstrumentMonitoringGraph();
+    }
     return {};
 }
 
@@ -2426,12 +2721,15 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             continue;
         }
 
+        // Structural gain plugins are captured as gain values, not as chain entries.
+        if (m_impl->isStructuralGainPlugin(plugin))
+        {
+            continue;
+        }
+
         auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
         if (external_plugin == nullptr)
         {
-            // TODO: Remove this blocker once supported Tracktion built-ins are modeled by
-            // `000-tracktion-built-in-controls-plan.md`; until then, failing is safer than
-            // silently dropping tone content.
             m_impl->rebuildInstrumentMonitoringGraph();
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::UnsupportedPlugin,
@@ -2473,6 +2771,14 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         ++captured_plugin_index;
     }
 
+    // Read gain values from structural plugins for persistence and snapshot.
+    const Gain captured_input_gain = m_impl->readGainFromPlugin(m_impl->m_input_gain_plugin_id);
+    const Gain captured_output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
+    document.input_gain = captured_input_gain;
+    document.output_gain = captured_output_gain;
+    snapshot.input_gain = captured_input_gain;
+    snapshot.output_gain = captured_output_gain;
+
     const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
     if (const auto write_error = writeToneDocument(tone_document_path, document);
         write_error.has_value())
@@ -2488,7 +2794,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
 // Kicks off the cooperative async live rig load: validates the request, reads the tone document
 // up front, clears the existing chain, and posts the first plugin step on the message loop so
 // the busy overlay has a chance to paint before plugin construction starts.
-void Engine::loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result)
+void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_result)
 {
     if (!on_result)
     {
@@ -2503,13 +2809,34 @@ void Engine::loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_re
 
     if (request.tone_document_ref.empty())
     {
-        auto clear_result = clearRig();
+        auto clear_result = clearLiveRig();
         if (!clear_result.has_value())
         {
             on_result(std::unexpected{std::move(clear_result.error())});
             return;
         }
-        on_result(LiveRigLoadResult{});
+
+        const Gain default_gain{defaultGainDb()};
+        auto input_result = setLiveRigInputGain(default_gain);
+        if (!input_result.has_value())
+        {
+            on_result(std::unexpected{std::move(input_result.error())});
+            return;
+        }
+
+        auto output_result = setLiveRigOutputGain(default_gain);
+        if (!output_result.has_value())
+        {
+            on_result(std::unexpected{std::move(output_result.error())});
+            return;
+        }
+
+        on_result(
+            LiveRigLoadResult{
+                .plugins = {},
+                .input_gain = default_gain,
+                .output_gain = default_gain,
+            });
         return;
     }
 
@@ -2535,10 +2862,14 @@ void Engine::loadRig(LiveRigLoadRequest request, LiveRigLoadResultCallback on_re
 
     m_impl->stopTransportAndReleaseContext();
     instrument_track->pluginList.clear();
+    m_impl->m_input_gain_plugin_id = {};
+    m_impl->m_output_gain_plugin_id = {};
 
     auto operation = std::make_unique<LiveRigLoadOperation>();
     operation->request = std::move(request);
     operation->chain = std::move(document->chain);
+    operation->input_gain = document->input_gain;
+    operation->output_gain = document->output_gain;
     operation->display_names.reserve(operation->chain.size());
     for (std::size_t plugin_index = 0; plugin_index < operation->chain.size(); ++plugin_index)
     {
@@ -2577,7 +2908,33 @@ void Engine::Impl::beginNextPluginStep()
     const std::size_t total_plugins = m_load_op->chain.size();
     if (m_load_op->next_index >= total_plugins)
     {
+        // Create structural gain plugins and apply the restored gain values.
+        auto ensured = ensureStructuralGainPlugins();
+        if (!ensured.has_value())
+        {
+            abortLiveRigLoad(std::move(ensured.error()));
+            return;
+        }
+
+        auto input_gain_applied = applyGainToPlugin(m_input_gain_plugin_id, m_load_op->input_gain);
+        if (!input_gain_applied.has_value())
+        {
+            abortLiveRigLoad(std::move(input_gain_applied.error()));
+            return;
+        }
+
+        auto output_gain_applied =
+            applyGainToPlugin(m_output_gain_plugin_id, m_load_op->output_gain);
+        if (!output_gain_applied.has_value())
+        {
+            abortLiveRigLoad(std::move(output_gain_applied.error()));
+            return;
+        }
+
         auto operation = std::move(m_load_op);
+        operation->result.input_gain = operation->input_gain;
+        operation->result.output_gain = operation->output_gain;
+
         rebuildInstrumentMonitoringGraph();
         operation->on_result(std::move(operation->result));
         return;
@@ -2726,6 +3083,8 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
     {
         instrument_track->pluginList.clear();
     }
+    m_input_gain_plugin_id = {};
+    m_output_gain_plugin_id = {};
     rebuildInstrumentMonitoringGraph();
     operation->on_result(std::unexpected{std::move(error)});
 }

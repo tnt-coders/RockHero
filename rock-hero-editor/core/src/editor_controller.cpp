@@ -242,6 +242,15 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
     return states;
 }
 
+// Controller-internal result of restoring a live rig, carrying both the plugin view states and the
+// restored gain values so the controller can update all state in one callback.
+struct LiveRigRestoreResult
+{
+    std::vector<PluginViewState> plugins;
+    double input_gain_db{0.0};
+    double output_gain_db{0.0};
+};
+
 // Maps write actions to the busy operation shown while the worker owns Project IO.
 [[nodiscard]] BusyOperation busyOperationForProjectWrite(EditorAction::Id action) noexcept
 {
@@ -442,6 +451,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onAddPluginRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onOpenPluginRequested(std::string instance_id);
+    void onInputGainChanged(double gain_db);
+    void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(std::function<void()> change_audio_device);
     void onTransportStateChanged(common::audio::TransportState state) override;
     void onAudioDeviceConfigurationChanged() override;
@@ -497,7 +508,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
         const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-        std::function<void(std::expected<std::vector<PluginViewState>, std::string>)> on_loaded);
+        std::function<void(std::expected<LiveRigRestoreResult, std::string>)> on_loaded);
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
@@ -618,6 +629,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Runtime plugin chain shown by the view and refreshed from the live rig boundary.
     std::vector<PluginViewState> m_plugins;
+
+    // Current gain values shown by the signal-chain panel and persisted in tone documents.
+    double m_input_gain_db{0.0};
+    double m_output_gain_db{0.0};
 
     // Plugins shown in the browser and selected by opaque plugin ID.
     std::vector<common::audio::PluginCandidate> m_plugin_catalog;
@@ -948,6 +963,16 @@ void EditorController::onOpenPluginRequested(std::string instance_id)
     m_impl->onOpenPluginRequested(std::move(instance_id));
 }
 
+void EditorController::onInputGainChanged(double gain_db)
+{
+    m_impl->onInputGainChanged(gain_db);
+}
+
+void EditorController::onOutputGainChanged(double gain_db)
+{
+    m_impl->onOutputGainChanged(gain_db);
+}
+
 void EditorController::onAudioDeviceChangeRequested(std::function<void()> change_audio_device)
 {
     m_impl->onAudioDeviceChangeRequested(std::move(change_audio_device));
@@ -1131,6 +1156,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
+        m_input_gain_db = 0.0;
+        m_output_gain_db = 0.0;
         if (state->clear_last_open_project_on_failure && m_settings != nullptr)
         {
             m_settings->setLastOpenProject(std::nullopt);
@@ -1242,6 +1269,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
+        m_input_gain_db = 0.0;
+        m_output_gain_db = 0.0;
         finishBusyOperation();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
@@ -1354,49 +1383,50 @@ void EditorController::Impl::startLiveRigLoadStage(
         song_directory,
         report_progress,
         token,
-        safeCallback(
-            [this, token, report_progress, captured_stage = std::move(stage_state)](
-                std::expected<std::vector<PluginViewState>, std::string> rig_result) mutable {
-                if (token != m_current_busy_token)
-                {
-                    return;
-                }
-                if (!rig_result.has_value())
-                {
-                    captured_stage.finish(std::unexpected{std::move(rig_result.error())});
-                    return;
-                }
+        safeCallback([this, token, report_progress, captured_stage = std::move(stage_state)](
+                         std::expected<LiveRigRestoreResult, std::string> rig_result) mutable {
+            if (token != m_current_busy_token)
+            {
+                return;
+            }
+            if (!rig_result.has_value())
+            {
+                captured_stage.finish(std::unexpected{std::move(rig_result.error())});
+                return;
+            }
 
-                m_plugins = std::move(*rig_result);
-                if (!report_progress)
-                {
-                    captured_stage.finish({});
-                    return;
-                }
+            m_plugins = std::move(rig_result->plugins);
+            m_input_gain_db = rig_result->input_gain_db;
+            m_output_gain_db = rig_result->output_gain_db;
+            if (!report_progress)
+            {
+                captured_stage.finish({});
+                return;
+            }
 
-                setLiveRigLoadProgress("Live rig loaded.", 1.0);
-                updateView();
+            setLiveRigLoadProgress("Live rig loaded.", 1.0);
+            updateView();
 
-                // No message thread in unit tests; finish synchronously so tests don't deadlock.
-                if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
-                {
-                    captured_stage.finish({});
-                    return;
-                }
+            // No message thread in unit tests; finish synchronously so tests don't deadlock.
+            if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
+            {
+                captured_stage.finish({});
+                return;
+            }
 
-                // Wall-clock delay so the 100% state stays visible long enough for the user to see.
-                // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
-                constexpr std::chrono::milliseconds minimum_completion_display_time{500};
-                juce::Timer::callAfterDelay(
-                    static_cast<int>(minimum_completion_display_time.count()),
-                    safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
-                        if (token != m_current_busy_token)
-                        {
-                            return;
-                        }
-                        timer_stage.finish({});
-                    }));
-            }));
+            // Wall-clock delay so the 100% state stays visible long enough for the user to see.
+            // The delay gives JUCE plenty of message-loop room to paint before the timer fires.
+            constexpr std::chrono::milliseconds minimum_completion_display_time{500};
+            juce::Timer::callAfterDelay(
+                static_cast<int>(minimum_completion_display_time.count()),
+                safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
+                    if (token != m_current_busy_token)
+                    {
+                        return;
+                    }
+                    timer_stage.finish({});
+                }));
+        }));
 }
 
 // Saves to the current destination when one exists; Save As is responsible for destination choice.
@@ -1974,6 +2004,66 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
     }
 }
 
+// Applies a clamped input gain to the live rig and marks the tone dirty.
+void EditorController::Impl::onInputGainChanged(double gain_db)
+{
+    if (m_live_rig == nullptr || !hasLoadedArrangement() || isBusy())
+    {
+        return;
+    }
+
+    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
+    if (gain.db == m_input_gain_db)
+    {
+        return;
+    }
+
+    const auto result = m_live_rig->setLiveRigInputGain(gain);
+    if (!result.has_value())
+    {
+        reportError(std::string{"Could not set input gain: "} + result.error().message);
+        updateView();
+        return;
+    }
+
+    m_input_gain_db = gain.db;
+    if (hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
+    updateView();
+}
+
+// Applies a clamped output gain to the live rig and marks the tone dirty.
+void EditorController::Impl::onOutputGainChanged(double gain_db)
+{
+    if (m_live_rig == nullptr || !hasLoadedArrangement() || isBusy())
+    {
+        return;
+    }
+
+    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
+    if (gain.db == m_output_gain_db)
+    {
+        return;
+    }
+
+    const auto result = m_live_rig->setLiveRigOutputGain(gain);
+    if (!result.has_value())
+    {
+        reportError(std::string{"Could not set output gain: "} + result.error().message);
+        updateView();
+        return;
+    }
+
+    m_output_gain_db = gain.db;
+    if (hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
+    updateView();
+}
+
 // Combines natural action availability with the action's busy-state policy.
 bool EditorController::Impl::canRunAction(EditorAction::Id action) const
 {
@@ -2202,6 +2292,8 @@ bool EditorController::Impl::closeProject()
         m_audio.clearActiveArrangement();
         m_session.reset();
         m_plugins.clear();
+        m_input_gain_db = 0.0;
+        m_output_gain_db = 0.0;
         m_project_file.clear();
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
@@ -2215,6 +2307,8 @@ bool EditorController::Impl::closeProject()
     m_audio.clearActiveArrangement();
     m_session.reset();
     m_plugins.clear();
+    m_input_gain_db = 0.0;
+    m_output_gain_db = 0.0;
 
     auto closed = closeExistingProject(m_project);
     if (!closed.has_value())
@@ -2303,6 +2397,8 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 
     arrangement->tone_document_ref = snapshot->tone_document_ref;
     m_plugins = makePluginViewStates(snapshot->plugins);
+    m_input_gain_db = snapshot->input_gain.db;
+    m_output_gain_db = snapshot->output_gain.db;
     return {};
 }
 
@@ -2312,7 +2408,7 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 // callback without mutating controller state.
 void EditorController::Impl::restoreLiveRig(
     const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-    std::function<void(std::expected<std::vector<PluginViewState>, std::string>)> on_loaded)
+    std::function<void(std::expected<LiveRigRestoreResult, std::string>)> on_loaded)
 {
     if (!on_loaded)
     {
@@ -2321,14 +2417,14 @@ void EditorController::Impl::restoreLiveRig(
 
     if (m_live_rig == nullptr)
     {
-        on_loaded(std::vector<PluginViewState>{});
+        on_loaded(LiveRigRestoreResult{});
         return;
     }
 
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     if (arrangement == nullptr)
     {
-        on_loaded(std::vector<PluginViewState>{});
+        on_loaded(LiveRigRestoreResult{});
         return;
     }
 
@@ -2369,7 +2465,7 @@ void EditorController::Impl::restoreLiveRig(
         });
     }
 
-    m_live_rig->loadRig(
+    m_live_rig->loadLiveRig(
         std::move(request),
         safeCallback(
             [completion = std::move(on_loaded)](
@@ -2380,7 +2476,12 @@ void EditorController::Impl::restoreLiveRig(
                     completion(std::unexpected{loaded.error().message});
                     return;
                 }
-                completion(makePluginViewStates(loaded->plugins));
+                completion(
+                    LiveRigRestoreResult{
+                        .plugins = makePluginViewStates(loaded->plugins),
+                        .input_gain_db = loaded->input_gain.db,
+                        .output_gain_db = loaded->output_gain.db,
+                    });
             }));
 }
 
@@ -2392,7 +2493,7 @@ void EditorController::Impl::clearLiveRig()
         return;
     }
 
-    const auto cleared = m_live_rig->clearRig();
+    const auto cleared = m_live_rig->clearLiveRig();
     if (!cleared.has_value())
     {
         reportError(std::string{"Could not clear live rig: "} + cleared.error().message);
@@ -2663,6 +2764,8 @@ bool EditorController::Impl::loadSessionSong(
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
         m_plugins.clear();
+        m_input_gain_db = 0.0;
+        m_output_gain_db = 0.0;
         m_plugin_browser_visible = false;
     }
     m_session_load_in_progress = false;
@@ -2706,6 +2809,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .add_plugin_enabled = canRunAction(EditorAction::Id::ShowPluginBrowser),
         .remove_plugins_enabled = canRunAction(EditorAction::Id::RemovePlugin),
         .plugins = m_plugins,
+        .gain_controls_enabled = m_live_rig != nullptr && hasLoadedArrangement(),
+        .input_gain_db = m_input_gain_db,
+        .output_gain_db = m_output_gain_db,
     };
     state.plugin_browser = PluginBrowserViewState{
         .visible = m_plugin_browser_visible,
