@@ -20,6 +20,9 @@ constexpr int g_plugin_row_gap{4};
 constexpr int g_remove_button_width{72};
 constexpr int g_row_button_gap{8};
 constexpr int g_gain_slider_width{72};
+constexpr int g_gain_meter_width{12};
+constexpr int g_gain_meter_gap{4};
+constexpr int g_gain_control_width{g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width};
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
@@ -167,6 +170,8 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
 // Creates the panel controls and routes the add command through the owner.
 SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
+    , m_input_meter(AudioLevelMeterOrientation::Vertical)
+    , m_output_meter(AudioLevelMeterOrientation::Vertical)
 {
     setComponentID("signal_chain_panel");
     m_add_plugin_button.setComponentID("add_plugin_button");
@@ -179,12 +184,16 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
         m_listener.onInputGainChanged(m_input_gain_slider.getValue());
     };
     addAndMakeVisible(m_input_gain_slider);
+    m_input_meter.setComponentID("input_gain_meter");
+    addAndMakeVisible(m_input_meter);
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
     m_output_gain_slider.onValueChange = [this] {
         m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
     };
     addAndMakeVisible(m_output_gain_slider);
+    m_output_meter.setComponentID("output_gain_meter");
+    addAndMakeVisible(m_output_meter);
 
     setState(core::SignalChainViewState{});
 }
@@ -206,6 +215,14 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
     repaint();
 }
 
+// Applies the live-rig meter values without rebuilding plugin rows or changing controls.
+void SignalChainPanel::setMeterLevels(
+    common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level)
+{
+    m_input_meter.setLevel(input_level);
+    m_output_meter.setLevel(output_level);
+}
+
 // Draws a compact plugin-chain panel with gain labels and an empty-chain placeholder.
 void SignalChainPanel::paint(juce::Graphics& g)
 {
@@ -218,14 +235,14 @@ void SignalChainPanel::paint(juce::Graphics& g)
 
     // Input gain label above the left slider.
     const auto input_label_area =
-        area.removeFromLeft(g_gain_slider_width).removeFromTop(g_header_height);
+        area.removeFromLeft(g_gain_control_width).removeFromTop(g_header_height);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
 
     // Output gain label above the right slider.
     const auto output_label_area =
-        area.removeFromRight(g_gain_slider_width).removeFromTop(g_header_height);
+        area.removeFromRight(g_gain_control_width).removeFromTop(g_header_height);
     g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
 
     // Center header with title.
@@ -257,14 +274,24 @@ void SignalChainPanel::resized()
     auto area = getLocalBounds().reduced(g_panel_inset);
 
     // Input gain slider on the left, spanning the full panel height minus insets.
-    auto input_slider_area = area.removeFromLeft(g_gain_slider_width);
-    input_slider_area.removeFromTop(g_header_height);
+    auto input_control_area = area.removeFromLeft(g_gain_control_width);
+    input_control_area.removeFromTop(g_header_height);
+    auto input_slider_area = input_control_area.removeFromLeft(g_gain_slider_width);
+    input_control_area.removeFromLeft(std::min(g_gain_meter_gap, input_control_area.getWidth()));
+    auto input_meter_area = input_control_area.removeFromLeft(g_gain_meter_width);
+    input_meter_area.removeFromBottom(std::min(22, input_meter_area.getHeight()));
     m_input_gain_slider.setBounds(input_slider_area);
+    m_input_meter.setBounds(input_meter_area.reduced(0, 2));
 
-    // Output gain slider on the right.
-    auto output_slider_area = area.removeFromRight(g_gain_slider_width);
-    output_slider_area.removeFromTop(g_header_height);
+    // Output gain flows into its post-fader meter, so keep the meter to the slider's right.
+    auto output_control_area = area.removeFromRight(g_gain_control_width);
+    output_control_area.removeFromTop(g_header_height);
+    auto output_meter_area = output_control_area.removeFromRight(g_gain_meter_width);
+    output_control_area.removeFromRight(std::min(g_gain_meter_gap, output_control_area.getWidth()));
+    auto output_slider_area = output_control_area.removeFromRight(g_gain_slider_width);
+    output_meter_area.removeFromBottom(std::min(22, output_meter_area.getHeight()));
     m_output_gain_slider.setBounds(output_slider_area);
+    m_output_meter.setBounds(output_meter_area.reduced(0, 2));
 
     // Leave a gap between the sliders and the center content.
     area.removeFromLeft(g_panel_inset);

@@ -30,6 +30,8 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
+constexpr int g_master_meter_width{196};
+constexpr int g_master_meter_min_width{120};
 // Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
 // File/Edit/... menu titles still have room on the smallest supported window width.
 constexpr int g_audio_device_menu_button_min_width{180};
@@ -690,22 +692,27 @@ public:
 EditorView::EditorView(
     core::IEditorController& controller, const common::audio::ITransport& transport,
     common::audio::IThumbnailFactory& thumbnail_factory,
-    common::audio::IAudioDeviceConfiguration* audio_devices)
+    common::audio::IAudioDeviceConfiguration* audio_devices,
+    const common::audio::IAudioMeterSource* audio_meters)
     : m_controller(controller)
     , m_audio_devices(audio_devices)
+    , m_audio_meters(audio_meters)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
+    , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
     , m_track_viewport(
           std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
+    , m_meter_vblank_attachment(this, [this] { refreshAudioMeters(); })
 {
     setWantsKeyboardFocus(true);
 
     m_menu_bar.setComponentID("file_menu_bar");
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
+    m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
@@ -717,6 +724,7 @@ EditorView::EditorView(
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
+    addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
     addAndMakeVisible(m_signal_chain_panel);
     addAndMakeVisible(*m_track_viewport);
@@ -759,6 +767,7 @@ void EditorView::setState(const core::EditorViewState& state)
         });
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
+    refreshAudioMeters();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -834,6 +843,20 @@ void EditorView::resized()
 
     m_transport_controls.setBounds(
         control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
+
+    const int master_meter_width = std::min(g_master_meter_width, control_row.getWidth());
+    if (master_meter_width >= g_master_meter_min_width)
+    {
+        m_master_output_meter.setVisible(true);
+        m_master_output_meter.setBounds(
+            control_row.removeFromRight(master_meter_width).reduced(0, 4));
+    }
+    else
+    {
+        m_master_output_meter.setVisible(false);
+        m_master_output_meter.setBounds({});
+    }
+
     auto bottom_area = trackViewportBounds();
     const int target_signal_chain_panel_height = std::clamp(
         bottom_area.getHeight() / 3,
@@ -1270,6 +1293,18 @@ void EditorView::updateAudioDeviceButton()
     }
 
     m_audio_device_button.setEnabled(m_state.audio_devices_available);
+}
+
+// Samples meter values at display cadence. This intentionally bypasses EditorController state
+// because meters are volatile playback display data, like cursor position.
+void EditorView::refreshAudioMeters()
+{
+    const common::audio::AudioMeterSnapshot snapshot = m_audio_meters != nullptr
+                                                           ? m_audio_meters->audioMeterSnapshot()
+                                                           : common::audio::AudioMeterSnapshot{};
+
+    m_master_output_meter.setLevel(snapshot.master_output);
+    m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
 }
 
 // Opens the audio-device settings window when a hardware-configuration backend is available.

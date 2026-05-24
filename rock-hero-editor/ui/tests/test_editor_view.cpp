@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
+#include <rock_hero/common/audio/i_audio_meter_source.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
@@ -337,6 +338,24 @@ public:
 
     // Number of current-position reads performed by the view.
     mutable int position_read_count{0};
+};
+
+// Supplies deterministic meter snapshots to EditorView without constructing Engine.
+class FakeAudioMeterSource final : public common::audio::IAudioMeterSource
+{
+public:
+    // Returns the currently configured snapshot and records that the view sampled it.
+    [[nodiscard]] common::audio::AudioMeterSnapshot audioMeterSnapshot() const override
+    {
+        snapshot_read_count += 1;
+        return snapshot;
+    }
+
+    // Snapshot returned from audioMeterSnapshot().
+    common::audio::AudioMeterSnapshot snapshot{};
+
+    // Number of snapshots read by the view.
+    mutable int snapshot_read_count{0};
 };
 
 // Records thumbnail source updates installed through the arrangement view owned by EditorView.
@@ -1492,6 +1511,71 @@ TEST_CASE("Gain sliders present and disabled by default", "[ui][editor-view]")
     CHECK(output_slider.isDoubleClickReturnEnabled());
     CHECK(input_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
     CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
+}
+
+// Verifies the global and live-rig meter widgets are present in the composed editor view.
+TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+
+    CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
+    CHECK(input_meter.level() == common::audio::AudioMeterLevel{});
+    CHECK(output_meter.level() == common::audio::AudioMeterLevel{});
+}
+
+// Verifies the signal-chain meters are visually after the faders whose output they show.
+TEST_CASE("Signal chain meters sit after gain faders", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    view.setBounds(0, 0, 1280, 800);
+
+    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+
+    CHECK(input_meter.getX() > input_slider.getRight());
+    CHECK(output_meter.getX() > output_slider.getRight());
+}
+
+// Verifies EditorView samples the optional meter port and forwards the values to meter widgets.
+TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    FakeAudioMeterSource meter_source;
+    meter_source.snapshot = common::audio::AudioMeterSnapshot{
+        .live_rig_input = common::audio::AudioMeterLevel{.peak_db = -18.0},
+        .live_rig_output = common::audio::AudioMeterLevel{.peak_db = -2.0, .clipping = true},
+        .master_output = common::audio::AudioMeterLevel{.peak_db = -6.0},
+    };
+    EditorView view{controller, transport, thumbnail_factory, nullptr, &meter_source};
+
+    view.setState(core::EditorViewState{});
+
+    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+
+    CHECK(meter_source.snapshot_read_count >= 1);
+    CHECK(master_meter.level() == meter_source.snapshot.master_output);
+    CHECK(input_meter.level() == meter_source.snapshot.live_rig_input);
+    CHECK(output_meter.level() == meter_source.snapshot.live_rig_output);
 }
 
 // Verifies that gain sliders enable when gain controls are enabled in view state.

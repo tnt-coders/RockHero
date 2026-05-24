@@ -5,6 +5,20 @@
 namespace rock_hero::editor::ui
 {
 
+namespace
+{
+
+// Editor composition often receives one Engine object through several narrow ports. When that
+// same object also exposes meter snapshots, wire the optional display-only meter source to the
+// view without widening the controller dependency.
+[[nodiscard]] const common::audio::IAudioMeterSource* meterSourceFrom(
+    const common::audio::ITransport& transport) noexcept
+{
+    return dynamic_cast<const common::audio::IAudioMeterSource*>(&transport);
+}
+
+} // namespace
+
 // Wires the controller and view after construction dependencies are available.
 Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
@@ -12,7 +26,7 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, plugin_host, live_rig, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
+    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }
@@ -24,7 +38,7 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
     core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, plugin_host, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
+    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }
@@ -35,7 +49,7 @@ Editor::Editor(
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices)
+    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }
@@ -46,7 +60,7 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, plugin_host, live_rig, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr)
+    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }
@@ -57,7 +71,7 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
     core::EditorController::Services services)
     : m_controller(transport, audio, plugin_host, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr)
+    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }
@@ -67,7 +81,7 @@ Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr)
+    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
 {
     m_controller.attachView(m_view);
 }

@@ -8,6 +8,7 @@
 #include <memory>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_audio_meter_source.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
@@ -45,6 +46,7 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 
 \see ITransport
 \see IAudio
+\see IAudioMeterSource
 \see IPluginHost
 \see ILiveRig
 \see IThumbnailFactory
@@ -52,6 +54,7 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 class Engine : public ITransport,
                public IAudio,
                public IAudioDeviceConfiguration,
+               public IAudioMeterSource,
                public IPluginHost,
                public ILiveRig,
                public IThumbnailFactory
@@ -252,27 +255,27 @@ public:
     \brief Reads the current input gain applied before the signal chain.
     \return Current input gain, or the default when no structural gain plugin exists.
     */
-    [[nodiscard]] Gain liveRigInputGain() const override;
+    [[nodiscard]] Gain inputGain() const override;
 
     /*!
     \brief Reads the current output gain applied after the signal chain.
     \return Current output gain, or the default when no structural gain plugin exists.
     */
-    [[nodiscard]] Gain liveRigOutputGain() const override;
+    [[nodiscard]] Gain outputGain() const override;
 
     /*!
     \brief Sets the input gain applied before the signal chain.
     \param gain Desired input gain; clamped to the accepted range.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] std::expected<void, LiveRigError> setLiveRigInputGain(Gain gain) override;
+    [[nodiscard]] std::expected<void, LiveRigError> setInputGain(Gain gain) override;
 
     /*!
     \brief Sets the output gain applied after the signal chain.
     \param gain Desired output gain; clamped to the accepted range.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] std::expected<void, LiveRigError> setLiveRigOutputGain(Gain gain) override;
+    [[nodiscard]] std::expected<void, LiveRigError> setOutputGain(Gain gain) override;
 
     /*!
     \brief Returns the JUCE audio device manager backing the engine.
@@ -297,6 +300,12 @@ public:
     \param listener Listener previously registered with addListener().
     */
     void removeListener(IAudioDeviceConfiguration::Listener& listener) override;
+
+    /*!
+    \brief Reads current live-rig and final-mix peak meters for display.
+    \return Current meter snapshot, or silent meters when no playback graph is active.
+    */
+    [[nodiscard]] AudioMeterSnapshot audioMeterSnapshot() const override;
 
     /*!
     \brief Creates an IThumbnail bound to this engine.

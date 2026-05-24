@@ -27,6 +27,7 @@ constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 static_assert(std::derived_from<Engine, ITransport>);
 static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
+static_assert(std::derived_from<Engine, IAudioMeterSource>);
 static_assert(std::derived_from<Engine, IPluginHost>);
 static_assert(std::derived_from<Engine, ILiveRig>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
@@ -184,6 +185,19 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
 
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Verifies meter reads are safe before the playback graph has produced any audio.
+TEST_CASE("Engine audio meters start silent", "[audio][engine][integration]")
+{
+    const EngineTestHarness harness;
+    const IAudioMeterSource& meters = harness.engine;
+
+    const AudioMeterSnapshot snapshot = meters.audioMeterSnapshot();
+
+    CHECK(snapshot.live_rig_input == AudioMeterLevel{});
+    CHECK(snapshot.live_rig_output == AudioMeterLevel{});
+    CHECK(snapshot.master_output == AudioMeterLevel{});
 }
 
 // Verifies the concrete engine factory returns a usable Tracktion-backed thumbnail adapter.
@@ -409,8 +423,8 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         CHECK(load_result->plugins.empty());
         CHECK(load_result->input_gain.db == 0.0);
         CHECK(load_result->output_gain.db == 0.0);
-        CHECK(live_rig.liveRigInputGain().db == 0.0);
-        CHECK(live_rig.liveRigOutputGain().db == 0.0);
+        CHECK(live_rig.inputGain().db == 0.0);
+        CHECK(live_rig.outputGain().db == 0.0);
     }
 }
 
@@ -421,13 +435,13 @@ TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engin
     const TemporarySongDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
 
-    const auto input_result = live_rig.setLiveRigInputGain(Gain{3.0});
-    const auto output_result = live_rig.setLiveRigOutputGain(Gain{-6.0});
+    const auto input_result = live_rig.setInputGain(Gain{3.0});
+    const auto output_result = live_rig.setOutputGain(Gain{-6.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
-    CHECK(live_rig.liveRigInputGain().db == Catch::Approx(3.0));
-    CHECK(live_rig.liveRigOutputGain().db == Catch::Approx(-6.0));
+    CHECK(live_rig.inputGain().db == Catch::Approx(3.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-6.0));
 
     const auto snapshot = live_rig.captureActiveRig(
         LiveRigCaptureRequest{
@@ -448,13 +462,13 @@ TEST_CASE("Engine live rig gain setters clamp to range", "[audio][engine][integr
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
 
-    const auto input_result = live_rig.setLiveRigInputGain(Gain{12.0});
-    const auto output_result = live_rig.setLiveRigOutputGain(Gain{-100.0});
+    const auto input_result = live_rig.setInputGain(Gain{12.0});
+    const auto output_result = live_rig.setOutputGain(Gain{-100.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
-    CHECK(live_rig.liveRigInputGain().db == Catch::Approx(maximumGainDb()));
-    CHECK(live_rig.liveRigOutputGain().db == Catch::Approx(minimumGainDb()));
+    CHECK(live_rig.inputGain().db == Catch::Approx(maximumGainDb()));
+    CHECK(live_rig.outputGain().db == Catch::Approx(minimumGainDb()));
 }
 
 // Verifies new live rig captures use co-located UUID tone document folders.

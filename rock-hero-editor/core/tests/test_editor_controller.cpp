@@ -799,20 +799,20 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
-    // Returns the current input gain stored by setLiveRigInputGain or the default.
-    [[nodiscard]] common::audio::Gain liveRigInputGain() const override
+    // Returns the current input gain stored by setInputGain or the default.
+    [[nodiscard]] common::audio::Gain inputGain() const override
     {
         return current_input_gain;
     }
 
-    // Returns the current output gain stored by setLiveRigOutputGain or the default.
-    [[nodiscard]] common::audio::Gain liveRigOutputGain() const override
+    // Returns the current output gain stored by setOutputGain or the default.
+    [[nodiscard]] common::audio::Gain outputGain() const override
     {
         return current_output_gain;
     }
 
     // Records the input gain and returns success.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setLiveRigInputGain(
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setInputGain(
         common::audio::Gain gain) override
     {
         current_input_gain = common::audio::clampGain(gain);
@@ -821,7 +821,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     }
 
     // Records the output gain and returns success.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setLiveRigOutputGain(
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
         common::audio::Gain gain) override
     {
         current_output_gain = common::audio::clampGain(gain);
@@ -885,11 +885,11 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Number of clear calls received.
     int clear_call_count{0};
 
-    // Current gain values stored by setLiveRigInputGain / setLiveRigOutputGain.
+    // Current gain values stored by setInputGain / setOutputGain.
     common::audio::Gain current_input_gain{};
     common::audio::Gain current_output_gain{};
 
-    // Number of setLiveRigInputGain / setLiveRigOutputGain calls received.
+    // Number of setInputGain / setOutputGain calls received.
     int set_input_gain_call_count{0};
     int set_output_gain_call_count{0};
 
