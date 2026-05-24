@@ -249,10 +249,7 @@ constexpr int g_zip_compression_level = 9;
     };
 }
 
-// Reads the integrated loudness and sample peak from a measurement record. Accepts the current
-// samplePeakDbfs field and the legacy truePeakDbtp field for backward compatibility with older
-// packages. If neither peak field is present the measurement defaults to 0 dBFS, which will
-// trigger a staleness re-analysis through the analyzer-id mismatch path.
+// Reads the integrated loudness and sample peak from a measurement record.
 [[nodiscard]] std::optional<AudioLoudnessMeasurement> readAudioLoudnessMeasurement(
     const juce::var& measurement_json, std::string& error_message)
 {
@@ -263,20 +260,17 @@ constexpr int g_zip_compression_level = 9;
     }
 
     const auto integrated = Json::tryReadDouble(measurement_json, "integratedLoudnessLufs");
-    if (!integrated.has_value())
+    const auto sample_peak = Json::tryReadDouble(measurement_json, "samplePeakDbfs");
+    if (!integrated.has_value() || !sample_peak.has_value())
     {
-        error_message = "loudness measurement requires integratedLoudnessLufs field";
+        error_message =
+            "loudness measurement requires integratedLoudnessLufs and samplePeakDbfs fields";
         return std::nullopt;
     }
 
-    // Prefer the current field; fall back to the legacy true-peak field for migration.
-    const auto sample_peak = Json::tryReadDouble(measurement_json, "samplePeakDbfs");
-    const auto legacy_peak = Json::tryReadDouble(measurement_json, "truePeakDbtp");
-    const double peak_value = sample_peak.value_or(legacy_peak.value_or(0.0));
-
     return AudioLoudnessMeasurement{
         .integrated_loudness_lufs = *integrated,
-        .sample_peak_dbfs = peak_value,
+        .sample_peak_dbfs = *sample_peak,
     };
 }
 
@@ -320,8 +314,7 @@ constexpr int g_zip_compression_level = 9;
     };
 }
 
-// Reads the target the file was normalized against. The legacy truePeakCeilingDbtp field is
-// accepted but ignored so older packages still parse.
+// Reads the target the file was normalized against.
 [[nodiscard]] std::optional<AudioNormalizationTarget> readAudioNormalizationTarget(
     const juce::var& target_json, std::string& error_message)
 {
@@ -374,15 +367,17 @@ constexpr int g_zip_compression_level = 9;
         return false;
     }
 
-    // appliedGainDb is absent in older packages; default to 0 dB so those projects load without
-    // error and trigger a staleness re-analysis through the analyzer-id mismatch path.
-    const double applied_gain_db =
-        Json::tryReadDouble(metadata_json, "appliedGainDb").value_or(0.0);
+    const auto applied_gain_db = Json::tryReadDouble(metadata_json, "appliedGainDb");
+    if (!applied_gain_db.has_value())
+    {
+        error_message = "loudnessMetadata requires appliedGainDb field";
+        return false;
+    }
 
     metadata = AudioLoudnessMetadata{
         .target = *target,
         .analysis = *std::move(analysis),
-        .applied_gain_db = applied_gain_db,
+        .applied_gain_db = *applied_gain_db,
     };
     return true;
 }
