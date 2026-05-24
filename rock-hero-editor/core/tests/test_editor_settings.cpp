@@ -65,6 +65,7 @@ TEST_CASE("EditorSettings starts without a last open project", "[core][settings]
     const EditorSettings settings{settings_file.path()};
 
     CHECK_FALSE(settings.lastOpenProject().has_value());
+    CHECK_FALSE(settings.interruptedRestoreProject().has_value());
     CHECK_FALSE(settings.audioDeviceState().has_value());
 }
 
@@ -101,6 +102,41 @@ TEST_CASE("EditorSettings clears the last open project", "[core][settings]")
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK_FALSE(reloaded_settings.lastOpenProject().has_value());
+}
+
+// The settings file preserves the startup-restore interruption marker across launches.
+TEST_CASE("EditorSettings persists interrupted restore project", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_interrupted_restore.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Interrupted Restore.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        settings.setInterruptedRestoreProject(project_file);
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK(reloaded_settings.interruptedRestoreProject() == std::optional{project_file});
+}
+
+// Clearing the startup-restore interruption marker leaves no stale recovery prompt.
+TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"clears_interrupted_restore.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "interrupted_restore.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        settings.setInterruptedRestoreProject(project_file);
+        settings.setInterruptedRestoreProject(std::nullopt);
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
 }
 
 // The settings file preserves the serialized audio-device manager state across launches.

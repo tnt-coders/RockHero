@@ -18,6 +18,7 @@
 #include <mutex>
 #include <optional>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/package_id.h>
 #include <string>
 #include <string_view>
@@ -387,13 +388,6 @@ void logInstrumentMonitoringFailure(const juce::String& message)
     juce::Logger::writeToLog("Rock Hero instrument monitoring: " + message);
 }
 
-// Converts a standard filesystem path into the JUCE file type required by Tracktion/JUCE APIs.
-[[nodiscard]] juce::File toJuceFile(const std::filesystem::path& path)
-{
-    const auto path_text = path.wstring();
-    return juce::File{juce::String{path_text.c_str()}};
-}
-
 // Converts UTF-8-ish command line text from the public startup boundary into JUCE text.
 [[nodiscard]] juce::String toJuceString(std::string_view text)
 {
@@ -713,7 +707,7 @@ void reportLiveRigLoadProgress(
         }};
     }
 
-    juce::FileInputStream tone_document_file{toJuceFile(*tone_document_path)};
+    juce::FileInputStream tone_document_file{common::core::juceFileFromPath(*tone_document_path)};
     if (tone_document_file.failedToOpen())
     {
         return std::unexpected{LiveRigError{
@@ -833,7 +827,8 @@ void reportLiveRigLoadProgress(
 [[nodiscard]] std::expected<juce::ValueTree, LiveRigError> readPluginStateTree(
     const std::filesystem::path& plugin_state_path)
 {
-    const std::unique_ptr<juce::XmlElement> xml = juce::parseXML(toJuceFile(plugin_state_path));
+    const std::unique_ptr<juce::XmlElement> xml =
+        juce::parseXML(common::core::juceFileFromPath(plugin_state_path));
     if (xml == nullptr)
     {
         return std::unexpected{LiveRigError{
@@ -1189,7 +1184,7 @@ public:
 [[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
     tracktion::Engine& engine, const common::core::AudioAsset& audio_asset)
 {
-    const juce::File file = toJuceFile(audio_asset.path);
+    const juce::File file = common::core::juceFileFromPath(audio_asset.path);
     if (!file.existsAsFile())
     {
         return std::nullopt;
@@ -1415,7 +1410,7 @@ private:
     scanPluginFileForCandidates(const std::filesystem::path& plugin_path)
     {
         const std::filesystem::path scan_path = normalizedVst3ScanPath(plugin_path);
-        const juce::File plugin_file = toJuceFile(scan_path);
+        const juce::File plugin_file = common::core::juceFileFromPath(scan_path);
         if (scan_path.empty() || !plugin_file.exists())
         {
             return std::unexpected{PluginHostError{
@@ -2087,7 +2082,7 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
         return false;
     }
 
-    const juce::File file = toJuceFile(arrangement.audio_asset.path);
+    const juce::File file = common::core::juceFileFromPath(arrangement.audio_asset.path);
     if (!file.existsAsFile())
     {
         return false;

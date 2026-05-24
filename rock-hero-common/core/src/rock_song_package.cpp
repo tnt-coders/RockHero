@@ -16,6 +16,7 @@
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <set>
@@ -36,16 +37,6 @@ constexpr std::string_view g_song_document_name{"song.json"};
 constexpr std::string_view g_arrangements_directory_name{"arrangements"};
 constexpr std::string_view g_arrangement_file_extension{".xml"};
 constexpr int g_zip_compression_level = 9;
-
-// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
-[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String::fromUTF8(path.string().c_str())};
-#endif
-}
 
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(

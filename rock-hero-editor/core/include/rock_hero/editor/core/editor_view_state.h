@@ -16,6 +16,7 @@
 #include <rock_hero/editor/core/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -25,6 +26,13 @@ enum class UnsavedChangesDecision : std::uint8_t
 {
     Save,
     Discard,
+    Cancel,
+};
+
+/*! \brief User choice returned from the interrupted-restore recovery prompt. */
+enum class RestoreInterruptedDecision : std::uint8_t
+{
+    Retry,
     Cancel,
 };
 
@@ -84,6 +92,35 @@ struct SaveAsPrompt
     \return True when both Save As prompt requests store equal values.
     */
     friend bool operator==(const SaveAsPrompt& lhs, const SaveAsPrompt& rhs) = default;
+};
+
+/*!
+\brief Describes a startup project restore that was interrupted on the previous run.
+
+The view presents this prompt instead of auto-opening the same project again, giving the user a
+way to avoid a repeated restore loop while keeping healthy startup restore automatic.
+*/
+struct RestoreInterruptedPrompt
+{
+    /*!
+    \brief Creates an interrupted-restore prompt request.
+    \param project_file_value Project package path that did not finish opening previously.
+    */
+    explicit RestoreInterruptedPrompt(std::filesystem::path project_file_value)
+        : project_file(std::move(project_file_value))
+    {}
+
+    /*! \brief Project path that did not finish opening on the previous editor run. */
+    std::filesystem::path project_file;
+
+    /*!
+    \brief Compares two interrupted-restore prompt requests by their stored paths.
+    \param lhs Left-hand prompt request.
+    \param rhs Right-hand prompt request.
+    \return True when both prompt requests store equal project paths.
+    */
+    friend bool operator==(
+        const RestoreInterruptedPrompt& lhs, const RestoreInterruptedPrompt& rhs) = default;
 };
 
 /*!
@@ -155,6 +192,9 @@ struct EditorViewState
 
     /*! \brief Save As chooser request to present, if the controller needs a destination. */
     std::optional<SaveAsPrompt> save_as_prompt;
+
+    /*! \brief Interrupted startup restore prompt to present, if recovery input is needed. */
+    std::optional<RestoreInterruptedPrompt> restore_interrupted_prompt;
 
     /*!
     \brief Active editor-wide busy state, if any.

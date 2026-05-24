@@ -6,6 +6,7 @@ target_sources(
     rock_hero_common_core
     PRIVATE src/archive_error.cpp
             src/json.cpp
+            src/juce_path.cpp
             src/session.cpp
             src/song.cpp
             src/package_id.cpp

@@ -91,6 +91,13 @@ public:
         unsaved_changes_decision_count += 1;
     }
 
+    // Captures interrupted-restore prompt decisions emitted by the view.
+    void onRestoreInterruptedDecision(core::RestoreInterruptedDecision decision) override
+    {
+        last_restore_interrupted_decision = decision;
+        restore_interrupted_decision_count += 1;
+    }
+
     // Counts play/pause intents emitted by keyboard or transport controls.
     void onPlayPausePressed() override
     {
@@ -184,6 +191,9 @@ public:
     // Last unsaved-changes decision emitted by the view.
     std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
 
+    // Last interrupted-restore decision emitted by the view.
+    std::optional<core::RestoreInterruptedDecision> last_restore_interrupted_decision{};
+
     // Number of open intents received.
     int open_request_count{0};
 
@@ -210,6 +220,9 @@ public:
 
     // Number of unsaved-changes decisions received.
     int unsaved_changes_decision_count{0};
+
+    // Number of interrupted-restore decisions received.
+    int restore_interrupted_decision_count{0};
 
     // Number of play/pause intents received.
     int play_pause_press_count{0};

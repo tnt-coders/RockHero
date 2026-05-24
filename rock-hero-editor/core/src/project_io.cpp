@@ -7,6 +7,7 @@
 #include <juce_core/juce_core.h>
 #include <optional>
 #include <rock_hero/common/core/json.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 #include <string_view>
@@ -22,16 +23,6 @@ namespace
 constexpr std::string_view g_project_document_name{"project.json"};
 
 using common::core::Json;
-
-// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
-[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String::fromUTF8(path.string().c_str())};
-#endif
-}
 
 // Reads an optional string property while rejecting non-string values.
 [[nodiscard]] std::expected<std::optional<std::string>, ProjectError> readOptionalString(
@@ -87,7 +78,8 @@ std::expected<ProjectEditorState, ProjectError> readProjectDocument(
         return std::unexpected{ProjectError{ProjectErrorCode::MissingProjectDocument}};
     }
 
-    juce::FileInputStream project_document_file{juceFileFromPath(project_document_path)};
+    juce::FileInputStream project_document_file{common::core::juceFileFromPath(
+        project_document_path)};
     if (project_document_file.failedToOpen())
     {
         return std::unexpected{ProjectError{

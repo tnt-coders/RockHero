@@ -114,6 +114,7 @@ static_assert(
     !std::is_constructible_v<EditorAction::ProjectWriteAction, EditorAction::OpenProject>);
 static_assert(!std::is_default_constructible_v<UnsavedChangesPrompt>);
 static_assert(!std::is_default_constructible_v<SaveAsPrompt>);
+static_assert(!std::is_default_constructible_v<RestoreInterruptedPrompt>);
 
 // Maps each variant alternative to its matching id without exposing payload contents.
 EditorAction::Id idOf(const EditorAction::Action& action)

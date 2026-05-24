@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <rock_hero/common/core/juce_path.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -51,7 +52,7 @@ const juce::Colour g_alternate_row_colour{juce::Colours::darkgrey.darker(0.1f)};
 // Builds cached lowercase search text for one plugin row.
 [[nodiscard]] std::string pluginFilterText(const core::PluginCandidateViewState& plugin)
 {
-    const std::string path = plugin.file_path.string();
+    const std::string path = common::core::juceStringFromPath(plugin.file_path).toStdString();
     std::string text;
     text.reserve(
         plugin.name.size() + plugin.manufacturer.size() + plugin.format_name.size() + path.size() +
@@ -207,7 +208,10 @@ private:
         area.removeFromLeft(std::min(g_gap, area.getWidth()));
         g.setColour(juce::Colours::silver);
         g.drawFittedText(
-            juce::String{plugin->file_path.string()}, area, juce::Justification::centredLeft, 1);
+            common::core::juceStringFromPath(plugin->file_path),
+            area,
+            juce::Justification::centredLeft,
+            1);
     }
 
     // ListBoxModel implementation: refreshes Add availability when selection changes.

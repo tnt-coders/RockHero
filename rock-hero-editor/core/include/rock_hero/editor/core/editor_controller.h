@@ -306,6 +306,12 @@ public:
     void onUnsavedChangesDecision(UnsavedChangesDecision decision) override;
 
     /*!
+    \brief Handles a decision from the interrupted startup restore prompt.
+    \param decision Decision selected by the user.
+    */
+    void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) override;
+
+    /*!
     \brief Handles a play/pause button press from the editor UI.
 
     The intent is ignored when no arrangement is loaded. Otherwise, plays or pauses

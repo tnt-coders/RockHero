@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/audio_normalization.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/editor/core/project.h>
 #include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
@@ -92,16 +93,6 @@ private:
     std::filesystem::path m_path;
 };
 
-// Converts std::filesystem paths to JUCE paths while preserving Windows wide paths.
-[[nodiscard]] juce::File juceFileFromPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    return juce::File{juce::String{path.wstring().c_str()}};
-#else
-    return juce::File{juce::String::fromUTF8(path.string().c_str())};
-#endif
-}
-
 // Writes a zip-backed test archive from the supplied entries.
 void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEntry>& entries)
 {
@@ -119,7 +110,7 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
             juce::Time::getCurrentTime());
     }
 
-    juce::FileOutputStream output_stream{juceFileFromPath(path)};
+    juce::FileOutputStream output_stream{common::core::juceFileFromPath(path)};
     REQUIRE(output_stream.openedOk());
     REQUIRE(output_stream.setPosition(0));
     REQUIRE(output_stream.truncate().wasOk());
@@ -131,7 +122,7 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
 // Reads archive entry names so archive-layout tests can verify the public file contract.
 [[nodiscard]] std::vector<std::string> archiveEntryNames(const std::filesystem::path& path)
 {
-    const juce::ZipFile archive{juceFileFromPath(path)};
+    const juce::ZipFile archive{common::core::juceFileFromPath(path)};
 
     const int entry_count = archive.getNumEntries();
     REQUIRE(entry_count >= 0);
@@ -152,7 +143,7 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
 [[nodiscard]] std::string archiveEntryContents(
     const std::filesystem::path& path, const std::string& entry_name)
 {
-    juce::ZipFile archive{juceFileFromPath(path)};
+    juce::ZipFile archive{common::core::juceFileFromPath(path)};
     const int entry_index = archive.getIndexOfFileName(juce::String::fromUTF8(entry_name.c_str()));
     REQUIRE(entry_index >= 0);
 

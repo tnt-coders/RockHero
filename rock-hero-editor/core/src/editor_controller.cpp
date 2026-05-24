@@ -432,6 +432,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
+    void onRestoreInterruptedDecision(RestoreInterruptedDecision decision);
     void onPlayPausePressed();
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
@@ -502,7 +503,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
     void continueDeferredAction();
     void clearDeferredAction() noexcept;
+    void clearInterruptedRestoreMarker();
+    void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
+    [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] bool loadSessionSong(
         common::core::Song song, const std::optional<std::string>& selected_arrangement);
     [[nodiscard]] EditorViewState deriveViewState() const;
@@ -629,6 +633,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // User-selected editor project path used for project-name-derived UI suggestions.
     std::filesystem::path m_project_file{};
+
+    // Settings-backed restore target currently being opened. Used only so app shutdown during
+    // startup restore preserves the previous launch's restorable path until open commits or fails.
+    std::optional<std::filesystem::path> m_pending_restore_project_file{};
+
+    // Settings-backed restore target that should ask for user recovery input on this launch.
+    std::optional<std::filesystem::path> m_restore_interrupted_prompt_file{};
 
     // True when Save must first collect an editor project package path, such as after import.
     bool m_save_requires_destination{false};
@@ -887,6 +898,11 @@ void EditorController::onUnsavedChangesDecision(UnsavedChangesDecision decision)
     m_impl->onUnsavedChangesDecision(decision);
 }
 
+void EditorController::onRestoreInterruptedDecision(RestoreInterruptedDecision decision)
+{
+    m_impl->onRestoreInterruptedDecision(decision);
+}
+
 void EditorController::onPlayPausePressed()
 {
     m_impl->onPlayPausePressed();
@@ -1020,6 +1036,21 @@ void EditorController::Impl::openProject(
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
     state->clear_last_open_project_on_failure = clear_last_open_project_on_failure;
+    m_pending_restore_project_file = clear_last_open_project_on_failure
+                                         ? std::optional<std::filesystem::path>{file}
+                                         : std::nullopt;
+    m_restore_interrupted_prompt_file.reset();
+    if (m_settings != nullptr)
+    {
+        if (clear_last_open_project_on_failure)
+        {
+            m_settings->setInterruptedRestoreProject(file);
+        }
+        else
+        {
+            m_settings->setInterruptedRestoreProject(std::nullopt);
+        }
+    }
     const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
     AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
     updateView();
@@ -1049,6 +1080,8 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        clearInterruptedRestoreMarker();
+        m_pending_restore_project_file.reset();
         const std::string message = state->result.error().message;
         finishBusyOperation();
         reportError(std::string{"Could not open: "} + message);
@@ -1064,6 +1097,8 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        clearInterruptedRestoreMarker();
+        m_pending_restore_project_file.reset();
         finishBusyOperation();
         reportError(std::string{"Could not load audio from: "} + state->file.string());
         return;
@@ -1100,6 +1135,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         {
             m_settings->setLastOpenProject(std::nullopt);
         }
+        clearInterruptedRestoreMarker();
+        m_pending_restore_project_file.reset();
         finishBusyOperation();
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
@@ -1109,6 +1146,11 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
 
     m_project = std::move(state->project);
     m_project_file = state->file;
+    if (state->clear_last_open_project_on_failure)
+    {
+        clearInterruptedRestoreMarker();
+    }
+    m_pending_restore_project_file.reset();
     m_displaced_project_file.clear();
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
@@ -1133,6 +1175,9 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
 
+    m_pending_restore_project_file.reset();
+    m_restore_interrupted_prompt_file.reset();
+    clearInterruptedRestoreMarker();
     const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
     AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
     updateView();
@@ -1395,6 +1440,50 @@ void EditorController::Impl::onExitRequested()
 void EditorController::Impl::onUnsavedChangesDecision(UnsavedChangesDecision decision)
 {
     runAction(EditorAction::ResolveUnsavedChangesPrompt{decision});
+}
+
+// Resolves the next-launch recovery prompt shown after startup restore was interrupted.
+void EditorController::Impl::onRestoreInterruptedDecision(RestoreInterruptedDecision decision)
+{
+    if (!m_restore_interrupted_prompt_file.has_value())
+    {
+        updateView();
+        return;
+    }
+
+    const std::filesystem::path project_file = *m_restore_interrupted_prompt_file;
+    m_restore_interrupted_prompt_file.reset();
+    switch (decision)
+    {
+        case RestoreInterruptedDecision::Retry:
+        {
+            if (!projectFileExists(project_file))
+            {
+                clearLastOpenProjectIfMatches(project_file);
+                clearInterruptedRestoreMarker();
+                updateView();
+                return;
+            }
+
+            if (m_settings != nullptr)
+            {
+                m_settings->setLastOpenProject(project_file);
+            }
+            runAction(EditorAction::RestoreProject{project_file});
+            break;
+        }
+        case RestoreInterruptedDecision::Cancel:
+        {
+            m_pending_restore_project_file.reset();
+            if (m_settings != nullptr)
+            {
+                m_settings->setLastOpenProject(std::nullopt);
+            }
+            clearInterruptedRestoreMarker();
+            updateView();
+            break;
+        }
+    }
 }
 
 // Ignores the intent until audio activation has committed an arrangement, otherwise toggles
@@ -2079,15 +2168,11 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
             }
             else if constexpr (std::is_same_v<A, EditorAction::ExitApplication>)
             {
-                // If an unsaved import displaced a saved project, persist the displaced path so
-                // the next launch restores it instead of starting empty.
-                std::optional<std::filesystem::path> restorable_project_file = currentProjectFile();
-                if (!restorable_project_file.has_value() && !m_displaced_project_file.empty())
-                {
-                    restorable_project_file = m_displaced_project_file;
-                }
+                const std::optional<std::filesystem::path> restorable_project_file =
+                    restorableProjectFileForExit();
                 if (closeProject())
                 {
+                    m_pending_restore_project_file.reset();
                     clearDeferredAction();
                     if (m_settings != nullptr)
                     {
@@ -2437,6 +2522,31 @@ void EditorController::Impl::clearDeferredAction() noexcept
     m_save_as_prompt_visible = false;
 }
 
+// Clears the restore-interrupted marker without touching the normal last-project path.
+void EditorController::Impl::clearInterruptedRestoreMarker()
+{
+    if (m_settings != nullptr)
+    {
+        m_settings->setInterruptedRestoreProject(std::nullopt);
+    }
+}
+
+// Removes the regular last-project path only when it refers to a now-invalid restore target.
+void EditorController::Impl::clearLastOpenProjectIfMatches(
+    const std::filesystem::path& project_file)
+{
+    if (m_settings == nullptr)
+    {
+        return;
+    }
+
+    const std::optional<std::filesystem::path> last_project = m_settings->lastOpenProject();
+    if (last_project.has_value() && *last_project == project_file)
+    {
+        m_settings->setLastOpenProject(std::nullopt);
+    }
+}
+
 // Returns the controller-owned editor session through the read-only access boundary.
 const common::core::Session& EditorController::Impl::session() const noexcept
 {
@@ -2454,12 +2564,46 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
     return m_project_file;
 }
 
-// Restores a settings-backed project and clears stale restore state when the path cannot load.
+// Selects the project path persisted for next launch before exit tears down controller state.
+std::optional<std::filesystem::path> EditorController::Impl::restorableProjectFileForExit() const
+{
+    std::optional<std::filesystem::path> restorable_project_file = currentProjectFile();
+    if (!restorable_project_file.has_value() && !m_displaced_project_file.empty())
+    {
+        restorable_project_file = m_displaced_project_file;
+    }
+    if (!restorable_project_file.has_value() && m_pending_restore_project_file.has_value())
+    {
+        restorable_project_file = m_pending_restore_project_file;
+    }
+
+    return restorable_project_file;
+}
+
+// Restores a settings-backed project, or prompts first if the previous restore was interrupted.
 void EditorController::Impl::restoreLastOpenProject()
 {
     if (m_settings == nullptr)
     {
         return;
+    }
+
+    m_restore_interrupted_prompt_file.reset();
+    const std::optional<std::filesystem::path> interrupted_project_file =
+        m_settings->interruptedRestoreProject();
+    if (interrupted_project_file.has_value())
+    {
+        if (!projectFileExists(*interrupted_project_file))
+        {
+            clearLastOpenProjectIfMatches(*interrupted_project_file);
+            clearInterruptedRestoreMarker();
+        }
+        else
+        {
+            m_restore_interrupted_prompt_file = *interrupted_project_file;
+            updateView();
+            return;
+        }
     }
 
     const std::optional<std::filesystem::path> project_file = m_settings->lastOpenProject();
@@ -2471,6 +2615,7 @@ void EditorController::Impl::restoreLastOpenProject()
     if (!projectFileExists(*project_file))
     {
         m_settings->setLastOpenProject(std::nullopt);
+        clearInterruptedRestoreMarker();
         return;
     }
 
@@ -2584,6 +2729,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
     if (m_deferred_action.has_value() && m_save_as_prompt_visible)
     {
         state.save_as_prompt = SaveAsPrompt{idOf(*m_deferred_action)};
+    }
+
+    if (m_restore_interrupted_prompt_file.has_value())
+    {
+        state.restore_interrupted_prompt =
+            RestoreInterruptedPrompt{*m_restore_interrupted_prompt_file};
     }
 
     if (m_busy_operation.has_value())

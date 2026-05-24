@@ -8,6 +8,7 @@
 #include <limits>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -67,7 +68,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 // Ensures saved project packages use the Rock Hero project extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRhpExtension(const juce::File& file)
 {
-    std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
+    std::filesystem::path path = common::core::pathFromJuceFile(file);
     if (!path.empty() && path.extension().empty())
     {
         path.replace_extension(".rhp");
@@ -78,7 +79,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
 // Ensures published song packages use the native Rock Hero song extension when needed.
 [[nodiscard]] std::filesystem::path pathWithRockExtension(const juce::File& file)
 {
-    std::filesystem::path path{file.getFullPathName().toWideCharPointer()};
+    std::filesystem::path path = common::core::pathFromJuceFile(file);
     if (!path.empty() && path.extension().empty())
     {
         path.replace_extension(".rock");
@@ -94,8 +95,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         return juce::File::getSpecialLocation(juce::File::userHomeDirectory);
     }
 
-    const auto& native_path = suggested_file.native();
-    return juce::File{juce::String{native_path.c_str()}};
+    return common::core::juceFileFromPath(suggested_file);
 }
 
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
@@ -766,6 +766,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
+    presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
     presentPluginBrowserIfNeeded(m_state.plugin_browser);
     m_busy_overlay.setBusyState(m_state.busy);
     repaint();
@@ -999,8 +1000,7 @@ void EditorView::showOpenChooser()
                 return;
             }
 
-            safe_this->m_controller.onOpenRequested(
-                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
+            safe_this->m_controller.onOpenRequested(common::core::pathFromJuceFile(file));
         });
 }
 
@@ -1027,8 +1027,7 @@ void EditorView::showImportChooser()
                 return;
             }
 
-            safe_this->m_controller.onImportRequested(
-                std::filesystem::path{file.getFullPathName().toWideCharPointer()});
+            safe_this->m_controller.onImportRequested(common::core::pathFromJuceFile(file));
         });
 }
 
@@ -1165,6 +1164,47 @@ void EditorView::presentSaveAsPromptIfNeeded(const std::optional<core::SaveAsPro
 
     m_last_presented_save_as_prompt = prompt;
     showSaveAsChooser(SaveAsChooserPurpose::DeferredAction);
+}
+
+// Shows each distinct interrupted-restore prompt once and reports Retry as the standard OK button.
+void EditorView::presentRestoreInterruptedPromptIfNeeded(
+    const std::optional<core::RestoreInterruptedPrompt>& prompt)
+{
+    if (!prompt.has_value())
+    {
+        m_last_presented_restore_interrupted_prompt.reset();
+        return;
+    }
+
+    if (m_last_presented_restore_interrupted_prompt == prompt)
+    {
+        return;
+    }
+
+    m_last_presented_restore_interrupted_prompt = prompt;
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    juce::NativeMessageBox::showAsync(
+        juce::MessageBoxOptions()
+            .withIconType(juce::MessageBoxIconType::QuestionIcon)
+            .withTitle("Project did not finish opening")
+            .withMessage(
+                juce::String{"The previous project did not finish opening:\n\n"} +
+                common::core::juceStringFromPath(prompt->project_file) +
+                "\n\nTry opening it again?")
+            .withButton("OK")
+            .withButton("Cancel")
+            .withAssociatedComponent(this),
+        [safe_this](int button_index) {
+            if (safe_this == nullptr)
+            {
+                return;
+            }
+
+            const core::RestoreInterruptedDecision decision =
+                button_index == 0 ? core::RestoreInterruptedDecision::Retry
+                                  : core::RestoreInterruptedDecision::Cancel;
+            safe_this->m_controller.onRestoreInterruptedDecision(decision);
+        });
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.
