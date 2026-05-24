@@ -37,13 +37,13 @@ struct Gain
 /*! \brief Returns the lowest gain the system accepts. */
 [[nodiscard]] constexpr double minimumGainDb() noexcept
 {
-    return -60.0;
+    return -24.0;
 }
 
 /*! \brief Returns the highest gain the system accepts. */
 [[nodiscard]] constexpr double maximumGainDb() noexcept
 {
-    return 6.0;
+    return 24.0;
 }
 
 /*! \brief Returns the default gain used for new tones and missing tone document fields. */

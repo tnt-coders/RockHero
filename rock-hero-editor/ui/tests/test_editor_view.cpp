@@ -1509,6 +1509,10 @@ TEST_CASE("Gain sliders present and disabled by default", "[ui][editor-view]")
     CHECK_FALSE(output_slider.isEnabled());
     CHECK(input_slider.isDoubleClickReturnEnabled());
     CHECK(output_slider.isDoubleClickReturnEnabled());
+    CHECK(input_slider.getMinimum() == common::audio::minimumGainDb());
+    CHECK(input_slider.getMaximum() == common::audio::maximumGainDb());
+    CHECK(output_slider.getMinimum() == common::audio::minimumGainDb());
+    CHECK(output_slider.getMaximum() == common::audio::maximumGainDb());
     CHECK(input_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
     CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
 }
@@ -1594,15 +1598,15 @@ TEST_CASE("Gain sliders follow gain_controls_enabled", "[ui][editor-view]")
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .gain_controls_enabled = true,
-                .input_gain_db = 6.0,
-                .output_gain_db = -3.0,
+                .input_gain_db = 24.0,
+                .output_gain_db = -24.0,
             },
         });
 
     CHECK(input_slider.isEnabled());
     CHECK(output_slider.isEnabled());
-    CHECK(input_slider.getValue() == 6.0);
-    CHECK(output_slider.getValue() == -3.0);
+    CHECK(input_slider.getValue() == 24.0);
+    CHECK(output_slider.getValue() == -24.0);
 }
 
 // Verifies that moving the input gain slider emits a controller intent.

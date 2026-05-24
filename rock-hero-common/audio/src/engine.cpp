@@ -1,5 +1,6 @@
 ﻿#include "engine.h"
 
+#include "live_rig_gain_plugin.h"
 #include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
 
@@ -985,6 +986,17 @@ public:
         descriptions.push_back(toTracktionWaveDeviceDescription(
             is_input ? wave_descriptions->input : wave_descriptions->output));
     }
+
+    // Creates Rock Hero-owned structural plugins from Tracktion plugin state.
+    tracktion::Plugin::Ptr createCustomPlugin(tracktion::PluginCreationInfo info) override
+    {
+        if (info.state[tracktion::IDs::type].toString() == LiveRigGainPlugin::xmlTypeName)
+        {
+            return new LiveRigGainPlugin{info};
+        }
+
+        return {};
+    }
 };
 
 // Top-level JUCE window that Tracktion owns through PluginWindowState::pluginWindow.
@@ -1853,9 +1865,8 @@ private:
                plugin->itemID == m_output_meter_plugin_id;
     }
 
-    // Finds a structural VolumeAndPanPlugin by its stored EditItemID, or null if not present.
-    [[nodiscard]] tracktion::VolumeAndPanPlugin* findStructuralGainPlugin(
-        tracktion::EditItemID plugin_id) const
+    // Finds a structural live-rig gain plugin by its stored EditItemID, or null if absent.
+    [[nodiscard]] LiveRigGainPlugin* findStructuralGainPlugin(tracktion::EditItemID plugin_id) const
     {
         if (!plugin_id.isValid())
         {
@@ -1870,7 +1881,7 @@ private:
         {
             if (plugin != nullptr && plugin->itemID == plugin_id)
             {
-                return dynamic_cast<tracktion::VolumeAndPanPlugin*>(plugin);
+                return dynamic_cast<LiveRigGainPlugin*>(plugin);
             }
         }
         return nullptr;
@@ -1899,17 +1910,17 @@ private:
         return nullptr;
     }
 
-    // Creates a VolumeAndPanPlugin on the instrument track at the given index and returns it.
-    [[nodiscard]] std::expected<tracktion::VolumeAndPanPlugin*, LiveRigError>
-    createVolumeAndPanPlugin(int insert_index)
+    // Creates a hidden live-rig gain plugin on the instrument track at the given index.
+    [[nodiscard]] std::expected<LiveRigGainPlugin*, LiveRigError> createLiveRigGainPlugin(
+        int insert_index)
     {
         tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
         {
             return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
         }
-        const tracktion::Plugin::Ptr plugin = m_edit->getPluginCache().createNewPlugin(
-            tracktion::VolumeAndPanPlugin::xmlTypeName, {});
+        const tracktion::Plugin::Ptr plugin =
+            m_edit->getPluginCache().createNewPlugin(LiveRigGainPlugin::createState());
         if (plugin == nullptr)
         {
             return std::unexpected{LiveRigError{
@@ -1918,8 +1929,8 @@ private:
             }};
         }
         instrument_track->pluginList.insertPlugin(plugin, insert_index, nullptr);
-        auto* const volume_and_pan = dynamic_cast<tracktion::VolumeAndPanPlugin*>(plugin.get());
-        if (volume_and_pan == nullptr || !instrument_track->pluginList.contains(volume_and_pan))
+        auto* const live_rig_gain = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
+        if (live_rig_gain == nullptr || !instrument_track->pluginList.contains(live_rig_gain))
         {
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::PluginRestoreFailed,
@@ -1927,9 +1938,7 @@ private:
             }};
         }
 
-        // Center the pan so the structural plugin only controls volume.
-        volume_and_pan->setPan(0.0f);
-        return volume_and_pan;
+        return live_rig_gain;
     }
 
     // Creates a LevelMeterPlugin on the instrument track at the given index and returns it.
@@ -2013,7 +2022,7 @@ private:
         if (auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
             input_plugin == nullptr)
         {
-            auto created_input_plugin = createVolumeAndPanPlugin(0);
+            auto created_input_plugin = createLiveRigGainPlugin(0);
             if (!created_input_plugin.has_value())
             {
                 return std::unexpected{std::move(created_input_plugin.error())};
@@ -2037,7 +2046,7 @@ private:
         if (auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
             output_plugin == nullptr)
         {
-            auto created_output_plugin = createVolumeAndPanPlugin(-1);
+            auto created_output_plugin = createLiveRigGainPlugin(-1);
             if (!created_output_plugin.has_value())
             {
                 return std::unexpected{std::move(created_output_plugin.error())};
@@ -2101,7 +2110,7 @@ private:
         return changed;
     }
 
-    // Reads the dB value from a structural VolumeAndPanPlugin, returning default if absent.
+    // Reads the dB value from a structural live-rig gain plugin, returning default if absent.
     [[nodiscard]] Gain readGainFromPlugin(tracktion::EditItemID plugin_id) const
     {
         const auto* const plugin = findStructuralGainPlugin(plugin_id);
@@ -2109,10 +2118,10 @@ private:
         {
             return Gain{};
         }
-        return Gain{static_cast<double>(plugin->getVolumeDb())};
+        return plugin->gain();
     }
 
-    // Applies a gain value to a structural VolumeAndPanPlugin.
+    // Applies a gain value to a structural live-rig gain plugin.
     [[nodiscard]] std::expected<void, LiveRigError> applyGainToPlugin(
         tracktion::EditItemID plugin_id, Gain gain)
     {
@@ -2125,7 +2134,7 @@ private:
             }};
         }
 
-        plugin->setVolumeDb(static_cast<float>(gain.db));
+        plugin->setGain(gain);
         return {};
     }
 
@@ -2825,19 +2834,19 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     return {};
 }
 
-// Reads the current input gain from the structural VolumeAndPanPlugin.
+// Reads the current input gain from the structural live-rig gain plugin.
 Gain Engine::inputGain() const
 {
     return m_impl->readGainFromPlugin(m_impl->m_input_gain_plugin_id);
 }
 
-// Reads the current output gain from the structural VolumeAndPanPlugin.
+// Reads the current output gain from the structural live-rig gain plugin.
 Gain Engine::outputGain() const
 {
     return m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
 }
 
-// Sets the input gain on the structural VolumeAndPanPlugin before the signal chain.
+// Sets the input gain on the structural live-rig gain plugin before the signal chain.
 std::expected<void, LiveRigError> Engine::setInputGain(Gain gain)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -2870,7 +2879,7 @@ std::expected<void, LiveRigError> Engine::setInputGain(Gain gain)
     return {};
 }
 
-// Sets the output gain on the structural VolumeAndPanPlugin after the signal chain.
+// Sets the output gain on the structural live-rig gain plugin after the signal chain.
 std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
