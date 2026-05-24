@@ -2,9 +2,7 @@
 
 ## Status
 
-This is a near-term follow-up to the stable package identity work and should stay at the top of
-`docs/in-progress/` until the editor intentionally supports minimal live-rig gain controls and
-final mix clipping visibility.
+Basic implementation complete.
 
 ## Why This Exists
 

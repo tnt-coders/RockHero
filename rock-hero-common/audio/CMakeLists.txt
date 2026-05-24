@@ -10,6 +10,7 @@ target_sources(
     PRIVATE src/audio_device_settings.cpp
             src/audio_normalization.cpp
             src/engine.cpp
+            src/live_rig_gain_plugin.cpp
             src/live_rig_error.cpp
             src/plugin_host_error.cpp
             src/tracktion_instrument_wave_device_mapping.cpp

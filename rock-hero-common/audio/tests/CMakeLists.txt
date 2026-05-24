@@ -14,6 +14,7 @@ add_executable(
     test_audio_normalization.cpp
     test_edit.cpp
     test_gain.cpp
+    test_live_rig_gain_plugin.cpp
     test_thumbnail_source.cpp
     test_transport.cpp
     test_engine.cpp
@@ -27,7 +28,7 @@ target_include_directories(rock_hero_common_audio_tests
 # Link the common audio module plus Catch2's generated main for headless and adapter tests.
 target_link_libraries(
     rock_hero_common_audio_tests PRIVATE rock_hero::common::audio rock_hero::build_policy
-                                         Catch2::Catch2WithMain)
+                                         rock_hero::tracktion_engine Catch2::Catch2WithMain)
 
 # Point integration tests at the copied fixture instead of the source-tree file.
 target_compile_definitions(rock_hero_common_audio_tests

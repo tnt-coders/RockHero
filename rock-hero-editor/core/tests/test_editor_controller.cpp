@@ -4782,14 +4782,14 @@ TEST_CASE("Input gain change calls live rig and marks dirty", "[core][editor-con
     controller.attachView(view);
 
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onInputGainChanged(6.0);
+    controller.onInputGainChanged(24.0);
 
     CHECK(live_rig.set_input_gain_call_count == 1);
-    CHECK(live_rig.current_input_gain.db == 6.0);
+    CHECK(live_rig.current_input_gain.db == 24.0);
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.input_gain_db == 6.0);
+    CHECK(final_state->signal_chain.input_gain_db == 24.0);
 
     // Changing gain marks the project dirty so close prompts for unsaved changes.
     controller.onCloseRequested();
