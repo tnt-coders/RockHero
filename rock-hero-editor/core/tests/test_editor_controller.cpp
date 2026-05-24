@@ -3335,6 +3335,74 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     CHECK(audio.clear_active_arrangement_call_count == 0);
 }
 
+// Discarding a dirty saved project before import still makes the imported project displace it.
+TEST_CASE(
+    "EditorController discard import reopens dirty displaced project", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .import_function = project_services.importFunction(),
+            .save_function = project_services.saveFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+        },
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const std::filesystem::path existing_project{"existing.rhp"};
+    const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
+    project_services.next_song = makeSong(original_asset.path);
+    controller.onOpenRequested(existing_project);
+    REQUIRE(controller.currentProjectFile() == std::optional{existing_project});
+
+    addKnownPlugin(controller);
+
+    const common::core::AudioAsset imported_asset{std::filesystem::path{"imported.ogg"}};
+    project_services.next_import_song = makeSong(imported_asset.path);
+    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+
+    const EditorViewState* import_prompt_state = stateOrNull(view.last_state);
+    REQUIRE(import_prompt_state != nullptr);
+    CHECK(
+        import_prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::ImportSong}});
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+
+    CHECK(project_services.import_call_count == 1);
+    CHECK_FALSE(controller.currentProjectFile().has_value());
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->audio_asset == imported_asset);
+
+    project_services.next_song = makeSong(original_asset.path);
+    controller.onCloseRequested();
+
+    const EditorViewState* close_prompt_state = stateOrNull(view.last_state);
+    REQUIRE(close_prompt_state != nullptr);
+    CHECK(
+        close_prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+
+    CHECK(project_services.open_call_count == 2);
+    CHECK(project_services.last_open_file == std::optional{existing_project});
+    CHECK(controller.currentProjectFile() == std::optional{existing_project});
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK(controller.session().currentArrangement()->audio_asset == original_asset);
+}
+
 // Choosing Save for an unsaved import asks for a destination, saves, and then closes.
 TEST_CASE("EditorController saves prompted import before close", "[core][editor-controller]")
 {
