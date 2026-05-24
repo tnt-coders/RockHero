@@ -244,6 +244,20 @@ public:
         open_plugin_request_count += 1;
     }
 
+    // Captures input gain changes emitted through the controller contract.
+    void onInputGainChanged(double gain_db) override
+    {
+        last_input_gain_db = gain_db;
+        input_gain_change_count += 1;
+    }
+
+    // Captures output gain changes emitted through the controller contract.
+    void onOutputGainChanged(double gain_db) override
+    {
+        last_output_gain_db = gain_db;
+        output_gain_change_count += 1;
+    }
+
     // Records audio-device change scheduling; controller-level tests can invoke the captured
     // callback directly to simulate the busy overlay paint fence firing.
     void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
@@ -275,6 +289,12 @@ public:
 
     // Last plugin instance ID selected for editor-window opening.
     std::optional<std::string> last_opened_plugin_instance_id{};
+
+    // Last input gain value received through the controller contract.
+    std::optional<double> last_input_gain_db{};
+
+    // Last output gain value received through the controller contract.
+    std::optional<double> last_output_gain_db{};
 
     // Last unsaved-changes decision emitted by the view.
     std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
@@ -338,6 +358,12 @@ public:
 
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
+
+    // Number of input gain change intents received.
+    int input_gain_change_count{0};
+
+    // Number of output gain change intents received.
+    int output_gain_change_count{0};
 
     // Last audio-device change callback handed to onAudioDeviceChangeRequested.
     std::function<void()> last_audio_device_change{};
@@ -689,7 +715,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Drives the configured load result or error through the new async callback contract while
     // recording the request and replicating the engine's per-plugin progress sequence.
-    void loadRig(
+    void loadLiveRig(
         common::audio::LiveRigLoadRequest request,
         common::audio::LiveRigLoadResultCallback on_result) override
     {
@@ -762,7 +788,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     }
 
     // Records explicit clear requests made during project teardown.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> clearRig() override
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> clearLiveRig() override
     {
         clear_call_count += 1;
         if (next_clear_error.has_value())
@@ -770,6 +796,36 @@ struct FakeLiveRig final : public common::audio::ILiveRig
             return std::unexpected{*next_clear_error};
         }
 
+        return {};
+    }
+
+    // Returns the current input gain stored by setLiveRigInputGain or the default.
+    [[nodiscard]] common::audio::Gain liveRigInputGain() const override
+    {
+        return current_input_gain;
+    }
+
+    // Returns the current output gain stored by setLiveRigOutputGain or the default.
+    [[nodiscard]] common::audio::Gain liveRigOutputGain() const override
+    {
+        return current_output_gain;
+    }
+
+    // Records the input gain and returns success.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setLiveRigInputGain(
+        common::audio::Gain gain) override
+    {
+        current_input_gain = common::audio::clampGain(gain);
+        set_input_gain_call_count += 1;
+        return {};
+    }
+
+    // Records the output gain and returns success.
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setLiveRigOutputGain(
+        common::audio::Gain gain) override
+    {
+        current_output_gain = common::audio::clampGain(gain);
+        set_output_gain_call_count += 1;
         return {};
     }
 
@@ -811,7 +867,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Optional clear error returned instead of success.
     std::optional<common::audio::LiveRigError> next_clear_error{};
 
-    // When set, loadRig stores its completion so tests can finish it explicitly.
+    // When set, loadLiveRig stores its completion so tests can finish it explicitly.
     bool defer_load_completion{false};
 
     // Last capture request observed by the fake.
@@ -828,6 +884,14 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Number of clear calls received.
     int clear_call_count{0};
+
+    // Current gain values stored by setLiveRigInputGain / setLiveRigOutputGain.
+    common::audio::Gain current_input_gain{};
+    common::audio::Gain current_output_gain{};
+
+    // Number of setLiveRigInputGain / setLiveRigOutputGain calls received.
+    int set_input_gain_call_count{0};
+    int set_output_gain_call_count{0};
 
     // Deferred live-rig completion captured with the result configured at load time.
     struct PendingLoad
@@ -4647,6 +4711,232 @@ TEST_CASE(
     CHECK(audio_device_change_call_count == 1);
     REQUIRE(view.last_state.has_value());
     CHECK_FALSE(view.last_state->busy.has_value());
+}
+
+// Verifies that gain controls are enabled after loading a project with a live rig.
+TEST_CASE("Gain controls enabled with live rig and arrangement", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.gain_controls_enabled);
+    CHECK(final_state->signal_chain.input_gain_db == 0.0);
+    CHECK(final_state->signal_chain.output_gain_db == 0.0);
+}
+
+// Verifies that gain controls are disabled without a live rig port.
+TEST_CASE("Gain controls disabled without live rig", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->signal_chain.gain_controls_enabled);
+}
+
+// Verifies that an input gain change calls the live rig and marks dirty.
+TEST_CASE("Input gain change calls live rig and marks dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onInputGainChanged(6.0);
+
+    CHECK(live_rig.set_input_gain_call_count == 1);
+    CHECK(live_rig.current_input_gain.db == 6.0);
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.input_gain_db == 6.0);
+
+    // Changing gain marks the project dirty so close prompts for unsaved changes.
+    controller.onCloseRequested();
+    REQUIRE(final_state->unsaved_changes_prompt.has_value());
+}
+
+// Verifies that an output gain change calls the live rig and marks dirty.
+TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onOutputGainChanged(-12.0);
+
+    CHECK(live_rig.set_output_gain_call_count == 1);
+    CHECK(live_rig.current_output_gain.db == -12.0);
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.output_gain_db == -12.0);
+}
+
+// Verifies that gain values are clamped to the accepted range.
+TEST_CASE("Gain changes are clamped to accepted range", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onInputGainChanged(999.0);
+    controller.onOutputGainChanged(-999.0);
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.input_gain_db == common::audio::maximumGainDb());
+    CHECK(final_state->signal_chain.output_gain_db == common::audio::minimumGainDb());
+}
+
+// Verifies that setting the same gain value twice is a no-op.
+TEST_CASE("Setting same gain value is a no-op", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onInputGainChanged(3.0);
+    controller.onInputGainChanged(3.0);
+
+    CHECK(live_rig.set_input_gain_call_count == 1);
+}
+
+// Verifies that gains are restored from the live rig load result.
+TEST_CASE("Gains restored from load result", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.input_gain = common::audio::Gain{3.5};
+    live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.input_gain_db == 3.5);
+    CHECK(final_state->signal_chain.output_gain_db == -6.0);
+}
+
+// Verifies that gains reset to default on project close.
+TEST_CASE("Gains reset on project close", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    FakeAudio audio;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onInputGainChanged(6.0);
+    controller.onOutputGainChanged(-3.0);
+
+    // Discard unsaved changes and close.
+    controller.onCloseRequested();
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.input_gain_db == 0.0);
+    CHECK(final_state->signal_chain.output_gain_db == 0.0);
+    CHECK_FALSE(final_state->signal_chain.gain_controls_enabled);
 }
 
 } // namespace rock_hero::editor::core

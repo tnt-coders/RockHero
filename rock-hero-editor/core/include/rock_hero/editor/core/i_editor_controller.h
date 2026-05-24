@@ -113,6 +113,18 @@ public:
     virtual void onOpenPluginRequested(std::string instance_id) = 0;
 
     /*!
+    \brief Handles a change to the input gain slider.
+    \param gain_db Desired input gain in decibels.
+    */
+    virtual void onInputGainChanged(double gain_db) = 0;
+
+    /*!
+    \brief Handles a change to the output gain slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    virtual void onOutputGainChanged(double gain_db) = 0;
+
+    /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
 
     The supplied callable runs on the message thread after the busy overlay paints, so the user

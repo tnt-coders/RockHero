@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
 #include <expected>
@@ -384,7 +385,7 @@ TEST_CASE("Engine live rig clears empty chain", "[audio][engine][integration]")
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
 
-    const auto result = live_rig.clearRig();
+    const auto result = live_rig.clearLiveRig();
 
     CHECK(result.has_value());
 }
@@ -397,7 +398,7 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         result;
-    live_rig.loadRig(
+    live_rig.loadLiveRig(
         common::audio::LiveRigLoadRequest{}, [&result](auto value) { result = std::move(value); });
 
     REQUIRE(result.has_value());
@@ -406,7 +407,54 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         const auto& load_result = result.value();
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
+        CHECK(load_result->input_gain.db == 0.0);
+        CHECK(load_result->output_gain.db == 0.0);
+        CHECK(live_rig.liveRigInputGain().db == 0.0);
+        CHECK(live_rig.liveRigOutputGain().db == 0.0);
     }
+}
+
+// Verifies live rig gain setters create backend gain points and persist them as gain metadata.
+TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto input_result = live_rig.setLiveRigInputGain(Gain{3.0});
+    const auto output_result = live_rig.setLiveRigOutputGain(Gain{-6.0});
+
+    REQUIRE(input_result.has_value());
+    REQUIRE(output_result.has_value());
+    CHECK(live_rig.liveRigInputGain().db == Catch::Approx(3.0));
+    CHECK(live_rig.liveRigOutputGain().db == Catch::Approx(-6.0));
+
+    const auto snapshot = live_rig.captureActiveRig(
+        LiveRigCaptureRequest{
+            .song_directory = song_directory.path(),
+            .arrangement_id = g_arrangement_id,
+            .existing_tone_document_ref = {},
+        });
+
+    REQUIRE(snapshot.has_value());
+    CHECK(snapshot->plugins.empty());
+    CHECK(snapshot->input_gain.db == Catch::Approx(3.0));
+    CHECK(snapshot->output_gain.db == Catch::Approx(-6.0));
+}
+
+// Verifies the adapter clamps requested gain to the Tracktion-backed public range.
+TEST_CASE("Engine live rig gain setters clamp to range", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto input_result = live_rig.setLiveRigInputGain(Gain{12.0});
+    const auto output_result = live_rig.setLiveRigOutputGain(Gain{-100.0});
+
+    REQUIRE(input_result.has_value());
+    REQUIRE(output_result.has_value());
+    CHECK(live_rig.liveRigInputGain().db == Catch::Approx(maximumGainDb()));
+    CHECK(live_rig.liveRigOutputGain().db == Catch::Approx(minimumGainDb()));
 }
 
 // Verifies new live rig captures use co-located UUID tone document folders.

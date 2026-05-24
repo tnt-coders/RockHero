@@ -204,6 +204,20 @@ struct Json
     */
     [[nodiscard]] static int readOptionalInt(
         const juce::var& object, std::string_view property_name, int fallback);
+
+    /*!
+    \brief Reads an optional numeric property from a JSON object as a double.
+
+    Accepts both integer and double JSON values so gain fields written as `0` and `0.0`
+    deserialize identically.
+
+    \param object Object to read from.
+    \param property_name Property name to read.
+    \param fallback Value returned when the property is absent or not numeric.
+    \return Numeric value or fallback.
+    */
+    [[nodiscard]] static double readOptionalDouble(
+        const juce::var& object, std::string_view property_name, double fallback);
 };
 
 } // namespace rock_hero::common::core
