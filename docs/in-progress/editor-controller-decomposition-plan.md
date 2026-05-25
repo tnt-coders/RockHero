@@ -62,6 +62,34 @@ Core class for busy tokens, stale-completion dropping, operation superseding, an
 must wait until a busy overlay has painted. It should have deterministic tests that do not require
 JUCE components.
 
+### `InputCalibrationController`
+
+Core class for input calibration gate policy, calibration prompt visibility, audio-device
+settings-window lifecycle tracking, and input device identity comparison. It owns the state that
+decides whether calibration is required, when to clear it, and when to show or dismiss the
+calibration prompt.
+
+Planned state:
+
+- calibration gain (optional app-local value)
+- calibration prompt visibility
+- input device identity snapshot captured before the settings window opens
+- settings window open/closed flag
+
+Planned responsibilities:
+
+- load and persist calibration from shared user-audio settings
+- clear calibration when the input device identity changes
+- preserve calibration when only non-input fields change (buffer size, sample rate, output device)
+- apply the monitoring gate through the `ILiveInput` port
+- decide whether the calibration prompt should be visible
+- distinguish temporary settings-window device closure from committed route changes
+
+This class should be extracted after `BusyOperationCoordinator` and
+`ProjectWorkflowController` are stable, because the calibration prompt and busy overlay interact
+during audio-device apply flows. Until extraction, the calibration helpers live as a logical group
+inside `EditorController::Impl`.
+
 ### `EditorStateProjector`
 
 Small core helper only if needed after the larger extractions. Its job would be to assemble
@@ -89,8 +117,12 @@ controllers.
 4. Extract `PluginWorkflowController` after project workflow is stable. Keep plugin browser and
    signal-chain tests focused on public editor-controller behavior until the extracted controller
    has a useful public API of its own.
-5. Reduce `EditorController` to routing, state aggregation, and dependency wiring.
-6. Update durable design docs only after the extracted shape has settled.
+5. Extract `InputCalibrationController` after busy and project workflow are stable. The
+   calibration prompt and busy overlay interact during audio-device apply flows, so busy
+   coordination should be settled first. Keep calibration gate tests focused on public
+   editor-controller behavior until the extracted controller has its own public seam.
+6. Reduce `EditorController` to routing, state aggregation, and dependency wiring.
+7. Update durable design docs only after the extracted shape has settled.
 
 ## Testing Strategy
 
