@@ -12,6 +12,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
+#include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/timeline.h>
@@ -157,6 +158,7 @@ public:
 
 private:
     class CursorOverlay;
+    class InputCalibrationWindow;
 
     // Private viewport shell that hosts zoomable track content for the editor timeline.
     class TrackViewport;
@@ -189,6 +191,10 @@ private:
     // Presents an interrupted startup-restore prompt once per prompt request.
     void presentRestoreInterruptedPromptIfNeeded(
         const std::optional<core::RestoreInterruptedPrompt>& prompt);
+
+    // Presents or closes the input calibration prompt from controller state.
+    void presentInputCalibrationPromptIfNeeded(
+        const std::optional<core::InputCalibrationPrompt>& prompt);
 
     // Presents, refreshes, or closes the plugin browser window from controller state.
     void presentPluginBrowserIfNeeded(const core::PluginBrowserViewState& state);
@@ -230,7 +236,7 @@ private:
     void onOpenPluginPressed(std::string instance_id) override;
 
     // SignalChainPanel::Listener implementation.
-    void onInputGainChanged(double gain_db) override;
+    void onInputCalibrationPressed() override;
 
     // SignalChainPanel::Listener implementation.
     void onOutputGainChanged(double gain_db) override;
@@ -252,6 +258,9 @@ private:
 
     // Optional read-only meter source sampled at display cadence.
     const common::audio::IAudioMeterSource* m_audio_meters{nullptr};
+
+    // Optional live-input source sampled by the calibration popup.
+    const common::audio::ILiveInput* m_live_input{nullptr};
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
@@ -288,6 +297,9 @@ private:
 
     // Optional top-level plugin browser window.
     std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
+
+    // Optional top-level input calibration window.
+    std::unique_ptr<InputCalibrationWindow> m_input_calibration_window;
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;

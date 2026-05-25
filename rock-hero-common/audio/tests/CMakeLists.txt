@@ -14,6 +14,7 @@ add_executable(
     test_audio_normalization.cpp
     test_edit.cpp
     test_gain.cpp
+    test_input_calibration.cpp
     test_live_rig_gain_plugin.cpp
     test_thumbnail_source.cpp
     test_transport.cpp

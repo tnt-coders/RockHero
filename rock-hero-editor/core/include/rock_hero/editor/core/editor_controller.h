@@ -20,6 +20,7 @@ namespace rock_hero::common::audio
 {
 class IAudio;
 class IAudioDeviceConfiguration;
+class ILiveInput;
 class ILiveRig;
 class IPluginHost;
 class ITransport;
@@ -367,11 +368,29 @@ public:
     */
     void onOpenPluginRequested(std::string instance_id) override;
 
+    /*! \brief Handles a request to manually calibrate the current input route. */
+    void onInputCalibrationRequested() override;
+
     /*!
-    \brief Handles a change to the input gain slider.
-    \param gain_db Desired input gain in decibels.
+    \brief Prepares the live input route for raw input calibration measurement.
+    \return Empty success, or a typed live-input failure.
     */
-    void onInputGainChanged(double gain_db) override;
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationMeasurementStarted() override;
+
+    /*! \brief Stops an active calibration measurement while leaving the prompt open. */
+    void onInputCalibrationMeasurementCancelled() override;
+
+    /*!
+    \brief Applies and stores a completed input calibration gain.
+    \param gain_db Calibrated input gain in decibels.
+    \return Empty success, or a typed live-input failure.
+    */
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
+        double gain_db) override;
+
+    /*! \brief Handles the calibration prompt closing without a new successful calibration. */
+    void onInputCalibrationDismissed() override;
 
     /*!
     \brief Handles a change to the output gain slider.
@@ -385,6 +404,12 @@ public:
     */
     void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override;
 
+    /*! \brief Handles the audio-device settings window opening. */
+    void onAudioDeviceSettingsOpened() override;
+
+    /*! \brief Handles the audio-device settings window closing. */
+    void onAudioDeviceSettingsClosed() override;
+
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
@@ -394,7 +419,7 @@ private:
         common::audio::ITransport& transport, common::audio::IAudio& audio,
         common::audio::IAudioDeviceConfiguration* audio_devices,
         common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
-        Services services);
+        common::audio::ILiveInput* live_input, Services services);
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;
