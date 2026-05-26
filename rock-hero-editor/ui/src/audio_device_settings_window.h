@@ -42,6 +42,8 @@ public:
     overlay.
     */
     using Dispatcher = std::function<void(std::function<void()>)>;
+    /*! \brief Called when the settings window reaches a final close path. */
+    using ClosedCallback = std::function<void()>;
 
     /*!
     \brief Opens the modal window around the top-level component that owns the launcher.
@@ -52,7 +54,7 @@ public:
     */
     static void show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-        Dispatcher dispatcher = {});
+        Dispatcher dispatcher = {}, ClosedCallback closed_callback = {});
 
 private:
     AudioDeviceSettingsWindow() = default;

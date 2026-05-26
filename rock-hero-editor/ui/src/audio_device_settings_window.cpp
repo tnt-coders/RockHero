@@ -18,13 +18,15 @@ class AudioDeviceSettingsDialogWindow final : public juce::DialogWindow,
                                               private juce::ComponentListener
 {
 public:
-    explicit AudioDeviceSettingsDialogWindow(juce::Component* centering_component)
+    AudioDeviceSettingsDialogWindow(
+        juce::Component* centering_component, AudioDeviceSettingsWindow::ClosedCallback closed)
         : juce::DialogWindow(
               "Audio Device Settings", juce::Colours::darkgrey.darker(0.16F), true, true,
               centering_component != nullptr
                   ? juce::Component::getApproximateScaleFactorForComponent(centering_component)
                   : 1.0F)
         , m_centering_component(centering_component)
+        , m_closed(std::move(closed))
     {
         setResizable(true, true);
         setUsingNativeTitleBar(true);
@@ -96,6 +98,7 @@ public:
         }
 
         m_close_requested = true;
+        notifyClosed();
         if (isCurrentlyModal(false))
         {
             exitModalState(0);
@@ -131,7 +134,20 @@ private:
         m_centering_component = nullptr;
         m_close_requested = true;
         m_delete_posted = true;
+        notifyClosed();
         delete this;
+    }
+
+    // Sends the final close notification exactly once.
+    void notifyClosed()
+    {
+        if (!m_closed)
+        {
+            return;
+        }
+
+        auto closed = std::move(m_closed);
+        closed();
     }
 
     // Enters JUCE modality without auto-delete and attaches a guarded finalization callback.
@@ -192,6 +208,9 @@ private:
     // Editor top-level component used for centering and for revealing the busy overlay.
     juce::Component::SafePointer<juce::Component> m_centering_component;
 
+    // Callback fired once when the dialog reaches a final close path.
+    AudioDeviceSettingsWindow::ClosedCallback m_closed;
+
     // True while the window is hidden for an in-flight audio-device change.
     bool m_applying{false};
 
@@ -251,11 +270,11 @@ private:
 // Launches the audio settings window centered on the editor window that owns the launcher.
 void AudioDeviceSettingsWindow::show(
     common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
-    Dispatcher dispatcher)
+    Dispatcher dispatcher, ClosedCallback closed_callback)
 {
     juce::Component* const centering_component = anchor.getTopLevelComponent();
     auto window = std::make_unique<AudioDeviceSettingsDialogWindow>(
-        centering_component != nullptr ? centering_component : &anchor);
+        centering_component != nullptr ? centering_component : &anchor, std::move(closed_callback));
     const juce::Component::SafePointer<AudioDeviceSettingsDialogWindow> safe_window{window.get()};
     auto content = std::make_unique<AudioDeviceSettingsWindowContent>(
         audio_devices,

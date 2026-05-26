@@ -357,7 +357,6 @@ struct PluginRecord
 struct ToneDocument
 {
     std::vector<PluginRecord> chain;
-    Gain input_gain;
     Gain output_gain;
 };
 
@@ -384,8 +383,7 @@ struct LiveRigLoadOperation
     // Callback fired exactly once when the load finishes or fails.
     LiveRigLoadResultCallback on_result;
 
-    // Gain values from the parsed tone document, applied after all external plugins are restored.
-    Gain input_gain;
+    // Output gain from the parsed tone document, applied after all external plugins are restored.
     Gain output_gain;
 };
 
@@ -394,6 +392,26 @@ struct LiveRigLoadOperation
 void logInstrumentMonitoringFailure(const juce::String& message)
 {
     juce::Logger::writeToLog("Rock Hero instrument monitoring: " + message);
+}
+
+// Maps structural live-rig failures into the narrower live-input setup surface.
+[[nodiscard]] LiveInputError liveInputErrorFromLiveRigError(const LiveRigError& error)
+{
+    switch (error.code)
+    {
+        case LiveRigErrorCode::MessageThreadRequired:
+        {
+            return LiveInputError{LiveInputErrorCode::MessageThreadRequired, error.message};
+        }
+        case LiveRigErrorCode::TrackMissing:
+        {
+            return LiveInputError{LiveInputErrorCode::TrackMissing, error.message};
+        }
+        default:
+        {
+            return LiveInputError{LiveInputErrorCode::CouldNotSetInputGain, error.message};
+        }
+    }
 }
 
 // Converts UTF-8-ish command line text from the public startup boundary into JUCE text.
@@ -657,7 +675,6 @@ void reportLiveRigLoadProgress(
             {"name", core::Json::makeString("Default")},
             {"chain", chain},
             {"automation", core::Json::makeArray()},
-            {"inputGainDb", juce::var{document.input_gain.db}},
             {"outputGainDb", juce::var{document.output_gain.db}},
         }));
 
@@ -821,9 +838,8 @@ void reportLiveRigLoadProgress(
             });
     }
 
-    // Gain fields are additive; older tones without them default to 0.0 dB.
-    document.input_gain = clampGain(
-        Gain{core::Json::readOptionalDouble(default_slot_json, "inputGainDb", defaultGainDb())});
+    // Gain fields are additive; older tones without them default to 0.0 dB. Legacy inputGainDb
+    // is intentionally ignored because input calibration is app-local.
     document.output_gain = clampGain(
         Gain{core::Json::readOptionalDouble(default_slot_json, "outputGainDb", defaultGainDb())});
 
@@ -1336,12 +1352,19 @@ private:
     mutable MeterReader m_input_meter_reader;
     mutable MeterReader m_output_meter_reader;
     mutable MeterReader m_master_meter_reader;
+    mutable MeterReader m_raw_input_meter_reader;
 
     // Duration of the loaded audio, used to clamp seeks and detect end-of-file.
     double m_loaded_length_seconds{0.0};
 
     // Last coarse state used to suppress duplicate listener notifications.
     TransportState m_last_notified_transport_state{};
+
+    // Explicit gate for processed live guitar monitoring. Calibration owns this gate.
+    bool m_live_input_monitoring_enabled{false};
+
+    // Explicit gate for unprocessed calibration monitoring through the backing track.
+    bool m_calibration_input_monitoring_enabled{false};
 
     // Filesystem-discovered plugin candidates shown before Tracktion validates selected plugins.
     std::vector<PluginCandidate> m_discovered_plugin_catalog;
@@ -2172,17 +2195,19 @@ private:
         transport.freePlaybackContext();
     }
 
-    // Removes instrument input assignments on the instrument track from the current playback
-    // context.
+    // Removes live input assignments from Rock Hero's monitoring target tracks.
     void clearInstrumentInputAssignments()
     {
-        tracktion::AudioTrack* const instrument_track = instrumentTrack();
-        if (instrument_track == nullptr)
+        if (tracktion::AudioTrack* const backing_track = backingTrack(); backing_track != nullptr)
         {
-            return;
+            m_edit->getEditInputDevices().clearAllInputs(*backing_track, nullptr);
         }
 
-        m_edit->getEditInputDevices().clearAllInputs(*instrument_track, nullptr);
+        if (tracktion::AudioTrack* const instrument_track = instrumentTrack();
+            instrument_track != nullptr)
+        {
+            m_edit->getEditInputDevices().clearAllInputs(*instrument_track, nullptr);
+        }
     }
 
     // Finds the generated Tracktion wave input that corresponds to the selected JUCE mono input.
@@ -2205,6 +2230,32 @@ private:
         return *matching_input;
     }
 
+    // Finds the current mono instrument input device for raw route metering.
+    [[nodiscard]] tracktion::WaveInputDevice* currentInstrumentWaveInput() const
+    {
+        tracktion::DeviceManager& tracktion_device_manager = m_engine->getDeviceManager();
+        juce::AudioIODevice* const current_device =
+            tracktion_device_manager.deviceManager.getCurrentAudioDevice();
+        if (current_device == nullptr)
+        {
+            return nullptr;
+        }
+
+        const std::optional<InstrumentWaveDeviceDescriptions> wave_descriptions =
+            createTracktionInstrumentWaveDeviceDescriptions(
+                current_device->getName(),
+                current_device->getActiveInputChannels(),
+                current_device->getActiveOutputChannels(),
+                current_device->getInputChannelNames(),
+                current_device->getOutputChannelNames());
+        if (!wave_descriptions.has_value())
+        {
+            return nullptr;
+        }
+
+        return findInstrumentWaveInput(wave_descriptions->input);
+    }
+
     // Clears any instrument route that can be reached through the current Tracktion playback
     // context.
     void detachInstrumentMonitoringRoute(const juce::String& reason)
@@ -2217,7 +2268,7 @@ private:
         m_edit->getTransport().ensureContextAllocated(true);
     }
 
-    // Binds the selected app-local mono input to the instrument Tracktion track.
+    // Binds the selected app-local mono input to the active Tracktion monitoring target.
     void applyInstrumentMonitoringRoute()
     {
         if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -2227,10 +2278,13 @@ private:
             return;
         }
 
-        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-        if (instrument_track == nullptr)
+        const tracktion::AudioTrack* const monitoring_target =
+            m_calibration_input_monitoring_enabled ? backingTrack() : instrumentTrack();
+        if (monitoring_target == nullptr)
         {
-            logInstrumentMonitoringFailure("instrument track is missing");
+            logInstrumentMonitoringFailure(
+                m_calibration_input_monitoring_enabled ? "backing track is missing"
+                                                       : "instrument track is missing");
             return;
         }
 
@@ -2284,17 +2338,20 @@ private:
         }
 
         const auto target_result = input_instance->setTarget(
-            instrument_track->itemID, true, nullptr, std::optional<int>{0});
+            monitoring_target->itemID, true, nullptr, std::optional<int>{0});
         if (!target_result)
         {
             logInstrumentMonitoringFailure(
-                "could not assign instrument input to track: " + target_result.error());
+                "could not assign live input to monitoring track: " + target_result.error());
             transport.ensureContextAllocated(true);
             return;
         }
 
-        input_instance->setRecordingEnabled(instrument_track->itemID, false);
-        wave_input->setMonitorMode(tracktion::InputDevice::MonitorMode::on);
+        input_instance->setRecordingEnabled(monitoring_target->itemID, false);
+        wave_input->setMonitorMode(
+            (m_live_input_monitoring_enabled || m_calibration_input_monitoring_enabled)
+                ? tracktion::InputDevice::MonitorMode::on
+                : tracktion::InputDevice::MonitorMode::off);
         transport.ensureContextAllocated(true);
     }
 
@@ -2352,6 +2409,22 @@ private:
             .live_rig_output = m_output_meter_reader.read(),
             .master_output = m_master_meter_reader.read(),
         };
+    }
+
+    // Reads the hardware input meter before the live-rig monitoring gate.
+    [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const
+    {
+        if (tracktion::WaveInputDevice* const wave_input = currentInstrumentWaveInput();
+            wave_input != nullptr)
+        {
+            m_raw_input_meter_reader.attach(&wave_input->levelMeasurer);
+        }
+        else
+        {
+            m_raw_input_meter_reader.detach();
+        }
+
+        return m_raw_input_meter_reader.read();
     }
 };
 
@@ -2847,11 +2920,11 @@ Gain Engine::outputGain() const
 }
 
 // Sets the input gain on the structural live-rig gain plugin before the signal chain.
-std::expected<void, LiveRigError> Engine::setInputGain(Gain gain)
+std::expected<void, LiveInputError> Engine::setInputGain(Gain gain)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
-        return std::unexpected{LiveRigError{LiveRigErrorCode::MessageThreadRequired}};
+        return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
     }
 
     gain = clampGain(gain);
@@ -2863,19 +2936,87 @@ std::expected<void, LiveRigError> Engine::setInputGain(Gain gain)
     auto ensured = m_impl->ensureStructuralLiveRigPlugins();
     if (!ensured.has_value())
     {
-        return std::unexpected{std::move(ensured.error())};
+        return std::unexpected{liveInputErrorFromLiveRigError(ensured.error())};
     }
 
     auto applied = m_impl->applyGainToPlugin(m_impl->m_input_gain_plugin_id, gain);
     if (!applied.has_value())
     {
-        return std::unexpected{std::move(applied.error())};
+        return std::unexpected{liveInputErrorFromLiveRigError(applied.error())};
     }
 
     if (*ensured)
     {
         m_impl->rebuildInstrumentMonitoringGraph();
     }
+    return {};
+}
+
+// Reads the live input meter used by the calibration window.
+AudioMeterLevel Engine::rawInputMeterLevel() const
+{
+    return m_impl->rawInputMeterLevel();
+}
+
+// Reports whether calibrated live input is currently routed through the chain.
+bool Engine::liveInputMonitoringEnabled() const
+{
+    return m_impl->m_live_input_monitoring_enabled;
+}
+
+// Enables or disables processed live input monitoring without changing transport playback.
+std::expected<void, LiveInputError> Engine::setLiveInputMonitoringEnabled(bool enabled)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
+    }
+
+    if (enabled && !currentInputDeviceIdentity().has_value())
+    {
+        m_impl->m_live_input_monitoring_enabled = false;
+        m_impl->m_calibration_input_monitoring_enabled = false;
+        m_impl->rebuildInstrumentMonitoringGraph();
+        return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
+    }
+
+    m_impl->m_live_input_monitoring_enabled = enabled;
+    if (enabled)
+    {
+        m_impl->m_calibration_input_monitoring_enabled = false;
+    }
+    m_impl->rebuildInstrumentMonitoringGraph();
+    return {};
+}
+
+// Reports whether unprocessed calibration input is currently routed directly to output.
+bool Engine::calibrationInputMonitoringEnabled() const
+{
+    return m_impl->m_calibration_input_monitoring_enabled;
+}
+
+// Enables or disables direct calibration monitoring without changing transport playback.
+std::expected<void, LiveInputError> Engine::setCalibrationInputMonitoringEnabled(bool enabled)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
+    }
+
+    if (enabled && !currentInputDeviceIdentity().has_value())
+    {
+        m_impl->m_live_input_monitoring_enabled = false;
+        m_impl->m_calibration_input_monitoring_enabled = false;
+        m_impl->rebuildInstrumentMonitoringGraph();
+        return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
+    }
+
+    m_impl->m_calibration_input_monitoring_enabled = enabled;
+    if (enabled)
+    {
+        m_impl->m_live_input_monitoring_enabled = false;
+    }
+    m_impl->rebuildInstrumentMonitoringGraph();
     return {};
 }
 
@@ -2967,7 +3108,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             continue;
         }
 
-        // Structural gain plugins are captured as gain values, not as chain entries.
+        // Structural plugins are captured as authored tone state or runtime-only infrastructure,
+        // not as chain entries.
         if (m_impl->isStructuralLiveRigPlugin(plugin))
         {
             continue;
@@ -3017,12 +3159,9 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         ++captured_plugin_index;
     }
 
-    // Read gain values from structural plugins for persistence and snapshot.
-    const Gain captured_input_gain = m_impl->readGainFromPlugin(m_impl->m_input_gain_plugin_id);
+    // Read authored output gain from the structural plugin for persistence and snapshot.
     const Gain captured_output_gain = m_impl->readGainFromPlugin(m_impl->m_output_gain_plugin_id);
-    document.input_gain = captured_input_gain;
     document.output_gain = captured_output_gain;
-    snapshot.input_gain = captured_input_gain;
     snapshot.output_gain = captured_output_gain;
 
     const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
@@ -3063,13 +3202,6 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         }
 
         const Gain default_gain{defaultGainDb()};
-        auto input_result = setInputGain(default_gain);
-        if (!input_result.has_value())
-        {
-            on_result(std::unexpected{std::move(input_result.error())});
-            return;
-        }
-
         auto output_result = setOutputGain(default_gain);
         if (!output_result.has_value())
         {
@@ -3080,7 +3212,6 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         on_result(
             LiveRigLoadResult{
                 .plugins = {},
-                .input_gain = default_gain,
                 .output_gain = default_gain,
             });
         return;
@@ -3116,7 +3247,6 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
     auto operation = std::make_unique<LiveRigLoadOperation>();
     operation->request = std::move(request);
     operation->chain = std::move(document->chain);
-    operation->input_gain = document->input_gain;
     operation->output_gain = document->output_gain;
     operation->display_names.reserve(operation->chain.size());
     for (std::size_t plugin_index = 0; plugin_index < operation->chain.size(); ++plugin_index)
@@ -3156,18 +3286,11 @@ void Engine::Impl::beginNextPluginStep()
     const std::size_t total_plugins = m_load_op->chain.size();
     if (m_load_op->next_index >= total_plugins)
     {
-        // Create structural gain/meter plugins and apply the restored gain values.
+        // Create structural gain/meter plugins and apply the restored authored output gain.
         auto ensured = ensureStructuralLiveRigPlugins();
         if (!ensured.has_value())
         {
             abortLiveRigLoad(std::move(ensured.error()));
-            return;
-        }
-
-        auto input_gain_applied = applyGainToPlugin(m_input_gain_plugin_id, m_load_op->input_gain);
-        if (!input_gain_applied.has_value())
-        {
-            abortLiveRigLoad(std::move(input_gain_applied.error()));
             return;
         }
 
@@ -3180,7 +3303,6 @@ void Engine::Impl::beginNextPluginStep()
         }
 
         auto operation = std::move(m_load_op);
-        operation->result.input_gain = operation->input_gain;
         operation->result.output_gain = operation->output_gain;
 
         rebuildInstrumentMonitoringGraph();
@@ -3375,6 +3497,51 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
         .output_latency_ms =
             samplesToMilliseconds(current_device->getOutputLatencyInSamples(), sample_rate_hz),
     };
+}
+
+// Captures the exact one-channel input identity used to validate calibration state.
+std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
+{
+    const auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
+    auto* const current_device = device_manager.getCurrentAudioDevice();
+    if (current_device == nullptr || !current_device->isOpen())
+    {
+        return std::nullopt;
+    }
+
+    juce::AudioDeviceManager::AudioDeviceSetup setup;
+    device_manager.getAudioDeviceSetup(setup);
+    if (setup.inputDeviceName.isEmpty())
+    {
+        return std::nullopt;
+    }
+
+    const juce::BigInteger active_inputs = current_device->getActiveInputChannels();
+    const int first_channel = active_inputs.findNextSetBit(0);
+    if (first_channel < 0 || active_inputs.findNextSetBit(first_channel + 1) >= 0)
+    {
+        return std::nullopt;
+    }
+
+    const juce::StringArray input_channel_names = current_device->getInputChannelNames();
+    juce::String input_channel_name;
+    if (first_channel < input_channel_names.size())
+    {
+        input_channel_name = input_channel_names[first_channel];
+    }
+
+    InputDeviceIdentity identity{
+        .backend_name = device_manager.getCurrentAudioDeviceType().toStdString(),
+        .input_device_name = setup.inputDeviceName.toStdString(),
+        .input_channel_index = first_channel,
+        .input_channel_name = input_channel_name.toStdString(),
+    };
+    if (!isValidInputDeviceIdentity(identity))
+    {
+        return std::nullopt;
+    }
+
+    return identity;
 }
 
 // Registers a project-owned device-configuration listener.

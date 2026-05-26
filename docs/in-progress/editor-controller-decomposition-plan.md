@@ -1,4 +1,4 @@
-# EditorController Decomposition Plan
+Co# EditorController Decomposition Plan
 
 ## Purpose
 

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/audio_device_settings.h>
 #include <utility>
 
@@ -31,6 +32,11 @@ public:
     [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override
     {
         return {};
+    }
+
+    [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override
+    {
+        return std::nullopt;
     }
 
     void addListener(IAudioDeviceConfiguration::Listener& listener) override

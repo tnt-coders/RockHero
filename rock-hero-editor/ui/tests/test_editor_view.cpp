@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
 #include <cstddef>
+#include <expected>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
@@ -158,11 +159,39 @@ public:
         open_plugin_request_count += 1;
     }
 
-    // Records input gain change intents emitted by the signal-chain panel.
-    void onInputGainChanged(double gain_db) override
+    // Counts manual input calibration requests emitted by the signal-chain panel.
+    void onInputCalibrationRequested() override
     {
-        last_input_gain_db = gain_db;
-        input_gain_change_count += 1;
+        input_calibration_request_count += 1;
+    }
+
+    // Records calibration measurement setup through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationMeasurementStarted() override
+    {
+        input_calibration_measurement_start_count += 1;
+        return {};
+    }
+
+    // Records calibration measurement cancellation through the controller contract.
+    void onInputCalibrationMeasurementCancelled() override
+    {
+        input_calibration_measurement_cancel_count += 1;
+    }
+
+    // Records calibration completion through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
+        double gain_db) override
+    {
+        last_input_calibration_gain_db = gain_db;
+        input_calibration_success_count += 1;
+        return {};
+    }
+
+    // Counts dismissed input calibration prompts.
+    void onInputCalibrationDismissed() override
+    {
+        input_calibration_dismiss_count += 1;
     }
 
     // Records output gain change intents emitted by the signal-chain panel.
@@ -178,6 +207,18 @@ public:
     {
         last_audio_device_change = std::move(change_audio_device);
         audio_device_change_request_count += 1;
+    }
+
+    // Counts audio-device settings open notifications.
+    void onAudioDeviceSettingsOpened() override
+    {
+        audio_device_settings_open_count += 1;
+    }
+
+    // Counts audio-device settings close notifications.
+    void onAudioDeviceSettingsClosed() override
+    {
+        audio_device_settings_close_count += 1;
     }
 
     // Last file passed to onOpenRequested().
@@ -267,14 +308,18 @@ public:
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
 
-    // Last input gain value emitted by the signal-chain panel.
-    std::optional<double> last_input_gain_db{};
+    // Last input calibration gain value emitted by the calibration popup.
+    std::optional<double> last_input_calibration_gain_db{};
 
     // Last output gain value emitted by the signal-chain panel.
     std::optional<double> last_output_gain_db{};
 
-    // Number of input gain change intents received.
-    int input_gain_change_count{0};
+    // Number of input calibration intents received.
+    int input_calibration_request_count{0};
+    int input_calibration_measurement_start_count{0};
+    int input_calibration_measurement_cancel_count{0};
+    int input_calibration_success_count{0};
+    int input_calibration_dismiss_count{0};
 
     // Number of output gain change intents received.
     int output_gain_change_count{0};
@@ -285,6 +330,10 @@ public:
 
     // Number of audio-device change requests received.
     int audio_device_change_request_count{0};
+
+    // Number of audio-device settings lifecycle notifications received.
+    int audio_device_settings_open_count{0};
+    int audio_device_settings_close_count{0};
 };
 
 // Fake transport gives the cursor path a position source without exposing Engine.
@@ -1493,8 +1542,8 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
     CHECK(callback_count == 1);
 }
 
-// Verifies that gain sliders exist and are disabled by default.
-TEST_CASE("Gain sliders present and disabled by default", "[ui][editor-view]")
+// Verifies that input calibration and output gain controls exist and are disabled by default.
+TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -1502,18 +1551,14 @@ TEST_CASE("Gain sliders present and disabled by default", "[ui][editor-view]")
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
 
-    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
     auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
 
-    CHECK_FALSE(input_slider.isEnabled());
+    CHECK_FALSE(calibrate_button.isEnabled());
     CHECK_FALSE(output_slider.isEnabled());
-    CHECK(input_slider.isDoubleClickReturnEnabled());
     CHECK(output_slider.isDoubleClickReturnEnabled());
-    CHECK(input_slider.getMinimum() == common::audio::minimumGainDb());
-    CHECK(input_slider.getMaximum() == common::audio::maximumGainDb());
     CHECK(output_slider.getMinimum() == common::audio::minimumGainDb());
     CHECK(output_slider.getMaximum() == common::audio::maximumGainDb());
-    CHECK(input_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
     CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
 }
 
@@ -1527,7 +1572,7 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
     EditorView view{controller, transport, thumbnail_factory};
 
     auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
     auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
@@ -1535,8 +1580,8 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
     CHECK(output_meter.level() == common::audio::AudioMeterLevel{});
 }
 
-// Verifies the signal-chain meters are visually after the faders whose output they show.
-TEST_CASE("Signal chain meters sit after gain faders", "[ui][editor-view]")
+// Verifies the signal-chain meters use the intended input and output control layout.
+TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -1546,12 +1591,12 @@ TEST_CASE("Signal chain meters sit after gain faders", "[ui][editor-view]")
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
     auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
     auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
 
-    CHECK(input_meter.getX() > input_slider.getRight());
+    CHECK(input_meter.getBottom() <= calibrate_button.getY());
     CHECK(output_meter.getX() > output_slider.getRight());
 }
 
@@ -1573,7 +1618,7 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
     view.setState(core::EditorViewState{});
 
     auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_gain_meter");
+    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
     auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(meter_source.snapshot_read_count >= 1);
@@ -1582,8 +1627,8 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
     CHECK(output_meter.level() == meter_source.snapshot.live_rig_output);
 }
 
-// Verifies that gain sliders enable when gain controls are enabled in view state.
-TEST_CASE("Gain sliders follow gain_controls_enabled", "[ui][editor-view]")
+// Verifies that signal-chain controls follow their independent view-state gates.
+TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -1591,26 +1636,25 @@ TEST_CASE("Gain sliders follow gain_controls_enabled", "[ui][editor-view]")
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
 
-    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
+    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
     auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
 
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .gain_controls_enabled = true,
-                .input_gain_db = 24.0,
+                .input_calibrate_enabled = true,
+                .output_gain_controls_enabled = true,
                 .output_gain_db = -24.0,
             },
         });
 
-    CHECK(input_slider.isEnabled());
+    CHECK(calibrate_button.isEnabled());
     CHECK(output_slider.isEnabled());
-    CHECK(input_slider.getValue() == 24.0);
     CHECK(output_slider.getValue() == -24.0);
 }
 
-// Verifies that moving the input gain slider emits a controller intent.
-TEST_CASE("Input gain slider emits controller intent", "[ui][editor-view]")
+// Verifies that pressing the input calibration button emits a controller intent.
+TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -1621,15 +1665,14 @@ TEST_CASE("Input gain slider emits controller intent", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .gain_controls_enabled = true,
+                .input_calibrate_enabled = true,
             },
         });
 
-    auto& input_slider = findRequiredChild<juce::Slider>(view, "input_gain_slider");
-    input_slider.setValue(4.5, juce::sendNotificationSync);
+    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
+    calibrate_button.onClick();
 
-    CHECK(controller.input_gain_change_count == 1);
-    CHECK(controller.last_input_gain_db == std::optional{4.5});
+    CHECK(controller.input_calibration_request_count == 1);
 }
 
 // Verifies that moving the output gain slider emits a controller intent.
@@ -1644,7 +1687,7 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .gain_controls_enabled = true,
+                .output_gain_controls_enabled = true,
             },
         });
 

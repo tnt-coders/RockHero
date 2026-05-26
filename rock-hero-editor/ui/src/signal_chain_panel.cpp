@@ -23,6 +23,8 @@ constexpr int g_gain_slider_width{72};
 constexpr int g_gain_meter_width{12};
 constexpr int g_gain_meter_gap{4};
 constexpr int g_gain_control_width{g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width};
+constexpr int g_input_control_width{72};
+constexpr int g_calibrate_button_height{26};
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
@@ -179,13 +181,12 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     m_add_plugin_button.onClick = [this] { m_listener.onAddPluginPressed(); };
     addAndMakeVisible(m_add_plugin_button);
 
-    configureGainSlider(m_input_gain_slider, "input_gain_slider");
-    m_input_gain_slider.onValueChange = [this] {
-        m_listener.onInputGainChanged(m_input_gain_slider.getValue());
-    };
-    addAndMakeVisible(m_input_gain_slider);
-    m_input_meter.setComponentID("input_gain_meter");
+    m_input_meter.setComponentID("input_meter");
     addAndMakeVisible(m_input_meter);
+    m_input_calibrate_button.setComponentID("input_calibrate_button");
+    m_input_calibrate_button.setButtonText("Calibrate");
+    m_input_calibrate_button.onClick = [this] { m_listener.onInputCalibrationPressed(); };
+    addAndMakeVisible(m_input_calibrate_button);
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
     m_output_gain_slider.onValueChange = [this] {
@@ -206,9 +207,8 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
 {
     m_state = state;
     m_add_plugin_button.setEnabled(m_state.add_plugin_enabled);
-    m_input_gain_slider.setEnabled(m_state.gain_controls_enabled);
-    m_output_gain_slider.setEnabled(m_state.gain_controls_enabled);
-    m_input_gain_slider.setValue(m_state.input_gain_db, juce::dontSendNotification);
+    m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
+    m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     rebuildPluginRows();
     resized();
@@ -233,9 +233,9 @@ void SignalChainPanel::paint(juce::Graphics& g)
 
     auto area = bounds.reduced(g_panel_inset);
 
-    // Input gain label above the left slider.
+    // Input label above the left meter.
     const auto input_label_area =
-        area.removeFromLeft(g_gain_control_width).removeFromTop(g_header_height);
+        area.removeFromLeft(g_input_control_width).removeFromTop(g_header_height);
     g.setColour(juce::Colours::white);
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
@@ -258,6 +258,14 @@ void SignalChainPanel::paint(juce::Graphics& g)
     g.drawFittedText("Signal Chain", header.reduced(8, 0), juce::Justification::centredLeft, 1);
 
     area.removeFromTop(g_panel_inset);
+    if (!m_state.disabled_message.empty())
+    {
+        g.setColour(juce::Colours::lightgrey);
+        g.setFont(juce::FontOptions{14.0f});
+        g.drawFittedText(m_state.disabled_message, area, juce::Justification::centredLeft, 2);
+        return;
+    }
+
     if (m_state.plugins.empty())
     {
         g.setColour(juce::Colours::lightgrey);
@@ -273,15 +281,16 @@ void SignalChainPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
 
-    // Input gain slider on the left, spanning the full panel height minus insets.
-    auto input_control_area = area.removeFromLeft(g_gain_control_width);
+    // Input meter on the left, with calibration command anchored below it.
+    auto input_control_area = area.removeFromLeft(g_input_control_width);
     input_control_area.removeFromTop(g_header_height);
-    auto input_slider_area = input_control_area.removeFromLeft(g_gain_slider_width);
-    input_control_area.removeFromLeft(std::min(g_gain_meter_gap, input_control_area.getWidth()));
-    auto input_meter_area = input_control_area.removeFromLeft(g_gain_meter_width);
-    input_meter_area.removeFromBottom(std::min(22, input_meter_area.getHeight()));
-    m_input_gain_slider.setBounds(input_slider_area);
+    auto calibrate_area = input_control_area.removeFromBottom(
+        std::min(g_calibrate_button_height, input_control_area.getHeight()));
+    input_control_area.removeFromBottom(std::min(g_panel_inset, input_control_area.getHeight()));
+    auto input_meter_area = input_control_area.withSizeKeepingCentre(
+        g_gain_meter_width, input_control_area.getHeight());
     m_input_meter.setBounds(input_meter_area.reduced(0, 2));
+    m_input_calibrate_button.setBounds(calibrate_area);
 
     // Output gain flows into its post-fader meter, so keep the meter to the slider's right.
     auto output_control_area = area.removeFromRight(g_gain_control_width);
@@ -335,6 +344,11 @@ void SignalChainPanel::rebuildPluginRows()
     }
 
     m_plugin_rows.clear();
+    if (!m_state.disabled_message.empty())
+    {
+        return;
+    }
+
     m_plugin_rows.reserve(m_state.plugins.size());
     for (const core::PluginViewState& plugin : m_state.plugins)
     {
