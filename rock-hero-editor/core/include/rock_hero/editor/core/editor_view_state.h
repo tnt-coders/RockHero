@@ -123,6 +123,25 @@ struct RestoreInterruptedPrompt
         const RestoreInterruptedPrompt& lhs, const RestoreInterruptedPrompt& rhs) = default;
 };
 
+/*! \brief Describes an active input calibration prompt requested by the controller. */
+struct InputCalibrationPrompt
+{
+    /*! \brief Message shown by the calibration prompt. */
+    std::string message;
+
+    /*! \brief Input gain currently displayed by the calibration prompt. */
+    double input_gain_db{0.0};
+
+    /*!
+    \brief Compares two input calibration prompt requests by their stored values.
+    \param lhs Left-hand prompt request.
+    \param rhs Right-hand prompt request.
+    \return True when both prompt requests store equal values.
+    */
+    friend bool operator==(const InputCalibrationPrompt& lhs, const InputCalibrationPrompt& rhs) =
+        default;
+};
+
 /*!
 \brief Full message-thread state rendered by the editor view.
 
@@ -173,6 +192,9 @@ struct EditorViewState
     /*! \brief True when the controller has an audio-device backend available. */
     bool audio_devices_available{false};
 
+    /*! \brief Enables or disables opening audio-device settings. */
+    bool audio_device_settings_enabled{true};
+
     /*!
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
@@ -195,6 +217,9 @@ struct EditorViewState
 
     /*! \brief Interrupted startup restore prompt to present, if recovery input is needed. */
     std::optional<RestoreInterruptedPrompt> restore_interrupted_prompt;
+
+    /*! \brief Input calibration prompt to present, if live input setup is required. */
+    std::optional<InputCalibrationPrompt> input_calibration_prompt;
 
     /*!
     \brief Active editor-wide busy state, if any.

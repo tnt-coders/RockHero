@@ -5,8 +5,10 @@
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <functional>
+#include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <string>
 
@@ -112,11 +114,29 @@ public:
     */
     virtual void onOpenPluginRequested(std::string instance_id) = 0;
 
+    /*! \brief Handles a request to manually calibrate the current input route. */
+    virtual void onInputCalibrationRequested() = 0;
+
     /*!
-    \brief Handles a change to the input gain slider.
-    \param gain_db Desired input gain in decibels.
+    \brief Prepares the live input route for raw input calibration measurement.
+    \return Empty success, or a typed live-input failure.
     */
-    virtual void onInputGainChanged(double gain_db) = 0;
+    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationMeasurementStarted() = 0;
+
+    /*! \brief Stops an active calibration measurement while leaving the prompt open. */
+    virtual void onInputCalibrationMeasurementCancelled() = 0;
+
+    /*!
+    \brief Applies and stores a completed input calibration gain.
+    \param gain_db Calibrated input gain in decibels.
+    \return Empty success, or a typed live-input failure.
+    */
+    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationSucceeded(double gain_db) = 0;
+
+    /*! \brief Handles the calibration prompt closing without a new successful calibration. */
+    virtual void onInputCalibrationDismissed() = 0;
 
     /*!
     \brief Handles a change to the output gain slider.
@@ -137,6 +157,12 @@ public:
     once.
     */
     virtual void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) = 0;
+
+    /*! \brief Handles the audio-device settings window opening. */
+    virtual void onAudioDeviceSettingsOpened() = 0;
+
+    /*! \brief Handles the audio-device settings window closing. */
+    virtual void onAudioDeviceSettingsClosed() = 0;
 
 protected:
     /*! \brief Creates the editor-controller interface. */

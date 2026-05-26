@@ -6,10 +6,20 @@
 #pragma once
 
 #include <rock_hero/editor/core/plugin_view_state.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
+
+/*! \brief Live input calibration state shown by the signal-chain panel. */
+enum class InputCalibrationStatus
+{
+    NoActiveInputDevice,
+    MissingCalibration,
+    Calibrated,
+    Unavailable,
+};
 
 /*! \brief State rendered by the signal-chain panel. */
 struct SignalChainViewState
@@ -23,11 +33,17 @@ struct SignalChainViewState
     /*! \brief Current linear plugin chain. */
     std::vector<PluginViewState> plugins;
 
-    /*! \brief Enables or disables the input and output gain controls. */
-    bool gain_controls_enabled{false};
+    /*! \brief Live input calibration status for the current input route. */
+    InputCalibrationStatus input_calibration_status{InputCalibrationStatus::NoActiveInputDevice};
 
-    /*! \brief Current input gain in decibels, before the signal chain. */
-    double input_gain_db{0.0};
+    /*! \brief Enables or disables the manual calibrate command. */
+    bool input_calibrate_enabled{false};
+
+    /*! \brief Message shown when live guitar audition is disabled. */
+    std::string disabled_message;
+
+    /*! \brief Enables or disables the output gain control. */
+    bool output_gain_controls_enabled{false};
 
     /*! \brief Current output gain in decibels, after the signal chain. */
     double output_gain_db{0.0};

@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
+#include <rock_hero/common/audio/input_calibration_state.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -78,6 +79,19 @@ public:
     \param xml_state Serialized state to restore on next launch, or empty to clear it.
     */
     void setAudioDeviceState(std::optional<std::string> xml_state);
+
+    /*!
+    \brief Reads the stored app-local input calibration state.
+    \return Calibration state tied to one exact input route, or empty when unavailable.
+    */
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState() const;
+
+    /*!
+    \brief Stores or clears the app-local input calibration state.
+    \param calibration_state Calibration state to restore, or empty to clear calibration.
+    */
+    void setInputCalibrationState(
+        std::optional<common::audio::InputCalibrationState> calibration_state);
 
 private:
     juce::PropertiesFile m_properties;

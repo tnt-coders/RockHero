@@ -11,6 +11,15 @@ namespace
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
+constexpr const char* g_input_calibration_gain_db_key{"inputCalibrationGainDb"};
+constexpr const char* g_input_calibration_backend_name_key{"inputCalibrationBackendName"};
+constexpr const char* g_input_calibration_input_device_name_key{"inputCalibrationInputDeviceName"};
+constexpr const char* g_input_calibration_input_channel_index_key{
+    "inputCalibrationInputChannelIndex"
+};
+constexpr const char* g_input_calibration_input_channel_name_key{
+    "inputCalibrationInputChannelName"
+};
 
 // Builds the per-user settings file options used by the editor app.
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
@@ -119,6 +128,74 @@ void EditorSettings::setAudioDeviceState(std::optional<std::string> xml_state)
     else
     {
         m_properties.removeValue(g_audio_device_state_key);
+    }
+
+    m_properties.saveIfNeeded();
+}
+
+// Reads the stored app-local calibration and treats incomplete records as unset.
+std::optional<common::audio::InputCalibrationState> EditorSettings::inputCalibrationState() const
+{
+    if (!m_properties.containsKey(g_input_calibration_gain_db_key) ||
+        !m_properties.containsKey(g_input_calibration_input_channel_index_key))
+    {
+        return std::nullopt;
+    }
+
+    common::audio::InputCalibrationState state{
+        .calibration_gain = common::audio::clampGain(
+            common::audio::Gain{m_properties.getDoubleValue(g_input_calibration_gain_db_key)}),
+        .input_device_identity = common::audio::InputDeviceIdentity{
+            .backend_name =
+                m_properties.getValue(g_input_calibration_backend_name_key).toStdString(),
+            .input_device_name =
+                m_properties.getValue(g_input_calibration_input_device_name_key).toStdString(),
+            .input_channel_index =
+                m_properties.getIntValue(g_input_calibration_input_channel_index_key, -1),
+            .input_channel_name =
+                m_properties.getValue(g_input_calibration_input_channel_name_key).toStdString(),
+        },
+    };
+    if (!common::audio::isValidInputDeviceIdentity(state.input_device_identity))
+    {
+        return std::nullopt;
+    }
+
+    return state;
+}
+
+// Stores or clears the app-local calibration record.
+void EditorSettings::setInputCalibrationState(
+    std::optional<common::audio::InputCalibrationState> calibration_state)
+{
+    if (calibration_state.has_value() &&
+        common::audio::isValidInputDeviceIdentity(calibration_state->input_device_identity))
+    {
+        const common::audio::InputCalibrationState state{
+            .calibration_gain = common::audio::clampGain(calibration_state->calibration_gain),
+            .input_device_identity = calibration_state->input_device_identity,
+        };
+        m_properties.setValue(g_input_calibration_gain_db_key, state.calibration_gain.db);
+        m_properties.setValue(
+            g_input_calibration_backend_name_key,
+            juce::String::fromUTF8(state.input_device_identity.backend_name.c_str()));
+        m_properties.setValue(
+            g_input_calibration_input_device_name_key,
+            juce::String::fromUTF8(state.input_device_identity.input_device_name.c_str()));
+        m_properties.setValue(
+            g_input_calibration_input_channel_index_key,
+            state.input_device_identity.input_channel_index);
+        m_properties.setValue(
+            g_input_calibration_input_channel_name_key,
+            juce::String::fromUTF8(state.input_device_identity.input_channel_name.c_str()));
+    }
+    else
+    {
+        m_properties.removeValue(g_input_calibration_gain_db_key);
+        m_properties.removeValue(g_input_calibration_backend_name_key);
+        m_properties.removeValue(g_input_calibration_input_device_name_key);
+        m_properties.removeValue(g_input_calibration_input_channel_index_key);
+        m_properties.removeValue(g_input_calibration_input_channel_name_key);
     }
 
     m_properties.saveIfNeeded();

@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/common/audio/audio_device_status.h>
+#include <rock_hero/common/audio/input_device_identity.h>
 
 namespace juce
 {
@@ -72,6 +74,12 @@ public:
     \return Current device status, or a closed status when no device is open.
     */
     [[nodiscard]] virtual AudioDeviceStatus currentDeviceStatus() const = 0;
+
+    /*!
+    \brief Returns the exact active input route identity used by input calibration.
+    \return Current one-channel input identity, or empty when no valid mono input route is active.
+    */
+    [[nodiscard]] virtual std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const = 0;
 
     /*!
     \brief Registers a listener notified after audio device configuration changes.

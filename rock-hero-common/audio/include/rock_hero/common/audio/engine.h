@@ -6,9 +6,11 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
+#include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
@@ -48,6 +50,7 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 \see IAudio
 \see IAudioMeterSource
 \see IPluginHost
+\see ILiveInput
 \see ILiveRig
 \see IThumbnailFactory
 */
@@ -56,6 +59,7 @@ class Engine : public ITransport,
                public IAudioDeviceConfiguration,
                public IAudioMeterSource,
                public IPluginHost,
+               public ILiveInput,
                public ILiveRig,
                public IThumbnailFactory
 {
@@ -264,11 +268,45 @@ public:
     [[nodiscard]] Gain outputGain() const override;
 
     /*!
-    \brief Sets the input gain applied before the signal chain.
+    \brief Sets the calibrated input gain applied before the signal chain.
     \param gain Desired input gain; clamped to the accepted range.
     \return Empty success, or a typed failure.
     */
-    [[nodiscard]] std::expected<void, LiveRigError> setInputGain(Gain gain) override;
+    [[nodiscard]] std::expected<void, LiveInputError> setInputGain(Gain gain) override;
+
+    /*!
+    \brief Returns the raw input peak meter used for input calibration.
+    \return Most recent raw input peak level, or silence when no meter is active.
+    */
+    [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const override;
+
+    /*!
+    \brief Reports whether processed live input monitoring is currently enabled.
+    \return True when calibrated live guitar is routed through the chain.
+    */
+    [[nodiscard]] bool liveInputMonitoringEnabled() const override;
+
+    /*!
+    \brief Enables or disables processed live input monitoring explicitly.
+    \param enabled True to route calibrated live guitar through the chain.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveInputError> setLiveInputMonitoringEnabled(
+        bool enabled) override;
+
+    /*!
+    \brief Reports whether unprocessed calibration monitoring is currently enabled.
+    \return True when live guitar is routed directly to output for calibration.
+    */
+    [[nodiscard]] bool calibrationInputMonitoringEnabled() const override;
+
+    /*!
+    \brief Enables or disables unprocessed calibration monitoring explicitly.
+    \param enabled True to route live guitar directly to output for calibration.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, LiveInputError> setCalibrationInputMonitoringEnabled(
+        bool enabled) override;
 
     /*!
     \brief Sets the output gain applied after the signal chain.
@@ -288,6 +326,12 @@ public:
     \return Current device status, or a closed status when no device is open.
     */
     [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override;
+
+    /*!
+    \brief Returns the exact one-channel input route identity used by input calibration.
+    \return Current input identity, or empty when no valid mono input route is active.
+    */
+    [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override;
 
     /*!
     \brief Registers a listener notified after audio device configuration changes.

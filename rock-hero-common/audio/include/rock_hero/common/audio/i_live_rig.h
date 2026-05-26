@@ -61,9 +61,6 @@ struct [[nodiscard]] LiveRigSnapshot
     /*! \brief Captured chain state for the editor signal-chain panel. */
     std::vector<LiveRigPlugin> plugins;
 
-    /*! \brief Captured input gain before the signal chain. */
-    Gain input_gain;
-
     /*! \brief Captured output gain after the signal chain. */
     Gain output_gain;
 };
@@ -127,9 +124,6 @@ struct [[nodiscard]] LiveRigLoadResult
     /*! \brief Restored chain state for the editor signal-chain panel. */
     std::vector<LiveRigPlugin> plugins;
 
-    /*! \brief Restored input gain before the signal chain. */
-    Gain input_gain;
-
     /*! \brief Restored output gain after the signal chain. */
     Gain output_gain;
 };
@@ -185,23 +179,10 @@ public:
     [[nodiscard]] virtual std::expected<void, LiveRigError> clearLiveRig() = 0;
 
     /*!
-    \brief Reads the current input gain applied before the signal chain.
-    \return Current input gain, or the default when no structural gain plugin exists.
-    */
-    [[nodiscard]] virtual Gain inputGain() const = 0;
-
-    /*!
     \brief Reads the current output gain applied after the signal chain.
     \return Current output gain, or the default when no structural gain plugin exists.
     */
     [[nodiscard]] virtual Gain outputGain() const = 0;
-
-    /*!
-    \brief Sets the input gain applied before the signal chain.
-    \param gain Desired input gain; clamped to the accepted range.
-    \return Empty success, or a typed failure.
-    */
-    [[nodiscard]] virtual std::expected<void, LiveRigError> setInputGain(Gain gain) = 0;
 
     /*!
     \brief Sets the output gain applied after the signal chain.
