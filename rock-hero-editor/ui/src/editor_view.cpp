@@ -62,6 +62,26 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
     return juce::String{"Input gain: "} + juce::String{gain_db, 1} + " dB";
 }
 
+[[nodiscard]] juce::String inputCalibrationDescriptionText()
+{
+    return juce::String{"Strum normally for "} +
+           juce::String{g_input_calibration_measurement_seconds} +
+           " seconds.\nTarget: " + juce::String{common::audio::inputCalibrationTargetRmsDb(), 0} +
+           " dBFS average, peaks below " +
+           juce::String{common::audio::inputCalibrationTargetPeakDb(), 0} + " dBFS.";
+}
+
+void configureManualInputGainSlider(juce::Slider& slider)
+{
+    slider.setComponentID("input_calibration_manual_gain");
+    slider.setSliderStyle(juce::Slider::LinearHorizontal);
+    slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
+    slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
+    slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
+    slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 72, 22);
+    slider.setTextValueSuffix(" dB");
+}
+
 [[nodiscard]] common::audio::AudioMeterLevel applyDisplayGain(
     common::audio::AudioMeterLevel level, double gain_db)
 {
@@ -699,60 +719,77 @@ private:
             , m_live_input(live_input)
             , m_prompt(std::move(prompt))
             , m_input_gain_db(m_prompt.input_gain_db)
-            , m_uncalibrated_meter(AudioLevelMeterOrientation::Horizontal, "Raw")
-            , m_calibrated_meter(AudioLevelMeterOrientation::Horizontal, "Cal")
+            , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
         {
-            m_message.setComponentID("input_calibration_message");
-            m_message.setText(juce::String{m_prompt.message}, juce::dontSendNotification);
-            m_message.setJustificationType(juce::Justification::centredLeft);
-            addAndMakeVisible(m_message);
+            m_description.setComponentID("input_calibration_description");
+            m_description.setText(inputCalibrationDescriptionText(), juce::dontSendNotification);
+            m_description.setJustificationType(juce::Justification::centredLeft);
+            addAndMakeVisible(m_description);
 
-            m_uncalibrated_meter.setComponentID("input_calibration_raw_meter");
-            addAndMakeVisible(m_uncalibrated_meter);
-
-            m_calibrated_meter.setComponentID("input_calibration_calibrated_meter");
-            addAndMakeVisible(m_calibrated_meter);
+            m_input_meter.setComponentID("input_calibration_meter");
+            addAndMakeVisible(m_input_meter);
 
             m_gain_label.setComponentID("input_calibration_gain");
             m_gain_label.setText(inputGainLabelText(m_input_gain_db), juce::dontSendNotification);
             m_gain_label.setJustificationType(juce::Justification::centredLeft);
             addAndMakeVisible(m_gain_label);
 
+            m_manual_label.setComponentID("input_calibration_manual_label");
+            m_manual_label.setText("Manual:", juce::dontSendNotification);
+            m_manual_label.setJustificationType(juce::Justification::centredLeft);
+            addAndMakeVisible(m_manual_label);
+
+            configureManualInputGainSlider(m_manual_gain_slider);
+            m_manual_gain_slider.setValue(m_input_gain_db, juce::dontSendNotification);
+            m_manual_gain_slider.onValueChange = [this] { updateManualGainPreview(); };
+            addAndMakeVisible(m_manual_gain_slider);
+
+            m_manual_apply_button.setComponentID("input_calibration_manual_apply_button");
+            m_manual_apply_button.setButtonText("Apply");
+            m_manual_apply_button.onClick = [this] { applyManualCalibration(); };
+            addAndMakeVisible(m_manual_apply_button);
+
             m_status.setComponentID("input_calibration_status");
             m_status.setJustificationType(juce::Justification::centredLeft);
             addAndMakeVisible(m_status);
 
-            m_start_button.setComponentID("input_calibration_start_button");
-            m_start_button.setButtonText("Start");
-            m_start_button.onClick = [this] { startMeasurement(); };
-            addAndMakeVisible(m_start_button);
+            m_retry_button.setComponentID("input_calibration_retry_button");
+            m_retry_button.setButtonText("Retry");
+            m_retry_button.onClick = [this] { startMeasurement(); };
+            addAndMakeVisible(m_retry_button);
 
             m_cancel_button.setComponentID("input_calibration_cancel_button");
             m_cancel_button.setButtonText("Dismiss");
             m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
             addAndMakeVisible(m_cancel_button);
 
-            setSize(500, 236);
+            m_retry_button.setEnabled(false);
+            setManualControlsEnabled(false);
+            setSize(480, 260);
             startTimerHz(g_input_calibration_meter_hz);
         }
 
         void resized() override
         {
             auto area = getLocalBounds().reduced(14);
-            m_message.setBounds(area.removeFromTop(42));
+            m_description.setBounds(area.removeFromTop(40));
             area.removeFromTop(6);
-            m_uncalibrated_meter.setBounds(area.removeFromTop(26));
+            m_input_meter.setBounds(area.removeFromTop(26));
             area.removeFromTop(6);
-            m_calibrated_meter.setBounds(area.removeFromTop(26));
+            m_gain_label.setBounds(area.removeFromTop(22));
             area.removeFromTop(8);
-            m_gain_label.setBounds(area.removeFromTop(24));
+            auto manual_area = area.removeFromTop(28);
+            m_manual_label.setBounds(manual_area.removeFromLeft(60));
+            m_manual_apply_button.setBounds(manual_area.removeFromRight(72));
+            manual_area.removeFromRight(8);
+            m_manual_gain_slider.setBounds(manual_area);
             area.removeFromTop(8);
-            m_status.setBounds(area.removeFromTop(32));
-            area.removeFromTop(10);
+            m_status.setBounds(area.removeFromTop(28));
+            area.removeFromTop(8);
             auto buttons = area.removeFromBottom(28);
             m_cancel_button.setBounds(buttons.removeFromRight(96));
             buttons.removeFromRight(8);
-            m_start_button.setBounds(buttons.removeFromRight(96));
+            m_retry_button.setBounds(buttons.removeFromRight(96));
         }
 
     private:
@@ -763,11 +800,64 @@ private:
             Measuring,
         };
 
+        void updateInputGainLabel()
+        {
+            m_gain_label.setText(inputGainLabelText(m_input_gain_db), juce::dontSendNotification);
+        }
+
+        void updateManualGainPreview()
+        {
+            if (m_phase != CalibrationPhase::Idle)
+            {
+                return;
+            }
+
+            m_input_gain_db = m_manual_gain_slider.getValue();
+            updateInputGainLabel();
+            if (m_live_input != nullptr)
+            {
+                m_input_meter.setLevel(
+                    applyDisplayGain(m_live_input->rawInputMeterLevel(), m_input_gain_db));
+            }
+        }
+
+        void setManualControlsEnabled(bool enabled)
+        {
+            m_manual_gain_slider.setEnabled(enabled);
+            m_manual_apply_button.setEnabled(enabled);
+        }
+
+        void applyManualCalibration()
+        {
+            if (m_phase != CalibrationPhase::Idle)
+            {
+                return;
+            }
+
+            m_input_gain_db = m_manual_gain_slider.getValue();
+            updateInputGainLabel();
+            auto applied = m_controller.onInputCalibrationManuallySet(m_input_gain_db);
+            if (!applied.has_value())
+            {
+                m_status.setText(juce::String{applied.error().message}, juce::dontSendNotification);
+                m_retry_button.setEnabled(true);
+                setManualControlsEnabled(true);
+                return;
+            }
+
+            m_status.setText("Manual calibration saved.", juce::dontSendNotification);
+            m_retry_button.setEnabled(true);
+            setManualControlsEnabled(false);
+            m_cancel_button.setButtonText("Close");
+        }
+
         void startMeasurement()
         {
             if (m_live_input == nullptr)
             {
                 m_status.setText("Live input is unavailable.", juce::dontSendNotification);
+                m_retry_button.setEnabled(true);
+                setManualControlsEnabled(true);
                 return;
             }
 
@@ -775,29 +865,38 @@ private:
             if (!started.has_value())
             {
                 m_status.setText(juce::String{started.error().message}, juce::dontSendNotification);
+                m_retry_button.setEnabled(true);
+                setManualControlsEnabled(true);
                 return;
             }
 
             m_accumulator.reset();
             m_input_gain_db = common::audio::defaultGainDb();
-            m_gain_label.setText(inputGainLabelText(m_input_gain_db), juce::dontSendNotification);
+            m_manual_gain_slider.setValue(m_input_gain_db, juce::dontSendNotification);
+            updateInputGainLabel();
             m_samples_remaining = 0;
             m_wait_samples_remaining = g_input_calibration_wait_sample_count;
             m_phase = CalibrationPhase::WaitingForInput;
-            m_start_button.setEnabled(false);
+            m_retry_button.setEnabled(false);
+            setManualControlsEnabled(false);
             m_cancel_button.setButtonText("Dismiss");
-            m_status.setText("Waiting for input.", juce::dontSendNotification);
+            m_status.setText("Waiting for input...", juce::dontSendNotification);
         }
 
         void timerCallback() override
         {
+            if (m_auto_start_pending)
+            {
+                m_auto_start_pending = false;
+                startMeasurement();
+            }
+
             common::audio::AudioMeterLevel level{};
             if (m_live_input != nullptr)
             {
                 level = m_live_input->rawInputMeterLevel();
             }
-            m_uncalibrated_meter.setLevel(level);
-            m_calibrated_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
+            m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
 
             if (m_phase == CalibrationPhase::Idle)
             {
@@ -828,10 +927,7 @@ private:
                 m_accumulator.reset();
                 m_samples_remaining = g_input_calibration_sample_count;
                 m_phase = CalibrationPhase::Measuring;
-                m_status.setText(
-                    juce::String{"Calibrating input. Play loud normal strums for "} +
-                        juce::String{g_input_calibration_measurement_seconds} + " seconds.",
-                    juce::dontSendNotification);
+                m_status.setText("Measuring... keep strumming.", juce::dontSendNotification);
                 handleMeasurementSample(level);
                 return;
             }
@@ -864,8 +960,9 @@ private:
             }
 
             m_input_gain_db = result->calibration_gain.db;
-            m_gain_label.setText(inputGainLabelText(m_input_gain_db), juce::dontSendNotification);
-            m_calibrated_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
+            m_manual_gain_slider.setValue(m_input_gain_db, juce::dontSendNotification);
+            updateInputGainLabel();
+            m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
 
             auto applied = m_controller.onInputCalibrationSucceeded(m_input_gain_db);
             if (!applied.has_value())
@@ -875,6 +972,8 @@ private:
             }
 
             m_status.setText("Calibration complete.", juce::dontSendNotification);
+            m_retry_button.setEnabled(true);
+            setManualControlsEnabled(false);
             m_cancel_button.setButtonText("Close");
         }
 
@@ -887,7 +986,8 @@ private:
             m_samples_remaining = 0;
             m_wait_samples_remaining = 0;
             m_status.setText(message, juce::dontSendNotification);
-            m_start_button.setEnabled(true);
+            m_retry_button.setEnabled(true);
+            setManualControlsEnabled(true);
         }
 
         InputCalibrationWindow& m_owner;
@@ -896,16 +996,19 @@ private:
         core::InputCalibrationPrompt m_prompt;
         common::audio::InputCalibrationAccumulator m_accumulator;
         double m_input_gain_db{0.0};
-        AudioLevelMeter m_uncalibrated_meter;
-        AudioLevelMeter m_calibrated_meter;
-        juce::Label m_message;
+        AudioLevelMeter m_input_meter;
+        juce::Label m_description;
         juce::Label m_gain_label;
+        juce::Label m_manual_label;
+        juce::Slider m_manual_gain_slider;
+        juce::TextButton m_manual_apply_button;
         juce::Label m_status;
-        juce::TextButton m_start_button;
+        juce::TextButton m_retry_button;
         juce::TextButton m_cancel_button;
         int m_samples_remaining{0};
         int m_wait_samples_remaining{0};
         CalibrationPhase m_phase{CalibrationPhase::Idle};
+        bool m_auto_start_pending{true};
     };
 
 public:

@@ -188,6 +188,15 @@ public:
         return {};
     }
 
+    // Records manual calibration completion through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
+        double gain_db) override
+    {
+        last_input_calibration_gain_db = gain_db;
+        input_calibration_manual_set_count += 1;
+        return {};
+    }
+
     // Counts dismissed input calibration prompts.
     void onInputCalibrationDismissed() override
     {
@@ -319,6 +328,7 @@ public:
     int input_calibration_measurement_start_count{0};
     int input_calibration_measurement_cancel_count{0};
     int input_calibration_success_count{0};
+    int input_calibration_manual_set_count{0};
     int input_calibration_dismiss_count{0};
 
     // Number of output gain change intents received.
