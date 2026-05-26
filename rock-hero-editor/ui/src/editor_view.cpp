@@ -31,8 +31,8 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
-constexpr int g_master_meter_width{196};
-constexpr int g_master_meter_min_width{120};
+constexpr int g_master_meter_width{384};
+constexpr int g_master_meter_min_width{196};
 // Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
 // File/Edit/... menu titles still have room on the smallest supported window width.
 constexpr int g_audio_device_menu_button_min_width{180};
@@ -753,8 +753,8 @@ private:
             m_status.setJustificationType(juce::Justification::centredLeft);
             addAndMakeVisible(m_status);
 
-            m_retry_button.setComponentID("input_calibration_retry_button");
-            m_retry_button.setButtonText("Retry");
+            m_retry_button.setComponentID("input_calibration_start_button");
+            m_retry_button.setButtonText("Start");
             m_retry_button.onClick = [this] { startMeasurement(); };
             addAndMakeVisible(m_retry_button);
 
@@ -763,8 +763,6 @@ private:
             m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
             addAndMakeVisible(m_cancel_button);
 
-            m_retry_button.setEnabled(false);
-            setManualControlsEnabled(false);
             setSize(480, 260);
             startTimerHz(g_input_calibration_meter_hz);
         }
@@ -885,12 +883,6 @@ private:
 
         void timerCallback() override
         {
-            if (m_auto_start_pending)
-            {
-                m_auto_start_pending = false;
-                startMeasurement();
-            }
-
             common::audio::AudioMeterLevel level{};
             if (m_live_input != nullptr)
             {
@@ -1008,7 +1000,6 @@ private:
         int m_samples_remaining{0};
         int m_wait_samples_remaining{0};
         CalibrationPhase m_phase{CalibrationPhase::Idle};
-        bool m_auto_start_pending{true};
     };
 
 public:
