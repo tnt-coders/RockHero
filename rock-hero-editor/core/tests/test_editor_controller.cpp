@@ -276,6 +276,15 @@ public:
         return {};
     }
 
+    // Records manual calibration completion through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
+        double gain_db) override
+    {
+        last_input_gain_db = gain_db;
+        input_calibration_manual_set_count += 1;
+        return {};
+    }
+
     // Counts dismissed input calibration prompts.
     void onInputCalibrationDismissed() override
     {
@@ -407,6 +416,7 @@ public:
     int input_calibration_measurement_start_count{0};
     int input_calibration_measurement_cancel_count{0};
     int input_calibration_success_count{0};
+    int input_calibration_manual_set_count{0};
     int input_calibration_dismiss_count{0};
 
     // Number of output gain change intents received.
@@ -5023,6 +5033,8 @@ TEST_CASE(
     };
     controller.attachView(view);
 
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
     CHECK(transport.set_live_input_monitoring_call_count >= 1);
@@ -5045,6 +5057,53 @@ TEST_CASE(
     const auto stored_calibration = settings.inputCalibrationState();
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 7.5);
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+}
+
+// Verifies that knowledgeable users can save a calibrated input gain without measurement.
+TEST_CASE(
+    "Manual input calibration stores gain and enables monitoring", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_manual_set"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    controller.onInputCalibrationRequested();
+    const auto calibration_set = controller.onInputCalibrationManuallySet(3.25);
+    REQUIRE(calibration_set.has_value());
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+    CHECK(final_state->signal_chain.disabled_message.empty());
+    CHECK(transport.current_input_gain.db == 3.25);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+
+    const auto stored_calibration = settings.inputCalibrationState();
+    REQUIRE(stored_calibration.has_value());
+    CHECK(stored_calibration->calibration_gain.db == 3.25);
     REQUIRE(audio_devices.current_input_identity.has_value());
     CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
 }
@@ -5101,6 +5160,57 @@ TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
     CHECK(final_state->signal_chain.output_gain_db == -6.0);
 }
 
+// Verifies saved calibration does not route live input before the project load fully commits.
+TEST_CASE(
+    "Stored input calibration stays disabled until live rig load completes",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_startup_gate"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.defer_load_completion = true;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+
+    audio.next_prepared_audio_duration = loadedTimelineRange().duration();
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
+
+    REQUIRE(controller.session().currentArrangement() != nullptr);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+
+    REQUIRE(live_rig.completePendingLoad());
+
+    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK(transport.live_input_monitoring_enabled);
+}
+
 // Verifies that committed input route changes clear app-local calibration and disable monitoring.
 TEST_CASE(
     "Input route change clears calibration and disables monitoring", "[core][editor-controller]")
@@ -5135,6 +5245,8 @@ TEST_CASE(
     };
     controller.attachView(view);
 
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
     CHECK(transport.current_input_gain.db == 5.0);
     CHECK(transport.live_input_monitoring_enabled);
 
@@ -5189,6 +5301,7 @@ TEST_CASE(
     };
     controller.attachView(view);
 
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
     CHECK(transport.current_input_gain.db == 4.0);
     CHECK(transport.live_input_monitoring_enabled);
 
@@ -5251,6 +5364,7 @@ TEST_CASE(
     };
     controller.attachView(view);
 
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
     controller.onInputCalibrationRequested();
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
