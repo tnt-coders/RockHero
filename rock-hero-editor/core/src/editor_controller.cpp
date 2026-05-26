@@ -458,6 +458,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onInputCalibrationMeasurementCancelled();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
         double gain_db);
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
+        double gain_db);
     void onInputCalibrationDismissed();
     void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(std::function<void()> change_audio_device);
@@ -558,6 +560,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::string inputCalibrationDisabledMessage() const;
     void applyLiveInputGate();
     void closeInputCalibrationPrompt();
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> commitInputCalibration(
+        double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity);
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
     restoreCalibrationMeasurementState();
     void updateView();
@@ -660,6 +664,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
+
+    // True only after arrangement audio and the live rig restore have both committed.
+    bool m_project_audio_ready{false};
 
     // Calibration record loaded from app-local settings or written by a successful calibration.
     std::optional<common::audio::InputCalibrationState> m_input_calibration_state{};
@@ -1046,6 +1053,12 @@ std::expected<void, common::audio::LiveInputError> EditorController::onInputCali
     return m_impl->onInputCalibrationSucceeded(gain_db);
 }
 
+std::expected<void, common::audio::LiveInputError> EditorController::onInputCalibrationManuallySet(
+    double gain_db)
+{
+    return m_impl->onInputCalibrationManuallySet(gain_db);
+}
+
 void EditorController::onInputCalibrationDismissed()
 {
     m_impl->onInputCalibrationDismissed();
@@ -1159,6 +1172,9 @@ void EditorController::Impl::onOpenRequested(std::filesystem::path file)
 void EditorController::Impl::openProject(
     const std::filesystem::path& file, bool clear_last_open_project_on_failure)
 {
+    m_project_audio_ready = false;
+    applyLiveInputGate();
+
     auto state = std::make_shared<OpenTaskState>();
     state->file = file;
     state->clear_last_open_project_on_failure = clear_last_open_project_on_failure;
@@ -1283,6 +1299,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_save_requires_destination = false;
     m_has_unsaved_changes = m_project->audioNormalizationUpdatedOnLoad();
     clearDeferredAction();
+    m_project_audio_ready = true;
+    applyLiveInputGate();
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
@@ -1299,6 +1317,9 @@ void EditorController::Impl::onImportRequested(std::filesystem::path file)
 // shape as openProject(): busy + worker dispatch here, commit in completeImportSongSource().
 void EditorController::Impl::importSongSource(const std::filesystem::path& file)
 {
+    m_project_audio_ready = false;
+    applyLiveInputGate();
+
     auto state = std::make_shared<ImportTaskState>();
     state->file = file;
 
@@ -1383,6 +1404,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
     clearDeferredAction();
+    m_project_audio_ready = true;
+    applyLiveInputGate();
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
@@ -2132,7 +2155,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
 // Opens the required calibration prompt on explicit user request.
 void EditorController::Impl::onInputCalibrationRequested()
 {
-    if (!m_audio_device_settings_window_open && currentInputDeviceIdentity().has_value())
+    if (!m_audio_device_settings_window_open && m_project_audio_ready && hasLoadedArrangement() &&
+        currentInputDeviceIdentity().has_value())
     {
         if (m_transport.state().playing)
         {
@@ -2147,6 +2171,14 @@ void EditorController::Impl::onInputCalibrationRequested()
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     onInputCalibrationMeasurementStarted()
 {
+    if (!m_project_audio_ready || !hasLoadedArrangement())
+    {
+        return std::unexpected{common::audio::LiveInputError{
+            common::audio::LiveInputErrorCode::InputRouteUnavailable,
+            "Project audio is not ready",
+        }};
+    }
+
     if (m_live_input == nullptr)
     {
         return std::unexpected{common::audio::LiveInputError{
@@ -2217,63 +2249,22 @@ void EditorController::Impl::onInputCalibrationMeasurementCancelled()
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     onInputCalibrationSucceeded(double gain_db)
 {
-    if (m_live_input == nullptr)
+    if (!m_input_calibration_measurement.has_value())
     {
         return std::unexpected{common::audio::LiveInputError{
             common::audio::LiveInputErrorCode::InputRouteUnavailable,
-            "Live input backend is unavailable",
+            "Calibration measurement is not active",
         }};
     }
 
-    const std::optional<common::audio::InputDeviceIdentity> current_identity =
-        currentInputDeviceIdentity();
-    if (!current_identity.has_value())
-    {
-        return std::unexpected{
-            common::audio::LiveInputError{common::audio::LiveInputErrorCode::InputRouteUnavailable}
-        };
-    }
+    return commitInputCalibration(gain_db, m_input_calibration_measurement->input_device_identity);
+}
 
-    if (!m_input_calibration_measurement.has_value() ||
-        m_input_calibration_measurement->input_device_identity != *current_identity)
-    {
-        return std::unexpected{common::audio::LiveInputError{
-            common::audio::LiveInputErrorCode::InputRouteUnavailable,
-            "Input route changed during calibration",
-        }};
-    }
-
-    const common::audio::Gain gain = common::audio::clampGain(common::audio::Gain{gain_db});
-    auto calibration_monitoring_disabled =
-        m_live_input->setCalibrationInputMonitoringEnabled(false);
-    if (!calibration_monitoring_disabled.has_value())
-    {
-        return std::unexpected{std::move(calibration_monitoring_disabled.error())};
-    }
-
-    auto gain_applied = m_live_input->setInputGain(gain);
-    if (!gain_applied.has_value())
-    {
-        return std::unexpected{std::move(gain_applied.error())};
-    }
-
-    auto monitoring_enabled = m_live_input->setLiveInputMonitoringEnabled(true);
-    if (!monitoring_enabled.has_value())
-    {
-        m_input_calibration_state.reset();
-        persistInputCalibration();
-        return std::unexpected{std::move(monitoring_enabled.error())};
-    }
-
-    m_input_calibration_state = common::audio::InputCalibrationState{
-        .calibration_gain = gain,
-        .input_device_identity = *current_identity,
-    };
-    m_committed_input_device_identity = current_identity;
-    persistInputCalibration();
-    m_input_calibration_measurement.reset();
-    updateView();
-    return {};
+// Applies a user-entered calibration gain without requiring an active measurement session.
+std::expected<void, common::audio::LiveInputError> EditorController::Impl::
+    onInputCalibrationManuallySet(double gain_db)
+{
+    return commitInputCalibration(gain_db, std::nullopt);
 }
 
 // Closes the calibration prompt without enabling uncalibrated live monitoring.
@@ -2295,7 +2286,7 @@ void EditorController::Impl::onInputCalibrationDismissed()
 // Applies a clamped output gain to the live rig and marks the tone dirty.
 void EditorController::Impl::onOutputGainChanged(double gain_db)
 {
-    if (m_live_rig == nullptr || !hasLoadedArrangement() || isBusy())
+    if (m_live_rig == nullptr || !m_project_audio_ready || !hasLoadedArrangement() || isBusy())
     {
         return;
     }
@@ -2551,6 +2542,9 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
 // discards itself rather than committing on top of a now-empty session.
 bool EditorController::Impl::closeProject()
 {
+    m_project_audio_ready = false;
+    applyLiveInputGate();
+
     if (!m_project.has_value())
     {
         if (hasLoadedArrangement())
@@ -3072,11 +3066,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .remove_plugins_enabled = canRunAction(EditorAction::Id::RemovePlugin),
         .plugins = m_plugins,
         .input_calibration_status = inputCalibrationStatus(),
-        .input_calibrate_enabled =
-            m_live_input != nullptr && currentInputDeviceIdentity().has_value(),
+        .input_calibrate_enabled = m_project_audio_ready && m_live_input != nullptr &&
+                                   currentInputDeviceIdentity().has_value(),
         .disabled_message =
             liveInputAuditionAvailable() ? std::string{} : inputCalibrationDisabledMessage(),
-        .output_gain_controls_enabled = m_live_rig != nullptr && hasLoadedArrangement(),
+        .output_gain_controls_enabled =
+            m_project_audio_ready && m_live_rig != nullptr && hasLoadedArrangement(),
         .output_gain_db = m_output_gain_db,
     };
     state.plugin_browser = PluginBrowserViewState{
@@ -3269,6 +3264,11 @@ double EditorController::Impl::inputCalibrationPromptGainDb() const
 // Reports whether the live chain can be auditioned for the current route.
 bool EditorController::Impl::liveInputAuditionAvailable() const
 {
+    if (!m_project_audio_ready || !hasLoadedArrangement())
+    {
+        return false;
+    }
+
     if (m_audio_devices == nullptr)
     {
         return true;
@@ -3331,6 +3331,12 @@ void EditorController::Impl::applyLiveInputGate()
 
     std::ignore = m_live_input->setCalibrationInputMonitoringEnabled(false);
 
+    if (!m_project_audio_ready || !hasLoadedArrangement())
+    {
+        std::ignore = m_live_input->setLiveInputMonitoringEnabled(false);
+        return;
+    }
+
     const std::optional<common::audio::InputDeviceIdentity> current_identity =
         currentInputDeviceIdentity();
     if (!current_identity.has_value())
@@ -3375,6 +3381,76 @@ void EditorController::Impl::closeInputCalibrationPrompt()
     m_input_calibration_prompt_visible = false;
 }
 
+// Applies a completed calibration value to the current live route and persists it.
+std::expected<void, common::audio::LiveInputError> EditorController::Impl::commitInputCalibration(
+    double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity)
+{
+    if (!m_project_audio_ready || !hasLoadedArrangement())
+    {
+        return std::unexpected{common::audio::LiveInputError{
+            common::audio::LiveInputErrorCode::InputRouteUnavailable,
+            "Project audio is not ready",
+        }};
+    }
+
+    if (m_live_input == nullptr)
+    {
+        return std::unexpected{common::audio::LiveInputError{
+            common::audio::LiveInputErrorCode::InputRouteUnavailable,
+            "Live input backend is unavailable",
+        }};
+    }
+
+    const std::optional<common::audio::InputDeviceIdentity> current_identity =
+        currentInputDeviceIdentity();
+    if (!current_identity.has_value())
+    {
+        return std::unexpected{
+            common::audio::LiveInputError{common::audio::LiveInputErrorCode::InputRouteUnavailable}
+        };
+    }
+
+    if (expected_identity.has_value() && *expected_identity != *current_identity)
+    {
+        return std::unexpected{common::audio::LiveInputError{
+            common::audio::LiveInputErrorCode::InputRouteUnavailable,
+            "Input route changed during calibration",
+        }};
+    }
+
+    const common::audio::Gain gain = common::audio::clampGain(common::audio::Gain{gain_db});
+    auto calibration_monitoring_disabled =
+        m_live_input->setCalibrationInputMonitoringEnabled(false);
+    if (!calibration_monitoring_disabled.has_value())
+    {
+        return std::unexpected{std::move(calibration_monitoring_disabled.error())};
+    }
+
+    auto gain_applied = m_live_input->setInputGain(gain);
+    if (!gain_applied.has_value())
+    {
+        return std::unexpected{std::move(gain_applied.error())};
+    }
+
+    auto monitoring_enabled = m_live_input->setLiveInputMonitoringEnabled(true);
+    if (!monitoring_enabled.has_value())
+    {
+        m_input_calibration_state.reset();
+        persistInputCalibration();
+        return std::unexpected{std::move(monitoring_enabled.error())};
+    }
+
+    m_input_calibration_state = common::audio::InputCalibrationState{
+        .calibration_gain = gain,
+        .input_device_identity = *current_identity,
+    };
+    m_committed_input_device_identity = current_identity;
+    persistInputCalibration();
+    m_input_calibration_measurement.reset();
+    updateView();
+    return {};
+}
+
 // Restores the previous matching calibration if a manual recalibration measurement is cancelled.
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     restoreCalibrationMeasurementState()
@@ -3389,6 +3465,12 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     if (!calibration_monitoring_disabled.has_value())
     {
         return std::unexpected{std::move(calibration_monitoring_disabled.error())};
+    }
+
+    if (!m_project_audio_ready || !hasLoadedArrangement())
+    {
+        std::ignore = m_live_input->setLiveInputMonitoringEnabled(false);
+        return {};
     }
 
     const std::optional<common::audio::InputDeviceIdentity> current_identity =
