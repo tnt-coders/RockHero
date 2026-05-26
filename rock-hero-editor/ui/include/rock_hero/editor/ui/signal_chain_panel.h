@@ -48,11 +48,8 @@ public:
         */
         virtual void onOpenPluginPressed(std::string instance_id) = 0;
 
-        /*!
-        \brief Called when the user adjusts the input gain slider.
-        \param gain_db New input gain in decibels.
-        */
-        virtual void onInputGainChanged(double gain_db) = 0;
+        /*! \brief Called when the user requests input calibration. */
+        virtual void onInputCalibrationPressed() = 0;
 
         /*!
         \brief Called when the user adjusts the output gain slider.
@@ -142,11 +139,11 @@ private:
     // Button that opens plugin selection through the owning editor view.
     juce::TextButton m_add_plugin_button;
 
-    // Input gain slider positioned on the left side of the plugin chain.
-    juce::Slider m_input_gain_slider;
-
-    // Post-input-gain peak meter positioned beside the input slider.
+    // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
     AudioLevelMeter m_input_meter;
+
+    // Button that opens the input calibration workflow.
+    juce::TextButton m_input_calibrate_button;
 
     // Output gain slider positioned on the right side of the plugin chain.
     juce::Slider m_output_gain_slider;

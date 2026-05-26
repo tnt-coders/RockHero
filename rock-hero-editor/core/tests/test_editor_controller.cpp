@@ -7,9 +7,12 @@
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/common/audio/input_device_identity.h>
 #include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/session.h>
@@ -244,11 +247,39 @@ public:
         open_plugin_request_count += 1;
     }
 
-    // Captures input gain changes emitted through the controller contract.
-    void onInputGainChanged(double gain_db) override
+    // Counts input calibration requests emitted through the controller contract.
+    void onInputCalibrationRequested() override
+    {
+        input_calibration_request_count += 1;
+    }
+
+    // Records calibration measurement setup through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationMeasurementStarted() override
+    {
+        input_calibration_measurement_start_count += 1;
+        return {};
+    }
+
+    // Records calibration measurement cancellation through the controller contract.
+    void onInputCalibrationMeasurementCancelled() override
+    {
+        input_calibration_measurement_cancel_count += 1;
+    }
+
+    // Records calibration completion through the controller contract.
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
+        double gain_db) override
     {
         last_input_gain_db = gain_db;
-        input_gain_change_count += 1;
+        input_calibration_success_count += 1;
+        return {};
+    }
+
+    // Counts dismissed input calibration prompts.
+    void onInputCalibrationDismissed() override
+    {
+        input_calibration_dismiss_count += 1;
     }
 
     // Captures output gain changes emitted through the controller contract.
@@ -264,6 +295,18 @@ public:
     {
         last_audio_device_change = std::move(change_audio_device);
         audio_device_change_request_count += 1;
+    }
+
+    // Counts audio-device settings open notifications.
+    void onAudioDeviceSettingsOpened() override
+    {
+        audio_device_settings_open_count += 1;
+    }
+
+    // Counts audio-device settings close notifications.
+    void onAudioDeviceSettingsClosed() override
+    {
+        audio_device_settings_close_count += 1;
     }
 
     // Last file passed to onOpenRequested().
@@ -359,8 +402,12 @@ public:
     // Number of open-plugin intents received.
     int open_plugin_request_count{0};
 
-    // Number of input gain change intents received.
-    int input_gain_change_count{0};
+    // Number of input calibration intents received.
+    int input_calibration_request_count{0};
+    int input_calibration_measurement_start_count{0};
+    int input_calibration_measurement_cancel_count{0};
+    int input_calibration_success_count{0};
+    int input_calibration_dismiss_count{0};
 
     // Number of output gain change intents received.
     int output_gain_change_count{0};
@@ -370,10 +417,14 @@ public:
 
     // Number of audio-device change requests received.
     int audio_device_change_request_count{0};
+
+    // Number of audio-device settings lifecycle notifications received.
+    int audio_device_settings_open_count{0};
+    int audio_device_settings_close_count{0};
 };
 
 // Records control intents and exposes a manual notification hook for controller tests.
-class FakeTransport final : public common::audio::ITransport
+class FakeTransport final : public common::audio::ITransport, public common::audio::ILiveInput
 {
 public:
     // Records that playback was requested without mutating state unless a test does it directly.
@@ -438,6 +489,50 @@ public:
         }
     }
 
+    [[nodiscard]] common::audio::Gain inputGain() const override
+    {
+        return current_input_gain;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setInputGain(
+        common::audio::Gain gain) override
+    {
+        current_input_gain = common::audio::clampGain(gain);
+        set_input_gain_call_count += 1;
+        return {};
+    }
+
+    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
+    {
+        return raw_input_meter_level;
+    }
+
+    [[nodiscard]] bool liveInputMonitoringEnabled() const override
+    {
+        return live_input_monitoring_enabled;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setLiveInputMonitoringEnabled(
+        bool enabled) override
+    {
+        live_input_monitoring_enabled = enabled;
+        set_live_input_monitoring_call_count += 1;
+        return {};
+    }
+
+    [[nodiscard]] bool calibrationInputMonitoringEnabled() const override
+    {
+        return calibration_input_monitoring_enabled;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    setCalibrationInputMonitoringEnabled(bool enabled) override
+    {
+        calibration_input_monitoring_enabled = enabled;
+        set_calibration_input_monitoring_call_count += 1;
+        return {};
+    }
+
     // Coarse transport state returned by state() and sent to listeners.
     common::audio::TransportState current_state{};
 
@@ -461,6 +556,14 @@ public:
 
     // Number of seek requests received.
     int seek_call_count{0};
+
+    common::audio::Gain current_input_gain{};
+    common::audio::AudioMeterLevel raw_input_meter_level{};
+    bool live_input_monitoring_enabled{false};
+    bool calibration_input_monitoring_enabled{false};
+    int set_input_gain_call_count{0};
+    int set_live_input_monitoring_call_count{0};
+    int set_calibration_input_monitoring_call_count{0};
 };
 
 // Configurable IAudio fake that records calls and can simulate reentrant notifications.
@@ -799,25 +902,10 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         return {};
     }
 
-    // Returns the current input gain stored by setInputGain or the default.
-    [[nodiscard]] common::audio::Gain inputGain() const override
-    {
-        return current_input_gain;
-    }
-
     // Returns the current output gain stored by setOutputGain or the default.
     [[nodiscard]] common::audio::Gain outputGain() const override
     {
         return current_output_gain;
-    }
-
-    // Records the input gain and returns success.
-    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setInputGain(
-        common::audio::Gain gain) override
-    {
-        current_input_gain = common::audio::clampGain(gain);
-        set_input_gain_call_count += 1;
-        return {};
     }
 
     // Records the output gain and returns success.
@@ -885,12 +973,10 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Number of clear calls received.
     int clear_call_count{0};
 
-    // Current gain values stored by setInputGain / setOutputGain.
-    common::audio::Gain current_input_gain{};
+    // Current output gain value stored by setOutputGain.
     common::audio::Gain current_output_gain{};
 
-    // Number of setInputGain / setOutputGain calls received.
-    int set_input_gain_call_count{0};
+    // Number of setOutputGain calls received.
     int set_output_gain_call_count{0};
 
     // Deferred live-rig completion captured with the result configured at load time.
@@ -921,6 +1007,13 @@ public:
         return current_status;
     }
 
+    // Returns the test-configured current input identity.
+    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
+        const override
+    {
+        return current_input_identity;
+    }
+
     // Stores a listener pointer so tests can notify it manually through notifyChanged().
     void addListener(common::audio::IAudioDeviceConfiguration::Listener& listener) override
     {
@@ -947,6 +1040,9 @@ public:
 
     // Current device status returned by currentDeviceStatus().
     common::audio::AudioDeviceStatus current_status{};
+
+    // Current input identity returned by currentInputDeviceIdentity().
+    std::optional<common::audio::InputDeviceIdentity> current_input_identity{};
 
     // Non-owning listeners subscribed by the controller under test.
     std::vector<common::audio::IAudioDeviceConfiguration::Listener*> listeners{};
@@ -1272,6 +1368,18 @@ private:
     return common::core::TimeRange{
         .start = common::core::TimePosition{},
         .end = common::core::TimePosition{end_seconds},
+    };
+}
+
+// Builds a stable route identity for calibration-gate tests.
+[[nodiscard]] common::audio::InputDeviceIdentity makeInputDeviceIdentity(
+    std::string input_device_name = "Interface A", int channel_index = 0)
+{
+    return common::audio::InputDeviceIdentity{
+        .backend_name = "ASIO",
+        .input_device_name = std::move(input_device_name),
+        .input_channel_index = channel_index,
+        .input_channel_name = "Input " + std::to_string(channel_index + 1),
     };
 }
 
@@ -4713,8 +4821,8 @@ TEST_CASE(
     CHECK_FALSE(view.last_state->busy.has_value());
 }
 
-// Verifies that gain controls are enabled after loading a project with a live rig.
-TEST_CASE("Gain controls enabled with live rig and arrangement", "[core][editor-controller]")
+// Verifies that authored output gain controls remain available after loading a live rig.
+TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -4735,13 +4843,16 @@ TEST_CASE("Gain controls enabled with live rig and arrangement", "[core][editor-
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.gain_controls_enabled);
-    CHECK(final_state->signal_chain.input_gain_db == 0.0);
+    CHECK(final_state->signal_chain.output_gain_controls_enabled);
     CHECK(final_state->signal_chain.output_gain_db == 0.0);
+    CHECK(
+        final_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::NoActiveInputDevice);
+    CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
 }
 
-// Verifies that gain controls are disabled without a live rig port.
-TEST_CASE("Gain controls disabled without live rig", "[core][editor-controller]")
+// Verifies that authored output gain controls are disabled without a live rig port.
+TEST_CASE("Output gain controls disabled without live rig", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -4760,14 +4871,16 @@ TEST_CASE("Gain controls disabled without live rig", "[core][editor-controller]"
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->signal_chain.gain_controls_enabled);
+    CHECK_FALSE(final_state->signal_chain.output_gain_controls_enabled);
 }
 
-// Verifies that an input gain change calls the live rig and marks dirty.
-TEST_CASE("Input gain change calls live rig and marks dirty", "[core][editor-controller]")
+// Verifies that the no-device disabled message takes priority over missing calibration.
+TEST_CASE(
+    "Signal chain reports no input device before missing calibration", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
@@ -4775,6 +4888,7 @@ TEST_CASE("Input gain change calls live rig and marks dirty", "[core][editor-con
     EditorController controller{
         transport,
         audio,
+        audio_devices,
         plugin_host,
         live_rig,
         EditorController::Services{.open_function = project_services.openFunction()}
@@ -4782,18 +4896,74 @@ TEST_CASE("Input gain change calls live rig and marks dirty", "[core][editor-con
     controller.attachView(view);
 
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onInputGainChanged(24.0);
-
-    CHECK(live_rig.set_input_gain_call_count == 1);
-    CHECK(live_rig.current_input_gain.db == 24.0);
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.input_gain_db == 24.0);
+    CHECK(
+        final_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::NoActiveInputDevice);
+    CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: no audio input device selected.");
+}
 
-    // Changing gain marks the project dirty so close prompts for unsaved changes.
-    controller.onCloseRequested();
-    REQUIRE(final_state->unsaved_changes_prompt.has_value());
+// Verifies that missing calibration disables the signal chain until calibration is requested.
+TEST_CASE(
+    "Missing input calibration disables live input until manually requested",
+    "[core][editor-controller]")
+{
+    FakeTransport transport;
+    transport.current_state.playing = true;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{.open_function = project_services.openFunction()}
+    };
+    controller.attachView(view);
+
+    REQUIRE(view.last_state.has_value());
+    CHECK(transport.pause_call_count == 0);
+    CHECK_FALSE(view.last_state->input_calibration_prompt.has_value());
+    CHECK(view.last_state->audio_device_settings_enabled);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    const auto* const gated_state = stateOrNull(view.last_state);
+    REQUIRE(gated_state != nullptr);
+    CHECK(gated_state->play_pause_enabled);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(
+        gated_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::MissingCalibration);
+    CHECK(
+        gated_state->signal_chain.disabled_message ==
+        "Live input disabled: input calibration required.");
+
+    controller.onInputCalibrationRequested();
+    CHECK(transport.pause_call_count == 1);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(view.last_state->audio_device_settings_enabled);
+
+    controller.onInputCalibrationDismissed();
+
+    const auto* const dismissed_state = stateOrNull(view.last_state);
+    REQUIRE(dismissed_state != nullptr);
+    CHECK_FALSE(dismissed_state->input_calibration_prompt.has_value());
+    CHECK(dismissed_state->play_pause_enabled);
+    CHECK(dismissed_state->audio_device_settings_enabled);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
 }
 
 // Verifies that an output gain change calls the live rig and marks dirty.
@@ -4825,8 +4995,62 @@ TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-co
     CHECK(final_state->signal_chain.output_gain_db == -12.0);
 }
 
-// Verifies that gain values are clamped to the accepted range.
-TEST_CASE("Gain changes are clamped to accepted range", "[core][editor-controller]")
+// Verifies that a successful calibration is stored in app-local settings and enables live input.
+TEST_CASE(
+    "Input calibration success stores app-local gain and enables monitoring",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_success"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+    CHECK(transport.set_live_input_monitoring_call_count >= 1);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(transport.calibration_input_monitoring_enabled);
+    CHECK(transport.current_input_gain.db == 0.0);
+
+    const auto calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
+    REQUIRE(calibration_succeeded.has_value());
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+    CHECK(final_state->signal_chain.disabled_message.empty());
+    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+
+    const auto stored_calibration = settings.inputCalibrationState();
+    REQUIRE(stored_calibration.has_value());
+    CHECK(stored_calibration->calibration_gain.db == 7.5);
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+}
+
+// Verifies that output gain values are clamped through the project-owned gain value type.
+TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -4844,48 +5068,20 @@ TEST_CASE("Gain changes are clamped to accepted range", "[core][editor-controlle
     controller.attachView(view);
 
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onInputGainChanged(999.0);
     controller.onOutputGainChanged(-999.0);
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.input_gain_db == common::audio::maximumGainDb());
     CHECK(final_state->signal_chain.output_gain_db == common::audio::minimumGainDb());
 }
 
-// Verifies that setting the same gain value twice is a no-op.
-TEST_CASE("Setting same gain value is a no-op", "[core][editor-controller]")
+// Verifies that output gain is restored from the live rig load result.
+TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
-    FakeProjectServices project_services;
-    FakeEditorView view;
-    EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
-        EditorController::Services{.open_function = project_services.openFunction()}
-    };
-    controller.attachView(view);
-
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onInputGainChanged(3.0);
-    controller.onInputGainChanged(3.0);
-
-    CHECK(live_rig.set_input_gain_call_count == 1);
-}
-
-// Verifies that gains are restored from the live rig load result.
-TEST_CASE("Gains restored from load result", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    FakeAudio audio;
-    FakePluginHost plugin_host;
-    FakeLiveRig live_rig;
-    live_rig.next_load_result.input_gain = common::audio::Gain{3.5};
     live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -4902,12 +5098,179 @@ TEST_CASE("Gains restored from load result", "[core][editor-controller]")
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.input_gain_db == 3.5);
     CHECK(final_state->signal_chain.output_gain_db == -6.0);
 }
 
-// Verifies that gains reset to default on project close.
-TEST_CASE("Gains reset on project close", "[core][editor-controller]")
+// Verifies that committed input route changes clear app-local calibration and disable monitoring.
+TEST_CASE(
+    "Input route change clears calibration and disables monitoring", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_route_change"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = initial_identity,
+        });
+
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = initial_identity;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK(transport.live_input_monitoring_enabled);
+
+    audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(settings.inputCalibrationState().has_value());
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(
+        final_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::MissingCalibration);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: input calibration required.");
+}
+
+// Verifies that dismissing manual recalibration restores the previous matching calibration.
+TEST_CASE(
+    "Manual input recalibration dismissal restores previous calibration",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_manual_restore"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK(transport.live_input_monitoring_enabled);
+
+    controller.onInputCalibrationRequested();
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->input_calibration_prompt.has_value());
+
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(transport.calibration_input_monitoring_enabled);
+    CHECK(transport.current_input_gain.db == 0.0);
+
+    controller.onInputCalibrationDismissed();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    const auto restored_calibration = settings.inputCalibrationState();
+    REQUIRE(restored_calibration.has_value());
+    CHECK(restored_calibration->calibration_gain.db == 4.0);
+}
+
+// Verifies that a failed manual recalibration attempt restores monitoring without closing retry UI.
+TEST_CASE(
+    "Manual input recalibration cancellation restores previous calibration",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_manual_cancel"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    controller.onInputCalibrationRequested();
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+
+    controller.onInputCalibrationMeasurementCancelled();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    const auto restored_calibration = settings.inputCalibrationState();
+    REQUIRE(restored_calibration.has_value());
+    CHECK(restored_calibration->calibration_gain.db == 4.0);
+}
+
+// Verifies that output gain resets to default on project close.
+TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
 {
     FakeTransport transport;
     FakeAudio audio;
@@ -4925,7 +5288,6 @@ TEST_CASE("Gains reset on project close", "[core][editor-controller]")
     controller.attachView(view);
 
     loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
-    controller.onInputGainChanged(6.0);
     controller.onOutputGainChanged(-3.0);
 
     // Discard unsaved changes and close.
@@ -4934,9 +5296,8 @@ TEST_CASE("Gains reset on project close", "[core][editor-controller]")
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK(final_state->signal_chain.input_gain_db == 0.0);
     CHECK(final_state->signal_chain.output_gain_db == 0.0);
-    CHECK_FALSE(final_state->signal_chain.gain_controls_enabled);
+    CHECK_FALSE(final_state->signal_chain.output_gain_controls_enabled);
 }
 
 } // namespace rock_hero::editor::core

@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
@@ -29,6 +30,7 @@ static_assert(std::derived_from<Engine, IAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
 static_assert(std::derived_from<Engine, IAudioMeterSource>);
 static_assert(std::derived_from<Engine, IPluginHost>);
+static_assert(std::derived_from<Engine, ILiveInput>);
 static_assert(std::derived_from<Engine, ILiveRig>);
 static_assert(std::derived_from<Engine, IThumbnailFactory>);
 
@@ -421,26 +423,26 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         const auto& load_result = result.value();
         REQUIRE(load_result.has_value());
         CHECK(load_result->plugins.empty());
-        CHECK(load_result->input_gain.db == 0.0);
         CHECK(load_result->output_gain.db == 0.0);
-        CHECK(live_rig.inputGain().db == 0.0);
         CHECK(live_rig.outputGain().db == 0.0);
     }
 }
 
-// Verifies live rig gain setters create backend gain points and persist them as gain metadata.
-TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engine][integration]")
+// Verifies output gain persists through captured tone-chain metadata while input gain remains
+// app-local live-input state.
+TEST_CASE("Engine live rig output gain persists through capture", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     const TemporarySongDirectory song_directory;
     ILiveRig& live_rig = harness.engine;
+    ILiveInput& live_input = harness.engine;
 
-    const auto input_result = live_rig.setInputGain(Gain{24.0});
+    const auto input_result = live_input.setInputGain(Gain{24.0});
     const auto output_result = live_rig.setOutputGain(Gain{-24.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
-    CHECK(live_rig.inputGain().db == Catch::Approx(24.0));
+    CHECK(live_input.inputGain().db == Catch::Approx(24.0));
     CHECK(live_rig.outputGain().db == Catch::Approx(-24.0));
 
     const auto snapshot = live_rig.captureActiveRig(
@@ -452,22 +454,23 @@ TEST_CASE("Engine live rig gain setters persist through capture", "[audio][engin
 
     REQUIRE(snapshot.has_value());
     CHECK(snapshot->plugins.empty());
-    CHECK(snapshot->input_gain.db == Catch::Approx(24.0));
     CHECK(snapshot->output_gain.db == Catch::Approx(-24.0));
 }
 
-// Verifies the adapter accepts symmetric trim and clamps requested gain to the public range.
-TEST_CASE("Engine live rig gain setters clamp to range", "[audio][engine][integration]")
+// Verifies live input and live rig gain setters clamp requested gain to the public range.
+TEST_CASE(
+    "Engine live input and output gain setters clamp to range", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
+    ILiveInput& live_input = harness.engine;
 
-    const auto input_result = live_rig.setInputGain(Gain{25.0});
+    const auto input_result = live_input.setInputGain(Gain{25.0});
     const auto output_result = live_rig.setOutputGain(Gain{-100.0});
 
     REQUIRE(input_result.has_value());
     REQUIRE(output_result.has_value());
-    CHECK(live_rig.inputGain().db == Catch::Approx(maximumGainDb()));
+    CHECK(live_input.inputGain().db == Catch::Approx(maximumGainDb()));
     CHECK(live_rig.outputGain().db == Catch::Approx(minimumGainDb()));
 }
 
