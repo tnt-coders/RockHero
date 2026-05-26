@@ -389,6 +389,14 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
         double gain_db) override;
 
+    /*!
+    \brief Applies and stores a manually entered input calibration gain.
+    \param gain_db Input gain in decibels.
+    \return Empty success, or a typed live-input failure.
+    */
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
+        double gain_db) override;
+
     /*! \brief Handles the calibration prompt closing without a new successful calibration. */
     void onInputCalibrationDismissed() override;
 
