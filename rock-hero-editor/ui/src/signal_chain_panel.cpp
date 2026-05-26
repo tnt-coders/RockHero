@@ -20,7 +20,7 @@ constexpr int g_plugin_row_gap{4};
 constexpr int g_remove_button_width{72};
 constexpr int g_row_button_gap{8};
 constexpr int g_gain_slider_width{72};
-constexpr int g_gain_meter_width{12};
+constexpr int g_gain_meter_width{28};
 constexpr int g_gain_meter_gap{4};
 constexpr int g_gain_control_width{g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width};
 constexpr int g_input_control_width{72};
