@@ -534,6 +534,29 @@ template <class ComponentType>
     return *typed_child;
 }
 
+// Returns a required desktop-level component by id and type for popups outside the view tree.
+template <class ComponentType>
+[[nodiscard]] ComponentType& findRequiredTopLevelComponent(const juce::String& id)
+{
+    for (int index = 0; index < juce::TopLevelWindow::getNumTopLevelWindows(); ++index)
+    {
+        juce::TopLevelWindow* const window = juce::TopLevelWindow::getTopLevelWindow(index);
+        if (window == nullptr || window->getComponentID() != id)
+        {
+            continue;
+        }
+
+        auto* typed_window = dynamic_cast<ComponentType*>(window);
+        if (typed_window == nullptr)
+        {
+            throw std::runtime_error{"Unexpected top-level component type: " + id.toStdString()};
+        }
+        return *typed_window;
+    }
+
+    throw std::runtime_error{"Missing top-level component: " + id.toStdString()};
+}
+
 // Returns the play/pause button from the transport-controls child.
 [[nodiscard]] juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
 {
@@ -1683,6 +1706,64 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     calibrate_button.onClick();
 
     CHECK(controller.input_calibration_request_count == 1);
+}
+
+// Verifies the calibration popup does not show measurement instructions before Start.
+TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .message = "Live input disabled: input calibration required.",
+        .input_gain_db = 2.0,
+    };
+    view.setState(state);
+
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    auto& description = findRequiredChild<juce::Label>(window, "input_calibration_description");
+    auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
+
+    CHECK(description.getText() == "Live input disabled: input calibration required.");
+    CHECK_FALSE(description.getText().containsIgnoreCase("strum"));
+    CHECK(status.getText().startsWith("Press Start"));
+}
+
+// Verifies manual gain remains adjustable after a manual calibration save.
+TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .message = "Live input disabled: input calibration required.",
+        .input_gain_db = 2.0,
+    };
+    view.setState(state);
+
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
+    auto& apply_button =
+        findRequiredChild<juce::TextButton>(window, "input_calibration_manual_apply_button");
+    auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
+
+    slider.setValue(3.5, juce::sendNotificationSync);
+    REQUIRE(apply_button.onClick);
+    apply_button.onClick();
+
+    CHECK(controller.input_calibration_manual_set_count == 1);
+    CHECK(controller.last_input_calibration_gain_db == std::optional{3.5});
+    CHECK(slider.isEnabled());
+    CHECK(apply_button.isEnabled());
+    CHECK(status.getText().startsWith("Manual calibration saved."));
 }
 
 // Verifies that moving the output gain slider emits a controller intent.

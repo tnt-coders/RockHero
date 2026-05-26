@@ -44,7 +44,7 @@ constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
 constexpr int g_input_calibration_meter_hz{30};
-constexpr int g_input_calibration_measurement_seconds{5};
+constexpr int g_input_calibration_measurement_seconds{8};
 constexpr int g_input_calibration_wait_seconds{10};
 constexpr int g_input_calibration_sample_count{
     g_input_calibration_meter_hz * g_input_calibration_measurement_seconds
@@ -62,7 +62,22 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
     return juce::String{"Input gain: "} + juce::String{gain_db, 1} + " dB";
 }
 
-[[nodiscard]] juce::String inputCalibrationDescriptionText()
+[[nodiscard]] juce::String inputCalibrationIntroText(const core::InputCalibrationPrompt& prompt)
+{
+    if (!prompt.message.empty())
+    {
+        return juce::String{prompt.message};
+    }
+
+    return "Calibrate this input before auditioning tones.";
+}
+
+[[nodiscard]] juce::String inputCalibrationReadyText()
+{
+    return "Press Start to measure this input, or adjust the gain manually.";
+}
+
+[[nodiscard]] juce::String inputCalibrationMeasurementText()
 {
     return juce::String{"Strum normally for "} +
            juce::String{g_input_calibration_measurement_seconds} +
@@ -722,7 +737,7 @@ private:
             , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
         {
             m_description.setComponentID("input_calibration_description");
-            m_description.setText(inputCalibrationDescriptionText(), juce::dontSendNotification);
+            m_description.setText(inputCalibrationIntroText(m_prompt), juce::dontSendNotification);
             m_description.setJustificationType(juce::Justification::centredLeft);
             addAndMakeVisible(m_description);
 
@@ -750,7 +765,11 @@ private:
             addAndMakeVisible(m_manual_apply_button);
 
             m_status.setComponentID("input_calibration_status");
+            m_status.setText(inputCalibrationReadyText(), juce::dontSendNotification);
             m_status.setJustificationType(juce::Justification::centredLeft);
+            m_status.setColour(
+                juce::Label::backgroundColourId, juce::Colours::black.withAlpha(0.20f));
+            m_status.setBorderSize(juce::BorderSize<int>{4, 8, 4, 8});
             addAndMakeVisible(m_status);
 
             m_retry_button.setComponentID("input_calibration_start_button");
@@ -763,15 +782,17 @@ private:
             m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
             addAndMakeVisible(m_cancel_button);
 
-            setSize(480, 260);
+            setSize(480, 280);
             startTimerHz(g_input_calibration_meter_hz);
         }
 
         void resized() override
         {
             auto area = getLocalBounds().reduced(14);
-            m_description.setBounds(area.removeFromTop(40));
-            area.removeFromTop(6);
+            m_description.setBounds(area.removeFromTop(26));
+            area.removeFromTop(8);
+            m_status.setBounds(area.removeFromTop(44));
+            area.removeFromTop(8);
             m_input_meter.setBounds(area.removeFromTop(26));
             area.removeFromTop(6);
             m_gain_label.setBounds(area.removeFromTop(22));
@@ -781,8 +802,6 @@ private:
             m_manual_apply_button.setBounds(manual_area.removeFromRight(72));
             manual_area.removeFromRight(8);
             m_manual_gain_slider.setBounds(manual_area);
-            area.removeFromTop(8);
-            m_status.setBounds(area.removeFromTop(28));
             area.removeFromTop(8);
             auto buttons = area.removeFromBottom(28);
             m_cancel_button.setBounds(buttons.removeFromRight(96));
@@ -845,7 +864,7 @@ private:
 
             m_status.setText("Manual calibration saved.", juce::dontSendNotification);
             m_retry_button.setEnabled(true);
-            setManualControlsEnabled(false);
+            setManualControlsEnabled(true);
             m_cancel_button.setButtonText("Close");
         }
 
@@ -878,7 +897,7 @@ private:
             m_retry_button.setEnabled(false);
             setManualControlsEnabled(false);
             m_cancel_button.setButtonText("Dismiss");
-            m_status.setText("Waiting for input...", juce::dontSendNotification);
+            m_status.setText(inputCalibrationMeasurementText(), juce::dontSendNotification);
         }
 
         void timerCallback() override
@@ -919,7 +938,8 @@ private:
                 m_accumulator.reset();
                 m_samples_remaining = g_input_calibration_sample_count;
                 m_phase = CalibrationPhase::Measuring;
-                m_status.setText("Measuring... keep strumming.", juce::dontSendNotification);
+                m_status.setText(
+                    "Measuring... keep strumming steadily.", juce::dontSendNotification);
                 handleMeasurementSample(level);
                 return;
             }
@@ -963,9 +983,11 @@ private:
                 return;
             }
 
-            m_status.setText("Calibration complete.", juce::dontSendNotification);
+            m_status.setText(
+                "Calibration complete. You can adjust manually or close.",
+                juce::dontSendNotification);
             m_retry_button.setEnabled(true);
-            setManualControlsEnabled(false);
+            setManualControlsEnabled(true);
             m_cancel_button.setButtonText("Close");
         }
 
