@@ -1721,7 +1721,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     CHECK(controller.input_calibration_request_count == 1);
 }
 
-// Verifies the calibration popup starts with target levels and ready status text.
+// Verifies the calibration popup starts with concise guidance and ready status text.
 TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1738,22 +1738,34 @@ TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& description = findRequiredChild<juce::Label>(window, "input_calibration_description");
     auto& recommendation =
         findRequiredChild<juce::Component>(window, "input_calibration_recommendation");
     auto& recommendation_text =
         findRequiredChild<juce::Label>(recommendation, "input_calibration_recommendation_text");
     auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
     auto& gain_label = findRequiredChild<juce::Label>(window, "input_calibration_gain");
+    auto& meter = findRequiredChild<juce::Component>(window, "input_calibration_meter");
+    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
+    auto& start_button =
+        findRequiredChild<juce::TextButton>(window, "input_calibration_start_button");
 
-    CHECK(description.getText() == "Target: -12 dBFS average, -6 dBFS peak");
-    CHECK_FALSE(description.getText().containsIgnoreCase("strum"));
     CHECK(
         recommendation_text.getText() ==
-        "Info: for best results, look up your device's exact specs.\n"
-        "Set Gain manually so the specified level maps to -12 dBFS average.");
-    CHECK(status.getText().startsWith("Press \"Start\""));
+        "Target: -12 dBFS average, -6 dBFS peak\n\n"
+        "Manual calibration is preferred when exact device specifications are known.\n\n"
+        "Use automatic calibration for Windows audio devices such as Real Tone cables.");
+    CHECK_FALSE(recommendation_text.getText().startsWith("Info:"));
+    CHECK(recommendation.getHeight() >= 80);
+    CHECK(status.getText().isEmpty());
+    CHECK_FALSE(status.isVisible());
+    CHECK_FALSE(status.isColourSpecified(juce::Label::backgroundColourId));
+    CHECK(start_button.getButtonText() == "Calibrate");
     CHECK(gain_label.getText() == "Gain: 2.0 dB");
+    CHECK(gain_label.getBounds().getBottom() <= meter.getBounds().getY());
+    CHECK(slider.getBounds().getY() >= meter.getBounds().getBottom());
+    CHECK(start_button.getBounds().getY() >= slider.getBounds().getBottom());
+    REQUIRE(window.getContentComponent() != nullptr);
+    CHECK(window.getContentComponent()->getHeight() < 320);
 }
 
 // Verifies calibration gain labels do not expose negative zero after one-decimal rounding.
