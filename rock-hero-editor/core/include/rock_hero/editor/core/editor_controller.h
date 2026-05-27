@@ -324,7 +324,7 @@ public:
     \brief Handles a stop button press from the editor UI.
 
     The intent is ignored when the transport is not currently playing and is already at the start
-    of the loaded timeline, mirroring the published EditorViewState.stop_enabled value.
+    of the loaded timeline, mirroring the published EditorViewState transport stop gate.
     */
     void onStopPressed() override;
 

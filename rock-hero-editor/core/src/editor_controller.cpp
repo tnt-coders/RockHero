@@ -1646,8 +1646,8 @@ void EditorController::Impl::onPlayPausePressed()
     runAction(EditorAction::PlayPause{});
 }
 
-// Mirrors the published stop_enabled gate so the keyboard or alternate input paths cannot stop a
-// transport the view considers already reset.
+// Mirrors the published transport.stop_enabled gate so the keyboard or alternate input paths
+// cannot stop a transport the view considers already reset.
 void EditorController::Impl::onStopPressed()
 {
     runAction(EditorAction::Stop{});
@@ -3049,9 +3049,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.close_enabled = canRunAction(EditorAction::Id::CloseProject);
     state.project_loaded = session().currentArrangement() != nullptr;
     state.save_requires_destination = m_save_requires_destination;
-    state.play_pause_enabled = canRunAction(EditorAction::Id::PlayPause);
-    state.stop_enabled = canRunAction(EditorAction::Id::Stop);
-    state.play_pause_shows_pause_icon = transport_state.playing;
+    state.transport.play_pause_enabled = canRunAction(EditorAction::Id::PlayPause);
+    state.transport.stop_enabled = canRunAction(EditorAction::Id::Stop);
+    state.transport.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_devices_available = m_audio_devices != nullptr;
     state.audio_device_settings_enabled =
         m_audio_devices != nullptr && !m_input_calibration_prompt_visible;
