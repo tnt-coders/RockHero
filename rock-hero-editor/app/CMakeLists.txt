@@ -14,5 +14,10 @@ rock_hero_juce_generate_juce_header(rock_hero_editor_exe)
 target_link_libraries(rock_hero_editor_exe PRIVATE rock_hero::common rock_hero::editor
                                                    rock_hero::build_policy)
 
+if(TARGET project_config_docs_for_development)
+    # Make local HTML help available when launching the editor directly from the build tree.
+    add_dependencies(rock_hero_editor_exe project_config_docs_for_development)
+endif()
+
 # Register the editor as a developer-facing desktop target in the package metadata.
 package_register_target(rock_hero_editor_exe DISPLAY_NAME "Rock Hero Editor")

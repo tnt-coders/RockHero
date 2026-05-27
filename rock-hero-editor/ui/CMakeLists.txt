@@ -32,4 +32,9 @@ target_link_libraries(
     PUBLIC rock_hero::editor::core rock_hero::common::audio rock_hero::juce_gui_basics
     PRIVATE rock_hero::juce_audio_devices rock_hero::build_policy rock_hero::editor_ui_resources)
 
+target_compile_definitions(
+    rock_hero_editor_ui
+    PRIVATE ROCK_HERO_INSTALLED_DOCS_RELATIVE_PATH="${PROJECT_CONFIG_DOCS_INSTALL_DESTINATION}"
+            ROCK_HERO_BUILD_DOCS_DIR="${PROJECT_CONFIG_DOCS_OUTPUT_DIR}")
+
 add_subdirectory(tests)
