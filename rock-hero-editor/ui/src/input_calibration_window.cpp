@@ -49,9 +49,42 @@ constexpr int g_input_calibration_preferred_width{
            juce::String{common::audio::inputCalibrationTargetPeakDb(), 0} + " dBFS peak";
 }
 
-[[nodiscard]] juce::URL inputCalibrationDocumentationUrl()
+// Resolves installed docs from the executable location and falls back to build-tree docs.
+[[nodiscard]] juce::File inputCalibrationDocumentationFile()
 {
-    return juce::URL{"https://tnt-coders.github.io/RockHero/user_input_calibration.html"};
+    constexpr int maximum_directory_search_depth{8};
+    const juce::String documentation_file_name{"user_input_calibration.html"};
+    juce::File search_root =
+        juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
+
+    for (int depth = 0; depth < maximum_directory_search_depth; ++depth)
+    {
+        const juce::File candidate =
+            search_root.getChildFile(ROCK_HERO_INSTALLED_DOCS_RELATIVE_PATH)
+                .getChildFile(documentation_file_name);
+        if (candidate.existsAsFile())
+        {
+            return candidate;
+        }
+
+        const juce::File parent = search_root.getParentDirectory();
+        if (parent == search_root)
+        {
+            break;
+        }
+        search_root = parent;
+    }
+
+    const juce::File build_tree_documentation =
+        juce::File{ROCK_HERO_BUILD_DOCS_DIR}.getChildFile(documentation_file_name);
+    return build_tree_documentation.existsAsFile() ? build_tree_documentation : juce::File{};
+}
+
+// Opens the local HTML file directly so Windows handles it as a normal filesystem document.
+[[nodiscard]] bool openInputCalibrationDocumentation()
+{
+    const juce::File documentation = inputCalibrationDocumentationFile();
+    return documentation.existsAsFile() && documentation.startAsProcess();
 }
 
 [[nodiscard]] juce::String inputCalibrationReadyText()
@@ -136,7 +169,7 @@ public:
         m_help_button.setMouseClickGrabsKeyboardFocus(false);
         m_help_button.setMouseCursor(juce::MouseCursor::PointingHandCursor);
         m_help_button.setImages(m_help_icon.get());
-        m_help_button.onClick = [] { inputCalibrationDocumentationUrl().launchInDefaultBrowser(); };
+        m_help_button.onClick = [this] { openDocumentation(); };
         addAndMakeVisible(m_help_button);
 
         m_input_meter.setComponentID("input_calibration_meter");
@@ -291,6 +324,18 @@ private:
         m_calibrate_button.setEnabled(true);
         setManualControlsEnabled(true);
         m_cancel_button.setButtonText("Close");
+    }
+
+    // Reports missing generated docs in the popup instead of letting the help button fail silently.
+    void openDocumentation()
+    {
+        if (openInputCalibrationDocumentation())
+        {
+            return;
+        }
+
+        setStatusText(
+            "Input calibration guide is unavailable. Build the docs target and try again.");
     }
 
     void startMeasurement()
