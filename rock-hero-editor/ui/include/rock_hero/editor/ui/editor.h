@@ -7,6 +7,7 @@
 
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
@@ -15,10 +16,11 @@
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/core/editor_controller.h>
-#include <rock_hero/editor/ui/editor_view.h>
 
 namespace rock_hero::editor::ui
 {
+
+class EditorView;
 
 /*!
 \brief Owns the editor controller and view as one fully wired feature.
@@ -162,8 +164,8 @@ private:
     // Controller must be constructed before the view so the view can safely call it.
     core::EditorController m_controller;
 
-    // Concrete view that renders controller-derived state and emits user intent.
-    EditorView m_view;
+    // Concrete private view that renders controller-derived state and emits user intent.
+    std::unique_ptr<EditorView> m_view;
 };
 
 } // namespace rock_hero::editor::ui

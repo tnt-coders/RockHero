@@ -1,3 +1,5 @@
+#include "editor_view.h"
+
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
