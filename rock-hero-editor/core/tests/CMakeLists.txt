@@ -6,7 +6,8 @@ include(Catch)
 add_executable(
     rock_hero_editor_core_tests
     test_audio_device_settings_controller.cpp test_audio_device_status_text.cpp
-    test_editor_controller.cpp test_project.cpp test_editor_settings.cpp)
+    test_editor_controller.cpp test_input_calibration_controller.cpp test_project.cpp
+    test_editor_settings.cpp)
 
 # Link JUCE core for project package fixtures while keeping tests on the editor-core boundary.
 target_link_libraries(
