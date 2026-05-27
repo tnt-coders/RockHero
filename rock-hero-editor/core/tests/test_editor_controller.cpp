@@ -5061,6 +5061,61 @@ TEST_CASE(
     CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
 }
 
+// Verifies retry starts from a neutral measurement gain after a completed prompt calibration.
+TEST_CASE(
+    "Input calibration retry resets committed gain before measuring", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_retry_reset"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    controller.onInputCalibrationRequested();
+
+    const auto first_measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(first_measurement_started.has_value());
+    CHECK(transport.current_input_gain.db == 0.0);
+
+    const auto first_calibration_succeeded = controller.onInputCalibrationSucceeded(7.5);
+    REQUIRE(first_calibration_succeeded.has_value());
+    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->input_calibration_prompt.has_value());
+
+    const auto retry_measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(retry_measurement_started.has_value());
+    CHECK(transport.current_input_gain.db == 0.0);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(transport.calibration_input_monitoring_enabled);
+
+    controller.onInputCalibrationMeasurementCancelled();
+
+    CHECK(transport.current_input_gain.db == 7.5);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+}
+
 // Verifies that knowledgeable users can save a calibrated input gain without measurement.
 TEST_CASE(
     "Manual input calibration stores gain and enables monitoring", "[core][editor-controller]")
