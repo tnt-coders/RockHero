@@ -5,11 +5,12 @@
 
 #pragma once
 
+#include "audio_level_meter.h"
+
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
-#include <rock_hero/editor/ui/audio_level_meter.h>
 #include <string>
 #include <vector>
 

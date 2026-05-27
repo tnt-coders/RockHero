@@ -1,3 +1,5 @@
+#include "editor_view.h"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -13,7 +15,6 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
-#include <rock_hero/editor/ui/editor_view.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
