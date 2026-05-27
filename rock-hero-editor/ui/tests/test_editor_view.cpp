@@ -1721,14 +1721,15 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     CHECK(controller.input_calibration_request_count == 1);
 }
 
-// Verifies the calibration popup starts with concise guidance and ready status text.
-TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
+// Verifies the calibration popup starts with target, status, and documentation controls.
+TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
     EditorView view{controller, transport, thumbnail_factory};
+    view.setBounds(0, 0, 1280, 800);
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -1738,38 +1739,49 @@ TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& recommendation =
-        findRequiredChild<juce::Component>(window, "input_calibration_recommendation");
-    auto& recommendation_text =
-        findRequiredChild<juce::Label>(recommendation, "input_calibration_recommendation_text");
+    REQUIRE(window.getContentComponent() != nullptr);
+    auto& target_label = findRequiredChild<juce::Label>(window, "input_calibration_target");
+    auto& help_button =
+        findRequiredChild<juce::DrawableButton>(window, "input_calibration_help_button");
     auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
-    auto& gain_label = findRequiredChild<juce::Label>(window, "input_calibration_gain");
     auto& meter = findRequiredChild<juce::Component>(window, "input_calibration_meter");
+    auto& manual_label = findRequiredChild<juce::Label>(window, "input_calibration_manual_label");
     auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
     auto& start_button =
         findRequiredChild<juce::TextButton>(window, "input_calibration_start_button");
+    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
 
+    CHECK(target_label.getText() == "Target: -12 dBFS average, -6 dBFS peak");
     CHECK(
-        recommendation_text.getText() ==
-        "Target: -12 dBFS average, -6 dBFS peak\n\n"
-        "Manual calibration is preferred when exact device specifications are known.\n\n"
-        "Use automatic calibration for Windows audio devices such as Real Tone cables.");
-    CHECK_FALSE(recommendation_text.getText().startsWith("Info:"));
-    CHECK(recommendation.getHeight() >= 80);
-    CHECK(status.getText().isEmpty());
-    CHECK_FALSE(status.isVisible());
-    CHECK_FALSE(status.isColourSpecified(juce::Label::backgroundColourId));
+        status.getText() ==
+        "Click \"Calibrate\" to run automatic calibration, or adjust gain manually and click "
+        "\"Apply\".");
+    CHECK(status.isVisible());
+    CHECK(status.isColourSpecified(juce::Label::backgroundColourId));
+    CHECK(status.getMinimumHorizontalScale() == 1.0f);
+    CHECK_FALSE(status.getText().startsWith("Info:"));
+    REQUIRE(help_button.onClick);
+    CHECK(help_button.getTooltip() == "Open input calibration guide");
     CHECK(start_button.getButtonText() == "Calibrate");
-    CHECK(gain_label.getText() == "Gain: 2.0 dB");
-    CHECK(gain_label.getBounds().getBottom() <= meter.getBounds().getY());
+    CHECK(manual_label.getText() == "Gain:");
+    CHECK(meter.getWidth() == master_meter.getWidth());
+    CHECK(window.getContentComponent()->getWidth() < 520);
+    CHECK(findChildRecursive(window, "input_calibration_gain") == nullptr);
+    CHECK(findChildRecursive(window, "input_calibration_recommendation") == nullptr);
+    CHECK(findChildRecursive(window, "input_calibration_docs_link") == nullptr);
+    CHECK(target_label.getBounds().getRight() <= help_button.getBounds().getX());
+    CHECK(help_button.getBounds().getCentreY() == target_label.getBounds().getCentreY());
+    CHECK(target_label.getBounds().getBottom() <= status.getBounds().getY());
+    CHECK(status.getBounds().getBottom() <= meter.getBounds().getY());
     CHECK(slider.getBounds().getY() >= meter.getBounds().getBottom());
+    CHECK(manual_label.getBounds().getY() == slider.getBounds().getY());
+    CHECK(manual_label.getBounds().getRight() <= slider.getBounds().getX());
     CHECK(start_button.getBounds().getY() >= slider.getBounds().getBottom());
-    REQUIRE(window.getContentComponent() != nullptr);
-    CHECK(window.getContentComponent()->getHeight() < 320);
+    CHECK(window.getContentComponent()->getHeight() < 235);
 }
 
-// Verifies calibration gain labels do not expose negative zero after one-decimal rounding.
-TEST_CASE("Calibration gain label hides negative rounded zero", "[ui][editor-view]")
+// Verifies calibration gain controls do not expose negative zero after one-decimal rounding.
+TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeEditorController controller;
@@ -1785,9 +1797,11 @@ TEST_CASE("Calibration gain label hides negative rounded zero", "[ui][editor-vie
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& gain_label = findRequiredChild<juce::Label>(window, "input_calibration_gain");
+    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
 
-    CHECK(gain_label.getText() == "Gain: 0.0 dB");
+    CHECK(slider.getValue() == Catch::Approx(0.0));
+    CHECK_FALSE(slider.getTextFromValue(slider.getValue()).startsWith("-0.0"));
+    CHECK(findChildRecursive(window, "input_calibration_gain") == nullptr);
 }
 
 // Verifies manual gain remains adjustable after a manual calibration save.
