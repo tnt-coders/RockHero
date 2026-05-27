@@ -762,13 +762,8 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
-        m_state.play_pause_shows_pause_icon, m_state.stop_enabled);
-    m_transport_controls.setState(
-        TransportControlsViewState{
-            .play_pause_enabled = m_state.play_pause_enabled,
-            .stop_enabled = m_state.stop_enabled,
-            .play_pause_shows_pause_icon = m_state.play_pause_shows_pause_icon,
-        });
+        m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
+    m_transport_controls.setState(m_state.transport);
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
@@ -1355,7 +1350,7 @@ void EditorView::showAudioDeviceSettingsWindow()
         return;
     }
 
-    if (m_state.play_pause_shows_pause_icon)
+    if (m_state.transport.play_pause_shows_pause_icon)
     {
         m_controller.onPlayPausePressed();
     }

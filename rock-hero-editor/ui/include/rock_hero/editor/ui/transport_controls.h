@@ -7,7 +7,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include <rock_hero/editor/ui/transport_controls_view_state.h>
+#include <rock_hero/editor/core/transport_view_state.h>
 
 namespace rock_hero::editor::ui
 {
@@ -16,7 +16,7 @@ namespace rock_hero::editor::ui
 \brief A horizontal strip containing Stop and Play/Pause transport buttons.
 
 Interaction is entirely listener-based; this component has no knowledge of transport policy or the
-audio engine. The owner supplies already-derived TransportControlsViewState and handles emitted
+audio engine. The owner supplies already-derived core::TransportViewState and handles emitted
 play/pause and stop intents through Listener.
 
 Icons are SVGs embedded via juce_add_binary_data (BinaryData::play_arrow_svg, pause_svg,
@@ -92,7 +92,7 @@ public:
     \brief Applies a fully derived transport-controls rendering state.
     \param state Widget state to render.
     */
-    void setState(const TransportControlsViewState& state);
+    void setState(const core::TransportViewState& state);
 
     /*! \brief Lays out the transport buttons within the component bounds. */
     void resized() override;
@@ -108,7 +108,7 @@ private:
     Listener& m_listener;
 
     // Last state applied to the widget so repaint and debugging can reason about visible state.
-    TransportControlsViewState m_state{};
+    core::TransportViewState m_state{};
 
     // Button that renders either Play or Pause based on m_state.
     std::unique_ptr<juce::DrawableButton> m_play_pause_button;
