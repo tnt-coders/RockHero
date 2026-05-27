@@ -1,3 +1,5 @@
+#include "arrangement_view.h"
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
@@ -7,7 +9,6 @@
 #include <optional>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
-#include <rock_hero/editor/ui/arrangement_view.h>
 #include <utility>
 #include <vector>
 

@@ -5,6 +5,14 @@
 
 #pragma once
 
+#include "arrangement_view.h"
+#include "audio_level_meter.h"
+#include "busy_overlay.h"
+#include "menu_bar_button.h"
+#include "plugin_browser_window.h"
+#include "signal_chain_panel.h"
+#include "transport_controls.h"
+
 #include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -19,13 +27,6 @@
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
-#include <rock_hero/editor/ui/arrangement_view.h>
-#include <rock_hero/editor/ui/audio_level_meter.h>
-#include <rock_hero/editor/ui/busy_overlay.h>
-#include <rock_hero/editor/ui/menu_bar_button.h>
-#include <rock_hero/editor/ui/plugin_browser_window.h>
-#include <rock_hero/editor/ui/signal_chain_panel.h>
-#include <rock_hero/editor/ui/transport_controls.h>
 #include <string>
 
 namespace juce
