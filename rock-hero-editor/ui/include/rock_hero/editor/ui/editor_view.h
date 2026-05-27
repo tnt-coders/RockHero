@@ -158,7 +158,6 @@ public:
 
 private:
     class CursorOverlay;
-    class InputCalibrationWindow;
 
     // Private viewport shell that hosts zoomable track content for the editor timeline.
     class TrackViewport;
@@ -299,7 +298,7 @@ private:
     std::unique_ptr<PluginBrowserWindow> m_plugin_browser_window;
 
     // Optional top-level input calibration window.
-    std::unique_ptr<InputCalibrationWindow> m_input_calibration_window;
+    std::unique_ptr<juce::DocumentWindow> m_input_calibration_window;
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
