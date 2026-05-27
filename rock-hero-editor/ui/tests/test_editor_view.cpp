@@ -1708,7 +1708,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     CHECK(controller.input_calibration_request_count == 1);
 }
 
-// Verifies the calibration popup does not show measurement instructions before Start.
+// Verifies the calibration popup starts with target levels and ready status text.
 TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -1726,11 +1726,43 @@ TEST_CASE("Calibration prompt starts with ready status", "[ui][editor-view]")
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     auto& description = findRequiredChild<juce::Label>(window, "input_calibration_description");
+    auto& recommendation =
+        findRequiredChild<juce::Component>(window, "input_calibration_recommendation");
+    auto& recommendation_text =
+        findRequiredChild<juce::Label>(recommendation, "input_calibration_recommendation_text");
     auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
+    auto& gain_label = findRequiredChild<juce::Label>(window, "input_calibration_gain");
 
-    CHECK(description.getText() == "Live input disabled: input calibration required.");
+    CHECK(description.getText() == "Target: -12 dBFS average, -6 dBFS peak");
     CHECK_FALSE(description.getText().containsIgnoreCase("strum"));
-    CHECK(status.getText().startsWith("Press Start"));
+    CHECK(
+        recommendation_text.getText() ==
+        "Info: for best results, look up your device's exact specs.\n"
+        "Set Gain manually so the specified level maps to -12 dBFS average.");
+    CHECK(status.getText().startsWith("Press \"Start\""));
+    CHECK(gain_label.getText() == "Gain: 2.0 dB");
+}
+
+// Verifies calibration gain labels do not expose negative zero after one-decimal rounding.
+TEST_CASE("Calibration gain label hides negative rounded zero", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakeEditorController controller;
+    const FakeTransport transport;
+    FakeThumbnailFactory thumbnail_factory;
+    EditorView view{controller, transport, thumbnail_factory};
+
+    core::EditorViewState state;
+    state.input_calibration_prompt = core::InputCalibrationPrompt{
+        .message = "Live input disabled: input calibration required.",
+        .input_gain_db = -0.04,
+    };
+    view.setState(state);
+
+    auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
+    auto& gain_label = findRequiredChild<juce::Label>(window, "input_calibration_gain");
+
+    CHECK(gain_label.getText() == "Gain: 0.0 dB");
 }
 
 // Verifies manual gain remains adjustable after a manual calibration save.
