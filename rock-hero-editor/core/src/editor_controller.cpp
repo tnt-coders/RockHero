@@ -559,6 +559,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] InputCalibrationStatus inputCalibrationStatus() const;
     [[nodiscard]] std::string inputCalibrationDisabledMessage() const;
     void applyLiveInputGate();
+    // Snapshot of live-input routing values used to roll back failed calibration setup.
+    struct InputCalibrationRouteState
+    {
+        common::audio::Gain input_gain;
+        bool live_input_monitoring_enabled{false};
+        bool calibration_input_monitoring_enabled{false};
+    };
+    [[nodiscard]] InputCalibrationRouteState currentInputCalibrationRouteState() const;
+    void restoreInputCalibrationRouteStateBestEffort(const InputCalibrationRouteState& route_state);
     void closeInputCalibrationPrompt();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> commitInputCalibration(
         double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity);
@@ -2203,6 +2212,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
         previous_calibration_state = m_input_calibration_state;
     }
 
+    const InputCalibrationRouteState previous_route_state = currentInputCalibrationRouteState();
     auto monitoring_disabled = m_live_input->setLiveInputMonitoringEnabled(false);
     if (!monitoring_disabled.has_value())
     {
@@ -2213,12 +2223,14 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
         m_live_input->setInputGain(common::audio::Gain{common::audio::defaultGainDb()});
     if (!gain_reset.has_value())
     {
+        restoreInputCalibrationRouteStateBestEffort(previous_route_state);
         return std::unexpected{std::move(gain_reset.error())};
     }
 
     auto calibration_monitoring_enabled = m_live_input->setCalibrationInputMonitoringEnabled(true);
     if (!calibration_monitoring_enabled.has_value())
     {
+        restoreInputCalibrationRouteStateBestEffort(previous_route_state);
         return std::unexpected{std::move(calibration_monitoring_enabled.error())};
     }
 
@@ -3372,6 +3384,33 @@ void EditorController::Impl::applyLiveInputGate()
     {
         clearInputCalibration();
         std::ignore = m_live_input->setLiveInputMonitoringEnabled(false);
+    }
+}
+
+// Reads the current live-input route values before a multi-step calibration setup mutation.
+EditorController::Impl::InputCalibrationRouteState EditorController::Impl::
+    currentInputCalibrationRouteState() const
+{
+    assert(m_live_input != nullptr);
+    return InputCalibrationRouteState{
+        .input_gain = m_live_input->inputGain(),
+        .live_input_monitoring_enabled = m_live_input->liveInputMonitoringEnabled(),
+        .calibration_input_monitoring_enabled = m_live_input->calibrationInputMonitoringEnabled(),
+    };
+}
+
+// Best-effort rollback for setup failures before a measurement session exists.
+void EditorController::Impl::restoreInputCalibrationRouteStateBestEffort(
+    const InputCalibrationRouteState& route_state)
+{
+    assert(m_live_input != nullptr);
+    std::ignore = m_live_input->setCalibrationInputMonitoringEnabled(
+        route_state.calibration_input_monitoring_enabled);
+    auto gain_restored = m_live_input->setInputGain(route_state.input_gain);
+    if (!route_state.live_input_monitoring_enabled || gain_restored.has_value())
+    {
+        std::ignore =
+            m_live_input->setLiveInputMonitoringEnabled(route_state.live_input_monitoring_enabled);
     }
 }
 

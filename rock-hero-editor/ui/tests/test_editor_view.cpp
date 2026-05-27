@@ -1834,7 +1834,7 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     CHECK(controller.last_input_calibration_gain_db == std::optional{3.5});
     CHECK(slider.isEnabled());
     CHECK(apply_button.isEnabled());
-    CHECK(status.getText().startsWith("Manual calibration saved."));
+    CHECK(status.getText() == "Manual calibration saved. Gain set to 3.5 dB.");
 }
 
 // Verifies that moving the output gain slider emits a controller intent.

@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <rock_hero/common/audio/input_calibration.h>
+#include <rock_hero/common/audio/input_calibration_capture_session.h>
 
 namespace rock_hero::common::audio
 {
@@ -150,6 +151,140 @@ TEST_CASE("Input calibration rejects clipped input", "[audio][input-calibration]
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == InputCalibrationErrorCode::InputClipped);
+}
+
+// Verifies the automatic capture state machine completes after a steady active window.
+TEST_CASE("Input capture completes after steady input", "[audio][input-calibration]")
+{
+    InputCalibrationCaptureSession session{
+        1,
+        4,
+        minimumInputCalibrationActiveSampleCount(),
+    };
+    session.start();
+
+    InputCalibrationCaptureUpdate update =
+        session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    CHECK(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+    CHECK(session.active());
+
+    for (std::size_t sample = 0; sample < minimumInputCalibrationActiveSampleCount() - 1; ++sample)
+    {
+        update = session.pushSample(AudioMeterLevel{.peak_db = -24.0});
+        CHECK(update.phase == InputCalibrationCapturePhase::Measuring);
+        CHECK_FALSE(update.result.has_value());
+    }
+
+    update = session.pushSample(AudioMeterLevel{.peak_db = -24.0});
+
+    REQUIRE(update.result.has_value());
+    CHECK(update.phase == InputCalibrationCapturePhase::Complete);
+    CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+    CHECK_FALSE(session.active());
+}
+
+// Verifies retry capture starts from a clean measurement accumulator.
+TEST_CASE("Input capture retry clears previous measurement", "[audio][input-calibration]")
+{
+    InputCalibrationCaptureSession session{
+        1,
+        4,
+        minimumInputCalibrationActiveSampleCount(),
+    };
+    session.start();
+
+    InputCalibrationCaptureUpdate update =
+        session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    REQUIRE(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+    for (std::size_t sample = 0; sample < minimumInputCalibrationActiveSampleCount(); ++sample)
+    {
+        update = session.pushSample(AudioMeterLevel{.peak_db = -24.0});
+    }
+    REQUIRE(update.result.has_value());
+    CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+
+    session.start();
+    update = session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    REQUIRE(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+    for (std::size_t sample = 0; sample < minimumInputCalibrationActiveSampleCount(); ++sample)
+    {
+        update = session.pushSample(AudioMeterLevel{.peak_db = -30.0});
+    }
+
+    REQUIRE(update.result.has_value());
+    CHECK(update.result->calibration_gain.db == Catch::Approx(18.0));
+}
+
+// Verifies the automatic capture rejects active input that varies too much.
+TEST_CASE("Input capture rejects inconsistent input", "[audio][input-calibration]")
+{
+    InputCalibrationCaptureSession session{
+        1,
+        4,
+        minimumInputCalibrationActiveSampleCount(),
+    };
+    session.start();
+
+    InputCalibrationCaptureUpdate update =
+        session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    REQUIRE(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+
+    for (std::size_t sample = 0; sample < minimumInputCalibrationActiveSampleCount(); ++sample)
+    {
+        const double peak_db = sample % 2 == 0 ? -12.0 : -32.0;
+        update = session.pushSample(AudioMeterLevel{.peak_db = peak_db});
+    }
+
+    REQUIRE(update.error.has_value());
+    CHECK(update.phase == InputCalibrationCapturePhase::Failed);
+    CHECK(update.error->code == InputCalibrationErrorCode::InputInconsistent);
+    CHECK_FALSE(session.active());
+}
+
+// Verifies the automatic capture times out before measuring when no usable input arrives.
+TEST_CASE("Input capture times out waiting for input", "[audio][input-calibration]")
+{
+    InputCalibrationCaptureSession session{
+        1,
+        2,
+        minimumInputCalibrationActiveSampleCount(),
+    };
+    session.start();
+
+    InputCalibrationCaptureUpdate update =
+        session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    REQUIRE(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+
+    update = session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    CHECK(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+    update = session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+
+    REQUIRE(update.error.has_value());
+    CHECK(update.phase == InputCalibrationCapturePhase::Failed);
+    CHECK(update.error->code == InputCalibrationErrorCode::NoUsableSignal);
+    CHECK_FALSE(session.active());
+}
+
+// Verifies clipped input stops automatic capture before a measurement window starts.
+TEST_CASE("Input capture rejects clipped waiting input", "[audio][input-calibration]")
+{
+    InputCalibrationCaptureSession session{
+        1,
+        2,
+        minimumInputCalibrationActiveSampleCount(),
+    };
+    session.start();
+
+    InputCalibrationCaptureUpdate update =
+        session.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
+    REQUIRE(update.phase == InputCalibrationCapturePhase::WaitingForInput);
+
+    update = session.pushSample(AudioMeterLevel{.peak_db = -3.0, .clipping = true});
+
+    REQUIRE(update.error.has_value());
+    CHECK(update.phase == InputCalibrationCapturePhase::Failed);
+    CHECK(update.error->code == InputCalibrationErrorCode::InputClipped);
+    CHECK_FALSE(session.active());
 }
 
 } // namespace rock_hero::common::audio
