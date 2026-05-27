@@ -291,7 +291,7 @@ calculateInputCalibration(const InputCalibrationMeasurement& measurement)
     {
         return std::unexpected{InputCalibrationError{
             .code = InputCalibrationErrorCode::InputInconsistent,
-            .message = "Input level varied too much. Use steady hard strums and try again.",
+            .message = "Input level varied too much. Use steady moderate strums and try again.",
         }};
     }
 

@@ -2,10 +2,12 @@
 
 #include "audio_device_settings_window.h"
 
+#include <BinaryData.h>
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <limits>
+#include <memory>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/input_calibration.h>
 #include <rock_hero/common/core/audio_asset.h>
@@ -52,38 +54,51 @@ constexpr int g_input_calibration_sample_count{
 constexpr int g_input_calibration_wait_sample_count{
     g_input_calibration_meter_hz * g_input_calibration_wait_seconds
 };
+// Discard the first half-second so backend gain resets and meter windows settle before capture.
+constexpr int g_input_calibration_settle_sample_count{g_input_calibration_meter_hz / 2};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 
-[[nodiscard]] juce::String inputGainLabelText(double gain_db)
+// Keeps tiny negative values that display at one decimal from showing up as "-0.0 dB".
+[[nodiscard]] double canonicalInputGainDb(double gain_db)
 {
-    return juce::String{"Input gain: "} + juce::String{gain_db, 1} + " dB";
+    const double rounded_tenths = std::round(gain_db * 10.0);
+    return rounded_tenths == 0.0 ? 0.0 : gain_db;
 }
 
-[[nodiscard]] juce::String inputCalibrationIntroText(const core::InputCalibrationPrompt& prompt)
+[[nodiscard]] juce::String inputGainLabelText(double gain_db)
 {
-    if (!prompt.message.empty())
-    {
-        return juce::String{prompt.message};
-    }
+    return juce::String{"Gain: "} + juce::String{canonicalInputGainDb(gain_db), 1} + " dB";
+}
 
-    return "Calibrate this input before auditioning tones.";
+[[nodiscard]] juce::String inputCalibrationTargetText()
+{
+    return juce::String{"Target: "} +
+           juce::String{common::audio::inputCalibrationTargetRmsDb(), 0} + " dBFS average, " +
+           juce::String{common::audio::inputCalibrationTargetPeakDb(), 0} + " dBFS peak";
+}
+
+[[nodiscard]] juce::String inputCalibrationRecommendationText()
+{
+    return "Info: for best results, look up your device's exact specs.\n"
+           "Set Gain manually so the specified level maps to -12 dBFS average.";
 }
 
 [[nodiscard]] juce::String inputCalibrationReadyText()
 {
-    return "Press Start to measure this input, or adjust the gain manually.";
+    return "Press \"Start\" to measure input, or adjust the gain manually.";
 }
 
-[[nodiscard]] juce::String inputCalibrationMeasurementText()
+[[nodiscard]] juce::String inputCalibrationWaitingText()
 {
-    return juce::String{"Strum normally for "} +
-           juce::String{g_input_calibration_measurement_seconds} +
-           " seconds.\nTarget: " + juce::String{common::audio::inputCalibrationTargetRmsDb(), 0} +
-           " dBFS average, peaks below " +
-           juce::String{common::audio::inputCalibrationTargetPeakDb(), 0} + " dBFS.";
+    return "Waiting for input...\nStrum all open strings at a steady, moderate volume.";
+}
+
+[[nodiscard]] juce::String inputCalibrationMeasuringText()
+{
+    return "Keep strumming all open strings at a steady, moderate volume.";
 }
 
 void configureManualInputGainSlider(juce::Slider& slider)
@@ -719,6 +734,66 @@ private:
     bool m_stop_enabled{false};
 };
 
+// Inline notification that presents guidance with an embedded info icon.
+class InlineInfoNotice final : public juce::Component
+{
+public:
+    InlineInfoNotice()
+        : m_icon(
+              juce::Drawable::createFromImageData(BinaryData::info_svg, BinaryData::info_svgSize))
+    {
+        m_text.setComponentID("input_calibration_recommendation_text");
+        m_text.setJustificationType(juce::Justification::centredLeft);
+        m_text.setColour(juce::Label::textColourId, juce::Colours::whitesmoke);
+        m_text.setInterceptsMouseClicks(false, false);
+        addAndMakeVisible(m_text);
+    }
+
+    void setText(const juce::String& text)
+    {
+        m_text.setText(text, juce::dontSendNotification);
+    }
+
+    // Paints a quiet info panel around the SVG icon and recommendation text.
+    void paint(juce::Graphics& graphics) override
+    {
+        constexpr float corner_radius{5.0f};
+        constexpr float border_width{1.2f};
+        constexpr int icon_column_width{36};
+
+        const juce::Colour accent{juce::Colour::fromRGB(104, 184, 255)};
+        const juce::Rectangle<float> bounds = getLocalBounds().toFloat().reduced(0.5f);
+        graphics.setColour(juce::Colour::fromRGB(24, 47, 70).withAlpha(0.86f));
+        graphics.fillRoundedRectangle(bounds, corner_radius);
+        graphics.setColour(accent.withAlpha(0.95f));
+        graphics.drawRoundedRectangle(bounds, corner_radius, border_width);
+
+        const juce::Rectangle<int> icon_area =
+            getLocalBounds().removeFromLeft(icon_column_width).reduced(8, 12);
+        if (m_icon != nullptr)
+        {
+            m_icon->drawWithin(
+                graphics,
+                icon_area.toFloat(),
+                juce::RectanglePlacement::centred | juce::RectanglePlacement::onlyReduceInSize,
+                1.0f);
+        }
+    }
+
+    void resized() override
+    {
+        constexpr int icon_column_width{36};
+
+        auto area = getLocalBounds().reduced(8, 4);
+        area.removeFromLeft(icon_column_width);
+        m_text.setBounds(area);
+    }
+
+private:
+    std::unique_ptr<juce::Drawable> m_icon;
+    juce::Label m_text;
+};
+
 // Self-contained calibration prompt that samples raw input and reports the result to controller.
 class EditorView::InputCalibrationWindow final : public juce::DocumentWindow
 {
@@ -733,13 +808,17 @@ private:
             , m_controller(controller)
             , m_live_input(live_input)
             , m_prompt(std::move(prompt))
-            , m_input_gain_db(m_prompt.input_gain_db)
+            , m_input_gain_db(canonicalInputGainDb(m_prompt.input_gain_db))
             , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
         {
             m_description.setComponentID("input_calibration_description");
-            m_description.setText(inputCalibrationIntroText(m_prompt), juce::dontSendNotification);
+            m_description.setText(inputCalibrationTargetText(), juce::dontSendNotification);
             m_description.setJustificationType(juce::Justification::centredLeft);
             addAndMakeVisible(m_description);
+
+            m_recommendation.setComponentID("input_calibration_recommendation");
+            m_recommendation.setText(inputCalibrationRecommendationText());
+            addAndMakeVisible(m_recommendation);
 
             m_input_meter.setComponentID("input_calibration_meter");
             addAndMakeVisible(m_input_meter);
@@ -782,7 +861,7 @@ private:
             m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
             addAndMakeVisible(m_cancel_button);
 
-            setSize(480, 280);
+            setSize(520, 332);
             startTimerHz(g_input_calibration_meter_hz);
         }
 
@@ -790,6 +869,8 @@ private:
         {
             auto area = getLocalBounds().reduced(14);
             m_description.setBounds(area.removeFromTop(26));
+            area.removeFromTop(8);
+            m_recommendation.setBounds(area.removeFromTop(50));
             area.removeFromTop(8);
             m_status.setBounds(area.removeFromTop(44));
             area.removeFromTop(8);
@@ -813,6 +894,7 @@ private:
         enum class CalibrationPhase
         {
             Idle,
+            Settling,
             WaitingForInput,
             Measuring,
         };
@@ -829,7 +911,7 @@ private:
                 return;
             }
 
-            m_input_gain_db = m_manual_gain_slider.getValue();
+            m_input_gain_db = canonicalInputGainDb(m_manual_gain_slider.getValue());
             updateInputGainLabel();
             if (m_live_input != nullptr)
             {
@@ -851,7 +933,7 @@ private:
                 return;
             }
 
-            m_input_gain_db = m_manual_gain_slider.getValue();
+            m_input_gain_db = canonicalInputGainDb(m_manual_gain_slider.getValue());
             updateInputGainLabel();
             auto applied = m_controller.onInputCalibrationManuallySet(m_input_gain_db);
             if (!applied.has_value())
@@ -893,11 +975,15 @@ private:
             updateInputGainLabel();
             m_samples_remaining = 0;
             m_wait_samples_remaining = g_input_calibration_wait_sample_count;
-            m_phase = CalibrationPhase::WaitingForInput;
+            m_settle_samples_remaining = g_input_calibration_settle_sample_count;
+            m_phase = CalibrationPhase::Settling;
+            // rawInputMeterLevel() clears the Tracktion meter reader, so this primes retry runs
+            // after the controller has reset input gain and rebuilt the calibration route.
+            (void)m_live_input->rawInputMeterLevel();
             m_retry_button.setEnabled(false);
             setManualControlsEnabled(false);
             m_cancel_button.setButtonText("Dismiss");
-            m_status.setText(inputCalibrationMeasurementText(), juce::dontSendNotification);
+            m_status.setText(inputCalibrationWaitingText(), juce::dontSendNotification);
         }
 
         void timerCallback() override
@@ -914,6 +1000,12 @@ private:
                 return;
             }
 
+            if (m_phase == CalibrationPhase::Settling)
+            {
+                handleSettlingSample();
+                return;
+            }
+
             if (m_phase == CalibrationPhase::WaitingForInput)
             {
                 handleWaitingSample(level);
@@ -921,6 +1013,16 @@ private:
             }
 
             handleMeasurementSample(level);
+        }
+
+        // Discards transient meter samples immediately after retry resets the backend route.
+        void handleSettlingSample()
+        {
+            --m_settle_samples_remaining;
+            if (m_settle_samples_remaining <= 0)
+            {
+                m_phase = CalibrationPhase::WaitingForInput;
+            }
         }
 
         // Waits for a real input signal before starting the fixed calibration capture window.
@@ -938,8 +1040,7 @@ private:
                 m_accumulator.reset();
                 m_samples_remaining = g_input_calibration_sample_count;
                 m_phase = CalibrationPhase::Measuring;
-                m_status.setText(
-                    "Measuring... keep strumming steadily.", juce::dontSendNotification);
+                m_status.setText(inputCalibrationMeasuringText(), juce::dontSendNotification);
                 handleMeasurementSample(level);
                 return;
             }
@@ -971,7 +1072,7 @@ private:
                 return;
             }
 
-            m_input_gain_db = result->calibration_gain.db;
+            m_input_gain_db = canonicalInputGainDb(result->calibration_gain.db);
             m_manual_gain_slider.setValue(m_input_gain_db, juce::dontSendNotification);
             updateInputGainLabel();
             m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
@@ -984,9 +1085,10 @@ private:
             }
 
             m_status.setText(
-                "Calibration complete. You can adjust manually or close.",
+                "Calibration complete. You can recalibrate or set the gain manually.",
                 juce::dontSendNotification);
             m_retry_button.setEnabled(true);
+            m_retry_button.setButtonText("Retry");
             setManualControlsEnabled(true);
             m_cancel_button.setButtonText("Close");
         }
@@ -999,6 +1101,7 @@ private:
             m_phase = CalibrationPhase::Idle;
             m_samples_remaining = 0;
             m_wait_samples_remaining = 0;
+            m_settle_samples_remaining = 0;
             m_status.setText(message, juce::dontSendNotification);
             m_retry_button.setEnabled(true);
             setManualControlsEnabled(true);
@@ -1012,6 +1115,7 @@ private:
         double m_input_gain_db{0.0};
         AudioLevelMeter m_input_meter;
         juce::Label m_description;
+        InlineInfoNotice m_recommendation;
         juce::Label m_gain_label;
         juce::Label m_manual_label;
         juce::Slider m_manual_gain_slider;
@@ -1021,6 +1125,7 @@ private:
         juce::TextButton m_cancel_button;
         int m_samples_remaining{0};
         int m_wait_samples_remaining{0};
+        int m_settle_samples_remaining{0};
         CalibrationPhase m_phase{CalibrationPhase::Idle};
     };
 
