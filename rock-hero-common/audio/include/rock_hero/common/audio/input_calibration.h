@@ -5,14 +5,13 @@
 
 #pragma once
 
-#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <expected>
+#include <optional>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/gain.h>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace rock_hero::common::audio
@@ -114,132 +113,128 @@ class InputCalibrationAccumulator final
 {
 public:
     /*! \brief Clears the accumulated peak and clip state. */
-    void reset()
-    {
-        m_measurement = {};
-        m_active_square_sum = 0.0;
-        m_active_peak_db.clear();
-    }
+    void reset();
 
     /*!
     \brief Adds one raw input meter sample to the measurement window.
     \param level Meter level sampled from the raw input route.
     */
-    void pushSample(AudioMeterLevel level)
-    {
-        m_measurement.loudest_level.peak_db =
-            std::max(m_measurement.loudest_level.peak_db, level.peak_db);
-        m_measurement.loudest_level.clipping =
-            m_measurement.loudest_level.clipping || level.clipping;
-
-        if (level.peak_db < minimumInputCalibrationSignalDb())
-        {
-            return;
-        }
-
-        const double linear_amplitude = decibelsToLinearAmplitude(level.peak_db);
-        m_active_square_sum += linear_amplitude * linear_amplitude;
-        m_active_peak_db.push_back(level.peak_db);
-        m_measurement.active_sample_count += 1;
-        const double active_mean_square =
-            m_active_square_sum / static_cast<double>(m_measurement.active_sample_count);
-        m_measurement.active_rms_db = linearAmplitudeToDecibels(std::sqrt(active_mean_square));
-    }
+    void pushSample(AudioMeterLevel level);
 
     /*!
     \brief Returns the accumulated calibration measurement.
     \return Peak, RMS, robust reference, and consistency data observed since reset().
     */
-    [[nodiscard]] InputCalibrationMeasurement measurement() const
-    {
-        InputCalibrationMeasurement measurement = m_measurement;
-        if (m_active_peak_db.empty())
-        {
-            return measurement;
-        }
-
-        std::vector<double> sorted_peak_db = m_active_peak_db;
-        std::ranges::sort(sorted_peak_db);
-        const std::size_t reference_index =
-            percentileIndex(sorted_peak_db, inputCalibrationReferencePeakPercentile());
-        const std::size_t low_index =
-            percentileIndex(sorted_peak_db, inputCalibrationConsistencyLowPercentile());
-
-        measurement.reference_peak_db = sorted_peak_db[reference_index];
-        measurement.active_rms_db = rmsDbForSortedRange(sorted_peak_db, low_index, reference_index);
-        measurement.active_peak_spread_db =
-            std::max(0.0, measurement.reference_peak_db - sorted_peak_db[low_index]);
-        return measurement;
-    }
+    [[nodiscard]] InputCalibrationMeasurement measurement() const;
 
 private:
     // Reads one nearest-rank index from an already sorted active peak sequence.
     [[nodiscard]] static std::size_t percentileIndex(
-        const std::vector<double>& sorted_peak_db, double percentile) noexcept
-    {
-        if (sorted_peak_db.empty())
-        {
-            return 0;
-        }
-
-        const double clamped_percentile = std::clamp(percentile, 0.0, 1.0);
-        const double raw_index =
-            std::ceil(clamped_percentile * static_cast<double>(sorted_peak_db.size())) - 1.0;
-        const double clamped_index =
-            std::clamp(raw_index, 0.0, static_cast<double>(sorted_peak_db.size() - 1));
-        return static_cast<std::size_t>(clamped_index);
-    }
+        const std::vector<double>& sorted_peak_db, double percentile) noexcept;
 
     // Converts a dBFS meter level into linear amplitude for RMS accumulation.
-    [[nodiscard]] static double decibelsToLinearAmplitude(double db) noexcept
-    {
-        return std::pow(10.0, db / 20.0);
-    }
+    [[nodiscard]] static double decibelsToLinearAmplitude(double db) noexcept;
 
     // Converts a positive linear RMS amplitude back to a bounded dBFS value.
-    [[nodiscard]] static double linearAmplitudeToDecibels(double linear_amplitude) noexcept
-    {
-        if (linear_amplitude <= 0.0)
-        {
-            return minimumAudioMeterDb();
-        }
-
-        return std::clamp(20.0 * std::log10(linear_amplitude), minimumAudioMeterDb(), 12.0);
-    }
+    [[nodiscard]] static double linearAmplitudeToDecibels(double linear_amplitude) noexcept;
 
     // Computes RMS from a sorted inclusive dB range after percentile trimming.
     [[nodiscard]] static double rmsDbForSortedRange(
         const std::vector<double>& sorted_peak_db, std::size_t first_index,
-        std::size_t last_index) noexcept
-    {
-        if (sorted_peak_db.empty())
-        {
-            return minimumAudioMeterDb();
-        }
-
-        first_index = std::min(first_index, sorted_peak_db.size() - 1);
-        last_index = std::min(last_index, sorted_peak_db.size() - 1);
-        if (last_index < first_index)
-        {
-            std::swap(first_index, last_index);
-        }
-
-        double square_sum = 0.0;
-        std::size_t sample_count = 0;
-        for (std::size_t index = first_index; index <= last_index; ++index)
-        {
-            const double linear_amplitude = decibelsToLinearAmplitude(sorted_peak_db[index]);
-            square_sum += linear_amplitude * linear_amplitude;
-            ++sample_count;
-        }
-
-        const double mean_square = square_sum / static_cast<double>(sample_count);
-        return linearAmplitudeToDecibels(std::sqrt(mean_square));
-    }
+        std::size_t last_index) noexcept;
 
     InputCalibrationMeasurement m_measurement{};
     double m_active_square_sum{0.0};
     std::vector<double> m_active_peak_db;
+};
+
+/*! \brief State of the raw-input capture pass used by automatic calibration. */
+enum class InputCalibrationCapturePhase
+{
+    /*! \brief No automatic calibration capture is active. */
+    Idle,
+
+    /*! \brief Recently reset backend route samples are being discarded. */
+    Settling,
+
+    /*! \brief Capture is waiting for the player to produce a usable signal. */
+    WaitingForInput,
+
+    /*! \brief Capture is accumulating the fixed active measurement window. */
+    Measuring,
+
+    /*! \brief Capture completed and produced a calibration result. */
+    Complete,
+
+    /*! \brief Capture stopped because a recoverable calibration error occurred. */
+    Failed,
+};
+
+/*! \brief Result of advancing an automatic calibration capture by one meter sample. */
+struct [[nodiscard]] InputCalibrationCaptureUpdate
+{
+    /*! \brief Capture phase after the sample was processed. */
+    InputCalibrationCapturePhase phase{InputCalibrationCapturePhase::Idle};
+
+    /*! \brief Calibration result when phase is Complete. */
+    std::optional<InputCalibrationResult> result;
+
+    /*! \brief Recoverable calibration error when phase is Failed. */
+    std::optional<InputCalibrationError> error;
+};
+
+/*! \brief Deterministic state machine for automatic input calibration capture. */
+class InputCalibrationCapture final
+{
+public:
+    /*!
+    \brief Creates a capture pass with fixed meter-window counts.
+    \param settle_sample_count Number of initial samples to discard after route reset.
+    \param wait_sample_count Number of quiet samples accepted while waiting for input.
+    \param measurement_sample_count Number of samples in the active measurement window.
+    */
+    InputCalibrationCapture(
+        std::size_t settle_sample_count, std::size_t wait_sample_count,
+        std::size_t measurement_sample_count);
+
+    /*! \brief Starts a new automatic capture pass and clears any previous measurement. */
+    void start();
+
+    /*! \brief Returns the capture to its inactive state and clears the measurement. */
+    void reset();
+
+    /*!
+    \brief Advances the capture by one raw input meter sample.
+    \param level Raw input meter level sampled from the calibration route.
+    \return Current phase plus a result or error when capture has ended.
+    */
+    [[nodiscard]] InputCalibrationCaptureUpdate pushSample(AudioMeterLevel level);
+
+    /*!
+    \brief Returns the current capture phase.
+    \return Current phase.
+    */
+    [[nodiscard]] InputCalibrationCapturePhase phase() const noexcept;
+
+    /*!
+    \brief Reports whether the capture is currently consuming measurement samples.
+    \return True while settling, waiting for input, or measuring.
+    */
+    [[nodiscard]] bool active() const noexcept;
+
+private:
+    [[nodiscard]] InputCalibrationCaptureUpdate currentUpdate() const;
+    [[nodiscard]] InputCalibrationCaptureUpdate fail(InputCalibrationError error);
+    [[nodiscard]] InputCalibrationCaptureUpdate pushMeasurementSample(AudioMeterLevel level);
+
+    InputCalibrationAccumulator m_accumulator;
+    std::size_t m_settle_samples_remaining{0};
+    std::size_t m_wait_samples_remaining{0};
+    std::size_t m_measurement_samples_remaining{0};
+    std::size_t m_settle_sample_count{0};
+    std::size_t m_wait_sample_count{0};
+    std::size_t m_measurement_sample_count{1};
+    InputCalibrationCapturePhase m_phase{InputCalibrationCapturePhase::Idle};
 };
 
 /*! \brief Returns the desired hard-strum peak after calibration. */
@@ -265,49 +260,7 @@ private:
 \param measurement Raw input RMS and peak measurement.
 \return Calibration gain and measured levels, or a typed measurement failure.
 */
-[[nodiscard]] inline std::expected<InputCalibrationResult, InputCalibrationError>
-calculateInputCalibration(const InputCalibrationMeasurement& measurement)
-{
-    if (measurement.loudest_level.clipping ||
-        measurement.loudest_level.peak_db >= clippingAudioMeterDb())
-    {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::InputClipped,
-            .message = "Input clipped. Lower the interface input gain and try again.",
-        }};
-    }
-
-    if (measurement.active_sample_count == 0 ||
-        measurement.active_sample_count < minimumInputCalibrationActiveSampleCount() ||
-        measurement.loudest_level.peak_db < minimumInputCalibrationSignalDb())
-    {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::NoUsableSignal,
-            .message = "Not enough steady input was detected. Strum steadily and try again.",
-        }};
-    }
-
-    if (measurement.active_peak_spread_db > maximumInputCalibrationActivePeakSpreadDb())
-    {
-        return std::unexpected{InputCalibrationError{
-            .code = InputCalibrationErrorCode::InputInconsistent,
-            .message = "Input level varied too much. Use steady moderate strums and try again.",
-        }};
-    }
-
-    const double reference_peak_db =
-        measurement.reference_peak_db >= minimumInputCalibrationSignalDb()
-            ? measurement.reference_peak_db
-            : measurement.loudest_level.peak_db;
-    const double rms_gain_db = inputCalibrationTargetRmsDb() - measurement.active_rms_db;
-    const double peak_limited_gain_db = inputCalibrationTargetPeakDb() - reference_peak_db;
-
-    return InputCalibrationResult{
-        .calibration_gain = clampGain(
-            Gain{quantizeInputCalibrationGainDb(std::min(rms_gain_db, peak_limited_gain_db))}),
-        .measured_level = measurement.loudest_level,
-        .measured_rms_db = measurement.active_rms_db,
-    };
-}
+[[nodiscard]] std::expected<InputCalibrationResult, InputCalibrationError>
+calculateInputCalibration(const InputCalibrationMeasurement& measurement);
 
 } // namespace rock_hero::common::audio
