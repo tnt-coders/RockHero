@@ -1,5 +1,8 @@
 #include "editor.h"
 
+#include "editor_view.h"
+
+#include <memory>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -26,9 +29,12 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, plugin_host, live_rig, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, &audio_devices,
+              meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Wires the controller and view when no persistent tone backend is available.
@@ -38,9 +44,12 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
     core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, plugin_host, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, &audio_devices,
+              meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Wires the controller and view when no plugin-host backend is available.
@@ -49,9 +58,12 @@ Editor::Editor(
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, audio_devices, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, &audio_devices, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, &audio_devices,
+              meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Wires the controller and view when no audio-device backend is available.
@@ -60,9 +72,11 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, plugin_host, live_rig, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Wires the controller and view when no audio-device backend or persistent tone storage exists.
@@ -71,9 +85,11 @@ Editor::Editor(
     common::audio::IPluginHost& plugin_host, common::audio::IThumbnailFactory& thumbnail_factory,
     core::EditorController::Services services)
     : m_controller(transport, audio, plugin_host, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Wires the controller and view when no audio-device or plugin-host backend is available.
@@ -81,9 +97,11 @@ Editor::Editor(
     common::audio::ITransport& transport, common::audio::IAudio& audio,
     common::audio::IThumbnailFactory& thumbnail_factory, core::EditorController::Services services)
     : m_controller(transport, audio, std::move(services))
-    , m_view(m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport))
+    , m_view(
+          std::make_unique<EditorView>(
+              m_controller, transport, thumbnail_factory, nullptr, meterSourceFrom(transport)))
 {
-    m_controller.attachView(m_view);
+    m_controller.attachView(*m_view);
 }
 
 // Uses member declaration order for teardown: the view is destroyed before the controller.
@@ -92,7 +110,7 @@ Editor::~Editor() = default;
 // Exposes the composed JUCE component without exposing controller/view wiring knobs.
 juce::Component& Editor::component() noexcept
 {
-    return m_view;
+    return *m_view;
 }
 
 // Opens a project after construction so app startup can restore the previous session.

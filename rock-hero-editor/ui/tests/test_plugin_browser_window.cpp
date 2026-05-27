@@ -1,7 +1,8 @@
+#include "plugin_browser_window.h"
+
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/ui/plugin_browser_window.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
