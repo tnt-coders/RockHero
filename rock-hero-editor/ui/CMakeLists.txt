@@ -1,12 +1,6 @@
 # Package the static SVG editor UI icons into a JUCE binary-data target.
-rock_hero_juce_add_binary_data(
-    rock_hero_editor_ui_resources
-    SOURCES
-    resources/play_arrow.svg
-    resources/pause.svg
-    resources/stop.svg
-    resources/info.svg
-    resources/help.svg)
+rock_hero_juce_add_binary_data(rock_hero_editor_ui_resources SOURCES resources/play_arrow.svg
+                               resources/pause.svg resources/stop.svg resources/help.svg)
 
 add_library(rock_hero_editor_ui STATIC)
 add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)

@@ -507,6 +507,13 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> setInputGain(
         common::audio::Gain gain) override
     {
+        if (next_set_input_gain_error.has_value())
+        {
+            common::audio::LiveInputError error = std::move(*next_set_input_gain_error);
+            next_set_input_gain_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
         current_input_gain = common::audio::clampGain(gain);
         set_input_gain_call_count += 1;
         return {};
@@ -525,6 +532,13 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> setLiveInputMonitoringEnabled(
         bool enabled) override
     {
+        if (next_set_live_input_monitoring_error.has_value())
+        {
+            common::audio::LiveInputError error = std::move(*next_set_live_input_monitoring_error);
+            next_set_live_input_monitoring_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
         live_input_monitoring_enabled = enabled;
         set_live_input_monitoring_call_count += 1;
         return {};
@@ -538,6 +552,14 @@ public:
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
     setCalibrationInputMonitoringEnabled(bool enabled) override
     {
+        if (next_set_calibration_input_monitoring_error.has_value())
+        {
+            common::audio::LiveInputError error =
+                std::move(*next_set_calibration_input_monitoring_error);
+            next_set_calibration_input_monitoring_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
         calibration_input_monitoring_enabled = enabled;
         set_calibration_input_monitoring_call_count += 1;
         return {};
@@ -571,6 +593,12 @@ public:
     common::audio::AudioMeterLevel raw_input_meter_level{};
     bool live_input_monitoring_enabled{false};
     bool calibration_input_monitoring_enabled{false};
+
+    // One-shot failures injected before mutating live-input state.
+    std::optional<common::audio::LiveInputError> next_set_input_gain_error{};
+    std::optional<common::audio::LiveInputError> next_set_live_input_monitoring_error{};
+    std::optional<common::audio::LiveInputError> next_set_calibration_input_monitoring_error{};
+
     int set_input_gain_call_count{0};
     int set_live_input_monitoring_call_count{0};
     int set_calibration_input_monitoring_call_count{0};
@@ -5115,6 +5143,98 @@ TEST_CASE(
     controller.onInputCalibrationMeasurementCancelled();
 
     CHECK(transport.current_input_gain.db == 7.5);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+}
+
+// Verifies calibration setup failure while resetting gain restores the previous input route.
+TEST_CASE("Input calibration start restores route on gain failure", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_gain_failure"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    transport.current_input_gain = common::audio::Gain{4.0};
+    transport.live_input_monitoring_enabled = true;
+    transport.calibration_input_monitoring_enabled = false;
+    transport.next_set_input_gain_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::CouldNotSetInputGain,
+        "gain reset failed",
+    };
+
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+
+    REQUIRE_FALSE(measurement_started.has_value());
+    CHECK(
+        measurement_started.error().code ==
+        common::audio::LiveInputErrorCode::CouldNotSetInputGain);
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+}
+
+// Verifies calibration setup failure while enabling monitor restores the previous input route.
+TEST_CASE("Input calibration start restores route on monitor failure", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_monitor_failure"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    FakeAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    FakePluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        transport,
+        audio,
+        audio_devices,
+        plugin_host,
+        live_rig,
+        EditorController::Services{
+            .open_function = project_services.openFunction(),
+            .settings = &settings,
+        }
+    };
+    controller.attachView(view);
+    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+
+    transport.current_input_gain = common::audio::Gain{4.0};
+    transport.live_input_monitoring_enabled = true;
+    transport.calibration_input_monitoring_enabled = false;
+    transport.next_set_calibration_input_monitoring_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::CouldNotSetMonitoring,
+        "calibration monitoring failed",
+    };
+
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+
+    REQUIRE_FALSE(measurement_started.has_value());
+    CHECK(
+        measurement_started.error().code ==
+        common::audio::LiveInputErrorCode::CouldNotSetMonitoring);
+    CHECK(transport.current_input_gain.db == 4.0);
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 }

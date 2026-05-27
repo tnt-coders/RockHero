@@ -8,6 +8,7 @@
 #include <memory>
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/input_calibration.h>
+#include <rock_hero/common/audio/input_calibration_capture_session.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <utility>
 
@@ -76,6 +77,12 @@ constexpr int g_input_calibration_preferred_width{
            juce::String{canonicalInputGainDb(gain_db), 1} + " dB.";
 }
 
+[[nodiscard]] juce::String inputManualCalibrationCompleteText(double gain_db)
+{
+    return juce::String{"Manual calibration saved. Gain set to "} +
+           juce::String{canonicalInputGainDb(gain_db), 1} + " dB.";
+}
+
 void configureManualInputGainSlider(juce::Slider& slider)
 {
     slider.setComponentID("input_calibration_manual_gain");
@@ -112,8 +119,7 @@ public:
         : m_owner(owner)
         , m_controller(controller)
         , m_live_input(live_input)
-        , m_prompt(std::move(prompt))
-        , m_input_gain_db(canonicalInputGainDb(m_prompt.input_gain_db))
+        , m_input_gain_db(canonicalInputGainDb(prompt.input_gain_db))
         , m_committed_input_gain_db(m_input_gain_db)
         , m_measurement_restore_gain_db(m_input_gain_db)
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
@@ -230,14 +236,6 @@ private:
         syncPreferredSize();
     }
 
-    enum class CalibrationPhase
-    {
-        Idle,
-        Settling,
-        WaitingForInput,
-        Measuring,
-    };
-
     void setDisplayedInputGain(double gain_db)
     {
         m_input_gain_db = canonicalInputGainDb(gain_db);
@@ -256,7 +254,7 @@ private:
 
     void updateManualGainPreview()
     {
-        if (m_phase != CalibrationPhase::Idle)
+        if (m_capture_session.active())
         {
             return;
         }
@@ -273,7 +271,7 @@ private:
 
     void applyManualCalibration()
     {
-        if (m_phase != CalibrationPhase::Idle)
+        if (m_capture_session.active())
         {
             return;
         }
@@ -288,7 +286,7 @@ private:
             return;
         }
 
-        setStatusText("Manual calibration saved.");
+        setStatusText(inputManualCalibrationCompleteText(m_input_gain_db));
         m_committed_input_gain_db = m_input_gain_db;
         m_measurement_restore_gain_db = m_input_gain_db;
         m_calibrate_button.setEnabled(true);
@@ -315,13 +313,10 @@ private:
             return;
         }
 
-        m_accumulator.reset();
         m_measurement_restore_gain_db = m_committed_input_gain_db;
         setDisplayedInputGain(common::audio::defaultGainDb());
-        m_samples_remaining = 0;
-        m_wait_samples_remaining = g_input_calibration_wait_sample_count;
-        m_settle_samples_remaining = g_input_calibration_settle_sample_count;
-        m_phase = CalibrationPhase::Settling;
+        m_capture_session.start();
+        m_last_capture_phase = m_capture_session.phase();
         // rawInputMeterLevel() clears the Tracktion meter reader, so this primes retry runs
         // after the controller has reset input gain and rebuilt the calibration route.
         (void)m_live_input->rawInputMeterLevel();
@@ -340,82 +335,35 @@ private:
         }
         m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
 
-        if (m_phase == CalibrationPhase::Idle)
+        if (!m_capture_session.active())
         {
             return;
         }
 
-        if (m_phase == CalibrationPhase::Settling)
+        const common::audio::InputCalibrationCaptureUpdate update =
+            m_capture_session.pushSample(level);
+        if (update.phase == common::audio::InputCalibrationCapturePhase::Measuring &&
+            m_last_capture_phase != common::audio::InputCalibrationCapturePhase::Measuring)
         {
-            handleSettlingSample();
-            return;
-        }
-
-        if (m_phase == CalibrationPhase::WaitingForInput)
-        {
-            handleWaitingSample(level);
-            return;
-        }
-
-        handleMeasurementSample(level);
-    }
-
-    // Discards transient meter samples immediately after retry resets the backend route.
-    void handleSettlingSample()
-    {
-        --m_settle_samples_remaining;
-        if (m_settle_samples_remaining <= 0)
-        {
-            m_phase = CalibrationPhase::WaitingForInput;
-        }
-    }
-
-    // Waits for a real input signal before starting the fixed calibration capture window.
-    void handleWaitingSample(common::audio::AudioMeterLevel level)
-    {
-        if (level.clipping || level.peak_db >= common::audio::clippingAudioMeterDb())
-        {
-            finishMeasurementError("Input clipped. Lower the interface input gain and try again.");
-            return;
-        }
-
-        if (level.peak_db >= common::audio::minimumInputCalibrationSignalDb())
-        {
-            m_accumulator.reset();
-            m_samples_remaining = g_input_calibration_sample_count;
-            m_phase = CalibrationPhase::Measuring;
             setStatusText(inputCalibrationMeasuringText());
-            handleMeasurementSample(level);
+        }
+        m_last_capture_phase = update.phase;
+        if (update.error.has_value())
+        {
+            finishMeasurementError(juce::String{update.error->message});
             return;
         }
-
-        --m_wait_samples_remaining;
-        if (m_wait_samples_remaining <= 0)
+        if (update.result.has_value())
         {
-            finishMeasurementError(
-                "No usable input signal was detected. Check the input and try again.");
+            finishMeasurementSuccess(*update.result, level);
         }
     }
 
-    // Accumulates active-window RMS and finalizes calibration once the capture window ends.
-    void handleMeasurementSample(common::audio::AudioMeterLevel level)
+    // Applies a successful automatic capture and mirrors the result in the manual gain control.
+    void finishMeasurementSuccess(
+        const common::audio::InputCalibrationResult& result, common::audio::AudioMeterLevel level)
     {
-        m_accumulator.pushSample(level);
-        --m_samples_remaining;
-        if (m_samples_remaining > 0)
-        {
-            return;
-        }
-
-        m_phase = CalibrationPhase::Idle;
-        const auto result = common::audio::calculateInputCalibration(m_accumulator.measurement());
-        if (!result.has_value())
-        {
-            finishMeasurementError(juce::String{result.error().message});
-            return;
-        }
-
-        setDisplayedInputGain(result->calibration_gain.db);
+        setDisplayedInputGain(result.calibration_gain.db);
         m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
 
         auto applied = m_controller.onInputCalibrationSucceeded(m_input_gain_db);
@@ -426,6 +374,8 @@ private:
         }
 
         setStatusText(inputCalibrationCompleteText(m_input_gain_db));
+        m_capture_session.reset();
+        m_last_capture_phase = m_capture_session.phase();
         m_committed_input_gain_db = m_input_gain_db;
         m_measurement_restore_gain_db = m_input_gain_db;
         m_calibrate_button.setEnabled(true);
@@ -437,11 +387,8 @@ private:
     void finishMeasurementError(const juce::String& message)
     {
         m_controller.onInputCalibrationMeasurementCancelled();
-        m_accumulator.reset();
-        m_phase = CalibrationPhase::Idle;
-        m_samples_remaining = 0;
-        m_wait_samples_remaining = 0;
-        m_settle_samples_remaining = 0;
+        m_capture_session.reset();
+        m_last_capture_phase = m_capture_session.phase();
         setDisplayedInputGain(m_measurement_restore_gain_db);
         refreshInputMeter();
         setStatusText(message);
@@ -452,8 +399,14 @@ private:
     InputCalibrationWindow& m_owner;
     core::IEditorController& m_controller;
     const common::audio::ILiveInput* m_live_input{};
-    core::InputCalibrationPrompt m_prompt;
-    common::audio::InputCalibrationAccumulator m_accumulator;
+    common::audio::InputCalibrationCaptureSession m_capture_session{
+        g_input_calibration_settle_sample_count,
+        g_input_calibration_wait_sample_count,
+        g_input_calibration_sample_count,
+    };
+    common::audio::InputCalibrationCapturePhase m_last_capture_phase{
+        common::audio::InputCalibrationCapturePhase::Idle,
+    };
     double m_input_gain_db{0.0};
     double m_committed_input_gain_db{0.0};
     double m_measurement_restore_gain_db{0.0};
@@ -467,10 +420,6 @@ private:
     juce::Label m_status;
     juce::TextButton m_calibrate_button;
     juce::TextButton m_cancel_button;
-    int m_samples_remaining{0};
-    int m_wait_samples_remaining{0};
-    int m_settle_samples_remaining{0};
-    CalibrationPhase m_phase{CalibrationPhase::Idle};
 };
 
 InputCalibrationWindow::InputCalibrationWindow(
