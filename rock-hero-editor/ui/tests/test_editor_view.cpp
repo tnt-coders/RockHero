@@ -628,9 +628,12 @@ template <class ComponentType>
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,
-        .play_pause_enabled = true,
-        .stop_enabled = false,
-        .play_pause_shows_pause_icon = false,
+        .transport =
+            core::TransportViewState{
+                .play_pause_enabled = true,
+                .stop_enabled = false,
+                .play_pause_shows_pause_icon = false,
+            },
         .audio_devices_available = false,
         .visible_timeline =
             common::core::TimeRange{
@@ -706,9 +709,12 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .close_enabled = false,
             .project_loaded = true,
             .save_requires_destination = false,
-            .play_pause_enabled = true,
-            .stop_enabled = false,
-            .play_pause_shows_pause_icon = false,
+            .transport =
+                core::TransportViewState{
+                    .play_pause_enabled = true,
+                    .stop_enabled = false,
+                    .play_pause_shows_pause_icon = false,
+                },
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
@@ -782,9 +788,12 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .close_enabled = true,
             .project_loaded = true,
             .save_requires_destination = false,
-            .play_pause_enabled = true,
-            .stop_enabled = true,
-            .play_pause_shows_pause_icon = true,
+            .transport =
+                core::TransportViewState{
+                    .play_pause_enabled = true,
+                    .stop_enabled = true,
+                    .play_pause_shows_pause_icon = true,
+                },
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{
@@ -1230,8 +1239,8 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     view.setBounds(0, 0, 1280, 800);
 
     auto state = makeLoadedEditorState(20.0);
-    state.stop_enabled = true;
-    state.play_pause_shows_pause_icon = true;
+    state.transport.stop_enabled = true;
+    state.transport.play_pause_shows_pause_icon = true;
     transport.current_position = common::core::TimePosition{5.0};
     view.setState(state);
 
@@ -1242,11 +1251,11 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     viewport.setViewPosition(400, 0);
     REQUIRE(viewport.getViewPositionX() == 400);
 
-    state.play_pause_shows_pause_icon = false;
+    state.transport.play_pause_shows_pause_icon = false;
     view.setState(state);
     CHECK(viewport.getViewPositionX() == 400);
 
-    state.stop_enabled = false;
+    state.transport.stop_enabled = false;
     transport.current_position = common::core::TimePosition{};
     view.setState(state);
     CHECK(viewport.getViewPositionX() == 0);
@@ -1325,9 +1334,12 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .close_enabled = true,
             .project_loaded = true,
             .save_requires_destination = false,
-            .play_pause_enabled = true,
-            .stop_enabled = false,
-            .play_pause_shows_pause_icon = false,
+            .transport =
+                core::TransportViewState{
+                    .play_pause_enabled = true,
+                    .stop_enabled = false,
+                    .play_pause_shows_pause_icon = false,
+                },
             .audio_devices_available = false,
             .visible_timeline =
                 common::core::TimeRange{

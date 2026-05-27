@@ -1,4 +1,4 @@
-Co# EditorController Decomposition Plan
+# EditorController Decomposition Plan
 
 ## Purpose
 
@@ -99,12 +99,13 @@ controllers.
 
 ## View State Placement
 
-- Keep `EditorViewState`, `ArrangementViewState`, `PluginBrowserViewState`, and
-  `SignalChainViewState` in `rock-hero-editor/core` because they express editor workflow state.
-- Keep `TransportControlsViewState` in `rock-hero-editor/ui` for now because it is local widget
-  rendering state derived by `EditorView`.
-- Revisit a UI-owned view state only when another product-core workflow needs to produce it or when
-  tests start needing a headless state transition seam.
+- Keep `EditorViewState`, `ArrangementViewState`, `PluginBrowserViewState`,
+  `SignalChainViewState`, and `TransportViewState` in `rock-hero-editor/core` because they express
+  editor workflow state.
+- Keep transport controls as a passive UI widget that consumes `core::TransportViewState` and emits
+  listener callbacks upward.
+- Add UI-owned view state only when it is strictly local widget rendering state and does not belong
+  to a product-core workflow projection.
 
 ## Refactor Steps
 
