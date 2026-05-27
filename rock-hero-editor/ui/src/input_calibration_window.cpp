@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/input_calibration.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -50,13 +51,10 @@ constexpr int g_input_calibration_settle_sample_count{g_input_calibration_meter_
 
 [[nodiscard]] juce::String inputCalibrationRecommendationText()
 {
-    return "Info: for best results, look up your device's exact specs.\n"
-           "Set Gain manually so the specified level maps to -12 dBFS average.";
-}
-
-[[nodiscard]] juce::String inputCalibrationReadyText()
-{
-    return "Press \"Start\" to measure input, or adjust the gain manually.";
+    return inputCalibrationTargetText() +
+           "\n\n"
+           "Manual calibration is preferred when exact device specifications are known.\n\n"
+           "Use automatic calibration for Windows audio devices such as \"Real Tone\" cables.";
 }
 
 [[nodiscard]] juce::String inputCalibrationWaitingText()
@@ -111,6 +109,42 @@ public:
     void setText(const juce::String& text)
     {
         m_text.setText(text, juce::dontSendNotification);
+    }
+
+    [[nodiscard]] int preferredHeightForWidth(int width) const
+    {
+        constexpr int icon_column_width{36};
+        constexpr int horizontal_padding{16};
+        constexpr int vertical_padding{12};
+        constexpr int minimum_height{50};
+
+        const int text_width = std::max(1, width - icon_column_width - horizontal_padding);
+        const juce::Font font = m_text.getFont();
+        const std::string text = m_text.getText().toStdString();
+        int visual_line_count = 0;
+        std::size_t line_start = 0;
+        while (line_start <= text.size())
+        {
+            const std::size_t line_end = text.find('\n', line_start);
+            const std::string line = text.substr(
+                line_start, line_end == std::string::npos ? line_end : line_end - line_start);
+            juce::GlyphArrangement glyphs;
+            glyphs.addLineOfText(font, juce::String{line}, 0.0f, 0.0f);
+            const float line_width = glyphs.getBoundingBox(0, -1, true).getWidth();
+            visual_line_count += std::max(
+                1, static_cast<int>(std::ceil(line_width / static_cast<float>(text_width))));
+
+            if (line_end == std::string::npos)
+            {
+                break;
+            }
+
+            line_start = line_end + 1;
+        }
+
+        const int text_height =
+            static_cast<int>(std::ceil(font.getHeight() * static_cast<float>(visual_line_count)));
+        return std::max(minimum_height, text_height + vertical_padding);
     }
 
     // Paints a quiet info panel around the SVG icon and recommendation text.
@@ -169,11 +203,6 @@ public:
         , m_input_gain_db(canonicalInputGainDb(m_prompt.input_gain_db))
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
-        m_description.setComponentID("input_calibration_description");
-        m_description.setText(inputCalibrationTargetText(), juce::dontSendNotification);
-        m_description.setJustificationType(juce::Justification::centredLeft);
-        addAndMakeVisible(m_description);
-
         m_recommendation.setComponentID("input_calibration_recommendation");
         m_recommendation.setText(inputCalibrationRecommendationText());
         addAndMakeVisible(m_recommendation);
@@ -202,14 +231,12 @@ public:
         addAndMakeVisible(m_manual_apply_button);
 
         m_status.setComponentID("input_calibration_status");
-        m_status.setText(inputCalibrationReadyText(), juce::dontSendNotification);
         m_status.setJustificationType(juce::Justification::centredLeft);
-        m_status.setColour(juce::Label::backgroundColourId, juce::Colours::black.withAlpha(0.20f));
-        m_status.setBorderSize(juce::BorderSize<int>{4, 8, 4, 8});
         addAndMakeVisible(m_status);
+        m_status.setVisible(false);
 
         m_retry_button.setComponentID("input_calibration_start_button");
-        m_retry_button.setButtonText("Start");
+        m_retry_button.setButtonText("Calibrate");
         m_retry_button.onClick = [this] { startMeasurement(); };
         addAndMakeVisible(m_retry_button);
 
@@ -218,28 +245,36 @@ public:
         m_cancel_button.onClick = [this] { m_owner.closeButtonPressed(); };
         addAndMakeVisible(m_cancel_button);
 
-        setSize(520, 332);
+        constexpr int preferred_width{520};
+        setSize(preferred_width, preferredHeightForWidth(preferred_width));
         startTimerHz(g_input_calibration_meter_hz);
     }
 
     void resized() override
     {
         auto area = getLocalBounds().reduced(14);
-        m_description.setBounds(area.removeFromTop(26));
+        m_recommendation.setBounds(
+            area.removeFromTop(m_recommendation.preferredHeightForWidth(area.getWidth())));
         area.removeFromTop(8);
-        m_recommendation.setBounds(area.removeFromTop(50));
-        area.removeFromTop(8);
-        m_status.setBounds(area.removeFromTop(44));
-        area.removeFromTop(8);
-        m_input_meter.setBounds(area.removeFromTop(26));
-        area.removeFromTop(6);
         m_gain_label.setBounds(area.removeFromTop(22));
+        area.removeFromTop(4);
+        m_input_meter.setBounds(area.removeFromTop(26));
         area.removeFromTop(8);
         auto manual_area = area.removeFromTop(28);
         m_manual_label.setBounds(manual_area.removeFromLeft(60));
         m_manual_apply_button.setBounds(manual_area.removeFromRight(72));
         manual_area.removeFromRight(8);
         m_manual_gain_slider.setBounds(manual_area);
+        if (m_status.isVisible())
+        {
+            area.removeFromTop(8);
+            m_status.setBounds(area.removeFromTop(44));
+        }
+        else
+        {
+            m_status.setBounds({});
+        }
+
         area.removeFromTop(8);
         auto buttons = area.removeFromBottom(28);
         m_cancel_button.setBounds(buttons.removeFromRight(96));
@@ -248,6 +283,37 @@ public:
     }
 
 private:
+    [[nodiscard]] int preferredHeightForWidth(int width) const
+    {
+        constexpr int outer_margin{28};
+        constexpr int gap_height{8};
+        constexpr int gain_label_height{22};
+        constexpr int meter_gap_height{4};
+        constexpr int meter_height{26};
+        constexpr int manual_controls_height{28};
+        constexpr int status_height{44};
+        constexpr int buttons_height{28};
+
+        const int content_width = std::max(1, width - outer_margin);
+        const int status_section_height = m_status.isVisible() ? gap_height + status_height : 0;
+        return outer_margin + m_recommendation.preferredHeightForWidth(content_width) + gap_height +
+               gain_label_height + meter_gap_height + meter_height + gap_height +
+               manual_controls_height + status_section_height + gap_height + buttons_height;
+    }
+
+    void syncPreferredSize()
+    {
+        constexpr int preferred_width{520};
+        setSize(preferred_width, preferredHeightForWidth(preferred_width));
+    }
+
+    void setStatusText(const juce::String& text)
+    {
+        m_status.setText(text, juce::dontSendNotification);
+        m_status.setVisible(text.isNotEmpty());
+        syncPreferredSize();
+    }
+
     enum class CalibrationPhase
     {
         Idle,
@@ -295,13 +361,13 @@ private:
         auto applied = m_controller.onInputCalibrationManuallySet(m_input_gain_db);
         if (!applied.has_value())
         {
-            m_status.setText(juce::String{applied.error().message}, juce::dontSendNotification);
+            setStatusText(juce::String{applied.error().message});
             m_retry_button.setEnabled(true);
             setManualControlsEnabled(true);
             return;
         }
 
-        m_status.setText("Manual calibration saved.", juce::dontSendNotification);
+        setStatusText("Manual calibration saved.");
         m_retry_button.setEnabled(true);
         setManualControlsEnabled(true);
         m_cancel_button.setButtonText("Close");
@@ -311,7 +377,7 @@ private:
     {
         if (m_live_input == nullptr)
         {
-            m_status.setText("Live input is unavailable.", juce::dontSendNotification);
+            setStatusText("Live input is unavailable.");
             m_retry_button.setEnabled(true);
             setManualControlsEnabled(true);
             return;
@@ -320,7 +386,7 @@ private:
         auto started = m_controller.onInputCalibrationMeasurementStarted();
         if (!started.has_value())
         {
-            m_status.setText(juce::String{started.error().message}, juce::dontSendNotification);
+            setStatusText(juce::String{started.error().message});
             m_retry_button.setEnabled(true);
             setManualControlsEnabled(true);
             return;
@@ -340,7 +406,7 @@ private:
         m_retry_button.setEnabled(false);
         setManualControlsEnabled(false);
         m_cancel_button.setButtonText("Dismiss");
-        m_status.setText(inputCalibrationWaitingText(), juce::dontSendNotification);
+        setStatusText(inputCalibrationWaitingText());
     }
 
     void timerCallback() override
@@ -396,7 +462,7 @@ private:
             m_accumulator.reset();
             m_samples_remaining = g_input_calibration_sample_count;
             m_phase = CalibrationPhase::Measuring;
-            m_status.setText(inputCalibrationMeasuringText(), juce::dontSendNotification);
+            setStatusText(inputCalibrationMeasuringText());
             handleMeasurementSample(level);
             return;
         }
@@ -439,9 +505,7 @@ private:
             return;
         }
 
-        m_status.setText(
-            "Calibration complete. You can recalibrate or set the gain manually.",
-            juce::dontSendNotification);
+        setStatusText("Calibration complete. You can recalibrate or set the gain manually.");
         m_retry_button.setEnabled(true);
         m_retry_button.setButtonText("Retry");
         setManualControlsEnabled(true);
@@ -457,7 +521,7 @@ private:
         m_samples_remaining = 0;
         m_wait_samples_remaining = 0;
         m_settle_samples_remaining = 0;
-        m_status.setText(message, juce::dontSendNotification);
+        setStatusText(message);
         m_retry_button.setEnabled(true);
         setManualControlsEnabled(true);
     }
@@ -469,7 +533,6 @@ private:
     common::audio::InputCalibrationAccumulator m_accumulator;
     double m_input_gain_db{0.0};
     AudioLevelMeter m_input_meter;
-    juce::Label m_description;
     InlineInfoNotice m_recommendation;
     juce::Label m_gain_label;
     juce::Label m_manual_label;

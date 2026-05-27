@@ -1036,6 +1036,7 @@ INPUT                  = @CMAKE_SOURCE_DIR@/README.md \
                          @CMAKE_SOURCE_DIR@/docs/design/coding-conventions.md \
                          @CMAKE_SOURCE_DIR@/docs/design/documentation-conventions.md \
                          @CMAKE_SOURCE_DIR@/docs/user/index.md \
+                         @CMAKE_SOURCE_DIR@/docs/user/input-calibration.md \
                          @CMAKE_SOURCE_DIR@/docs/user/difficulty-ratings.md
 
 # This tag can be used to specify the character encoding of the source files
