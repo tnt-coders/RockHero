@@ -8,6 +8,7 @@ find_package(libebur128 CONFIG REQUIRED)
 target_sources(
     rock_hero_common_audio
     PRIVATE src/audio_device_settings.cpp
+            src/input_calibration.cpp
             src/audio_normalization.cpp
             src/engine.cpp
             src/live_rig_gain_plugin.cpp

@@ -689,15 +689,15 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True while the audio-device settings window is open.
     bool m_audio_device_settings_window_open{false};
 
-    // Calibration measurement session used to restore a previous calibration on dismissal.
-    struct InputCalibrationMeasurementSession
+    // Active calibration attempt metadata used to restore a previous calibration on dismissal.
+    struct ActiveInputCalibration
     {
         common::audio::InputDeviceIdentity input_device_identity;
         std::optional<common::audio::InputCalibrationState> previous_calibration_state;
     };
 
-    // Current measurement session, if the popup has started one.
-    std::optional<InputCalibrationMeasurementSession> m_input_calibration_measurement{};
+    // Current automatic calibration attempt, if the popup has started one.
+    std::optional<ActiveInputCalibration> m_active_input_calibration{};
 
     // Plugins shown in the browser and selected by opaque plugin ID.
     std::vector<common::audio::PluginCandidate> m_plugin_catalog;
@@ -2234,7 +2234,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
         return std::unexpected{std::move(calibration_monitoring_enabled.error())};
     }
 
-    m_input_calibration_measurement = InputCalibrationMeasurementSession{
+    m_active_input_calibration = ActiveInputCalibration{
         .input_device_identity = *current_identity,
         .previous_calibration_state = std::move(previous_calibration_state),
     };
@@ -2245,14 +2245,14 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
 // Stops an in-progress measurement without closing the calibration prompt.
 void EditorController::Impl::onInputCalibrationMeasurementCancelled()
 {
-    if (m_input_calibration_measurement.has_value())
+    if (m_active_input_calibration.has_value())
     {
         const auto restored = restoreCalibrationMeasurementState();
         if (!restored.has_value())
         {
             reportError(restored.error().message);
         }
-        m_input_calibration_measurement.reset();
+        m_active_input_calibration.reset();
     }
     updateView();
 }
@@ -2261,7 +2261,7 @@ void EditorController::Impl::onInputCalibrationMeasurementCancelled()
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     onInputCalibrationSucceeded(double gain_db)
 {
-    if (!m_input_calibration_measurement.has_value())
+    if (!m_active_input_calibration.has_value())
     {
         return std::unexpected{common::audio::LiveInputError{
             common::audio::LiveInputErrorCode::InputRouteUnavailable,
@@ -2269,10 +2269,10 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
         }};
     }
 
-    return commitInputCalibration(gain_db, m_input_calibration_measurement->input_device_identity);
+    return commitInputCalibration(gain_db, m_active_input_calibration->input_device_identity);
 }
 
-// Applies a user-entered calibration gain without requiring an active measurement session.
+// Applies a user-entered calibration gain without requiring an active automatic attempt.
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     onInputCalibrationManuallySet(double gain_db)
 {
@@ -2282,7 +2282,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
 // Closes the calibration prompt without enabling uncalibrated live monitoring.
 void EditorController::Impl::onInputCalibrationDismissed()
 {
-    if (m_input_calibration_measurement.has_value())
+    if (m_active_input_calibration.has_value())
     {
         const auto restored = restoreCalibrationMeasurementState();
         if (!restored.has_value())
@@ -2290,7 +2290,7 @@ void EditorController::Impl::onInputCalibrationDismissed()
             reportError(restored.error().message);
         }
     }
-    m_input_calibration_measurement.reset();
+    m_active_input_calibration.reset();
     closeInputCalibrationPrompt();
     updateView();
 }
@@ -3247,7 +3247,7 @@ void EditorController::Impl::syncCommittedInputDeviceIdentity()
     }
 
     m_committed_input_device_identity = current_identity;
-    m_input_calibration_measurement.reset();
+    m_active_input_calibration.reset();
     clearInputCalibration();
     if (m_live_input != nullptr)
     {
@@ -3399,7 +3399,7 @@ EditorController::Impl::InputCalibrationRouteState EditorController::Impl::
     };
 }
 
-// Best-effort rollback for setup failures before a measurement session exists.
+// Best-effort rollback for setup failures before an automatic attempt exists.
 void EditorController::Impl::restoreInputCalibrationRouteStateBestEffort(
     const InputCalibrationRouteState& route_state)
 {
@@ -3485,7 +3485,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
     };
     m_committed_input_device_identity = current_identity;
     persistInputCalibration();
-    m_input_calibration_measurement.reset();
+    m_active_input_calibration.reset();
     updateView();
     return {};
 }
@@ -3494,7 +3494,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     restoreCalibrationMeasurementState()
 {
-    if (m_live_input == nullptr || !m_input_calibration_measurement.has_value())
+    if (m_live_input == nullptr || !m_active_input_calibration.has_value())
     {
         return {};
     }
@@ -3515,7 +3515,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     const std::optional<common::audio::InputDeviceIdentity> current_identity =
         currentInputDeviceIdentity();
     if (!current_identity.has_value() ||
-        *current_identity != m_input_calibration_measurement->input_device_identity)
+        *current_identity != m_active_input_calibration->input_device_identity)
     {
         clearInputCalibration();
         std::ignore = m_live_input->setLiveInputMonitoringEnabled(false);
@@ -3523,7 +3523,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     }
 
     const std::optional<common::audio::InputCalibrationState>& previous_state =
-        m_input_calibration_measurement->previous_calibration_state;
+        m_active_input_calibration->previous_calibration_state;
     if (!previous_state.has_value() ||
         !common::audio::inputCalibrationMatchesIdentity(*previous_state, *current_identity))
     {

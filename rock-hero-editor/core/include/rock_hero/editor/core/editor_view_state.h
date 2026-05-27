@@ -13,6 +13,7 @@
 #include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_action_id.h>
+#include <rock_hero/editor/core/input_calibration_view_state.h>
 #include <rock_hero/editor/core/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <rock_hero/editor/core/transport_view_state.h>
@@ -122,25 +123,6 @@ struct RestoreInterruptedPrompt
     */
     friend bool operator==(
         const RestoreInterruptedPrompt& lhs, const RestoreInterruptedPrompt& rhs) = default;
-};
-
-/*! \brief Describes an active input calibration prompt requested by the controller. */
-struct InputCalibrationPrompt
-{
-    /*! \brief Message shown by the calibration prompt. */
-    std::string message;
-
-    /*! \brief Input gain currently displayed by the calibration prompt. */
-    double input_gain_db{0.0};
-
-    /*!
-    \brief Compares two input calibration prompt requests by their stored values.
-    \param lhs Left-hand prompt request.
-    \param rhs Right-hand prompt request.
-    \return True when both prompt requests store equal values.
-    */
-    friend bool operator==(const InputCalibrationPrompt& lhs, const InputCalibrationPrompt& rhs) =
-        default;
 };
 
 /*!

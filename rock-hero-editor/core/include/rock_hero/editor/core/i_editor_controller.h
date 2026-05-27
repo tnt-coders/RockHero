@@ -5,11 +5,10 @@
 
 #pragma once
 
-#include <expected>
 #include <filesystem>
 #include <functional>
-#include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/i_input_calibration_workflow.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -21,7 +20,7 @@ namespace rock_hero::editor::core
 Concrete implementations translate these plain-English intents into transport, audio, session, and
 view updates without exposing JUCE callback types to tests or to non-UI code.
 */
-class IEditorController
+class IEditorController : public IInputCalibrationWorkflow
 {
 public:
     /*! \brief Destroys the editor-controller interface. */
@@ -116,35 +115,6 @@ public:
 
     /*! \brief Handles a request to manually calibrate the current input route. */
     virtual void onInputCalibrationRequested() = 0;
-
-    /*!
-    \brief Prepares the live input route for raw input calibration measurement.
-    \return Empty success, or a typed live-input failure.
-    */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
-    onInputCalibrationMeasurementStarted() = 0;
-
-    /*! \brief Stops an active calibration measurement while leaving the prompt open. */
-    virtual void onInputCalibrationMeasurementCancelled() = 0;
-
-    /*!
-    \brief Applies and stores a completed input calibration gain.
-    \param gain_db Calibrated input gain in decibels.
-    \return Empty success, or a typed live-input failure.
-    */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
-    onInputCalibrationSucceeded(double gain_db) = 0;
-
-    /*!
-    \brief Applies and stores a manually entered input calibration gain.
-    \param gain_db Input gain in decibels.
-    \return Empty success, or a typed live-input failure.
-    */
-    [[nodiscard]] virtual std::expected<void, common::audio::LiveInputError>
-    onInputCalibrationManuallySet(double gain_db) = 0;
-
-    /*! \brief Handles the calibration prompt closing without a new successful calibration. */
-    virtual void onInputCalibrationDismissed() = 0;
 
     /*!
     \brief Handles a change to the output gain slider.
