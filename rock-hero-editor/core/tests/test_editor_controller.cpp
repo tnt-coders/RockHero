@@ -1532,7 +1532,7 @@ void addKnownPlugin(EditorController& controller, std::string plugin_id = "catal
         return std::nullopt;
     }
 
-    return state->stop_enabled;
+    return state->transport.stop_enabled;
 }
 
 // Task runner fake that lets tests defer completions to simulate async behavior. submit() runs
@@ -1592,9 +1592,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
     CHECK(empty_state.save_requires_destination == false);
-    CHECK(empty_state.play_pause_enabled == false);
-    CHECK(empty_state.stop_enabled == false);
-    CHECK(empty_state.play_pause_shows_pause_icon == false);
+    CHECK(empty_state.transport.play_pause_enabled == false);
+    CHECK(empty_state.transport.stop_enabled == false);
+    CHECK(empty_state.transport.play_pause_shows_pause_icon == false);
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
@@ -1621,9 +1621,12 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .close_enabled = true,
         .project_loaded = true,
         .save_requires_destination = false,
-        .play_pause_enabled = true,
-        .stop_enabled = true,
-        .play_pause_shows_pause_icon = true,
+        .transport =
+            TransportViewState{
+                .play_pause_enabled = true,
+                .stop_enabled = true,
+                .play_pause_shows_pause_icon = true,
+            },
         .audio_device_status_text = "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]",
         .audio_devices_available = true,
         .visible_timeline = loadedTimelineRange(180.0),
@@ -2549,9 +2552,9 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.publish_enabled == false);
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
-        CHECK(state.play_pause_enabled == false);
-        CHECK(state.stop_enabled == false);
-        CHECK(state.play_pause_shows_pause_icon == false);
+        CHECK(state.transport.play_pause_enabled == false);
+        CHECK(state.transport.stop_enabled == false);
+        CHECK(state.transport.play_pause_shows_pause_icon == false);
         CHECK_FALSE(state.audio_devices_available);
         CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
@@ -2620,8 +2623,8 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     if (view.last_state.has_value())
     {
         const EditorViewState& playing_state = view.last_state.value();
-        CHECK(playing_state.play_pause_shows_pause_icon == true);
-        CHECK(playing_state.stop_enabled == true);
+        CHECK(playing_state.transport.play_pause_shows_pause_icon == true);
+        CHECK(playing_state.transport.stop_enabled == true);
         CHECK(playing_state.visible_timeline == loadedTimelineRange());
     }
 
@@ -2635,8 +2638,8 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     if (view.last_state.has_value())
     {
         const EditorViewState& stopped_state = view.last_state.value();
-        CHECK(stopped_state.play_pause_shows_pause_icon == false);
-        CHECK(stopped_state.stop_enabled == false);
+        CHECK(stopped_state.transport.play_pause_shows_pause_icon == false);
+        CHECK(stopped_state.transport.stop_enabled == false);
     }
 }
 
@@ -2919,7 +2922,7 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
         CHECK(state.suggested_publish_file.empty());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
-        CHECK(state.play_pause_enabled == false);
+        CHECK(state.transport.play_pause_enabled == false);
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
     }
@@ -3992,7 +3995,7 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     {
         const EditorViewState& state = view.last_state.value();
         CHECK(state.arrangement.audio_asset == std::optional{replacement});
-        CHECK(state.play_pause_shows_pause_icon == true);
+        CHECK(state.transport.play_pause_shows_pause_icon == true);
     }
 }
 
@@ -4356,8 +4359,8 @@ TEST_CASE("EditorController busy routing disables ordinary commands", "[core][ed
     CHECK(state->save_enabled == false);
     CHECK(state->save_as_enabled == false);
     CHECK(state->publish_enabled == false);
-    CHECK(state->play_pause_enabled == false);
-    CHECK(state->stop_enabled == false);
+    CHECK(state->transport.play_pause_enabled == false);
+    CHECK(state->transport.stop_enabled == false);
     CHECK(state->signal_chain.add_plugin_enabled == false);
     CHECK(state->signal_chain.remove_plugins_enabled == false);
     CHECK(state->plugin_browser.scan_enabled == false);
@@ -4951,7 +4954,7 @@ TEST_CASE(
 
     const auto* const gated_state = stateOrNull(view.last_state);
     REQUIRE(gated_state != nullptr);
-    CHECK(gated_state->play_pause_enabled);
+    CHECK(gated_state->transport.play_pause_enabled);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK(
         gated_state->signal_chain.input_calibration_status ==
@@ -4971,7 +4974,7 @@ TEST_CASE(
     const auto* const dismissed_state = stateOrNull(view.last_state);
     REQUIRE(dismissed_state != nullptr);
     CHECK_FALSE(dismissed_state->input_calibration_prompt.has_value());
-    CHECK(dismissed_state->play_pause_enabled);
+    CHECK(dismissed_state->transport.play_pause_enabled);
     CHECK(dismissed_state->audio_device_settings_enabled);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
 }

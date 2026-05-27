@@ -6,6 +6,8 @@
 namespace rock_hero::editor::ui
 {
 
+using core::TransportViewState;
+
 namespace
 {
 
@@ -100,7 +102,7 @@ TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-cont
     controls.setBounds(0, 0, 120, 24);
 
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -110,7 +112,7 @@ TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-cont
     CHECK_FALSE(getStopButton(controls).isEnabled());
 
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = false,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = true,
@@ -141,7 +143,7 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
     controls.setBounds(0, 0, 120, 24);
 
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -151,7 +153,7 @@ TEST_CASE("TransportControls pause icon does not toggle the button", "[ui][trans
     CHECK_FALSE(play_pause_button.getToggleState());
 
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = true,
@@ -168,7 +170,7 @@ TEST_CASE("TransportControls buttons do not take keyboard focus", "[ui][transpor
     FakeTransportControlsListener listener;
     TransportControls controls{listener};
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = true,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = false,
@@ -190,7 +192,7 @@ TEST_CASE("TransportControls play pause click calls listener", "[ui][transport-c
     TransportControls controls{listener};
     controls.setBounds(0, 0, 120, 24);
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = true,
             .stop_enabled = false,
             .play_pause_shows_pause_icon = false,
@@ -210,7 +212,7 @@ TEST_CASE("TransportControls stop click calls listener", "[ui][transport-control
     TransportControls controls{listener};
     controls.setBounds(0, 0, 120, 24);
     controls.setState(
-        TransportControlsViewState{
+        TransportViewState{
             .play_pause_enabled = false,
             .stop_enabled = true,
             .play_pause_shows_pause_icon = false,

@@ -15,6 +15,7 @@
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
+#include <rock_hero/editor/core/transport_view_state.h>
 #include <string>
 #include <utility>
 
@@ -177,14 +178,8 @@ struct EditorViewState
     /*! \brief Selects whether File > Save should ask for a destination first. */
     bool save_requires_destination{false};
 
-    /*! \brief Enables or disables the play/pause command. */
-    bool play_pause_enabled{false};
-
-    /*! \brief Enables or disables the stop command. */
-    bool stop_enabled{false};
-
-    /*! \brief Selects whether the play/pause control should render a pause icon. */
-    bool play_pause_shows_pause_icon{false};
+    /*! \brief Current transport state shown by the editor. */
+    TransportViewState transport;
 
     /*! \brief Menu-bar status text for the current audio-device route. */
     std::string audio_device_status_text{g_closed_audio_device_text};
