@@ -15,7 +15,6 @@ target_sources(
             src/busy_overlay.cpp
             src/editor.cpp
             src/editor_view.cpp
-            src/input_calibration_view.cpp
             src/input_calibration_window.cpp
             src/menu_bar_button.cpp
             src/plugin_browser_window.cpp
