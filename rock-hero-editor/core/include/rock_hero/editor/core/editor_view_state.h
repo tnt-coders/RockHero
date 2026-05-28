@@ -10,7 +10,6 @@
 #include <optional>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
-#include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/plugin_browser_view_state.h>
@@ -182,7 +181,7 @@ struct EditorViewState
     TransportViewState transport;
 
     /*! \brief Menu-bar status text for the current audio-device route. */
-    std::string audio_device_status_text{g_closed_audio_device_text};
+    std::string audio_device_status_text{"[audio device closed]"};
 
     /*! \brief True when the controller has an audio-device backend available. */
     bool audio_devices_available{false};

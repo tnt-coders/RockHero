@@ -8,6 +8,9 @@ add_executable(
     test_audio_device_settings_controller.cpp test_audio_device_status_text.cpp
     test_editor_controller.cpp test_project.cpp test_editor_settings.cpp)
 
+# Project tests that exercise concrete importers need access to private library headers.
+target_include_directories(rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
+
 # Link JUCE core for project package fixtures while keeping tests on the editor-core boundary.
 target_link_libraries(
     rock_hero_editor_core_tests

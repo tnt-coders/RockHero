@@ -1,5 +1,6 @@
+#include "audio_device_status_text.h"
+
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/editor/core/audio_device_status_text.h>
 
 namespace rock_hero::editor::core
 {

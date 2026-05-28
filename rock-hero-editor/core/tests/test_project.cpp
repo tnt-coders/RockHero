@@ -1,3 +1,5 @@
+#include "rock_song_importer.h"
+
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
@@ -12,7 +14,6 @@
 #include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/editor/core/project.h>
-#include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>
