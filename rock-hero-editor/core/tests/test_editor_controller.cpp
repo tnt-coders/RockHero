@@ -1305,10 +1305,11 @@ public:
     // Returns the bound callback shape expected by EditorController services.
     [[nodiscard]] EditorController::OpenFunction openFunction() noexcept
     {
-        return [this](
-                   Project& project,
-                   const std::filesystem::path& file,
-                   const AudioAnalyzeForGainFunction&) { return open(project, file); };
+        return
+            [this](
+                Project& project,
+                const std::filesystem::path& file,
+                const EditorController::ProjectOperationProgress&) { return open(project, file); };
     }
 
     // Returns the bound import callback shape expected by EditorController services.
@@ -1317,7 +1318,9 @@ public:
         return [this](
                    Project& project,
                    const std::filesystem::path& file,
-                   const AudioAnalyzeForGainFunction&) { return import(project, file); };
+                   const EditorController::ProjectOperationProgress&) {
+            return import(project, file);
+        };
     }
 
     // Returns the bound save callback shape expected by EditorController services.
@@ -1565,55 +1568,42 @@ private:
     };
 }
 
-// Returns a successful analyzer seam for controller tests that need to trigger the busy-state
-// transition without using the real loudness analyzer.
-[[nodiscard]] AudioAnalyzeForGainFunction makeSuccessfulControllerAnalyzeFunction(
-    int& analyze_call_count)
-{
-    return
-        [&analyze_call_count](
-            const std::filesystem::path&, const common::core::AudioNormalizationTarget&)
-            -> std::
-                expected<common::core::AudioNormalization, common::audio::AudioNormalizationError> {
-                    ++analyze_call_count;
-                    return makeCurrentNormalization();
-                };
-}
-
-// Builds an open seam that enters the analyzer callback before returning loaded song data.
+// Builds an open seam that reports the analysis phase before returning loaded song data.
 [[nodiscard]] EditorController::OpenFunction makeAnalyzingOpenFunction(
-    std::filesystem::path audio_path)
+    std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
-    return [audio_path = std::move(audio_path)](
+    return [audio_path = std::move(audio_path), &analysis_progress_call_count](
                Project&,
                const std::filesystem::path&,
-               const AudioAnalyzeForGainFunction& analyze_audio)
+               const EditorController::ProjectOperationProgress& report_progress)
                -> std::expected<common::core::Song, ProjectError> {
-        auto normalization = analyze_audio(audio_path, {});
-        common::core::Song song = makeSong(audio_path);
-        if (normalization.has_value())
+        if (report_progress)
         {
-            song.arrangements.front().audio_asset.normalization = *normalization;
+            report_progress(EditorController::ProjectOperationPhase::AnalyzingBackingAudio);
         }
+        ++analysis_progress_call_count;
+        common::core::Song song = makeSong(audio_path);
+        song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
         return song;
     };
 }
 
-// Builds an import seam that enters the analyzer callback before returning imported song data.
+// Builds an import seam that reports the analysis phase before returning imported song data.
 [[nodiscard]] EditorController::ImportFunction makeAnalyzingImportFunction(
-    std::filesystem::path audio_path)
+    std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
-    return [audio_path = std::move(audio_path)](
+    return [audio_path = std::move(audio_path), &analysis_progress_call_count](
                Project&,
                const std::filesystem::path&,
-               const AudioAnalyzeForGainFunction& analyze_audio)
+               const EditorController::ProjectOperationProgress& report_progress)
                -> std::expected<common::core::Song, ProjectError> {
-        auto normalization = analyze_audio(audio_path, {});
-        common::core::Song song = makeSong(audio_path);
-        if (normalization.has_value())
+        if (report_progress)
         {
-            song.arrangements.front().audio_asset.normalization = *normalization;
+            report_progress(EditorController::ProjectOperationPhase::AnalyzingBackingAudio);
         }
+        ++analysis_progress_call_count;
+        common::core::Song song = makeSong(audio_path);
+        song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
         return song;
     };
 }
@@ -4172,13 +4162,12 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
     FakeTransport transport;
     FakeSongAudio audio;
     DeferredEditorTaskRunner runner;
-    int analyze_call_count = 0;
+    int analysis_progress_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
         EditorController::Services{
-            .open_function = makeAnalyzingOpenFunction(std::filesystem::path{"source.wav"}),
-            .audio_analyze_for_gain_function =
-                makeSuccessfulControllerAnalyzeFunction(analyze_call_count),
+            .open_function = makeAnalyzingOpenFunction(
+                std::filesystem::path{"source.wav"}, analysis_progress_call_count),
             .task_runner = &runner,
         }
     };
@@ -4193,7 +4182,7 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
     CHECK(busy->message == "Analyzing audio...");
-    CHECK(analyze_call_count == 1);
+    CHECK(analysis_progress_call_count == 1);
 }
 
 // Import sets busy=ImportingProject with the default message before the worker's completion runs.
@@ -4230,13 +4219,12 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
     FakeTransport transport;
     FakeSongAudio audio;
     DeferredEditorTaskRunner runner;
-    int analyze_call_count = 0;
+    int analysis_progress_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
         EditorController::Services{
-            .import_function = makeAnalyzingImportFunction(std::filesystem::path{"source.wav"}),
-            .audio_analyze_for_gain_function =
-                makeSuccessfulControllerAnalyzeFunction(analyze_call_count),
+            .import_function = makeAnalyzingImportFunction(
+                std::filesystem::path{"source.wav"}, analysis_progress_call_count),
             .task_runner = &runner,
         }
     };
@@ -4251,7 +4239,7 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
     CHECK(busy->message == "Analyzing audio...");
-    CHECK(analyze_call_count == 1);
+    CHECK(analysis_progress_call_count == 1);
 }
 
 // Save sets busy=SavingProject before the deferred write completion restores normal state.
