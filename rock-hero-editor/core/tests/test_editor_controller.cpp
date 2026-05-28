@@ -5,11 +5,11 @@
 #include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <optional>
-#include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/i_song_audio.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/input_calibration_state.h>
 #include <rock_hero/common/audio/input_device_identity.h>
@@ -604,8 +604,8 @@ public:
     int set_calibration_input_monitoring_call_count{0};
 };
 
-// Configurable IAudio fake that records calls and can simulate reentrant notifications.
-class FakeAudio final : public common::audio::IAudio
+// Configurable ISongAudio fake that records calls and can simulate reentrant notifications.
+class FakeSongAudio final : public common::audio::ISongAudio
 {
 public:
     // Records project-audio preparation and fills accepted arrangement durations.
@@ -1089,6 +1089,121 @@ public:
     mutable int status_call_count{0};
 };
 
+// Supplies a default audio-device port for tests that do not care about hardware state.
+[[nodiscard]] FakeAudioDeviceConfiguration& defaultAudioDevices() noexcept
+{
+    static FakeAudioDeviceConfiguration audio_devices;
+    return audio_devices;
+}
+
+// Supplies a default plugin-host port for tests that do not care about plugin behavior.
+[[nodiscard]] FakePluginHost& defaultPluginHost() noexcept
+{
+    static FakePluginHost plugin_host;
+    return plugin_host;
+}
+
+// Supplies a default live-rig port for tests that do not care about tone persistence behavior.
+[[nodiscard]] FakeLiveRig& defaultLiveRig() noexcept
+{
+    static FakeLiveRig live_rig = [] {
+        FakeLiveRig rig;
+        rig.next_load_result.plugins.clear();
+        return rig;
+    }();
+    return live_rig;
+}
+
+// Builds the controller audio-port bundle used by most tests. FakeTransport also implements the
+// live-input port, which preserves the old test composition while keeping construction explicit.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = defaultAudioDevices(),
+        .plugin_host = defaultPluginHost(),
+        .live_rig = defaultLiveRig(),
+        .live_input = transport,
+    };
+}
+
+// Replaces the default audio-device port in the common test controller bundle.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio,
+    FakeAudioDeviceConfiguration& audio_devices) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = audio_devices,
+        .plugin_host = defaultPluginHost(),
+        .live_rig = defaultLiveRig(),
+        .live_input = transport,
+    };
+}
+
+// Replaces the default plugin-host port in the common test controller bundle.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio, FakePluginHost& plugin_host) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = defaultAudioDevices(),
+        .plugin_host = plugin_host,
+        .live_rig = defaultLiveRig(),
+        .live_input = transport,
+    };
+}
+
+// Replaces the default plugin-host and live-rig ports in the common test controller bundle.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio, FakePluginHost& plugin_host,
+    FakeLiveRig& live_rig) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = defaultAudioDevices(),
+        .plugin_host = plugin_host,
+        .live_rig = live_rig,
+        .live_input = transport,
+    };
+}
+
+// Replaces the default audio-device and plugin-host ports in the common test controller bundle.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio,
+    FakeAudioDeviceConfiguration& audio_devices, FakePluginHost& plugin_host) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = audio_devices,
+        .plugin_host = plugin_host,
+        .live_rig = defaultLiveRig(),
+        .live_input = transport,
+    };
+}
+
+// Replaces every default controller audio port represented in controller tests.
+[[nodiscard]] EditorController::AudioPorts audioPorts(
+    FakeTransport& transport, FakeSongAudio& song_audio,
+    FakeAudioDeviceConfiguration& audio_devices, FakePluginHost& plugin_host,
+    FakeLiveRig& live_rig) noexcept
+{
+    return EditorController::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .audio_devices = audio_devices,
+        .plugin_host = plugin_host,
+        .live_rig = live_rig,
+        .live_input = transport,
+    };
+}
+
 // Provides controller-facing project service callbacks without touching the filesystem.
 class FakeProjectServices final
 {
@@ -1534,7 +1649,7 @@ private:
 
 // Loads arrangement audio through the controller so tests keep backend/session coupling.
 void loadArrangement(
-    EditorController& controller, FakeProjectServices& project_services, FakeAudio& audio,
+    EditorController& controller, FakeProjectServices& project_services, FakeSongAudio& audio,
     std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
 {
     audio.next_prepared_audio_duration = timeline_range.duration();
@@ -1542,6 +1657,18 @@ void loadArrangement(
     project_services.next_song = makeSong(std::move(path), timeline_range);
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     REQUIRE(controller.session().currentArrangement() != nullptr);
+}
+
+// Loads arrangement audio and applies a neutral calibration for plugin-chain tests.
+void loadCalibratedArrangement(
+    EditorController& controller, FakeProjectServices& project_services, FakeSongAudio& audio,
+    FakeAudioDeviceConfiguration& audio_devices, std::filesystem::path path,
+    common::core::TimeRange timeline_range = loadedTimelineRange())
+{
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    loadArrangement(controller, project_services, audio, std::move(path), timeline_range);
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
 }
 
 // Adds the default known plugin through the same browser route used by production UI.
@@ -1792,7 +1919,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
 TEST_CASE("EditorController publishes current audio device", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_status = common::audio::AudioDeviceStatus{
         .open = true,
@@ -1806,7 +1933,7 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
         .input_latency_ms = 4.5,
         .output_latency_ms = 7.5,
     };
-    EditorController controller{transport, audio, audio_devices};
+    EditorController controller{audioPorts(transport, audio, audio_devices)};
     FakeEditorView view;
 
     controller.attachView(view);
@@ -1824,13 +1951,12 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
 TEST_CASE("EditorController enables plugin add after load", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
@@ -1844,7 +1970,8 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
         CHECK_FALSE(initial_state.signal_chain.remove_plugins_enabled);
     }
 
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -1860,16 +1987,14 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
 TEST_CASE("EditorController forwards normalization to audio backend", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     FakeProjectServices project_services;
     common::core::Song song = makeSong(std::filesystem::path{"song.wav"});
     song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
     project_services.next_song = std::move(song);
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
+        audioPorts(transport, audio, audio_devices),
         EditorController::Services{
             .open_function = project_services.openFunction(),
         }
@@ -1888,18 +2013,18 @@ TEST_CASE("EditorController forwards normalization to audio backend", "[core][ed
 TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     controller.onPluginBrowserRequested();
 
@@ -1921,7 +2046,8 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
 TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     plugin_host.next_known_candidates = {
@@ -1934,14 +2060,13 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
         },
     };
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
 
     const EditorViewState* browser_state = stateOrNull(view.last_state);
@@ -1965,18 +2090,18 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
 TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
 
     controller.onAddPluginRequested("catalog-plugin-id");
@@ -2006,18 +2131,18 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 TEST_CASE("EditorController keeps plugin browser open after add error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
     plugin_host.next_add_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginLoadFailed,
@@ -2044,18 +2169,18 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
 TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     controller.onPluginBrowserRequested();
 
     controller.onPluginBrowserClosed();
@@ -2071,18 +2196,18 @@ TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
 TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     plugin_host.next_catalog_scan_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginScanFailed,
         "catalog scanner rejected",
@@ -2106,15 +2231,13 @@ TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-
 TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
         }
@@ -2147,7 +2270,8 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
 TEST_CASE("EditorController reports live rig plugin load progress", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins = {
@@ -2170,10 +2294,7 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     };
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
         }
@@ -2210,16 +2331,14 @@ TEST_CASE(
     "EditorController close during live rig load supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.defer_load_completion = true;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
         }
@@ -2267,16 +2386,14 @@ TEST_CASE(
 TEST_CASE("EditorController captures live rig before save", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -2285,8 +2402,8 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
     FakeEditorView view;
     controller.attachView(view);
 
-    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     controller.onSaveRequested();
 
@@ -2315,16 +2432,14 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
 TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
         }
@@ -2332,8 +2447,8 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     FakeEditorView view;
     controller.attachView(view);
 
-    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     addKnownPlugin(controller);
     controller.onCloseRequested();
@@ -2352,18 +2467,18 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
 TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     plugin_host.next_handle.instance_id = "instance-a";
     plugin_host.next_handle.chain_index = 0;
@@ -2389,18 +2504,18 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
 
     addKnownPlugin(controller);
     controller.onRemovePluginRequested("stale-instance");
@@ -2417,18 +2532,18 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
 TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     addKnownPlugin(controller);
 
     controller.onOpenPluginRequested("instance-id");
@@ -2442,18 +2557,18 @@ TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
 TEST_CASE("EditorController ignores stale plugin window requests", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     addKnownPlugin(controller);
 
     controller.onOpenPluginRequested("stale-instance");
@@ -2466,18 +2581,18 @@ TEST_CASE("EditorController ignores stale plugin window requests", "[core][edito
 TEST_CASE("EditorController reports plugin window errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     addKnownPlugin(controller);
     plugin_host.next_open_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginWindowUnavailable,
@@ -2495,18 +2610,18 @@ TEST_CASE("EditorController reports plugin window errors", "[core][editor-contro
 TEST_CASE("EditorController reports plugin remove errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
     controller.attachView(view);
-    loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"});
+    loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"});
     addKnownPlugin(controller);
     plugin_host.next_remove_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginInstanceNotFound,
@@ -2528,9 +2643,9 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
 TEST_CASE("EditorController re-derives state on device change", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
-    EditorController controller{transport, audio, audio_devices};
+    EditorController controller{audioPorts(transport, audio, audio_devices)};
     FakeEditorView view;
     controller.attachView(view);
     const int baseline_pushes = view.set_state_call_count;
@@ -2562,8 +2677,8 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
 TEST_CASE("EditorController pushes derived state on view attachment", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
-    EditorController controller{transport, audio};
+    FakeSongAudio audio;
+    EditorController controller{audioPorts(transport, audio)};
     FakeEditorView view;
 
     controller.attachView(view);
@@ -2583,7 +2698,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.transport.play_pause_enabled == false);
         CHECK(state.transport.stop_enabled == false);
         CHECK(state.transport.play_pause_shows_pause_icon == false);
-        CHECK_FALSE(state.audio_devices_available);
+        CHECK(state.audio_devices_available);
         CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
@@ -2600,11 +2715,10 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
 TEST_CASE("EditorController derives visible timeline range", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(
@@ -2630,11 +2744,10 @@ TEST_CASE("EditorController derives visible timeline range", "[core][editor-cont
 TEST_CASE("EditorController pushes one state per coarse transition", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
@@ -2675,11 +2788,10 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
 TEST_CASE("EditorController play intent toggles loaded transport", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
@@ -2698,8 +2810,8 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[core][edito
 TEST_CASE("EditorController ignores play intent without audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
-    EditorController controller{transport, audio};
+    FakeSongAudio audio;
+    EditorController controller{audioPorts(transport, audio)};
 
     controller.onPlayPausePressed();
 
@@ -2711,11 +2823,10 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
 TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
@@ -2737,11 +2848,10 @@ TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-cont
 TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
@@ -2767,11 +2877,10 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][e
 TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(
@@ -2795,11 +2904,10 @@ TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-co
 TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(
@@ -2828,11 +2936,10 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor
 TEST_CASE("EditorController failed activation preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(
@@ -2868,11 +2975,10 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
 TEST_CASE("EditorController successful open stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
@@ -2922,11 +3028,10 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
 TEST_CASE("EditorController close clears loaded project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
@@ -2963,11 +3068,10 @@ TEST_CASE("EditorController clears missing restore path", "[core][editor-control
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -2989,11 +3093,10 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3018,12 +3121,11 @@ TEST_CASE("EditorController restore keeps path while open is pending", "[core][e
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3056,14 +3158,13 @@ TEST_CASE(
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .exit_function =
@@ -3102,11 +3203,10 @@ TEST_CASE("EditorController prompts after interrupted restore", "[core][editor-c
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3135,12 +3235,11 @@ TEST_CASE("EditorController retries interrupted restore prompt", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3178,11 +3277,10 @@ TEST_CASE("EditorController cancels interrupted restore prompt", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3211,11 +3309,10 @@ TEST_CASE("EditorController clears missing interrupted restore", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3242,11 +3339,10 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3269,12 +3365,11 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -3307,11 +3402,10 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
@@ -3344,13 +3438,12 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
     const ScopedControllerFiles files{"persist_loaded_exit"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     int exit_call_count = 0;
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .exit_function =
@@ -3377,11 +3470,10 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
 TEST_CASE("EditorController save writes current session song", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -3414,11 +3506,10 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
 TEST_CASE("EditorController save failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -3448,11 +3539,10 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
 TEST_CASE("EditorController save as failure clears busy first", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_as_function = project_services.saveAsFunction(),
@@ -3483,11 +3573,10 @@ TEST_CASE("EditorController save as failure clears busy first", "[core][editor-c
 TEST_CASE("EditorController publish writes package copy", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -3521,11 +3610,10 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
 TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .publish_function = project_services.publishFunction(),
@@ -3561,11 +3649,10 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
 TEST_CASE("EditorController failed import preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
@@ -3606,11 +3693,10 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
 TEST_CASE("EditorController successful import stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.import_function = project_services.importFunction()}
     };
     FakeEditorView view;
@@ -3660,11 +3746,10 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
 TEST_CASE("EditorController import requires Save As destination", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
@@ -3723,11 +3808,10 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
 TEST_CASE("EditorController prompts before closing unsaved import", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
@@ -3772,16 +3856,14 @@ TEST_CASE(
     "EditorController discard import reopens dirty displaced project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
@@ -3794,9 +3876,12 @@ TEST_CASE(
 
     const std::filesystem::path existing_project{"existing.rhp"};
     const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(existing_project);
     REQUIRE(controller.currentProjectFile() == std::optional{existing_project});
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
 
     addKnownPlugin(controller);
 
@@ -3839,11 +3924,10 @@ TEST_CASE(
 TEST_CASE("EditorController saves prompted import before close", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
@@ -3892,12 +3976,11 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     int exit_call_count = 0;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
@@ -3935,11 +4018,10 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
 TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
 
@@ -3959,11 +4041,10 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
 TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
@@ -3993,11 +4074,10 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
 TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     FakeEditorView view;
@@ -4031,11 +4111,10 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
 TEST_CASE("EditorController does not replay errors across transitions", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"old.wav"});
@@ -4060,12 +4139,11 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
 TEST_CASE("EditorController open begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4092,12 +4170,11 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
 TEST_CASE("EditorController open reports audio analysis state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     DeferredEditorTaskRunner runner;
     int analyze_call_count = 0;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = makeAnalyzingOpenFunction(std::filesystem::path{"source.wav"}),
             .audio_analyze_for_gain_function =
@@ -4123,12 +4200,11 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
 TEST_CASE("EditorController import begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = project_services.importFunction(),
             .task_runner = &runner,
@@ -4152,12 +4228,11 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
 TEST_CASE("EditorController import reports audio analysis state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     DeferredEditorTaskRunner runner;
     int analyze_call_count = 0;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .import_function = makeAnalyzingImportFunction(std::filesystem::path{"source.wav"}),
             .audio_analyze_for_gain_function =
@@ -4183,12 +4258,11 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
 TEST_CASE("EditorController save begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -4217,17 +4291,15 @@ TEST_CASE("EditorController save begins busy with default message", "[core][edit
 TEST_CASE("EditorController deferred save clears busy before open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -4239,9 +4311,12 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
 
     const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
     const common::core::AudioAsset replacement_asset{std::filesystem::path{"replacement.wav"}};
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(std::filesystem::path{"original.rhp"});
     runner.runPendingCompletions();
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
 
     addKnownPlugin(controller);
 
@@ -4295,12 +4370,11 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
 TEST_CASE("EditorController save as begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_as_function = project_services.saveAsFunction(),
@@ -4329,12 +4403,11 @@ TEST_CASE("EditorController save as begins busy with default message", "[core][e
 TEST_CASE("EditorController publish begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .publish_function = project_services.publishFunction(),
@@ -4363,12 +4436,11 @@ TEST_CASE("EditorController publish begins busy with default message", "[core][e
 TEST_CASE("EditorController busy routing disables ordinary commands", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4401,12 +4473,11 @@ TEST_CASE(
     "EditorController busy keeps close enabled for a loaded project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4438,14 +4509,13 @@ TEST_CASE(
 TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
+    FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, audio_devices, plugin_host),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
@@ -4458,12 +4528,15 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     FakeEditorView view;
     controller.attachView(view);
 
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(std::filesystem::path{"loaded.wav"});
     controller.onOpenRequested(std::filesystem::path{"loaded.rhp"});
     runner.runPendingCompletions();
     // Drain the completed load here; this test's pending-count assertion is about the next open
     // request.
     runner.runPendingCompletions();
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;
     plugin_host.known_candidates_call_count = 0;
@@ -4474,6 +4547,8 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     transport.current_position = common::core::TimePosition{1.0};
     project_services.next_song = makeSong(std::filesystem::path{"pending.wav"});
     controller.onOpenRequested(std::filesystem::path{"pending.rhp"});
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
+    transport.stop_call_count = 0;
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     REQUIRE(state->busy.has_value());
@@ -4512,12 +4587,11 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
 TEST_CASE("EditorController open completion clears busy and commits", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4546,12 +4620,11 @@ TEST_CASE(
     "EditorController failed open clears busy then reports error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4582,12 +4655,11 @@ TEST_CASE(
 TEST_CASE("EditorController close during busy supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4622,13 +4694,12 @@ TEST_CASE("EditorController close during busy supersedes open", "[core][editor-c
 TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .exit_function = [&exit_call_count]() { ++exit_call_count; },
@@ -4660,12 +4731,11 @@ TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-co
 TEST_CASE("EditorController close during busy save supersedes write", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -4707,14 +4777,13 @@ TEST_CASE("EditorController exit during busy save persists file", "[core][editor
     const ScopedControllerFiles files{"busy_save_exit"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
@@ -4751,12 +4820,11 @@ TEST_CASE(
     "EditorController stale completion preserves live busy state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4795,19 +4863,18 @@ TEST_CASE(
 }
 
 // Stop on the message thread is not required by the task runner contract, but the controller
-// must still call IAudio::prepareSong() during the message-thread commit stage rather than the
+// must still call ISongAudio::prepareSong() during the message-thread commit stage rather than the
 // worker. The deferred runner exposes this: prepareSong is not called until completion runs.
 TEST_CASE(
     "EditorController prepareSong runs on message-thread completion stage",
     "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
-        transport,
-        audio,
+        audioPorts(transport, audio),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .task_runner = &runner,
@@ -4834,8 +4901,8 @@ TEST_CASE(
     "EditorController schedules audio device open via paint fence", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
-    EditorController controller{transport, audio};
+    FakeSongAudio audio;
+    EditorController controller{audioPorts(transport, audio)};
     FakeEditorView view;
     controller.attachView(view);
 
@@ -4866,16 +4933,13 @@ TEST_CASE(
 TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -4892,18 +4956,16 @@ TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][
     CHECK_FALSE(final_state->signal_chain.input_calibrate_enabled);
 }
 
-// Verifies that authored output gain controls are disabled without a live rig port.
-TEST_CASE("Output gain controls disabled without live rig", "[core][editor-controller]")
+// Verifies that authored output gain controls remain available with the required live-rig port.
+TEST_CASE("Output gain controls enabled with required live rig", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
+        audioPorts(transport, audio, plugin_host),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -4912,7 +4974,7 @@ TEST_CASE("Output gain controls disabled without live rig", "[core][editor-contr
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->signal_chain.output_gain_controls_enabled);
+    CHECK(final_state->signal_chain.output_gain_controls_enabled);
 }
 
 // Verifies that the no-device disabled message takes priority over missing calibration.
@@ -4920,18 +4982,14 @@ TEST_CASE(
     "Signal chain reports no input device before missing calibration", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -4956,7 +5014,7 @@ TEST_CASE(
 {
     FakeTransport transport;
     transport.current_state.playing = true;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -4964,11 +5022,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -5011,16 +5065,13 @@ TEST_CASE(
 TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -5044,7 +5095,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_success"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -5052,11 +5103,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5099,7 +5146,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_retry_reset"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -5107,11 +5154,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5153,7 +5196,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     const ScopedControllerFiles files{"input_calibration_gain_failure"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -5161,11 +5204,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5199,7 +5238,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     const ScopedControllerFiles files{"input_calibration_monitor_failure"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -5207,11 +5246,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5246,7 +5281,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_manual_set"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     FakePluginHost plugin_host;
@@ -5254,11 +5289,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5290,16 +5321,13 @@ TEST_CASE(
 TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -5316,17 +5344,14 @@ TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]
 TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);
@@ -5353,7 +5378,7 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
     FakePluginHost plugin_host;
@@ -5362,11 +5387,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5403,7 +5424,7 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = initial_identity;
     FakePluginHost plugin_host;
@@ -5411,11 +5432,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5459,7 +5476,7 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
     FakePluginHost plugin_host;
@@ -5467,11 +5484,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5522,7 +5535,7 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
     FakePluginHost plugin_host;
@@ -5530,11 +5543,7 @@ TEST_CASE(
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        audio_devices,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
         EditorController::Services{
             .open_function = project_services.openFunction(),
             .settings = &settings,
@@ -5565,16 +5574,13 @@ TEST_CASE(
 TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio audio;
     FakePluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
-        transport,
-        audio,
-        plugin_host,
-        live_rig,
+        audioPorts(transport, audio, plugin_host, live_rig),
         EditorController::Services{.open_function = project_services.openFunction()}
     };
     controller.attachView(view);

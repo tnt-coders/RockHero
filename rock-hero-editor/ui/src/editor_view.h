@@ -67,18 +67,35 @@ class EditorView final : public juce::Component,
 {
 public:
     /*!
+    \brief Audio ports consumed directly by the concrete view.
+
+    EditorView receives only display and popup-hosting ports. Workflow mutations stay behind the
+    controller.
+    */
+    struct AudioPorts final
+    {
+        /*! \brief Read-only transport used by cursor drawing and viewport following. */
+        const common::audio::ITransport& transport;
+
+        /*! \brief Factory used by the arrangement view to create its thumbnail. */
+        common::audio::IThumbnailFactory& thumbnail_factory;
+
+        /*! \brief Audio-device configuration port hosted by the settings window. */
+        common::audio::IAudioDeviceConfiguration& audio_devices;
+
+        /*! \brief Meter source sampled for continuous level display. */
+        const common::audio::IAudioMeterSource& meter_source;
+
+        /*! \brief Live-input source sampled by the calibration popup. */
+        const common::audio::ILiveInput& live_input;
+    };
+
+    /*!
     \brief Creates the concrete editor view and installs the thumbnail factory.
     \param controller Controller that receives all user intents emitted by this view.
-    \param transport Read-only transport used by cursor drawing and viewport following.
-    \param thumbnail_factory Factory used by the arrangement view to create its thumbnail.
-    \param audio_devices Optional device-configuration port hosted by the settings window.
-    \param audio_meters Optional meter source sampled for continuous level display.
+    \param audio_ports Required audio ports consumed directly by this view.
     */
-    EditorView(
-        core::IEditorController& controller, const common::audio::ITransport& transport,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        common::audio::IAudioDeviceConfiguration* audio_devices = nullptr,
-        const common::audio::IAudioMeterSource* audio_meters = nullptr);
+    EditorView(core::IEditorController& controller, AudioPorts audio_ports);
 
     /*! \brief Releases child widgets, cursor overlay, and project chooser state. */
     ~EditorView() override;
@@ -253,14 +270,14 @@ private:
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 
-    // Audio-device configuration backend hosted by the settings window; null when unavailable.
-    common::audio::IAudioDeviceConfiguration* m_audio_devices{nullptr};
+    // Audio-device configuration backend hosted by the settings window.
+    common::audio::IAudioDeviceConfiguration& m_audio_devices;
 
-    // Optional read-only meter source sampled at display cadence.
-    const common::audio::IAudioMeterSource* m_audio_meters{nullptr};
+    // Read-only meter source sampled at display cadence.
+    const common::audio::IAudioMeterSource& m_audio_meters;
 
-    // Optional live-input source sampled by the calibration popup.
-    const common::audio::ILiveInput* m_live_input{nullptr};
+    // Live-input source sampled by the calibration popup.
+    const common::audio::ILiveInput& m_live_input;
 
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};

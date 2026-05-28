@@ -10,6 +10,28 @@
 namespace rock_hero::editor::app
 {
 
+namespace
+{
+
+// Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This
+// stays in app composition because only the composition root knows one object backs every port.
+[[nodiscard]] rock_hero::editor::ui::Editor::AudioPorts makeEditorAudioPorts(
+    rock_hero::common::audio::Engine& engine)
+{
+    return rock_hero::editor::ui::Editor::AudioPorts{
+        .transport = engine,
+        .song_audio = engine,
+        .thumbnail_factory = engine,
+        .audio_devices = engine,
+        .plugin_host = engine,
+        .live_rig = engine,
+        .live_input = engine,
+        .meter_source = engine,
+    };
+}
+
+} // namespace
+
 // JUCE application object that owns the editor window lifecycle.
 class RockHeroEditorApplication : public juce::JUCEApplication
 {
@@ -47,15 +69,8 @@ public:
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
 
-        // Engine implements each editor-facing audio port. Passing it for each role keeps UI code
-        // dependent on narrow interfaces rather than on the concrete Tracktion adapter.
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_audio_engine,
-            *m_audio_engine,
+            makeEditorAudioPorts(*m_audio_engine),
             rock_hero::editor::core::EditorController::Services{
                 .exit_function = &juce::JUCEApplicationBase::quit,
                 .settings = m_editor_settings.get(),

@@ -23,7 +23,8 @@ The issues are not pattern conflicts or naming chaos. They are:
 
 1. A few concrete areas where workflow policy lives in the wrong layer
    (`InputCalibrationWindow::Content` owns calibration workflow, not just presentation).
-2. Optional audio capabilities discovered via `dynamic_cast` instead of explicit composition.
+2. Editor audio capabilities have been made explicit and required through nested audio-port
+   bundles.
 3. Three overlapping loaded-plugin-chain value types that could be unified.
 4. Minor naming inconsistencies (fewer than ten across the entire codebase).
 
@@ -54,7 +55,7 @@ consistently.
 
 | Pattern | Issue | Severity |
 |---|---|---|
-| `dynamic_cast` capability discovery | `ILiveInput` and `IAudioMeterSource` discovered from `ITransport` at composition time | Moderate. Should be explicit constructor parameters. |
+| `dynamic_cast` capability discovery | `ILiveInput` and `IAudioMeterSource` were discovered from `ITransport` at composition time | Addressed by nested `Editor::AudioPorts` and `EditorController::AudioPorts` bundles. |
 | God-adapter | `Engine` implements 8 interfaces | Documented and intentional (one Tracktion Edit = one adapter), but the interface list needs monitoring. |
 | View-state default coupling | `EditorViewState::audio_device_status_text` previously defaulted from a formatting header | Fixed in this session. |
 
@@ -117,39 +118,39 @@ content.
 facade plan (Phase 5). The calibration capture state machine and decision policy move to
 `editor/core`. The JUCE window keeps timer cadence, meter rendering, and intent emission.
 
-### Issue 2: `dynamic_cast` Capability Discovery
+### Issue 2: Completed Explicit Audio-Port Composition
 
-Three sites use `dynamic_cast` to discover optional audio capabilities from `ITransport`:
+Three sites used `dynamic_cast` to discover audio capabilities from `ITransport`:
 
 1. `editor_controller.cpp`: `liveInputFrom()` discovers `ILiveInput` from `ITransport&`.
 2. `editor_view.cpp`: discovers `ILiveInput` from `ITransport&` for meter display.
-3. `editor.cpp`: `meterSourceFrom()` discovers `IAudioMeterSource` from `ITransport&`.
+3. `editor.cpp`: `meterSourceFrom()` discovered `IAudioMeterSource` from `ITransport&`.
 
-These bypass explicit dependency injection. The capabilities should be passed as explicit optional
-parameters at composition time.
+These bypassed explicit dependency injection. The capabilities are now passed as explicit required
+fields at composition time.
 
-**Recommendation:** Introduce an `EditorAudioPorts` aggregate that bundles all optional audio
-capabilities:
+**Recommendation:** Keep the completed nested audio-port bundles. `Editor::AudioPorts` owns the
+composed editor feature contract, while `EditorController::AudioPorts` owns the headless controller
+contract:
 
 ```cpp
-struct EditorAudioPorts
+struct AudioPorts
 {
-    common::audio::IAudioDeviceConfiguration* audio_devices{};
-    common::audio::IPluginHost* plugin_host{};
-    common::audio::ILiveRig* live_rig{};
-    common::audio::ILiveInput* live_input{};
-    common::audio::IAudioMeterSource* meter_source{};
+    common::audio::IAudioDeviceConfiguration& audio_devices;
+    common::audio::IPluginHost& plugin_host;
+    common::audio::ILiveRig& live_rig;
+    common::audio::ILiveInput& live_input;
+    const common::audio::IAudioMeterSource& meter_source;
 };
 ```
 
-The app composition root populates this from the `Engine` (which implements all these interfaces).
-`Editor`, `EditorController`, and `EditorView` receive the bundle instead of discovering
-capabilities at runtime. This eliminates the `dynamic_cast` sites and makes the dependency graph
-explicit.
+The app composition root populates `Editor::AudioPorts` from the `Engine` (which implements all
+these interfaces). `Editor` maps the controller-owned subset into `EditorController::AudioPorts`
+and the view-owned subset into `EditorView::AudioPorts`. This eliminates the composition-time
+`dynamic_cast` sites and makes the dependency graph explicit.
 
-The existing review (v1) made the same recommendation. The six constructor overloads on
-`EditorController` and `Editor` that encode the combinatorial optionality of audio ports would
-collapse to two: one with `EditorAudioPorts` and one without.
+The six constructor overloads on `EditorController` and `Editor` that encoded the old
+combinatorial port wiring have collapsed to the completed bundle-based constructors.
 
 ### Issue 3: Three Overlapping Loaded-Plugin Types
 
@@ -293,7 +294,7 @@ The independent review agrees with the prior review on all major findings:
 |---|---|---|---|
 | Naming is overwhelmingly consistent | Yes | Yes | Full |
 | `InputCalibrationWindow::Content` owns too much | Yes | Yes | Full |
-| `dynamic_cast` discovery should become explicit composition | Yes | Yes | Full |
+| `dynamic_cast` discovery should become explicit composition | Yes | Yes | Completed |
 | Plugin chain types overlap | Yes | Yes | Full |
 | View/Panel/Controls suffix pattern is intentional | Yes | Yes | Full |
 | Error types are highly consistent | Yes | Yes | Full |
@@ -321,8 +322,8 @@ Minor differences:
 
 1. **Document the view suffix convention** in `coding-conventions.md`: `*View` for core-interface
    implementations, descriptive suffixes for standalone widgets.
-2. **Introduce `EditorAudioPorts`** and remove `dynamic_cast` discovery. This is a standalone change
-   with clear scope.
+2. **Preserve the completed nested `AudioPorts` bundles** and keep composition-time
+   `dynamic_cast` discovery out of editor code.
 3. **Unify plugin chain types** into `PluginChainEntry`. Touch `IPluginHost`, `ILiveRig`, and
    `PluginViewState`.
 4. **Rename `LiveRigSnapshot`** to `LiveRigCaptureResult` when touching the live-rig capture path.
