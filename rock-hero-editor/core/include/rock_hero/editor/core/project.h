@@ -21,13 +21,14 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Function that analyzes a source audio file and computes gain normalization metadata.
+\brief Function that analyzes a source audio file and computes normalization metadata.
 
-Injected into Project::import to keep the test surface at the public Project API. Production
-composition defaults this alias to common::audio::analyzeAudioForGainNormalization; tests pass
-fakes that return a controlled AudioNormalization without touching the loudness analyzer.
+Injected into Project::load and Project::import to keep the test surface at the public Project API.
+Production composition defaults this alias to common::audio::analyzeAudioForGainNormalization;
+tests pass fakes that return a controlled AudioNormalization without touching the loudness
+analyzer.
 */
-using AudioAnalyzeForGainFunction = std::function<
+using AudioNormalizationAnalyzer = std::function<
     std::expected<common::core::AudioNormalization, common::audio::AudioNormalizationError>(
         const std::filesystem::path& input, const common::core::AudioNormalizationTarget& target)>;
 
@@ -91,13 +92,13 @@ public:
     \brief Loads a Rock Hero project package into this project context.
     \param path Filesystem path to an .rhp archive.
     \param target Loudness target loaded backing audio is analyzed against when metadata is stale.
-    \param analyze_audio Function used to analyze stale or missing backing-audio normalization.
+    \param analyze_audio_normalization Function used to analyze stale or missing normalization.
     \return Parsed song data, or a typed project failure.
     */
     [[nodiscard]] std::expected<common::core::Song, ProjectError> load(
         const std::filesystem::path& path,
         const common::core::AudioNormalizationTarget& target = {},
-        const AudioAnalyzeForGainFunction& analyze_audio =
+        const AudioNormalizationAnalyzer& analyze_audio_normalization =
             common::audio::analyzeAudioForGainNormalization);
 
     /*!
@@ -110,15 +111,15 @@ public:
     \param source_path Song source to import.
     \param importer Importer that understands the source song format.
     \param target Loudness target the imported backing audio is analyzed against.
-    \param analyze_audio Function used to analyze each unique imported audio asset. Defaults to
-    common::audio::analyzeAudioForGainNormalization; tests can inject a fake that returns
-    controlled AudioNormalization.
+    \param analyze_audio_normalization Function used to analyze each unique imported audio asset.
+    Defaults to common::audio::analyzeAudioForGainNormalization; tests can inject a fake that
+    returns controlled AudioNormalization.
     \return Imported song data, or a typed project failure.
     */
     [[nodiscard]] std::expected<common::core::Song, ProjectError> import(
         const std::filesystem::path& source_path, ISongImporter& importer,
         const common::core::AudioNormalizationTarget& target = {},
-        const AudioAnalyzeForGainFunction& analyze_audio =
+        const AudioNormalizationAnalyzer& analyze_audio_normalization =
             common::audio::analyzeAudioForGainNormalization);
 
     /*!
