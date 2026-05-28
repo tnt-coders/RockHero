@@ -47,18 +47,35 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// Creates the project-level analyzer used by production open/import operations while reporting
+// the analysis phase at the controller-operation boundary.
+[[nodiscard]] AudioNormalizationAnalyzer makeReportingAudioNormalizationAnalyzer(
+    const EditorController::ProjectOperationProgress& report_progress)
+{
+    return [&report_progress](
+               const std::filesystem::path& input,
+               const common::core::AudioNormalizationTarget& target) {
+        if (report_progress)
+        {
+            report_progress(EditorController::ProjectOperationPhase::AnalyzingBackingAudio);
+        }
+        return common::audio::analyzeAudioForGainNormalization(input, target);
+    };
+}
+
 // Production open path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultOpen(
     Project& project, const std::filesystem::path& file,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const EditorController::ProjectOperationProgress& report_progress)
 {
-    return project.load(file, {}, analyze_audio);
+    AudioNormalizationAnalyzer analyzer = makeReportingAudioNormalizationAnalyzer(report_progress);
+    return project.load(file, {}, analyzer);
 }
 
 // Production import path used when tests do not provide a custom seam.
 [[nodiscard]] std::expected<common::core::Song, ProjectError> defaultImport(
     Project& project, const std::filesystem::path& file,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const EditorController::ProjectOperationProgress& report_progress)
 {
     std::string extension = file.extension().string();
     std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
@@ -68,13 +85,17 @@ namespace
     if (extension == ".rock")
     {
         RockSongImporter importer;
-        return project.import(file, importer, {}, analyze_audio);
+        AudioNormalizationAnalyzer analyzer =
+            makeReportingAudioNormalizationAnalyzer(report_progress);
+        return project.import(file, importer, {}, analyzer);
     }
 
     if (extension == ".psarc")
     {
         PsarcSongImporter importer;
-        return project.import(file, importer, {}, analyze_audio);
+        AudioNormalizationAnalyzer analyzer =
+            makeReportingAudioNormalizationAnalyzer(report_progress);
+        return project.import(file, importer, {}, analyzer);
     }
 
     return std::unexpected{ProjectError{
@@ -496,7 +517,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
-    [[nodiscard]] AudioAnalyzeForGainFunction makeBusyAudioAnalyzeForGainFunction(
+    [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
     void beginAddKnownPlugin(const common::audio::PluginCandidate& plugin_candidate);
@@ -641,7 +662,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Project IO and host-exit seams supplied by production composition or tests.
     EditorController::OpenFunction m_open_function;
     EditorController::ImportFunction m_import_function;
-    AudioAnalyzeForGainFunction m_audio_analyze_for_gain_function;
     EditorController::SaveFunction m_save_function;
     EditorController::SaveAsFunction m_save_as_function;
     EditorController::PublishFunction m_publish_function;
@@ -1041,10 +1061,6 @@ EditorController::Impl::Impl(
     , m_import_function(
           services.import_function ? std::move(services.import_function)
                                    : EditorController::ImportFunction{defaultImport})
-    , m_audio_analyze_for_gain_function(
-          services.audio_analyze_for_gain_function
-              ? std::move(services.audio_analyze_for_gain_function)
-              : AudioAnalyzeForGainFunction{common::audio::analyzeAudioForGainNormalization})
     , m_save_function(
           services.save_function ? std::move(services.save_function)
                                  : EditorController::SaveFunction{defaultSave})
@@ -1128,12 +1144,13 @@ void EditorController::Impl::openProject(
         }
     }
     const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
-    AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
+    EditorController::ProjectOperationProgress report_progress =
+        makeBusyProjectOperationProgress(token);
     updateView();
 
     m_task_runner->submit(
-        [state, open_function = m_open_function, analyze_audio = std::move(analyze_audio)] {
-            state->result = open_function(state->project, state->file, analyze_audio);
+        [state, open_function = m_open_function, report_progress = std::move(report_progress)] {
+            state->result = open_function(state->project, state->file, report_progress);
         },
         safeCallback([this, state, token]() mutable {
             if (token != m_current_busy_token)
@@ -1261,12 +1278,13 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
     m_restore_interrupted_prompt_file.reset();
     clearInterruptedRestoreMarker();
     const std::uint64_t token = beginBusy(BusyOperation::ImportingProject);
-    AudioAnalyzeForGainFunction analyze_audio = makeBusyAudioAnalyzeForGainFunction(token);
+    EditorController::ProjectOperationProgress report_progress =
+        makeBusyProjectOperationProgress(token);
     updateView();
 
     m_task_runner->submit(
-        [state, import_function = m_import_function, analyze_audio = std::move(analyze_audio)] {
-            state->result = import_function(state->project, state->file, analyze_audio);
+        [state, import_function = m_import_function, report_progress = std::move(report_progress)] {
+            state->result = import_function(state->project, state->file, report_progress);
         },
         safeCallback([this, state, token]() mutable {
             if (token != m_current_busy_token)
@@ -1346,52 +1364,55 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     finishBusyOperation();
 }
 
-// Wraps open/import analysis so the project worker can tell the message thread when it has
-// entered the potentially slow LUFS-I phase without moving the analyzer itself onto the UI thread.
-AudioAnalyzeForGainFunction EditorController::Impl::makeBusyAudioAnalyzeForGainFunction(
+// Bridges project-operation progress from worker operations into the controller's busy state.
+// The audio-analysis phase keeps the existing paint gate so users see the analyzing overlay
+// before expensive normalization work starts.
+EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProjectOperationProgress(
     std::uint64_t token)
 {
-    return [analyze_audio = m_audio_analyze_for_gain_function,
-            alive = std::weak_ptr<bool>{m_alive},
-            token,
-            controller = this](
-               const std::filesystem::path& input,
-               const common::core::AudioNormalizationTarget& target) {
-        auto publish_analysis_state = [alive, token, controller] {
-            if (alive.expired())
+    return [alive = std::weak_ptr<bool>{m_alive}, token, controller = this](
+               EditorController::ProjectOperationPhase phase) {
+        switch (phase)
+        {
+            case EditorController::ProjectOperationPhase::AnalyzingBackingAudio:
             {
-                return;
-            }
-            controller->transitionBusyOperation(BusyOperation::AnalyzingBackingAudio, token);
-        };
-
-        juce::MessageManager* const message_manager =
-            juce::MessageManager::getInstanceWithoutCreating();
-        if (message_manager == nullptr || message_manager->isThisTheMessageThread())
-        {
-            publish_analysis_state();
-        }
-        else
-        {
-            auto paint_gate = std::make_shared<AnalysisPaintGate>();
-            const bool posted =
-                juce::MessageManager::callAsync([alive, token, controller, paint_gate] {
+                auto publish_analysis_state = [alive, token, controller] {
                     if (alive.expired())
                     {
-                        paint_gate->release();
                         return;
                     }
-                    controller->transitionBusyOperationAfterPaint(
-                        BusyOperation::AnalyzingBackingAudio, token, paint_gate);
-                });
-            if (!posted)
-            {
-                paint_gate->release();
-            }
-            paint_gate->wait();
-        }
+                    controller->transitionBusyOperation(
+                        BusyOperation::AnalyzingBackingAudio, token);
+                };
 
-        return analyze_audio(input, target);
+                juce::MessageManager* const message_manager =
+                    juce::MessageManager::getInstanceWithoutCreating();
+                if (message_manager == nullptr || message_manager->isThisTheMessageThread())
+                {
+                    publish_analysis_state();
+                }
+                else
+                {
+                    auto paint_gate = std::make_shared<AnalysisPaintGate>();
+                    const bool posted =
+                        juce::MessageManager::callAsync([alive, token, controller, paint_gate] {
+                            if (alive.expired())
+                            {
+                                paint_gate->release();
+                                return;
+                            }
+                            controller->transitionBusyOperationAfterPaint(
+                                BusyOperation::AnalyzingBackingAudio, token, paint_gate);
+                        });
+                    if (!posted)
+                    {
+                        paint_gate->release();
+                    }
+                    paint_gate->wait();
+                }
+                break;
+            }
+        }
     };
 }
 

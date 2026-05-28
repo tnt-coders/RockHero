@@ -371,8 +371,8 @@ void writeUnsafeAssetProjectPackage(
         });
 }
 
-// Records each invocation of the test-time analyze_audio seam so import tests can assert that
-// every unique source path is analyzed exactly once.
+// Records each invocation of the test-time normalization analyzer so import tests can assert
+// that every unique source path is analyzed exactly once.
 struct FakeAnalyzeAudioInvocation
 {
     std::filesystem::path input;
@@ -388,7 +388,7 @@ class FakeAnalyzeAudio final
 public:
     // Builds the std::function seam expected by Project::import. The returned function captures
     // a reference to *this so test cases can inspect invocations after import completes.
-    [[nodiscard]] AudioAnalyzeForGainFunction function()
+    [[nodiscard]] AudioNormalizationAnalyzer function()
     {
         return [this](
                    const std::filesystem::path& input,
@@ -418,10 +418,10 @@ public:
     std::vector<FakeAnalyzeAudioInvocation> invocations;
 };
 
-// Returns a fake analyze_audio that fails every invocation with the supplied error code so
-// tests can verify that Project::import surfaces AudioNormalizationFailed without partially
-// committing the imported workspace.
-[[nodiscard]] AudioAnalyzeForGainFunction makeFailingAnalyzeAudio(
+// Returns a fake analyzer that fails every invocation with the supplied error code so tests can
+// verify that Project::import surfaces AudioNormalizationFailed without partially committing the
+// imported workspace.
+[[nodiscard]] AudioNormalizationAnalyzer makeFailingAnalyzeAudio(
     common::audio::AudioNormalizationErrorCode error_code)
 {
     return
@@ -595,8 +595,8 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
     REQUIRE(fake_analyze.invocations.size() == 1);
 }
 
-// Verifies analyze_audio failures propagate as AudioNormalizationFailed without leaving the
-// previous Project context behind.
+// Verifies analyzer failures propagate as AudioNormalizationFailed without leaving the previous
+// Project context behind.
 TEST_CASE("Project import surfaces AudioNormalizationFailed on analysis failure", "[core][project]")
 {
     const TemporaryArchiveDirectory directory;
