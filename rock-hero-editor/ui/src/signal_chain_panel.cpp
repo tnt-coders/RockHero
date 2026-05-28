@@ -19,12 +19,17 @@ constexpr int g_plugin_row_height{24};
 constexpr int g_plugin_row_gap{4};
 constexpr int g_remove_button_width{72};
 constexpr int g_row_button_gap{8};
-constexpr int g_gain_slider_width{72};
+constexpr int g_output_gain_width{72};
+constexpr int g_gain_slider_width{32};
 constexpr int g_gain_meter_width{28};
-constexpr int g_gain_meter_gap{4};
-constexpr int g_gain_control_width{g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width};
+constexpr int g_gain_meter_gap{2};
+constexpr int g_gain_meter_vertical_inset{2};
+constexpr int g_gain_value_height{20};
 constexpr int g_input_control_width{72};
 constexpr int g_calibrate_button_height{26};
+constexpr int g_output_gain_visual_width{
+    g_gain_slider_width + g_gain_meter_gap + g_gain_meter_width
+};
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
@@ -56,6 +61,39 @@ const juce::Colour g_plugin_row_hover_accent{juce::Colours::lightskyblue};
 
     return label;
 }
+
+// Keeps JUCE's normal editable slider textbox while shifting only the vertical track left enough
+// to sit as a compact pair beside the output meter.
+class OutputGainSliderLookAndFeel final : public juce::LookAndFeel_V4
+{
+public:
+    // Reuses the stock drawing while aligning the track with the meter column and the textbox
+    // with the bottom control row.
+    juce::Slider::SliderLayout getSliderLayout(juce::Slider& slider) override
+    {
+        auto layout = juce::LookAndFeel_V4::getSliderLayout(slider);
+        if (slider.getSliderStyle() == juce::Slider::LinearVertical &&
+            slider.getTextBoxPosition() == juce::Slider::TextBoxBelow &&
+            slider.getWidth() >= g_output_gain_visual_width)
+        {
+            layout.sliderBounds.setX((slider.getWidth() - g_output_gain_visual_width) / 2);
+            layout.sliderBounds.setWidth(g_gain_slider_width);
+
+            const int thumb_radius = getSliderThumbRadius(slider);
+            const int meter_top = g_gain_meter_vertical_inset;
+            const int meter_height = slider.getHeight() - g_calibrate_button_height -
+                                     g_panel_inset - (g_gain_meter_vertical_inset * 2);
+            layout.sliderBounds.setY(meter_top + thumb_radius);
+            layout.sliderBounds.setHeight(std::max(1, meter_height - (thumb_radius * 2)));
+
+            const int text_box_y = slider.getHeight() - g_calibrate_button_height +
+                                   ((g_calibrate_button_height - g_gain_value_height) / 2);
+            layout.textBoxBounds.setY(std::max(0, text_box_y));
+        }
+
+        return layout;
+    }
+};
 
 } // namespace
 
@@ -165,13 +203,15 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
     slider.setRange(common::audio::minimumGainDb(), common::audio::maximumGainDb(), 0.1);
     slider.setValue(common::audio::defaultGainDb(), juce::dontSendNotification);
     slider.setDoubleClickReturnValue(true, common::audio::defaultGainDb());
-    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, g_gain_slider_width, 18);
+    slider.setTextBoxStyle(
+        juce::Slider::TextBoxBelow, false, g_output_gain_width, g_gain_value_height);
     slider.setTextValueSuffix(" dB");
 }
 
 // Creates the panel controls and routes the add command through the owner.
 SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
+    , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
 {
@@ -189,18 +229,25 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     addAndMakeVisible(m_input_calibrate_button);
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
+    m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
     m_output_gain_slider.onValueChange = [this] {
         m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
     };
     addAndMakeVisible(m_output_gain_slider);
     m_output_meter.setComponentID("output_gain_meter");
+    // The meter is visually inside the slider component's textbox-width footprint. Let it
+    // consume pointer hits so meter clicks do not pass through as slider adjustments.
+    m_output_meter.setInterceptsMouseClicks(true, false);
     addAndMakeVisible(m_output_meter);
 
     setState(core::SignalChainViewState{});
 }
 
-// Uses default destruction for JUCE child controls owned by value.
-SignalChainPanel::~SignalChainPanel() = default;
+// Detaches the custom slider look-and-feel before owned children are destroyed.
+SignalChainPanel::~SignalChainPanel()
+{
+    m_output_gain_slider.setLookAndFeel(nullptr);
+}
 
 // Stores the render state and updates controls whose enabledness is derived outside the view.
 void SignalChainPanel::setState(const core::SignalChainViewState& state)
@@ -240,9 +287,9 @@ void SignalChainPanel::paint(juce::Graphics& g)
     g.setFont(juce::FontOptions{12.0f});
     g.drawFittedText("Input", input_label_area, juce::Justification::centred, 1);
 
-    // Output gain label above the right slider.
+    // Output gain label above the right slider and post-fader meter group.
     const auto output_label_area =
-        area.removeFromRight(g_gain_control_width).removeFromTop(g_header_height);
+        area.removeFromRight(g_output_gain_width).removeFromTop(g_header_height);
     g.drawFittedText("Output", output_label_area, juce::Justification::centred, 1);
 
     // Center header with title.
@@ -289,18 +336,22 @@ void SignalChainPanel::resized()
     input_control_area.removeFromBottom(std::min(g_panel_inset, input_control_area.getHeight()));
     auto input_meter_area = input_control_area.withSizeKeepingCentre(
         g_gain_meter_width, input_control_area.getHeight());
-    m_input_meter.setBounds(input_meter_area.reduced(0, 2));
+    m_input_meter.setBounds(input_meter_area.reduced(0, g_gain_meter_vertical_inset));
     m_input_calibrate_button.setBounds(calibrate_area);
 
-    // Output gain flows into its post-fader meter, so keep the meter to the slider's right.
-    auto output_control_area = area.removeFromRight(g_gain_control_width);
+    // Output gain flows into its post-fader meter, with one centered readout below the pair.
+    auto output_control_area = area.removeFromRight(g_output_gain_width);
     output_control_area.removeFromTop(g_header_height);
-    auto output_meter_area = output_control_area.removeFromRight(g_gain_meter_width);
-    output_control_area.removeFromRight(std::min(g_gain_meter_gap, output_control_area.getWidth()));
-    auto output_slider_area = output_control_area.removeFromRight(g_gain_slider_width);
-    output_meter_area.removeFromBottom(std::min(22, output_meter_area.getHeight()));
+    auto output_slider_area = output_control_area.withSizeKeepingCentre(
+        g_output_gain_width, output_control_area.getHeight());
+    auto output_meter_area = output_slider_area.withTrimmedBottom(
+        std::min(g_calibrate_button_height + g_panel_inset, output_slider_area.getHeight()));
+    output_meter_area.setX(
+        output_slider_area.getX() + ((g_output_gain_width - g_output_gain_visual_width) / 2) +
+        g_gain_slider_width + g_gain_meter_gap);
+    output_meter_area.setWidth(g_gain_meter_width);
     m_output_gain_slider.setBounds(output_slider_area);
-    m_output_meter.setBounds(output_meter_area.reduced(0, 2));
+    m_output_meter.setBounds(output_meter_area.reduced(0, g_gain_meter_vertical_inset));
 
     // Leave a gap between the sliders and the center content.
     area.removeFromLeft(g_panel_inset);
