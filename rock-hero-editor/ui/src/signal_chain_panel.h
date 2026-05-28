@@ -146,7 +146,10 @@ private:
     // Button that opens the input calibration workflow.
     juce::TextButton m_input_calibrate_button;
 
-    // Output gain slider positioned on the right side of the plugin chain.
+    // Slider look-and-feel that keeps the default textbox while compacting the track.
+    std::unique_ptr<juce::LookAndFeel> m_output_gain_slider_look_and_feel;
+
+    // Output gain slider positioned within the right-side output gain group.
     juce::Slider m_output_gain_slider;
 
     // Post-output-gain peak meter positioned beside the output slider.

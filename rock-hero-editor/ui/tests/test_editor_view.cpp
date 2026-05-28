@@ -1603,6 +1603,10 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     CHECK_FALSE(calibrate_button.isEnabled());
     CHECK_FALSE(output_slider.isEnabled());
     CHECK(output_slider.isDoubleClickReturnEnabled());
+    CHECK(output_slider.getTextBoxPosition() == juce::Slider::TextBoxBelow);
+    CHECK(output_slider.isTextBoxEditable());
+    CHECK(output_slider.getTextBoxWidth() == 72);
+    CHECK(output_slider.getTextBoxHeight() == 20);
     CHECK(output_slider.getMinimum() == common::audio::minimumGainDb());
     CHECK(output_slider.getMaximum() == common::audio::maximumGainDb());
     CHECK(output_slider.getDoubleClickReturnValue() == common::audio::defaultGainDb());
@@ -1643,7 +1647,12 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
     auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(input_meter.getBottom() <= calibrate_button.getY());
-    CHECK(output_meter.getX() > output_slider.getRight());
+    CHECK(output_meter.getHeight() == input_meter.getHeight());
+    CHECK(output_meter.getY() == input_meter.getY());
+    CHECK(output_slider.getBottom() == calibrate_button.getBottom());
+    CHECK(output_meter.getX() > output_slider.getX());
+    CHECK(output_meter.getRight() <= output_slider.getRight());
+    CHECK(output_meter.getX() - output_slider.getX() <= (output_slider.getWidth() / 2) + 4);
 }
 
 // Verifies EditorView samples the optional meter port and forwards the values to meter widgets.

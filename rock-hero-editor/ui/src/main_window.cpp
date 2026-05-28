@@ -7,6 +7,16 @@
 namespace rock_hero::editor::ui
 {
 
+namespace
+{
+
+constexpr int g_main_window_min_width{1280};
+constexpr int g_main_window_min_height{720};
+constexpr int g_main_window_default_width{1920};
+constexpr int g_main_window_default_height{1080};
+
+} // namespace
+
 // Installs the composed editor UI into the top-level JUCE window shell.
 MainWindow::MainWindow(
     const juce::String& title, std::unique_ptr<Editor> editor, ExitCallback exit_callback)
@@ -26,7 +36,8 @@ MainWindow::MainWindow(
         setContentNonOwned(&m_editor->component(), true);
     }
     setResizable(true, false);
-    centreWithSize(1280, 800);
+    setResizeLimits(g_main_window_min_width, g_main_window_min_height, 8192, 8192);
+    centreWithSize(g_main_window_default_width, g_main_window_default_height);
     setVisible(true);
 }
 
