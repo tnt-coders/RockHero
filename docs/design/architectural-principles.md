@@ -181,7 +181,7 @@ The project should define small, project-owned interfaces at important boundarie
 Examples:
 
 - `ITransport`
-- `IAudio`
+- `ISongAudio`
 - `IEdit`
 - `IWaveformSource`
 - `IClock`
