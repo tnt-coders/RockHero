@@ -2,8 +2,8 @@
 
 ## Status
 
-Planning. This narrows the LUFS-I gain-normalization metadata to the smallest useful persisted
-shape.
+Completed planning record. This narrowed the LUFS-I gain-normalization metadata to the smallest
+useful persisted shape used by the implemented backing-audio normalization metadata.
 
 ## Goal
 

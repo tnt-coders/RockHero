@@ -1,5 +1,8 @@
 # Tone Automation Track Plan
 
+Status: planned. Revisit after the tone-rack model exists and the editor needs authored tone
+changes on the song timeline; this is not an active in-progress implementation plan.
+
 ## Goal
 
 Display authored tone changes over the song timeline as project-owned tone clips in the track

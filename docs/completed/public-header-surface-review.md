@@ -1,5 +1,8 @@
 # Public Header Surface Review
 
+Status: completed review. The immediate editor-core concrete-header cleanup has been applied.
+Remaining watch items in this note are deferred guidance to re-evaluate before related work.
+
 ## Scope
 
 This note reviews the public header surface of each project-owned library and asks whether the

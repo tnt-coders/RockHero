@@ -2,8 +2,9 @@
 
 ## Status
 
-In progress. This supersedes the rendered-WAV normalization direction from
-`docs/completed/backing-audio-normalization-plan.md` for future backing-audio normalization work.
+Complete. This superseded the rendered-WAV normalization direction from
+`docs/completed/backing-audio-normalization-plan.md` and records the implemented LUFS-I gain
+normalization direction.
 
 ## Why This Exists
 

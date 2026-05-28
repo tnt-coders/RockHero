@@ -1,4 +1,8 @@
-# Audio Device Settings Extraction — Open Follow-Ups
+# Audio Device Settings Extraction Open Follow-Ups
+
+Status: deferred follow-ups. These are intentionally outside the completed extraction and should be
+revisited when the game-side audio settings UI lands or when more settings-view test investment is
+prioritized.
 
 ## Context
 
@@ -10,9 +14,8 @@ The shared audio-device settings code now lives in
 policy. The game will reuse the same `IAudioDeviceConfiguration` port and the same shared
 policy when it gets its own settings UI.
 
-This document captures concerns raised during code review that were intentionally not
-addressed in the extraction PR. They are tracked here so they can be picked up when the
-game-side UI lands or when test investment is prioritized.
+This document captures concerns raised during code review that were intentionally not addressed in
+the extraction PR.
 
 ## Open Follow-Ups
 
@@ -33,16 +36,16 @@ both views will share the same interaction pattern even if the controls differ.
 ### View file size and shape
 
 `audio_device_settings_view.cpp` is around 986 lines. Nothing in the extraction made it
-worse — the pure helpers came out — but the view is monolithic enough that a future
+worse; the pure helpers came out, but the view is monolithic enough that a future
 split could help. Candidate seams:
 
 - Route management (device type, device names, channel selection).
 - Audio format management (sample rate, buffer size).
 - Window state management (refresh gating, error label, OK/Cancel/Apply flow).
 
-Out of scope for the extraction. Worth revisiting if the game view ends up sharing more
-of this structure than expected, in which case some of the file could move into common
-as a presentation-agnostic state machine while the JUCE wiring stays in editor UI.
+Out of scope for the extraction. Worth revisiting if the game view ends up sharing more of this
+structure than expected, in which case some of the file could move into common as a
+presentation-agnostic state machine while the JUCE wiring stays in editor UI.
 
 ### Hard window-size caps
 
@@ -62,8 +65,8 @@ just this header. Acceptable today; flagged for visibility.
 
 ## Not Tracked Here
 
-Anything covered by the extraction PR itself — the file moves, the rename from "policy"
-to "settings," the rename from "dialog" to "window," the consolidation of the two prior
-test files, and the behavioral improvement in `chooseAudioDeviceSampleRate` (each
-priority layer is now tested for availability before falling through to the next).
+Anything covered by the extraction PR itself: the file moves, the rename from "policy" to
+"settings," the rename from "dialog" to "window," the consolidation of the two prior test files,
+and the behavioral improvement in `chooseAudioDeviceSampleRate` (each priority layer is now tested
+for availability before falling through to the next).
 Those landed and are not open work.

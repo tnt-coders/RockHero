@@ -1,5 +1,8 @@
 # Audio Device Settings Performance Investigation
 
+Status: deferred investigation. The first device-switch improvement landed; keep this as a future
+measurement plan if real device changes still feel too slow.
+
 ## Context
 
 Audio-device changes now feel noticeably faster after pre-closing the active device before a JUCE

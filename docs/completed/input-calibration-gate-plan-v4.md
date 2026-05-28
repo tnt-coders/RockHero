@@ -1,9 +1,9 @@
 # Required Input Calibration Gate Plan V4
 
-Status: V4. This is a separate replacement plan for the input calibration gate. It addresses the
-V3 review findings by persisting calibration with the exact input identity, making calibration
-setup fallible, keeping backing-track transport available, and visibly disabling live guitar
-audition until the current input route is calibrated.
+Status: completed. This plan replaced the older V3 calibration gate plan. The implemented workflow
+persists calibration with the exact input identity, makes calibration setup fallible, keeps
+backing-track transport available after dismissal, and visibly disables live guitar audition until
+the current input route is calibrated.
 
 ## Goal
 

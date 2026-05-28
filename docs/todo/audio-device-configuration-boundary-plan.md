@@ -1,5 +1,9 @@
 # Audio Device Configuration Boundary Plan
 
+Status: deferred. The immediate editor-core serialization slice is tracked by
+`docs/in-progress/editor-core-framework-isolation-plan.md`; revisit the broader boundary when the
+game needs audio settings UI or another product workflow starts using audio-device configuration.
+
 ## Purpose
 
 `IAudioDeviceConfiguration` currently exposes `juce::AudioDeviceManager&`. That is pragmatic while
