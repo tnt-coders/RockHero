@@ -1,7 +1,11 @@
 #include "editor_controller.h"
 
+#include "audio_device_status_text.h"
 #include "editor_action.h"
+#include "inline_editor_task_runner.h"
 #include "project_io.h"
+#include "psarc_song_importer.h"
+#include "rock_song_importer.h"
 
 #include <algorithm>
 #include <cassert>
@@ -25,13 +29,9 @@
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
-#include <rock_hero/editor/core/audio_device_status_text.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/i_editor_view.h>
-#include <rock_hero/editor/core/inline_editor_task_runner.h>
-#include <rock_hero/editor/core/psarc_song_importer.h>
-#include <rock_hero/editor/core/rock_song_importer.h>
 #include <string>
 #include <string_view>
 #include <system_error>
