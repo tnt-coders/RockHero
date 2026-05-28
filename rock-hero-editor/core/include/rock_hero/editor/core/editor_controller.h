@@ -18,11 +18,11 @@
 
 namespace rock_hero::common::audio
 {
-class IAudio;
 class IAudioDeviceConfiguration;
 class ILiveInput;
 class ILiveRig;
 class IPluginHost;
+class ISongAudio;
 class ITransport;
 } // namespace rock_hero::common::audio
 
@@ -45,8 +45,7 @@ at its own render cadence. The controller samples position only for discrete wor
 as whether Stop can reset the cursor. It provides only discrete cursor mapping state, such as
 visible timeline range, through EditorViewState.
 
-The referenced transport, audio, optional audio-device configuration, and optional plugin-host
-ports must outlive the controller.
+The referenced audio ports must outlive the controller.
 */
 class EditorController final : public IEditorController
 {
@@ -124,89 +123,44 @@ public:
     };
 
     /*!
+    \brief Audio ports consumed by the editor controller.
+
+    All editor audio capabilities are required by production composition. Runtime unavailability
+    such as a closed device or missing active input route is represented by port state, not by
+    omitting a port.
+    */
+    struct AudioPorts final
+    {
+        /*! \brief Transport port used for play/pause/stop/seek and coarse listener delivery. */
+        common::audio::ITransport& transport;
+
+        /*! \brief Song-audio port used to validate and load arrangement audio. */
+        common::audio::ISongAudio& song_audio;
+
+        /*! \brief Audio-device configuration port for hardware input/output routing. */
+        common::audio::IAudioDeviceConfiguration& audio_devices;
+
+        /*! \brief Plugin-host port used to mutate the plugin chain. */
+        common::audio::IPluginHost& plugin_host;
+
+        /*! \brief Live rig port used to save and restore tone documents. */
+        common::audio::ILiveRig& live_rig;
+
+        /*! \brief Live-input port used for monitoring and calibration. */
+        common::audio::ILiveInput& live_input;
+    };
+
+    /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
     The owned session starts empty until the user opens a project. The controller does not push
     state during construction because no view is attached yet. The initial cached state becomes the
     first push delivered to attachView().
 
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param audio_devices Audio-device configuration port used for ASIO input/output routing.
+    \param audio_ports Required audio ports consumed by controller workflows.
     \param services Optional project IO, settings, and host-exit services.
     */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        Services services = defaultServices());
-
-    /*!
-    \brief Builds the controller with a plugin-host backend.
-
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param audio_devices Audio-device configuration port used for ASIO input/output routing.
-    \param plugin_host Plugin-host port used to mutate the plugin chain.
-    \param services Optional project IO, settings, and host-exit services.
-    */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IPluginHost& plugin_host, Services services = defaultServices());
-
-    /*!
-    \brief Builds the controller with plugin hosting and persistent live rig storage.
-
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param audio_devices Audio-device configuration port used for ASIO input/output routing.
-    \param plugin_host Plugin-host port used to mutate the plugin chain.
-    \param live_rig Live rig port used to save and restore tone documents.
-    \param services Optional project IO, settings, and host-exit services.
-    */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        Services services = defaultServices());
-
-    /*!
-    \brief Builds the controller without an audio-device backend.
-
-    This overload is used by tests and temporary hosts that do not expose audio-device
-    configuration.
-
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param services Optional project IO, settings, and host-exit services.
-    */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        Services services = defaultServices());
-
-    /*!
-    \brief Builds the controller with plugin hosting but without audio-device settings UI.
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param plugin_host Plugin-host port used to mutate the plugin chain.
-    \param services Optional project IO, settings, and host-exit services.
-    */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IPluginHost& plugin_host, Services services = defaultServices());
-
-    /*!
-    \brief Builds the controller with plugin hosting and tone storage but no device settings UI.
-    \param transport Transport port used for play/pause/stop/seek and coarse listener delivery.
-    \param audio Audio port used to validate and load arrangement audio.
-    \param plugin_host Plugin-host port used to mutate the plugin chain.
-    \param live_rig Live rig port used to save and restore tone documents.
-    \param services Optional project IO, settings, and host-exit services.
-    */
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        Services services = defaultServices());
+    explicit EditorController(AudioPorts audio_ports, Services services = defaultServices());
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -421,13 +375,6 @@ public:
 private:
     // Supplies a named default-argument target after Services has been declared.
     [[nodiscard]] static Services defaultServices();
-
-    // Shared constructor body used by public overloads.
-    EditorController(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration* audio_devices,
-        common::audio::IPluginHost* plugin_host, common::audio::ILiveRig* live_rig,
-        common::audio::ILiveInput* live_input, Services services);
 
     struct Impl;
     std::unique_ptr<Impl> m_impl;

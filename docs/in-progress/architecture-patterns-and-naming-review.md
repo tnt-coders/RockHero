@@ -26,9 +26,9 @@ roles:
   `InputCalibrationCapture`, phase state, and controller commits. The capture policy belongs behind
   a core-owned calibration workflow/session boundary. The JUCE window should keep window lifetime
   and polling cadence, but not own the product workflow.
-- Optional audio capabilities are discovered with `dynamic_cast` in editor composition, controller,
-  and view code. Capabilities should be explicit at composition time through a small aggregate such
-  as `EditorAudioPorts`.
+- Editor audio capabilities are now explicit and required at composition time through nested
+  `Editor::AudioPorts`, `EditorController::AudioPorts`, and `EditorView::AudioPorts` bundles. Keep
+  those bundles instead of reintroducing composition-time `dynamic_cast` discovery.
 - `IAudioDeviceConfiguration::deviceManager()` exposes broad `juce::AudioDeviceManager` mutation.
   Raw access can remain internal to common/audio device settings, but editor core should not need
   raw JUCE XML persistence.
@@ -104,7 +104,7 @@ or persistent settings:
 | Pattern | Current use | Value | Verdict |
 | --- | --- | --- | --- |
 | Layered product modules | `common`, `editor`, `game`; `core`, `audio`, `ui`, `app` | Keeps ownership and dependencies readable | Keep. |
-| Ports and adapters | `ITransport`, `IAudio`, `IPluginHost`, `ILiveRig`, `Engine`, `TracktionThumbnail` | Hides Tracktion/JUCE implementation details | Keep, but reduce escape hatches. |
+| Ports and adapters | `ITransport`, `ISongAudio`, `IPluginHost`, `ILiveRig`, `Engine`, `TracktionThumbnail` | Hides Tracktion/JUCE implementation details | Keep, but reduce escape hatches. |
 | Facade with pimpl | `Engine`, `EditorController` | Keeps public headers smaller and implementation replaceable | Keep, but split oversized private implementations. |
 | View-state/controller/view | `EditorController` -> `EditorViewState` -> `EditorView` | Testable UI state and passive rendering | Keep. |
 | Lightweight listener UI | `TransportControls`, `SignalChainPanel`, `PluginBrowserWindow` | Simple and idiomatic for local UI intents | Keep for simple surfaces only. |
@@ -145,7 +145,7 @@ or persistent settings:
 | `IAudioMeterSource` | Meter read port | Keep. |
 | `IAudioDeviceConfiguration` | Device configuration port | Keep, but replace broad public `deviceManager()` usage with narrower project APIs. |
 | `PluginHostErrorCode`, `PluginHostError` | Plugin host typed error | Keep. |
-| `IAudio` | Arrangement/audio preparation port | Keep for now; rename only if it grows beyond this responsibility. |
+| `ISongAudio` | Song preparation and active arrangement playback port | Keep. |
 | `LiveRigErrorCode`, `LiveRigError` | Live-rig typed error | Keep. |
 | `InputDeviceIdentity` | Input device identity value | Keep. |
 | `LiveInputErrorCode`, `LiveInputError` | Live input typed error | Keep. |
@@ -216,7 +216,7 @@ or persistent settings:
 | `EditorViewState` | Root render snapshot | Keep, but avoid unlimited growth. |
 | `BusyOperation`, `BusyPresentation`, `BusyViewState` | Busy overlay state | Keep. |
 | `EditorController` | Root editor facade/controller | Keep public facade, but split private workflow ownership. |
-| `EditorController::Services` | Service bundle | Keep, but consider an explicit `EditorAudioPorts` for audio capabilities. |
+| `EditorController::Services` | Service bundle | Keep distinct from the completed `EditorController::AudioPorts` bundle. |
 | `ProjectEditorState`, `Project` | Project state/model | Keep. |
 | `ProjectErrorCode`, `ProjectError` | Project typed error | Keep. |
 | `PluginViewState` | Signal-chain presentation DTO | Keep, but source it from a unified loaded-plugin chain DTO. |
@@ -323,9 +323,9 @@ but that should be a deliberate public API cleanup, not part of the first refact
 
 1. Confirm this vocabulary before changing `docs/design/`. Do not add a second set of architecture
    names while trying to clean up the first.
-2. Add explicit editor audio capability composition, likely `EditorAudioPorts`, and remove
-   app/editor/controller `dynamic_cast` capability discovery. Tracktion-internal casts in
-   `engine.cpp` are a different issue and are acceptable inside the adapter.
+2. Keep explicit editor audio capability composition through `Editor::AudioPorts` and
+   `EditorController::AudioPorts`. Tracktion-internal casts in `engine.cpp` are a different issue
+   and are acceptable inside the adapter.
 3. Refactor input calibration into a core-owned session/controller/view-state plus passive JUCE
    dialog/content. Keep JUCE timer cadence and window lifetime in UI.
 4. Contain `juce::AudioDeviceManager` access behind narrower project APIs for persistence and route
@@ -351,5 +351,5 @@ but that should be a deliberate public API cleanup, not part of the first refact
 - Do not introduce `Presenter` without a real third role.
 - Do not split public include folders before ownership boundaries are actually extracted.
 - Do not treat every use of `dynamic_cast` as architecture drift. The problematic casts are
-  composition-time optional capability discovery in app/editor/UI code, not Tracktion-internal
+  composition-time capability discovery in app/editor/UI code, not Tracktion-internal
   adapter casts.

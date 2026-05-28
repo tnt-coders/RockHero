@@ -379,7 +379,7 @@ mirroring production file names mechanically.
 Examples:
 
 - `test_transport.cpp` for transport-port behavior
-- `test_audio.cpp` for audio-port behavior
+- `test_song_audio.cpp` for song-audio port behavior
 - `test_edit.cpp` for future edit-command placeholder behavior until real commands exist
 - `test_engine.cpp` for concrete engine adapter behavior
 - `test_session.cpp`, `test_song.cpp`, `test_arrangement.cpp` for core model types once each

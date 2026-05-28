@@ -6,12 +6,15 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
+#include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
@@ -418,6 +421,81 @@ public:
     mutable int snapshot_read_count{0};
 };
 
+// Minimal audio-device-configuration fake used by the view's settings popup boundary.
+class FakeAudioDeviceConfiguration final : public common::audio::IAudioDeviceConfiguration
+{
+public:
+    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
+    {
+        return device_manager;
+    }
+
+    [[nodiscard]] common::audio::AudioDeviceStatus currentDeviceStatus() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
+        const override
+    {
+        return std::nullopt;
+    }
+
+    void addListener(common::audio::IAudioDeviceConfiguration::Listener&) override
+    {}
+
+    void removeListener(common::audio::IAudioDeviceConfiguration::Listener&) override
+    {}
+
+private:
+    juce::AudioDeviceManager device_manager{};
+};
+
+// Minimal live-input fake used by the calibration popup boundary.
+class FakeLiveInput final : public common::audio::ILiveInput
+{
+public:
+    [[nodiscard]] common::audio::Gain inputGain() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setInputGain(
+        common::audio::Gain) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
+    {
+        return raw_input_meter_level;
+    }
+
+    [[nodiscard]] bool liveInputMonitoringEnabled() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setLiveInputMonitoringEnabled(
+        bool) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] bool calibrationInputMonitoringEnabled() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    setCalibrationInputMonitoringEnabled(bool) override
+    {
+        return {};
+    }
+
+    common::audio::AudioMeterLevel raw_input_meter_level{};
+};
+
 // Records thumbnail source updates installed through the arrangement view owned by EditorView.
 class FakeThumbnail final : public common::audio::IThumbnail
 {
@@ -490,6 +568,49 @@ public:
     // Number of thumbnails created by the factory.
     int create_call_count{0};
 };
+
+[[nodiscard]] FakeAudioDeviceConfiguration& defaultAudioDevices() noexcept
+{
+    static FakeAudioDeviceConfiguration audio_devices;
+    return audio_devices;
+}
+
+[[nodiscard]] FakeAudioMeterSource& defaultAudioMeterSource() noexcept
+{
+    static FakeAudioMeterSource meter_source;
+    return meter_source;
+}
+
+[[nodiscard]] FakeLiveInput& defaultLiveInput() noexcept
+{
+    static FakeLiveInput live_input;
+    return live_input;
+}
+
+[[nodiscard]] EditorView::AudioPorts viewAudioPorts(
+    const FakeTransport& transport, FakeThumbnailFactory& thumbnail_factory) noexcept
+{
+    return EditorView::AudioPorts{
+        .transport = transport,
+        .thumbnail_factory = thumbnail_factory,
+        .audio_devices = defaultAudioDevices(),
+        .meter_source = defaultAudioMeterSource(),
+        .live_input = defaultLiveInput(),
+    };
+}
+
+[[nodiscard]] EditorView::AudioPorts viewAudioPorts(
+    const FakeTransport& transport, FakeThumbnailFactory& thumbnail_factory,
+    const FakeAudioMeterSource& meter_source) noexcept
+{
+    return EditorView::AudioPorts{
+        .transport = transport,
+        .thumbnail_factory = thumbnail_factory,
+        .audio_devices = defaultAudioDevices(),
+        .meter_source = meter_source,
+        .live_input = defaultLiveInput(),
+    };
+}
 
 // Recursively searches a component tree because viewport-hosted children are nested.
 [[nodiscard]] juce::Component* findChildRecursive(juce::Component& parent, const juce::String& id)
@@ -691,7 +812,7 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);
@@ -744,7 +865,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
     auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
@@ -854,7 +975,7 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -895,7 +1016,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
@@ -928,7 +1049,7 @@ TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-vie
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
 
     view.setState(core::EditorViewState{});
@@ -975,7 +1096,7 @@ TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 500, 200);
 
@@ -1000,7 +1121,7 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 500, 200);
 
@@ -1028,7 +1149,7 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -1056,7 +1177,7 @@ TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
@@ -1084,7 +1205,7 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
@@ -1113,7 +1234,7 @@ TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(240.0));
@@ -1142,7 +1263,7 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
     FakeEditorController controller;
     FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     const auto state = makeLoadedEditorState(20.0);
@@ -1189,7 +1310,7 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
     FakeEditorController controller;
     FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     const auto state = makeLoadedEditorState(20.0);
@@ -1235,7 +1356,7 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     FakeEditorController controller;
     FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -1269,7 +1390,7 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
@@ -1293,7 +1414,7 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1600, 1000);
     view.setState(makeLoadedEditorState(20.0));
@@ -1322,7 +1443,7 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1600, 1000);
     view.setState(
         core::EditorViewState{
@@ -1383,7 +1504,7 @@ TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]"
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     CHECK(view.getWantsKeyboardFocus());
     CHECK(view.keyPressed(juce::KeyPress{juce::KeyPress::spaceKey}));
@@ -1457,7 +1578,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
@@ -1525,7 +1646,7 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
 
@@ -1565,7 +1686,7 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
 
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState busy_state;
     busy_state.visible_timeline = common::core::TimeRange{
@@ -1595,7 +1716,7 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
     auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
@@ -1619,7 +1740,7 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
     auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
@@ -1637,7 +1758,7 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
 
@@ -1668,7 +1789,7 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
         .live_rig_output = common::audio::AudioMeterLevel{.peak_db = -2.0, .clipping = true},
         .master_output = common::audio::AudioMeterLevel{.peak_db = -6.0},
     };
-    EditorView view{controller, transport, thumbnail_factory, nullptr, &meter_source};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory, meter_source)};
 
     view.setState(core::EditorViewState{});
 
@@ -1689,7 +1810,7 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
     auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
@@ -1715,7 +1836,7 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setState(
         core::EditorViewState{
@@ -1737,7 +1858,7 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1280, 800);
 
     core::EditorViewState state;
@@ -1796,7 +1917,7 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -1820,7 +1941,7 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
     state.input_calibration_prompt = core::InputCalibrationPrompt{
@@ -1853,7 +1974,7 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     FakeEditorController controller;
     const FakeTransport transport;
     FakeThumbnailFactory thumbnail_factory;
-    EditorView view{controller, transport, thumbnail_factory};
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setState(
         core::EditorViewState{

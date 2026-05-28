@@ -2,15 +2,24 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
+#include <filesystem>
+#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/i_audio_meter_source.h>
+#include <rock_hero/common/audio/i_live_input.h>
+#include <rock_hero/common/audio/i_live_rig.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/i_song_audio.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -83,7 +92,7 @@ public:
 };
 
 // Minimal audio port fake used by Editor construction and initial state projection.
-class FakeAudio final : public common::audio::IAudio
+class FakeSongAudio final : public common::audio::ISongAudio
 {
 public:
     // Accepts preparation and fills arrangement durations for controller loading paths.
@@ -197,6 +206,147 @@ public:
     int create_call_count{0};
 };
 
+// Supplies the required editor audio ports that this construction test does not exercise.
+class FakeEditorAudioPorts final : public common::audio::IAudioDeviceConfiguration,
+                                   public common::audio::IPluginHost,
+                                   public common::audio::ILiveRig,
+                                   public common::audio::ILiveInput,
+                                   public common::audio::IAudioMeterSource
+{
+public:
+    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
+    {
+        return device_manager;
+    }
+
+    [[nodiscard]] common::audio::AudioDeviceStatus currentDeviceStatus() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
+        const override
+    {
+        return std::nullopt;
+    }
+
+    void addListener(common::audio::IAudioDeviceConfiguration::Listener&) override
+    {}
+
+    void removeListener(common::audio::IAudioDeviceConfiguration::Listener&) override
+    {}
+
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog() override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<
+        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
+    scanPluginLocations(const std::vector<std::filesystem::path>&) override
+    {
+        return std::vector<common::audio::PluginCandidate>{};
+    }
+
+    [[nodiscard]] std::vector<common::audio::PluginCandidate> knownPluginCatalog() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<common::audio::PluginHandle, common::audio::PluginHostError>
+    addPlugin(const common::audio::PluginCandidate&) override
+    {
+        return common::audio::PluginHandle{};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> removePlugin(
+        const std::string&) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
+        const std::string&) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<common::audio::LiveRigSnapshot, common::audio::LiveRigError>
+    captureActiveRig(const common::audio::LiveRigCaptureRequest&) override
+    {
+        return common::audio::LiveRigSnapshot{};
+    }
+
+    void loadLiveRig(
+        common::audio::LiveRigLoadRequest,
+        common::audio::LiveRigLoadResultCallback completion) override
+    {
+        completion(common::audio::LiveRigLoadResult{});
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> clearLiveRig() override
+    {
+        return {};
+    }
+
+    [[nodiscard]] common::audio::Gain outputGain() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
+        common::audio::Gain) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] common::audio::Gain inputGain() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setInputGain(
+        common::audio::Gain) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] common::audio::AudioMeterLevel rawInputMeterLevel() const override
+    {
+        return {};
+    }
+
+    [[nodiscard]] bool liveInputMonitoringEnabled() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> setLiveInputMonitoringEnabled(
+        bool) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] bool calibrationInputMonitoringEnabled() const override
+    {
+        return false;
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    setCalibrationInputMonitoringEnabled(bool) override
+    {
+        return {};
+    }
+
+    [[nodiscard]] common::audio::AudioMeterSnapshot audioMeterSnapshot() const override
+    {
+        return {};
+    }
+
+private:
+    juce::AudioDeviceManager device_manager{};
+};
+
 // Returns a required child component by id and type, failing the current test if missing.
 template <class ComponentType>
 [[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
@@ -223,10 +373,20 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransport transport;
-    FakeAudio audio;
+    FakeSongAudio song_audio;
     FakeThumbnailFactory thumbnail_factory;
+    FakeEditorAudioPorts audio_ports;
 
-    Editor editor{transport, audio, thumbnail_factory};
+    Editor editor{Editor::AudioPorts{
+        .transport = transport,
+        .song_audio = song_audio,
+        .thumbnail_factory = thumbnail_factory,
+        .audio_devices = audio_ports,
+        .plugin_host = audio_ports,
+        .live_rig = audio_ports,
+        .live_input = audio_ports,
+        .meter_source = audio_ports,
+    }};
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
@@ -237,8 +397,8 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     CHECK(thumbnail_factory.last_owner->getComponentID() == "arrangement_view");
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 0);
-    CHECK(audio.set_active_arrangement_call_count == 0);
-    CHECK_FALSE(audio.last_active_audio_asset.has_value());
+    CHECK(song_audio.set_active_arrangement_call_count == 0);
+    CHECK_FALSE(song_audio.last_active_audio_asset.has_value());
     CHECK(transport.listeners.size() == 1);
 }
 
