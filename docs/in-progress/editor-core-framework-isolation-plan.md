@@ -12,7 +12,7 @@ behind project-owned ports or in the app/UI tier:
 1. Audio device state serialization: `restoreAudioDeviceState()` and `persistAudioDeviceState()`
    parse JUCE XML and call through `IAudioDeviceConfiguration::deviceManager()` to manipulate the
    raw `juce::AudioDeviceManager`.
-2. Message-thread scheduling: `makeBusyAudioAnalyzeForGainFunction()` and
+2. Message-thread scheduling: `makeBusyProjectOperationProgress()` and
    `startLiveRigLoadStage()` use `juce::MessageManager` and `juce::Timer::callAfterDelay` for
    cross-thread dispatch and cosmetic timing.
 
@@ -129,7 +129,7 @@ should break; the new methods are additive.
 
 Three sites in `EditorController::Impl` use JUCE message-loop primitives directly:
 
-1. `makeBusyAudioAnalyzeForGainFunction()` (line 1443): calls
+1. `makeBusyProjectOperationProgress()`: calls
    `juce::MessageManager::getInstanceWithoutCreating()`, `isThisTheMessageThread()`, and
    `juce::MessageManager::callAsync()` to post a busy-state transition from the worker thread to
    the message thread, then blocks the worker on `AnalysisPaintGate` until the message thread has
@@ -156,7 +156,7 @@ The fix is more invasive than Part 1 and the practical benefit is lower:
   port) to cover the two remaining callAsync/callAfterDelay sites is straightforward in concept but
   touches async choreography that is currently correct and well-tested.
 
-- The analysis paint gate in `makeBusyAudioAnalyzeForGainFunction` bridges a worker thread to the
+- The analysis paint gate in `makeBusyProjectOperationProgress` bridges a worker thread to the
   message thread with a condition-variable rendezvous. The worker blocks until the message thread
   has painted the busy overlay. This pattern is tightly coupled to the controller's busy-token
   lifecycle and the view's paint-fence contract. Abstracting the message-thread post behind a port

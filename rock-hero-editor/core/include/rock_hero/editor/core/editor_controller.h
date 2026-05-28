@@ -50,15 +50,25 @@ The referenced audio ports must outlive the controller.
 class EditorController final : public IEditorController
 {
 public:
+    /*! \brief Worker-reported phase for a project operation in progress. */
+    enum class ProjectOperationPhase
+    {
+        /*! \brief Backing-audio normalization analysis has started. */
+        AnalyzingBackingAudio,
+    };
+
+    /*! \brief Reports coarse progress from project operations back to the controller. */
+    using ProjectOperationProgress = std::function<void(ProjectOperationPhase phase)>;
+
     /*! \brief Opens an editor project package into a project context. */
     using OpenFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path,
-        const AudioAnalyzeForGainFunction& analyze_audio)>;
+        const ProjectOperationProgress& report_progress)>;
 
     /*! \brief Imports a song source into a project context. */
     using ImportFunction = std::function<std::expected<common::core::Song, ProjectError>(
         Project& project, const std::filesystem::path& path,
-        const AudioAnalyzeForGainFunction& analyze_audio)>;
+        const ProjectOperationProgress& report_progress)>;
 
     /*! \brief Saves the current song through the project context. */
     using SaveFunction = std::function<std::expected<void, ProjectError>(
@@ -102,11 +112,6 @@ public:
 
         /*! \brief Requests host shutdown after guarded editor exit succeeds. */
         ExitFunction exit_function{};
-
-        /*!
-        \brief Analyzes backing audio when project normalization metadata is missing or stale.
-        */
-        AudioAnalyzeForGainFunction audio_analyze_for_gain_function{};
 
         /*! \brief Optional settings store used for startup restore and exit persistence. */
         EditorSettings* settings{};

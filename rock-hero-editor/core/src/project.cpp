@@ -156,14 +156,14 @@ using common::core::Song;
 analyzeImportedAudioAssets(
     const std::vector<std::filesystem::path>& unique_paths,
     const common::core::AudioNormalizationTarget& target,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
     std::unordered_map<std::string, common::core::AudioNormalization> results;
     results.reserve(unique_paths.size());
 
     for (const std::filesystem::path& source_path : unique_paths)
     {
-        auto metadata = analyze_audio(source_path, target);
+        auto metadata = analyze_audio_normalization(source_path, target);
         if (!metadata.has_value())
         {
             return std::unexpected{projectErrorFromNormalizationError(metadata.error())};
@@ -195,7 +195,7 @@ void attachNormalizationMetadata(
 // that share the same audio file so one backing asset has one authoritative gain.
 [[nodiscard]] std::expected<bool, ProjectError> ensureLoadedAudioNormalization(
     Song& song, const common::core::AudioNormalizationTarget& target,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
     bool updated = false;
     const std::vector<std::filesystem::path> unique_paths = collectUniqueAudioAssets(song);
@@ -223,7 +223,7 @@ void attachNormalizationMetadata(
 
         if (!valid_normalization.has_value())
         {
-            auto analyzed_normalization = analyze_audio(audio_path, target);
+            auto analyzed_normalization = analyze_audio_normalization(audio_path, target);
             if (!analyzed_normalization.has_value())
             {
                 return std::unexpected{projectErrorFromNormalizationError(
@@ -339,7 +339,7 @@ bool Project::audioNormalizationUpdatedOnLoad() const noexcept
 // Opens the project package archive, extracts it safely, and reads the song document.
 std::expected<Song, ProjectError> Project::load(
     const std::filesystem::path& package_path, const common::core::AudioNormalizationTarget& target,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
     std::error_code filesystem_error;
     if (!std::filesystem::is_regular_file(package_path, filesystem_error))
@@ -391,7 +391,8 @@ std::expected<Song, ProjectError> Project::load(
     }
 
     Song song = std::move(*loaded_song);
-    auto normalization_result = ensureLoadedAudioNormalization(song, target, analyze_audio);
+    auto normalization_result =
+        ensureLoadedAudioNormalization(song, target, analyze_audio_normalization);
     if (!normalization_result.has_value())
     {
         return std::unexpected{std::move(normalization_result.error())};
@@ -415,7 +416,7 @@ std::expected<Song, ProjectError> Project::load(
 std::expected<Song, ProjectError> Project::import(
     const std::filesystem::path& source_path, ISongImporter& importer,
     const common::core::AudioNormalizationTarget& target,
-    const AudioAnalyzeForGainFunction& analyze_audio)
+    const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
     std::string error_message;
     auto workspace_directory = createWorkspaceDirectory(error_message);
@@ -458,7 +459,8 @@ std::expected<Song, ProjectError> Project::import(
 
     Song song = std::move(*resolved_song);
     const std::vector<std::filesystem::path> unique_source_paths = collectUniqueAudioAssets(song);
-    auto analysis_results = analyzeImportedAudioAssets(unique_source_paths, target, analyze_audio);
+    auto analysis_results =
+        analyzeImportedAudioAssets(unique_source_paths, target, analyze_audio_normalization);
     if (!analysis_results.has_value())
     {
         return std::unexpected{std::move(analysis_results.error())};
