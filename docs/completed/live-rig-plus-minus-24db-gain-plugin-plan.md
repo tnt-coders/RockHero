@@ -2,9 +2,9 @@
 
 ## Status
 
-Near-term follow-up to the live-rig gain and meter work. This plan narrows the implementation for
-supporting input and output gain from `-24.0 dB` to `+24.0 dB` without modifying Tracktion Engine
-internals and without stacking multiple hidden Tracktion faders.
+Complete. This plan records the implemented `-24.0 dB` to `+24.0 dB` structural gain-plugin
+direction for input and output gain without modifying Tracktion Engine internals or stacking
+multiple hidden Tracktion faders.
 
 ## Why This Exists
 
