@@ -9,13 +9,19 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_audio.h>
-#include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_live_rig.h>
-#include <rock_hero/common/audio/i_plugin_host.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
-#include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/editor/core/editor_controller.h>
+
+namespace rock_hero::common::audio
+{
+class IAudioDeviceConfiguration;
+class IAudioMeterSource;
+class ILiveInput;
+class ILiveRig;
+class IPluginHost;
+class ISongAudio;
+class IThumbnailFactory;
+class ITransport;
+} // namespace rock_hero::common::audio
 
 namespace rock_hero::editor::ui
 {
@@ -26,100 +32,53 @@ class EditorView;
 \brief Owns the editor controller and view as one fully wired feature.
 
 Editor is the composition boundary for the editor UI. It prevents app code from constructing a
-controller, view, audio ports, and thumbnail callback as separate half-wired objects. The
-referenced transport, audio port, audio-device port, and thumbnail-factory dependencies must
-outlive the editor when provided.
+controller, view, audio ports, and thumbnail callback as separate half-wired objects. The audio
+ports and thumbnail-factory dependency must outlive the editor.
 */
 class Editor final
 {
 public:
     /*!
+    \brief Audio ports consumed by the composed editor feature.
+
+    The editor forwards workflow ports to EditorController and display-only ports to EditorView.
+    The editor requires the full audio capability set used by Rock Hero Editor. Runtime
+    unavailability such as a closed device or inactive input is represented by each port's state,
+    not by omitting a port.
+    */
+    struct AudioPorts final
+    {
+        /*! \brief Transport port used by controller workflows and view cursor drawing. */
+        common::audio::ITransport& transport;
+
+        /*! \brief Song-audio port used for preparation and active arrangement playback. */
+        common::audio::ISongAudio& song_audio;
+
+        /*! \brief Factory used during view construction for arrangement waveform rendering. */
+        common::audio::IThumbnailFactory& thumbnail_factory;
+
+        /*! \brief Audio-device port used for hardware input/output routing. */
+        common::audio::IAudioDeviceConfiguration& audio_devices;
+
+        /*! \brief Plugin-host port used for plugin insertion. */
+        common::audio::IPluginHost& plugin_host;
+
+        /*! \brief Live rig port used for tone document save and restore. */
+        common::audio::ILiveRig& live_rig;
+
+        /*! \brief Live-input port used for monitoring and calibration. */
+        common::audio::ILiveInput& live_input;
+
+        /*! \brief Meter source sampled by the view for continuous level display. */
+        const common::audio::IAudioMeterSource& meter_source;
+    };
+
+    /*!
     \brief Creates the editor feature and immediately pushes initial state to the view.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for hardware input/output routing.
-    \param plugin_host Plugin-host port used for plugin insertion.
-    \param live_rig Live rig port used for tone document save and restore.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
+    \param audio_ports Required ports used by the composed editor feature.
     \param services Optional controller services used by the composed editor workflow.
     */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
-
-    /*!
-    \brief Creates the editor feature with plugin hosting but without persistent tone storage.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for hardware input/output routing.
-    \param plugin_host Plugin-host port used for plugin insertion.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Optional controller services used by the composed editor workflow.
-    */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IPluginHost& plugin_host,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
-
-    /*!
-    \brief Creates the editor feature without a plugin-host backend.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param audio_devices Audio-device port used for hardware input/output routing.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Optional controller services used by the composed editor workflow.
-    */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IAudioDeviceConfiguration& audio_devices,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
-
-    /*!
-    \brief Creates the editor feature without an audio-device backend.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param plugin_host Plugin-host port used for plugin insertion.
-    \param live_rig Live rig port used for tone document save and restore.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Optional controller services used by the composed editor workflow.
-    */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
-
-    /*!
-    \brief Creates the editor feature without an audio-device backend or persistent tone storage.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param plugin_host Plugin-host port used for plugin insertion.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Optional controller services used by the composed editor workflow.
-    */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IPluginHost& plugin_host,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
-
-    /*!
-    \brief Creates the editor feature without audio-device or plugin-host backends.
-    \param transport Transport used by the controller and read by the view cursor overlay.
-    \param audio Audio port used by the controller for song preparation and arrangement activation.
-    \param thumbnail_factory Factory used during view construction for arrangement waveform.
-    \param services Optional controller services used by the composed editor workflow.
-    */
-    Editor(
-        common::audio::ITransport& transport, common::audio::IAudio& audio,
-        common::audio::IThumbnailFactory& thumbnail_factory,
-        core::EditorController::Services services = {});
+    explicit Editor(AudioPorts audio_ports, core::EditorController::Services services = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();

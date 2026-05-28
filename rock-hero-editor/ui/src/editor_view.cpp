@@ -692,23 +692,20 @@ public:
 };
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
-EditorView::EditorView(
-    core::IEditorController& controller, const common::audio::ITransport& transport,
-    common::audio::IThumbnailFactory& thumbnail_factory,
-    common::audio::IAudioDeviceConfiguration* audio_devices,
-    const common::audio::IAudioMeterSource* audio_meters)
+EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_ports)
     : m_controller(controller)
-    , m_audio_devices(audio_devices)
-    , m_audio_meters(audio_meters)
-    , m_live_input(dynamic_cast<const common::audio::ILiveInput*>(&transport))
+    , m_audio_devices(audio_ports.audio_devices)
+    , m_audio_meters(audio_ports.meter_source)
+    , m_live_input(audio_ports.live_input)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, transport))
+    , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, audio_ports.transport))
     , m_track_viewport(
-          std::make_unique<TrackViewport>(m_arrangement_view, *m_cursor_overlay, transport))
+          std::make_unique<TrackViewport>(
+              m_arrangement_view, *m_cursor_overlay, audio_ports.transport))
     , m_meter_vblank_attachment(this, [this] { refreshAudioMeters(); })
 {
     setWantsKeyboardFocus(true);
@@ -724,7 +721,7 @@ EditorView::EditorView(
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
 
-    m_arrangement_view.setThumbnailFactory(thumbnail_factory);
+    m_arrangement_view.setThumbnailFactory(audio_ports.thumbnail_factory);
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
@@ -1261,7 +1258,7 @@ void EditorView::presentInputCalibrationPromptIfNeeded(
     }
 
     m_input_calibration_window = std::make_unique<InputCalibrationWindow>(
-        m_controller, m_live_input, *prompt, isShowing() ? this : nullptr);
+        m_controller, &m_live_input, *prompt, isShowing() ? this : nullptr);
 }
 
 // Opens or refreshes the plugin browser top-level window from controller-derived state.
@@ -1334,9 +1331,7 @@ void EditorView::updateAudioDeviceButton()
 // because meters are volatile playback display data, like cursor position.
 void EditorView::refreshAudioMeters()
 {
-    const common::audio::AudioMeterSnapshot snapshot = m_audio_meters != nullptr
-                                                           ? m_audio_meters->audioMeterSnapshot()
-                                                           : common::audio::AudioMeterSnapshot{};
+    const common::audio::AudioMeterSnapshot snapshot = m_audio_meters.audioMeterSnapshot();
 
     m_master_output_meter.setLevel(snapshot.master_output);
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
@@ -1345,7 +1340,7 @@ void EditorView::refreshAudioMeters()
 // Opens the audio-device settings window when a hardware-configuration backend is available.
 void EditorView::showAudioDeviceSettingsWindow()
 {
-    if (m_audio_devices == nullptr || !m_state.audio_device_settings_enabled)
+    if (!m_state.audio_device_settings_enabled)
     {
         return;
     }
@@ -1362,7 +1357,7 @@ void EditorView::showAudioDeviceSettingsWindow()
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_controller.onAudioDeviceSettingsOpened();
     AudioDeviceSettingsWindow::show(
-        *m_audio_devices,
+        m_audio_devices,
         m_audio_device_button,
         [safe_this](std::function<void()> operation) {
             if (auto* view = safe_this.getComponent())

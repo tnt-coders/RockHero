@@ -206,7 +206,7 @@ engine.h
 
 Questions to answer during evaluation:
 
-- Should `IAudio` be renamed to `ISongAudio` before or during folder cleanup?
+- `IAudio` has already been renamed to `ISongAudio`; folder cleanup should preserve that role name.
 - Should `audio_normalization.h` stay as an operation API rather than move to `errors/`?
 - Should `Engine` remain at the public audio root as the composition-facing facade?
 - Should `AudioDeviceSettings` move to `workflows/` even though it also exposes a public port?
@@ -386,7 +386,7 @@ Evaluate these names explicitly before any broad folder move:
 
 | Current name | Issue | Candidate action |
 | --- | --- | --- |
-| `IAudio` | Too broad for song preparation/arrangement activation | Consider `ISongAudio`. |
+| `ISongAudio` | Song preparation and active arrangement playback port | Keep. |
 | `Engine` | Generic, but established as public audio facade | Keep for now. |
 | `AudioDeviceSettings` | Represents staged settings workflow/session | Keep or rename only when touched. |
 | `AudioDeviceSettingsWindow` | Public private-header type is launcher, not actual window | Rename when touched. |
@@ -428,7 +428,7 @@ Apply names that have high readability value and low design risk.
 
 Candidate work:
 
-- rename `IAudio` to `ISongAudio` if confirmed;
+- preserve the completed `ISongAudio` rename;
 - rename `AudioDeviceSettingsWindow` only if touching that area;
 - avoid `Port` postfixes on individual interfaces;
 - reserve `Ports` for bundles such as `Editor::AudioPorts`.

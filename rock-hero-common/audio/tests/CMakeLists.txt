@@ -9,7 +9,7 @@ configure_file("${CMAKE_CURRENT_SOURCE_DIR}/test-data/drum_loop.wav"
 # Keep audio-port contract tests and concrete Engine adapter coverage in one audio test target.
 add_executable(
     rock_hero_common_audio_tests
-    test_audio.cpp
+    test_song_audio.cpp
     test_audio_device_settings.cpp
     test_audio_normalization.cpp
     test_edit.cpp

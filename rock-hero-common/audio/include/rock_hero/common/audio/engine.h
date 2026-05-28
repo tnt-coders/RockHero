@@ -7,12 +7,12 @@
 
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/i_song_audio.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <string>
@@ -47,7 +47,7 @@ Most public methods must be called on the message thread; plugin catalog scans a
 non-realtime worker-thread exceptions because discovery can run slow third-party code.
 
 \see ITransport
-\see IAudio
+\see ISongAudio
 \see IAudioMeterSource
 \see IPluginHost
 \see ILiveInput
@@ -55,7 +55,7 @@ non-realtime worker-thread exceptions because discovery can run slow third-party
 \see IThumbnailFactory
 */
 class Engine : public ITransport,
-               public IAudio,
+               public ISongAudio,
                public IAudioDeviceConfiguration,
                public IAudioMeterSource,
                public IPluginHost,

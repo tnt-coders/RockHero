@@ -7,11 +7,11 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/engine.h>
-#include <rock_hero/common/audio/i_audio.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/i_song_audio.h>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/package_id.h>
 #include <string>
@@ -26,7 +26,7 @@ constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
-static_assert(std::derived_from<Engine, IAudio>);
+static_assert(std::derived_from<Engine, ISongAudio>);
 static_assert(std::derived_from<Engine, IAudioDeviceConfiguration>);
 static_assert(std::derived_from<Engine, IAudioMeterSource>);
 static_assert(std::derived_from<Engine, IPluginHost>);
@@ -40,7 +40,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
     return std::filesystem::path{TEST_DATA_DIR} / "drum_loop.wav";
 }
 
-// Wraps the real fixture path in the framework-free asset type used by IAudio.
+// Wraps the real fixture path in the framework-free asset type used by ISongAudio.
 [[nodiscard]] common::core::AudioAsset fixtureAudioAsset()
 {
     return common::core::AudioAsset{fixtureAudioPath()};
@@ -76,7 +76,7 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 }
 
 // Prepares and activates the fixture arrangement, failing the test if either step is rejected.
-[[nodiscard]] common::core::TimeDuration requireLoadedFixtureAudio(IAudio& audio)
+[[nodiscard]] common::core::TimeDuration requireLoadedFixtureAudio(ISongAudio& audio)
 {
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
@@ -292,7 +292,7 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     ITransport& transport = engine;
 
     auto song = makeFixtureSong();
@@ -319,7 +319,7 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
 TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    IAudio& audio = harness.engine;
+    ISongAudio& audio = harness.engine;
     const ITransport& transport = harness.engine;
     auto song = makeFixtureSong();
 
@@ -336,7 +336,7 @@ TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
 TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
-    IAudio& audio = harness.engine;
+    ISongAudio& audio = harness.engine;
     auto song = makeFixtureSong();
     song.arrangements.front().audio_asset =
         common::core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
@@ -508,7 +508,7 @@ TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integ
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     auto song = makeFixtureSong();
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
@@ -527,7 +527,7 @@ TEST_CASE(
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     ITransport& transport = engine;
 
     [[maybe_unused]] const auto audio_duration = requireLoadedFixtureAudio(audio);
@@ -563,7 +563,7 @@ TEST_CASE("Engine seek updates current transport position", "[audio][engine][int
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     ITransport& transport = engine;
 
     const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);
@@ -584,7 +584,7 @@ TEST_CASE("Engine position reflects public transport seeks", "[audio][engine][in
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     ITransport& transport = engine;
     const ITransport& read_only_transport = engine;
 
@@ -604,7 +604,7 @@ TEST_CASE("Engine seek does not emit state callbacks", "[audio][engine][integrat
 {
     EngineTestHarness harness;
     Engine& engine = harness.engine;
-    IAudio& audio = engine;
+    ISongAudio& audio = engine;
     ITransport& transport = engine;
 
     const common::core::TimeDuration audio_duration = requireLoadedFixtureAudio(audio);

@@ -550,7 +550,7 @@ setting `m_input_calibration_prompt_visible` to true.
 Update existing methods:
 
 - `EditorController::Impl::Impl()`
-  - accept `ILiveInput*` as a new optional port;
+  - accept `ILiveInput&` through the required audio-port bundle;
   - load calibration state from settings;
   - restore audio device state;
   - initialize `m_committed_input_device_identity` from `currentInputDeviceIdentity()` after

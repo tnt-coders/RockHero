@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/i_audio.h>
+#include <rock_hero/common/audio/i_song_audio.h>
 
 namespace rock_hero::common::audio
 {
@@ -27,7 +27,7 @@ namespace
 }
 
 // Test double that records song-preparation and active-arrangement requests.
-class FakeAudio final : public IAudio
+class FakeSongAudio final : public ISongAudio
 {
 public:
     // Fills arrangement durations when the fake is configured to accept preparation.
@@ -86,9 +86,9 @@ public:
 } // namespace
 
 // Verifies the audio port prepares candidate songs by filling arrangement durations.
-TEST_CASE("IAudio prepares song audio", "[audio][audio]")
+TEST_CASE("ISongAudio prepares song audio", "[audio][song-audio]")
 {
-    FakeAudio audio;
+    FakeSongAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
 
     const bool prepared = audio.prepareSong(song);
@@ -101,9 +101,9 @@ TEST_CASE("IAudio prepares song audio", "[audio][audio]")
 }
 
 // Verifies audio adapters can reject song preparation without activating an arrangement.
-TEST_CASE("IAudio song preparation can fail", "[audio][audio]")
+TEST_CASE("ISongAudio song preparation can fail", "[audio][song-audio]")
 {
-    FakeAudio audio;
+    FakeSongAudio audio;
     audio.next_prepare_result = false;
     auto song = makeSong(std::filesystem::path{"missing.wav"});
 
@@ -115,9 +115,9 @@ TEST_CASE("IAudio song preparation can fail", "[audio][audio]")
 }
 
 // Verifies the audio port exposes active-arrangement replacement semantics.
-TEST_CASE("IAudio sets active arrangement", "[audio][audio]")
+TEST_CASE("ISongAudio sets active arrangement", "[audio][song-audio]")
 {
-    FakeAudio audio;
+    FakeSongAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
@@ -132,9 +132,9 @@ TEST_CASE("IAudio sets active arrangement", "[audio][audio]")
 }
 
 // Verifies the audio port exposes a command to clear the current active arrangement.
-TEST_CASE("IAudio clears active arrangement", "[audio][audio]")
+TEST_CASE("ISongAudio clears active arrangement", "[audio][song-audio]")
 {
-    FakeAudio audio;
+    FakeSongAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
