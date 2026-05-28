@@ -1,6 +1,6 @@
 # Input Calibration Device Table Logic
 
-Status: audit note. Keep this aligned with the known unity-gain device settings in
+Status: completed audit note. Keep this aligned with the known unity-gain device settings in
 `docs/user/input-calibration.md` while that table is still being reviewed.
 
 ## Goal

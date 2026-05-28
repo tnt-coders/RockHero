@@ -9,10 +9,10 @@ full application shell, and that framework integration belongs in thin adapters.
 Two categories of JUCE framework usage currently live inside `EditorController::Impl` rather than
 behind project-owned ports or in the app/UI tier:
 
-1. Audio device state serialization — `restoreAudioDeviceState()` and `persistAudioDeviceState()`
+1. Audio device state serialization: `restoreAudioDeviceState()` and `persistAudioDeviceState()`
    parse JUCE XML and call through `IAudioDeviceConfiguration::deviceManager()` to manipulate the
    raw `juce::AudioDeviceManager`.
-2. Message-thread scheduling — `makeBusyAudioAnalyzeForGainFunction()` and
+2. Message-thread scheduling: `makeBusyAudioAnalyzeForGainFunction()` and
    `startLiveRigLoadStage()` use `juce::MessageManager` and `juce::Timer::callAfterDelay` for
    cross-thread dispatch and cosmetic timing.
 
@@ -37,7 +37,7 @@ This pulls `juce_core` XML parsing and `juce_audio_devices` device-manager mutat
 and input identity.
 
 The `deviceManager()` accessor exists so `editor/ui` can hand JUCE's built-in
-`AudioDeviceSelectorComponent` its manager — that is a legitimate UI-tier use. But `editor/core`
+`AudioDeviceSelectorComponent` its manager. That is a legitimate UI-tier use, but `editor/core`
 should not need it for serialization.
 
 ### Change
@@ -45,15 +45,18 @@ should not need it for serialization.
 Add two methods to `IAudioDeviceConfiguration`:
 
 ```cpp
-virtual void restoreState(const std::string& serialized_state) = 0;
-[[nodiscard]] virtual std::optional<std::string> saveState() const = 0;
+[[nodiscard]] virtual bool restoreSerializedDeviceState(const std::string& serialized_state) = 0;
+[[nodiscard]] virtual std::optional<std::string> serializedDeviceState() const = 0;
 ```
 
-`restoreState` replaces `EditorController::Impl::restoreAudioDeviceState()`. The production adapter
-in `Engine` handles XML parsing and calls `deviceManager().initialise()` internally.
+`restoreSerializedDeviceState` replaces the controller's XML parsing in
+`EditorController::Impl::restoreAudioDeviceState()`. The production adapter in `Engine` handles XML
+parsing and calls `deviceManager().initialise()` internally. It returns `false` only when the
+serialized value cannot be parsed into device-manager state, preserving the current cleanup path for
+bad persisted XML without exposing JUCE XML to editor core.
 
-`saveState` replaces `EditorController::Impl::persistAudioDeviceState()`. The production adapter
-calls `deviceManager().createStateXml()` and converts to `std::string` internally.
+`serializedDeviceState` replaces `EditorController::Impl::persistAudioDeviceState()`. The production
+adapter calls `deviceManager().createStateXml()` and converts to `std::string` internally.
 
 `EditorController::Impl` then simplifies to:
 
@@ -68,7 +71,10 @@ void EditorController::Impl::restoreAudioDeviceState()
     const std::optional<std::string> state = m_settings->audioDeviceState();
     if (state.has_value() && !state->empty())
     {
-        m_audio_devices->restoreState(*state);
+        if (!m_audio_devices->restoreSerializedDeviceState(*state))
+        {
+            m_settings->setAudioDeviceState(std::nullopt);
+        }
     }
 }
 
@@ -79,25 +85,27 @@ void EditorController::Impl::persistAudioDeviceState()
         return;
     }
 
-    m_settings->setAudioDeviceState(m_audio_devices->saveState());
+    m_settings->setAudioDeviceState(m_audio_devices->serializedDeviceState());
 }
 ```
 
 ### Steps
 
-1. Add `restoreState` and `saveState` to `IAudioDeviceConfiguration`.
+1. Add `restoreSerializedDeviceState` and `serializedDeviceState` to
+   `IAudioDeviceConfiguration`.
 2. Implement both in `Engine` by moving the XML parsing and `deviceManager()` calls from the
-   controller into the adapter. Invalid XML in `restoreState` should be silently ignored (matching
-   the current controller behavior that discards unparseable XML without reporting an error).
+   controller into the adapter. Invalid XML in `restoreSerializedDeviceState` should return `false`
+   so the controller can keep the current behavior of clearing unparseable persisted state without
+   reporting a user-visible error.
 3. Update the `FakeAudioDeviceConfiguration` in `test_editor_controller.cpp` to implement the new
-   methods. The fake can store the string and return it, or no-op — the test fake for audio-device
+   methods. The fake can store the string and return it, or no-op; the test fake for audio-device
    settings in `test_audio_device_settings.cpp` needs the same update.
 4. Replace the bodies of `restoreAudioDeviceState()` and `persistAudioDeviceState()` in
    `EditorController::Impl` with the simplified versions above.
 5. Remove the `juce_audio_devices` and `juce_core` XML-related includes from
    `editor_controller.cpp` if they are no longer needed after the change. The remaining JUCE
    includes in the file are `juce_events` (for `MessageManager` and `Timer`, addressed by Part 2)
-   and `juce_core` for `juce::String` in `restoreAudioDeviceState` — both should be removable after
+   and `juce_core` for `juce::String` in `restoreAudioDeviceState`; both should be removable after
    Part 1 if Part 2 is also done, but only the `juce_audio_devices` include and the `juce::parseXML`
    / `juce::XmlElement` / `juce::String` usage should disappear from Part 1 alone.
 6. Verify that `editor/core` no longer references `deviceManager()`. The accessor stays on the port
@@ -106,9 +114,9 @@ void EditorController::Impl::persistAudioDeviceState()
 ### Test impact
 
 Existing characterization tests for audio-device restore and persist go through
-`EditorController`'s public API. The test fake's `restoreState` / `saveState` record whether they
-were called and with what argument. The behavior under test does not change — only the serialization
-boundary moves.
+`EditorController`'s public API. The test fake's `restoreSerializedDeviceState` /
+`serializedDeviceState` record whether they were called and with what argument. The behavior under
+test does not change; only the serialization boundary moves.
 
 The `FakeAudioDeviceConfiguration` in `test_editor_controller.cpp` currently returns a real
 `juce::AudioDeviceManager` from `deviceManager()`. After this change, the controller no longer
@@ -121,16 +129,16 @@ should break; the new methods are additive.
 
 Three sites in `EditorController::Impl` use JUCE message-loop primitives directly:
 
-1. `makeBusyAudioAnalyzeForGainFunction()` (line 1443) — calls
+1. `makeBusyAudioAnalyzeForGainFunction()` (line 1443): calls
    `juce::MessageManager::getInstanceWithoutCreating()`, `isThisTheMessageThread()`, and
    `juce::MessageManager::callAsync()` to post a busy-state transition from the worker thread to
    the message thread, then blocks the worker on `AnalysisPaintGate` until the message thread has
    painted.
 
-2. `startLiveRigLoadStage()` (line 1552) — calls `juce::Timer::callAfterDelay` for a 500ms
+2. `startLiveRigLoadStage()` (line 1552): calls `juce::Timer::callAfterDelay` for a 500ms
    cosmetic hold so the 100% live-rig progress state is visible before the busy overlay clears.
 
-3. `startLiveRigLoadStage()` (line 1543) — branches on
+3. `startLiveRigLoadStage()` (line 1543): branches on
    `juce::MessageManager::getInstanceWithoutCreating() == nullptr` to detect the test environment
    and skip the timer-based delay.
 
@@ -143,7 +151,7 @@ alive?" inside core logic.
 The fix is more invasive than Part 1 and the practical benefit is lower:
 
 - `JuceEditorTaskRunner` already lives in `editor/core` and uses `juce::MessageManager::callAsync`
-  for completion marshaling. It is a JUCE-aware type by design — it exists so the controller does
+  for completion marshaling. It is a JUCE-aware type by design; it exists so the controller does
   not need to schedule completions itself. Extending the task runner (or adding a sibling scheduler
   port) to cover the two remaining callAsync/callAfterDelay sites is straightforward in concept but
   touches async choreography that is currently correct and well-tested.
@@ -152,7 +160,7 @@ The fix is more invasive than Part 1 and the practical benefit is lower:
   message thread with a condition-variable rendezvous. The worker blocks until the message thread
   has painted the busy overlay. This pattern is tightly coupled to the controller's busy-token
   lifecycle and the view's paint-fence contract. Abstracting the message-thread post behind a port
-  does not remove the coupling — it adds an indirection layer over it.
+  does not remove the coupling; it adds an indirection layer over it.
 
 - The test-environment branch works correctly today. The inline task runner runs work synchronously,
   so the `MessageManager` is never involved in tests. The branch is inelegant but not a source of

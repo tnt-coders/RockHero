@@ -1,5 +1,8 @@
 # Tone Rack Plan
 
+Status: planned. Revisit when Rock Hero is ready to add reusable tone slots or seamless tone
+switching; this is not an active in-progress implementation plan.
+
 ## Goal
 
 Build the instrument tone system around one user-facing instrument lane with multiple
