@@ -71,16 +71,16 @@ public:
     void setInterruptedRestoreProject(std::optional<std::filesystem::path> project_file) override;
 
     /*!
-    \brief Reads the serialized audio-device manager state stored by a previous editor session.
-    \return Stored XML state, or empty when no audio-device state should be restored.
+    \brief Reads the opaque serialized audio-device state stored by a previous editor session.
+    \return Stored state, or empty when no audio-device state should be restored.
     */
     [[nodiscard]] std::optional<std::string> audioDeviceState() const override;
 
     /*!
-    \brief Stores or clears the serialized audio-device manager state.
-    \param xml_state Serialized state to restore on next launch, or empty to clear it.
+    \brief Stores or clears the opaque serialized audio-device state.
+    \param serialized_state Serialized state to restore on next launch, or empty to clear it.
     */
-    void setAudioDeviceState(std::optional<std::string> xml_state) override;
+    void setAudioDeviceState(std::optional<std::string> serialized_state) override;
 
     /*!
     \brief Reads the stored app-local input calibration state.
