@@ -17,6 +17,8 @@ target_sources(
             src/editor_action.h
             src/editor_controller.cpp
             src/juce_editor_task_runner.cpp
+            src/plugin_catalog_workflow.cpp
+            src/plugin_catalog_workflow.h
             src/project.cpp
             src/project_io.cpp
             src/project_error.cpp

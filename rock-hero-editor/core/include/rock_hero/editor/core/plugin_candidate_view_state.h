@@ -1,6 +1,6 @@
 /*!
 \file plugin_candidate_view_state.h
-\brief Editor-core workflow record for one discoverable plugin candidate shown in the plugin
+\brief Editor-core view-state record for one discoverable plugin candidate shown in the plugin
 browser.
 */
 
@@ -13,15 +13,14 @@ namespace rock_hero::editor::core
 {
 
 /*!
-\brief Editor-core workflow state for one plugin candidate.
+\brief Editor-core view state for one plugin candidate.
 
-Produced by the editor controller from common::audio::PluginCandidate so editor-core owns the
-shape of plugin-browser workflow data without consuming the audio-boundary type directly. The
-controller is the only place that crosses this seam; the explicit conversion guarantees that
+Produced from common::audio::PluginCandidate so editor-core owns the plugin-browser presentation
+shape without exposing the audio-boundary type to editor-ui. The explicit conversion keeps
 backend-shaped fields added to common::audio::PluginCandidate (Tracktion or JUCE handles, raw
-plugin descriptions, opaque backend payloads) cannot reach editor-ui by accident. Future
-editor-only fields such as favorites, match scores, or last-used timestamps belong here, not on
-the audio-boundary type.
+plugin descriptions, opaque backend payloads) from reaching editor-ui by accident. Future
+editor-only presentation fields such as favorites, match scores, or last-used timestamps belong
+here, not on the audio-boundary type.
 */
 struct PluginCandidateViewState
 {
