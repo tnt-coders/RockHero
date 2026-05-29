@@ -1,6 +1,13 @@
 # Test File Decomposition Plan
 
-Status: in-progress planning.
+Status: completed.
+
+Completion note: implemented as a test-only decomposition. The editor-controller and editor-view
+test cases were split by behavior, and the extracted shared helpers were placed under the existing
+module-owned `*_testing` include roots rather than introducing a separate private `support/`
+include convention. The affected targets plus full debug CTest passed. Runtime structure pressure
+revealed by the split is recorded in
+`docs/in-progress/editor-runtime-structure-pressure-findings.md`.
 
 ## Purpose
 
@@ -75,27 +82,24 @@ To prevent the private harness from turning into a second controller, hold it to
 - if the harness grows past these bounds, that is evidence of runtime design pressure — record
   it per Phase 5, do not paper over it by adding more knobs.
 
-## Private Test Support Shape
+## Testing Target Helper Shape
 
-Use private test support only when multiple split files in the same test executable need the same
-setup. Do not expose this support through `rock_hero::editor::*_testing` unless another target also
-needs it.
+The final implementation uses the existing module-owned `*_testing` targets instead of adding a
+second private `support/` convention. This keeps extracted common test helpers discoverable through
+the same include-path pattern already used by `NullEditorSettings`, `RecordingEditorController`,
+and `component_test_helpers`.
 
-Preferred private layout:
+Final helper layout:
 
 ```text
-rock-hero-editor/core/tests/support/
+rock-hero-editor/core/tests/include/rock_hero/editor/core/testing/
   editor_controller_test_harness.h
-  editor_controller_test_harness.cpp
 
-rock-hero-editor/ui/tests/support/
+rock-hero-editor/ui/tests/include/rock_hero/editor/ui/testing/
   editor_view_test_harness.h
-  editor_view_test_harness.cpp
 ```
 
-Add these folders as `PRIVATE` include directories only on the owning test executable. The CMake
-pattern, applied to `rock-hero-editor/core/tests/CMakeLists.txt` after creating the `support/`
-folder:
+The CMake pattern, applied to `rock-hero-editor/core/tests/CMakeLists.txt`:
 
 ```cmake
 add_executable(
@@ -111,24 +115,21 @@ add_executable(
     test_editor_controller_output_gain.cpp
     test_editor_controller_restore.cpp
     test_project.cpp
-    test_editor_settings.cpp
-    support/editor_controller_test_harness.cpp)
+    test_editor_settings.cpp)
 
 target_include_directories(
-    rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src"
-                                        "${CMAKE_CURRENT_SOURCE_DIR}")
+    rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 ```
 
-The support implementation `.cpp` includes its own main header with quotes. Split test files
-include private support headers with an angle-bracket support path:
+Split test files include the shared helpers through the module testing include root:
 
 ```cpp
-#include <support/editor_controller_test_harness.h>
+#include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 ```
 
-Do not give `support/` a `rock_hero/...` include root — that namespace is reserved for headers
-exposed through `*_testing` targets and for production headers. Keeping the `support/` prefix also
-preserves the project convention that quoted includes are for a translation unit's own main header.
+The UI harness constructs private concrete editor-view types, so `rock_hero_editor_ui_testing`
+intentionally exposes the UI `src/` include directory to tests that opt into that target. This is a
+test-only convenience and does not make those headers production API.
 
 The harnesses should own only repeated setup that would otherwise be copied into several split
 files. They should not become second controllers. Prefer small named helpers over one large object
@@ -364,9 +365,9 @@ moment to give it a dedicated file is when that growth happens, not as part of t
 `test_editor_controller.cpp` and `test_editor_view.cpp` each have a large anonymous-namespace
 header above the test cases — fakes, builders, helpers. The split workflow is:
 
-1. **First slice:** seed `support/editor_controller_test_harness.{h,cpp}` (or the view
-   equivalent) using the Phase 2 harness-seeding rule. Helpers used by only one destination file
-   move into that destination file's own anonymous namespace.
+1. **First slice:** seed `editor_controller_test_harness.h` in the owning module's `*_testing`
+   include root (or the view equivalent) using the Phase 2 harness-seeding rule. Helpers used by
+   only one destination file move into that destination file's own anonymous namespace.
 2. **Subsequent slices:** if a helper that is currently local to one split file gets reused by a
    later split file, promote it to the harness then. Do not pre-promote on speculation.
 3. **Local copies are temporarily acceptable** during a slice in progress — duplication for one
