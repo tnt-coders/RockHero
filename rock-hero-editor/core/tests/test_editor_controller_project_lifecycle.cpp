@@ -641,8 +641,10 @@ TEST_CASE(
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(existing_project);
     REQUIRE(controller.currentProjectFile() == std::optional{existing_project});
+    controller.onInputCalibrationRequested();
     const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
     REQUIRE(calibrated.has_value());
+    controller.onInputCalibrationDismissed();
 
     addKnownPlugin(controller);
 

@@ -394,6 +394,16 @@ void logInstrumentMonitoringFailure(const juce::String& message)
     juce::Logger::writeToLog("Rock Hero instrument monitoring: " + message);
 }
 
+// Converts a route-bind failure into the live-input error surface used by calibration setup.
+[[nodiscard]] LiveInputError liveInputRouteUnavailable(const juce::String& message)
+{
+    logInstrumentMonitoringFailure(message);
+    return LiveInputError{
+        LiveInputErrorCode::InputRouteUnavailable,
+        ("Live input route is unavailable: " + message).toStdString(),
+    };
+}
+
 // Maps structural live-rig failures into the narrower live-input setup surface.
 [[nodiscard]] LiveInputError liveInputErrorFromLiveRigError(const LiveRigError& error)
 {
@@ -1378,6 +1388,9 @@ private:
     // Message-thread listener list for audio-device configuration changes.
     juce::ListenerList<IAudioDeviceConfiguration::Listener> m_audio_device_listeners;
 
+    // Coalesces JUCE audio-device callbacks so Tracktion route repair runs after callback unwinds.
+    bool m_audio_device_configuration_refresh_pending{false};
+
     // Alive token captured by deferred MessageManager::callAsync lambdas so they can detect
     // Engine destruction before re-entering Impl state.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
@@ -1468,12 +1481,53 @@ private:
     {
         if (source == &m_engine->getDeviceManager().deviceManager)
         {
-            applyInstrumentMonitoringRoute();
-            m_audio_device_listeners.call(
-                &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
+            scheduleAudioDeviceConfigurationRefresh();
             return;
         }
         updateTransportState();
+    }
+
+    // Schedules device-change repair outside JUCE's AudioDeviceManager callback stack.
+    void scheduleAudioDeviceConfigurationRefresh()
+    {
+        if (m_audio_device_configuration_refresh_pending)
+        {
+            return;
+        }
+
+        m_audio_device_configuration_refresh_pending = true;
+        const std::weak_ptr<bool> alive_source{m_alive};
+        const bool refresh_posted = juce::MessageManager::callAsync([this, alive = alive_source] {
+            if (alive.expired())
+            {
+                return;
+            }
+
+            m_audio_device_configuration_refresh_pending = false;
+            handleAudioDeviceConfigurationRefresh();
+        });
+        if (refresh_posted)
+        {
+            return;
+        }
+
+        m_audio_device_configuration_refresh_pending = false;
+        logInstrumentMonitoringFailure("audio device refresh could not be posted");
+        if (juce::MessageManager::existsAndIsCurrentThread())
+        {
+            handleAudioDeviceConfigurationRefresh();
+        }
+    }
+
+    // Repairs Tracktion's device cache and notifies editor listeners after JUCE has changed routes.
+    void handleAudioDeviceConfigurationRefresh()
+    {
+        m_live_input_monitoring_enabled = false;
+        m_calibration_input_monitoring_enabled = false;
+        detachInstrumentMonitoringRoute();
+        m_engine->getDeviceManager().dispatchPendingUpdates();
+        m_audio_device_listeners.call(
+            &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
     }
 
     // Tracktion publishes playhead movement through the transport ValueTree. The coarse state
@@ -2210,6 +2264,37 @@ private:
         }
     }
 
+    // Removes stale monitoring assignments from Tracktion's active input instances.
+    void detachInstrumentMonitoringRoute()
+    {
+        auto& transport = m_edit->getTransport();
+        const bool should_release_context = !transport.isPlaying();
+        if (should_release_context && m_edit->getCurrentPlaybackContext() == nullptr)
+        {
+            // clearAllInputs enumerates only the current playback context. Allocate a stopped
+            // context long enough to remove persisted targets, then release it below.
+            transport.ensureContextAllocated(true);
+        }
+
+        clearInstrumentInputAssignments();
+        m_raw_input_meter_reader.detach();
+
+        if (should_release_context)
+        {
+            m_input_meter_reader.detach();
+            m_output_meter_reader.detach();
+            m_master_meter_reader.detach();
+            transport.freePlaybackContext();
+        }
+    }
+
+    // Detaches any previous route before surfacing why the new route cannot be armed.
+    [[nodiscard]] LiveInputError failInstrumentMonitoringRoute(const juce::String& reason)
+    {
+        detachInstrumentMonitoringRoute();
+        return liveInputRouteUnavailable(reason);
+    }
+
     // Finds the generated Tracktion wave input that corresponds to the selected JUCE mono input.
     [[nodiscard]] tracktion::WaveInputDevice* findInstrumentWaveInput(
         const InstrumentWaveDescription& description) const
@@ -2256,36 +2341,27 @@ private:
         return findInstrumentWaveInput(wave_descriptions->input);
     }
 
-    // Clears any instrument route that can be reached through the current Tracktion playback
-    // context.
-    void detachInstrumentMonitoringRoute(const juce::String& reason)
-    {
-        logInstrumentMonitoringFailure(reason);
-
-        m_engine->getDeviceManager().dispatchPendingUpdates();
-        m_edit->getTransport().ensureContextAllocated(true);
-        clearInstrumentInputAssignments();
-        m_edit->getTransport().ensureContextAllocated(true);
-    }
-
     // Binds the selected app-local mono input to the active Tracktion monitoring target.
-    void applyInstrumentMonitoringRoute()
+    std::optional<LiveInputError> applyInstrumentMonitoringRoute()
     {
         if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
         {
-            logInstrumentMonitoringFailure(
-                "instrument route binding was requested off the message thread");
-            return;
+            return LiveInputError{LiveInputErrorCode::MessageThreadRequired};
+        }
+
+        if (!m_live_input_monitoring_enabled && !m_calibration_input_monitoring_enabled)
+        {
+            detachInstrumentMonitoringRoute();
+            return std::nullopt;
         }
 
         const tracktion::AudioTrack* const monitoring_target =
             m_calibration_input_monitoring_enabled ? backingTrack() : instrumentTrack();
         if (monitoring_target == nullptr)
         {
-            logInstrumentMonitoringFailure(
+            return liveInputRouteUnavailable(
                 m_calibration_input_monitoring_enabled ? "backing track is missing"
                                                        : "instrument track is missing");
-            return;
         }
 
         tracktion::DeviceManager& tracktion_device_manager = m_engine->getDeviceManager();
@@ -2293,8 +2369,7 @@ private:
             tracktion_device_manager.deviceManager.getCurrentAudioDevice();
         if (current_device == nullptr)
         {
-            detachInstrumentMonitoringRoute("no current audio device");
-            return;
+            return failInstrumentMonitoringRoute("no current audio device");
         }
 
         const std::optional<InstrumentWaveDeviceDescriptions> wave_descriptions =
@@ -2306,45 +2381,41 @@ private:
                 current_device->getOutputChannelNames());
         if (!wave_descriptions.has_value())
         {
-            detachInstrumentMonitoringRoute(
+            return failInstrumentMonitoringRoute(
                 "selected route is not one mono input and one stereo output pair");
-            return;
         }
 
         tracktion_device_manager.dispatchPendingUpdates();
-
-        auto& transport = m_edit->getTransport();
-        transport.ensureContextAllocated(true);
-        clearInstrumentInputAssignments();
 
         tracktion::WaveInputDevice* const wave_input =
             findInstrumentWaveInput(wave_descriptions->input);
         if (wave_input == nullptr)
         {
-            logInstrumentMonitoringFailure("selected mono input is not available to Tracktion");
-            transport.ensureContextAllocated(true);
-            return;
+            return failInstrumentMonitoringRoute(
+                "selected mono input is not available to Tracktion");
         }
 
+        clearInstrumentInputAssignments();
+
+        auto& transport = m_edit->getTransport();
+        transport.ensureContextAllocated(true);
         wave_input->setStereoPair(false);
 
         tracktion::InputDeviceInstance* const input_instance =
             m_edit->getCurrentInstanceForInputDevice(wave_input);
         if (input_instance == nullptr)
         {
-            logInstrumentMonitoringFailure("selected mono input has no playback instance");
             transport.ensureContextAllocated(true);
-            return;
+            return liveInputRouteUnavailable("selected mono input has no playback instance");
         }
 
         const auto target_result = input_instance->setTarget(
             monitoring_target->itemID, true, nullptr, std::optional<int>{0});
         if (!target_result)
         {
-            logInstrumentMonitoringFailure(
-                "could not assign live input to monitoring track: " + target_result.error());
             transport.ensureContextAllocated(true);
-            return;
+            return liveInputRouteUnavailable(
+                "could not assign live input to monitoring track: " + target_result.error());
         }
 
         input_instance->setRecordingEnabled(monitoring_target->itemID, false);
@@ -2353,6 +2424,7 @@ private:
                 ? tracktion::InputDevice::MonitorMode::on
                 : tracktion::InputDevice::MonitorMode::off);
         transport.ensureContextAllocated(true);
+        return std::nullopt;
     }
 
     // Applies Rock Hero Stop-button semantics: halt playback and reset to timeline start.
@@ -2365,10 +2437,11 @@ private:
 
     // Restores the instrument monitoring context after plugin-list graph mutation or failed
     // insertion.
-    void rebuildInstrumentMonitoringGraph()
+    std::optional<LiveInputError> rebuildInstrumentMonitoringGraph()
     {
-        applyInstrumentMonitoringRoute();
+        const std::optional<LiveInputError> route_error = applyInstrumentMonitoringRoute();
         updateTransportState();
+        return route_error;
     }
 
     // Connects meter readers to the current Tracktion measurers and returns one display snapshot.
@@ -2414,6 +2487,11 @@ private:
     // Reads the hardware input meter before the live-rig monitoring gate.
     [[nodiscard]] AudioMeterLevel rawInputMeterLevel() const
     {
+        if (m_audio_device_configuration_refresh_pending)
+        {
+            return {};
+        }
+
         if (tracktion::WaveInputDevice* const wave_input = currentInstrumentWaveInput();
             wave_input != nullptr)
         {
@@ -2985,7 +3063,15 @@ std::expected<void, LiveInputError> Engine::setLiveInputMonitoringEnabled(bool e
     {
         m_impl->m_calibration_input_monitoring_enabled = false;
     }
-    m_impl->rebuildInstrumentMonitoringGraph();
+    const std::optional<LiveInputError> route_error = m_impl->rebuildInstrumentMonitoringGraph();
+    if (enabled && route_error.has_value())
+    {
+        m_impl->m_live_input_monitoring_enabled = false;
+        m_impl->m_calibration_input_monitoring_enabled = false;
+        (void)m_impl->rebuildInstrumentMonitoringGraph();
+        return std::unexpected{std::move(*route_error)};
+    }
+
     return {};
 }
 
@@ -3016,7 +3102,15 @@ std::expected<void, LiveInputError> Engine::setCalibrationInputMonitoringEnabled
     {
         m_impl->m_live_input_monitoring_enabled = false;
     }
-    m_impl->rebuildInstrumentMonitoringGraph();
+    const std::optional<LiveInputError> route_error = m_impl->rebuildInstrumentMonitoringGraph();
+    if (enabled && route_error.has_value())
+    {
+        m_impl->m_live_input_monitoring_enabled = false;
+        m_impl->m_calibration_input_monitoring_enabled = false;
+        (void)m_impl->rebuildInstrumentMonitoringGraph();
+        return std::unexpected{std::move(*route_error)};
+    }
+
     return {};
 }
 
@@ -3529,6 +3623,11 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
 // Captures the exact one-channel input identity used to validate calibration state.
 std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
 {
+    if (m_impl->m_audio_device_configuration_refresh_pending)
+    {
+        return std::nullopt;
+    }
+
     const auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
     auto* const current_device = device_manager.getCurrentAudioDevice();
     if (current_device == nullptr || !current_device->isOpen())
