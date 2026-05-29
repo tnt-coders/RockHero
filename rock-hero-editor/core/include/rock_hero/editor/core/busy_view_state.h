@@ -1,6 +1,6 @@
 /*!
 \file busy_view_state.h
-\brief Editor busy-overlay state owned by the controller and rendered by the view.
+\brief Editor busy-overlay render state consumed by the view.
 */
 
 #pragma once
@@ -71,9 +71,9 @@ enum class BusyPresentation : std::uint8_t
 /*!
 \brief Editor-wide busy state pushed to the view through EditorViewState.
 
-The controller sets this state through beginBusy() and clears it through endBusy(). The view
-renders the requested presentation, blocks input, displays message, and uses progress when a
-workflow has entered a determinate phase.
+The root controller pushes this snapshot through EditorViewState. The view renders the requested
+presentation, blocks input, displays message, and uses progress when busy state has entered a
+determinate phase.
 */
 struct BusyViewState
 {
@@ -110,9 +110,9 @@ struct BusyViewState
 /*!
 \brief Returns the default user-facing message for an operation.
 
-Acts as the central source of default busy-overlay copy. The controller fills
-BusyViewState::message from this helper at beginBusy() time so every entry point produces the
-same text without each call site retyping it.
+Acts as the central source of default busy-overlay copy. Busy-state projection fills
+BusyViewState::message from this helper so every entry point produces the same text without each
+call site retyping it.
 
 \param operation Operation whose default message should be returned.
 \return Default message for the operation.

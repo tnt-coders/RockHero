@@ -139,33 +139,33 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
     CHECK_FALSE(reloaded_settings.interruptedRestoreProject().has_value());
 }
 
-// The settings file preserves the serialized audio-device manager state across launches.
+// The settings file preserves opaque serialized audio-device state across launches.
 TEST_CASE("EditorSettings persists the audio device state", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"persists_audio_device.settings"};
-    const std::string xml_state{
+    const std::string serialized_state{
         R"(<DEVICESETUP deviceType="ASIO" audioOutputDeviceName="ASIO Interface"/>)"
     };
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setAudioDeviceState(xml_state);
+        settings.setAudioDeviceState(serialized_state);
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    CHECK(reloaded_settings.audioDeviceState() == std::optional{xml_state});
+    CHECK(reloaded_settings.audioDeviceState() == std::optional{serialized_state});
 }
 
-// Clearing audio state removes the persisted device-manager XML from the settings file.
+// Clearing audio state removes the persisted serialized state from the settings file.
 TEST_CASE("EditorSettings clears the audio device state", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"clears_audio_device.settings"};
-    const std::string xml_state{"<DEVICESETUP deviceType=\"ASIO\"/>"};
+    const std::string serialized_state{"<DEVICESETUP deviceType=\"ASIO\"/>"};
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setAudioDeviceState(xml_state);
+        settings.setAudioDeviceState(serialized_state);
         settings.setAudioDeviceState(std::nullopt);
     }
 

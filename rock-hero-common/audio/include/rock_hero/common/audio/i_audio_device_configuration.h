@@ -8,6 +8,7 @@
 #include <optional>
 #include <rock_hero/common/audio/audio_device_status.h>
 #include <rock_hero/common/audio/input_device_identity.h>
+#include <string>
 
 namespace juce
 {
@@ -68,6 +69,21 @@ public:
     \return Reference to the active device manager owned by the audio backend.
     */
     [[nodiscard]] virtual juce::AudioDeviceManager& deviceManager() noexcept = 0;
+
+    /*!
+    \brief Restores an opaque serialized audio-device state on the message thread.
+    \param serialized_state State string previously returned by serializedDeviceState().
+    \return True when the state was decoded and submitted, or false when it was rejected.
+    */
+    [[nodiscard]] virtual bool restoreSerializedDeviceState(
+        const std::string& serialized_state) = 0;
+
+    /*!
+    \brief Captures the current audio-device route as an opaque serialized state string.
+    \return Serialized state, or empty when no state can be captured.
+    \note Must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::optional<std::string> serializedDeviceState() const = 0;
 
     /*!
     \brief Returns a project-owned snapshot of the current audio-device route.

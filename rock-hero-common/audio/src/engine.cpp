@@ -3467,6 +3467,33 @@ juce::AudioDeviceManager& Engine::deviceManager() noexcept
     return m_impl->m_engine->getDeviceManager().deviceManager;
 }
 
+// Restores the JUCE device manager state captured by a previous editor session.
+bool Engine::restoreSerializedDeviceState(const std::string& serialized_state)
+{
+    const std::unique_ptr<juce::XmlElement> xml =
+        juce::parseXML(juce::String{serialized_state.c_str()});
+    if (xml == nullptr)
+    {
+        return false;
+    }
+
+    m_impl->m_engine->getDeviceManager().deviceManager.initialise(1, 2, xml.get(), true);
+    return true;
+}
+
+// Captures the JUCE device manager state as an opaque string for editor settings.
+std::optional<std::string> Engine::serializedDeviceState() const
+{
+    const std::unique_ptr<juce::XmlElement> xml =
+        m_impl->m_engine->getDeviceManager().deviceManager.createStateXml();
+    if (xml == nullptr)
+    {
+        return std::nullopt;
+    }
+
+    return xml->toString().toStdString();
+}
+
 // Captures open-device timing and route details through the JUCE device manager.
 AudioDeviceStatus Engine::currentDeviceStatus() const
 {

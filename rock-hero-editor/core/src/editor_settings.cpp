@@ -106,7 +106,7 @@ void EditorSettings::setInterruptedRestoreProject(std::optional<std::filesystem:
     m_properties.saveIfNeeded();
 }
 
-// Reads the serialized audio-device manager state stored by a previous editor session.
+// Reads the opaque serialized audio-device state stored by a previous editor session.
 std::optional<std::string> EditorSettings::audioDeviceState() const
 {
     const juce::String value = m_properties.getValue(g_audio_device_state_key);
@@ -118,12 +118,12 @@ std::optional<std::string> EditorSettings::audioDeviceState() const
     return value.toStdString();
 }
 
-// Stores or clears the serialized audio-device manager state.
-void EditorSettings::setAudioDeviceState(std::optional<std::string> xml_state)
+// Stores or clears the opaque serialized audio-device state.
+void EditorSettings::setAudioDeviceState(std::optional<std::string> serialized_state)
 {
-    if (xml_state.has_value() && !xml_state->empty())
+    if (serialized_state.has_value() && !serialized_state->empty())
     {
-        m_properties.setValue(g_audio_device_state_key, juce::String{xml_state->c_str()});
+        m_properties.setValue(g_audio_device_state_key, juce::String{serialized_state->c_str()});
     }
     else
     {

@@ -3,6 +3,101 @@
 namespace rock_hero::editor::core
 {
 
+// Startup restores persisted audio-device state through the audio-device boundary.
+TEST_CASE("EditorController restores serialized audio device state", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"serialized_audio_device_restore"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setAudioDeviceState("serialized-device-state");
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings),
+        noopExitFunction()
+    };
+
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"serialized-device-state"});
+    CHECK(settings.audioDeviceState() == std::optional<std::string>{"serialized-device-state"});
+}
+
+// Invalid serialized audio-device state is discarded so future launches do not retry it.
+TEST_CASE(
+    "EditorController clears invalid serialized audio device state", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"invalid_serialized_audio_device_restore"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setAudioDeviceState("invalid-serialized-device-state");
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.restore_serialized_device_state_result = false;
+
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings),
+        noopExitFunction()
+    };
+
+    CHECK(audio_devices.restore_serialized_device_state_call_count == 1);
+    CHECK(
+        audio_devices.last_restored_serialized_device_state ==
+        std::optional<std::string>{"invalid-serialized-device-state"});
+    CHECK_FALSE(settings.audioDeviceState().has_value());
+}
+
+// Device-change notifications persist the serialized audio-device state from the audio boundary.
+TEST_CASE("EditorController persists serialized audio device state", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"serialized_audio_device_persist"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.serialized_device_state = "updated-serialized-device-state";
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings),
+        noopExitFunction()
+    };
+
+    audio_devices.notifyChanged();
+
+    CHECK(audio_devices.serialized_device_state_call_count == 1);
+    CHECK(
+        settings.audioDeviceState() ==
+        std::optional<std::string>{"updated-serialized-device-state"});
+}
+
+// Empty capture results clear audio-device state instead of preserving stale settings.
+TEST_CASE(
+    "EditorController clears serialized audio device state when capture is empty",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"empty_serialized_audio_device_persist"};
+    EditorSettings settings{files.settingsFile()};
+    settings.setAudioDeviceState("old-serialized-device-state");
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.serialized_device_state = std::nullopt;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices),
+        controllerServices(settings),
+        noopExitFunction()
+    };
+
+    audio_devices.notifyChanged();
+
+    CHECK(audio_devices.serialized_device_state_call_count == 1);
+    CHECK_FALSE(settings.audioDeviceState().has_value());
+}
+
 // Missing restore paths are cleared without asking project IO to open anything.
 TEST_CASE("EditorController clears missing restore path", "[core][editor-controller]")
 {

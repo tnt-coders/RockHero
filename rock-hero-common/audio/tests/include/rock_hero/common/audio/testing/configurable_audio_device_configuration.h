@@ -8,6 +8,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <optional>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <string>
 #include <vector>
 
 namespace rock_hero::common::audio::testing
@@ -27,6 +28,21 @@ public:
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return device_manager;
+    }
+
+    /*! \brief Records a serialized state restore request and returns the configured result. */
+    [[nodiscard]] bool restoreSerializedDeviceState(const std::string& serialized_state) override
+    {
+        last_restored_serialized_device_state = serialized_state;
+        restore_serialized_device_state_call_count += 1;
+        return restore_serialized_device_state_result;
+    }
+
+    /*! \brief Returns the configured serialized state capture result. */
+    [[nodiscard]] std::optional<std::string> serializedDeviceState() const override
+    {
+        serialized_device_state_call_count += 1;
+        return serialized_device_state;
     }
 
     /*! \brief Returns the configured current device status snapshot. */
@@ -72,11 +88,26 @@ public:
     /*! \brief Current input identity returned by currentInputDeviceIdentity(). */
     std::optional<InputDeviceIdentity> current_input_identity{};
 
+    /*! \brief Result returned by restoreSerializedDeviceState(). */
+    bool restore_serialized_device_state_result{true};
+
+    /*! \brief Current serialized state returned by serializedDeviceState(). */
+    std::optional<std::string> serialized_device_state{};
+
+    /*! \brief Last serialized state passed to restoreSerializedDeviceState(). */
+    std::optional<std::string> last_restored_serialized_device_state{};
+
     /*! \brief Non-owning listeners registered by the object under test. */
     std::vector<IAudioDeviceConfiguration::Listener*> listeners{};
 
     /*! \brief Number of current-device-status reads received. */
     mutable int status_call_count{0};
+
+    /*! \brief Number of serialized restore requests received. */
+    int restore_serialized_device_state_call_count{0};
+
+    /*! \brief Number of serialized capture requests received. */
+    mutable int serialized_device_state_call_count{0};
 };
 
 } // namespace rock_hero::common::audio::testing
