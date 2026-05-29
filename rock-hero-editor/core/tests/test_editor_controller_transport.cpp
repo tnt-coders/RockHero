@@ -1,0 +1,176 @@
+#include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+
+namespace rock_hero::editor::core
+{
+
+// Play intent issues play() when stopped and pause() when playing, once audio is loaded.
+TEST_CASE("EditorController play intent toggles loaded transport", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+
+    controller.onPlayPausePressed();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 0);
+
+    transport.current_state.playing = true;
+    controller.onPlayPausePressed();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 1);
+}
+
+// Without arrangement audio there is nothing to play, so the intent is a no-op.
+TEST_CASE("EditorController ignores play intent without audio", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    EditorController controller{
+        audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
+    };
+
+    controller.onPlayPausePressed();
+
+    CHECK(transport.play_call_count == 0);
+    CHECK(transport.pause_call_count == 0);
+}
+
+// The stop intent respects the same gate the view publishes.
+TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 0);
+
+    transport.current_position = common::core::TimePosition{1.5};
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 1);
+    CHECK(transport.current_position == common::core::TimePosition{});
+
+    transport.current_state.playing = true;
+    controller.onStopPressed();
+    CHECK(transport.stop_call_count == 2);
+}
+
+// Stopping from a paused non-start cursor refreshes the view directly after stop().
+TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    transport.current_position = common::core::TimePosition{1.5};
+    transport.setStateAndNotify(
+        common::audio::TransportState{
+            .playing = false,
+        });
+    CHECK(lastStopEnabled(view) == std::optional{true});
+    const int pushes_before_stop = view.set_state_call_count;
+
+    controller.onStopPressed();
+
+    CHECK(transport.stop_call_count == 1);
+    CHECK(view.set_state_call_count == pushes_before_stop + 1);
+    CHECK(lastStopEnabled(view) == std::optional{false});
+}
+
+// Waveform clicks clamp out-of-range input and convert positions through the session timeline.
+TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(
+        controller,
+        project_services,
+        audio,
+        std::filesystem::path{"a.wav"},
+        loadedTimelineRange(4.0)));
+
+    controller.onWaveformClicked(0.5);
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
+
+    controller.onWaveformClicked(-0.25);
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{0.0}});
+
+    controller.onWaveformClicked(1.5);
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{4.0}});
+}
+
+// A seek issued by the controller refreshes whether Stop can reset the cursor.
+TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(
+        controller,
+        project_services,
+        audio,
+        std::filesystem::path{"a.wav"},
+        loadedTimelineRange(4.0)));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    CHECK(lastStopEnabled(view) == std::optional{false});
+
+    controller.onWaveformClicked(0.5);
+
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
+    CHECK(lastStopEnabled(view) == std::optional{true});
+
+    controller.onWaveformClicked(0.0);
+
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{}});
+    CHECK(lastStopEnabled(view) == std::optional{false});
+}
+
+} // namespace rock_hero::editor::core
