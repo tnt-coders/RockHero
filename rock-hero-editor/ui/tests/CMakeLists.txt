@@ -7,16 +7,28 @@ include(Catch)
 add_library(rock_hero_editor_ui_testing INTERFACE)
 add_library(rock_hero::editor::ui_testing ALIAS rock_hero_editor_ui_testing)
 
-target_include_directories(rock_hero_editor_ui_testing
-                           INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+# The editor-view harness intentionally constructs private UI components. Tests opt in through
+# this testing target rather than adding a second ad hoc support include path.
+target_include_directories(
+    rock_hero_editor_ui_testing INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+                                          "${CMAKE_CURRENT_SOURCE_DIR}/../src")
 
-target_link_libraries(rock_hero_editor_ui_testing INTERFACE rock_hero::editor::ui)
+target_link_libraries(rock_hero_editor_ui_testing INTERFACE rock_hero::editor::ui Catch2::Catch2)
 
 # Keep focused editor UI coverage in one target because the test surface is small.
 add_executable(
     rock_hero_editor_ui_tests
-    test_arrangement_view.cpp test_audio_device_settings_view.cpp test_editor.cpp
-    test_editor_view.cpp test_plugin_browser_window.cpp test_transport_controls.cpp)
+    test_arrangement_view.cpp
+    test_audio_device_settings_view.cpp
+    test_editor.cpp
+    test_editor_view_audio_controls.cpp
+    test_editor_view_busy_overlay.cpp
+    test_editor_view_layout.cpp
+    test_editor_view_signal_chain.cpp
+    test_editor_view_state.cpp
+    test_editor_view_timeline.cpp
+    test_plugin_browser_window.cpp
+    test_transport_controls.cpp)
 
 # Let focused smoke tests construct private editor view types without making them public API.
 target_include_directories(rock_hero_editor_ui_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
