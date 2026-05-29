@@ -1,6 +1,8 @@
 #include "editor_controller.h"
 
 #include "audio_device_status_text.h"
+#include "busy_operation_state.h"
+#include "deferred_editor_action_state.h"
 #include "editor_action.h"
 #include "project_io.h"
 #include "psarc_song_importer.h"
@@ -15,7 +17,6 @@
 #include <cstdint>
 #include <expected>
 #include <functional>
-#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 #include <juce_events/juce_events.h>
 #include <memory>
@@ -556,7 +557,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishBusyOperation();
     void supersedeBusyOperation();
     void endBusy();
-    void setLiveRigLoadProgress(std::string message, double fraction);
+    [[nodiscard]] bool setLiveRigLoadProgress(std::string message, double fraction);
     void beginLiveRigLoadProgress();
     void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
     void runAfterBusyOverlayPainted(std::function<void()>&& callback);
@@ -613,7 +614,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // still alive AND (b) the busy token captured at submission still matches the current
     // token. Stale completions from superseded or interrupted operations are dropped silently.
     // The completion receives the shared state pointer only, because the helper already
-    // guarantees that m_current_busy_token still matches at the call site.
+    // guarantees that the captured busy token still matches at the call site.
     template <typename TaskState, typename Worker, typename Completion>
     void runBusyOperation(
         BusyOperation operation, const std::shared_ptr<TaskState>& state, Worker&& worker,
@@ -627,7 +628,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
                           state,
                           token,
                           captured_completion = std::forward<Completion>(completion)]() mutable {
-                if (token != m_current_busy_token)
+                if (!m_busy_state.isCurrentToken(token))
                 {
                     return;
                 }
@@ -749,35 +750,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // True once current session changes need to be saved or discarded before replacement.
     bool m_has_unsaved_changes{false};
 
-    // Project-lifecycle action waiting for either unsaved-change confirmation or a Save As path.
-    std::optional<EditorAction::ProjectAction> m_deferred_action{};
+    // Project-lifecycle action and prompt state waiting on unsaved-change or Save As decisions.
+    DeferredEditorActionState m_deferred_action_state{};
 
-    // True while the view should present an unsaved-changes prompt.
-    bool m_unsaved_changes_prompt_visible{false};
-
-    // True while the view should present a Save As chooser for a deferred command.
-    bool m_save_as_prompt_visible{false};
-
-    // Per-operation progress payload for LoadingLiveRig. Held separately from m_busy_operation
-    // so the truth (what kind of work is in flight) is independent from per-op presentational
-    // data (message override, completion fraction).
-    struct LiveRigProgress
-    {
-        std::string message;
-        double fraction;
-    };
-
-    // Identifies the current in-flight operation, if any. Empty while no slow operation runs.
-    // BusyViewState shown to the view is derived from this field plus m_live_rig_progress.
-    // No presentational state is stored here.
-    std::optional<BusyOperation> m_busy_operation{};
-
-    // Optional live-rig progress payload, populated only while LoadingLiveRig is reporting
-    // progress. Cleared when busy state ends.
-    std::optional<LiveRigProgress> m_live_rig_progress{};
-
-    // Current busy-operation token used by async callbacks to reject stale work.
-    std::uint64_t m_current_busy_token{0};
+    // Busy operation and token state used by async callbacks to reject stale work.
+    BusyOperationState m_busy_state{};
 
     // Reset during destruction so queued completions can detect that the controller is gone.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
@@ -1149,7 +1126,7 @@ void EditorController::Impl::openProject(
             state->result = open_function(state->project, state->file, report_progress);
         },
         safeCallback([this, state, token]() mutable {
-            if (token != m_current_busy_token)
+            if (!m_busy_state.isCurrentToken(token))
             {
                 return;
             }
@@ -1195,7 +1172,7 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
 
     runLiveRigLoadStage(
         ProjectLoadLiveRigStage{
-            .token = m_current_busy_token,
+            .token = m_busy_state.currentToken(),
             .song_directory = songDirectoryForProject(state->project),
             .finish = [this, state, captured_editor_state = std::move(editor_state)](
                           std::expected<void, std::string> rig_result) {
@@ -1283,7 +1260,7 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
             state->result = import_function(state->project, state->file, report_progress);
         },
         safeCallback([this, state, token]() mutable {
-            if (token != m_current_busy_token)
+            if (!m_busy_state.isCurrentToken(token))
             {
                 return;
             }
@@ -1316,7 +1293,7 @@ void EditorController::Impl::completeImportSongSource(const std::shared_ptr<Impo
 
     runLiveRigLoadStage(
         ProjectLoadLiveRigStage{
-            .token = m_current_busy_token,
+            .token = m_busy_state.currentToken(),
             .song_directory = songDirectoryForProject(state->project),
             .finish = [this, state](std::expected<void, std::string> rig_result) {
                 finishImportSongSourceAfterLiveRigLoad(state, std::move(rig_result));
@@ -1416,7 +1393,7 @@ EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProje
 // into determinate progress and wait for that state to paint before live-rig restore starts.
 void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state)
 {
-    if (!stage_state.finish || stage_state.token != m_current_busy_token)
+    if (!stage_state.finish || !m_busy_state.isCurrentToken(stage_state.token))
     {
         return;
     }
@@ -1441,7 +1418,7 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_s
 void EditorController::Impl::startLiveRigLoadStage(
     ProjectLoadLiveRigStage stage_state, bool report_progress)
 {
-    if (!stage_state.finish || stage_state.token != m_current_busy_token)
+    if (!stage_state.finish || !m_busy_state.isCurrentToken(stage_state.token))
     {
         return;
     }
@@ -1459,7 +1436,7 @@ void EditorController::Impl::startLiveRigLoadStage(
         safeCallback(
             [this, token, report_progress, captured_stage = std::move(stage_state)](
                 std::expected<common::audio::LiveRigLoadResult, std::string> rig_result) mutable {
-                if (token != m_current_busy_token)
+                if (!m_busy_state.isCurrentToken(token))
                 {
                     return;
                 }
@@ -1478,8 +1455,10 @@ void EditorController::Impl::startLiveRigLoadStage(
                     return;
                 }
 
-                setLiveRigLoadProgress("Live rig loaded.", 1.0);
-                updateView();
+                if (setLiveRigLoadProgress("Live rig loaded.", 1.0))
+                {
+                    updateView();
+                }
 
                 // No message thread in unit tests; finish synchronously so tests don't deadlock.
                 if (juce::MessageManager::getInstanceWithoutCreating() == nullptr)
@@ -1494,7 +1473,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 juce::Timer::callAfterDelay(
                     static_cast<int>(minimum_completion_display_time.count()),
                     safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
-                        if (token != m_current_busy_token)
+                        if (!m_busy_state.isCurrentToken(token))
                         {
                             return;
                         }
@@ -1665,7 +1644,7 @@ void EditorController::Impl::onAudioDeviceChangeRequested(std::function<void()> 
     updateView();
     runAfterBusyOverlayPainted(
         safeCallback([this, token, captured_change = std::move(change_audio_device)]() mutable {
-            if (token != m_current_busy_token)
+            if (!m_busy_state.isCurrentToken(token))
             {
                 return;
             }
@@ -1788,33 +1767,35 @@ void EditorController::Impl::performActionImpl(EditorAction::ExitApplication /*a
 
 void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action)
 {
-    if (!m_deferred_action.has_value())
+    DeferredEditorActionDecision decision =
+        m_deferred_action_state.resolveUnsavedChanges(action.decision, m_save_requires_destination);
+    switch (decision.kind)
     {
-        clearDeferredAction();
-        updateView();
-        return;
-    }
-
-    m_unsaved_changes_prompt_visible = false;
-    switch (action.decision)
-    {
-        case UnsavedChangesDecision::Save:
+        case DeferredEditorActionDecisionKind::None:
         {
-            if (m_save_requires_destination)
+            updateView();
+            return;
+        }
+        case DeferredEditorActionDecisionKind::SaveCurrentProject:
+        {
+            runProjectAction(EditorAction::SaveProject{});
+            return;
+        }
+        case DeferredEditorActionDecisionKind::AwaitSaveAsPath:
+        {
+            updateView();
+            return;
+        }
+        case DeferredEditorActionDecisionKind::DiscardAndReplay:
+        {
+            std::optional<DeferredEditorActionReplay> replay = std::move(decision.replay);
+            if (!replay.has_value())
             {
-                m_save_as_prompt_visible = true;
                 updateView();
                 return;
             }
 
-            // The deferred action stays in m_deferred_action so completeProjectWriteAction can
-            // resume it after the save commits, and drop it if the save fails.
-            runProjectAction(EditorAction::SaveProject{});
-            break;
-        }
-        case UnsavedChangesDecision::Discard:
-        {
-            const EditorAction::Id deferred_id = idOf(*m_deferred_action);
+            const EditorAction::Id deferred_id = replay->action_id;
             std::filesystem::path displaced_by_import;
             if (deferred_id == EditorAction::Id::ImportSong)
             {
@@ -1830,39 +1811,35 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             if (deferred_id == EditorAction::Id::CloseProject ||
                 deferred_id == EditorAction::Id::ExitApplication)
             {
-                continueDeferredAction();
-                break;
+                runProjectAction(std::move(replay->action));
+                return;
             }
 
-            EditorAction::ProjectAction replay = std::move(*m_deferred_action);
-            clearDeferredAction();
             if (closeProject())
             {
                 if (!displaced_by_import.empty())
                 {
                     m_displaced_project_file = std::move(displaced_by_import);
                 }
-                runProjectAction(std::move(replay));
+                runProjectAction(std::move(replay->action));
             }
             return;
         }
-        case UnsavedChangesDecision::Cancel:
+        case DeferredEditorActionDecisionKind::Cancelled:
         {
-            clearDeferredAction();
             updateView();
-            break;
+            return;
         }
     }
 }
 
 void EditorController::Impl::performActionImpl(EditorAction::CancelSaveAsPrompt /*action*/)
 {
-    if (!m_save_as_prompt_visible)
+    if (!m_deferred_action_state.cancelSaveAsPrompt())
     {
         return;
     }
 
-    clearDeferredAction();
     updateView();
 }
 
@@ -2000,7 +1977,7 @@ void EditorController::Impl::beginAddKnownPlugin(
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
     updateView();
     runAfterBusyOverlayPainted(safeCallback([this, state, token]() {
-        if (token != m_current_busy_token)
+        if (!m_busy_state.isCurrentToken(token))
         {
             return;
         }
@@ -2303,11 +2280,11 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         }
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         {
-            return m_deferred_action.has_value() && m_unsaved_changes_prompt_visible;
+            return m_deferred_action_state.unsavedChangesPrompt().has_value();
         }
         case EditorAction::Id::CancelSaveAsPrompt:
         {
-            return m_save_as_prompt_visible;
+            return m_deferred_action_state.saveAsPrompt().has_value();
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekWaveform:
@@ -2391,9 +2368,7 @@ void EditorController::Impl::requestProjectAction(EditorAction::ProjectAction ac
 {
     if (hasUnsavedChanges())
     {
-        m_deferred_action = std::move(action);
-        m_unsaved_changes_prompt_visible = true;
-        m_save_as_prompt_visible = false;
+        m_deferred_action_state.defer(std::move(action));
         updateView();
         return;
     }
@@ -2617,7 +2592,7 @@ void EditorController::Impl::restoreLiveRig(
     {
         request.progress_callback =
             safeCallback([this, token](const common::audio::LiveRigLoadProgress& progress) {
-                if (token != m_current_busy_token)
+                if (!m_busy_state.isCurrentToken(token))
                 {
                     return;
                 }
@@ -2626,13 +2601,13 @@ void EditorController::Impl::restoreLiveRig(
         // Route the engine's per-step yield through the busy-overlay paint fence so each plugin's
         // progress update actually paints before the next step blocks the message thread.
         request.yield_callback = safeCallback([this, token](std::function<void()> next) {
-            if (token != m_current_busy_token)
+            if (!m_busy_state.isCurrentToken(token))
             {
                 return;
             }
             runAfterBusyOverlayPainted(
                 safeCallback([this, token, continuation = std::move(next)]() mutable {
-                    if (token != m_current_busy_token)
+                    if (!m_busy_state.isCurrentToken(token))
                     {
                         return;
                     }
@@ -2731,7 +2706,7 @@ void EditorController::Impl::completeProjectWriteAction(
         // A deferred action present at the moment of a failed save means this save was the one
         // synthesized by the unsaved-changes prompt's Save branch; the user wanted to protect
         // their work first, so dropping the deferred replay is the right escape.
-        if (m_deferred_action.has_value())
+        if (m_deferred_action_state.hasDeferredAction())
         {
             clearDeferredAction();
         }
@@ -2764,7 +2739,7 @@ void EditorController::Impl::completeProjectWriteAction(
     finishBusyOperation();
     if ((action_id == EditorAction::Id::SaveProject ||
          action_id == EditorAction::Id::SaveProjectAs) &&
-        m_deferred_action.has_value())
+        m_deferred_action_state.hasDeferredAction())
     {
         continueDeferredAction();
     }
@@ -2773,23 +2748,20 @@ void EditorController::Impl::completeProjectWriteAction(
 // Resumes a deferred action after Save or Save As has successfully protected user changes.
 void EditorController::Impl::continueDeferredAction()
 {
-    if (!m_deferred_action.has_value())
+    std::optional<DeferredEditorActionReplay> replay = m_deferred_action_state.takeReplayAction();
+    if (!replay.has_value())
     {
         updateView();
         return;
     }
 
-    EditorAction::ProjectAction replay = std::move(*m_deferred_action);
-    clearDeferredAction();
-    runProjectAction(std::move(replay));
+    runProjectAction(std::move(replay->action));
 }
 
 // Clears all prompt-related state without changing the currently loaded project.
 void EditorController::Impl::clearDeferredAction() noexcept
 {
-    m_deferred_action.reset();
-    m_unsaved_changes_prompt_visible = false;
-    m_save_as_prompt_visible = false;
+    m_deferred_action_state.clear();
 }
 
 // Clears the restore-interrupted marker without touching the normal last-project path.
@@ -2983,15 +2955,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
         };
     }
-    if (m_deferred_action.has_value() && m_unsaved_changes_prompt_visible)
-    {
-        state.unsaved_changes_prompt = UnsavedChangesPrompt{idOf(*m_deferred_action)};
-    }
-
-    if (m_deferred_action.has_value() && m_save_as_prompt_visible)
-    {
-        state.save_as_prompt = SaveAsPrompt{idOf(*m_deferred_action)};
-    }
+    state.unsaved_changes_prompt = m_deferred_action_state.unsavedChangesPrompt();
+    state.save_as_prompt = m_deferred_action_state.saveAsPrompt();
 
     if (m_restore_interrupted_prompt_file.has_value())
     {
@@ -3007,21 +2972,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
         };
     }
 
-    if (m_busy_operation.has_value())
-    {
-        BusyViewState busy{
-            .operation = *m_busy_operation,
-            .message = busyMessage(*m_busy_operation),
-            .presentation = busyPresentation(*m_busy_operation),
-            .cancel_enabled = false,
-        };
-        if (*m_busy_operation == BusyOperation::LoadingLiveRig && m_live_rig_progress.has_value())
-        {
-            busy.message = m_live_rig_progress->message;
-            busy.progress = m_live_rig_progress->fraction;
-        }
-        state.busy = busy;
-    }
+    state.busy = m_busy_state.viewState();
 
     return state;
 }
@@ -3029,33 +2980,22 @@ EditorViewState EditorController::Impl::deriveViewState() const
 // Applies the serialized audio-device state stored by a previous editor session, if any.
 void EditorController::Impl::restoreAudioDeviceState()
 {
-    const std::optional<std::string> xml_state = m_settings.audioDeviceState();
-    if (!xml_state.has_value() || xml_state->empty())
+    const std::optional<std::string> serialized_state = m_settings.audioDeviceState();
+    if (!serialized_state.has_value() || serialized_state->empty())
     {
         return;
     }
 
-    const std::unique_ptr<juce::XmlElement> xml = juce::parseXML(juce::String{xml_state->c_str()});
-    if (xml == nullptr)
+    if (!m_audio_devices.restoreSerializedDeviceState(*serialized_state))
     {
         m_settings.setAudioDeviceState(std::nullopt);
-        return;
     }
-
-    m_audio_devices.deviceManager().initialise(1, 2, xml.get(), true);
 }
 
 // Stores the current device manager state so the next launch can restore the user's selection.
 void EditorController::Impl::persistAudioDeviceState()
 {
-    const std::unique_ptr<juce::XmlElement> xml = m_audio_devices.deviceManager().createStateXml();
-    if (xml == nullptr)
-    {
-        m_settings.setAudioDeviceState(std::nullopt);
-        return;
-    }
-
-    m_settings.setAudioDeviceState(xml->toString().toStdString());
+    m_settings.setAudioDeviceState(m_audio_devices.serializedDeviceState());
 }
 
 // Loads stored calibration only when it matches the current committed input route.
@@ -3428,31 +3368,24 @@ bool EditorController::Impl::hasLiveRigPersistence() const noexcept
 // Reports whether a busy operation is currently active.
 bool EditorController::Impl::isBusy() const noexcept
 {
-    return m_busy_operation.has_value();
+    return m_busy_state.isBusy();
 }
 
-// Begins a busy operation and advances the current busy token. The BusyViewState shown to the
-// view is derived from m_busy_operation in deriveViewState(); this function only sets the source
-// state.
+// Begins a busy operation and advances the current busy token. BusyViewState projection is owned
+// by BusyOperationState and read during deriveViewState().
 std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
 {
-    m_current_busy_token += 1;
-    m_busy_operation = operation;
-    return m_current_busy_token;
+    return m_busy_state.begin(operation);
 }
 
 // Moves an in-flight busy operation into a new visible phase without changing its token. Project
 // open/import workers use this when validation enters audio analysis but still has one completion.
 void EditorController::Impl::transitionBusyOperation(BusyOperation operation, std::uint64_t token)
 {
-    if (token != m_current_busy_token || !m_busy_operation.has_value())
+    if (m_busy_state.transition(operation, token))
     {
-        return;
+        updateView();
     }
-
-    m_busy_operation = operation;
-    m_live_rig_progress.reset();
-    updateView();
 }
 
 // Moves to a visible phase and releases the worker after that phase has had a chance to paint.
@@ -3465,7 +3398,7 @@ void EditorController::Impl::transitionBusyOperationAfterPaint(
         return;
     }
 
-    if (token != m_current_busy_token || !m_busy_operation.has_value())
+    if (!m_busy_state.isBusy() || !m_busy_state.isCurrentToken(token))
     {
         gate->release();
         return;
@@ -3503,40 +3436,27 @@ void EditorController::Impl::supersedeBusyOperation()
 // stale whether this is a normal finish or a superseding action takeover.
 void EditorController::Impl::endBusy()
 {
-    m_busy_operation.reset();
-    m_live_rig_progress.reset();
-    m_current_busy_token += 1;
+    m_busy_state.end();
 }
 
 // Writes the current live rig load progress (message override and 0..1 fraction). Does not
-// promote m_busy_operation; beginLiveRigLoadProgress() is responsible for that transition.
-// deriveViewState() composes m_busy_operation with m_live_rig_progress to produce the
-// BusyViewState shown to the view.
-void EditorController::Impl::setLiveRigLoadProgress(std::string message, double fraction)
+// promote the busy operation; beginLiveRigLoadProgress() is responsible for that transition.
+bool EditorController::Impl::setLiveRigLoadProgress(std::string message, double fraction)
 {
-    if (!m_busy_operation.has_value())
-    {
-        return;
-    }
-
-    m_live_rig_progress = LiveRigProgress{
-        .message = std::move(message),
-        .fraction = fraction,
-    };
+    return m_busy_state.setLiveRigLoadProgress(std::move(message), fraction);
 }
 
 // Switches a project-load busy operation into determinate live rig restore progress and pushes
 // the new state so the overlay paints at 0% before any plugin construction starts. Promoting
-// m_busy_operation is part of this transition because LoadingLiveRig is a distinct phase from
+// the busy operation is part of this transition because LoadingLiveRig is a distinct phase from
 // the surrounding project-open or import operation.
 void EditorController::Impl::beginLiveRigLoadProgress()
 {
-    if (!m_busy_operation.has_value())
+    if (!m_busy_state.beginLiveRigLoadProgress())
     {
         return;
     }
-    m_busy_operation = BusyOperation::LoadingLiveRig;
-    setLiveRigLoadProgress(busyMessage(BusyOperation::LoadingLiveRig), 0.0);
+
     updateView();
 }
 
@@ -3544,8 +3464,10 @@ void EditorController::Impl::beginLiveRigLoadProgress()
 void EditorController::Impl::updateLiveRigLoadProgress(
     const common::audio::LiveRigLoadProgress& progress)
 {
-    setLiveRigLoadProgress(liveRigProgressMessage(progress), liveRigProgressFraction(progress));
-    updateView();
+    if (setLiveRigLoadProgress(liveRigProgressMessage(progress), liveRigProgressFraction(progress)))
+    {
+        updateView();
+    }
 }
 
 // Routes message-thread-only load work through the attached view's busy-overlay paint fence.
