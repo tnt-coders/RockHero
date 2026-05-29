@@ -13,6 +13,9 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/input_calibration_state.h>
 #include <rock_hero/common/audio/input_device_identity.h>
+#include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/configurable_song_audio.h>
+#include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport_state.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/session.h>
@@ -20,12 +23,12 @@
 #include <rock_hero/editor/core/editor_controller.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
+#include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -45,6 +48,11 @@ namespace
 constexpr const char* g_lead_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a2c9";
 constexpr const char* g_tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
+
+using ConfigurableAudioDeviceConfiguration =
+    common::audio::testing::ConfigurableAudioDeviceConfiguration;
+using ConfigurableSongAudio = common::audio::testing::ConfigurableSongAudio;
+using RecordingPluginHost = common::audio::testing::RecordingPluginHost;
 
 // Captures editor view state and transient effects pushed through the view contract.
 class FakeEditorView final : public IEditorView
@@ -166,320 +174,6 @@ public:
 
     return states;
 }
-
-// Records incoming editor intents so tests can verify the controller contract headlessly.
-class FakeEditorController final : public IEditorController
-{
-public:
-    // Captures the most recent open request made through the controller contract.
-    void onOpenRequested(std::filesystem::path file) override
-    {
-        last_open_file = std::move(file);
-        open_request_count += 1;
-    }
-
-    // Captures the most recent import request made through the controller contract.
-    void onImportRequested(std::filesystem::path file) override
-    {
-        last_import_file = std::move(file);
-        import_request_count += 1;
-    }
-
-    // Counts direct save intents emitted by the view contract.
-    void onSaveRequested() override
-    {
-        save_request_count += 1;
-    }
-
-    // Captures the most recent Save As destination request.
-    void onSaveAsRequested(std::filesystem::path file) override
-    {
-        last_save_as_file = std::move(file);
-        save_as_request_count += 1;
-    }
-
-    // Captures the most recent publish destination request.
-    void onPublishRequested(std::filesystem::path file) override
-    {
-        last_publish_file = std::move(file);
-        publish_request_count += 1;
-    }
-
-    // Counts cancelled Save As chooser flows.
-    void onSaveAsCancelled() override
-    {
-        save_as_cancel_count += 1;
-    }
-
-    // Counts close intents emitted by the view contract.
-    void onCloseRequested() override
-    {
-        close_request_count += 1;
-    }
-
-    // Counts exit intents emitted by the view contract.
-    void onExitRequested() override
-    {
-        exit_request_count += 1;
-    }
-
-    // Captures the latest unsaved-changes decision passed back from the view.
-    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
-    {
-        last_unsaved_changes_decision = decision;
-        unsaved_changes_decision_count += 1;
-    }
-
-    // Captures the latest interrupted-restore decision passed back from the view.
-    void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) override
-    {
-        last_restore_interrupted_decision = decision;
-        restore_interrupted_decision_count += 1;
-    }
-
-    // Counts play/pause transport intents emitted by the view.
-    void onPlayPausePressed() override
-    {
-        play_pause_press_count += 1;
-    }
-
-    // Counts stop transport intents emitted by the view.
-    void onStopPressed() override
-    {
-        stop_press_count += 1;
-    }
-
-    // Captures the latest normalized timeline click.
-    void onWaveformClicked(double normalized_x) override
-    {
-        last_normalized_x = normalized_x;
-        waveform_click_count += 1;
-    }
-
-    // Counts plugin browser open requests.
-    void onPluginBrowserRequested() override
-    {
-        plugin_browser_request_count += 1;
-    }
-
-    // Counts plugin browser close requests.
-    void onPluginBrowserClosed() override
-    {
-        plugin_browser_close_count += 1;
-    }
-
-    // Counts plugin catalog scan requests.
-    void onPluginCatalogScanRequested() override
-    {
-        plugin_catalog_scan_request_count += 1;
-    }
-
-    // Captures selected plugin IDs from the browser.
-    void onAddPluginRequested(std::string plugin_id) override
-    {
-        last_plugin_id = std::move(plugin_id);
-        plugin_add_request_count += 1;
-    }
-
-    // Captures plugin instance IDs selected through the controller contract.
-    void onRemovePluginRequested(std::string instance_id) override
-    {
-        last_removed_plugin_instance_id = std::move(instance_id);
-        remove_plugin_request_count += 1;
-    }
-
-    // Captures plugin instance IDs selected for editor-window opening.
-    void onOpenPluginRequested(std::string instance_id) override
-    {
-        last_opened_plugin_instance_id = std::move(instance_id);
-        open_plugin_request_count += 1;
-    }
-
-    // Counts input calibration requests emitted through the controller contract.
-    void onInputCalibrationRequested() override
-    {
-        input_calibration_request_count += 1;
-    }
-
-    // Records calibration measurement setup through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
-    onInputCalibrationMeasurementStarted() override
-    {
-        input_calibration_measurement_start_count += 1;
-        return {};
-    }
-
-    // Records calibration measurement cancellation through the controller contract.
-    void onInputCalibrationMeasurementCancelled() override
-    {
-        input_calibration_measurement_cancel_count += 1;
-    }
-
-    // Records calibration completion through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
-        double gain_db) override
-    {
-        last_input_gain_db = gain_db;
-        input_calibration_success_count += 1;
-        return {};
-    }
-
-    // Records manual calibration completion through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
-        double gain_db) override
-    {
-        last_input_gain_db = gain_db;
-        input_calibration_manual_set_count += 1;
-        return {};
-    }
-
-    // Counts dismissed input calibration prompts.
-    void onInputCalibrationDismissed() override
-    {
-        input_calibration_dismiss_count += 1;
-    }
-
-    // Captures output gain changes emitted through the controller contract.
-    void onOutputGainChanged(double gain_db) override
-    {
-        last_output_gain_db = gain_db;
-        output_gain_change_count += 1;
-    }
-
-    // Records audio-device change scheduling; controller-level tests can invoke the captured
-    // callback directly to simulate the busy overlay paint fence firing.
-    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
-    {
-        last_audio_device_change = std::move(change_audio_device);
-        audio_device_change_request_count += 1;
-    }
-
-    // Counts audio-device settings open notifications.
-    void onAudioDeviceSettingsOpened() override
-    {
-        audio_device_settings_open_count += 1;
-    }
-
-    // Counts audio-device settings close notifications.
-    void onAudioDeviceSettingsClosed() override
-    {
-        audio_device_settings_close_count += 1;
-    }
-
-    // Last file passed to onOpenRequested().
-    std::optional<std::filesystem::path> last_open_file{};
-
-    // Last file passed to onImportRequested().
-    std::optional<std::filesystem::path> last_import_file{};
-
-    // Last destination passed to onSaveAsRequested().
-    std::optional<std::filesystem::path> last_save_as_file{};
-
-    // Last destination passed to onPublishRequested().
-    std::optional<std::filesystem::path> last_publish_file{};
-
-    // Last normalized timeline click emitted by the view.
-    std::optional<double> last_normalized_x{};
-
-    // Last plugin ID selected through the controller contract.
-    std::optional<std::string> last_plugin_id{};
-
-    // Last plugin instance ID selected through the controller contract.
-    std::optional<std::string> last_removed_plugin_instance_id{};
-
-    // Last plugin instance ID selected for editor-window opening.
-    std::optional<std::string> last_opened_plugin_instance_id{};
-
-    // Last input gain value received through the controller contract.
-    std::optional<double> last_input_gain_db{};
-
-    // Last output gain value received through the controller contract.
-    std::optional<double> last_output_gain_db{};
-
-    // Last unsaved-changes decision emitted by the view.
-    std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
-
-    // Last interrupted-restore decision emitted by the view.
-    std::optional<RestoreInterruptedDecision> last_restore_interrupted_decision{};
-
-    // Number of open intents received.
-    int open_request_count{0};
-
-    // Number of import intents received.
-    int import_request_count{0};
-
-    // Number of save intents received.
-    int save_request_count{0};
-
-    // Number of Save As intents received.
-    int save_as_request_count{0};
-
-    // Number of publish intents received.
-    int publish_request_count{0};
-
-    // Number of Save As cancellation intents received.
-    int save_as_cancel_count{0};
-
-    // Number of close intents received.
-    int close_request_count{0};
-
-    // Number of exit intents received.
-    int exit_request_count{0};
-
-    // Number of unsaved-changes decisions received.
-    int unsaved_changes_decision_count{0};
-
-    // Number of interrupted-restore decisions received.
-    int restore_interrupted_decision_count{0};
-
-    // Number of play/pause intents received.
-    int play_pause_press_count{0};
-
-    // Number of stop intents received.
-    int stop_press_count{0};
-
-    // Number of waveform-click intents received.
-    int waveform_click_count{0};
-
-    // Number of plugin-browser open intents received.
-    int plugin_browser_request_count{0};
-
-    // Number of plugin-browser close intents received.
-    int plugin_browser_close_count{0};
-
-    // Number of plugin-catalog scan intents received.
-    int plugin_catalog_scan_request_count{0};
-
-    // Number of plugin-browser add intents received.
-    int plugin_add_request_count{0};
-
-    // Number of remove-plugin intents received.
-    int remove_plugin_request_count{0};
-
-    // Number of open-plugin intents received.
-    int open_plugin_request_count{0};
-
-    // Number of input calibration intents received.
-    int input_calibration_request_count{0};
-    int input_calibration_measurement_start_count{0};
-    int input_calibration_measurement_cancel_count{0};
-    int input_calibration_success_count{0};
-    int input_calibration_manual_set_count{0};
-    int input_calibration_dismiss_count{0};
-
-    // Number of output gain change intents received.
-    int output_gain_change_count{0};
-
-    // Last audio-device change callback handed to onAudioDeviceChangeRequested.
-    std::function<void()> last_audio_device_change{};
-
-    // Number of audio-device change requests received.
-    int audio_device_change_request_count{0};
-
-    // Number of audio-device settings lifecycle notifications received.
-    int audio_device_settings_open_count{0};
-    int audio_device_settings_close_count{0};
-};
 
 // Records control intents and exposes a manual notification hook for controller tests.
 class FakeTransport final : public common::audio::ITransport, public common::audio::ILiveInput
@@ -650,239 +344,6 @@ public:
     int set_input_gain_call_count{0};
     int set_live_input_monitoring_call_count{0};
     int set_calibration_input_monitoring_call_count{0};
-};
-
-// Configurable ISongAudio fake that records calls and can simulate reentrant notifications.
-class FakeSongAudio final : public common::audio::ISongAudio
-{
-public:
-    // Records project-audio preparation and fills accepted arrangement durations.
-    bool prepareSong(common::core::Song& song) override
-    {
-        ++prepare_song_call_count;
-        if (!next_prepare_result)
-        {
-            return false;
-        }
-
-        for (common::core::Arrangement& arrangement : song.arrangements)
-        {
-            last_prepared_audio_asset = arrangement.audio_asset;
-            ++prepared_audio_asset_count;
-            if (!failed_prepare_audio_path.empty() &&
-                arrangement.audio_asset.path == failed_prepare_audio_path)
-            {
-                return false;
-            }
-            arrangement.audio_duration = next_prepared_audio_duration;
-        }
-
-        return true;
-    }
-
-    // Records the active arrangement and optionally fires an injected reentrant action.
-    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
-    {
-        last_active_audio_asset = arrangement.audio_asset;
-        ++set_active_arrangement_call_count;
-        if (during_active_arrangement_action)
-        {
-            during_active_arrangement_action();
-        }
-        return next_set_active_arrangement_result;
-    }
-
-    // Records that the active backend arrangement should be cleared.
-    void clearActiveArrangement() override
-    {
-        last_active_audio_asset.reset();
-        ++clear_active_arrangement_call_count;
-    }
-
-    // Duration assigned to arrangements during successful preparation.
-    common::core::TimeDuration next_prepared_audio_duration{common::core::TimeDuration{4.0}};
-
-    // Controls whether the next prepareSong() call accepts the project song.
-    bool next_prepare_result{true};
-
-    // Controls whether the next setActiveArrangement() call accepts the arrangement.
-    bool next_set_active_arrangement_result{true};
-
-    // Number of song-preparation calls received.
-    int prepare_song_call_count{0};
-
-    // Number of arrangement assets visited during preparation.
-    int prepared_audio_asset_count{0};
-
-    // Number of active-arrangement replacement calls received.
-    int set_active_arrangement_call_count{0};
-
-    // Number of active-arrangement clear calls received.
-    int clear_active_arrangement_call_count{0};
-
-    // Specific arrangement audio path that should fail during preparation.
-    std::filesystem::path failed_prepare_audio_path{};
-
-    // Last arrangement audio asset observed during preparation.
-    std::optional<common::core::AudioAsset> last_prepared_audio_asset{};
-
-    // Last active arrangement audio asset accepted by the fake backend.
-    std::optional<common::core::AudioAsset> last_active_audio_asset{};
-
-    // Optional callback fired from setActiveArrangement() to test reentrant refreshes.
-    std::function<void()> during_active_arrangement_action{};
-};
-
-// Configurable plugin-host fake that records scanning and chain mutation.
-class FakePluginHost final : public common::audio::IPluginHost
-{
-public:
-    // Refreshes the configured known catalog from the default catalog scan or returns scan error.
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog() override
-    {
-        catalog_scan_call_count += 1;
-        if (next_catalog_scan_error.has_value())
-        {
-            return std::unexpected{*next_catalog_scan_error};
-        }
-
-        next_known_candidates = next_catalog_candidates;
-        return {};
-    }
-
-    // Returns the configured catalog candidates or scan error.
-    [[nodiscard]] std::expected<
-        std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-    scanPluginLocations(const std::vector<std::filesystem::path>& roots) override
-    {
-        last_catalog_scan_roots = roots;
-        catalog_scan_call_count += 1;
-        if (next_catalog_scan_error.has_value())
-        {
-            return std::unexpected{*next_catalog_scan_error};
-        }
-
-        return next_catalog_candidates;
-    }
-
-    // Returns the configured known catalog without simulating a plugin scan.
-    [[nodiscard]] std::vector<common::audio::PluginCandidate> knownPluginCatalog() const override
-    {
-        known_candidates_call_count += 1;
-        return next_known_candidates;
-    }
-
-    // Returns the configured insertion handle or insertion error.
-    [[nodiscard]] std::expected<common::audio::PluginHandle, common::audio::PluginHostError>
-    addPlugin(const common::audio::PluginCandidate& plugin_candidate) override
-    {
-        last_added_plugin_candidate = plugin_candidate;
-        add_call_count += 1;
-        if (next_add_error.has_value())
-        {
-            return std::unexpected{*next_add_error};
-        }
-
-        common::audio::PluginHandle handle = next_handle;
-        handle.plugin_id = plugin_candidate.id;
-        return handle;
-    }
-
-    // Returns success or the configured removal error while recording the requested instance.
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> removePlugin(
-        const std::string& instance_id) override
-    {
-        last_removed_instance_id = instance_id;
-        remove_call_count += 1;
-        if (next_remove_error.has_value())
-        {
-            return std::unexpected{*next_remove_error};
-        }
-
-        return {};
-    }
-
-    // Returns success or the configured open error while recording the requested instance.
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
-        const std::string& instance_id) override
-    {
-        last_opened_instance_id = instance_id;
-        open_call_count += 1;
-        if (next_open_error.has_value())
-        {
-            return std::unexpected{*next_open_error};
-        }
-
-        return {};
-    }
-
-    // Candidates returned by the next successful catalog scan.
-    std::vector<common::audio::PluginCandidate> next_catalog_candidates{
-        common::audio::PluginCandidate{
-            .id = "catalog-plugin-id",
-            .name = "Catalog Amp",
-            .manufacturer = "Example Audio",
-            .format_name = "VST3",
-            .file_path = std::filesystem::path{"catalog-amp.vst3"},
-        },
-    };
-
-    // Candidates returned by the lightweight known-catalog read.
-    std::vector<common::audio::PluginCandidate> next_known_candidates{
-        common::audio::PluginCandidate{
-            .id = "catalog-plugin-id",
-            .name = "Catalog Amp",
-            .manufacturer = "Example Audio",
-            .format_name = "VST3",
-            .file_path = std::filesystem::path{"catalog-amp.vst3"},
-        },
-    };
-
-    // Handle returned by the next successful plugin insertion.
-    common::audio::PluginHandle next_handle{
-        .instance_id = "instance-id",
-        .plugin_id = {},
-        .chain_index = 0,
-    };
-
-    // Optional catalog scan error returned instead of candidates.
-    std::optional<common::audio::PluginHostError> next_catalog_scan_error{};
-
-    // Optional insertion error returned instead of a handle.
-    std::optional<common::audio::PluginHostError> next_add_error{};
-
-    // Optional removal error returned instead of success.
-    std::optional<common::audio::PluginHostError> next_remove_error{};
-
-    // Optional open-window error returned instead of success.
-    std::optional<common::audio::PluginHostError> next_open_error{};
-
-    // Last roots passed to scanPluginLocations().
-    std::vector<std::filesystem::path> last_catalog_scan_roots{};
-
-    // Last candidate passed to addPlugin().
-    std::optional<common::audio::PluginCandidate> last_added_plugin_candidate{};
-
-    // Last instance ID passed to removePlugin().
-    std::optional<std::string> last_removed_instance_id{};
-
-    // Last instance ID passed to openPluginWindow().
-    std::optional<std::string> last_opened_instance_id{};
-
-    // Number of catalog scan calls received.
-    int catalog_scan_call_count{0};
-
-    // Number of known-catalog reads received.
-    mutable int known_candidates_call_count{0};
-
-    // Number of insertion calls received.
-    int add_call_count{0};
-
-    // Number of removal calls received.
-    int remove_call_count{0};
-
-    // Number of open-window calls received.
-    int open_call_count{0};
 };
 
 // Configurable live rig fake that records project-boundary save and restore requests.
@@ -1076,78 +537,17 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     std::optional<PendingLoad> pending_load{};
 };
 
-// Minimal audio-device-configuration fake exposing a real juce::AudioDeviceManager.
-class FakeAudioDeviceConfiguration final : public common::audio::IAudioDeviceConfiguration
-{
-public:
-    // Returns the fake-owned device manager so consumers can drive it from tests.
-    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
-    {
-        return device_manager;
-    }
-
-    // Returns the test-configured current device status snapshot.
-    [[nodiscard]] common::audio::AudioDeviceStatus currentDeviceStatus() const override
-    {
-        status_call_count += 1;
-        return current_status;
-    }
-
-    // Returns the test-configured current input identity.
-    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
-        const override
-    {
-        return current_input_identity;
-    }
-
-    // Stores a listener pointer so tests can notify it manually through notifyChanged().
-    void addListener(common::audio::IAudioDeviceConfiguration::Listener& listener) override
-    {
-        listeners.push_back(&listener);
-    }
-
-    // Removes a previously registered listener.
-    void removeListener(common::audio::IAudioDeviceConfiguration::Listener& listener) override
-    {
-        std::erase(listeners, &listener);
-    }
-
-    // Fires a change broadcast to every registered listener, mirroring real device updates.
-    void notifyChanged()
-    {
-        for (auto* listener : listeners)
-        {
-            listener->onAudioDeviceConfigurationChanged();
-        }
-    }
-
-    // JUCE device manager owned by the fake; tests may initialise it explicitly.
-    juce::AudioDeviceManager device_manager{};
-
-    // Current device status returned by currentDeviceStatus().
-    common::audio::AudioDeviceStatus current_status{};
-
-    // Current input identity returned by currentInputDeviceIdentity().
-    std::optional<common::audio::InputDeviceIdentity> current_input_identity{};
-
-    // Non-owning listeners subscribed by the controller under test.
-    std::vector<common::audio::IAudioDeviceConfiguration::Listener*> listeners{};
-
-    // Number of current-device-status reads received.
-    mutable int status_call_count{0};
-};
-
 // Supplies a default audio-device port for tests that do not care about hardware state.
-[[nodiscard]] FakeAudioDeviceConfiguration& defaultAudioDevices() noexcept
+[[nodiscard]] ConfigurableAudioDeviceConfiguration& defaultAudioDevices() noexcept
 {
-    static FakeAudioDeviceConfiguration audio_devices;
+    static ConfigurableAudioDeviceConfiguration audio_devices;
     return audio_devices;
 }
 
 // Supplies a default plugin-host port for tests that do not care about plugin behavior.
-[[nodiscard]] FakePluginHost& defaultPluginHost() noexcept
+[[nodiscard]] RecordingPluginHost& defaultPluginHost() noexcept
 {
-    static FakePluginHost plugin_host;
+    static RecordingPluginHost plugin_host;
     return plugin_host;
 }
 
@@ -1165,7 +565,7 @@ public:
 // Builds the controller audio-port bundle used by most tests. FakeTransport also implements the
 // live-input port, which preserves the old test composition while keeping construction explicit.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio) noexcept
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -1179,8 +579,8 @@ public:
 
 // Replaces the default audio-device port in the common test controller bundle.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio,
-    FakeAudioDeviceConfiguration& audio_devices) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio,
+    ConfigurableAudioDeviceConfiguration& audio_devices) noexcept
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -1194,7 +594,8 @@ public:
 
 // Replaces the default plugin-host port in the common test controller bundle.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio, FakePluginHost& plugin_host) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio,
+    RecordingPluginHost& plugin_host) noexcept
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -1208,7 +609,7 @@ public:
 
 // Replaces the default plugin-host and live-rig ports in the common test controller bundle.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio, FakePluginHost& plugin_host,
+    FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host,
     FakeLiveRig& live_rig) noexcept
 {
     return EditorController::AudioPorts{
@@ -1223,8 +624,8 @@ public:
 
 // Replaces the default audio-device and plugin-host ports in the common test controller bundle.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio,
-    FakeAudioDeviceConfiguration& audio_devices, FakePluginHost& plugin_host) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio,
+    ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host) noexcept
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -1238,8 +639,8 @@ public:
 
 // Replaces every default controller audio port represented in controller tests.
 [[nodiscard]] EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, FakeSongAudio& song_audio,
-    FakeAudioDeviceConfiguration& audio_devices, FakePluginHost& plugin_host,
+    FakeTransport& transport, ConfigurableSongAudio& song_audio,
+    ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host,
     FakeLiveRig& live_rig) noexcept
 {
     return EditorController::AudioPorts{
@@ -1687,8 +1088,9 @@ private:
 
 // Loads arrangement audio through the controller so tests keep backend/session coupling.
 void loadArrangement(
-    EditorController& controller, FakeProjectServices& project_services, FakeSongAudio& audio,
-    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
+    EditorController& controller, FakeProjectServices& project_services,
+    ConfigurableSongAudio& audio, std::filesystem::path path,
+    common::core::TimeRange timeline_range = loadedTimelineRange())
 {
     audio.next_prepared_audio_duration = timeline_range.duration();
     audio.next_set_active_arrangement_result = true;
@@ -1699,9 +1101,9 @@ void loadArrangement(
 
 // Loads arrangement audio and applies a neutral calibration for plugin-chain tests.
 void loadCalibratedArrangement(
-    EditorController& controller, FakeProjectServices& project_services, FakeSongAudio& audio,
-    FakeAudioDeviceConfiguration& audio_devices, std::filesystem::path path,
-    common::core::TimeRange timeline_range = loadedTimelineRange())
+    EditorController& controller, FakeProjectServices& project_services,
+    ConfigurableSongAudio& audio, ConfigurableAudioDeviceConfiguration& audio_devices,
+    std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange())
 {
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     loadArrangement(controller, project_services, audio, std::move(path), timeline_range);
@@ -1893,7 +1295,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
 // Verifies a fake controller can receive editor intents without JUCE callback types.
 TEST_CASE("IEditorController fake receives editor intents", "[core][editor-controller]")
 {
-    FakeEditorController controller;
+    testing::RecordingEditorController controller;
     const std::filesystem::path open_file{"song.rhp"};
     const std::filesystem::path import_file{"song.psarc"};
     const std::filesystem::path save_as_file{"saved.rhp"};
@@ -1957,8 +1359,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
 TEST_CASE("EditorController publishes current audio device", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_status = common::audio::AudioDeviceStatus{
         .open = true,
         .device_name = "Interface A",
@@ -1991,9 +1393,9 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
 TEST_CASE("EditorController enables plugin add after load", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2031,8 +1433,8 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
 TEST_CASE("EditorController forwards normalization to audio backend", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     FakeProjectServices project_services;
     common::core::Song song = makeSong(std::filesystem::path{"song.wav"});
     song.arrangements.front().audio_asset.normalization = makeCurrentNormalization();
@@ -2059,9 +1461,9 @@ TEST_CASE("EditorController forwards normalization to audio backend", "[core][ed
 TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2096,9 +1498,9 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
 TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     plugin_host.next_known_candidates = {
         common::audio::PluginCandidate{
@@ -2144,9 +1546,9 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
 TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2189,9 +1591,9 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 TEST_CASE("EditorController keeps plugin browser open after add error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2231,9 +1633,9 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
 TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2262,9 +1664,9 @@ TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
 TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2301,9 +1703,9 @@ TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-
 TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     EditorController controller{
@@ -2342,9 +1744,9 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
 TEST_CASE("EditorController reports live rig plugin load progress", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins = {
         common::audio::LiveRigPlugin{
@@ -2405,9 +1807,9 @@ TEST_CASE(
     "EditorController close during live rig load supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.defer_load_completion = true;
     FakeProjectServices project_services;
@@ -2462,9 +1864,9 @@ TEST_CASE(
 TEST_CASE("EditorController captures live rig before save", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
@@ -2510,9 +1912,9 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
 TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
@@ -2547,9 +1949,9 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
 TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2588,9 +1990,9 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2620,9 +2022,9 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
 TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2649,9 +2051,9 @@ TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
 TEST_CASE("EditorController ignores stale plugin window requests", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2677,9 +2079,9 @@ TEST_CASE("EditorController ignores stale plugin window requests", "[core][edito
 TEST_CASE("EditorController reports plugin window errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2710,9 +2112,9 @@ TEST_CASE("EditorController reports plugin window errors", "[core][editor-contro
 TEST_CASE("EditorController reports plugin remove errors", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
@@ -2747,8 +2149,8 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
 TEST_CASE("EditorController re-derives state on device change", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     EditorController controller{
         audioPorts(transport, audio, audio_devices), defaultControllerServices(), noopExitFunction()
     };
@@ -2783,7 +2185,7 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
 TEST_CASE("EditorController pushes derived state on view attachment", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     EditorController controller{
         audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
     };
@@ -2823,7 +2225,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
 TEST_CASE("EditorController derives visible timeline range", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -2856,7 +2258,7 @@ TEST_CASE("EditorController derives visible timeline range", "[core][editor-cont
 TEST_CASE("EditorController pushes one state per coarse transition", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -2904,7 +2306,7 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
 TEST_CASE("EditorController play intent toggles loaded transport", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -2930,7 +2332,7 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[core][edito
 TEST_CASE("EditorController ignores play intent without audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     EditorController controller{
         audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
     };
@@ -2945,7 +2347,7 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
 TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -2974,7 +2376,7 @@ TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-cont
 TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3007,7 +2409,7 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][e
 TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3038,7 +2440,7 @@ TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-co
 TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3074,7 +2476,7 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor
 TEST_CASE("EditorController failed activation preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3117,7 +2519,7 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
 TEST_CASE("EditorController successful open stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3174,7 +2576,7 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
 TEST_CASE("EditorController close clears loaded project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3218,7 +2620,7 @@ TEST_CASE("EditorController clears missing restore path", "[core][editor-control
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3244,7 +2646,7 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3273,7 +2675,7 @@ TEST_CASE("EditorController restore keeps path while open is pending", "[core][e
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -3310,7 +2712,7 @@ TEST_CASE(
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
@@ -3353,7 +2755,7 @@ TEST_CASE("EditorController prompts after interrupted restore", "[core][editor-c
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3386,7 +2788,7 @@ TEST_CASE("EditorController retries interrupted restore prompt", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -3428,7 +2830,7 @@ TEST_CASE("EditorController cancels interrupted restore prompt", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3461,7 +2863,7 @@ TEST_CASE("EditorController clears missing interrupted restore", "[core][editor-
     settings.setLastOpenProject(files.projectFile());
     settings.setInterruptedRestoreProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3492,7 +2894,7 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3519,7 +2921,7 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -3556,7 +2958,7 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3593,7 +2995,7 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
     const ScopedControllerFiles files{"persist_loaded_exit"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     int exit_call_count = 0;
     std::optional<std::filesystem::path> setting_seen_at_exit{};
@@ -3624,7 +3026,7 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
 TEST_CASE("EditorController save writes current session song", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3662,7 +3064,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
 TEST_CASE("EditorController save failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3697,7 +3099,7 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
 TEST_CASE("EditorController save as failure clears busy first", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3733,7 +3135,7 @@ TEST_CASE("EditorController save as failure clears busy first", "[core][editor-c
 TEST_CASE("EditorController publish writes package copy", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3772,7 +3174,7 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
 TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3813,7 +3215,7 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
 TEST_CASE("EditorController failed import preserves session", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3859,7 +3261,7 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
 TEST_CASE("EditorController successful import stores audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3916,7 +3318,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
 TEST_CASE("EditorController import requires Save As destination", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -3980,7 +3382,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
 TEST_CASE("EditorController prompts before closing unsaved import", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4030,9 +3432,9 @@ TEST_CASE(
     "EditorController discard import reopens dirty displaced project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
@@ -4100,7 +3502,7 @@ TEST_CASE(
 TEST_CASE("EditorController saves prompted import before close", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4154,7 +3556,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
     EditorSettings settings{files.settingsFile()};
     settings.setLastOpenProject(files.projectFile());
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     int exit_call_count = 0;
     EditorController controller{
@@ -4196,7 +3598,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
 TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4223,7 +3625,7 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
 TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4260,7 +3662,7 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
 TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4301,7 +3703,7 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
 TEST_CASE("EditorController does not replay errors across transitions", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
@@ -4333,7 +3735,7 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
 TEST_CASE("EditorController open begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4365,7 +3767,7 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
 TEST_CASE("EditorController open reports audio analysis state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     DeferredEditorTaskRunner runner;
     int analysis_progress_call_count = 0;
     EditorController controller{
@@ -4395,7 +3797,7 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
 TEST_CASE("EditorController import begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4424,7 +3826,7 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
 TEST_CASE("EditorController import reports audio analysis state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     DeferredEditorTaskRunner runner;
     int analysis_progress_call_count = 0;
     EditorController controller{
@@ -4454,7 +3856,7 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
 TEST_CASE("EditorController save begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4488,9 +3890,9 @@ TEST_CASE("EditorController save begins busy with default message", "[core][edit
 TEST_CASE("EditorController deferred save clears busy before open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
     FakeProjectServices project_services;
@@ -4568,7 +3970,7 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
 TEST_CASE("EditorController save as begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4602,7 +4004,7 @@ TEST_CASE("EditorController save as begins busy with default message", "[core][e
 TEST_CASE("EditorController publish begins busy with default message", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4636,7 +4038,7 @@ TEST_CASE("EditorController publish begins busy with default message", "[core][e
 TEST_CASE("EditorController busy routing disables ordinary commands", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4674,7 +4076,7 @@ TEST_CASE(
     "EditorController busy keeps close enabled for a loaded project", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4711,9 +4113,9 @@ TEST_CASE(
 TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4790,7 +4192,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
 TEST_CASE("EditorController open completion clears busy and commits", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4824,7 +4226,7 @@ TEST_CASE(
     "EditorController failed open clears busy then reports error", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4860,7 +4262,7 @@ TEST_CASE(
 TEST_CASE("EditorController close during busy supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4900,7 +4302,7 @@ TEST_CASE("EditorController close during busy supersedes open", "[core][editor-c
 TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
@@ -4937,7 +4339,7 @@ TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-co
 TEST_CASE("EditorController close during busy save supersedes write", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -4984,7 +4386,7 @@ TEST_CASE("EditorController exit during busy save persists file", "[core][editor
     const ScopedControllerFiles files{"busy_save_exit"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     int exit_call_count = 0;
@@ -5025,7 +4427,7 @@ TEST_CASE(
     "EditorController stale completion preserves live busy state", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -5076,7 +4478,7 @@ TEST_CASE(
     "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     DeferredEditorTaskRunner runner;
     EditorController controller{
@@ -5108,7 +4510,7 @@ TEST_CASE(
     "EditorController schedules audio device open via paint fence", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
+    ConfigurableSongAudio audio;
     EditorController controller{
         audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
     };
@@ -5142,8 +4544,8 @@ TEST_CASE(
 TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5173,8 +4575,8 @@ TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][
 TEST_CASE("Output gain controls enabled with required live rig", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeProjectServices project_services;
     FakeEditorView view;
     EditorController controller{
@@ -5199,9 +4601,9 @@ TEST_CASE(
     "Signal chain reports no input device before missing calibration", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5235,10 +4637,10 @@ TEST_CASE(
 {
     FakeTransport transport;
     transport.current_state.playing = true;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5290,8 +4692,8 @@ TEST_CASE(
 TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5324,10 +4726,10 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_success"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5376,10 +4778,10 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_retry_reset"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5427,10 +4829,10 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     const ScopedControllerFiles files{"input_calibration_gain_failure"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5470,10 +4872,10 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     const ScopedControllerFiles files{"input_calibration_monitor_failure"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5514,10 +4916,10 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_manual_set"};
     EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = makeInputDeviceIdentity();
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5555,8 +4957,8 @@ TEST_CASE(
 TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5582,8 +4984,8 @@ TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]
 TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.output_gain = common::audio::Gain{-6.0};
     FakeProjectServices project_services;
@@ -5620,10 +5022,10 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.defer_load_completion = true;
     FakeProjectServices project_services;
@@ -5667,10 +5069,10 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = initial_identity;
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5720,10 +5122,10 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5780,10 +5182,10 @@ TEST_CASE(
         });
 
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakeAudioDeviceConfiguration audio_devices;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.current_input_identity = identity;
-    FakePluginHost plugin_host;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
@@ -5820,8 +5222,8 @@ TEST_CASE(
 TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
 {
     FakeTransport transport;
-    FakeSongAudio audio;
-    FakePluginHost plugin_host;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     FakeProjectServices project_services;
     FakeEditorView view;
