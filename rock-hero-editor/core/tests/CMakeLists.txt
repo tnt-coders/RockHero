@@ -28,6 +28,7 @@ add_executable(
     test_editor_controller_restore.cpp
     test_editor_controller_state.cpp
     test_editor_controller_transport.cpp
+    test_input_calibration_workflow.cpp
     test_plugin_catalog_workflow.cpp
     test_project.cpp
     test_editor_settings.cpp)

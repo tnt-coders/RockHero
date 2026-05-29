@@ -1117,8 +1117,15 @@ private:
         return false;
     }
 
+    controller.onInputCalibrationRequested();
     const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
-    return calibrated.has_value();
+    if (!calibrated.has_value())
+    {
+        return false;
+    }
+
+    controller.onInputCalibrationDismissed();
+    return true;
 }
 
 // Adds the default known plugin through the same browser route used by production UI.

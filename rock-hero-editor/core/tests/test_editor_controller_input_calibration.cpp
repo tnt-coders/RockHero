@@ -124,6 +124,7 @@ TEST_CASE(
 
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
 
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
@@ -137,7 +138,7 @@ TEST_CASE(
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(final_state->input_calibration_prompt.has_value());
     CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
     CHECK(final_state->signal_chain.disabled_message.empty());
     CHECK(transport.current_input_gain.db == 7.5);
@@ -228,6 +229,7 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     controller.attachView(view);
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
 
     transport.current_input_gain = common::audio::Gain{4.0};
     transport.live_input_monitoring_enabled = true;
@@ -272,6 +274,7 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     controller.attachView(view);
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
 
     transport.current_input_gain = common::audio::Gain{4.0};
     transport.live_input_monitoring_enabled = true;
@@ -337,6 +340,124 @@ TEST_CASE(
     CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
 }
 
+// Verifies settings editing releases the calibrated route before JUCE closes the active device.
+TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_settings_route_release"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = common::audio::InputDeviceIdentity{
+        .backend_name = "Windows Audio",
+        .input_device_name = "WASAPI Interface",
+        .input_channel_index = 0,
+        .input_channel_name = "Input 1",
+    };
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    controller.onInputCalibrationRequested();
+    REQUIRE(controller.onInputCalibrationManuallySet(3.25).has_value());
+    controller.onInputCalibrationDismissed();
+    REQUIRE(transport.live_input_monitoring_enabled);
+    REQUIRE_FALSE(transport.calibration_input_monitoring_enabled);
+    REQUIRE(view.last_state.has_value());
+    REQUIRE_FALSE(view.last_state->input_calibration_prompt.has_value());
+    REQUIRE(view.last_state->audio_device_settings_enabled);
+
+    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    CHECK(settings.inputCalibrationState().has_value());
+    REQUIRE(view.last_state.has_value());
+    CHECK(
+        view.last_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::Calibrated);
+    CHECK_FALSE(view.last_state->audio_device_settings_enabled);
+
+    audio_devices.notifyChanged();
+
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+
+    controller.onAudioDeviceSettingsClosed();
+
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    REQUIRE(view.last_state.has_value());
+    CHECK(view.last_state->audio_device_settings_enabled);
+}
+
+// Verifies settings close does not treat JUCE's temporary closed route as a device change.
+TEST_CASE("Audio settings close waits for settled input route", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_settings_close_settle"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    REQUIRE(transport.live_input_monitoring_enabled);
+
+    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    audio_devices.current_input_identity = std::nullopt;
+    controller.onAudioDeviceSettingsClosed();
+
+    CHECK(settings.inputCalibrationState().has_value());
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    REQUIRE(view.last_state.has_value());
+    CHECK(
+        view.last_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::NoActiveInputDevice);
+
+    audio_devices.current_input_identity = identity;
+    audio_devices.notifyChanged();
+
+    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(transport.live_input_monitoring_enabled);
+    REQUIRE(view.last_state.has_value());
+    CHECK(
+        view.last_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::Calibrated);
+}
+
 // Verifies saved calibration does not route live input before the project load fully commits.
 TEST_CASE(
     "Stored input calibration stays disabled until live rig load completes",
@@ -385,6 +506,57 @@ TEST_CASE(
     CHECK(transport.live_input_monitoring_enabled);
 }
 
+// Verifies backend arming failure does not erase calibration for the unchanged input route.
+TEST_CASE("Input calibration reports backend unavailable", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_backend_unavailable"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    REQUIRE(transport.live_input_monitoring_enabled);
+
+    transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::InputRouteUnavailable,
+        "live input route could not be armed",
+    };
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(
+        final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: live input backend unavailable.");
+}
+
 // Verifies that committed input route changes clear app-local calibration and disable monitoring.
 TEST_CASE(
     "Input route change clears calibration and disables monitoring", "[core][editor-controller]")
@@ -430,6 +602,55 @@ TEST_CASE(
     CHECK_FALSE(settings.inputCalibrationState().has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(
+        final_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::MissingCalibration);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: input calibration required.");
+}
+
+// Verifies a route change during measurement closes the prompt and leaves monitoring disabled.
+TEST_CASE("Input route change during calibration closes prompt", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_active_route_change"};
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
+    REQUIRE(view.last_state.has_value());
+    REQUIRE(view.last_state->input_calibration_prompt.has_value());
+
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+    CHECK(transport.calibration_input_monitoring_enabled);
+
+    audio_devices.current_input_identity = makeInputDeviceIdentity("Interface B");
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(settings.inputCalibrationState().has_value());
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     CHECK(
         final_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::MissingCalibration);
@@ -549,6 +770,129 @@ TEST_CASE(
     const auto restored_calibration = settings.inputCalibrationState();
     REQUIRE(restored_calibration.has_value());
     CHECK(restored_calibration->calibration_gain.db == 4.0);
+}
+
+// Verifies backend restore failure preserves calibration and reports the route as unavailable.
+TEST_CASE(
+    "Input recalibration cancel preserves calibration on backend failure",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_manual_cancel_backend_unavailable"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+
+    transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::InputRouteUnavailable,
+        "live input route could not be armed",
+    };
+    controller.onInputCalibrationMeasurementCancelled();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(
+        final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: live input backend unavailable.");
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    const auto preserved_calibration = settings.inputCalibrationState();
+    REQUIRE(preserved_calibration.has_value());
+    CHECK(preserved_calibration->calibration_gain.db == 4.0);
+}
+
+// Verifies final arming failure after a completed recalibration does not delete the old value.
+TEST_CASE(
+    "Input recalibration commit preserves calibration on backend failure",
+    "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_auto_commit_backend_unavailable"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
+    settings.setInputCalibrationState(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{4.0},
+            .input_device_identity = identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+    controller.onInputCalibrationRequested();
+    const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
+    REQUIRE(measurement_started.has_value());
+
+    transport.next_set_live_input_monitoring_error = common::audio::LiveInputError{
+        common::audio::LiveInputErrorCode::InputRouteUnavailable,
+        "live input route could not be armed",
+    };
+    const auto calibration_applied = controller.onInputCalibrationSucceeded(6.0);
+    REQUIRE_FALSE(calibration_applied.has_value());
+
+    controller.onInputCalibrationMeasurementCancelled();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->input_calibration_prompt.has_value());
+    CHECK(
+        final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
+    CHECK(
+        final_state->signal_chain.disabled_message ==
+        "Live input disabled: live input backend unavailable.");
+    CHECK(transport.current_input_gain.db == 4.0);
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK_FALSE(transport.calibration_input_monitoring_enabled);
+    const auto preserved_calibration = settings.inputCalibrationState();
+    REQUIRE(preserved_calibration.has_value());
+    CHECK(preserved_calibration->calibration_gain.db == 4.0);
 }
 
 } // namespace rock_hero::editor::core
