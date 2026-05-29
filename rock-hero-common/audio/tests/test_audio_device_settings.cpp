@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/audio_device_settings.h>
+#include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <utility>
 
 namespace rock_hero::common::audio
@@ -18,48 +19,6 @@ constexpr char g_input_b[] = "Input B";
 constexpr char g_output_a[] = "Output A";
 constexpr char g_output_b[] = "Output B";
 constexpr char g_open_output_b_error[] = "Could not open Output B";
-
-// Minimal configuration port around a real JUCE device manager so tests exercise the public
-// AudioDeviceSettings service rather than private policy helpers.
-class FakeAudioDeviceConfiguration final : public IAudioDeviceConfiguration
-{
-public:
-    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
-    {
-        return device_manager;
-    }
-
-    [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override
-    {
-        return {};
-    }
-
-    [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override
-    {
-        return std::nullopt;
-    }
-
-    void addListener(IAudioDeviceConfiguration::Listener& listener) override
-    {
-        listeners.push_back(&listener);
-    }
-
-    void removeListener(IAudioDeviceConfiguration::Listener& listener) override
-    {
-        std::erase(listeners, &listener);
-    }
-
-    void notifyChanged()
-    {
-        for (auto* listener : listeners)
-        {
-            listener->onAudioDeviceConfigurationChanged();
-        }
-    }
-
-    juce::AudioDeviceManager device_manager{};
-    std::vector<IAudioDeviceConfiguration::Listener*> listeners{};
-};
 
 // Fake device with deterministic channel, sample-rate, buffer-size, and open-failure behavior.
 class MockAudioDevice final : public juce::AudioIODevice
@@ -309,7 +268,8 @@ MockAudioDeviceType& addMockAudioType(
 }
 
 void openInitialRoute(
-    FakeAudioDeviceConfiguration& audio_devices, juce::StringArray failing_outputs = {})
+    testing::ConfigurableAudioDeviceConfiguration& audio_devices,
+    juce::StringArray failing_outputs = {})
 {
     addMockAudioType(audio_devices.device_manager, g_asio_type_name, std::move(failing_outputs));
 
@@ -324,7 +284,7 @@ void openInitialRoute(
 TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     addMockAudioType(audio_devices.device_manager, "DirectSound");
     addMockAudioType(audio_devices.device_manager, "WaveOut");
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
@@ -352,7 +312,7 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
 TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
 
@@ -378,7 +338,7 @@ TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-d
 TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
@@ -394,7 +354,7 @@ TEST_CASE("AudioDeviceSettings stages output device", "[audio][audio-device-sett
 TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
 
     AudioDeviceSettings settings{audio_devices};
@@ -412,7 +372,7 @@ TEST_CASE("AudioDeviceSettings applies staged route", "[audio][audio-device-sett
 TEST_CASE("AudioDeviceSettings avoids JUCE type-switch delay", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
@@ -437,7 +397,7 @@ TEST_CASE(
     "AudioDeviceSettings preserves error across backend refresh", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
     AudioDeviceSettings settings{audio_devices};
@@ -455,7 +415,7 @@ TEST_CASE(
 TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     AudioDeviceSettings settings{audio_devices};
@@ -471,7 +431,7 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
 TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices, juce::StringArray{g_output_b});
 
     AudioDeviceSettings settings{audio_devices};
@@ -494,7 +454,7 @@ TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-devic
 TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
@@ -512,7 +472,7 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
 TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     audio_devices.device_manager.closeAudioDevice();
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
@@ -532,7 +492,7 @@ TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-de
 TEST_CASE("AudioDeviceSettings restores device on destruction", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
 
@@ -551,7 +511,7 @@ TEST_CASE(
     "AudioDeviceSettings destruction preserves closed route", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
     audio_devices.device_manager.closeAudioDevice();
     const auto initial_setup = audio_devices.device_manager.getAudioDeviceSetup();
@@ -570,7 +530,7 @@ TEST_CASE(
 TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     AudioDeviceSettings settings{audio_devices};
@@ -585,7 +545,7 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
 TEST_CASE("AudioDeviceSettings resets format on system change", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
     addMockAudioType(audio_devices.device_manager, "Windows Audio");
 
@@ -607,7 +567,7 @@ TEST_CASE("AudioDeviceSettings resets format on system change", "[audio][audio-d
 TEST_CASE("AudioDeviceSettings forwards backend refresh", "[audio][audio-device-settings]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeAudioDeviceConfiguration audio_devices;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
     openInitialRoute(audio_devices);
 
     AudioDeviceSettings settings{audio_devices};

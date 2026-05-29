@@ -24,8 +24,13 @@ target_include_directories(rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_
 # Link JUCE core for project package fixtures while keeping tests on the editor-core boundary.
 target_link_libraries(
     rock_hero_editor_core_tests
-    PRIVATE rock_hero::editor::core rock_hero::build_policy rock_hero::juce_audio_devices
-            rock_hero::juce_core rock_hero::editor::core_testing Catch2::Catch2WithMain)
+    PRIVATE rock_hero::editor::core
+            rock_hero::build_policy
+            rock_hero::juce_audio_devices
+            rock_hero::juce_core
+            rock_hero::common::audio_testing
+            rock_hero::editor::core_testing
+            Catch2::Catch2WithMain)
 
 # Keep persisted editor-settings files inside the build tree.
 target_compile_definitions(rock_hero_editor_core_tests

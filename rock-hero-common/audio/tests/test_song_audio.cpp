@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/i_song_audio.h>
+#include <rock_hero/common/audio/testing/configurable_song_audio.h>
 
 namespace rock_hero::common::audio
 {
@@ -26,69 +26,13 @@ namespace
     return song;
 }
 
-// Test double that records song-preparation and active-arrangement requests.
-class FakeSongAudio final : public ISongAudio
-{
-public:
-    // Fills arrangement durations when the fake is configured to accept preparation.
-    bool prepareSong(common::core::Song& song) override
-    {
-        ++prepare_song_call_count;
-        if (!next_prepare_result)
-        {
-            return false;
-        }
-
-        for (common::core::Arrangement& arrangement : song.arrangements)
-        {
-            arrangement.audio_duration = prepared_duration;
-        }
-        return true;
-    }
-
-    // Records the prepared arrangement selected for backend playback.
-    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
-    {
-        last_active_audio_asset = arrangement.audio_asset;
-        ++set_active_arrangement_call_count;
-        return next_set_active_result;
-    }
-
-    // Records that the current backend arrangement should be cleared.
-    void clearActiveArrangement() override
-    {
-        last_active_audio_asset.reset();
-        ++clear_active_arrangement_call_count;
-    }
-
-    // Duration assigned to every arrangement during successful preparation.
-    common::core::TimeDuration prepared_duration{common::core::TimeDuration{12.0}};
-
-    // Controls whether the next prepareSong() call accepts or rejects the song.
-    bool next_prepare_result{true};
-
-    // Controls whether the next setActiveArrangement() call accepts the arrangement.
-    bool next_set_active_result{true};
-
-    // Last arrangement audio asset selected for backend playback.
-    std::optional<common::core::AudioAsset> last_active_audio_asset{};
-
-    // Number of song-preparation requests received.
-    int prepare_song_call_count{0};
-
-    // Number of active-arrangement replacement requests received.
-    int set_active_arrangement_call_count{0};
-
-    // Number of active-arrangement clear requests received.
-    int clear_active_arrangement_call_count{0};
-};
-
 } // namespace
 
 // Verifies the audio port prepares candidate songs by filling arrangement durations.
 TEST_CASE("ISongAudio prepares song audio", "[audio][song-audio]")
 {
-    FakeSongAudio audio;
+    testing::ConfigurableSongAudio audio;
+    audio.next_prepared_audio_duration = common::core::TimeDuration{12.0};
     auto song = makeSong(std::filesystem::path{"drums.wav"});
 
     const bool prepared = audio.prepareSong(song);
@@ -103,7 +47,7 @@ TEST_CASE("ISongAudio prepares song audio", "[audio][song-audio]")
 // Verifies audio adapters can reject song preparation without activating an arrangement.
 TEST_CASE("ISongAudio song preparation can fail", "[audio][song-audio]")
 {
-    FakeSongAudio audio;
+    testing::ConfigurableSongAudio audio;
     audio.next_prepare_result = false;
     auto song = makeSong(std::filesystem::path{"missing.wav"});
 
@@ -117,7 +61,7 @@ TEST_CASE("ISongAudio song preparation can fail", "[audio][song-audio]")
 // Verifies the audio port exposes active-arrangement replacement semantics.
 TEST_CASE("ISongAudio sets active arrangement", "[audio][song-audio]")
 {
-    FakeSongAudio audio;
+    testing::ConfigurableSongAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);
@@ -134,7 +78,7 @@ TEST_CASE("ISongAudio sets active arrangement", "[audio][song-audio]")
 // Verifies the audio port exposes a command to clear the current active arrangement.
 TEST_CASE("ISongAudio clears active arrangement", "[audio][song-audio]")
 {
-    FakeSongAudio audio;
+    testing::ConfigurableSongAudio audio;
     auto song = makeSong(std::filesystem::path{"drums.wav"});
     REQUIRE(audio.prepareSong(song));
     REQUIRE(song.arrangements.size() == 1);

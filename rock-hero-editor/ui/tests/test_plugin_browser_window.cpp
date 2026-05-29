@@ -3,7 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <stdexcept>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <string>
 #include <vector>
 
@@ -12,6 +12,8 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+using testing::findRequiredDescendant;
 
 // Records browser intents emitted by PluginBrowserWindow controls.
 class FakePluginBrowserListener final : public PluginBrowserWindow::Listener
@@ -41,50 +43,6 @@ public:
     int add_request_count{0};
     int close_request_count{0};
 };
-
-// Searches a component tree for a child component by ID.
-[[nodiscard]] juce::Component* findChildRecursive(juce::Component& parent, const juce::String& id)
-{
-    if (parent.getComponentID() == id)
-    {
-        return &parent;
-    }
-
-    for (int index = 0; index < parent.getNumChildComponents(); ++index)
-    {
-        auto* const child = parent.getChildComponent(index);
-        if (child == nullptr)
-        {
-            continue;
-        }
-
-        if (auto* const matched_child = findChildRecursive(*child, id); matched_child != nullptr)
-        {
-            return matched_child;
-        }
-    }
-
-    return nullptr;
-}
-
-// Returns a required descendant component by id and type.
-template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
-{
-    auto* child = findChildRecursive(parent, id);
-    if (child == nullptr)
-    {
-        throw std::runtime_error{"Missing child component: " + id.toStdString()};
-    }
-
-    auto* typed_child = dynamic_cast<ComponentType*>(child);
-    if (typed_child == nullptr)
-    {
-        throw std::runtime_error{"Child component has unexpected type: " + id.toStdString()};
-    }
-
-    return *typed_child;
-}
 
 // Builds a browser state with two recognizable plugins.
 [[nodiscard]] core::PluginBrowserViewState makeBrowserState()
@@ -122,8 +80,9 @@ TEST_CASE("PluginBrowserWindow forwards selected add intent", "[ui][plugin-brows
     PluginBrowserWindow window{listener};
     window.setState(makeBrowserState());
 
-    auto& list_box = findRequiredChild<juce::ListBox>(window, "plugin_browser_list");
-    auto& add_button = findRequiredChild<juce::TextButton>(window, "plugin_browser_add_button");
+    auto& list_box = findRequiredDescendant<juce::ListBox>(window, "plugin_browser_list");
+    auto& add_button =
+        findRequiredDescendant<juce::TextButton>(window, "plugin_browser_add_button");
 
     list_box.selectRow(1);
     REQUIRE(add_button.onClick);
@@ -141,8 +100,10 @@ TEST_CASE("PluginBrowserWindow forwards scan and close", "[ui][plugin-browser]")
     PluginBrowserWindow window{listener};
     window.setState(makeBrowserState());
 
-    auto& scan_button = findRequiredChild<juce::TextButton>(window, "plugin_browser_rescan_button");
-    auto& close_button = findRequiredChild<juce::TextButton>(window, "plugin_browser_close_button");
+    auto& scan_button =
+        findRequiredDescendant<juce::TextButton>(window, "plugin_browser_rescan_button");
+    auto& close_button =
+        findRequiredDescendant<juce::TextButton>(window, "plugin_browser_close_button");
 
     REQUIRE(scan_button.onClick);
     scan_button.onClick();
@@ -162,8 +123,8 @@ TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
     PluginBrowserWindow window{listener};
     window.setState(makeBrowserState());
 
-    auto& filter = findRequiredChild<juce::TextEditor>(window, "plugin_browser_filter");
-    auto& count_label = findRequiredChild<juce::Label>(window, "plugin_browser_count_label");
+    auto& filter = findRequiredDescendant<juce::TextEditor>(window, "plugin_browser_filter");
+    auto& count_label = findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
 
     CHECK(count_label.getText() == "2 plugins");
 

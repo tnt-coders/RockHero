@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <stdexcept>
 
 namespace rock_hero::editor::ui
@@ -11,6 +12,8 @@ using core::TransportViewState;
 
 namespace
 {
+
+using testing::clickButton;
 
 // Records transport button intents so widget tests can verify local listener dispatch.
 class FakeTransportControlsListener final : public TransportControls::Listener
@@ -56,40 +59,6 @@ public:
         throw std::runtime_error{"TransportControls stop button missing"};
     }
     return *button;
-}
-
-// Synthesizes a left-button mouse event positioned inside the supplied button.
-[[nodiscard]] juce::MouseEvent makeButtonMouseEvent(juce::Button& button)
-{
-    const auto position = juce::Point<float>{5.0f, 5.0f};
-    const auto event_time = juce::Time::getCurrentTime();
-
-    return {
-        juce::Desktop::getInstance().getMainMouseSource(),
-        position,
-        juce::ModifierKeys::leftButtonModifier,
-        1.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        &button,
-        &button,
-        event_time,
-        position,
-        event_time,
-        1,
-        false
-    };
-}
-
-// Presses and releases the supplied button synchronously through JUCE's normal mouse path.
-void clickButton(juce::Button& button)
-{
-    const auto event = makeButtonMouseEvent(button);
-    auto& component = static_cast<juce::Component&>(button);
-    component.mouseDown(event);
-    component.mouseUp(event);
 }
 
 } // namespace

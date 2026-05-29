@@ -1,0 +1,353 @@
+/*!
+\file recording_editor_controller.h
+\brief Recording editor controller implementation for view and controller contract tests.
+*/
+
+#pragma once
+
+#include <expected>
+#include <filesystem>
+#include <functional>
+#include <optional>
+#include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/editor/core/i_editor_controller.h>
+#include <string>
+#include <utility>
+
+namespace rock_hero::editor::core::testing
+{
+
+/*!
+\brief IEditorController implementation that records every received editor intent.
+
+Use this when tests need to verify that a view emits controller intents without constructing the
+real EditorController workflow. The public counters and last-value fields are intentionally exposed
+so tests can assert only the behavior they care about.
+*/
+class RecordingEditorController final : public IEditorController
+{
+public:
+    /*! \brief Captures the file selected by the Open command. */
+    void onOpenRequested(std::filesystem::path file) override
+    {
+        last_open_file = std::move(file);
+        open_request_count += 1;
+    }
+
+    /*! \brief Captures the file selected by the Import command. */
+    void onImportRequested(std::filesystem::path file) override
+    {
+        last_import_file = std::move(file);
+        import_request_count += 1;
+    }
+
+    /*! \brief Counts Save command dispatches. */
+    void onSaveRequested() override
+    {
+        save_request_count += 1;
+    }
+
+    /*! \brief Captures the destination selected by the Save As command. */
+    void onSaveAsRequested(std::filesystem::path file) override
+    {
+        last_save_as_file = std::move(file);
+        save_as_request_count += 1;
+    }
+
+    /*! \brief Captures the destination selected by the Publish command. */
+    void onPublishRequested(std::filesystem::path file) override
+    {
+        last_publish_file = std::move(file);
+        publish_request_count += 1;
+    }
+
+    /*! \brief Counts Save As cancellation notifications. */
+    void onSaveAsCancelled() override
+    {
+        save_as_cancel_count += 1;
+    }
+
+    /*! \brief Counts Close command dispatches. */
+    void onCloseRequested() override
+    {
+        close_request_count += 1;
+    }
+
+    /*! \brief Counts Exit command dispatches. */
+    void onExitRequested() override
+    {
+        exit_request_count += 1;
+    }
+
+    /*! \brief Captures prompt decisions selected through the unsaved-changes dialog. */
+    void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
+    {
+        last_unsaved_changes_decision = decision;
+        unsaved_changes_decision_count += 1;
+    }
+
+    /*! \brief Captures interrupted-restore prompt decisions emitted by a view. */
+    void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) override
+    {
+        last_restore_interrupted_decision = decision;
+        restore_interrupted_decision_count += 1;
+    }
+
+    /*! \brief Counts play/pause intents emitted by keyboard or transport controls. */
+    void onPlayPausePressed() override
+    {
+        play_pause_press_count += 1;
+    }
+
+    /*! \brief Counts stop intents emitted by transport controls. */
+    void onStopPressed() override
+    {
+        stop_press_count += 1;
+    }
+
+    /*! \brief Captures the normalized timeline click emitted by waveform hit testing. */
+    void onWaveformClicked(double normalized_x) override
+    {
+        last_normalized_x = normalized_x;
+        waveform_click_count += 1;
+    }
+
+    /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
+    void onPluginBrowserRequested() override
+    {
+        plugin_browser_request_count += 1;
+    }
+
+    /*! \brief Counts plugin-browser close intents emitted by the browser window. */
+    void onPluginBrowserClosed() override
+    {
+        plugin_browser_close_count += 1;
+    }
+
+    /*! \brief Counts plugin-catalog scan intents emitted by the browser window. */
+    void onPluginCatalogScanRequested() override
+    {
+        plugin_catalog_scan_request_count += 1;
+    }
+
+    /*! \brief Captures plugin IDs selected in the browser window. */
+    void onAddPluginRequested(std::string plugin_id) override
+    {
+        last_plugin_id = std::move(plugin_id);
+        plugin_add_request_count += 1;
+    }
+
+    /*! \brief Captures plugin instances selected through the signal-chain panel. */
+    void onRemovePluginRequested(std::string instance_id) override
+    {
+        last_removed_plugin_instance_id = std::move(instance_id);
+        remove_plugin_request_count += 1;
+    }
+
+    /*! \brief Captures plugin instances selected for editor-window opening. */
+    void onOpenPluginRequested(std::string instance_id) override
+    {
+        last_opened_plugin_instance_id = std::move(instance_id);
+        open_plugin_request_count += 1;
+    }
+
+    /*! \brief Counts manual input calibration requests emitted by the signal-chain panel. */
+    void onInputCalibrationRequested() override
+    {
+        input_calibration_request_count += 1;
+    }
+
+    /*! \brief Records calibration measurement setup through the controller contract. */
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    onInputCalibrationMeasurementStarted() override
+    {
+        input_calibration_measurement_start_count += 1;
+        return {};
+    }
+
+    /*! \brief Records calibration measurement cancellation through the controller contract. */
+    void onInputCalibrationMeasurementCancelled() override
+    {
+        input_calibration_measurement_cancel_count += 1;
+    }
+
+    /*! \brief Records automatic calibration completion through the controller contract. */
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
+        double gain_db) override
+    {
+        last_input_calibration_gain_db = gain_db;
+        input_calibration_success_count += 1;
+        return {};
+    }
+
+    /*! \brief Records manual calibration completion through the controller contract. */
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
+        double gain_db) override
+    {
+        last_input_calibration_gain_db = gain_db;
+        input_calibration_manual_set_count += 1;
+        return {};
+    }
+
+    /*! \brief Counts dismissed input calibration prompts. */
+    void onInputCalibrationDismissed() override
+    {
+        input_calibration_dismiss_count += 1;
+    }
+
+    /*! \brief Records output gain change intents emitted by the signal-chain panel. */
+    void onOutputGainChanged(double gain_db) override
+    {
+        last_output_gain_db = gain_db;
+        output_gain_change_count += 1;
+    }
+
+    /*!
+    \brief Records audio-device change scheduling and stores the supplied completion callback.
+    */
+    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
+    {
+        last_audio_device_change = std::move(change_audio_device);
+        audio_device_change_request_count += 1;
+    }
+
+    /*! \brief Counts audio-device settings open notifications. */
+    void onAudioDeviceSettingsOpened() override
+    {
+        audio_device_settings_open_count += 1;
+    }
+
+    /*! \brief Counts audio-device settings close notifications. */
+    void onAudioDeviceSettingsClosed() override
+    {
+        audio_device_settings_close_count += 1;
+    }
+
+    /*! \brief Last file passed to onOpenRequested(). */
+    std::optional<std::filesystem::path> last_open_file{};
+
+    /*! \brief Last file passed to onImportRequested(). */
+    std::optional<std::filesystem::path> last_import_file{};
+
+    /*! \brief Last destination passed to onSaveAsRequested(). */
+    std::optional<std::filesystem::path> last_save_as_file{};
+
+    /*! \brief Last destination passed to onPublishRequested(). */
+    std::optional<std::filesystem::path> last_publish_file{};
+
+    /*! \brief Last normalized timeline click emitted by the view. */
+    std::optional<double> last_normalized_x{};
+
+    /*! \brief Last plugin ID selected through the plugin browser. */
+    std::optional<std::string> last_plugin_id{};
+
+    /*! \brief Last plugin instance ID selected through the signal-chain panel. */
+    std::optional<std::string> last_removed_plugin_instance_id{};
+
+    /*! \brief Last plugin instance ID selected for editor-window opening. */
+    std::optional<std::string> last_opened_plugin_instance_id{};
+
+    /*! \brief Last unsaved-changes decision emitted by the view. */
+    std::optional<UnsavedChangesDecision> last_unsaved_changes_decision{};
+
+    /*! \brief Last interrupted-restore decision emitted by the view. */
+    std::optional<RestoreInterruptedDecision> last_restore_interrupted_decision{};
+
+    /*! \brief Number of open intents received. */
+    int open_request_count{0};
+
+    /*! \brief Number of import intents received. */
+    int import_request_count{0};
+
+    /*! \brief Number of save intents received. */
+    int save_request_count{0};
+
+    /*! \brief Number of Save As intents received. */
+    int save_as_request_count{0};
+
+    /*! \brief Number of publish intents received. */
+    int publish_request_count{0};
+
+    /*! \brief Number of Save As cancellation intents received. */
+    int save_as_cancel_count{0};
+
+    /*! \brief Number of close intents received. */
+    int close_request_count{0};
+
+    /*! \brief Number of exit intents received. */
+    int exit_request_count{0};
+
+    /*! \brief Number of unsaved-changes decisions received. */
+    int unsaved_changes_decision_count{0};
+
+    /*! \brief Number of interrupted-restore decisions received. */
+    int restore_interrupted_decision_count{0};
+
+    /*! \brief Number of play/pause intents received. */
+    int play_pause_press_count{0};
+
+    /*! \brief Number of stop intents received. */
+    int stop_press_count{0};
+
+    /*! \brief Number of waveform-click intents received. */
+    int waveform_click_count{0};
+
+    /*! \brief Number of plugin-browser open intents received. */
+    int plugin_browser_request_count{0};
+
+    /*! \brief Number of plugin-browser close intents received. */
+    int plugin_browser_close_count{0};
+
+    /*! \brief Number of plugin-catalog scan intents received. */
+    int plugin_catalog_scan_request_count{0};
+
+    /*! \brief Number of browser plugin-add intents received. */
+    int plugin_add_request_count{0};
+
+    /*! \brief Number of remove-plugin intents received. */
+    int remove_plugin_request_count{0};
+
+    /*! \brief Number of open-plugin intents received. */
+    int open_plugin_request_count{0};
+
+    /*! \brief Last input calibration gain value emitted by the calibration popup. */
+    std::optional<double> last_input_calibration_gain_db{};
+
+    /*! \brief Last output gain value emitted by the signal-chain panel. */
+    std::optional<double> last_output_gain_db{};
+
+    /*! \brief Number of input calibration intents received. */
+    int input_calibration_request_count{0};
+
+    /*! \brief Number of calibration measurement start intents received. */
+    int input_calibration_measurement_start_count{0};
+
+    /*! \brief Number of calibration measurement cancellation intents received. */
+    int input_calibration_measurement_cancel_count{0};
+
+    /*! \brief Number of successful automatic calibration intents received. */
+    int input_calibration_success_count{0};
+
+    /*! \brief Number of successful manual calibration intents received. */
+    int input_calibration_manual_set_count{0};
+
+    /*! \brief Number of input calibration dismissed intents received. */
+    int input_calibration_dismiss_count{0};
+
+    /*! \brief Number of output gain change intents received. */
+    int output_gain_change_count{0};
+
+    /*! \brief Last audio-device change callback handed to onAudioDeviceChangeRequested(). */
+    std::function<void()> last_audio_device_change{};
+
+    /*! \brief Number of audio-device change requests received. */
+    int audio_device_change_request_count{0};
+
+    /*! \brief Number of audio-device settings open notifications received. */
+    int audio_device_settings_open_count{0};
+
+    /*! \brief Number of audio-device settings close notifications received. */
+    int audio_device_settings_close_count{0};
+};
+
+} // namespace rock_hero::editor::core::testing

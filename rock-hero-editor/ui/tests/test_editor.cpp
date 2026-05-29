@@ -7,7 +7,6 @@
 #include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
@@ -15,16 +14,16 @@
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_song_audio.h>
-#include <rock_hero/common/audio/i_thumbnail.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/common/audio/testing/configurable_song_audio.h>
+#include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/ui/editor.h>
-#include <stdexcept>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <string>
 #include <vector>
 
@@ -33,6 +32,9 @@ namespace rock_hero::editor::ui
 
 namespace
 {
+
+using RecordingThumbnailFactory = common::audio::testing::RecordingThumbnailFactory;
+using testing::findRequiredDirectChild;
 
 // Records transport listeners and state so the controller can subscribe during construction.
 class FakeTransport final : public common::audio::ITransport
@@ -95,121 +97,6 @@ public:
 
     // Non-owning listeners registered by the composed controller.
     std::vector<Listener*> listeners{};
-};
-
-// Minimal audio port fake used by Editor construction and initial state projection.
-class FakeSongAudio final : public common::audio::ISongAudio
-{
-public:
-    // Accepts preparation and fills arrangement durations for controller loading paths.
-    bool prepareSong(common::core::Song& song) override
-    {
-        ++prepare_song_call_count;
-        for (common::core::Arrangement& arrangement : song.arrangements)
-        {
-            arrangement.audio_duration = common::core::TimeDuration{8.0};
-        }
-        return true;
-    }
-
-    // Records the active arrangement selected by the controller.
-    bool setActiveArrangement(const common::core::Arrangement& arrangement) override
-    {
-        last_active_audio_asset = arrangement.audio_asset;
-        ++set_active_arrangement_call_count;
-        return true;
-    }
-
-    // Records backend clearing when the controller closes a project.
-    void clearActiveArrangement() override
-    {
-        ++clear_active_arrangement_call_count;
-    }
-
-    // Last active arrangement selected by the controller.
-    std::optional<common::core::AudioAsset> last_active_audio_asset{};
-
-    // Number of song-preparation calls received.
-    int prepare_song_call_count{0};
-
-    // Number of active-arrangement replacement calls received.
-    int set_active_arrangement_call_count{0};
-
-    // Number of active-arrangement clear calls received.
-    int clear_active_arrangement_call_count{0};
-};
-
-// Records thumbnail source updates installed by the composed EditorView.
-class FakeThumbnail final : public common::audio::IThumbnail
-{
-public:
-    // Records the thumbnail source applied by the arrangement view.
-    void setSource(const common::core::AudioAsset& audio_asset) override
-    {
-        last_source = audio_asset;
-        has_source = true;
-        set_source_call_count += 1;
-    }
-
-    // Reports whether setSource() has supplied drawable source data.
-    [[nodiscard]] bool hasSource() const override
-    {
-        return has_source;
-    }
-
-    // Reports that this fake never performs asynchronous proxy generation.
-    [[nodiscard]] bool isGeneratingProxy() const override
-    {
-        return false;
-    }
-
-    // Reports fixed proxy progress for the synchronous fake.
-    [[nodiscard]] float getProxyProgress() const override
-    {
-        return 0.0f;
-    }
-
-    // Accepts draw requests so Editor construction tests can ignore paint details.
-    [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
-        common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
-    {
-        return true;
-    }
-
-    // Last thumbnail source supplied by the view.
-    std::optional<common::core::AudioAsset> last_source{};
-
-    // Number of source assignments received.
-    int set_source_call_count{0};
-
-    // Source-readiness flag returned by hasSource().
-    bool has_source{false};
-};
-
-// Creates fake thumbnails while recording the owner component passed by Editor.
-class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
-{
-public:
-    // Creates a fake thumbnail and records the component that requested it.
-    [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
-        juce::Component& owner) override
-    {
-        last_owner = &owner;
-        create_call_count += 1;
-        auto thumbnail = std::make_unique<FakeThumbnail>();
-        last_thumbnail = thumbnail.get();
-        return thumbnail;
-    }
-
-    // Last component that requested a thumbnail.
-    juce::Component* last_owner{nullptr};
-
-    // Last fake thumbnail returned to the composed view.
-    FakeThumbnail* last_thumbnail{nullptr};
-
-    // Number of thumbnails created by the factory.
-    int create_call_count{0};
 };
 
 // Supplies the required editor audio ports that this construction test does not exercise.
@@ -353,25 +240,6 @@ private:
     juce::AudioDeviceManager device_manager{};
 };
 
-// Returns a required child component by id and type, failing the current test if missing.
-template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
-{
-    auto* child = parent.findChildWithID(id);
-    if (child == nullptr)
-    {
-        throw std::runtime_error{"Missing child component: " + id.toStdString()};
-    }
-
-    auto* typed_child = dynamic_cast<ComponentType*>(child);
-    if (typed_child == nullptr)
-    {
-        throw std::runtime_error{"Child component has unexpected type: " + id.toStdString()};
-    }
-
-    return *typed_child;
-}
-
 } // namespace
 
 // Verifies Editor owns the concrete view and pushes initial controller state during construction.
@@ -379,8 +247,8 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransport transport;
-    FakeSongAudio song_audio;
-    FakeThumbnailFactory thumbnail_factory;
+    common::audio::testing::ConfigurableSongAudio song_audio;
+    RecordingThumbnailFactory thumbnail_factory;
     FakeEditorAudioPorts audio_ports;
     core::testing::NullEditorSettings settings;
     core::testing::ImmediateEditorTaskRunner task_runner;
@@ -402,7 +270,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);
-    auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(component, "file_menu_bar");
+    auto& menu_bar = findRequiredDirectChild<juce::MenuBarComponent>(component, "file_menu_bar");
     CHECK(menu_bar.isVisible());
     CHECK(thumbnail_factory.create_call_count == 1);
     REQUIRE(thumbnail_factory.last_owner != nullptr);

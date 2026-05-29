@@ -9,15 +9,16 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
-#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/i_audio_meter_source.h>
 #include <rock_hero/common/audio/i_live_input.h>
-#include <rock_hero/common/audio/i_thumbnail.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
+#include <rock_hero/common/audio/testing/recording_thumbnail.h>
+#include <rock_hero/editor/core/testing/recording_editor_controller.h>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -28,327 +29,17 @@ namespace rock_hero::editor::ui
 namespace
 {
 
+using testing::findDescendant;
+using testing::findRequiredDescendant;
+using testing::makeMouseDownEvent;
+using RecordingThumbnailFactory = common::audio::testing::RecordingThumbnailFactory;
+
 // Returns NaN for empty optionals so Approx checks fail without unchecked optional access.
 template <typename Value>
 [[nodiscard]] Value optionalValueForApprox(const std::optional<Value>& value)
 {
     return value.value_or(std::numeric_limits<Value>::quiet_NaN());
 }
-
-// Records editor intents emitted by EditorView child widgets.
-class FakeEditorController final : public core::IEditorController
-{
-public:
-    // Captures the file selected by the Open menu command.
-    void onOpenRequested(std::filesystem::path file) override
-    {
-        last_open_file = std::move(file);
-        open_request_count += 1;
-    }
-
-    // Captures the file selected by the Import menu command.
-    void onImportRequested(std::filesystem::path file) override
-    {
-        last_import_file = std::move(file);
-        import_request_count += 1;
-    }
-
-    // Counts Save menu command dispatches.
-    void onSaveRequested() override
-    {
-        save_request_count += 1;
-    }
-
-    // Captures the destination selected by the Save As menu flow.
-    void onSaveAsRequested(std::filesystem::path file) override
-    {
-        last_save_as_file = std::move(file);
-        save_as_request_count += 1;
-    }
-
-    // Captures the destination selected by the Publish menu flow.
-    void onPublishRequested(std::filesystem::path file) override
-    {
-        last_publish_file = std::move(file);
-        publish_request_count += 1;
-    }
-
-    // Counts Save As cancellation notifications from the view.
-    void onSaveAsCancelled() override
-    {
-        save_as_cancel_count += 1;
-    }
-
-    // Counts Close menu command dispatches.
-    void onCloseRequested() override
-    {
-        close_request_count += 1;
-    }
-
-    // Counts Exit menu command dispatches.
-    void onExitRequested() override
-    {
-        exit_request_count += 1;
-    }
-
-    // Captures prompt decisions selected through the unsaved-changes dialog.
-    void onUnsavedChangesDecision(core::UnsavedChangesDecision decision) override
-    {
-        last_unsaved_changes_decision = decision;
-        unsaved_changes_decision_count += 1;
-    }
-
-    // Captures interrupted-restore prompt decisions emitted by the view.
-    void onRestoreInterruptedDecision(core::RestoreInterruptedDecision decision) override
-    {
-        last_restore_interrupted_decision = decision;
-        restore_interrupted_decision_count += 1;
-    }
-
-    // Counts play/pause intents emitted by keyboard or transport controls.
-    void onPlayPausePressed() override
-    {
-        play_pause_press_count += 1;
-    }
-
-    // Counts stop intents emitted by transport controls.
-    void onStopPressed() override
-    {
-        stop_press_count += 1;
-    }
-
-    // Captures the normalized timeline click emitted by waveform hit testing.
-    void onWaveformClicked(double normalized_x) override
-    {
-        last_normalized_x = normalized_x;
-        waveform_click_count += 1;
-    }
-
-    // Counts plugin-browser open intents emitted by the signal-chain panel.
-    void onPluginBrowserRequested() override
-    {
-        plugin_browser_request_count += 1;
-    }
-
-    // Counts plugin-browser close intents emitted by the browser window.
-    void onPluginBrowserClosed() override
-    {
-        plugin_browser_close_count += 1;
-    }
-
-    // Counts plugin-catalog scan intents emitted by the browser window.
-    void onPluginCatalogScanRequested() override
-    {
-        plugin_catalog_scan_request_count += 1;
-    }
-
-    // Captures plugin IDs selected in the browser window.
-    void onAddPluginRequested(std::string plugin_id) override
-    {
-        last_plugin_id = std::move(plugin_id);
-        plugin_add_request_count += 1;
-    }
-
-    // Captures plugin instances selected through the signal-chain panel.
-    void onRemovePluginRequested(std::string instance_id) override
-    {
-        last_removed_plugin_instance_id = std::move(instance_id);
-        remove_plugin_request_count += 1;
-    }
-
-    // Captures plugin instances selected for editor-window opening.
-    void onOpenPluginRequested(std::string instance_id) override
-    {
-        last_opened_plugin_instance_id = std::move(instance_id);
-        open_plugin_request_count += 1;
-    }
-
-    // Counts manual input calibration requests emitted by the signal-chain panel.
-    void onInputCalibrationRequested() override
-    {
-        input_calibration_request_count += 1;
-    }
-
-    // Records calibration measurement setup through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
-    onInputCalibrationMeasurementStarted() override
-    {
-        input_calibration_measurement_start_count += 1;
-        return {};
-    }
-
-    // Records calibration measurement cancellation through the controller contract.
-    void onInputCalibrationMeasurementCancelled() override
-    {
-        input_calibration_measurement_cancel_count += 1;
-    }
-
-    // Records calibration completion through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
-        double gain_db) override
-    {
-        last_input_calibration_gain_db = gain_db;
-        input_calibration_success_count += 1;
-        return {};
-    }
-
-    // Records manual calibration completion through the controller contract.
-    [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
-        double gain_db) override
-    {
-        last_input_calibration_gain_db = gain_db;
-        input_calibration_manual_set_count += 1;
-        return {};
-    }
-
-    // Counts dismissed input calibration prompts.
-    void onInputCalibrationDismissed() override
-    {
-        input_calibration_dismiss_count += 1;
-    }
-
-    // Records output gain change intents emitted by the signal-chain panel.
-    void onOutputGainChanged(double gain_db) override
-    {
-        last_output_gain_db = gain_db;
-        output_gain_change_count += 1;
-    }
-
-    // Records audio-device change scheduling so EditorView tests stay agnostic of busy overlay
-    // mechanics. The settings flow's own tests cover the dispatcher behavior end-to-end.
-    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
-    {
-        last_audio_device_change = std::move(change_audio_device);
-        audio_device_change_request_count += 1;
-    }
-
-    // Counts audio-device settings open notifications.
-    void onAudioDeviceSettingsOpened() override
-    {
-        audio_device_settings_open_count += 1;
-    }
-
-    // Counts audio-device settings close notifications.
-    void onAudioDeviceSettingsClosed() override
-    {
-        audio_device_settings_close_count += 1;
-    }
-
-    // Last file passed to onOpenRequested().
-    std::optional<std::filesystem::path> last_open_file{};
-
-    // Last file passed to onImportRequested().
-    std::optional<std::filesystem::path> last_import_file{};
-
-    // Last destination passed to onSaveAsRequested().
-    std::optional<std::filesystem::path> last_save_as_file{};
-
-    // Last destination passed to onPublishRequested().
-    std::optional<std::filesystem::path> last_publish_file{};
-
-    // Last normalized timeline click emitted by the view.
-    std::optional<double> last_normalized_x{};
-
-    // Last plugin ID selected through the plugin browser.
-    std::optional<std::string> last_plugin_id{};
-
-    // Last plugin instance ID selected through the signal-chain panel.
-    std::optional<std::string> last_removed_plugin_instance_id{};
-
-    // Last plugin instance ID selected for editor-window opening.
-    std::optional<std::string> last_opened_plugin_instance_id{};
-
-    // Last unsaved-changes decision emitted by the view.
-    std::optional<core::UnsavedChangesDecision> last_unsaved_changes_decision{};
-
-    // Last interrupted-restore decision emitted by the view.
-    std::optional<core::RestoreInterruptedDecision> last_restore_interrupted_decision{};
-
-    // Number of open intents received.
-    int open_request_count{0};
-
-    // Number of import intents received.
-    int import_request_count{0};
-
-    // Number of save intents received.
-    int save_request_count{0};
-
-    // Number of Save As intents received.
-    int save_as_request_count{0};
-
-    // Number of publish intents received.
-    int publish_request_count{0};
-
-    // Number of Save As cancellation intents received.
-    int save_as_cancel_count{0};
-
-    // Number of close intents received.
-    int close_request_count{0};
-
-    // Number of exit intents received.
-    int exit_request_count{0};
-
-    // Number of unsaved-changes decisions received.
-    int unsaved_changes_decision_count{0};
-
-    // Number of interrupted-restore decisions received.
-    int restore_interrupted_decision_count{0};
-
-    // Number of play/pause intents received.
-    int play_pause_press_count{0};
-
-    // Number of stop intents received.
-    int stop_press_count{0};
-
-    // Number of waveform-click intents received.
-    int waveform_click_count{0};
-
-    // Number of plugin-browser open intents received.
-    int plugin_browser_request_count{0};
-
-    // Number of plugin-browser close intents received.
-    int plugin_browser_close_count{0};
-
-    // Number of plugin-catalog scan intents received.
-    int plugin_catalog_scan_request_count{0};
-
-    // Number of browser plugin-add intents received.
-    int plugin_add_request_count{0};
-
-    // Number of remove-plugin intents received.
-    int remove_plugin_request_count{0};
-
-    // Number of open-plugin intents received.
-    int open_plugin_request_count{0};
-
-    // Last input calibration gain value emitted by the calibration popup.
-    std::optional<double> last_input_calibration_gain_db{};
-
-    // Last output gain value emitted by the signal-chain panel.
-    std::optional<double> last_output_gain_db{};
-
-    // Number of input calibration intents received.
-    int input_calibration_request_count{0};
-    int input_calibration_measurement_start_count{0};
-    int input_calibration_measurement_cancel_count{0};
-    int input_calibration_success_count{0};
-    int input_calibration_manual_set_count{0};
-    int input_calibration_dismiss_count{0};
-
-    // Number of output gain change intents received.
-    int output_gain_change_count{0};
-
-    // Last audio-device change callback handed to onAudioDeviceChangeRequested; tests can invoke it
-    // directly to simulate the editor's busy overlay paint fence firing.
-    std::function<void()> last_audio_device_change{};
-
-    // Number of audio-device change requests received.
-    int audio_device_change_request_count{0};
-
-    // Number of audio-device settings lifecycle notifications received.
-    int audio_device_settings_open_count{0};
-    int audio_device_settings_close_count{0};
-};
 
 // Fake transport gives the cursor path a position source without exposing Engine.
 class FakeTransport final : public common::audio::ITransport
@@ -421,36 +112,6 @@ public:
     mutable int snapshot_read_count{0};
 };
 
-// Minimal audio-device-configuration fake used by the view's settings popup boundary.
-class FakeAudioDeviceConfiguration final : public common::audio::IAudioDeviceConfiguration
-{
-public:
-    [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
-    {
-        return device_manager;
-    }
-
-    [[nodiscard]] common::audio::AudioDeviceStatus currentDeviceStatus() const override
-    {
-        return {};
-    }
-
-    [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
-        const override
-    {
-        return std::nullopt;
-    }
-
-    void addListener(common::audio::IAudioDeviceConfiguration::Listener&) override
-    {}
-
-    void removeListener(common::audio::IAudioDeviceConfiguration::Listener&) override
-    {}
-
-private:
-    juce::AudioDeviceManager device_manager{};
-};
-
 // Minimal live-input fake used by the calibration popup boundary.
 class FakeLiveInput final : public common::audio::ILiveInput
 {
@@ -496,82 +157,10 @@ public:
     common::audio::AudioMeterLevel raw_input_meter_level{};
 };
 
-// Records thumbnail source updates installed through the arrangement view owned by EditorView.
-class FakeThumbnail final : public common::audio::IThumbnail
+[[nodiscard]] common::audio::testing::ConfigurableAudioDeviceConfiguration&
+defaultAudioDevices() noexcept
 {
-public:
-    // Records the thumbnail source applied through EditorView state projection.
-    void setSource(const common::core::AudioAsset& audio_asset) override
-    {
-        last_source = audio_asset;
-        has_source = true;
-        set_source_call_count += 1;
-    }
-
-    // Reports whether setSource() supplied drawable source data.
-    [[nodiscard]] bool hasSource() const override
-    {
-        return has_source;
-    }
-
-    // Reports that this fake never performs asynchronous proxy generation.
-    [[nodiscard]] bool isGeneratingProxy() const override
-    {
-        return false;
-    }
-
-    // Reports fixed proxy progress for the synchronous fake.
-    [[nodiscard]] float getProxyProgress() const override
-    {
-        return 0.0f;
-    }
-
-    // Accepts draw requests so EditorView tests can focus on state and layout.
-    [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> /*bounds*/,
-        common::core::TimeRange /*visible_range*/, float /*vertical_zoom*/) override
-    {
-        return true;
-    }
-
-    // Last thumbnail source supplied by the view.
-    std::optional<common::core::AudioAsset> last_source{};
-
-    // Number of source assignments received.
-    int set_source_call_count{0};
-
-    // Source-readiness flag returned by hasSource().
-    bool has_source{false};
-};
-
-// Creates fake thumbnails while recording the owner component passed by EditorView.
-class FakeThumbnailFactory final : public common::audio::IThumbnailFactory
-{
-public:
-    // Creates a fake thumbnail and records the component that requested it.
-    [[nodiscard]] std::unique_ptr<common::audio::IThumbnail> createThumbnail(
-        juce::Component& owner) override
-    {
-        last_owner = &owner;
-        create_call_count += 1;
-        auto thumbnail = std::make_unique<FakeThumbnail>();
-        last_thumbnail = thumbnail.get();
-        return thumbnail;
-    }
-
-    // Last component that requested a thumbnail.
-    juce::Component* last_owner{nullptr};
-
-    // Last fake thumbnail returned to the view.
-    FakeThumbnail* last_thumbnail{nullptr};
-
-    // Number of thumbnails created by the factory.
-    int create_call_count{0};
-};
-
-[[nodiscard]] FakeAudioDeviceConfiguration& defaultAudioDevices() noexcept
-{
-    static FakeAudioDeviceConfiguration audio_devices;
+    static common::audio::testing::ConfigurableAudioDeviceConfiguration audio_devices;
     return audio_devices;
 }
 
@@ -588,7 +177,7 @@ public:
 }
 
 [[nodiscard]] EditorView::AudioPorts viewAudioPorts(
-    const FakeTransport& transport, FakeThumbnailFactory& thumbnail_factory) noexcept
+    const FakeTransport& transport, RecordingThumbnailFactory& thumbnail_factory) noexcept
 {
     return EditorView::AudioPorts{
         .transport = transport,
@@ -600,7 +189,7 @@ public:
 }
 
 [[nodiscard]] EditorView::AudioPorts viewAudioPorts(
-    const FakeTransport& transport, FakeThumbnailFactory& thumbnail_factory,
+    const FakeTransport& transport, RecordingThumbnailFactory& thumbnail_factory,
     const FakeAudioMeterSource& meter_source) noexcept
 {
     return EditorView::AudioPorts{
@@ -610,50 +199,6 @@ public:
         .meter_source = meter_source,
         .live_input = defaultLiveInput(),
     };
-}
-
-// Recursively searches a component tree because viewport-hosted children are nested.
-[[nodiscard]] juce::Component* findChildRecursive(juce::Component& parent, const juce::String& id)
-{
-    if (parent.getComponentID() == id)
-    {
-        return &parent;
-    }
-
-    for (int index = 0; index < parent.getNumChildComponents(); ++index)
-    {
-        auto* const child = parent.getChildComponent(index);
-        if (child == nullptr)
-        {
-            continue;
-        }
-
-        if (auto* const matched_child = findChildRecursive(*child, id); matched_child != nullptr)
-        {
-            return matched_child;
-        }
-    }
-
-    return nullptr;
-}
-
-// Returns a required descendant component by id and type, failing the current test if missing.
-template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
-{
-    auto* child = findChildRecursive(parent, id);
-    if (child == nullptr)
-    {
-        throw std::runtime_error{"Missing child component: " + id.toStdString()};
-    }
-
-    auto* typed_child = dynamic_cast<ComponentType*>(child);
-    if (typed_child == nullptr)
-    {
-        throw std::runtime_error{"Child component has unexpected type: " + id.toStdString()};
-    }
-
-    return *typed_child;
 }
 
 // Returns a required desktop-level component by id and type for popups outside the view tree.
@@ -700,31 +245,6 @@ template <class ComponentType>
         throw std::runtime_error{"TransportControls stop button missing"};
     }
     return *button;
-}
-
-// Synthesizes a simple left-button mouse-down event relative to one component.
-[[nodiscard]] juce::MouseEvent makeMouseDownEvent(juce::Component& component, float x, float y)
-{
-    const auto position = juce::Point<float>{x, y};
-    const auto event_time = juce::Time::getCurrentTime();
-
-    return {
-        juce::Desktop::getInstance().getMainMouseSource(),
-        position,
-        juce::ModifierKeys::leftButtonModifier,
-        1.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        0.0f,
-        &component,
-        &component,
-        event_time,
-        position,
-        event_time,
-        1,
-        false
-    };
 }
 
 // Builds arrangement view state for editor-view tests that need thumbnail source propagation.
@@ -808,9 +328,9 @@ template <class ComponentType>
 TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
 
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
@@ -862,19 +382,19 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
 TEST_CASE("EditorView setState projects controls without polling position", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
-    auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredChild<SignalChainPanel>(view, "signal_chain_panel");
-    auto& add_plugin_button = findRequiredChild<juce::TextButton>(view, "add_plugin_button");
+    auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
+    auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
+    auto& add_plugin_button = findRequiredDescendant<juce::TextButton>(view, "add_plugin_button");
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
@@ -961,7 +481,9 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     REQUIRE(add_plugin_button.onClick);
     add_plugin_button.onClick();
     CHECK(controller.plugin_browser_request_count == 1);
-    CHECK(findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
+    CHECK(
+        findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_instance")
+            .isEnabled());
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
@@ -972,9 +494,9 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
 TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
@@ -995,13 +517,14 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     view.setState(state);
 
     CHECK_FALSE(
-        findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance").isEnabled());
+        findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_instance")
+            .isEnabled());
 
     state.signal_chain.remove_plugins_enabled = true;
     view.setState(state);
 
     auto& remove_button =
-        findRequiredChild<juce::TextButton>(view, "remove_plugin_button_instance");
+        findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_instance");
     CHECK(remove_button.isEnabled());
     REQUIRE(remove_button.onClick);
     remove_button.onClick();
@@ -1013,9 +536,9 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
 TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
@@ -1035,7 +558,7 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     };
     view.setState(state);
 
-    auto& plugin_row = findRequiredChild<juce::Component>(view, "plugin_row_instance");
+    auto& plugin_row = findRequiredDescendant<juce::Component>(view, "plugin_row_instance");
     plugin_row.mouseUp(makeMouseDownEvent(plugin_row, 4.0f, 4.0f));
 
     CHECK(controller.open_plugin_request_count == 1);
@@ -1046,11 +569,11 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
 TEST_CASE("EditorView projects audio device menu button state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-    auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
+    auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
 
     view.setState(core::EditorViewState{});
 
@@ -1093,15 +616,15 @@ TEST_CASE("MenuBarButton preferred width grows with label text", "[ui][menu-bar-
 TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 500, 200);
 
-    auto& menu_bar = findRequiredChild<juce::MenuBarComponent>(view, "file_menu_bar");
-    auto& audio_button = findRequiredChild<MenuBarButton>(view, "audio_device_button");
+    auto& menu_bar = findRequiredDescendant<juce::MenuBarComponent>(view, "file_menu_bar");
+    auto& audio_button = findRequiredDescendant<MenuBarButton>(view, "audio_device_button");
     CHECK(menu_bar.getBounds() == juce::Rectangle<int>{0, 0, 320, 24});
     CHECK(audio_button.getBounds() == juce::Rectangle<int>{320, 0, 180, 24});
 
@@ -1118,19 +641,19 @@ TEST_CASE("EditorView lays out menu strip actions without overlap", "[ui][editor
 TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 500, 200);
 
-    auto& controls = findRequiredChild<TransportControls>(view, "transport_controls");
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredChild<SignalChainPanel>(view, "signal_chain_panel");
+    auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 160, 484, 32});
@@ -1146,19 +669,19 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredChild<SignalChainPanel>(view, "signal_chain_panel");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 472});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 552, 1264, 240});
     CHECK(
@@ -1174,19 +697,19 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
 TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
 
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     CHECK(
         track_content.getBounds() ==
         juce::Rectangle<int>{0, 0, 2528, defaultUsableTrackViewportHeight(viewport)});
@@ -1202,15 +725,15 @@ TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
 TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
 
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     const int default_width = track_content.getWidth();
 
     track_content.mouseWheelMove(
@@ -1231,16 +754,16 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
 TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(240.0));
 
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     REQUIRE(track_content.getWidth() > viewport.getViewWidth());
 
     track_content.mouseWheelMove(
@@ -1260,17 +783,17 @@ TEST_CASE("EditorView wheel zoom out fits full timeline", "[ui][editor-view]")
 TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     const auto state = makeLoadedEditorState(20.0);
     view.setState(state);
 
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     transport.current_position = common::core::TimePosition{10.0};
     viewport.setViewPosition(400, 0);
     const auto initial_cursor_x = cursorXForTimelinePosition(
@@ -1307,17 +830,17 @@ TEST_CASE("EditorView wheel zoom centers visible cursor", "[ui][editor-view]")
 TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     const auto state = makeLoadedEditorState(20.0);
     view.setState(state);
 
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     transport.current_position = common::core::TimePosition{15.0};
     viewport.setViewPosition(0, 0);
     const auto cursor_x = cursorXForTimelinePosition(
@@ -1353,9 +876,9 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
 TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
@@ -1366,8 +889,8 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
     transport.current_position = common::core::TimePosition{5.0};
     view.setState(state);
 
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     REQUIRE(track_content.getWidth() > viewport.getViewWidth());
 
     viewport.setViewPosition(400, 0);
@@ -1387,16 +910,16 @@ TEST_CASE("EditorView stop reset snaps track viewport to start", "[ui][editor-vi
 TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
     view.setState(makeLoadedEditorState(20.0));
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     const juce::Rectangle<int> track_bounds = arrangement_view.getBounds();
     const juce::Rectangle<int> content_bounds = track_content.getBounds();
 
@@ -1411,20 +934,20 @@ TEST_CASE("EditorView keeps waveform track fixed on resize", "[ui][editor-view]"
 TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1600, 1000);
     view.setState(makeLoadedEditorState(20.0));
 
-    auto& track_viewport = findRequiredChild<juce::Component>(view, "track_viewport");
-    auto& viewport = findRequiredChild<juce::Viewport>(view, "track_viewport_scroll");
-    auto& track_content = findRequiredChild<juce::Component>(view, "track_viewport_content");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    auto& signal_chain_panel = findRequiredChild<SignalChainPanel>(view, "signal_chain_panel");
+    auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1584, 652});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 732, 1584, 260});
     CHECK(
@@ -1440,9 +963,9 @@ TEST_CASE("EditorView keeps zoomed cursor width on larger viewport", "[ui][edito
 TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1600, 1000);
     view.setState(
@@ -1479,8 +1002,8 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .busy = std::nullopt,
         });
 
-    auto& cursor_overlay = findRequiredChild<juce::Component>(view, "cursor_overlay");
-    auto& arrangement_view = findRequiredChild<ArrangementView>(view, "arrangement_view");
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     CHECK(cursor_overlay.isVisible());
     REQUIRE(cursor_overlay.getWidth() > 0);
     const float click_x = std::floor(static_cast<float>(cursor_overlay.getWidth()) * 0.25f) + 0.5f;
@@ -1501,9 +1024,9 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
 TEST_CASE("EditorView forwards space key to the controller", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     CHECK(view.getWantsKeyboardFocus());
@@ -1574,15 +1097,15 @@ TEST_CASE("EditorView cursor geometry maps position through visible range", "[ui
 TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
 
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
-    auto& progress_bar = findRequiredChild<juce::ProgressBar>(view, "busy_progress_bar");
+    auto& progress_bar = findRequiredDescendant<juce::ProgressBar>(view, "busy_progress_bar");
     CHECK_FALSE(overlay->isVisible());
 
     core::EditorViewState busy_state;
@@ -1642,9 +1165,9 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
 
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     juce::Component* const overlay = view.findChildWithID("busy_overlay");
@@ -1682,9 +1205,9 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
 TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
 
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
@@ -1713,13 +1236,14 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
 TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
 
     CHECK_FALSE(calibrate_button.isEnabled());
     CHECK_FALSE(output_slider.isEnabled());
@@ -1737,14 +1261,14 @@ TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-
 TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
+    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(master_meter.level() == common::audio::AudioMeterLevel{});
     CHECK(input_meter.level() == common::audio::AudioMeterLevel{});
@@ -1755,17 +1279,18 @@ TEST_CASE("EditorView creates audio meter components", "[ui][editor-view]")
 TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setBounds(0, 0, 1280, 800);
 
-    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(input_meter.getBottom() <= calibrate_button.getY());
     CHECK(output_meter.getHeight() == input_meter.getHeight());
@@ -1780,9 +1305,9 @@ TEST_CASE("Signal chain meters sit with their controls", "[ui][editor-view]")
 TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     FakeAudioMeterSource meter_source;
     meter_source.snapshot = common::audio::AudioMeterSnapshot{
         .live_rig_input = common::audio::AudioMeterLevel{.peak_db = -18.0},
@@ -1793,9 +1318,9 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 
     view.setState(core::EditorViewState{});
 
-    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
-    auto& input_meter = findRequiredChild<AudioLevelMeter>(view, "input_meter");
-    auto& output_meter = findRequiredChild<AudioLevelMeter>(view, "output_gain_meter");
+    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
+    auto& input_meter = findRequiredDescendant<AudioLevelMeter>(view, "input_meter");
+    auto& output_meter = findRequiredDescendant<AudioLevelMeter>(view, "output_gain_meter");
 
     CHECK(meter_source.snapshot_read_count >= 1);
     CHECK(master_meter.level() == meter_source.snapshot.master_output);
@@ -1807,13 +1332,14 @@ TEST_CASE("EditorView samples audio meter source", "[ui][editor-view]")
 TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
-    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
 
     view.setState(
         core::EditorViewState{
@@ -1833,9 +1359,9 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
 TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setState(
@@ -1845,7 +1371,8 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
             },
         });
 
-    auto& calibrate_button = findRequiredChild<juce::TextButton>(view, "input_calibrate_button");
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
     calibrate_button.onClick();
 
     CHECK(controller.input_calibration_request_count == 1);
@@ -1855,9 +1382,9 @@ TEST_CASE("Input calibration button emits controller intent", "[ui][editor-view]
 TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
     view.setBounds(0, 0, 1280, 800);
 
@@ -1870,16 +1397,17 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
     REQUIRE(window.getContentComponent() != nullptr);
-    auto& target_label = findRequiredChild<juce::Label>(window, "input_calibration_target");
+    auto& target_label = findRequiredDescendant<juce::Label>(window, "input_calibration_target");
     auto& help_button =
-        findRequiredChild<juce::DrawableButton>(window, "input_calibration_help_button");
-    auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
-    auto& meter = findRequiredChild<juce::Component>(window, "input_calibration_meter");
-    auto& manual_label = findRequiredChild<juce::Label>(window, "input_calibration_manual_label");
-    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
+        findRequiredDescendant<juce::DrawableButton>(window, "input_calibration_help_button");
+    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
+    auto& meter = findRequiredDescendant<juce::Component>(window, "input_calibration_meter");
+    auto& manual_label =
+        findRequiredDescendant<juce::Label>(window, "input_calibration_manual_label");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     auto& start_button =
-        findRequiredChild<juce::TextButton>(window, "input_calibration_start_button");
-    auto& master_meter = findRequiredChild<AudioLevelMeter>(view, "master_output_meter");
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_start_button");
+    auto& master_meter = findRequiredDescendant<AudioLevelMeter>(view, "master_output_meter");
 
     CHECK(target_label.getText() == "Target: -12 dBFS average, -6 dBFS peak");
     CHECK(
@@ -1896,9 +1424,9 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK(manual_label.getText() == "Gain:");
     CHECK(meter.getWidth() == master_meter.getWidth());
     CHECK(window.getContentComponent()->getWidth() < 520);
-    CHECK(findChildRecursive(window, "input_calibration_gain") == nullptr);
-    CHECK(findChildRecursive(window, "input_calibration_recommendation") == nullptr);
-    CHECK(findChildRecursive(window, "input_calibration_docs_link") == nullptr);
+    CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
+    CHECK(findDescendant(window, "input_calibration_recommendation") == nullptr);
+    CHECK(findDescendant(window, "input_calibration_docs_link") == nullptr);
     CHECK(target_label.getBounds().getRight() <= help_button.getBounds().getX());
     CHECK(help_button.getBounds().getCentreY() == target_label.getBounds().getCentreY());
     CHECK(target_label.getBounds().getBottom() <= status.getBounds().getY());
@@ -1914,9 +1442,9 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
 TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
@@ -1927,20 +1455,20 @@ TEST_CASE("Calibration gain control hides negative rounded zero", "[ui][editor-v
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
 
     CHECK(slider.getValue() == Catch::Approx(0.0));
     CHECK_FALSE(slider.getTextFromValue(slider.getValue()).startsWith("-0.0"));
-    CHECK(findChildRecursive(window, "input_calibration_gain") == nullptr);
+    CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
 }
 
 // Verifies manual gain remains adjustable after a manual calibration save.
 TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     core::EditorViewState state;
@@ -1951,10 +1479,10 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
     view.setState(state);
 
     auto& window = findRequiredTopLevelComponent<juce::DocumentWindow>("input_calibration_window");
-    auto& slider = findRequiredChild<juce::Slider>(window, "input_calibration_manual_gain");
+    auto& slider = findRequiredDescendant<juce::Slider>(window, "input_calibration_manual_gain");
     auto& apply_button =
-        findRequiredChild<juce::TextButton>(window, "input_calibration_manual_apply_button");
-    auto& status = findRequiredChild<juce::Label>(window, "input_calibration_status");
+        findRequiredDescendant<juce::TextButton>(window, "input_calibration_manual_apply_button");
+    auto& status = findRequiredDescendant<juce::Label>(window, "input_calibration_status");
 
     slider.setValue(3.5, juce::sendNotificationSync);
     REQUIRE(apply_button.onClick);
@@ -1971,9 +1499,9 @@ TEST_CASE("Manual calibration stays editable after saving", "[ui][editor-view]")
 TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    FakeEditorController controller;
+    core::testing::RecordingEditorController controller;
     const FakeTransport transport;
-    FakeThumbnailFactory thumbnail_factory;
+    RecordingThumbnailFactory thumbnail_factory;
     EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
     view.setState(
@@ -1983,7 +1511,7 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
             },
         });
 
-    auto& output_slider = findRequiredChild<juce::Slider>(view, "output_gain_slider");
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
     output_slider.setValue(-6.0, juce::sendNotificationSync);
 
     CHECK(controller.output_gain_change_count == 1);
