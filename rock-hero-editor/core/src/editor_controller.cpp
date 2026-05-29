@@ -2,7 +2,6 @@
 
 #include "audio_device_status_text.h"
 #include "editor_action.h"
-#include "inline_editor_task_runner.h"
 #include "project_io.h"
 #include "psarc_song_importer.h"
 #include "rock_song_importer.h"
@@ -30,7 +29,8 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/editor/core/busy_view_state.h>
-#include <rock_hero/editor/core/editor_settings.h>
+#include <rock_hero/editor/core/i_editor_settings.h>
+#include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
 #include <string_view>
@@ -434,7 +434,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
         common::audio::IAudioDeviceConfiguration& audio_devices,
         common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-        common::audio::ILiveInput& live_input, EditorController::Services services);
+        common::audio::ILiveInput& live_input, EditorController::Services services,
+        EditorController::ExitFunction exit_function,
+        EditorController::ProjectOperations project_operations);
     ~Impl() override;
 
     Impl(const Impl&) = delete;
@@ -619,7 +621,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     {
         const std::uint64_t token = beginBusy(operation);
         updateView();
-        m_task_runner->submit(
+        m_task_runner.submit(
             [state, captured_worker = std::forward<Worker>(worker)] { captured_worker(state); },
             safeCallback([this,
                           state,
@@ -659,16 +661,18 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Song aggregate and selected arrangement state currently loaded in the editor.
     common::core::Session m_session;
 
-    // Project IO and host-exit seams supplied by production composition or tests.
+    // Project IO seams supplied by production composition or tests.
     EditorController::OpenFunction m_open_function;
     EditorController::ImportFunction m_import_function;
     EditorController::SaveFunction m_save_function;
     EditorController::SaveAsFunction m_save_as_function;
     EditorController::PublishFunction m_publish_function;
+
+    // Host-exit callback supplied by app composition or controller tests.
     EditorController::ExitFunction m_exit_function;
 
-    // Optional app-local settings used to restore startup state and persist exit state.
-    EditorSettings* m_settings;
+    // App-local settings used to restore startup state and persist exit state.
+    IEditorSettings& m_settings;
 
     // Non-owning view binding installed by attachView(); null before the first attachment.
     // updateView() and reportError() tolerate the null window because the constructor's
@@ -778,11 +782,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Reset during destruction so queued completions can detect that the controller is gone.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
 
-    // Fallback task runner used when Services::task_runner is null.
-    InlineEditorTaskRunner m_inline_task_runner{};
-
-    // Non-owning pointer to the active task runner.
-    IEditorTaskRunner* m_task_runner{};
+    // Non-owning reference to the active task runner.
+    IEditorTaskRunner& m_task_runner;
 
     // Declared near the end so callback registration is detached before controller state dies.
     common::audio::ScopedListener<common::audio::ITransport, common::audio::ITransport::Listener>
@@ -855,20 +856,17 @@ struct EditorController::Impl::ProjectLoadLiveRigStage
     std::function<void(std::expected<void, std::string>)> finish;
 };
 
-// Provides a default-argument target after the nested Services type is fully declared.
-EditorController::Services EditorController::defaultServices()
-{
-    return Services{};
-}
-
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
-// to production project IO where a service seam is omitted.
-EditorController::EditorController(AudioPorts audio_ports, EditorController::Services services)
+// to production project IO where an optional project operation is omitted.
+EditorController::EditorController(
+    EditorController::AudioPorts audio_ports, EditorController::Services services,
+    EditorController::ExitFunction exit_function,
+    EditorController::ProjectOperations project_operations)
     : m_impl(
           std::make_unique<Impl>(
               audio_ports.transport, audio_ports.song_audio, audio_ports.audio_devices,
-              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.live_input,
-              std::move(services)))
+              audio_ports.plugin_host, audio_ports.live_rig, audio_ports.live_input, services,
+              std::move(exit_function), std::move(project_operations)))
 {}
 
 // Releases the pimpl after the public controller's listener callbacks can no longer be invoked.
@@ -1043,12 +1041,14 @@ void EditorController::onAudioDeviceSettingsClosed()
 }
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
-// to production project IO where a service seam is omitted.
+// to production project IO where an optional project operation is omitted.
 EditorController::Impl::Impl(
     common::audio::ITransport& transport, common::audio::ISongAudio& song_audio,
     common::audio::IAudioDeviceConfiguration& audio_devices,
     common::audio::IPluginHost& plugin_host, common::audio::ILiveRig& live_rig,
-    common::audio::ILiveInput& live_input, EditorController::Services services)
+    common::audio::ILiveInput& live_input, EditorController::Services services,
+    EditorController::ExitFunction exit_function,
+    EditorController::ProjectOperations project_operations)
     : m_transport(transport)
     , m_song_audio(song_audio)
     , m_audio_devices(audio_devices)
@@ -1056,25 +1056,24 @@ EditorController::Impl::Impl(
     , m_live_rig(live_rig)
     , m_live_input(live_input)
     , m_open_function(
-          services.open_function ? std::move(services.open_function)
-                                 : EditorController::OpenFunction{defaultOpen})
+          project_operations.open_function ? std::move(project_operations.open_function)
+                                           : EditorController::OpenFunction{defaultOpen})
     , m_import_function(
-          services.import_function ? std::move(services.import_function)
-                                   : EditorController::ImportFunction{defaultImport})
+          project_operations.import_function ? std::move(project_operations.import_function)
+                                             : EditorController::ImportFunction{defaultImport})
     , m_save_function(
-          services.save_function ? std::move(services.save_function)
-                                 : EditorController::SaveFunction{defaultSave})
+          project_operations.save_function ? std::move(project_operations.save_function)
+                                           : EditorController::SaveFunction{defaultSave})
     , m_save_as_function(
-          services.save_as_function ? std::move(services.save_as_function)
-                                    : EditorController::SaveAsFunction{defaultSaveAs})
+          project_operations.save_as_function ? std::move(project_operations.save_as_function)
+                                              : EditorController::SaveAsFunction{defaultSaveAs})
     , m_publish_function(
-          services.publish_function ? std::move(services.publish_function)
-                                    : EditorController::PublishFunction{defaultPublish})
+          project_operations.publish_function ? std::move(project_operations.publish_function)
+                                              : EditorController::PublishFunction{defaultPublish})
     , m_exit_function(
-          services.exit_function ? std::move(services.exit_function)
-                                 : EditorController::ExitFunction{defaultExit})
+          exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
-    , m_task_runner(services.task_runner != nullptr ? services.task_runner : &m_inline_task_runner)
+    , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)
 {
     restoreAudioDeviceState();
@@ -1132,23 +1131,20 @@ void EditorController::Impl::openProject(
                                          ? std::optional<std::filesystem::path>{file}
                                          : std::nullopt;
     m_restore_interrupted_prompt_file.reset();
-    if (m_settings != nullptr)
+    if (clear_last_open_project_on_failure)
     {
-        if (clear_last_open_project_on_failure)
-        {
-            m_settings->setInterruptedRestoreProject(file);
-        }
-        else
-        {
-            m_settings->setInterruptedRestoreProject(std::nullopt);
-        }
+        m_settings.setInterruptedRestoreProject(file);
+    }
+    else
+    {
+        m_settings.setInterruptedRestoreProject(std::nullopt);
     }
     const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
     EditorController::ProjectOperationProgress report_progress =
         makeBusyProjectOperationProgress(token);
     updateView();
 
-    m_task_runner->submit(
+    m_task_runner.submit(
         [state, open_function = m_open_function, report_progress = std::move(report_progress)] {
             state->result = open_function(state->project, state->file, report_progress);
         },
@@ -1169,9 +1165,9 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
 
     if (!state->result.has_value())
     {
-        if (state->clear_last_open_project_on_failure && m_settings != nullptr)
+        if (state->clear_last_open_project_on_failure)
         {
-            m_settings->setLastOpenProject(std::nullopt);
+            m_settings.setLastOpenProject(std::nullopt);
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
@@ -1186,9 +1182,9 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
 
     if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
     {
-        if (state->clear_last_open_project_on_failure && m_settings != nullptr)
+        if (state->clear_last_open_project_on_failure)
         {
-            m_settings->setLastOpenProject(std::nullopt);
+            m_settings.setLastOpenProject(std::nullopt);
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
@@ -1225,9 +1221,9 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         m_session.reset();
         m_plugins.clear();
         m_output_gain_db = 0.0;
-        if (state->clear_last_open_project_on_failure && m_settings != nullptr)
+        if (state->clear_last_open_project_on_failure)
         {
-            m_settings->setLastOpenProject(std::nullopt);
+            m_settings.setLastOpenProject(std::nullopt);
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
@@ -1282,7 +1278,7 @@ void EditorController::Impl::importSongSource(const std::filesystem::path& file)
         makeBusyProjectOperationProgress(token);
     updateView();
 
-    m_task_runner->submit(
+    m_task_runner.submit(
         [state, import_function = m_import_function, report_progress = std::move(report_progress)] {
             state->result = import_function(state->project, state->file, report_progress);
         },
@@ -1573,20 +1569,14 @@ void EditorController::Impl::onRestoreInterruptedDecision(RestoreInterruptedDeci
                 return;
             }
 
-            if (m_settings != nullptr)
-            {
-                m_settings->setLastOpenProject(project_file);
-            }
+            m_settings.setLastOpenProject(project_file);
             runAction(EditorAction::RestoreProject{project_file});
             break;
         }
         case RestoreInterruptedDecision::Cancel:
         {
             m_pending_restore_project_file.reset();
-            if (m_settings != nullptr)
-            {
-                m_settings->setLastOpenProject(std::nullopt);
-            }
+            m_settings.setLastOpenProject(std::nullopt);
             clearInterruptedRestoreMarker();
             updateView();
             break;
@@ -2467,10 +2457,7 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
                 {
                     m_pending_restore_project_file.reset();
                     clearDeferredAction();
-                    if (m_settings != nullptr)
-                    {
-                        m_settings->setLastOpenProject(restorable_project_file);
-                    }
+                    m_settings.setLastOpenProject(restorable_project_file);
                     updateView();
                     m_exit_function();
                 }
@@ -2808,25 +2795,17 @@ void EditorController::Impl::clearDeferredAction() noexcept
 // Clears the restore-interrupted marker without touching the normal last-project path.
 void EditorController::Impl::clearInterruptedRestoreMarker()
 {
-    if (m_settings != nullptr)
-    {
-        m_settings->setInterruptedRestoreProject(std::nullopt);
-    }
+    m_settings.setInterruptedRestoreProject(std::nullopt);
 }
 
 // Removes the regular last-project path only when it refers to a now-invalid restore target.
 void EditorController::Impl::clearLastOpenProjectIfMatches(
     const std::filesystem::path& project_file)
 {
-    if (m_settings == nullptr)
-    {
-        return;
-    }
-
-    const std::optional<std::filesystem::path> last_project = m_settings->lastOpenProject();
+    const std::optional<std::filesystem::path> last_project = m_settings.lastOpenProject();
     if (last_project.has_value() && *last_project == project_file)
     {
-        m_settings->setLastOpenProject(std::nullopt);
+        m_settings.setLastOpenProject(std::nullopt);
     }
 }
 
@@ -2866,14 +2845,9 @@ std::optional<std::filesystem::path> EditorController::Impl::restorableProjectFi
 // Restores a settings-backed project, or prompts first if the previous restore was interrupted.
 void EditorController::Impl::restoreLastOpenProject()
 {
-    if (m_settings == nullptr)
-    {
-        return;
-    }
-
     m_restore_interrupted_prompt_file.reset();
     const std::optional<std::filesystem::path> interrupted_project_file =
-        m_settings->interruptedRestoreProject();
+        m_settings.interruptedRestoreProject();
     if (interrupted_project_file.has_value())
     {
         if (!projectFileExists(*interrupted_project_file))
@@ -2889,7 +2863,7 @@ void EditorController::Impl::restoreLastOpenProject()
         }
     }
 
-    const std::optional<std::filesystem::path> project_file = m_settings->lastOpenProject();
+    const std::optional<std::filesystem::path> project_file = m_settings.lastOpenProject();
     if (!project_file.has_value())
     {
         return;
@@ -2897,7 +2871,7 @@ void EditorController::Impl::restoreLastOpenProject()
 
     if (!projectFileExists(*project_file))
     {
-        m_settings->setLastOpenProject(std::nullopt);
+        m_settings.setLastOpenProject(std::nullopt);
         clearInterruptedRestoreMarker();
         return;
     }
@@ -3055,12 +3029,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
 // Applies the serialized audio-device state stored by a previous editor session, if any.
 void EditorController::Impl::restoreAudioDeviceState()
 {
-    if (m_settings == nullptr)
-    {
-        return;
-    }
-
-    const std::optional<std::string> xml_state = m_settings->audioDeviceState();
+    const std::optional<std::string> xml_state = m_settings.audioDeviceState();
     if (!xml_state.has_value() || xml_state->empty())
     {
         return;
@@ -3069,7 +3038,7 @@ void EditorController::Impl::restoreAudioDeviceState()
     const std::unique_ptr<juce::XmlElement> xml = juce::parseXML(juce::String{xml_state->c_str()});
     if (xml == nullptr)
     {
-        m_settings->setAudioDeviceState(std::nullopt);
+        m_settings.setAudioDeviceState(std::nullopt);
         return;
     }
 
@@ -3079,31 +3048,20 @@ void EditorController::Impl::restoreAudioDeviceState()
 // Stores the current device manager state so the next launch can restore the user's selection.
 void EditorController::Impl::persistAudioDeviceState()
 {
-    if (m_settings == nullptr)
-    {
-        return;
-    }
-
     const std::unique_ptr<juce::XmlElement> xml = m_audio_devices.deviceManager().createStateXml();
     if (xml == nullptr)
     {
-        m_settings->setAudioDeviceState(std::nullopt);
+        m_settings.setAudioDeviceState(std::nullopt);
         return;
     }
 
-    m_settings->setAudioDeviceState(xml->toString().toStdString());
+    m_settings.setAudioDeviceState(xml->toString().toStdString());
 }
 
 // Loads stored calibration only when it matches the current committed input route.
 void EditorController::Impl::loadInputCalibrationFromSettings()
 {
-    if (m_settings == nullptr)
-    {
-        m_input_calibration_state.reset();
-        return;
-    }
-
-    m_input_calibration_state = m_settings->inputCalibrationState();
+    m_input_calibration_state = m_settings.inputCalibrationState();
     if (m_input_calibration_state.has_value() &&
         !common::audio::isValidInputDeviceIdentity(
             m_input_calibration_state->input_device_identity))
@@ -3115,10 +3073,7 @@ void EditorController::Impl::loadInputCalibrationFromSettings()
 // Persists the one app-local calibration record, or clears the stored value.
 void EditorController::Impl::persistInputCalibration()
 {
-    if (m_settings != nullptr)
-    {
-        m_settings->setInputCalibrationState(m_input_calibration_state);
-    }
+    m_settings.setInputCalibrationState(m_input_calibration_state);
 }
 
 // Clears calibration state and storage without changing the committed input identity.
