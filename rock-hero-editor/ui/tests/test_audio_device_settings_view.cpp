@@ -1,6 +1,7 @@
 #include "audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <rock_hero/editor/ui/testing/component_test_helpers.h>
 
 namespace rock_hero::editor::ui
 {
@@ -8,17 +9,7 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-// Finds direct children by component ID so tests observe the same controls users interact with.
-template <class ComponentType>
-[[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
-{
-    auto* child = parent.findChildWithID(id);
-    REQUIRE(child != nullptr);
-
-    auto* typed_child = dynamic_cast<ComponentType*>(child);
-    REQUIRE(typed_child != nullptr);
-    return *typed_child;
-}
+using testing::findRequiredDirectChild;
 
 // Captures controller intents emitted by the passive settings view.
 class FakeAudioDeviceSettingsController final : public core::IAudioDeviceSettingsController
@@ -118,7 +109,7 @@ public:
 
 void clickTextButton(AudioDeviceSettingsView& view, const juce::String& component_id)
 {
-    auto& button = findRequiredChild<juce::TextButton>(view, component_id);
+    auto& button = findRequiredDirectChild<juce::TextButton>(view, component_id);
     REQUIRE(button.onClick);
     button.onClick();
 }
@@ -135,12 +126,14 @@ TEST_CASE("AudioDeviceSettingsView renders controller state", "[ui][audio-device
     view.setState(splitDeviceState());
 
     const auto& input_device =
-        findRequiredChild<juce::ComboBox>(view, "audio_settings_input_device");
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_input_device");
     const auto& output_device =
-        findRequiredChild<juce::ComboBox>(view, "audio_settings_output_device");
-    const auto& combined_device = findRequiredChild<juce::ComboBox>(view, "audio_settings_device");
-    const auto& error_label = findRequiredChild<juce::Label>(view, "audio_settings_error");
-    const auto& ok_button = findRequiredChild<juce::TextButton>(view, "audio_settings_ok_button");
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_output_device");
+    const auto& combined_device =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_device");
+    const auto& error_label = findRequiredDirectChild<juce::Label>(view, "audio_settings_error");
+    const auto& ok_button =
+        findRequiredDirectChild<juce::TextButton>(view, "audio_settings_ok_button");
 
     CHECK(input_device.isVisible());
     CHECK(output_device.isVisible());
@@ -159,8 +152,9 @@ TEST_CASE("AudioDeviceSettingsView emits selected IDs", "[ui][audio-device-setti
     AudioDeviceSettingsView view{controller};
     view.setState(splitDeviceState());
 
-    auto& output_device = findRequiredChild<juce::ComboBox>(view, "audio_settings_output_device");
-    auto& sample_rate = findRequiredChild<juce::ComboBox>(view, "audio_settings_sample_rate");
+    auto& output_device =
+        findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_output_device");
+    auto& sample_rate = findRequiredDirectChild<juce::ComboBox>(view, "audio_settings_sample_rate");
 
     output_device.setSelectedId(2, juce::sendNotificationSync);
     sample_rate.setSelectedId(1, juce::sendNotificationSync);
