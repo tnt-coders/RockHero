@@ -10,13 +10,24 @@ add_library(rock_hero::editor::core_testing ALIAS rock_hero_editor_core_testing)
 target_include_directories(rock_hero_editor_core_testing
                            INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-target_link_libraries(rock_hero_editor_core_testing INTERFACE rock_hero::editor::core)
+target_link_libraries(rock_hero_editor_core_testing INTERFACE rock_hero::editor::core
+                                                              Catch2::Catch2)
 
 # Keep controller, settings, and package workflow coverage in the headless core test target.
 add_executable(
     rock_hero_editor_core_tests
-    test_audio_device_settings_controller.cpp test_audio_device_status_text.cpp
-    test_editor_controller.cpp test_project.cpp test_editor_settings.cpp)
+    test_audio_device_settings_controller.cpp
+    test_audio_device_status_text.cpp
+    test_editor_controller_busy.cpp
+    test_editor_controller_input_calibration.cpp
+    test_editor_controller_output_gain.cpp
+    test_editor_controller_plugins.cpp
+    test_editor_controller_project_lifecycle.cpp
+    test_editor_controller_restore.cpp
+    test_editor_controller_state.cpp
+    test_editor_controller_transport.cpp
+    test_project.cpp
+    test_editor_settings.cpp)
 
 # Project tests that exercise concrete importers need access to private library headers.
 target_include_directories(rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../src")
