@@ -1,5 +1,8 @@
 # EditorController Root Facade Plan v2
 
+Status: in-progress plan. The active scope remains Phases 1 through 6: framework isolation, four
+private workflow/state extractions, and a checkpoint before any broader controller work.
+
 ## Changes From v1
 
 ### Message-Thread Scheduling Reassessment Moved To The Checkpoint

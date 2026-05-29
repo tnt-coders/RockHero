@@ -1,5 +1,8 @@
 # Editor Core Framework Isolation Plan
 
+Status: in-progress plan. Part 1 is the active boundary cleanup; Part 2 remains deferred until a
+concrete message-thread scheduling problem justifies it.
+
 ## Purpose
 
 `EditorController` in `rock-hero-editor/core` is headless workflow code. The architectural
