@@ -302,7 +302,8 @@ Files:
 - `rock-hero-editor/core/tests/test_editor_controller.cpp`
 - `rock-hero-editor/ui/tests/test_editor_view.cpp`
 - `rock-hero-common/audio/tests/test_audio_device_settings.cpp`
-- `docs/todo/centralized-test-fakes-and-trompeloeil-plan.md`
+- `docs/completed/test-support-cleanup-plan.md`
+- `docs/todo/trompeloeil-adoption-plan.md`
 
 The current tests mostly follow the public API preference:
 
