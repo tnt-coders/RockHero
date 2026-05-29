@@ -2,6 +2,16 @@
 find_package(Catch2 3 REQUIRED)
 include(Catch)
 
+# Test-only helpers for editor-core contracts. Downstream tests opt in explicitly instead of
+# reaching into this test directory by relative include path.
+add_library(rock_hero_editor_core_testing INTERFACE)
+add_library(rock_hero::editor::core_testing ALIAS rock_hero_editor_core_testing)
+
+target_include_directories(rock_hero_editor_core_testing
+                           INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+target_link_libraries(rock_hero_editor_core_testing INTERFACE rock_hero::editor::core)
+
 # Keep controller, settings, and package workflow coverage in the headless core test target.
 add_executable(
     rock_hero_editor_core_tests
@@ -15,7 +25,7 @@ target_include_directories(rock_hero_editor_core_tests PRIVATE "${CMAKE_CURRENT_
 target_link_libraries(
     rock_hero_editor_core_tests
     PRIVATE rock_hero::editor::core rock_hero::build_policy rock_hero::juce_audio_devices
-            rock_hero::juce_core Catch2::Catch2WithMain)
+            rock_hero::juce_core rock_hero::editor::core_testing Catch2::Catch2WithMain)
 
 # Keep persisted editor-settings files inside the build tree.
 target_compile_definitions(rock_hero_editor_core_tests
