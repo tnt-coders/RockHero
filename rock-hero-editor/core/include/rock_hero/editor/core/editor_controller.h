@@ -29,7 +29,7 @@ class ITransport;
 namespace rock_hero::editor::core
 {
 
-class EditorSettings;
+class IEditorSettings;
 class IEditorTaskRunner;
 class IEditorView;
 
@@ -87,13 +87,12 @@ public:
     using ExitFunction = std::function<void()>;
 
     /*!
-    \brief Optional services used by the editor controller.
+    \brief Optional project IO operations used by the editor controller.
 
-    Default-constructed functions are replaced with production project IO behavior. Tests and app
-    composition can replace only the services they need without relying on positional callback
-    arguments.
+    Default-constructed functions are replaced with production project IO behavior. Tests can
+    replace only the operations they need without relying on positional callback arguments.
     */
-    struct Services final
+    struct ProjectOperations final
     {
         /*! \brief Opens editor project packages. */
         OpenFunction open_function{};
@@ -109,22 +108,27 @@ public:
 
         /*! \brief Publishes the current song as a native song package. */
         PublishFunction publish_function{};
+    };
 
-        /*! \brief Requests host shutdown after guarded editor exit succeeds. */
-        ExitFunction exit_function{};
+    /*!
+    \brief Required services used by the editor controller.
 
-        /*! \brief Optional settings store used for startup restore and exit persistence. */
-        EditorSettings* settings{};
+    Services are long-lived non-audio collaborators supplied by app composition or tests. Optional
+    workflow overrides belong in ProjectOperations, not in this bundle.
+    */
+    struct Services final
+    {
+        /*! \brief Settings store used for startup restore and exit persistence. */
+        IEditorSettings& settings;
 
         /*!
-        \brief Optional task runner for off-thread project IO.
+        \brief Task runner used for off-thread project IO.
 
-        When null, the controller falls back to an inline runner that executes work and
-        completion synchronously on the message thread. Production composition supplies the
-        JUCE-backed runner so open and import complete off-thread; tests typically pass null and
-        rely on the inline default.
+        Production composition supplies the JUCE-backed runner so open/import/save/publish work can
+        complete off-thread. Tests supply a deterministic runner for synchronous or deferred
+        completion.
         */
-        IEditorTaskRunner* task_runner{};
+        IEditorTaskRunner& task_runner;
     };
 
     /*!
@@ -163,9 +167,13 @@ public:
     first push delivered to attachView().
 
     \param audio_ports Required audio ports consumed by controller workflows.
-    \param services Optional project IO, settings, and host-exit services.
+    \param services Required settings and task-runner services.
+    \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
+    \param project_operations Optional project IO operation overrides.
     */
-    explicit EditorController(AudioPorts audio_ports, Services services = defaultServices());
+    explicit EditorController(
+        AudioPorts audio_ports, Services services, ExitFunction exit_function,
+        ProjectOperations project_operations = {});
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
@@ -378,9 +386,6 @@ public:
     void onAudioDeviceSettingsClosed() override;
 
 private:
-    // Supplies a named default-argument target after Services has been declared.
-    [[nodiscard]] static Services defaultServices();
-
     struct Impl;
     std::unique_ptr<Impl> m_impl;
 };

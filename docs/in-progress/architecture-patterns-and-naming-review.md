@@ -115,7 +115,7 @@ or persistent settings:
 | Observer/listener | `ITransport::Listener`, scoped UI listeners | Keeps push notifications local | Keep, but do not use listeners for workflow policy. |
 | State machine | `InputCalibrationCapture`, busy operation state | Makes stepwise behavior explicit | Keep, but keep ownership in the right layer. |
 | Command/intent | `EditorAction`, `EditorActionId`, controller methods | Helps serialize user actions and async decisions | Keep. |
-| Task runner/message dispatch | `IEditorTaskRunner`, `JuceEditorTaskRunner`, `InlineEditorTaskRunner` | Makes async behavior testable | Keep, but define message-thread vocabulary. |
+| Task runner/message dispatch | `IEditorTaskRunner`, `JuceEditorTaskRunner`, test-local runners | Makes async behavior testable | Keep, but define message-thread vocabulary. |
 | Factory/importer | `IThumbnailFactory`, `ISongImporter`, concrete importers | Good boundary for creation and file formats | Keep. |
 | Root shell composition | app `MainWindow`, editor `Editor`, `EditorView` | Keeps executable startup thin | Keep, but avoid shell classes owning feature policy. |
 
@@ -235,7 +235,6 @@ or persistent settings:
 | `OpenTaskState`, `ImportTaskState`, `AddPluginTaskState`, `PluginCatalogTaskState`, `ProjectWriteTaskState`, `ProjectLoadLiveRigStage` | Async task state holders | Keep, but group by feature when splitting `EditorController::Impl`. |
 | `InputCalibrationRouteState`, `ActiveInputCalibration` | Calibration routing/workflow state | Extract into a calibration workflow/session. |
 | `LiveRigProgress` | Live rig progress state | Keep near live-rig load workflow. |
-| `InlineEditorTaskRunner` | Inline/test task runner | Keep. |
 | `RockSongImporter`, `PsarcSongImporter` | Concrete song importers | Keep. |
 
 ### Editor UI
