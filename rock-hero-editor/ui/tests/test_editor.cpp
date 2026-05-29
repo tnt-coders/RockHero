@@ -4,6 +4,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -17,6 +18,9 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/editor/core/i_editor_settings.h>
+#include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <stdexcept>
 #include <string>
@@ -347,6 +351,62 @@ private:
     juce::AudioDeviceManager device_manager{};
 };
 
+// Stateless settings for Editor construction tests that do not exercise persistence.
+class FakeEditorSettings final : public core::IEditorSettings
+{
+public:
+    [[nodiscard]] std::optional<std::filesystem::path> lastOpenProject() const override
+    {
+        return std::nullopt;
+    }
+
+    void setLastOpenProject(std::optional<std::filesystem::path>) override
+    {}
+
+    [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const override
+    {
+        return std::nullopt;
+    }
+
+    void setInterruptedRestoreProject(std::optional<std::filesystem::path>) override
+    {}
+
+    [[nodiscard]] std::optional<std::string> audioDeviceState() const override
+    {
+        return std::nullopt;
+    }
+
+    void setAudioDeviceState(std::optional<std::string>) override
+    {}
+
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState()
+        const override
+    {
+        return std::nullopt;
+    }
+
+    void setInputCalibrationState(std::optional<common::audio::InputCalibrationState>) override
+    {}
+};
+
+// Runs controller work synchronously so Editor construction tests do not create worker threads.
+class FakeEditorTaskRunner final : public core::IEditorTaskRunner
+{
+public:
+    void submit(std::function<void()> work, std::function<void()> completion) override
+    {
+        if (work)
+        {
+            work();
+        }
+
+        if (completion)
+        {
+            completion();
+        }
+    }
+};
+
 // Returns a required child component by id and type, failing the current test if missing.
 template <class ComponentType>
 [[nodiscard]] ComponentType& findRequiredChild(juce::Component& parent, const juce::String& id)
@@ -376,17 +436,23 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     FakeSongAudio song_audio;
     FakeThumbnailFactory thumbnail_factory;
     FakeEditorAudioPorts audio_ports;
+    FakeEditorSettings settings;
+    FakeEditorTaskRunner task_runner;
 
-    Editor editor{Editor::AudioPorts{
-        .transport = transport,
-        .song_audio = song_audio,
-        .thumbnail_factory = thumbnail_factory,
-        .audio_devices = audio_ports,
-        .plugin_host = audio_ports,
-        .live_rig = audio_ports,
-        .live_input = audio_ports,
-        .meter_source = audio_ports,
-    }};
+    Editor editor{
+        Editor::AudioPorts{
+            .transport = transport,
+            .song_audio = song_audio,
+            .thumbnail_factory = thumbnail_factory,
+            .audio_devices = audio_ports,
+            .plugin_host = audio_ports,
+            .live_rig = audio_ports,
+            .live_input = audio_ports,
+            .meter_source = audio_ports,
+        },
+        Editor::Services{.settings = settings, .task_runner = task_runner},
+        [] {}
+    };
     auto& component = editor.component();
 
     CHECK(dynamic_cast<EditorView*>(&component) != nullptr);

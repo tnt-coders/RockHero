@@ -8,8 +8,28 @@
 namespace rock_hero::editor::ui
 {
 
+namespace
+{
+
+// Maps the UI-level project operation bundle into the controller bundle that owns the behavior.
+[[nodiscard]] core::EditorController::ProjectOperations controllerProjectOperationsFrom(
+    Editor::ProjectOperations project_operations)
+{
+    return core::EditorController::ProjectOperations{
+        .open_function = std::move(project_operations.open_function),
+        .import_function = std::move(project_operations.import_function),
+        .save_function = std::move(project_operations.save_function),
+        .save_as_function = std::move(project_operations.save_as_function),
+        .publish_function = std::move(project_operations.publish_function),
+    };
+}
+
+} // namespace
+
 // Wires the controller and view after construction dependencies are available.
-Editor::Editor(AudioPorts audio_ports, core::EditorController::Services services)
+Editor::Editor(
+    Editor::AudioPorts audio_ports, Editor::Services services, Editor::ExitFunction exit_function,
+    Editor::ProjectOperations project_operations)
     : m_controller(
           core::EditorController::AudioPorts{
               .transport = audio_ports.transport,
@@ -19,7 +39,11 @@ Editor::Editor(AudioPorts audio_ports, core::EditorController::Services services
               .live_rig = audio_ports.live_rig,
               .live_input = audio_ports.live_input,
           },
-          std::move(services))
+          core::EditorController::Services{
+              .settings = services.settings,
+              .task_runner = services.task_runner,
+          },
+          std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(
           std::make_unique<EditorView>(
               m_controller, EditorView::AudioPorts{
