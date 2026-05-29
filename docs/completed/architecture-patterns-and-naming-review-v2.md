@@ -1,5 +1,11 @@
 # Architecture Patterns And Naming Review v2
 
+Status: completed review. Active follow-up planning now lives in
+`docs/in-progress/editor-controller-root-facade-plan-v2.md`,
+`docs/in-progress/editor-core-framework-isolation-plan.md`, and
+`docs/in-progress/readability-taxonomy-evaluation-plan.md`. Test-specific follow-up planning lives
+in `docs/in-progress/test-file-decomposition-plan.md`.
+
 ## Scope
 
 Full review of every production class, struct, and enum across `rock-hero-common`,
@@ -8,9 +14,9 @@ Tracktion/audio architecture, and desktop GUI composition) were run in parallel 
 synthesized here.
 
 After forming independent conclusions, the prior
-`architecture-patterns-and-naming-review.md` was consulted. Where the two reviews agree, this
-document confirms the finding. Where they diverge, this document states the independent conclusion
-and notes the difference.
+`docs/completed/architecture-patterns-and-naming-review.md` was consulted. Where the two reviews
+agree, this document confirms the finding. Where they diverge, this document states the independent
+conclusion and notes the difference.
 
 ## Executive Summary
 
@@ -236,24 +242,33 @@ facade plan. Do not rename preemptively.
 
 ## Test Infrastructure
 
-### Fake Naming
+### Shared Testing Targets
 
-All test fakes consistently use the `Fake*` prefix. No `Stub*` or `Mock*` prefixes appear anywhere.
-This is clean.
+The earlier review predated the shared-helper extraction. The project now uses module-owned
+test-only helper targets:
 
-### Fake Duplication
+- `rock_hero::common::audio_testing`
+- `rock_hero::editor::core_testing`
+- `rock_hero::editor::ui_testing`
 
-`FakeTransport`, `FakeEditorController`, `FakeThumbnail`, and `FakeThumbnailFactory` are each
-defined in multiple test files with slightly different implementations. There is no shared test-fake
-library.
+This matches the fake-first testing policy without creating a global fake warehouse. Reusable
+helpers live with the module that owns the production contract they implement, and production
+targets do not link testing targets.
 
-At the current scale this is manageable. A shared fake library would reduce duplication but add a
-maintenance target. The right time to introduce one is when fake implementations diverge enough to
-cause bugs (a test passes because its local `FakeTransport` behaves differently from another test's
-`FakeTransport`).
+### Test Double Naming
 
-**Recommendation:** Do not create a shared fake library now. Watch for divergent fake behavior as
-tests grow.
+Shared helpers now use behavior-specific names such as `Recording*`, `Configurable*`, `Null*`, and
+`Immediate*`. Local one-off fakes may still use simple `Fake*` names while they remain private to a
+single test file.
+
+Reserve `Mock*` for expectation-driven Trompeloeil types. Trompeloeil remains deferred and is
+tracked by `docs/todo/trompeloeil-adoption-plan.md`.
+
+### Remaining Test Pressure
+
+The cross-target fake duplication has been addressed. The remaining test readability issue is large
+test files, not a need for a global test-support target. That active follow-up is tracked in
+`docs/in-progress/test-file-decomposition-plan.md`.
 
 ---
 
@@ -344,7 +359,7 @@ be done when the relevant code is being touched.
 
 - Do not rename `Engine`.
 - Do not introduce `Presenter`.
-- Do not create a shared test-fake library yet.
+- Do not create a global test-fake library or add Trompeloeil by default.
 - Do not restructure public `include/` paths.
 - Do not force every window into a full controller/view/viewstate stack.
 - Do not ban listener-only UI surfaces.
