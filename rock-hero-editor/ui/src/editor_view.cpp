@@ -1345,17 +1345,16 @@ void EditorView::showAudioDeviceSettingsWindow()
         return;
     }
 
-    if (m_state.transport.play_pause_shows_pause_icon)
-    {
-        m_controller.onPlayPausePressed();
-    }
-
     // Hand the dispatcher to the settings window so OK and Cancel can dismiss the dialog
     // immediately and run device-manager work behind the editor's blocking busy overlay.
     // juce::AudioDeviceManager occupies the message thread, so the overlay's blocking
     // presentation paints once before the freeze rather than animating through it.
     const juce::Component::SafePointer<EditorView> safe_this{this};
-    m_controller.onAudioDeviceSettingsOpened();
+    if (!m_controller.onAudioDeviceSettingsOpenRequested())
+    {
+        return;
+    }
+
     AudioDeviceSettingsWindow::show(
         m_audio_devices,
         m_audio_device_button,

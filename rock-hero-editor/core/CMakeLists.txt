@@ -16,6 +16,8 @@ target_sources(
             src/editor_action.cpp
             src/editor_action.h
             src/editor_controller.cpp
+            src/input_calibration_workflow.cpp
+            src/input_calibration_workflow.h
             src/juce_editor_task_runner.cpp
             src/plugin_catalog_workflow.cpp
             src/plugin_catalog_workflow.h

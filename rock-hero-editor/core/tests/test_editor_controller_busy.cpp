@@ -187,8 +187,10 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(std::filesystem::path{"original.rhp"});
     runner.runPendingCompletions();
+    controller.onInputCalibrationRequested();
     const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
     REQUIRE(calibrated.has_value());
+    controller.onInputCalibrationDismissed();
 
     addKnownPlugin(controller);
 
@@ -412,8 +414,10 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     // Drain the completed load here; this test's pending-count assertion is about the next open
     // request.
     runner.runPendingCompletions();
+    controller.onInputCalibrationRequested();
     const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
     REQUIRE(calibrated.has_value());
+    controller.onInputCalibrationDismissed();
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;
     plugin_host.known_candidates_call_count = 0;
