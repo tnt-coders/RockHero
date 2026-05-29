@@ -24,6 +24,8 @@
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
+#include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -92,73 +94,17 @@ public:
     int busy_overlay_paint_callback_count{0};
 };
 
-// Stateless settings for controller tests that do not exercise persistence behavior.
-class NullEditorSettings final : public IEditorSettings
-{
-public:
-    [[nodiscard]] std::optional<std::filesystem::path> lastOpenProject() const override
-    {
-        return std::nullopt;
-    }
-
-    void setLastOpenProject(std::optional<std::filesystem::path>) override
-    {}
-
-    [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const override
-    {
-        return std::nullopt;
-    }
-
-    void setInterruptedRestoreProject(std::optional<std::filesystem::path>) override
-    {}
-
-    [[nodiscard]] std::optional<std::string> audioDeviceState() const override
-    {
-        return std::nullopt;
-    }
-
-    void setAudioDeviceState(std::optional<std::string>) override
-    {}
-
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState()
-        const override
-    {
-        return std::nullopt;
-    }
-
-    void setInputCalibrationState(std::optional<common::audio::InputCalibrationState>) override
-    {}
-};
-
-// Synchronous task runner used by controller tests whose busy work should complete immediately.
-class ImmediateEditorTaskRunner final : public IEditorTaskRunner
-{
-public:
-    void submit(std::function<void()> work, std::function<void()> completion) override
-    {
-        if (work)
-        {
-            work();
-        }
-
-        if (completion)
-        {
-            completion();
-        }
-    }
-};
-
 // Returns the shared no-op settings for tests that do not observe persistence.
-[[nodiscard]] NullEditorSettings& nullEditorSettings() noexcept
+[[nodiscard]] testing::NullEditorSettings& nullEditorSettings() noexcept
 {
-    static NullEditorSettings settings;
+    static testing::NullEditorSettings settings;
     return settings;
 }
 
 // Returns the shared synchronous runner for tests that do not need deferred completions.
-[[nodiscard]] ImmediateEditorTaskRunner& immediateTaskRunner() noexcept
+[[nodiscard]] testing::ImmediateEditorTaskRunner& immediateTaskRunner() noexcept
 {
-    static ImmediateEditorTaskRunner task_runner;
+    static testing::ImmediateEditorTaskRunner task_runner;
     return task_runner;
 }
 

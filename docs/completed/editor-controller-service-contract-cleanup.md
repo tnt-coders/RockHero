@@ -91,8 +91,37 @@ because it only needs view-facing audio ports and controller intents.
 - `ExitFunction`: a single host-exit callback, kept explicit until host callbacks multiply.
 - `IEditorSettings`: stable persistence port for app-local editor state.
 
+### Why `ExitFunction` Is Its Own Constructor Argument
+
+`ExitFunction` is neither a long-lived runtime service nor a project workflow override. It is the
+single piece of host-app composition glue the controller needs in order to request shutdown after
+guarded exit. Three placements were considered:
+
+1. **Inside `Services`** would mix a one-shot host callback with always-on runtime collaborators
+   (settings, task runner), blurring what `Services` represents.
+2. **A dedicated `HostCallbacks` bundle** would impose a four-bundle constructor for a single
+   callback. Wait until a second host callback exists before introducing the bundle.
+3. **A separate constructor argument** keeps the callback visible at the call site without
+   committing to a bundle that may never gain members.
+
+The third option was chosen. When a second host callback appears (for example, a request-focus or
+request-minimize hook), promote both into a `HostCallbacks` bundle at that time.
+
 Avoid putting optional project IO hooks back into `Services`. Avoid introducing a host callback
 bundle until there is more than one host-owned callback.
+
+## Editor Core Testing Helpers
+
+Both `rock_hero_editor_core_tests` and `rock_hero_editor_ui_tests` need a no-op `IEditorSettings`
+and a synchronous `IEditorTaskRunner` for controller and editor construction. These shared
+test-only helpers live behind the editor-core testing target:
+
+- `rock_hero::editor::core_testing`
+- `null_editor_settings.h` defines `NullEditorSettings`.
+- `immediate_editor_task_runner.h` defines `ImmediateEditorTaskRunner`.
+
+Tests that need to observe persistence or interleaved task completion should still define their
+own purpose-built test doubles rather than extending these null/immediate helpers.
 
 ## Verification
 
