@@ -4,6 +4,7 @@
 #include "busy_operation_state.h"
 #include "deferred_editor_action_state.h"
 #include "editor_action.h"
+#include "plugin_catalog_workflow.h"
 #include "project_io.h"
 #include "psarc_song_importer.h"
 #include "rock_song_importer.h"
@@ -191,52 +192,6 @@ void defaultExit()
         .format_name = plugin_candidate.format_name,
         .chain_index = handle.chain_index,
     };
-}
-
-// Keeps the browser catalog stable and readable after any scan source updates it.
-void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candidates)
-{
-    std::ranges::sort(
-        plugin_candidates,
-        [](const common::audio::PluginCandidate& lhs, const common::audio::PluginCandidate& rhs) {
-            if (lhs.name != rhs.name)
-            {
-                return lhs.name < rhs.name;
-            }
-            if (lhs.manufacturer != rhs.manufacturer)
-            {
-                return lhs.manufacturer < rhs.manufacturer;
-            }
-            return lhs.id < rhs.id;
-        });
-}
-
-// Lifts audio-boundary plugin metadata into editor-core workflow state. The conversion is the
-// single seam between common::audio::PluginCandidate and editor-core, so backend-shaped fields
-// added to the audio-boundary type cannot reach editor-ui without going through this helper.
-[[nodiscard]] PluginCandidateViewState makePluginCandidateViewState(
-    const common::audio::PluginCandidate& plugin_candidate)
-{
-    return PluginCandidateViewState{
-        .id = plugin_candidate.id,
-        .name = plugin_candidate.name,
-        .manufacturer = plugin_candidate.manufacturer,
-        .format_name = plugin_candidate.format_name,
-        .file_path = plugin_candidate.file_path,
-    };
-}
-
-// Lifts the controller's in-memory catalog into editor-core workflow state for the view.
-[[nodiscard]] std::vector<PluginCandidateViewState> makePluginCandidateViewStates(
-    const std::vector<common::audio::PluginCandidate>& plugin_candidates)
-{
-    std::vector<PluginCandidateViewState> states;
-    states.reserve(plugin_candidates.size());
-    for (const common::audio::PluginCandidate& plugin_candidate : plugin_candidates)
-    {
-        states.push_back(makePluginCandidateViewState(plugin_candidate));
-    }
-    return states;
 }
 
 // Converts restored or captured live rig state into the signal-chain panel's view model.
@@ -716,11 +671,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Current automatic calibration attempt, if the popup has started one.
     std::optional<ActiveInputCalibration> m_active_input_calibration{};
 
-    // Plugins shown in the browser and selected by opaque plugin ID.
-    std::vector<common::audio::PluginCandidate> m_plugin_catalog;
-
-    // True while the plugin browser should be visible.
-    bool m_plugin_browser_visible{false};
+    // Browser catalog and selection state for adding known plugins.
+    PluginCatalogWorkflow m_plugin_catalog;
 
     // Set true while a session load is in flight so reentrant transport callbacks defer pushing.
     bool m_session_load_in_progress{false};
@@ -1595,12 +1547,10 @@ void EditorController::Impl::onPluginBrowserRequested()
 // unrelated busy operation. In-flight scans still complete against the cached browser state.
 void EditorController::Impl::onPluginBrowserClosed()
 {
-    if (!m_plugin_browser_visible)
+    if (!m_plugin_catalog.close())
     {
         return;
     }
-
-    m_plugin_browser_visible = false;
     updateView();
 }
 
@@ -1893,8 +1843,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /
         return;
     }
 
-    m_plugin_browser_visible = true;
-    refreshKnownPluginCatalog();
+    m_plugin_catalog.open(m_plugin_host.knownPluginCatalog());
     updateView();
 }
 
@@ -1928,18 +1877,16 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         return;
     }
 
-    const auto found = std::ranges::find_if(
-        m_plugin_catalog, [&action](const common::audio::PluginCandidate& plugin_candidate) {
-            return plugin_candidate.id == action.plugin_id;
-        });
-    if (found == m_plugin_catalog.end())
+    const std::optional<common::audio::PluginCandidate> plugin_candidate =
+        m_plugin_catalog.candidateForId(action.plugin_id);
+    if (!plugin_candidate.has_value())
     {
         reportError("Could not add plugin: selected plugin is no longer available");
         updateView();
         return;
     }
 
-    beginAddKnownPlugin(*found);
+    beginAddKnownPlugin(*plugin_candidate);
 }
 
 // Inserts the selected browser plugin into the live chain after the loading state has painted.
@@ -1958,7 +1905,7 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
     }
 
     m_plugins.push_back(makePluginViewState(plugin_candidate, *handle));
-    m_plugin_browser_visible = false;
+    m_plugin_catalog.hide();
     if (hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
@@ -2008,8 +1955,7 @@ void EditorController::Impl::completePluginCatalogScan(
 // Refreshes the browser from Tracktion's already-known plugins without touching the filesystem.
 void EditorController::Impl::refreshKnownPluginCatalog()
 {
-    m_plugin_catalog = m_plugin_host.knownPluginCatalog();
-    sortPluginCatalog(m_plugin_catalog);
+    m_plugin_catalog.replaceCatalog(m_plugin_host.knownPluginCatalog());
 }
 
 void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin& action)
@@ -2303,7 +2249,7 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         case EditorAction::Id::AddPlugin:
         {
             return hasLoadedArrangement() && liveInputAuditionAvailable() &&
-                   !m_plugin_catalog.empty();
+                   m_plugin_catalog.hasCandidates();
         }
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
@@ -2465,7 +2411,7 @@ bool EditorController::Impl::closeProject()
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
-        m_plugin_browser_visible = false;
+        m_plugin_catalog.hide();
         return true;
     }
 
@@ -2485,7 +2431,7 @@ bool EditorController::Impl::closeProject()
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
-        m_plugin_browser_visible = false;
+        m_plugin_catalog.hide();
         updateView();
         return false;
     }
@@ -2495,7 +2441,7 @@ bool EditorController::Impl::closeProject()
     m_displaced_project_file.clear();
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
-    m_plugin_browser_visible = false;
+    m_plugin_catalog.hide();
     return true;
 }
 
@@ -2893,7 +2839,7 @@ bool EditorController::Impl::loadSessionSong(
         assert(committed && "Session rejected backend-accepted project song");
         m_plugins.clear();
         m_output_gain_db = 0.0;
-        m_plugin_browser_visible = false;
+        m_plugin_catalog.hide();
     }
     m_session_load_in_progress = false;
 
@@ -2941,12 +2887,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
         .output_gain_controls_enabled = m_project_audio_ready && hasLoadedArrangement(),
         .output_gain_db = m_output_gain_db,
     };
-    state.plugin_browser = PluginBrowserViewState{
-        .visible = m_plugin_browser_visible,
-        .scan_enabled = canRunAction(EditorAction::Id::ScanPluginCatalog),
-        .add_enabled = canRunAction(EditorAction::Id::AddPlugin),
-        .plugins = makePluginCandidateViewStates(m_plugin_catalog),
-    };
+    state.plugin_browser = m_plugin_catalog.viewState(
+        canRunAction(EditorAction::Id::ScanPluginCatalog),
+        canRunAction(EditorAction::Id::AddPlugin));
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {
