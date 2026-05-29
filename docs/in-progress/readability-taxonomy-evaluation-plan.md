@@ -313,7 +313,6 @@ import/
 
 tasks/
   juce_editor_task_runner.*
-  inline_editor_task_runner.*
 
 view_state/
   busy_view_state.*

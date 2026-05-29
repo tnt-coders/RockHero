@@ -12,7 +12,6 @@ target_sources(
             src/editor_action.cpp
             src/editor_action.h
             src/editor_controller.cpp
-            src/inline_editor_task_runner.cpp
             src/juce_editor_task_runner.cpp
             src/project.cpp
             src/project_io.cpp

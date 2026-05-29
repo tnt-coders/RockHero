@@ -21,6 +21,7 @@
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
@@ -90,6 +91,107 @@ public:
     // Number of busy-overlay paint callbacks requested by the controller.
     int busy_overlay_paint_callback_count{0};
 };
+
+// Stateless settings for controller tests that do not exercise persistence behavior.
+class NullEditorSettings final : public IEditorSettings
+{
+public:
+    [[nodiscard]] std::optional<std::filesystem::path> lastOpenProject() const override
+    {
+        return std::nullopt;
+    }
+
+    void setLastOpenProject(std::optional<std::filesystem::path>) override
+    {}
+
+    [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const override
+    {
+        return std::nullopt;
+    }
+
+    void setInterruptedRestoreProject(std::optional<std::filesystem::path>) override
+    {}
+
+    [[nodiscard]] std::optional<std::string> audioDeviceState() const override
+    {
+        return std::nullopt;
+    }
+
+    void setAudioDeviceState(std::optional<std::string>) override
+    {}
+
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState()
+        const override
+    {
+        return std::nullopt;
+    }
+
+    void setInputCalibrationState(std::optional<common::audio::InputCalibrationState>) override
+    {}
+};
+
+// Synchronous task runner used by controller tests whose busy work should complete immediately.
+class ImmediateEditorTaskRunner final : public IEditorTaskRunner
+{
+public:
+    void submit(std::function<void()> work, std::function<void()> completion) override
+    {
+        if (work)
+        {
+            work();
+        }
+
+        if (completion)
+        {
+            completion();
+        }
+    }
+};
+
+// Returns the shared no-op settings for tests that do not observe persistence.
+[[nodiscard]] NullEditorSettings& nullEditorSettings() noexcept
+{
+    static NullEditorSettings settings;
+    return settings;
+}
+
+// Returns the shared synchronous runner for tests that do not need deferred completions.
+[[nodiscard]] ImmediateEditorTaskRunner& immediateTaskRunner() noexcept
+{
+    static ImmediateEditorTaskRunner task_runner;
+    return task_runner;
+}
+
+// Builds the required service bundle from test-owned or shared fake services.
+[[nodiscard]] EditorController::Services controllerServices(
+    IEditorSettings& settings, IEditorTaskRunner& task_runner) noexcept
+{
+    return EditorController::Services{.settings = settings, .task_runner = task_runner};
+}
+
+// Builds the default no-op service bundle for tests that only exercise controller state policy.
+[[nodiscard]] EditorController::Services defaultControllerServices() noexcept
+{
+    return controllerServices(nullEditorSettings(), immediateTaskRunner());
+}
+
+// Uses specific settings while keeping project work synchronous.
+[[nodiscard]] EditorController::Services controllerServices(IEditorSettings& settings) noexcept
+{
+    return controllerServices(settings, immediateTaskRunner());
+}
+
+// Uses a specific task runner while ignoring settings persistence.
+[[nodiscard]] EditorController::Services controllerServices(IEditorTaskRunner& task_runner) noexcept
+{
+    return controllerServices(nullEditorSettings(), task_runner);
+}
+
+// Returns the no-op host-exit callback used by tests that do not assert exit behavior.
+[[nodiscard]] EditorController::ExitFunction noopExitFunction()
+{
+    return [] {};
+}
 
 // Returns a nullable pointer so tests can satisfy optional-access lint after a REQUIRE.
 [[nodiscard]] const EditorViewState* stateOrNull(
@@ -1923,7 +2025,9 @@ TEST_CASE("EditorController publishes current audio device", "[core][editor-cont
         .input_latency_ms = 4.5,
         .output_latency_ms = 7.5,
     };
-    EditorController controller{audioPorts(transport, audio, audio_devices)};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices), defaultControllerServices(), noopExitFunction()
+    };
     FakeEditorView view;
 
     controller.attachView(view);
@@ -1947,7 +2051,11 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -1985,7 +2093,9 @@ TEST_CASE("EditorController forwards normalization to audio backend", "[core][ed
     project_services.next_song = std::move(song);
     EditorController controller{
         audioPorts(transport, audio, audio_devices),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
         }
     };
@@ -2009,7 +2119,11 @@ TEST_CASE("EditorController opens plugin browser catalog", "[core][editor-contro
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2051,7 +2165,11 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     };
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2086,7 +2204,11 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2127,7 +2249,11 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2165,7 +2291,11 @@ TEST_CASE("EditorController closes plugin browser", "[core][editor-controller]")
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2192,7 +2322,11 @@ TEST_CASE("EditorController reports plugin catalog scan errors", "[core][editor-
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2228,7 +2362,9 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
         }
     };
@@ -2285,7 +2421,9 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
         }
     };
@@ -2329,7 +2467,9 @@ TEST_CASE(
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
         }
     };
@@ -2384,7 +2524,9 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
         }
@@ -2430,7 +2572,9 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
         }
     };
@@ -2463,7 +2607,11 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2500,7 +2648,11 @@ TEST_CASE("EditorController ignores stale plugin removal", "[core][editor-contro
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2528,7 +2680,11 @@ TEST_CASE("EditorController opens plugin windows", "[core][editor-controller]")
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2553,7 +2709,11 @@ TEST_CASE("EditorController ignores stale plugin window requests", "[core][edito
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2577,7 +2737,11 @@ TEST_CASE("EditorController reports plugin window errors", "[core][editor-contro
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2606,7 +2770,11 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -2635,7 +2803,9 @@ TEST_CASE("EditorController re-derives state on device change", "[core][editor-c
     FakeTransport transport;
     FakeSongAudio audio;
     FakeAudioDeviceConfiguration audio_devices;
-    EditorController controller{audioPorts(transport, audio, audio_devices)};
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices), defaultControllerServices(), noopExitFunction()
+    };
     FakeEditorView view;
     controller.attachView(view);
     const int baseline_pushes = view.set_state_call_count;
@@ -2668,7 +2838,9 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
 {
     FakeTransport transport;
     FakeSongAudio audio;
-    EditorController controller{audioPorts(transport, audio)};
+    EditorController controller{
+        audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
+    };
     FakeEditorView view;
 
     controller.attachView(view);
@@ -2709,7 +2881,11 @@ TEST_CASE("EditorController derives visible timeline range", "[core][editor-cont
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(
         controller,
@@ -2738,7 +2914,11 @@ TEST_CASE("EditorController pushes one state per coarse transition", "[core][edi
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
     FakeEditorView view;
@@ -2782,7 +2962,11 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[core][edito
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
 
@@ -2801,7 +2985,9 @@ TEST_CASE("EditorController ignores play intent without audio", "[core][editor-c
 {
     FakeTransport transport;
     FakeSongAudio audio;
-    EditorController controller{audioPorts(transport, audio)};
+    EditorController controller{
+        audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
+    };
 
     controller.onPlayPausePressed();
 
@@ -2817,7 +3003,11 @@ TEST_CASE("EditorController stop intent follows reset gate", "[core][editor-cont
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
 
@@ -2842,7 +3032,11 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][e
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"});
     FakeEditorView view;
@@ -2871,7 +3065,11 @@ TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-co
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(
         controller,
@@ -2898,7 +3096,11 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(
         controller,
@@ -2930,7 +3132,11 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(
         controller,
@@ -2969,7 +3175,11 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3022,7 +3232,11 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3062,10 +3276,11 @@ TEST_CASE("EditorController clears missing restore path", "[core][editor-control
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
 
     controller.restoreLastOpenProject();
@@ -3087,10 +3302,11 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
@@ -3116,11 +3332,11 @@ TEST_CASE("EditorController restore keeps path while open is pending", "[core][e
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings, runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-            .task_runner = &runner,
-        },
+        }
     };
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
@@ -3155,16 +3371,14 @@ TEST_CASE(
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
-            .open_function = project_services.openFunction(),
-            .exit_function =
-                [&exit_call_count, &setting_seen_at_exit, &settings] {
-                    setting_seen_at_exit = settings.lastOpenProject();
-                    ++exit_call_count;
-                },
-            .settings = &settings,
-            .task_runner = &runner,
+        controllerServices(settings, runner),
+        [&exit_call_count, &setting_seen_at_exit, &settings] {
+            setting_seen_at_exit = settings.lastOpenProject();
+            ++exit_call_count;
         },
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
@@ -3197,10 +3411,11 @@ TEST_CASE("EditorController prompts after interrupted restore", "[core][editor-c
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3230,11 +3445,11 @@ TEST_CASE("EditorController retries interrupted restore prompt", "[core][editor-
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings, runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-            .task_runner = &runner,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3271,10 +3486,11 @@ TEST_CASE("EditorController cancels interrupted restore prompt", "[core][editor-
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3303,10 +3519,11 @@ TEST_CASE("EditorController clears missing interrupted restore", "[core][editor-
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3333,10 +3550,11 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-        },
+        }
     };
 
     controller.restoreLastOpenProject();
@@ -3360,11 +3578,11 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings, runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
-            .task_runner = &runner,
-        },
+        }
     };
 
     controller.restoreLastOpenProject();
@@ -3396,11 +3614,12 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
-            .settings = &settings,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3434,15 +3653,14 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
-            .open_function = project_services.openFunction(),
-            .exit_function =
-                [&exit_call_count, &setting_seen_at_exit, &settings] {
-                    setting_seen_at_exit = settings.lastOpenProject();
-                    ++exit_call_count;
-                },
-            .settings = &settings,
+        controllerServices(settings),
+        [&exit_call_count, &setting_seen_at_exit, &settings] {
+            setting_seen_at_exit = settings.lastOpenProject();
+            ++exit_call_count;
         },
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
@@ -3464,11 +3682,13 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3500,11 +3720,13 @@ TEST_CASE("EditorController save failure surfaces an error", "[core][editor-cont
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3533,10 +3755,12 @@ TEST_CASE("EditorController save as failure clears busy first", "[core][editor-c
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3567,12 +3791,14 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
             .publish_function = project_services.publishFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3604,10 +3830,12 @@ TEST_CASE("EditorController publish failure surfaces an error", "[core][editor-c
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .publish_function = project_services.publishFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3643,7 +3871,9 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
         }
@@ -3687,7 +3917,11 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.import_function = project_services.importFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .import_function = project_services.importFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3740,11 +3974,13 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3802,11 +4038,13 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3854,12 +4092,14 @@ TEST_CASE(
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3918,11 +4158,13 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -3971,13 +4213,13 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
     int exit_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings),
+        [&exit_call_count] { ++exit_call_count; },
+        EditorController::ProjectOperations{
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
-            .exit_function = [&exit_call_count] { ++exit_call_count; },
-            .settings = &settings,
-        },
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -4012,7 +4254,11 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
 
     const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
@@ -4035,7 +4281,11 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -4068,7 +4318,11 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     FakeEditorView view;
     controller.attachView(view);
@@ -4105,7 +4359,11 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     loadArrangement(controller, project_services, audio, std::filesystem::path{"old.wav"});
     audio.next_set_active_arrangement_result = false;
@@ -4134,9 +4392,10 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4165,10 +4424,11 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
     int analysis_progress_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = makeAnalyzingOpenFunction(
                 std::filesystem::path{"source.wav"}, analysis_progress_call_count),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4194,9 +4454,10 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .import_function = project_services.importFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4222,10 +4483,11 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
     int analysis_progress_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .import_function = makeAnalyzingImportFunction(
                 std::filesystem::path{"source.wav"}, analysis_progress_call_count),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4251,10 +4513,11 @@ TEST_CASE("EditorController save begins busy with default message", "[core][edit
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4288,10 +4551,11 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4363,10 +4627,11 @@ TEST_CASE("EditorController save as begins busy with default message", "[core][e
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_as_function = project_services.saveAsFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4396,10 +4661,11 @@ TEST_CASE("EditorController publish begins busy with default message", "[core][e
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .publish_function = project_services.publishFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4429,9 +4695,10 @@ TEST_CASE("EditorController busy routing disables ordinary commands", "[core][ed
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4466,9 +4733,10 @@ TEST_CASE(
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4504,13 +4772,14 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .import_function = project_services.importFunction(),
             .save_function = project_services.saveFunction(),
             .save_as_function = project_services.saveAsFunction(),
             .publish_function = project_services.publishFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4580,9 +4849,10 @@ TEST_CASE("EditorController open completion clears busy and commits", "[core][ed
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4613,9 +4883,10 @@ TEST_CASE(
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4648,9 +4919,10 @@ TEST_CASE("EditorController close during busy supersedes open", "[core][editor-c
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4688,10 +4960,10 @@ TEST_CASE("EditorController exit during busy supersedes open", "[core][editor-co
     int exit_call_count = 0;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        [&exit_call_count]() { ++exit_call_count; },
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .exit_function = [&exit_call_count]() { ++exit_call_count; },
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4724,10 +4996,11 @@ TEST_CASE("EditorController close during busy save supersedes write", "[core][ed
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4772,17 +5045,15 @@ TEST_CASE("EditorController exit during busy save persists file", "[core][editor
     std::optional<std::filesystem::path> setting_seen_at_exit{};
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(settings, runner),
+        [&exit_call_count, &setting_seen_at_exit, &settings] {
+            setting_seen_at_exit = settings.lastOpenProject();
+            ++exit_call_count;
+        },
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
             .save_function = project_services.saveFunction(),
-            .exit_function =
-                [&exit_call_count, &setting_seen_at_exit, &settings] {
-                    setting_seen_at_exit = settings.lastOpenProject();
-                    ++exit_call_count;
-                },
-            .settings = &settings,
-            .task_runner = &runner,
-        },
+        }
     };
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
@@ -4813,9 +5084,10 @@ TEST_CASE(
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4863,9 +5135,10 @@ TEST_CASE(
     DeferredEditorTaskRunner runner;
     EditorController controller{
         audioPorts(transport, audio),
-        EditorController::Services{
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .task_runner = &runner,
         }
     };
     FakeEditorView view;
@@ -4890,7 +5163,9 @@ TEST_CASE(
 {
     FakeTransport transport;
     FakeSongAudio audio;
-    EditorController controller{audioPorts(transport, audio)};
+    EditorController controller{
+        audioPorts(transport, audio), defaultControllerServices(), noopExitFunction()
+    };
     FakeEditorView view;
     controller.attachView(view);
 
@@ -4928,7 +5203,11 @@ TEST_CASE("Output gain controls enabled with live rig and arrangement", "[core][
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -4954,7 +5233,11 @@ TEST_CASE("Output gain controls enabled with required live rig", "[core][editor-
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -4978,7 +5261,11 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -5011,7 +5298,11 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -5060,7 +5351,11 @@ TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-co
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -5092,9 +5387,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5143,9 +5439,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5193,9 +5490,10 @@ TEST_CASE("Input calibration start restores route on gain failure", "[core][edit
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5235,9 +5533,10 @@ TEST_CASE("Input calibration start restores route on monitor failure", "[core][e
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5278,9 +5577,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5316,7 +5616,11 @@ TEST_CASE("Output gain changes clamp to valid range", "[core][editor-controller]
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -5340,7 +5644,11 @@ TEST_CASE("Output gain restored from load result", "[core][editor-controller]")
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 
@@ -5376,9 +5684,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5421,9 +5730,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5473,9 +5783,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5532,9 +5843,10 @@ TEST_CASE(
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        EditorController::Services{
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
-            .settings = &settings,
         }
     };
     controller.attachView(view);
@@ -5569,7 +5881,11 @@ TEST_CASE("Output gain resets on project close", "[core][editor-controller]")
     FakeEditorView view;
     EditorController controller{
         audioPorts(transport, audio, plugin_host, live_rig),
-        EditorController::Services{.open_function = project_services.openFunction()}
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
     };
     controller.attachView(view);
 

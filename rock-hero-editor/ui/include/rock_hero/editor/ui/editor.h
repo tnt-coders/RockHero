@@ -6,6 +6,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -73,12 +74,48 @@ public:
         const common::audio::IAudioMeterSource& meter_source;
     };
 
+    /*! \brief Requests host exit after controller-level shutdown policy has completed. */
+    using ExitFunction = std::function<void()>;
+
+    /*! \brief Required services used by the composed editor workflow. */
+    struct Services final
+    {
+        /*! \brief Settings store used for startup restore and exit persistence. */
+        core::IEditorSettings& settings;
+
+        /*! \brief Task runner used for off-thread project IO. */
+        core::IEditorTaskRunner& task_runner;
+    };
+
+    /*! \brief Optional project IO operations used by the composed editor workflow. */
+    struct ProjectOperations final
+    {
+        /*! \brief Opens editor project packages. */
+        core::EditorController::OpenFunction open_function{};
+
+        /*! \brief Imports song sources into editor workspaces. */
+        core::EditorController::ImportFunction import_function{};
+
+        /*! \brief Saves the current editor project. */
+        core::EditorController::SaveFunction save_function{};
+
+        /*! \brief Saves the current editor project to a chosen path. */
+        core::EditorController::SaveAsFunction save_as_function{};
+
+        /*! \brief Publishes the current song as a native song package. */
+        core::EditorController::PublishFunction publish_function{};
+    };
+
     /*!
     \brief Creates the editor feature and immediately pushes initial state to the view.
     \param audio_ports Required ports used by the composed editor feature.
-    \param services Optional controller services used by the composed editor workflow.
+    \param services Required settings and task-runner services.
+    \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
+    \param project_operations Optional project IO operation overrides.
     */
-    explicit Editor(AudioPorts audio_ports, core::EditorController::Services services = {});
+    explicit Editor(
+        AudioPorts audio_ports, Services services, ExitFunction exit_function,
+        ProjectOperations project_operations = {});
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();

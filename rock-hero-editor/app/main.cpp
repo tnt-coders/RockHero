@@ -71,11 +71,11 @@ public:
 
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
-            rock_hero::editor::core::EditorController::Services{
-                .exit_function = &juce::JUCEApplicationBase::quit,
-                .settings = m_editor_settings.get(),
-                .task_runner = m_editor_task_runner.get(),
-            });
+            rock_hero::editor::ui::Editor::Services{
+                .settings = *m_editor_settings,
+                .task_runner = *m_editor_task_runner,
+            },
+            &juce::JUCEApplicationBase::quit);
 
         m_main_window = std::make_unique<rock_hero::editor::ui::MainWindow>(
             getApplicationName(), std::move(editor), &juce::JUCEApplicationBase::quit);
