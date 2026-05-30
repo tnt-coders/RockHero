@@ -1,6 +1,6 @@
 # Input Calibration Workflow and Popup Cleanup Plan
 
-Status: implemented; pending a manual popup smoke test before this note moves to `docs/completed/`.
+Status: complete. Manual popup smoke testing passed before this note moved to `docs/completed/`.
 This plan replaced the earlier narrow type-rename note and was framed around the workflow shape
 rather than around isolated names.
 
@@ -26,10 +26,9 @@ Post-review fix applied: `InputCalibrationController::gainText` now rounds to th
 before formatting, restoring the old `juce::String{value, 1}` rounding (it had regressed to
 truncation, so e.g. 2.06 dB showed as "2.0" instead of "2.1").
 
-Outstanding before archiving: a manual smoke test of the calibration popup -- automatic capture,
-manual apply, cancel, and the error path -- since the migration moved a live capture state machine
-out of JUCE and the new controller tests pin the new behavior rather than proving parity with the
-old popup.
+Manual smoke testing covered the calibration popup's automatic capture, manual apply, cancel, and
+error path. That closes the remaining parity check after moving the live capture state machine out
+of JUCE.
 
 ## Problem
 
