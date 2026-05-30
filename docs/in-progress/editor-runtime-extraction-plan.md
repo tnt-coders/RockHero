@@ -100,7 +100,7 @@ Names describe practical responsibility. Use `State` for a small state machine o
 for public view-facing controller contracts. Avoid `Manager`, `Handler`, `Helper`, and broad
 `Service` names.
 
-The four extracted runtime types from Stages 1–4 — `BusyOperationState`, `DeferredEditorActionState`,
+The four extracted runtime types from Stages 1–4 — `BusyOperationState`, `DeferredProjectActionState`,
 `PluginCatalogWorkflow`, `InputCalibrationWorkflow` — already conform. The editor-relevant slice of
 the role vocabulary used in Stage 6:
 
@@ -133,7 +133,7 @@ EditorView
   -> IEditorController
       -> EditorController root facade
           -> BusyOperationState
-          -> DeferredEditorActionState
+          -> DeferredProjectActionState
           -> PluginCatalogWorkflow
           -> InputCalibrationWorkflow
       -> common/audio, editor/core Project, EditorSettings, IEditorTaskRunner
@@ -224,7 +224,7 @@ liveness guards.
 are still dropped; paint-fence behavior unchanged; direct busy-state tests need no JUCE window or
 audio device.
 
-## Stage 2: Extract `DeferredEditorActionState`
+## Stage 2: Extract `DeferredProjectActionState`
 
 **Owns:** the deferred project action; unsaved-changes prompt visibility; Save As prompt visibility.
 
@@ -237,7 +237,7 @@ calls.
 
 **Steps.**
 
-1. Add `DeferredEditorActionState` with direct state-machine tests.
+1. Add `DeferredProjectActionState` with direct state-machine tests.
 2. Move deferred-action storage and prompt-visibility fields into it.
 3. Express prompt decisions as return values: cancel, save first, discard and replay, or continue
    waiting.
