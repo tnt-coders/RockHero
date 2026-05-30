@@ -11,8 +11,8 @@ target_sources(
             src/busy_operation_state.cpp
             src/busy_operation_state.h
             src/busy_view_state.cpp
-            src/deferred_editor_action_state.cpp
-            src/deferred_editor_action_state.h
+            src/deferred_project_action_state.cpp
+            src/deferred_project_action_state.h
             src/editor_action.cpp
             src/editor_action.h
             src/editor_controller.cpp
