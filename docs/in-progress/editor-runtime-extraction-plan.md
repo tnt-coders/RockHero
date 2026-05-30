@@ -1,8 +1,7 @@
 # Editor Runtime Extraction Plan
 
-Status: in-progress plan. Runtime stages 0-5 are implemented; the active work is Stage 6
-readability cleanup plus the focused action-policy follow-up in
-`editor-action-policy-cleanup-plan.md`.
+Status: in-progress plan. Runtime stages 0-5 are implemented; the focused action-policy
+follow-up is implemented. The remaining active scope is Stage 6 naming/folder readability cleanup.
 
 ## Scope
 
@@ -18,8 +17,8 @@ Related documents hold the rest:
   framework-isolation Part 2, speculative runtime types, durable design-doc updates).
 - `docs/completed/editor-structure-dropped-candidates.md` - process steps from the master plan that
   are not worth formalizing on a solo, early-stage project.
-- `docs/in-progress/editor-action-policy-cleanup-plan.md` - focused Stage 5/6 follow-up for pure
-  action metadata and availability-policy cleanup.
+- `docs/completed/editor-action-policy-cleanup-plan.md` - completed Stage 5/6 follow-up for
+  pure action metadata and availability-policy cleanup.
 
 This document is self-contained: it does not depend on the deleted master plan.
 
@@ -359,12 +358,9 @@ shape and found no additional extraction that should block Stage 6:
   boundary exposes a stronger authoritative chain model.
 - A pure `EditorController::Impl` declaration/definition reorder is deferred to Stage 6. It is a
   readability/taxonomy change, not remaining runtime boundary debt.
-- Availability projection stays in `EditorController` for now. `deriveViewState()` and
-  `actionAvailableWhenIdle()` are still understandable after the cleanup, and an
-  `EditorStateProjector` would currently add indirection without deleting ownership.
-- A follow-up action-policy review found that pure action metadata should not remain as loose
-  anonymous controller helpers. See `docs/in-progress/editor-action-policy-cleanup-plan.md`; this
-  refines the Stage 5 cleanup without adding a broad action router.
+- The focused follow-up moved pure action availability into private `editor_action_availability`
+  code. `EditorController` now collects `ActionConditions` and still owns view-state construction;
+  no broad action router or `EditorStateProjector` was introduced.
 - Framework-isolation Part 2 remains deferred. The remaining direct JUCE message-thread scheduling
   sites are known and documented in `docs/todo/editor-structure-deferred-work.md`.
 
@@ -375,10 +371,9 @@ This stage is intentionally limited to the editor modules you are actively worki
 codebase-wide readability reorg (common/audio, game, namespaces) is deferred to
 `docs/todo/editor-structure-deferred-work.md`. Behavior does not change in this stage.
 
-Before folder moves, apply the focused action-policy cleanup in
-`docs/in-progress/editor-action-policy-cleanup-plan.md`. It is a Stage 5/6 bridge: pure action
-metadata should move out of controller anonymous helpers, while side-effect dispatch stays in the
-root facade.
+The focused action-policy cleanup in `docs/completed/editor-action-policy-cleanup-plan.md` has
+been applied. Pure action metadata and availability policy no longer live as loose controller
+helpers, while side-effect dispatch stays in the root facade.
 
 ### 6a. Editor Naming Fixes
 

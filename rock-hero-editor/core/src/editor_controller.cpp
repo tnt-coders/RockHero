@@ -4,6 +4,7 @@
 #include "busy_operation_state.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
+#include "editor_action_availability.h"
 #include "input_calibration_workflow.h"
 #include "plugin_catalog_workflow.h"
 #include "project_io.h"
@@ -426,8 +427,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
-    [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
-    [[nodiscard]] static bool actionSupersedesBusy(EditorAction::Id action) noexcept;
+    [[nodiscard]] ActionConditions currentActionConditions() const;
+    [[nodiscard]] ActionConditions currentActionConditions(
+        const InputCalibrationWorkflow::Snapshot& input_calibration,
+        const common::audio::TransportState& transport_state) const;
 
     void requestProjectAction(EditorAction::ProjectAction action);
     void runProjectAction(EditorAction::ProjectAction action);
@@ -2096,116 +2099,39 @@ void EditorController::Impl::onOutputGainChanged(double gain_db)
     updateView();
 }
 
-// Combines natural action availability with the action's busy-state policy.
+// Collects availability inputs using fresh controller snapshots for immediate action gates.
+ActionConditions EditorController::Impl::currentActionConditions() const
+{
+    const InputCalibrationWorkflow::Snapshot input_calibration =
+        m_input_calibration.snapshot(inputCalibrationContext());
+
+    return currentActionConditions(input_calibration, m_transport.state());
+}
+
+// Reuses already-sampled view projection state so enabled flags share one availability snapshot.
+ActionConditions EditorController::Impl::currentActionConditions(
+    const InputCalibrationWorkflow::Snapshot& input_calibration,
+    const common::audio::TransportState& transport_state) const
+{
+    return ActionConditions{
+        .busy = isBusy(),
+        .input_calibration_prompt_visible = input_calibration.prompt.has_value(),
+        .live_input_audition_available = input_calibration.live_input_audition_available,
+        .has_project = m_project.has_value(),
+        .has_unsaved_changes_prompt =
+            m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
+        .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
+        .has_loaded_arrangement = hasLoadedArrangement(),
+        .can_stop_transport = canStopTransport(transport_state),
+        .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
+        .has_loaded_plugins = !m_plugins.empty(),
+    };
+}
+
+// Evaluates a single action using one captured set of controller conditions.
 bool EditorController::Impl::canRunAction(EditorAction::Id action) const
 {
-    if (isBusy())
-    {
-        return actionSupersedesBusy(action);
-    }
-
-    return actionAvailableWhenIdle(action);
-}
-
-// Keeps action availability in one policy table instead of relying on the view to hide actions.
-bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) const
-{
-    if (m_input_calibration.promptVisible() &&
-        (action == EditorAction::Id::PlayPause || action == EditorAction::Id::ShowPluginBrowser ||
-         action == EditorAction::Id::ScanPluginCatalog || action == EditorAction::Id::AddPlugin ||
-         action == EditorAction::Id::RemovePlugin || action == EditorAction::Id::OpenPlugin))
-    {
-        return false;
-    }
-
-    const bool live_input_audition_available =
-        m_input_calibration.snapshot(inputCalibrationContext()).live_input_audition_available;
-
-    switch (action)
-    {
-        case EditorAction::Id::OpenProject:
-        case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportSong:
-        case EditorAction::Id::ExitApplication:
-        {
-            return true;
-        }
-        case EditorAction::Id::SaveProject:
-        case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
-        case EditorAction::Id::CloseProject:
-        {
-            return m_project.has_value();
-        }
-        case EditorAction::Id::ResolveUnsavedChangesPrompt:
-        {
-            return m_deferred_project_action_state.unsavedChangesPrompt().has_value();
-        }
-        case EditorAction::Id::CancelSaveAsPrompt:
-        {
-            return m_deferred_project_action_state.saveAsPrompt().has_value();
-        }
-        case EditorAction::Id::PlayPause:
-        case EditorAction::Id::SeekWaveform:
-        {
-            return hasLoadedArrangement();
-        }
-        case EditorAction::Id::Stop:
-        {
-            return canStopTransport(m_transport.state());
-        }
-        case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::ScanPluginCatalog:
-        {
-            return hasLoadedArrangement() && live_input_audition_available;
-        }
-        case EditorAction::Id::AddPlugin:
-        {
-            return hasLoadedArrangement() && live_input_audition_available &&
-                   m_plugin_catalog.hasCandidates();
-        }
-        case EditorAction::Id::RemovePlugin:
-        case EditorAction::Id::OpenPlugin:
-        {
-            return hasLoadedArrangement() && live_input_audition_available && !m_plugins.empty();
-        }
-    }
-
-    return false;
-}
-
-// Encodes the small set of actions that intentionally take over an active busy operation.
-bool EditorController::Impl::actionSupersedesBusy(EditorAction::Id action) noexcept
-{
-    switch (action)
-    {
-        case EditorAction::Id::CloseProject:
-        case EditorAction::Id::ExitApplication:
-        {
-            return true;
-        }
-        case EditorAction::Id::OpenProject:
-        case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportSong:
-        case EditorAction::Id::SaveProject:
-        case EditorAction::Id::SaveProjectAs:
-        case EditorAction::Id::PublishProject:
-        case EditorAction::Id::ResolveUnsavedChangesPrompt:
-        case EditorAction::Id::CancelSaveAsPrompt:
-        case EditorAction::Id::PlayPause:
-        case EditorAction::Id::Stop:
-        case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPlugin:
-        case EditorAction::Id::RemovePlugin:
-        case EditorAction::Id::OpenPlugin:
-        {
-            return false;
-        }
-    }
-
-    return false;
+    return isActionAvailable(action, currentActionConditions());
 }
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
@@ -2777,41 +2703,47 @@ EditorViewState EditorController::Impl::deriveViewState() const
     const common::core::TimeRange timeline_range = session().timeline();
     const InputCalibrationWorkflow::Snapshot input_calibration =
         m_input_calibration.snapshot(inputCalibrationContext());
+    const ActionConditions action_conditions =
+        currentActionConditions(input_calibration, transport_state);
 
     EditorViewState state;
-    state.open_enabled = canRunAction(EditorAction::Id::OpenProject);
-    state.import_enabled = canRunAction(EditorAction::Id::ImportSong);
-    state.save_enabled = canRunAction(EditorAction::Id::SaveProject);
-    state.save_as_enabled = canRunAction(EditorAction::Id::SaveProjectAs);
-    state.publish_enabled = canRunAction(EditorAction::Id::PublishProject);
+    state.open_enabled = isActionAvailable(EditorAction::Id::OpenProject, action_conditions);
+    state.import_enabled = isActionAvailable(EditorAction::Id::ImportSong, action_conditions);
+    state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
+    state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
+    state.publish_enabled = isActionAvailable(EditorAction::Id::PublishProject, action_conditions);
     if (!m_project_file.empty())
     {
         state.suggested_publish_file = m_project_file;
         state.suggested_publish_file.replace_extension(".rock");
     }
-    state.close_enabled = canRunAction(EditorAction::Id::CloseProject);
-    state.project_loaded = session().currentArrangement() != nullptr;
+    state.close_enabled = isActionAvailable(EditorAction::Id::CloseProject, action_conditions);
+    state.project_loaded = action_conditions.has_loaded_arrangement;
     state.save_requires_destination = m_save_requires_destination;
-    state.transport.play_pause_enabled = canRunAction(EditorAction::Id::PlayPause);
-    state.transport.stop_enabled = canRunAction(EditorAction::Id::Stop);
+    state.transport.play_pause_enabled =
+        isActionAvailable(EditorAction::Id::PlayPause, action_conditions);
+    state.transport.stop_enabled = isActionAvailable(EditorAction::Id::Stop, action_conditions);
     state.transport.play_pause_shows_pause_icon = transport_state.playing;
     state.audio_devices_available = true;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
-        .add_plugin_enabled = canRunAction(EditorAction::Id::ShowPluginBrowser),
-        .remove_plugins_enabled = canRunAction(EditorAction::Id::RemovePlugin),
+        .add_plugin_enabled =
+            isActionAvailable(EditorAction::Id::ShowPluginBrowser, action_conditions),
+        .remove_plugins_enabled =
+            isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
         .plugins = m_plugins,
         .input_calibration_status = input_calibration.status,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,
-        .output_gain_controls_enabled = m_project_audio_ready && hasLoadedArrangement(),
+        .output_gain_controls_enabled =
+            m_project_audio_ready && action_conditions.has_loaded_arrangement,
         .output_gain_db = m_output_gain_db,
     };
     state.plugin_browser = m_plugin_catalog.viewState(
-        canRunAction(EditorAction::Id::ScanPluginCatalog),
-        canRunAction(EditorAction::Id::AddPlugin));
+        isActionAvailable(EditorAction::Id::ScanPluginCatalog, action_conditions),
+        isActionAvailable(EditorAction::Id::AddPlugin, action_conditions));
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {

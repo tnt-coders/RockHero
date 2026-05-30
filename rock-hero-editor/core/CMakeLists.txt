@@ -15,6 +15,8 @@ target_sources(
             src/deferred_project_action_state.h
             src/editor_action.cpp
             src/editor_action.h
+            src/editor_action_availability.cpp
+            src/editor_action_availability.h
             src/editor_controller.cpp
             src/input_calibration_controller.cpp
             src/input_calibration_workflow.cpp
