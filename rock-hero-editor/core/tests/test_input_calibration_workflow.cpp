@@ -24,10 +24,10 @@ namespace
     };
 }
 
-[[nodiscard]] InputCalibrationFacts readyFacts(
+[[nodiscard]] InputCalibrationWorkflow::Context readyContext(
     std::optional<common::audio::InputDeviceIdentity> identity)
 {
-    return InputCalibrationFacts{
+    return InputCalibrationWorkflow::Context{
         .project_audio_ready = true,
         .arrangement_loaded = true,
         .current_input_device_identity = std::move(identity),
@@ -44,7 +44,7 @@ namespace
 }
 
 [[nodiscard]] bool hasEffect(
-    const InputCalibrationEffects& effects, InputCalibrationEffect expected)
+    const InputCalibrationWorkflow::Effects& effects, InputCalibrationWorkflow::Effect expected)
 {
     return std::ranges::find(effects, expected) != effects.end();
 }
@@ -71,11 +71,12 @@ TEST_CASE("Input calibration workflow preserves matching startup calibration", "
     const common::audio::InputDeviceIdentity identity = makeIdentity();
 
     CHECK_FALSE(workflow.load(calibrationFor(identity, 5.0)));
-    const InputCalibrationEffects effects = workflow.syncCommittedInputDeviceIdentity(identity);
+    const InputCalibrationWorkflow::Effects effects =
+        workflow.syncCommittedInputDeviceIdentity(identity);
 
     CHECK(effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationSnapshot snapshot = workflow.snapshot(readyFacts(identity));
+    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
     CHECK(snapshot.status == InputCalibrationStatus::Calibrated);
     CHECK(snapshot.live_input_audition_available);
 }
@@ -88,22 +89,22 @@ TEST_CASE("Input calibration workflow clears state on committed route change", "
         makeIdentity("Windows Audio", "Interface B");
     REQUIRE_FALSE(workflow.load(calibrationFor(initial_identity, 4.0)));
     REQUIRE(workflow.syncCommittedInputDeviceIdentity(initial_identity).empty());
-    REQUIRE(workflow.requestPrompt(readyFacts(initial_identity)));
-    auto measurement = workflow.prepareMeasurementStart(readyFacts(initial_identity));
+    REQUIRE(workflow.requestPrompt(readyContext(initial_identity)));
+    auto measurement = workflow.prepareMeasurementStart(readyContext(initial_identity));
     REQUIRE(measurement.has_value());
     workflow.activateMeasurement(std::move(*measurement));
 
-    const InputCalibrationEffects effects =
+    const InputCalibrationWorkflow::Effects effects =
         workflow.syncCommittedInputDeviceIdentity(next_identity);
 
-    CHECK(hasEffect(effects, InputCalibrationEffect::PersistCalibration));
-    CHECK(hasEffect(effects, InputCalibrationEffect::DisableCalibrationInputMonitoring));
-    CHECK(hasEffect(effects, InputCalibrationEffect::DisableLiveInputMonitoring));
+    CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::PersistCalibration));
+    CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
+    CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring));
     CHECK_FALSE(workflow.calibrationState().has_value());
     CHECK_FALSE(workflow.promptVisible());
     CHECK_FALSE(workflow.hasActiveMeasurement());
     CHECK(
-        workflow.snapshot(readyFacts(next_identity)).status ==
+        workflow.snapshot(readyContext(next_identity)).status ==
         InputCalibrationStatus::MissingCalibration);
 }
 
@@ -114,14 +115,16 @@ TEST_CASE("Input calibration workflow ignores transient null route in settings",
     REQUIRE_FALSE(workflow.load(calibrationFor(identity, 4.0)));
     REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity).empty());
 
-    const InputCalibrationEffects open_effects = workflow.openAudioDeviceSettings();
-    const InputCalibrationEffects effects = workflow.syncCommittedInputDeviceIdentity(std::nullopt);
+    const InputCalibrationWorkflow::Effects open_effects = workflow.openAudioDeviceSettings();
+    const InputCalibrationWorkflow::Effects effects =
+        workflow.syncCommittedInputDeviceIdentity(std::nullopt);
 
-    CHECK(hasEffect(open_effects, InputCalibrationEffect::DisableLiveInputMonitoring));
-    CHECK(hasEffect(open_effects, InputCalibrationEffect::DisableCalibrationInputMonitoring));
+    CHECK(hasEffect(open_effects, InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring));
+    CHECK(hasEffect(
+        open_effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
     CHECK(effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationSnapshot snapshot = workflow.snapshot(readyFacts(identity));
+    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
     CHECK(snapshot.status == InputCalibrationStatus::Calibrated);
     CHECK_FALSE(snapshot.live_input_audition_available);
     CHECK_FALSE(snapshot.audio_device_settings_enabled);
@@ -133,31 +136,33 @@ TEST_CASE("Input calibration workflow preserves calibration through route loss",
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     REQUIRE_FALSE(workflow.load(calibrationFor(identity, 4.0)));
     REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity).empty());
-    REQUIRE(workflow.requestPrompt(readyFacts(identity)));
-    auto measurement = workflow.prepareMeasurementStart(readyFacts(identity));
+    REQUIRE(workflow.requestPrompt(readyContext(identity)));
+    auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
     REQUIRE(measurement.has_value());
     workflow.activateMeasurement(std::move(*measurement));
 
-    const InputCalibrationEffects lost_effects =
+    const InputCalibrationWorkflow::Effects lost_effects =
         workflow.syncCommittedInputDeviceIdentity(std::nullopt);
 
-    CHECK(hasEffect(lost_effects, InputCalibrationEffect::DisableLiveInputMonitoring));
-    CHECK(hasEffect(lost_effects, InputCalibrationEffect::DisableCalibrationInputMonitoring));
-    CHECK_FALSE(hasEffect(lost_effects, InputCalibrationEffect::PersistCalibration));
+    CHECK(hasEffect(lost_effects, InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring));
+    CHECK(hasEffect(
+        lost_effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
+    CHECK_FALSE(hasEffect(lost_effects, InputCalibrationWorkflow::Effect::PersistCalibration));
     CHECK_FALSE(workflow.promptVisible());
     CHECK_FALSE(workflow.hasActiveMeasurement());
     REQUIRE(workflow.calibrationState().has_value());
     CHECK(workflow.calibrationState()->calibration_gain.db == 4.0);
     CHECK(
-        workflow.snapshot(readyFacts(std::nullopt)).status ==
+        workflow.snapshot(readyContext(std::nullopt)).status ==
         InputCalibrationStatus::NoActiveInputDevice);
 
-    const InputCalibrationEffects restored_effects =
+    const InputCalibrationWorkflow::Effects restored_effects =
         workflow.syncCommittedInputDeviceIdentity(identity);
 
     CHECK(restored_effects.empty());
     CHECK(workflow.calibrationMatches(identity));
-    const InputCalibrationSnapshot restored_snapshot = workflow.snapshot(readyFacts(identity));
+    const InputCalibrationWorkflow::Snapshot restored_snapshot =
+        workflow.snapshot(readyContext(identity));
     CHECK(restored_snapshot.status == InputCalibrationStatus::Calibrated);
     CHECK(restored_snapshot.live_input_audition_available);
 }
@@ -168,11 +173,11 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[c
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     REQUIRE_FALSE(workflow.load(calibrationFor(identity, 4.0)));
     REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity).empty());
-    REQUIRE(workflow.requestPrompt(readyFacts(identity)));
+    REQUIRE(workflow.requestPrompt(readyContext(identity)));
 
     workflow.markBackendUnavailable();
 
-    const InputCalibrationSnapshot snapshot = workflow.snapshot(readyFacts(identity));
+    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
     CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
     CHECK_FALSE(snapshot.live_input_audition_available);
     CHECK_FALSE(snapshot.prompt.has_value());
@@ -185,7 +190,7 @@ TEST_CASE("Input calibration workflow rejects stale measurement start", "[core][
     InputCalibrationWorkflow workflow;
     const common::audio::InputDeviceIdentity identity = makeIdentity();
 
-    const auto measurement = workflow.prepareMeasurementStart(readyFacts(identity));
+    const auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
 
     REQUIRE_FALSE(measurement.has_value());
     CHECK(measurement.error().code == common::audio::LiveInputErrorCode::InputRouteUnavailable);
@@ -199,17 +204,17 @@ TEST_CASE(
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     REQUIRE_FALSE(workflow.load(calibrationFor(identity, 4.0)));
     REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity).empty());
-    REQUIRE(workflow.requestPrompt(readyFacts(identity)));
-    auto measurement = workflow.prepareMeasurementStart(readyFacts(identity));
+    REQUIRE(workflow.requestPrompt(readyContext(identity)));
+    auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
     REQUIRE(measurement.has_value());
     workflow.activateMeasurement(std::move(*measurement));
 
-    const auto commit_plan = workflow.prepareActiveMeasurementCommit(6.0, readyFacts(identity));
+    const auto commit_plan = workflow.prepareActiveMeasurementCommit(6.0, readyContext(identity));
     REQUIRE(commit_plan.has_value());
     workflow.preservePreviousCalibrationAfterCommitFailure(
         commit_plan->previous_calibration_state, identity);
 
-    const InputCalibrationSnapshot snapshot = workflow.snapshot(readyFacts(identity));
+    const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
     CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
     CHECK_FALSE(snapshot.prompt.has_value());
     REQUIRE(workflow.calibrationState().has_value());

@@ -3,12 +3,11 @@
 #include "audio_level_meter.h"
 
 #include <BinaryData.h>
-#include <algorithm>
-#include <cmath>
 #include <memory>
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/input_calibration.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/input_calibration_controller.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -34,13 +33,6 @@ constexpr int g_input_calibration_content_margin{14};
 constexpr int g_input_calibration_preferred_width{
     g_input_calibration_meter_width + (g_input_calibration_content_margin * 2)
 };
-
-// Keeps tiny negative values that display at one decimal from showing up as "-0.0 dB".
-[[nodiscard]] double canonicalInputGainDb(double gain_db)
-{
-    const double rounded_tenths = std::round(gain_db * 10.0);
-    return rounded_tenths == 0.0 ? 0.0 : gain_db;
-}
 
 [[nodiscard]] juce::String inputCalibrationTargetText()
 {
@@ -87,34 +79,6 @@ constexpr int g_input_calibration_preferred_width{
     return documentation.existsAsFile() && documentation.startAsProcess();
 }
 
-[[nodiscard]] juce::String inputCalibrationReadyText()
-{
-    return "Click \"Calibrate\" to run automatic calibration, or adjust gain manually and click "
-           "\"Apply\".";
-}
-
-[[nodiscard]] juce::String inputCalibrationWaitingText()
-{
-    return "Waiting for input... Strum all open strings at a steady, moderate volume.";
-}
-
-[[nodiscard]] juce::String inputCalibrationMeasuringText()
-{
-    return "Keep strumming all open strings at a steady, moderate volume.";
-}
-
-[[nodiscard]] juce::String inputCalibrationCompleteText(double gain_db)
-{
-    return juce::String{"Calibration complete. Gain set to "} +
-           juce::String{canonicalInputGainDb(gain_db), 1} + " dB.";
-}
-
-[[nodiscard]] juce::String inputManualCalibrationCompleteText(double gain_db)
-{
-    return juce::String{"Manual calibration saved. Gain set to "} +
-           juce::String{canonicalInputGainDb(gain_db), 1} + " dB.";
-}
-
 void configureManualInputGainSlider(juce::Slider& slider)
 {
     slider.setComponentID("input_calibration_manual_gain");
@@ -126,34 +90,28 @@ void configureManualInputGainSlider(juce::Slider& slider)
     slider.setTextValueSuffix(" dB");
 }
 
-[[nodiscard]] common::audio::AudioMeterLevel applyDisplayGain(
-    common::audio::AudioMeterLevel level, double gain_db)
-{
-    if (level.peak_db <= common::audio::minimumAudioMeterDb())
-    {
-        return level;
-    }
-
-    level.peak_db = std::clamp(level.peak_db + gain_db, common::audio::minimumAudioMeterDb(), 12.0);
-    level.clipping = level.clipping || level.peak_db >= common::audio::clippingAudioMeterDb();
-    return level;
-}
-
 } // namespace
 
 // Self-contained calibration prompt that samples raw input and reports the result to controller.
-class InputCalibrationWindow::Content final : public juce::Component, private juce::Timer
+class InputCalibrationWindow::Content final : public juce::Component,
+                                              private juce::Timer,
+                                              private core::IInputCalibrationView,
+                                              private core::InputCalibrationController::Host
 {
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
         const common::audio::ILiveInput* live_input, core::InputCalibrationPrompt prompt)
         : m_owner(owner)
-        , m_controller(controller)
+        , m_editor_controller(controller)
         , m_live_input(live_input)
-        , m_input_gain_db(canonicalInputGainDb(prompt.input_gain_db))
-        , m_committed_input_gain_db(m_input_gain_db)
-        , m_measurement_restore_gain_db(m_input_gain_db)
+        , m_calibration_controller(
+              *this, std::move(prompt),
+              core::InputCalibrationController::CaptureSettings{
+                  .settle_sample_count = g_input_calibration_settle_sample_count,
+                  .wait_sample_count = g_input_calibration_wait_sample_count,
+                  .measurement_sample_count = g_input_calibration_sample_count,
+              })
         , m_input_meter(AudioLevelMeterOrientation::Horizontal, "Input")
     {
         m_target_label.setComponentID("input_calibration_target");
@@ -181,17 +139,19 @@ public:
         addAndMakeVisible(m_manual_label);
 
         configureManualInputGainSlider(m_manual_gain_slider);
-        setDisplayedInputGain(m_input_gain_db);
-        m_manual_gain_slider.onValueChange = [this] { updateManualGainPreview(); };
+        m_manual_gain_slider.onValueChange = [this] {
+            m_calibration_controller.onManualGainChanged(m_manual_gain_slider.getValue());
+        };
         addAndMakeVisible(m_manual_gain_slider);
 
         m_manual_apply_button.setComponentID("input_calibration_manual_apply_button");
         m_manual_apply_button.setButtonText("Apply");
-        m_manual_apply_button.onClick = [this] { applyManualCalibration(); };
+        m_manual_apply_button.onClick = [this] {
+            m_calibration_controller.onManualApplyRequested();
+        };
         addAndMakeVisible(m_manual_apply_button);
 
         m_status.setComponentID("input_calibration_status");
-        m_status.setText(inputCalibrationReadyText(), juce::dontSendNotification);
         m_status.setJustificationType(juce::Justification::centredLeft);
         m_status.setColour(
             juce::Label::backgroundColourId, juce::Colour::fromRGB(31, 39, 47).withAlpha(0.92f));
@@ -212,7 +172,14 @@ public:
         addAndMakeVisible(m_cancel_button);
 
         setSize(g_input_calibration_preferred_width, preferredHeight());
+        m_calibration_controller.attachView(*this);
         startTimerHz(g_input_calibration_meter_hz);
+    }
+
+    ~Content() override
+    {
+        stopTimer();
+        m_calibration_controller.detachView(*this);
     }
 
     void resized() override
@@ -239,6 +206,11 @@ public:
         m_calibrate_button.setBounds(buttons.removeFromRight(96));
     }
 
+    void requestDismissal()
+    {
+        m_calibration_controller.onDismissRequested();
+    }
+
 private:
     [[nodiscard]] int preferredHeight() const
     {
@@ -262,68 +234,45 @@ private:
         setSize(g_input_calibration_preferred_width, preferredHeight());
     }
 
-    void setStatusText(const juce::String& text)
+    void setState(const core::InputCalibrationViewState& state) override
     {
-        m_status.setText(text, juce::dontSendNotification);
+        m_input_meter.setLevel(state.input_meter_level);
+        m_manual_gain_slider.setValue(state.input_gain_db, juce::dontSendNotification);
+        m_manual_gain_slider.updateText();
+        m_status.setText(juce::String{state.status_message}, juce::dontSendNotification);
+        m_calibrate_button.setEnabled(state.start_measurement_enabled);
+        m_manual_gain_slider.setEnabled(state.manual_gain_controls_enabled);
+        m_manual_apply_button.setEnabled(state.manual_gain_controls_enabled);
+        m_cancel_button.setButtonText(juce::String{state.dismiss_button_text});
         syncPreferredSize();
     }
 
-    void setDisplayedInputGain(double gain_db)
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError>
+    startInputCalibrationMeasurement() override
     {
-        m_input_gain_db = canonicalInputGainDb(gain_db);
-        m_manual_gain_slider.setValue(m_input_gain_db, juce::dontSendNotification);
-        m_manual_gain_slider.updateText();
+        return m_editor_controller.onInputCalibrationMeasurementStarted();
     }
 
-    void refreshInputMeter()
+    void cancelInputCalibrationMeasurement() override
     {
-        if (m_live_input != nullptr)
-        {
-            m_input_meter.setLevel(
-                applyDisplayGain(m_live_input->rawInputMeterLevel(), m_input_gain_db));
-        }
+        m_editor_controller.onInputCalibrationMeasurementCancelled();
     }
 
-    void updateManualGainPreview()
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyAutomaticInputCalibration(
+        double gain_db) override
     {
-        if (m_capture.active())
-        {
-            return;
-        }
-
-        m_input_gain_db = canonicalInputGainDb(m_manual_gain_slider.getValue());
-        refreshInputMeter();
+        return m_editor_controller.onInputCalibrationSucceeded(gain_db);
     }
 
-    void setManualControlsEnabled(bool enabled)
+    [[nodiscard]] std::expected<void, common::audio::LiveInputError> applyManualInputCalibration(
+        double gain_db) override
     {
-        m_manual_gain_slider.setEnabled(enabled);
-        m_manual_apply_button.setEnabled(enabled);
+        return m_editor_controller.onInputCalibrationManuallySet(gain_db);
     }
 
-    void applyManualCalibration()
+    void dismissInputCalibration() override
     {
-        if (m_capture.active())
-        {
-            return;
-        }
-
-        m_input_gain_db = canonicalInputGainDb(m_manual_gain_slider.getValue());
-        auto applied = m_controller.onInputCalibrationManuallySet(m_input_gain_db);
-        if (!applied.has_value())
-        {
-            setStatusText(juce::String{applied.error().message});
-            m_calibrate_button.setEnabled(true);
-            setManualControlsEnabled(true);
-            return;
-        }
-
-        setStatusText(inputManualCalibrationCompleteText(m_input_gain_db));
-        m_committed_input_gain_db = m_input_gain_db;
-        m_measurement_restore_gain_db = m_input_gain_db;
-        m_calibrate_button.setEnabled(true);
-        setManualControlsEnabled(true);
-        m_cancel_button.setButtonText("Close");
+        m_editor_controller.onInputCalibrationDismissed();
     }
 
     // Reports missing generated docs in the popup instead of letting the help button fail silently.
@@ -334,40 +283,25 @@ private:
             return;
         }
 
-        setStatusText(
-            "Input calibration guide is unavailable. Build the docs target and try again.");
+        m_calibration_controller.onDocumentationUnavailable();
     }
 
     void startMeasurement()
     {
         if (m_live_input == nullptr)
         {
-            setStatusText("Live input is unavailable.");
-            m_calibrate_button.setEnabled(true);
-            setManualControlsEnabled(true);
+            m_calibration_controller.onMeterSourceUnavailable();
             return;
         }
 
-        auto started = m_controller.onInputCalibrationMeasurementStarted();
-        if (!started.has_value())
+        if (!m_calibration_controller.onMeasurementStartRequested())
         {
-            setStatusText(juce::String{started.error().message});
-            m_calibrate_button.setEnabled(true);
-            setManualControlsEnabled(true);
             return;
         }
 
-        m_measurement_restore_gain_db = m_committed_input_gain_db;
-        setDisplayedInputGain(common::audio::defaultGainDb());
-        m_capture.start();
-        m_last_capture_phase = m_capture.phase();
         // rawInputMeterLevel() clears the Tracktion meter reader, so this primes retry runs
         // after the controller has reset input gain and rebuilt the calibration route.
         (void)m_live_input->rawInputMeterLevel();
-        m_calibrate_button.setEnabled(false);
-        setManualControlsEnabled(false);
-        m_cancel_button.setButtonText("Dismiss");
-        setStatusText(inputCalibrationWaitingText());
     }
 
     void timerCallback() override
@@ -377,82 +311,13 @@ private:
         {
             level = m_live_input->rawInputMeterLevel();
         }
-        m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
-
-        if (!m_capture.active())
-        {
-            return;
-        }
-
-        const common::audio::InputCalibrationCaptureUpdate update = m_capture.pushSample(level);
-        if (update.phase == common::audio::InputCalibrationCapturePhase::Measuring &&
-            m_last_capture_phase != common::audio::InputCalibrationCapturePhase::Measuring)
-        {
-            setStatusText(inputCalibrationMeasuringText());
-        }
-        m_last_capture_phase = update.phase;
-        if (update.error.has_value())
-        {
-            finishMeasurementError(juce::String{update.error->message});
-            return;
-        }
-        if (update.result.has_value())
-        {
-            finishMeasurementSuccess(*update.result, level);
-        }
-    }
-
-    // Applies a successful automatic capture and mirrors the result in the manual gain control.
-    void finishMeasurementSuccess(
-        const common::audio::InputCalibrationResult& result, common::audio::AudioMeterLevel level)
-    {
-        setDisplayedInputGain(result.calibration_gain.db);
-        m_input_meter.setLevel(applyDisplayGain(level, m_input_gain_db));
-
-        auto applied = m_controller.onInputCalibrationSucceeded(m_input_gain_db);
-        if (!applied.has_value())
-        {
-            finishMeasurementError(juce::String{applied.error().message});
-            return;
-        }
-
-        setStatusText(inputCalibrationCompleteText(m_input_gain_db));
-        m_capture.reset();
-        m_last_capture_phase = m_capture.phase();
-        m_committed_input_gain_db = m_input_gain_db;
-        m_measurement_restore_gain_db = m_input_gain_db;
-        m_calibrate_button.setEnabled(true);
-        setManualControlsEnabled(true);
-        m_cancel_button.setButtonText("Close");
-    }
-
-    // Stops backend calibration monitoring and leaves the popup open for another attempt.
-    void finishMeasurementError(const juce::String& message)
-    {
-        m_controller.onInputCalibrationMeasurementCancelled();
-        m_capture.reset();
-        m_last_capture_phase = m_capture.phase();
-        setDisplayedInputGain(m_measurement_restore_gain_db);
-        refreshInputMeter();
-        setStatusText(message);
-        m_calibrate_button.setEnabled(true);
-        setManualControlsEnabled(true);
+        m_calibration_controller.onMeterSampled(level);
     }
 
     InputCalibrationWindow& m_owner;
-    core::IEditorController& m_controller;
+    core::IEditorController& m_editor_controller;
     const common::audio::ILiveInput* m_live_input{};
-    common::audio::InputCalibrationCapture m_capture{
-        g_input_calibration_settle_sample_count,
-        g_input_calibration_wait_sample_count,
-        g_input_calibration_sample_count,
-    };
-    common::audio::InputCalibrationCapturePhase m_last_capture_phase{
-        common::audio::InputCalibrationCapturePhase::Idle,
-    };
-    double m_input_gain_db{0.0};
-    double m_committed_input_gain_db{0.0};
-    double m_measurement_restore_gain_db{0.0};
+    core::InputCalibrationController m_calibration_controller;
     AudioLevelMeter m_input_meter;
     juce::Label m_target_label;
     std::unique_ptr<juce::Drawable> m_help_icon;
@@ -471,13 +336,14 @@ InputCalibrationWindow::InputCalibrationWindow(
     : juce::DocumentWindow(
           "Input Calibration", juce::Colours::darkgrey.darker(0.16f),
           juce::DocumentWindow::closeButton)
-    , m_controller(controller)
 {
     setComponentID("input_calibration_window");
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    setContentOwned(new Content{*this, controller, live_input, std::move(prompt)}, true);
+    auto content = std::make_unique<Content>(*this, controller, live_input, std::move(prompt));
+    m_content = content.get();
+    setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());
     addToDesktop(juce::ComponentPeer::windowHasCloseButton);
     setVisible(true);
@@ -486,7 +352,10 @@ InputCalibrationWindow::InputCalibrationWindow(
 
 void InputCalibrationWindow::closeButtonPressed()
 {
-    m_controller.onInputCalibrationDismissed();
+    if (m_content != nullptr)
+    {
+        m_content->requestDismissal();
+    }
     setVisible(false);
 }
 
