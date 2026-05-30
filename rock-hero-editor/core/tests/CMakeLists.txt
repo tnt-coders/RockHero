@@ -20,6 +20,7 @@ add_executable(
     test_audio_device_status_text.cpp
     test_busy_operation_state.cpp
     test_deferred_project_action_state.cpp
+    test_editor_action_availability.cpp
     test_editor_controller_busy.cpp
     test_editor_controller_input_calibration.cpp
     test_editor_controller_output_gain.cpp

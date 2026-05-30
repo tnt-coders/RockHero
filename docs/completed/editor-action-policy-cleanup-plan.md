@@ -1,9 +1,9 @@
 # Editor Action Policy Cleanup Plan
 
-Status: in-progress planning note. Focused Stage 5/6 follow-up to the editor runtime extraction
+Status: implemented planning note. Focused Stage 5/6 follow-up to the editor runtime extraction
 plan. The companion `editor-controller-stage-05-cleanup-plan.md` is complete and now lives in
 `docs/completed/`; its busy-policy and project-write metadata steps are implemented (recorded
-below), so the only live work in this note is the availability follow-up.
+below), and the availability follow-up is now implemented.
 
 ## Scope
 
@@ -66,9 +66,9 @@ Two notes for the record:
 - Non-write actions remain unrepresentable at the metadata call sites, and a future fourth write
   alternative fails to compile until its overload is added.
 
-## Availability Follow-Up (the remaining live work)
+## Availability Follow-Up (implemented)
 
-With the metadata and busy-policy cleanup done, this is the only step left in this note.
+With the metadata and busy-policy cleanup done, this was the final live step in this note.
 
 `actionAvailableWhenIdle()` and `deriveViewState()` still mix three ideas:
 
@@ -95,6 +95,15 @@ Keep the bar honest: the facts value plus shared query should delete the repeate
 make availability directly testable. If it would only move lines without removing that duplication,
 stop.
 
+Implemented as private editor-core action policy:
+
+- `ActionConditions` captures the current controller conditions used for action availability;
+- `editor_action_availability.h/.cpp` owns pure busy and idle availability policy;
+- `EditorController` collects `ActionConditions` once during view-state projection and reuses it
+  for enabled flags;
+- direct `test_editor_action_availability.cpp` coverage verifies project, prompt, transport,
+  plugin, calibration-prompt, and busy availability gates.
+
 ## Exit Criteria
 
 - Project-write metadata is keyed on `EditorAction::ProjectWriteAction` (not `EditorAction::Id`)
@@ -102,15 +111,15 @@ stop.
 - Non-write actions remain unrepresentable at project-write metadata call sites. [done]
 - Side-effect dispatch remains in `EditorController`.
 - No broad action router or second controller is introduced.
-- Availability policy is either kept deliberately in `EditorController` or moved behind a small
-  facts-based pure helper with a clear name.
-- Focused editor-core tests still pass after implementation.
+- Availability policy moved behind a small conditions-based pure helper with a clear name. [done]
+- Focused editor-core tests still pass after implementation. [done]
 
 ## Verification
 
-Run the focused editor core target after implementation:
+Verified with the focused editor core target:
 
 ```powershell
+& 'C:\Program Files\JetBrains\CLion 2025.3.2\bin\cmake\win\x64\bin\cmake.exe' --preset debug
 cmd.exe /d /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 && ninja -C build/debug rock_hero_editor_core_tests'
 & 'build/debug/rock-hero-editor/core/tests/rock_hero_editor_core_tests.exe'
 git diff --check
