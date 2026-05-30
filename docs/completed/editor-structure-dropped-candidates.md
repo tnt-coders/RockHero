@@ -1,8 +1,8 @@
 # Editor Structure — Dropped Candidates
 
-Status: in-progress record of intentionally dropped process. These are steps from the original
-master plan that are **not worth formalizing** on a solo, early-stage project. They are recorded
-here so the decision is explicit and so a future reader does not re-add them by default.
+Status: completed decision record for intentionally dropped process. These are steps from the
+original master plan that are **not worth formalizing** on a solo, early-stage project. They are
+recorded here so the decision is explicit and so a future reader does not re-add them by default.
 
 Dropping the *formal process* does not forbid the underlying good judgment. The point is to delete
 the bureaucratic deliverable, not to act carelessly — the judgment each step encoded still happens
