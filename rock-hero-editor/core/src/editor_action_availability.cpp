@@ -1,0 +1,154 @@
+#include "editor_action_availability.h"
+
+namespace rock_hero::editor::core
+{
+
+namespace
+{
+
+// Names the action set hidden while the input calibration prompt owns the signal-chain flow.
+[[nodiscard]] bool actionBlockedByInputCalibrationPrompt(EditorAction::Id action) noexcept
+{
+    switch (action)
+    {
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
+        {
+            return true;
+        }
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::ExitApplication:
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::Stop:
+        case EditorAction::Id::SeekWaveform:
+        {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// Applies idle-state action availability without querying controller-owned state.
+[[nodiscard]] bool actionAvailableWhenIdle(
+    EditorAction::Id action, const ActionConditions& conditions) noexcept
+{
+    if (conditions.input_calibration_prompt_visible &&
+        actionBlockedByInputCalibrationPrompt(action))
+    {
+        return false;
+    }
+
+    switch (action)
+    {
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::ExitApplication:
+        {
+            return true;
+        }
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::CloseProject:
+        {
+            return conditions.has_project;
+        }
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        {
+            return conditions.has_unsaved_changes_prompt;
+        }
+        case EditorAction::Id::CancelSaveAsPrompt:
+        {
+            return conditions.has_save_as_prompt;
+        }
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::SeekWaveform:
+        {
+            return conditions.has_loaded_arrangement;
+        }
+        case EditorAction::Id::Stop:
+        {
+            return conditions.can_stop_transport;
+        }
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        {
+            return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
+        }
+        case EditorAction::Id::AddPlugin:
+        {
+            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
+                   conditions.has_plugin_candidates;
+        }
+        case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
+        {
+            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
+                   conditions.has_loaded_plugins;
+        }
+    }
+
+    return false;
+}
+
+} // namespace
+
+// Encodes the actions that intentionally remain available while async work owns the editor.
+bool actionSupersedesBusy(EditorAction::Id action) noexcept
+{
+    switch (action)
+    {
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::ExitApplication:
+        {
+            return true;
+        }
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::Stop:
+        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::ScanPluginCatalog:
+        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::OpenPlugin:
+        {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+// Combines natural action availability with the action's busy-state policy.
+bool isActionAvailable(EditorAction::Id action, const ActionConditions& conditions) noexcept
+{
+    if (conditions.busy)
+    {
+        return actionSupersedesBusy(action);
+    }
+
+    return actionAvailableWhenIdle(action, conditions);
+}
+
+} // namespace rock_hero::editor::core

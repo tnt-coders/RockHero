@@ -6,7 +6,7 @@ Step 5 is recorded in `editor-runtime-extraction-plan.md`.
 
 Follow-up: a broader action-policy review supersedes this note's preference for tiny
 project-write overload helpers. The current active follow-up is
-`docs/in-progress/editor-action-policy-cleanup-plan.md`.
+`docs/completed/editor-action-policy-cleanup-plan.md`.
 
 ## Scope
 
