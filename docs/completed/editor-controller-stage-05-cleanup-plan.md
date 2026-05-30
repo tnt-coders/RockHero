@@ -4,6 +4,10 @@ Status: implemented checkpoint cleanup. Steps 1-3 landed as separate commits; St
 to Stage 6 because the remaining issue is readability ordering rather than runtime boundary debt.
 Step 5 is recorded in `editor-runtime-extraction-plan.md`.
 
+Follow-up: a broader action-policy review supersedes this note's preference for tiny
+project-write overload helpers. The current active follow-up is
+`docs/in-progress/editor-action-policy-cleanup-plan.md`.
+
 ## Scope
 
 This plan covers a focused cleanup pass inside Stage 05 of
