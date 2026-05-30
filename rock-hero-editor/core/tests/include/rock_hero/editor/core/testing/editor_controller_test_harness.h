@@ -984,13 +984,19 @@ private:
 
 // Builds a stable route identity for calibration-gate tests.
 [[nodiscard]] inline common::audio::InputDeviceIdentity makeInputDeviceIdentity(
-    std::string input_device_name = "Interface A", int channel_index = 0)
+    std::string input_device_name = "Interface A", int channel_index = 0,
+    std::string input_channel_name = {})
 {
+    if (input_channel_name.empty())
+    {
+        input_channel_name = "Input " + std::to_string(channel_index + 1);
+    }
+
     return common::audio::InputDeviceIdentity{
         .backend_name = "ASIO",
         .input_device_name = std::move(input_device_name),
         .input_channel_index = channel_index,
-        .input_channel_name = "Input " + std::to_string(channel_index + 1),
+        .input_channel_name = std::move(input_channel_name),
     };
 }
 

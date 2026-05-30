@@ -1,6 +1,6 @@
 /*!
 \file input_device_identity.h
-\brief Project-owned identity for one calibrated input route.
+\brief Project-owned identity for one calibrated physical input route.
 */
 
 #pragma once
@@ -11,10 +11,11 @@ namespace rock_hero::common::audio
 {
 
 /*!
-\brief Exact input route identity used to validate app-local calibration state.
+\brief Input route identity used to validate app-local calibration state.
 
-The identity intentionally describes one physical input channel. A default-constructed value is
-not valid for calibration and should not be persisted as a calibrated route.
+The identity intentionally describes one physical input channel. The channel display name is
+metadata and is not part of the stable physical-route key. A default-constructed value is not valid
+for calibration and should not be persisted as a calibrated route.
 */
 struct [[nodiscard]] InputDeviceIdentity
 {
@@ -49,6 +50,20 @@ struct [[nodiscard]] InputDeviceIdentity
 {
     return !identity.backend_name.empty() && !identity.input_device_name.empty() &&
            identity.input_channel_index >= 0;
+}
+
+/*!
+\brief Reports whether two identities refer to the same stable physical input route.
+\param lhs Left-hand input device identity.
+\param rhs Right-hand input device identity.
+\return True when both identities name the same backend, input device, and physical channel index.
+*/
+[[nodiscard]] inline bool samePhysicalInputRoute(
+    const InputDeviceIdentity& lhs, const InputDeviceIdentity& rhs)
+{
+    return isValidInputDeviceIdentity(lhs) && isValidInputDeviceIdentity(rhs) &&
+           lhs.backend_name == rhs.backend_name && lhs.input_device_name == rhs.input_device_name &&
+           lhs.input_channel_index == rhs.input_channel_index;
 }
 
 } // namespace rock_hero::common::audio

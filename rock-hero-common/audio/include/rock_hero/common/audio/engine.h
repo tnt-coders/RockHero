@@ -342,7 +342,7 @@ public:
     [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override;
 
     /*!
-    \brief Returns the exact one-channel input route identity used by input calibration.
+    \brief Returns the active one-channel physical input route used by input calibration.
     \return Current input identity, or empty when no valid mono input route is active.
     */
     [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override;

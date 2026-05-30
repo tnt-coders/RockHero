@@ -65,18 +65,24 @@ public:
     virtual void setAudioDeviceState(std::optional<std::string> serialized_state) = 0;
 
     /*!
-    \brief Reads the stored app-local input calibration state.
-    \return Calibration state tied to one exact input route, or empty when unavailable.
+    \brief Reads app-local input calibration for one physical input route.
+    \param identity Physical input route to look up.
+    \return Calibration state for the supplied route, or empty when unavailable.
     */
-    [[nodiscard]] virtual std::optional<common::audio::InputCalibrationState>
-    inputCalibrationState() const = 0;
+    [[nodiscard]] virtual std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
+        const common::audio::InputDeviceIdentity& identity) const = 0;
 
     /*!
-    \brief Stores or clears the app-local input calibration state.
-    \param calibration_state Calibration state to restore, or empty to clear calibration.
+    \brief Stores or replaces app-local input calibration for its physical route.
+    \param calibration_state Calibration state to save.
     */
-    virtual void setInputCalibrationState(
-        std::optional<common::audio::InputCalibrationState> calibration_state) = 0;
+    virtual void saveInputCalibration(common::audio::InputCalibrationState calibration_state) = 0;
+
+    /*!
+    \brief Removes app-local input calibration for one physical input route.
+    \param identity Physical input route to remove.
+    */
+    virtual void removeInputCalibration(const common::audio::InputDeviceIdentity& identity) = 0;
 
 protected:
     /*! \brief Creates the editor-settings interface. */

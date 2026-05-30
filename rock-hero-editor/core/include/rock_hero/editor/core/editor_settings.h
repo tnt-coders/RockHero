@@ -83,18 +83,24 @@ public:
     void setAudioDeviceState(std::optional<std::string> serialized_state) override;
 
     /*!
-    \brief Reads the stored app-local input calibration state.
-    \return Calibration state tied to one exact input route, or empty when unavailable.
+    \brief Reads app-local input calibration for one physical input route.
+    \param identity Physical input route to look up.
+    \return Calibration state for the supplied route, or empty when unavailable.
     */
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState()
-        const override;
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
+        const common::audio::InputDeviceIdentity& identity) const override;
 
     /*!
-    \brief Stores or clears the app-local input calibration state.
-    \param calibration_state Calibration state to restore, or empty to clear calibration.
+    \brief Stores or replaces app-local input calibration for its physical route.
+    \param calibration_state Calibration state to save.
     */
-    void setInputCalibrationState(
-        std::optional<common::audio::InputCalibrationState> calibration_state) override;
+    void saveInputCalibration(common::audio::InputCalibrationState calibration_state) override;
+
+    /*!
+    \brief Removes app-local input calibration for one physical input route.
+    \param identity Physical input route to remove.
+    */
+    void removeInputCalibration(const common::audio::InputDeviceIdentity& identity) override;
 
 private:
     juce::PropertiesFile m_properties;

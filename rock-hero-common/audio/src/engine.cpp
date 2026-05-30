@@ -3620,7 +3620,7 @@ AudioDeviceStatus Engine::currentDeviceStatus() const
     };
 }
 
-// Captures the exact one-channel input identity used to validate calibration state.
+// Captures the one-channel physical input route used to validate calibration state.
 std::optional<InputDeviceIdentity> Engine::currentInputDeviceIdentity() const
 {
     if (m_impl->m_audio_device_configuration_refresh_pending)

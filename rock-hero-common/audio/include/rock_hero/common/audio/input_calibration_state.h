@@ -1,6 +1,6 @@
 /*!
 \file input_calibration_state.h
-\brief App-local input calibration value tied to one exact input route.
+\brief App-local input calibration value tied to one physical input route.
 */
 
 #pragma once
@@ -11,7 +11,7 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Stored input calibration gain plus the exact route it was measured against. */
+/*! \brief Stored input calibration gain plus the physical route it was measured against. */
 struct [[nodiscard]] InputCalibrationState
 {
     /*! \brief Gain applied before the live guitar signal chain after calibration succeeds. */
@@ -41,6 +41,18 @@ struct [[nodiscard]] InputCalibrationState
 {
     return isValidInputDeviceIdentity(state.input_device_identity) &&
            state.input_device_identity == identity;
+}
+
+/*!
+\brief Reports whether calibration state belongs to a given physical input route.
+\param state Stored calibration state.
+\param identity Current input route identity.
+\return True when the stored identity is valid and matches the current physical route key.
+*/
+[[nodiscard]] inline bool inputCalibrationMatchesPhysicalRoute(
+    const InputCalibrationState& state, const InputDeviceIdentity& identity)
+{
+    return samePhysicalInputRoute(state.input_device_identity, identity);
 }
 
 } // namespace rock_hero::common::audio

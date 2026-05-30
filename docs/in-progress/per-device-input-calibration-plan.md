@@ -137,13 +137,33 @@ Route-change policy should become:
 - different concrete identity: close prompt/measurement and replace active state with the matching
   persisted record for that exact route, or clear active state if none exists.
 
+Reconnect rule: a `std::nullopt` route must not clear the committed identity. After
+`A -> nullopt -> A`, the return to A is therefore a "same concrete identity" transition that keeps
+A's still-active calibration, not a fresh history lookup. This is what keeps the existing
+disconnect/reconnect restore behavior intact and avoids a redundant or conflicting reselect when the
+new history-based selection path and the existing reconnect-restore path both fire on route
+transitions. Any concrete-route transition that is *not* a same-identity reconnect goes through the
+history-selection path above.
+
 The route-change transition should not request persistence. Changing the active route is a
 selection operation, not a durable history mutation. Controller commit/restore paths are
 responsible for saving or removing exact-route records.
 
-Current code watch point: `InputCalibrationWorkflow::Effect::PersistCalibration` is still coupled to
-the one-record settings model. Remove it if route changes no longer need persistence; otherwise
-rename/split it so no call site can accidentally clear the full saved history.
+Required workflow changes:
+
+- Change route synchronization to receive the controller-selected saved calibration for the
+  current exact route. The workflow should not query settings and should not infer history from the
+  previous active state.
+- On `std::nullopt` route, close prompt/measurement, request monitoring disable effects, and keep
+  active calibration available for reconnect/restore decisions. The durable history remains
+  untouched.
+- On the same concrete identity, keep the active calibration state unchanged.
+- On a different concrete identity, close prompt/measurement, mark the backend available, and
+  replace active calibration with the supplied matching saved record. If no valid exact match is
+  supplied, clear only the active calibration state.
+- Remove `InputCalibrationWorkflow::Effect::PersistCalibration` if route changes no longer need
+  it. If a persistence effect remains useful outside route synchronization, rename or split it so
+  it explicitly represents exact-route save/remove semantics.
 
 Preferred implementation shape:
 
@@ -168,15 +188,29 @@ Preferred implementation shape:
 The controller remains the root facade that executes side effects against settings and live-input
 ports. The workflow remains headless and directly testable.
 
-Current code watch points:
+Required controller changes:
 
-- replace `loadInputCalibrationFromSettings()` so it does not load an arbitrary global calibration;
-- replace `persistInputCalibration()` with exact-route save/remove helpers;
-- update `syncCommittedInputDeviceIdentity()` to select matching history for the current route;
-- remove the mismatch clear/persist branch from `applyLiveInputGate()`. A mismatch should disable
-  monitoring and select the route's saved calibration if one exists; it should not delete history.
+- Replace `loadInputCalibrationFromSettings()` with startup/current-route selection. The controller
+  should ask settings for the calibration matching the current concrete route and pass only that
+  matching record to the workflow.
+- Replace `persistInputCalibration()` with exact-route save/remove helpers. Successful automatic
+  and manual calibration commits should upsert the current route record; invalidation should remove
+  only the current exact route when removal is actually required.
+- Update route synchronization so every concrete audio route change selects matching history before
+  applying the live-input gate.
+- Remove the mismatch clear/persist branch from `applyLiveInputGate()`. A mismatch should disable
+  monitoring and rely on route synchronization to select the route's saved calibration if one
+  exists; it should not delete any saved history.
+- Keep measurement cancel/restore paths scoped to the active exact route. They may restore or
+  remove that route's record, but they must not clear records for other routes.
 
 ## Implementation Stages
+
+The settings-API change in Stage 1 ripples through Stages 2-3, so treat Stages 1-3 as one atomic
+landing rather than independently shippable commits. Stage 1 adds the new exact-route API
+*alongside* the existing `inputCalibrationState()` / `setInputCalibrationState(...)`; those legacy
+methods remain until Stage 3 has migrated every caller, and are deleted in Stage 3. The
+"add alongside, delete last" order keeps each stage compilable.
 
 ### Stage 1: Settings History Storage
 
@@ -184,9 +218,11 @@ Current code watch points:
 - Implement `EditorSettings` history serialization and legacy migration.
 - Update `NullEditorSettings` and test harness fakes.
 - Add settings tests for empty history, upsert, overwrite, lookup miss, invalid-record cleanup,
-  duplicate collapse, malformed JSON fallback, and legacy single-record migration.
-- Remove public use of `inputCalibrationState()` / `setInputCalibrationState(...)` after the new
-  API exists. Any legacy flat-key parsing should stay private to `EditorSettings`.
+  duplicate collapse, malformed JSON fallback, legacy single-record migration, and a load-reload
+  cycle confirming migration is idempotent.
+- Add the new exact-route API alongside the existing `inputCalibrationState()` /
+  `setInputCalibrationState(...)`; do not delete the legacy methods in this stage (callers migrate
+  in Stage 3). Any legacy flat-key parsing should stay private to `EditorSettings`.
 
 ### Stage 2: Active Calibration Selection
 
@@ -210,6 +246,8 @@ Current code watch points:
 - Remove route-mismatch history deletion from `applyLiveInputGate()`.
 - Preserve the existing live-input gate behavior: no matching active calibration means monitoring
   stays disabled.
+- Delete the now-unused legacy `inputCalibrationState()` / `setInputCalibrationState(...)` once every
+  caller uses the exact-route API. This is the deletion deferred from Stage 1.
 
 ### Stage 4: Regression Coverage
 
@@ -220,7 +258,9 @@ Add controller tests for:
 - route A calibrated, switch to route B, switch back to route A restores route A;
 - route A calibrated, route B has its own saved gain, switch to route B applies route B;
 - same device with different input channel does not reuse the previous channel's gain;
-- unavailable route preserves the full history and active saved records.
+- unavailable route preserves the full history and active saved records;
+- route A calibrated, disconnect to an unavailable route, then reconnect route A still applies route
+  A's active gain via the same-identity path, without a redundant history reselect.
 - mismatched active calibration disables monitoring without deleting the previous route's saved
   record.
 
@@ -259,8 +299,12 @@ history; `EditorController` coordinates the two.
   channel after reconnect, exact-route history will intentionally require recalibration.
 - Two physical devices with identical backend/device/channel strings cannot be distinguished by the
   current identity model.
-- Keeping old route records can grow settings over time. This is acceptable for now; add a cap or
-  UI cleanup only after it becomes a real problem.
+- Settings growth is bounded by the number of routes the user has actually calibrated, because
+  records are upserted only on a successful calibration commit and route selection never persists.
+  The one pathological case is a driver that renames a channel on every reconnect combined with a
+  user who recalibrates each time, which accumulates dead records the changed name can no longer
+  match (see the identity-stability risk above). Add a cap or UI cleanup only if that becomes a real
+  problem.
 - The migration must not erase a valid legacy single-record calibration if JSON parsing fails.
 - A new helper type should be added only if private `EditorSettings` helpers are not enough to keep
   JSON history parsing and upsert/remove behavior readable.
