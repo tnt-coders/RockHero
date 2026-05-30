@@ -12,124 +12,133 @@
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
 {
 
-/*! \brief Root-supplied facts used to project input calibration state. */
-struct InputCalibrationFacts
-{
-    /*! \brief True after arrangement audio and live rig restore have committed. */
-    bool project_audio_ready{false};
-
-    /*! \brief True when the editor session has a current arrangement. */
-    bool arrangement_loaded{false};
-
-    /*! \brief Current exact input route, if the audio backend can identify one. */
-    std::optional<common::audio::InputDeviceIdentity> current_input_device_identity{};
-};
-
-/*! \brief Live-input side effect requested by the workflow. */
-enum class InputCalibrationEffect
-{
-    /*! \brief Persist the workflow's current calibration state. */
-    PersistCalibration,
-
-    /*! \brief Disable processed live-input monitoring through the live-input port. */
-    DisableLiveInputMonitoring,
-
-    /*! \brief Disable direct calibration monitoring through the live-input port. */
-    DisableCalibrationInputMonitoring,
-};
-
-/*! \brief Collection of effects returned by workflow transitions. */
-using InputCalibrationEffects = std::vector<InputCalibrationEffect>;
-
-/*! \brief View-facing input calibration projection owned by the workflow. */
-struct InputCalibrationSnapshot
-{
-    /*! \brief Calibration status shown by the signal-chain panel. */
-    InputCalibrationStatus status{InputCalibrationStatus::NoActiveInputDevice};
-
-    /*! \brief True when the user may open the calibration prompt. */
-    bool calibrate_enabled{false};
-
-    /*! \brief True when the current route may be auditioned through the live chain. */
-    bool live_input_audition_available{false};
-
-    /*! \brief True when audio-device settings may be opened. */
-    bool audio_device_settings_enabled{true};
-
-    /*! \brief Disabled-state message shown by the signal-chain panel. */
-    std::string disabled_message;
-
-    /*! \brief Prompt request shown by the editor view, if calibration UI should be visible. */
-    std::optional<InputCalibrationPrompt> prompt;
-};
-
-/*! \brief Measurement metadata captured before live-input side effects are attempted. */
-struct InputCalibrationMeasurement
-{
-    /*! \brief Input identity that must still be current when measurement completes. */
-    common::audio::InputDeviceIdentity input_device_identity;
-
-    /*! \brief Previous matching calibration restored if the measurement is dismissed. */
-    std::optional<common::audio::InputCalibrationState> previous_calibration_state;
-};
-
-/*! \brief Pure commit plan produced before the controller mutates live-input ports. */
-struct InputCalibrationCommitPlan
-{
-    /*! \brief Gain to write if live-input arming succeeds. */
-    common::audio::Gain calibration_gain;
-
-    /*! \brief Input identity the calibration belongs to. */
-    common::audio::InputDeviceIdentity input_device_identity;
-
-    /*! \brief Previous state to preserve if backend arming fails. */
-    std::optional<common::audio::InputCalibrationState> previous_calibration_state;
-};
-
-/*! \brief Restoration action requested when a calibration measurement ends early. */
-enum class InputCalibrationRestoreKind
-{
-    /*! \brief No active measurement exists. */
-    Nothing,
-
-    /*! \brief Disable live input because project audio is unavailable. */
-    DisableLiveInput,
-
-    /*! \brief Clear calibration because the route no longer matches. */
-    ClearCalibration,
-
-    /*! \brief Clear calibration and close the prompt because the active route changed. */
-    ClearCalibrationAndClosePrompt,
-
-    /*! \brief Restore a previous calibration for the unchanged route. */
-    RestorePrevious,
-};
-
-/*! \brief Pure restore plan produced before the controller mutates live-input ports. */
-struct InputCalibrationRestorePlan
-{
-    /*! \brief Restoration action requested by the workflow. */
-    InputCalibrationRestoreKind kind{InputCalibrationRestoreKind::Nothing};
-
-    /*! \brief Previous calibration to restore when kind is RestorePrevious. */
-    std::optional<common::audio::InputCalibrationState> previous_calibration_state;
-};
-
 /*!
 \brief Owns editor input calibration policy without touching live-input ports.
 
-The root controller supplies current route facts and executes returned effects against settings and
+The root controller supplies current route context and executes returned effects against settings and
 audio ports. The workflow owns prompt visibility, stored calibration, route identity, backend
 availability, settings-window state, and active measurement metadata.
 */
 class InputCalibrationWorkflow final
 {
 public:
+    /*! \brief Root-supplied context used to project input calibration state. */
+    struct Context
+    {
+        /*! \brief True after arrangement audio and live rig restore have committed. */
+        bool project_audio_ready{false};
+
+        /*! \brief True when the editor session has a current arrangement. */
+        bool arrangement_loaded{false};
+
+        /*! \brief Current exact input route, if the audio backend can identify one. */
+        std::optional<common::audio::InputDeviceIdentity> current_input_device_identity{};
+    };
+
+    /*! \brief Live-input side effect requested by the workflow. */
+    enum class Effect
+    {
+        /*! \brief Persist the workflow's current calibration state. */
+        PersistCalibration,
+
+        /*! \brief Disable processed live-input monitoring through the live-input port. */
+        DisableLiveInputMonitoring,
+
+        /*! \brief Disable direct calibration monitoring through the live-input port. */
+        DisableCalibrationInputMonitoring,
+    };
+
+    /*! \brief Collection of effects returned by workflow transitions. */
+    using Effects = std::vector<Effect>;
+
+    /*! \brief View-facing input calibration snapshot owned by the workflow. */
+    struct Snapshot
+    {
+        /*! \brief Calibration status shown by the signal-chain panel. */
+        InputCalibrationStatus status{InputCalibrationStatus::NoActiveInputDevice};
+
+        /*! \brief True when the user may open the calibration prompt. */
+        bool calibrate_enabled{false};
+
+        /*! \brief True when the current route may be auditioned through the live chain. */
+        bool live_input_audition_available{false};
+
+        /*! \brief True when audio-device settings may be opened. */
+        bool audio_device_settings_enabled{true};
+
+        /*! \brief Disabled-state message shown by the signal-chain panel. */
+        std::string disabled_message;
+
+        /*! \brief Prompt request shown by the editor view, if calibration UI should be visible. */
+        std::optional<InputCalibrationPrompt> prompt;
+    };
+
+    /*! \brief Measurement-session metadata captured before live-input side effects are attempted. */
+    struct MeasurementSession
+    {
+        /*! \brief Input identity that must still be current when measurement completes. */
+        common::audio::InputDeviceIdentity input_device_identity;
+
+        /*! \brief Previous matching calibration restored if the measurement is dismissed. */
+        std::optional<common::audio::InputCalibrationState> previous_calibration_state;
+    };
+
+    /*! \brief Pure commit plan produced before the controller mutates live-input ports. */
+    struct CommitPlan
+    {
+        /*! \brief Gain to write if live-input arming succeeds. */
+        common::audio::Gain calibration_gain;
+
+        /*! \brief Input identity the calibration belongs to. */
+        common::audio::InputDeviceIdentity input_device_identity;
+
+        /*! \brief Previous state to preserve if backend arming fails. */
+        std::optional<common::audio::InputCalibrationState> previous_calibration_state;
+    };
+
+    /*! \brief Measurement-restore alternatives requested when a measurement ends early. */
+    struct MeasurementRestore
+    {
+        /*! \brief No active measurement exists. */
+        struct NoRestore
+        {
+        };
+
+        /*! \brief Disable live input because project audio is unavailable. */
+        struct DisableLiveInput
+        {
+        };
+
+        /*! \brief Clear calibration because the route no longer matches. */
+        struct ClearCalibration
+        {
+        };
+
+        /*! \brief Clear calibration and close the prompt because the active route changed. */
+        struct ClearCalibrationAndClosePrompt
+        {
+        };
+
+        /*! \brief Restore a previous calibration for the unchanged route. */
+        struct RestorePreviousCalibration
+        {
+            /*! \brief Previous matching calibration state to restore. */
+            common::audio::InputCalibrationState previous_calibration_state;
+        };
+    };
+
+    /*! \brief Pure restore plan produced before the controller mutates live-input ports. */
+    using MeasurementRestorePlan = std::variant<
+        MeasurementRestore::NoRestore, MeasurementRestore::DisableLiveInput,
+        MeasurementRestore::ClearCalibration, MeasurementRestore::ClearCalibrationAndClosePrompt,
+        MeasurementRestore::RestorePreviousCalibration>;
+
     /*! \brief Loads the persisted calibration state, dropping invalid route identities. */
     [[nodiscard]] bool load(std::optional<common::audio::InputCalibrationState> calibration_state);
 
@@ -140,11 +149,11 @@ public:
     void clearCalibration();
 
     /*! \brief Updates committed route identity and returns effects required by route changes. */
-    [[nodiscard]] InputCalibrationEffects syncCommittedInputDeviceIdentity(
+    [[nodiscard]] Effects syncCommittedInputDeviceIdentity(
         std::optional<common::audio::InputDeviceIdentity> current_identity);
 
     /*! \brief Marks audio-device settings open and requests live route teardown. */
-    [[nodiscard]] InputCalibrationEffects openAudioDeviceSettings();
+    [[nodiscard]] Effects openAudioDeviceSettings();
 
     /*! \brief Marks the audio-device settings window as closed. */
     void closeAudioDeviceSettings() noexcept;
@@ -152,8 +161,8 @@ public:
     /*! \brief Reports whether audio-device settings are currently open. */
     [[nodiscard]] bool audioDeviceSettingsOpen() const noexcept;
 
-    /*! \brief Opens the calibration prompt when the supplied facts allow it. */
-    [[nodiscard]] bool requestPrompt(const InputCalibrationFacts& facts);
+    /*! \brief Opens the calibration prompt when the supplied context allows it. */
+    [[nodiscard]] bool requestPrompt(const Context& context);
 
     /*! \brief Closes the calibration prompt without changing calibration validity. */
     void closePrompt() noexcept;
@@ -162,18 +171,18 @@ public:
     [[nodiscard]] bool promptVisible() const noexcept;
 
     /*! \brief Builds the current view-facing calibration snapshot. */
-    [[nodiscard]] InputCalibrationSnapshot snapshot(const InputCalibrationFacts& facts) const;
+    [[nodiscard]] Snapshot snapshot(const Context& context) const;
 
     /*! \brief Returns true when stored calibration belongs to the supplied route. */
     [[nodiscard]] bool calibrationMatches(
         const std::optional<common::audio::InputDeviceIdentity>& current_identity) const;
 
     /*! \brief Prepares a raw calibration measurement without mutating workflow state. */
-    [[nodiscard]] std::expected<InputCalibrationMeasurement, common::audio::LiveInputError>
-    prepareMeasurementStart(const InputCalibrationFacts& facts) const;
+    [[nodiscard]] std::expected<MeasurementSession, common::audio::LiveInputError>
+    prepareMeasurementStart(const Context& context) const;
 
     /*! \brief Stores a measurement as active after live-input setup has succeeded. */
-    void activateMeasurement(InputCalibrationMeasurement measurement);
+    void activateMeasurement(MeasurementSession measurement);
 
     /*! \brief Reports whether an automatic measurement is active. */
     [[nodiscard]] bool hasActiveMeasurement() const noexcept;
@@ -182,14 +191,13 @@ public:
     void clearActiveMeasurement() noexcept;
 
     /*! \brief Prepares a completed calibration commit without mutating workflow state. */
-    [[nodiscard]] std::expected<InputCalibrationCommitPlan, common::audio::LiveInputError>
-    prepareCommit(
+    [[nodiscard]] std::expected<CommitPlan, common::audio::LiveInputError> prepareCommit(
         double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity,
-        const InputCalibrationFacts& facts) const;
+        const Context& context) const;
 
     /*! \brief Prepares a commit for the currently active automatic measurement. */
-    [[nodiscard]] std::expected<InputCalibrationCommitPlan, common::audio::LiveInputError>
-    prepareActiveMeasurementCommit(double gain_db, const InputCalibrationFacts& facts) const;
+    [[nodiscard]] std::expected<CommitPlan, common::audio::LiveInputError>
+    prepareActiveMeasurementCommit(double gain_db, const Context& context) const;
 
     /*! \brief Commits a successful calibration to workflow state. */
     void commitCalibration(
@@ -205,8 +213,7 @@ public:
         const std::optional<common::audio::InputDeviceIdentity>& current_identity);
 
     /*! \brief Prepares measurement rollback without mutating workflow state. */
-    [[nodiscard]] InputCalibrationRestorePlan prepareMeasurementRestore(
-        const InputCalibrationFacts& facts) const;
+    [[nodiscard]] MeasurementRestorePlan prepareMeasurementRestore(const Context& context) const;
 
     /*! \brief Clears calibration after measurement restoration determines the route changed. */
     void clearCalibrationAfterMeasurement();
@@ -233,7 +240,7 @@ private:
     std::optional<common::audio::InputDeviceIdentity> m_committed_input_device_identity{};
     bool m_prompt_visible{false};
     bool m_audio_device_settings_open{false};
-    std::optional<InputCalibrationMeasurement> m_active_measurement{};
+    std::optional<MeasurementSession> m_active_measurement{};
     bool m_backend_available{true};
 };
 

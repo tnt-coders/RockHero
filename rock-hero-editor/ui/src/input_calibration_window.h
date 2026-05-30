@@ -45,8 +45,8 @@ private:
     // Popup content is private to the implementation file.
     class Content;
 
-    // Controller that owns calibration workflow state.
-    core::IEditorController& m_controller;
+    // Raw pointer mirrors the DocumentWindow-owned content so title-bar close can emit dismissal.
+    Content* m_content{};
 };
 
 } // namespace rock_hero::editor::ui

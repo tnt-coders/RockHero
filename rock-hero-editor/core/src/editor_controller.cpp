@@ -42,6 +42,7 @@
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -497,8 +498,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void loadInputCalibrationFromSettings();
     void persistInputCalibration();
     void syncCommittedInputDeviceIdentity();
-    void executeInputCalibrationEffects(const InputCalibrationEffects& effects);
-    [[nodiscard]] InputCalibrationFacts inputCalibrationFacts() const;
+    void executeInputCalibrationEffects(const InputCalibrationWorkflow::Effects& effects);
+    [[nodiscard]] InputCalibrationWorkflow::Context inputCalibrationContext() const;
     [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
         const;
     void applyLiveInputGate();
@@ -1961,7 +1962,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
 // Opens the required calibration prompt on explicit user request.
 void EditorController::Impl::onInputCalibrationRequested()
 {
-    if (m_input_calibration.requestPrompt(inputCalibrationFacts()) && m_transport.state().playing)
+    if (m_input_calibration.requestPrompt(inputCalibrationContext()) && m_transport.state().playing)
     {
         m_transport.pause();
     }
@@ -1972,7 +1973,7 @@ void EditorController::Impl::onInputCalibrationRequested()
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     onInputCalibrationMeasurementStarted()
 {
-    auto measurement = m_input_calibration.prepareMeasurementStart(inputCalibrationFacts());
+    auto measurement = m_input_calibration.prepareMeasurementStart(inputCalibrationContext());
     if (!measurement.has_value())
     {
         return std::unexpected{std::move(measurement.error())};
@@ -2118,7 +2119,7 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
     }
 
     const bool live_input_audition_available =
-        m_input_calibration.snapshot(inputCalibrationFacts()).live_input_audition_available;
+        m_input_calibration.snapshot(inputCalibrationContext()).live_input_audition_available;
 
     switch (action)
     {
@@ -2774,8 +2775,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
     const common::core::TimeRange timeline_range = session().timeline();
-    const InputCalibrationSnapshot input_calibration =
-        m_input_calibration.snapshot(inputCalibrationFacts());
+    const InputCalibrationWorkflow::Snapshot input_calibration =
+        m_input_calibration.snapshot(inputCalibrationContext());
 
     EditorViewState state;
     state.open_enabled = canRunAction(EditorAction::Id::OpenProject);
@@ -2886,23 +2887,24 @@ void EditorController::Impl::syncCommittedInputDeviceIdentity()
 }
 
 // Executes workflow-requested side effects against root-owned ports and settings.
-void EditorController::Impl::executeInputCalibrationEffects(const InputCalibrationEffects& effects)
+void EditorController::Impl::executeInputCalibrationEffects(
+    const InputCalibrationWorkflow::Effects& effects)
 {
-    for (const InputCalibrationEffect effect : effects)
+    for (const InputCalibrationWorkflow::Effect effect : effects)
     {
         switch (effect)
         {
-            case InputCalibrationEffect::PersistCalibration:
+            case InputCalibrationWorkflow::Effect::PersistCalibration:
             {
                 persistInputCalibration();
                 break;
             }
-            case InputCalibrationEffect::DisableLiveInputMonitoring:
+            case InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring:
             {
                 std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
                 break;
             }
-            case InputCalibrationEffect::DisableCalibrationInputMonitoring:
+            case InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring:
             {
                 std::ignore = m_live_input.setCalibrationInputMonitoringEnabled(false);
                 break;
@@ -2911,10 +2913,10 @@ void EditorController::Impl::executeInputCalibrationEffects(const InputCalibrati
     }
 }
 
-// Captures the root-owned facts the calibration workflow needs to project state.
-InputCalibrationFacts EditorController::Impl::inputCalibrationFacts() const
+// Captures the root-owned context the calibration workflow needs to project state.
+InputCalibrationWorkflow::Context EditorController::Impl::inputCalibrationContext() const
 {
-    return InputCalibrationFacts{
+    return InputCalibrationWorkflow::Context{
         .project_audio_ready = m_project_audio_ready,
         .arrangement_loaded = hasLoadedArrangement(),
         .current_input_device_identity = currentInputDeviceIdentity(),
@@ -2932,14 +2934,14 @@ void EditorController::Impl::applyLiveInputGate()
         return;
     }
 
-    const InputCalibrationFacts facts = inputCalibrationFacts();
-    if (!facts.project_audio_ready || !facts.arrangement_loaded)
+    const InputCalibrationWorkflow::Context context = inputCalibrationContext();
+    if (!context.project_audio_ready || !context.arrangement_loaded)
     {
         std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
         return;
     }
 
-    if (!facts.current_input_device_identity.has_value())
+    if (!context.current_input_device_identity.has_value())
     {
         std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
         return;
@@ -2953,7 +2955,7 @@ void EditorController::Impl::applyLiveInputGate()
         return;
     }
 
-    if (!m_input_calibration.calibrationMatches(facts.current_input_device_identity))
+    if (!m_input_calibration.calibrationMatches(context.current_input_device_identity))
     {
         m_input_calibration.clearCalibration();
         persistInputCalibration();
@@ -3009,19 +3011,19 @@ void EditorController::Impl::restoreInputCalibrationRouteStateBestEffort(
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::commitInputCalibration(
     double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity)
 {
-    const InputCalibrationFacts facts = inputCalibrationFacts();
+    const InputCalibrationWorkflow::Context context = inputCalibrationContext();
     const auto plan_result =
         expected_identity.has_value()
-            ? m_input_calibration.prepareCommit(gain_db, expected_identity, facts)
+            ? m_input_calibration.prepareCommit(gain_db, expected_identity, context)
             : (m_input_calibration.hasActiveMeasurement()
-                   ? m_input_calibration.prepareActiveMeasurementCommit(gain_db, facts)
-                   : m_input_calibration.prepareCommit(gain_db, std::nullopt, facts));
+                   ? m_input_calibration.prepareActiveMeasurementCommit(gain_db, context)
+                   : m_input_calibration.prepareCommit(gain_db, std::nullopt, context));
     if (!plan_result.has_value())
     {
         return std::unexpected{plan_result.error()};
     }
 
-    const InputCalibrationCommitPlan plan = *plan_result;
+    const InputCalibrationWorkflow::CommitPlan plan = *plan_result;
     auto calibration_monitoring_disabled = m_live_input.setCalibrationInputMonitoringEnabled(false);
     if (!calibration_monitoring_disabled.has_value())
     {
@@ -3043,7 +3045,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
         if (gain_applied.error().code == common::audio::LiveInputErrorCode::InputRouteUnavailable)
         {
             m_input_calibration.preservePreviousCalibrationAfterCommitFailure(
-                plan.previous_calibration_state, facts.current_input_device_identity);
+                plan.previous_calibration_state, context.current_input_device_identity);
             persistInputCalibration();
             std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
             updateView();
@@ -3059,7 +3061,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
         // left armed at the rejected gain.
         const std::optional<common::audio::Gain> restore_gain =
             m_input_calibration.preservePreviousCalibrationAfterCommitFailure(
-                plan.previous_calibration_state, facts.current_input_device_identity);
+                plan.previous_calibration_state, context.current_input_device_identity);
         if (restore_gain.has_value())
         {
             std::ignore = m_live_input.setInputGain(*restore_gain);
@@ -3080,9 +3082,11 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::
     restoreCalibrationMeasurementState()
 {
-    const InputCalibrationRestorePlan plan =
-        m_input_calibration.prepareMeasurementRestore(inputCalibrationFacts());
-    if (plan.kind == InputCalibrationRestoreKind::Nothing)
+    using MeasurementRestore = InputCalibrationWorkflow::MeasurementRestore;
+
+    const InputCalibrationWorkflow::MeasurementRestorePlan plan =
+        m_input_calibration.prepareMeasurementRestore(inputCalibrationContext());
+    if (std::holds_alternative<MeasurementRestore::NoRestore>(plan))
     {
         return {};
     }
@@ -3099,70 +3103,73 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
         return std::unexpected{std::move(calibration_monitoring_disabled.error())};
     }
 
-    switch (plan.kind)
-    {
-        case InputCalibrationRestoreKind::Nothing:
-        {
-            return {};
-        }
-        case InputCalibrationRestoreKind::DisableLiveInput:
-        {
-            m_input_calibration.clearActiveMeasurement();
-            std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
-            return {};
-        }
-        case InputCalibrationRestoreKind::ClearCalibration:
-        {
-            m_input_calibration.clearCalibrationAfterMeasurement();
-            persistInputCalibration();
-            std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
-            return {};
-        }
-        case InputCalibrationRestoreKind::ClearCalibrationAndClosePrompt:
-        {
-            m_input_calibration.clearCalibrationAfterMeasurement();
-            m_input_calibration.closePrompt();
-            persistInputCalibration();
-            std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
-            return {};
-        }
-        case InputCalibrationRestoreKind::RestorePrevious:
-        {
-            break;
-        }
-    }
+    return std::visit(
+        [this](const auto& restore) -> std::expected<void, common::audio::LiveInputError> {
+            using Restore = std::decay_t<decltype(restore)>;
+            if constexpr (std::is_same_v<Restore, MeasurementRestore::NoRestore>)
+            {
+                return {};
+            }
+            else if constexpr (std::is_same_v<Restore, MeasurementRestore::DisableLiveInput>)
+            {
+                m_input_calibration.clearActiveMeasurement();
+                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                return {};
+            }
+            else if constexpr (std::is_same_v<Restore, MeasurementRestore::ClearCalibration>)
+            {
+                m_input_calibration.clearCalibrationAfterMeasurement();
+                persistInputCalibration();
+                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                return {};
+            }
+            else if constexpr (
+                std::is_same_v<Restore, MeasurementRestore::ClearCalibrationAndClosePrompt>
+            )
+            {
+                m_input_calibration.clearCalibrationAfterMeasurement();
+                m_input_calibration.closePrompt();
+                persistInputCalibration();
+                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                return {};
+            }
+            else
+            {
+                const common::audio::InputCalibrationState& previous_state =
+                    restore.previous_calibration_state;
 
-    assert(plan.previous_calibration_state.has_value());
-    const common::audio::InputCalibrationState& previous_state = *plan.previous_calibration_state;
+                auto gain_restored = m_live_input.setInputGain(previous_state.calibration_gain);
+                if (!gain_restored.has_value())
+                {
+                    if (gain_restored.error().code ==
+                        common::audio::LiveInputErrorCode::InputRouteUnavailable)
+                    {
+                        m_input_calibration.restorePreviousCalibration(previous_state, false);
+                    }
+                    else
+                    {
+                        m_input_calibration.clearCalibrationAfterMeasurement();
+                    }
+                    persistInputCalibration();
+                    std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                    return std::unexpected{std::move(gain_restored.error())};
+                }
 
-    auto gain_restored = m_live_input.setInputGain(previous_state.calibration_gain);
-    if (!gain_restored.has_value())
-    {
-        if (gain_restored.error().code == common::audio::LiveInputErrorCode::InputRouteUnavailable)
-        {
-            m_input_calibration.restorePreviousCalibration(previous_state, false);
-        }
-        else
-        {
-            m_input_calibration.clearCalibrationAfterMeasurement();
-        }
-        persistInputCalibration();
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
-        return std::unexpected{std::move(gain_restored.error())};
-    }
+                auto monitoring_restored = m_live_input.setLiveInputMonitoringEnabled(true);
+                if (!monitoring_restored.has_value())
+                {
+                    m_input_calibration.restorePreviousCalibration(previous_state, false);
+                    persistInputCalibration();
+                    std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                    return std::unexpected{std::move(monitoring_restored.error())};
+                }
 
-    auto monitoring_restored = m_live_input.setLiveInputMonitoringEnabled(true);
-    if (!monitoring_restored.has_value())
-    {
-        m_input_calibration.restorePreviousCalibration(previous_state, false);
-        persistInputCalibration();
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
-        return std::unexpected{std::move(monitoring_restored.error())};
-    }
-
-    m_input_calibration.restorePreviousCalibration(previous_state, true);
-    persistInputCalibration();
-    return {};
+                m_input_calibration.restorePreviousCalibration(previous_state, true);
+                persistInputCalibration();
+                return {};
+            }
+        },
+        plan);
 }
 
 // Caches the derived state as the seed for future attachView() pushes and forwards it to the

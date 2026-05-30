@@ -15,9 +15,10 @@ namespace
     };
 }
 
-[[nodiscard]] bool factsReadyForCalibration(const InputCalibrationFacts& facts) noexcept
+[[nodiscard]] bool contextReadyForCalibration(
+    const InputCalibrationWorkflow::Context& context) noexcept
 {
-    return facts.project_audio_ready && facts.arrangement_loaded;
+    return context.project_audio_ready && context.arrangement_loaded;
 }
 
 } // namespace
@@ -47,7 +48,7 @@ void InputCalibrationWorkflow::clearCalibration()
     m_calibration_state.reset();
 }
 
-InputCalibrationEffects InputCalibrationWorkflow::syncCommittedInputDeviceIdentity(
+InputCalibrationWorkflow::Effects InputCalibrationWorkflow::syncCommittedInputDeviceIdentity(
     std::optional<common::audio::InputDeviceIdentity> current_identity)
 {
     if (!current_identity.has_value())
@@ -60,8 +61,8 @@ InputCalibrationEffects InputCalibrationWorkflow::syncCommittedInputDeviceIdenti
         m_active_measurement.reset();
         m_prompt_visible = false;
         return {
-            InputCalibrationEffect::DisableCalibrationInputMonitoring,
-            InputCalibrationEffect::DisableLiveInputMonitoring,
+            Effect::DisableCalibrationInputMonitoring,
+            Effect::DisableLiveInputMonitoring,
         };
     }
 
@@ -71,7 +72,7 @@ InputCalibrationEffects InputCalibrationWorkflow::syncCommittedInputDeviceIdenti
         if (m_calibration_state.has_value() && !calibrationMatches(current_identity))
         {
             m_calibration_state.reset();
-            return {InputCalibrationEffect::PersistCalibration};
+            return {Effect::PersistCalibration};
         }
 
         return {};
@@ -88,18 +89,18 @@ InputCalibrationEffects InputCalibrationWorkflow::syncCommittedInputDeviceIdenti
     m_backend_available = true;
     m_calibration_state.reset();
     return {
-        InputCalibrationEffect::PersistCalibration,
-        InputCalibrationEffect::DisableCalibrationInputMonitoring,
-        InputCalibrationEffect::DisableLiveInputMonitoring,
+        Effect::PersistCalibration,
+        Effect::DisableCalibrationInputMonitoring,
+        Effect::DisableLiveInputMonitoring,
     };
 }
 
-InputCalibrationEffects InputCalibrationWorkflow::openAudioDeviceSettings()
+InputCalibrationWorkflow::Effects InputCalibrationWorkflow::openAudioDeviceSettings()
 {
     m_audio_device_settings_open = true;
     return {
-        InputCalibrationEffect::DisableLiveInputMonitoring,
-        InputCalibrationEffect::DisableCalibrationInputMonitoring,
+        Effect::DisableLiveInputMonitoring,
+        Effect::DisableCalibrationInputMonitoring,
     };
 }
 
@@ -113,10 +114,10 @@ bool InputCalibrationWorkflow::audioDeviceSettingsOpen() const noexcept
     return m_audio_device_settings_open;
 }
 
-bool InputCalibrationWorkflow::requestPrompt(const InputCalibrationFacts& facts)
+bool InputCalibrationWorkflow::requestPrompt(const Context& context)
 {
-    if (!m_audio_device_settings_open && factsReadyForCalibration(facts) &&
-        facts.current_input_device_identity.has_value())
+    if (!m_audio_device_settings_open && contextReadyForCalibration(context) &&
+        context.current_input_device_identity.has_value())
     {
         m_prompt_visible = true;
         return true;
@@ -135,30 +136,29 @@ bool InputCalibrationWorkflow::promptVisible() const noexcept
     return m_prompt_visible;
 }
 
-InputCalibrationSnapshot InputCalibrationWorkflow::snapshot(
-    const InputCalibrationFacts& facts) const
+InputCalibrationWorkflow::Snapshot InputCalibrationWorkflow::snapshot(const Context& context) const
 {
-    const bool audition_available = factsReadyForCalibration(facts) &&
-                                    calibrationMatches(facts.current_input_device_identity) &&
+    const bool audition_available = contextReadyForCalibration(context) &&
+                                    calibrationMatches(context.current_input_device_identity) &&
                                     m_backend_available && !m_prompt_visible &&
                                     !m_audio_device_settings_open;
-    InputCalibrationSnapshot result{
-        .status = status(facts.current_input_device_identity),
-        .calibrate_enabled = factsReadyForCalibration(facts) && !m_audio_device_settings_open &&
-                             facts.current_input_device_identity.has_value(),
+    Snapshot result{
+        .status = status(context.current_input_device_identity),
+        .calibrate_enabled = contextReadyForCalibration(context) && !m_audio_device_settings_open &&
+                             context.current_input_device_identity.has_value(),
         .live_input_audition_available = audition_available,
         .audio_device_settings_enabled = !m_prompt_visible && !m_audio_device_settings_open,
         .disabled_message = audition_available
                                 ? std::string{}
-                                : disabledMessage(facts.current_input_device_identity),
+                                : disabledMessage(context.current_input_device_identity),
         .prompt = std::nullopt,
     };
 
     if (m_prompt_visible)
     {
         result.prompt = InputCalibrationPrompt{
-            .message = disabledMessage(facts.current_input_device_identity),
-            .input_gain_db = promptGainDb(facts.current_input_device_identity),
+            .message = disabledMessage(context.current_input_device_identity),
+            .input_gain_db = promptGainDb(context.current_input_device_identity),
         };
     }
 
@@ -172,37 +172,37 @@ bool InputCalibrationWorkflow::calibrationMatches(
            common::audio::inputCalibrationMatchesIdentity(*m_calibration_state, *current_identity);
 }
 
-std::expected<InputCalibrationMeasurement, common::audio::LiveInputError> InputCalibrationWorkflow::
-    prepareMeasurementStart(const InputCalibrationFacts& facts) const
+std::expected<InputCalibrationWorkflow::MeasurementSession, common::audio::LiveInputError>
+InputCalibrationWorkflow::prepareMeasurementStart(const Context& context) const
 {
     if (!m_prompt_visible)
     {
         return std::unexpected{inputRouteUnavailable("Calibration prompt is not active")};
     }
 
-    if (!factsReadyForCalibration(facts))
+    if (!contextReadyForCalibration(context))
     {
         return std::unexpected{inputRouteUnavailable("Project audio is not ready")};
     }
 
-    if (!facts.current_input_device_identity.has_value())
+    if (!context.current_input_device_identity.has_value())
     {
         return std::unexpected{inputRouteUnavailable()};
     }
 
     std::optional<common::audio::InputCalibrationState> previous_calibration_state;
-    if (calibrationMatches(facts.current_input_device_identity))
+    if (calibrationMatches(context.current_input_device_identity))
     {
         previous_calibration_state = m_calibration_state;
     }
 
-    return InputCalibrationMeasurement{
-        .input_device_identity = *facts.current_input_device_identity,
+    return MeasurementSession{
+        .input_device_identity = *context.current_input_device_identity,
         .previous_calibration_state = std::move(previous_calibration_state),
     };
 }
 
-void InputCalibrationWorkflow::activateMeasurement(InputCalibrationMeasurement measurement)
+void InputCalibrationWorkflow::activateMeasurement(MeasurementSession measurement)
 {
     m_active_measurement = std::move(measurement);
 }
@@ -217,47 +217,49 @@ void InputCalibrationWorkflow::clearActiveMeasurement() noexcept
     m_active_measurement.reset();
 }
 
-std::expected<InputCalibrationCommitPlan, common::audio::LiveInputError> InputCalibrationWorkflow::
-    prepareCommit(
-        double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity,
-        const InputCalibrationFacts& facts) const
+std::expected<InputCalibrationWorkflow::CommitPlan, common::audio::LiveInputError>
+InputCalibrationWorkflow::prepareCommit(
+    double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity,
+    const Context& context) const
 {
     if (!m_prompt_visible)
     {
         return std::unexpected{inputRouteUnavailable("Calibration prompt is not active")};
     }
 
-    if (!factsReadyForCalibration(facts))
+    if (!contextReadyForCalibration(context))
     {
         return std::unexpected{inputRouteUnavailable("Project audio is not ready")};
     }
 
-    if (!facts.current_input_device_identity.has_value())
+    if (!context.current_input_device_identity.has_value())
     {
         return std::unexpected{inputRouteUnavailable()};
     }
 
-    if (expected_identity.has_value() && *expected_identity != *facts.current_input_device_identity)
+    if (expected_identity.has_value() &&
+        *expected_identity != *context.current_input_device_identity)
     {
         return std::unexpected{inputRouteUnavailable("Input route changed during calibration")};
     }
 
-    return InputCalibrationCommitPlan{
+    return CommitPlan{
         .calibration_gain = common::audio::clampGain(common::audio::Gain{gain_db}),
-        .input_device_identity = *facts.current_input_device_identity,
+        .input_device_identity = *context.current_input_device_identity,
         .previous_calibration_state = m_calibration_state,
     };
 }
 
-std::expected<InputCalibrationCommitPlan, common::audio::LiveInputError> InputCalibrationWorkflow::
-    prepareActiveMeasurementCommit(double gain_db, const InputCalibrationFacts& facts) const
+std::expected<InputCalibrationWorkflow::CommitPlan, common::audio::LiveInputError>
+InputCalibrationWorkflow::prepareActiveMeasurementCommit(
+    double gain_db, const Context& context) const
 {
     if (!m_active_measurement.has_value())
     {
         return std::unexpected{inputRouteUnavailable("Calibration measurement is not active")};
     }
 
-    return prepareCommit(gain_db, m_active_measurement->input_device_identity, facts);
+    return prepareCommit(gain_db, m_active_measurement->input_device_identity, context);
 }
 
 void InputCalibrationWorkflow::commitCalibration(
@@ -295,38 +297,35 @@ std::optional<common::audio::Gain> InputCalibrationWorkflow::
     return restore_gain;
 }
 
-InputCalibrationRestorePlan InputCalibrationWorkflow::prepareMeasurementRestore(
-    const InputCalibrationFacts& facts) const
+InputCalibrationWorkflow::MeasurementRestorePlan InputCalibrationWorkflow::
+    prepareMeasurementRestore(const Context& context) const
 {
     if (!m_active_measurement.has_value())
     {
-        return {};
+        return MeasurementRestore::NoRestore{};
     }
 
-    if (!factsReadyForCalibration(facts))
+    if (!contextReadyForCalibration(context))
     {
-        return InputCalibrationRestorePlan{.kind = InputCalibrationRestoreKind::DisableLiveInput};
+        return MeasurementRestore::DisableLiveInput{};
     }
 
-    if (!facts.current_input_device_identity.has_value() ||
-        *facts.current_input_device_identity != m_active_measurement->input_device_identity)
+    if (!context.current_input_device_identity.has_value() ||
+        *context.current_input_device_identity != m_active_measurement->input_device_identity)
     {
-        return InputCalibrationRestorePlan{
-            .kind = InputCalibrationRestoreKind::ClearCalibrationAndClosePrompt
-        };
+        return MeasurementRestore::ClearCalibrationAndClosePrompt{};
     }
 
     const std::optional<common::audio::InputCalibrationState>& previous_state =
         m_active_measurement->previous_calibration_state;
     if (!previous_state.has_value() || !common::audio::inputCalibrationMatchesIdentity(
-                                           *previous_state, *facts.current_input_device_identity))
+                                           *previous_state, *context.current_input_device_identity))
     {
-        return InputCalibrationRestorePlan{.kind = InputCalibrationRestoreKind::ClearCalibration};
+        return MeasurementRestore::ClearCalibration{};
     }
 
-    return InputCalibrationRestorePlan{
-        .kind = InputCalibrationRestoreKind::RestorePrevious,
-        .previous_calibration_state = previous_state,
+    return MeasurementRestore::RestorePreviousCalibration{
+        .previous_calibration_state = *previous_state,
     };
 }
 
