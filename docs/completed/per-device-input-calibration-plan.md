@@ -17,7 +17,7 @@ This remains editor-only app-local state:
 The implementation stays in `rock-hero-editor/core` and the existing app-local settings boundary.
 The audio layer continues to report only the current physical input route identity.
 
-## Current State
+## Original State
 
 `common::audio::InputCalibrationState` stores the right atomic record:
 
@@ -41,7 +41,7 @@ The original limitation was persistence and active-route selection policy:
 
 That is correct for "do not apply the wrong calibration to the current input", but it is too
 destructive for switching between known devices. Route A -> route B -> route A should restore route
-A's prior calibration when it is still an exact identity match.
+A's prior calibration when it is still a physical-route match.
 
 ## Implemented Behavior
 
@@ -146,7 +146,7 @@ history-selection path above.
 
 The route-change transition should not request persistence. Changing the active route is a
 selection operation, not a durable history mutation. Controller commit/restore paths are
-responsible for saving or removing exact-route records.
+responsible for saving or removing physical-route records.
 
 Required workflow changes:
 
@@ -159,8 +159,7 @@ Required workflow changes:
 - On the same concrete identity, keep the active calibration state unchanged.
 - On a different concrete identity, close prompt/measurement, mark the backend available, and
   replace active calibration with the supplied matching saved record. If no valid physical-route
-  match is
-  supplied, clear only the active calibration state.
+  match is supplied, clear only the active calibration state.
 - Remove `InputCalibrationWorkflow::Effect::PersistCalibration` if route changes no longer need
   it. If a persistence effect remains useful outside route synchronization, rename or split it so
   it explicitly represents physical-route save/remove semantics.
@@ -247,7 +246,7 @@ methods remain until Stage 3 has migrated every caller, and are deleted in Stage
 - Preserve the existing live-input gate behavior: no matching active calibration means monitoring
   stays disabled.
 - Delete the now-unused legacy `inputCalibrationState()` / `setInputCalibrationState(...)` once every
-  caller uses the exact-route API. This is the deletion deferred from Stage 1.
+  caller uses the route API. This is the deletion deferred from Stage 1.
 
 ### Stage 4: Regression Coverage
 
@@ -266,7 +265,7 @@ Add controller tests for:
 
 Keep existing tests that verify a real mismatched route is not treated as calibrated. They should
 change from "global settings calibration is deleted" to "current route is missing calibration and
-previous route remains saved" if the exact-route history policy is adopted.
+previous route remains saved" if the physical-route history policy is adopted.
 
 ### Stage 5: Verification
 
@@ -290,8 +289,8 @@ It touches the same files and concepts as the current input-calibration work:
 - editor-controller input-calibration tests.
 
 Do not broaden `InputCalibrationWorkflow` into a persistent history owner while implementing this.
-The workflow owns the active route's calibration state; `EditorSettings` owns durable exact-route
-history; `EditorController` coordinates the two.
+The workflow owns the active route's calibration state; `EditorSettings` owns durable
+physical-route history; `EditorController` coordinates the two.
 
 ## Risks And Decisions
 
