@@ -37,16 +37,13 @@ public:
         /*! \brief True when the editor session has a current arrangement. */
         bool arrangement_loaded{false};
 
-        /*! \brief Current exact input route, if the audio backend can identify one. */
+        /*! \brief Current physical input route, if the audio backend can identify one. */
         std::optional<common::audio::InputDeviceIdentity> current_input_device_identity{};
     };
 
     /*! \brief Live-input side effect requested by the workflow. */
     enum class Effect
     {
-        /*! \brief Persist the workflow's current calibration state. */
-        PersistCalibration,
-
         /*! \brief Disable processed live-input monitoring through the live-input port. */
         DisableLiveInputMonitoring,
 
@@ -139,18 +136,17 @@ public:
         MeasurementRestore::ClearCalibration, MeasurementRestore::ClearCalibrationAndClosePrompt,
         MeasurementRestore::RestorePreviousCalibration>;
 
-    /*! \brief Loads the persisted calibration state, dropping invalid route identities. */
-    [[nodiscard]] bool load(std::optional<common::audio::InputCalibrationState> calibration_state);
-
-    /*! \brief Returns the calibration state that should be persisted. */
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> calibrationState() const;
+    /*! \brief Returns the active calibration state for the current route. */
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> activeCalibrationState()
+        const;
 
     /*! \brief Clears the current calibration state. */
     void clearCalibration();
 
     /*! \brief Updates committed route identity and returns effects required by route changes. */
     [[nodiscard]] Effects syncCommittedInputDeviceIdentity(
-        std::optional<common::audio::InputDeviceIdentity> current_identity);
+        std::optional<common::audio::InputDeviceIdentity> current_identity,
+        std::optional<common::audio::InputCalibrationState> saved_calibration);
 
     /*! \brief Marks audio-device settings open and requests live route teardown. */
     [[nodiscard]] Effects openAudioDeviceSettings();
@@ -235,6 +231,9 @@ private:
         const std::optional<common::audio::InputDeviceIdentity>& current_identity) const;
     [[nodiscard]] double promptGainDb(
         const std::optional<common::audio::InputDeviceIdentity>& current_identity) const;
+    void selectActiveCalibration(
+        const common::audio::InputDeviceIdentity& current_identity,
+        std::optional<common::audio::InputCalibrationState> saved_calibration);
 
     std::optional<common::audio::InputCalibrationState> m_calibration_state{};
     std::optional<common::audio::InputDeviceIdentity> m_committed_input_device_identity{};

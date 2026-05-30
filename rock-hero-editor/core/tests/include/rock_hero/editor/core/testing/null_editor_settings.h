@@ -54,15 +54,19 @@ public:
     void setAudioDeviceState(std::optional<std::string>) override
     {}
 
-    /*! \brief Reports that no input calibration state is stored. */
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationState()
-        const override
+    /*! \brief Reports that no calibration is stored for the supplied input route. */
+    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
+        const common::audio::InputDeviceIdentity&) const override
     {
         return std::nullopt;
     }
 
-    /*! \brief Ignores input calibration state writes. */
-    void setInputCalibrationState(std::optional<common::audio::InputCalibrationState>) override
+    /*! \brief Ignores input calibration writes. */
+    void saveInputCalibration(common::audio::InputCalibrationState) override
+    {}
+
+    /*! \brief Ignores input calibration removal requests. */
+    void removeInputCalibration(const common::audio::InputDeviceIdentity&) override
     {}
 };
 

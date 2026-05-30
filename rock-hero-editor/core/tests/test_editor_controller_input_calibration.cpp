@@ -145,10 +145,11 @@ TEST_CASE(
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
-    const auto stored_calibration = settings.inputCalibrationState();
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    const auto stored_calibration =
+        settings.inputCalibrationFor(*audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 7.5);
-    REQUIRE(audio_devices.current_input_identity.has_value());
     CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
 }
 
@@ -333,10 +334,11 @@ TEST_CASE(
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
 
-    const auto stored_calibration = settings.inputCalibrationState();
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    const auto stored_calibration =
+        settings.inputCalibrationFor(*audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 3.25);
-    REQUIRE(audio_devices.current_input_identity.has_value());
     CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
 }
 
@@ -383,7 +385,7 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(*audio_devices.current_input_identity).has_value());
     REQUIRE(view.last_state.has_value());
     CHECK(
         view.last_state->signal_chain.input_calibration_status ==
@@ -409,7 +411,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     const ScopedControllerFiles files{"input_calibration_settings_close_settle"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -440,7 +442,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     audio_devices.current_input_identity = std::nullopt;
     controller.onAudioDeviceSettingsClosed();
 
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(identity).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     REQUIRE(view.last_state.has_value());
     CHECK(
@@ -450,7 +452,7 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
     audio_devices.current_input_identity = identity;
     audio_devices.notifyChanged();
 
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(identity).has_value());
     CHECK(transport.live_input_monitoring_enabled);
     REQUIRE(view.last_state.has_value());
     CHECK(
@@ -464,7 +466,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
     const ScopedControllerFiles files{"input_calibration_startup_disconnected"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -490,7 +492,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(identity).has_value());
     const auto* const disconnected_state = stateOrNull(view.last_state);
     REQUIRE(disconnected_state != nullptr);
     CHECK(
@@ -502,7 +504,7 @@ TEST_CASE("Stored input calibration waits for disconnected device", "[core][edit
 
     CHECK(transport.current_input_gain.db == 5.0);
     CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(settings.inputCalibrationState().has_value());
+    REQUIRE(settings.inputCalibrationFor(identity).has_value());
     const auto* const restored_state = stateOrNull(view.last_state);
     REQUIRE(restored_state != nullptr);
     CHECK(
@@ -518,7 +520,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_startup_gate"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -564,7 +566,7 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
     const ScopedControllerFiles files{"input_calibration_backend_unavailable"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -601,7 +603,7 @@ TEST_CASE("Input calibration reports backend unavailable", "[core][editor-contro
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(identity).has_value());
     CHECK(
         final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Unavailable);
     CHECK(
@@ -615,7 +617,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     const ScopedControllerFiles files{"input_calibration_disconnect_reconnect"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = identity,
@@ -646,7 +648,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     audio_devices.notifyChanged();
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    CHECK(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(identity).has_value());
     const auto* const disconnected_state = stateOrNull(view.last_state);
     REQUIRE(disconnected_state != nullptr);
     CHECK(
@@ -658,7 +660,7 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
 
     CHECK(transport.live_input_monitoring_enabled);
     CHECK(transport.current_input_gain.db == 5.0);
-    const auto preserved_calibration = settings.inputCalibrationState();
+    const auto preserved_calibration = settings.inputCalibrationFor(identity);
     REQUIRE(preserved_calibration.has_value());
     CHECK(preserved_calibration->calibration_gain.db == 5.0);
     const auto* const restored_state = stateOrNull(view.last_state);
@@ -668,14 +670,13 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
         InputCalibrationStatus::Calibrated);
 }
 
-// Verifies that committed input route changes clear app-local calibration and disable monitoring.
-TEST_CASE(
-    "Input route change clears calibration and disables monitoring", "[core][editor-controller]")
+// Verifies route changes preserve prior calibration history while gating an unsaved route.
+TEST_CASE("Input route change preserves previous calibration history", "[core][editor-controller]")
 {
     const ScopedControllerFiles files{"input_calibration_route_change"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{5.0},
             .input_device_identity = initial_identity,
@@ -710,7 +711,9 @@ TEST_CASE(
 
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
-    CHECK_FALSE(settings.inputCalibrationState().has_value());
+    CHECK(settings.inputCalibrationFor(initial_identity).has_value());
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    CHECK_FALSE(settings.inputCalibrationFor(*audio_devices.current_input_identity).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
     CHECK(
@@ -719,6 +722,252 @@ TEST_CASE(
     CHECK(
         final_state->signal_chain.disabled_message ==
         "Live input disabled: input calibration required.");
+}
+
+// Verifies a saved calibration for the new physical route is applied after a route switch.
+TEST_CASE("Input route change applies saved route calibration", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_saved_route_switch"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = initial_identity,
+        });
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{8.0},
+            .input_device_identity = next_identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = initial_identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    audio_devices.current_input_identity = next_identity;
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(transport.current_input_gain.db == 8.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK(settings.inputCalibrationFor(initial_identity).has_value());
+    CHECK(settings.inputCalibrationFor(next_identity).has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+}
+
+// Verifies switching away and back restores the original physical-route calibration.
+TEST_CASE("Input route change restores saved calibration on return", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_saved_route_return"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = initial_identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = initial_identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    audio_devices.current_input_identity = next_identity;
+    audio_devices.notifyChanged();
+    REQUIRE_FALSE(transport.live_input_monitoring_enabled);
+
+    audio_devices.current_input_identity = initial_identity;
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    REQUIRE(settings.inputCalibrationFor(initial_identity).has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+}
+
+// Verifies channel-name drift does not hide a saved physical-route calibration.
+TEST_CASE("Input route return restores renamed physical channel", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_renamed_channel_return"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity initial_identity =
+        makeInputDeviceIdentity("Interface A", 0, "Input 1");
+    const common::audio::InputDeviceIdentity renamed_identity =
+        makeInputDeviceIdentity("Interface A", 0, "Mic/Inst 1");
+    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = initial_identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = initial_identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    audio_devices.current_input_identity = next_identity;
+    audio_devices.notifyChanged();
+    REQUIRE_FALSE(transport.live_input_monitoring_enabled);
+
+    audio_devices.current_input_identity = renamed_identity;
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(transport.current_input_gain.db == 5.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    REQUIRE(settings.inputCalibrationFor(renamed_identity).has_value());
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
+}
+
+// Verifies a different physical input channel is treated as a different route.
+TEST_CASE("Input route channel change requires its own calibration", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_channel_route"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity channel_one =
+        makeInputDeviceIdentity("Interface A", 0);
+    const common::audio::InputDeviceIdentity channel_three =
+        makeInputDeviceIdentity("Interface A", 2);
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = channel_one,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = channel_one;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    audio_devices.current_input_identity = channel_three;
+    audio_devices.notifyChanged();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(settings.inputCalibrationFor(channel_one).has_value());
+    CHECK_FALSE(settings.inputCalibrationFor(channel_three).has_value());
+    CHECK_FALSE(transport.live_input_monitoring_enabled);
+    CHECK(
+        final_state->signal_chain.input_calibration_status ==
+        InputCalibrationStatus::MissingCalibration);
+}
+
+// Verifies settings close selects a newly chosen concrete route even while the window was open.
+TEST_CASE("Audio settings close applies saved replacement route", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"input_calibration_settings_replacement_route"};
+    EditorSettings settings{files.settingsFile()};
+    const common::audio::InputDeviceIdentity initial_identity = makeInputDeviceIdentity();
+    const common::audio::InputDeviceIdentity next_identity = makeInputDeviceIdentity("Interface B");
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{5.0},
+            .input_device_identity = initial_identity,
+        });
+    settings.saveInputCalibration(
+        common::audio::InputCalibrationState{
+            .calibration_gain = common::audio::Gain{8.0},
+            .input_device_identity = next_identity,
+        });
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    audio_devices.current_input_identity = initial_identity;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
+    audio_devices.current_input_identity = next_identity;
+    controller.onAudioDeviceSettingsClosed();
+
+    const auto* const final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK(transport.current_input_gain.db == 8.0);
+    CHECK(transport.live_input_monitoring_enabled);
+    CHECK(final_state->signal_chain.input_calibration_status == InputCalibrationStatus::Calibrated);
 }
 
 // Verifies a route change during measurement closes the prompt and leaves monitoring disabled.
@@ -759,7 +1008,8 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->input_calibration_prompt.has_value());
-    CHECK_FALSE(settings.inputCalibrationState().has_value());
+    REQUIRE(audio_devices.current_input_identity.has_value());
+    CHECK_FALSE(settings.inputCalibrationFor(*audio_devices.current_input_identity).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     CHECK(
@@ -778,7 +1028,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_manual_restore"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -826,7 +1076,7 @@ TEST_CASE(
     CHECK(transport.current_input_gain.db == 4.0);
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto restored_calibration = settings.inputCalibrationState();
+    const auto restored_calibration = settings.inputCalibrationFor(identity);
     REQUIRE(restored_calibration.has_value());
     CHECK(restored_calibration->calibration_gain.db == 4.0);
 }
@@ -839,7 +1089,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_manual_cancel"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -878,7 +1128,7 @@ TEST_CASE(
     CHECK(transport.current_input_gain.db == 4.0);
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto restored_calibration = settings.inputCalibrationState();
+    const auto restored_calibration = settings.inputCalibrationFor(identity);
     REQUIRE(restored_calibration.has_value());
     CHECK(restored_calibration->calibration_gain.db == 4.0);
 }
@@ -891,7 +1141,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_manual_cancel_backend_unavailable"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -938,7 +1188,7 @@ TEST_CASE(
     CHECK(transport.current_input_gain.db == 4.0);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto preserved_calibration = settings.inputCalibrationState();
+    const auto preserved_calibration = settings.inputCalibrationFor(identity);
     REQUIRE(preserved_calibration.has_value());
     CHECK(preserved_calibration->calibration_gain.db == 4.0);
 }
@@ -951,7 +1201,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"input_calibration_auto_commit_backend_unavailable"};
     EditorSettings settings{files.settingsFile()};
     const common::audio::InputDeviceIdentity identity = makeInputDeviceIdentity();
-    settings.setInputCalibrationState(
+    settings.saveInputCalibration(
         common::audio::InputCalibrationState{
             .calibration_gain = common::audio::Gain{4.0},
             .input_device_identity = identity,
@@ -1001,7 +1251,7 @@ TEST_CASE(
     CHECK(transport.current_input_gain.db == 4.0);
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    const auto preserved_calibration = settings.inputCalibrationState();
+    const auto preserved_calibration = settings.inputCalibrationFor(identity);
     REQUIRE(preserved_calibration.has_value());
     CHECK(preserved_calibration->calibration_gain.db == 4.0);
 }
