@@ -415,8 +415,6 @@ void InputCalibrationWorkflow::selectActiveCalibration(
     if (saved_calibration.has_value() &&
         common::audio::inputCalibrationMatchesPhysicalRoute(*saved_calibration, current_identity))
     {
-        saved_calibration->calibration_gain =
-            common::audio::clampGain(saved_calibration->calibration_gain);
         saved_calibration->input_device_identity = current_identity;
         m_calibration_state = std::move(saved_calibration);
         return;
