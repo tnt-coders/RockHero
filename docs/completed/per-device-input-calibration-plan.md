@@ -1,8 +1,6 @@
 # Per-Device Input Calibration Persistence Plan
 
-Status: implementation-ready plan, updated against the current input-calibration workflow,
-controller, and settings code. The completed input-calibration workflow/popup cleanup is now the
-baseline for this work.
+Status: completed. Implemented by `5e94962d Persist input calibration per physical route`.
 
 ## Scope
 
@@ -16,18 +14,18 @@ This remains editor-only app-local state:
 - not owned by JUCE UI components;
 - not owned by Tracktion or the shared audio engine.
 
-The implementation should stay in `rock-hero-editor/core` and the existing app-local settings
-boundary. The audio layer should continue to report only the current exact input route identity.
+The implementation stays in `rock-hero-editor/core` and the existing app-local settings boundary.
+The audio layer continues to report only the current physical input route identity.
 
 ## Current State
 
-`common::audio::InputCalibrationState` already stores the right atomic record:
+`common::audio::InputCalibrationState` stores the right atomic record:
 
 - calibration gain;
-- exact `InputDeviceIdentity`;
-- equality against the exact input route.
+- `InputDeviceIdentity`;
+- route matching against the stable physical input route.
 
-The limitation is now persistence and active-route selection policy:
+The original limitation was persistence and active-route selection policy:
 
 - `EditorSettings` stores one flat calibration record using the `inputCalibration*` keys.
 - `IEditorSettings` exposes one optional `inputCalibrationState()`.
@@ -45,18 +43,19 @@ That is correct for "do not apply the wrong calibration to the current input", b
 destructive for switching between known devices. Route A -> route B -> route A should restore route
 A's prior calibration when it is still an exact identity match.
 
-## Desired Behavior
+## Implemented Behavior
 
-- If the current exact input route has a saved calibration, apply it automatically.
-- If the current exact input route has no saved calibration, show `MissingCalibration`.
+- If the current physical input route has a saved calibration, apply it automatically.
+- If the current physical input route has no saved calibration, show `MissingCalibration`.
 - Switching from route A to route B must not delete route A's saved calibration.
 - Switching back from route B to route A should restore route A's saved gain.
-- Successful automatic or manual calibration should upsert the record for the current exact route.
-- Recalibrating the same exact route should replace only that route's saved gain.
+- Successful automatic or manual calibration upserts the record for the current physical route.
+- Recalibrating the same physical route replaces only that route's saved gain.
 - A temporary unavailable route (`std::nullopt`) should preserve the full calibration history.
-- A different backend, device, channel index, or channel name must not reuse another route's gain.
+- A different backend, device, or channel index does not reuse another route's gain.
+- Channel display names are stored as metadata, but are not part of the stable physical-route key.
 
-Decision: treat "same device, different input channel" as a different exact route. The old
+Decision: treat "same device, different input channel" as a different physical route. The old
 channel's calibration remains saved but is not applied to the new channel. This avoids applying a
 gain measured on one preamp/channel to another channel that may have different analog gain.
 
@@ -76,7 +75,7 @@ the settings/controller boundary.
 
 ### Settings Contract
 
-Replace the single-record `IEditorSettings` calibration API with exact-route operations. Keep the
+Replace the single-record `IEditorSettings` calibration API with physical-route operations. Keep the
 legacy flat setting keys private to `EditorSettings` for migration only; controller code should no
 longer read or write a global `inputCalibrationState()`.
 
@@ -110,7 +109,7 @@ Use this shape:
 - each record stores gain, backend name, input device name, input channel index, and input channel
   name;
 - loading drops invalid or incomplete records;
-- duplicate exact identities collapse to the last valid record.
+- duplicate physical-route identities collapse to the last valid record.
 
 Migration:
 
@@ -134,8 +133,8 @@ Route-change policy should become:
 - `std::nullopt` route: close prompt/measurement, disable monitoring, preserve active calibration
   and history.
 - same concrete identity: keep active state.
-- different concrete identity: close prompt/measurement and replace active state with the matching
-  persisted record for that exact route, or clear active state if none exists.
+- different concrete physical route: close prompt/measurement and replace active state with the
+  matching persisted record for that route, or clear active state if none exists.
 
 Reconnect rule: a `std::nullopt` route must not clear the committed identity. After
 `A -> nullopt -> A`, the return to A is therefore a "same concrete identity" transition that keeps
@@ -152,25 +151,26 @@ responsible for saving or removing exact-route records.
 Required workflow changes:
 
 - Change route synchronization to receive the controller-selected saved calibration for the
-  current exact route. The workflow should not query settings and should not infer history from the
+  current physical route. The workflow should not query settings and should not infer history from the
   previous active state.
 - On `std::nullopt` route, close prompt/measurement, request monitoring disable effects, and keep
   active calibration available for reconnect/restore decisions. The durable history remains
   untouched.
 - On the same concrete identity, keep the active calibration state unchanged.
 - On a different concrete identity, close prompt/measurement, mark the backend available, and
-  replace active calibration with the supplied matching saved record. If no valid exact match is
+  replace active calibration with the supplied matching saved record. If no valid physical-route
+  match is
   supplied, clear only the active calibration state.
 - Remove `InputCalibrationWorkflow::Effect::PersistCalibration` if route changes no longer need
   it. If a persistence effect remains useful outside route synchronization, rename or split it so
-  it explicitly represents exact-route save/remove semantics.
+  it explicitly represents physical-route save/remove semantics.
 
 Preferred implementation shape:
 
 - controller queries `IEditorSettings::inputCalibrationFor(current_identity)` for concrete routes;
 - controller passes that optional matching record into the workflow when syncing a new concrete
   route;
-- workflow validates that any supplied record exactly matches the route before making it active;
+- workflow validates that any supplied record matches the physical route before making it active;
 - workflow returns only live-input monitoring effects for route loss/change.
 
 ### Controller Policy
@@ -181,7 +181,7 @@ Preferred implementation shape:
 - load or replace the workflow's active calibration for that route;
 - apply the live-input gate after the active calibration has been selected;
 - save the active route calibration after successful automatic or manual calibration;
-- remove exact-route records only when the workflow determines the active route's saved calibration
+- remove physical-route records only when the workflow determines the active route's saved calibration
   is invalid or unusable, not merely because the user switched to another route;
 - compact invalid records inside `EditorSettings` during history parsing/writing.
 
@@ -193,41 +193,41 @@ Required controller changes:
 - Replace `loadInputCalibrationFromSettings()` with startup/current-route selection. The controller
   should ask settings for the calibration matching the current concrete route and pass only that
   matching record to the workflow.
-- Replace `persistInputCalibration()` with exact-route save/remove helpers. Successful automatic
+- Replace `persistInputCalibration()` with physical-route save/remove helpers. Successful automatic
   and manual calibration commits should upsert the current route record; invalidation should remove
-  only the current exact route when removal is actually required.
+  only the current physical route when removal is actually required.
 - Update route synchronization so every concrete audio route change selects matching history before
   applying the live-input gate.
 - Remove the mismatch clear/persist branch from `applyLiveInputGate()`. A mismatch should disable
   monitoring and rely on route synchronization to select the route's saved calibration if one
   exists; it should not delete any saved history.
-- Keep measurement cancel/restore paths scoped to the active exact route. They may restore or
+- Keep measurement cancel/restore paths scoped to the active physical route. They may restore or
   remove that route's record, but they must not clear records for other routes.
 
 ## Implementation Stages
 
 The settings-API change in Stage 1 ripples through Stages 2-3, so treat Stages 1-3 as one atomic
-landing rather than independently shippable commits. Stage 1 adds the new exact-route API
+landing rather than independently shippable commits. Stage 1 adds the new route API
 *alongside* the existing `inputCalibrationState()` / `setInputCalibrationState(...)`; those legacy
 methods remain until Stage 3 has migrated every caller, and are deleted in Stage 3. The
 "add alongside, delete last" order keeps each stage compilable.
 
 ### Stage 1: Settings History Storage
 
-- Add exact-route calibration lookup/upsert/remove behavior to `IEditorSettings`.
+- Add route calibration lookup/upsert/remove behavior to `IEditorSettings`.
 - Implement `EditorSettings` history serialization and legacy migration.
 - Update `NullEditorSettings` and test harness fakes.
 - Add settings tests for empty history, upsert, overwrite, lookup miss, invalid-record cleanup,
   duplicate collapse, malformed JSON fallback, legacy single-record migration, and a load-reload
   cycle confirming migration is idempotent.
-- Add the new exact-route API alongside the existing `inputCalibrationState()` /
+- Add the new route API alongside the existing `inputCalibrationState()` /
   `setInputCalibrationState(...)`; do not delete the legacy methods in this stage (callers migrate
   in Stage 3). Any legacy flat-key parsing should stay private to `EditorSettings`.
 
 ### Stage 2: Active Calibration Selection
 
 - Adjust `InputCalibrationWorkflow` so concrete route changes clear or replace only active state
-  from a controller-supplied exact-route calibration.
+  from a controller-supplied route calibration.
 - Keep route-unavailable behavior from the disconnect/reconnect fix.
 - Add workflow tests for route A -> route B with no saved B, route A -> route B with saved B, and
   route B -> route A restoring the matching active calibration.
@@ -240,8 +240,8 @@ methods remain until Stage 3 has migrated every caller, and are deleted in Stage
   global record.
 - Update audio-device change handling to select a matching saved record for each new concrete
   route.
-- Update calibration commit paths to upsert the current exact route's saved record.
-- Update measurement cancel/restore failure paths so they preserve or restore only the active exact
+- Update calibration commit paths to upsert the current route's saved record.
+- Update measurement cancel/restore failure paths so they preserve or restore only the active
   route record.
 - Remove route-mismatch history deletion from `applyLiveInputGate()`.
 - Preserve the existing live-input gate behavior: no matching active calibration means monitoring
@@ -273,8 +273,8 @@ previous route remains saved" if the exact-route history policy is adopted.
 - Build `rock_hero_editor_core_tests`.
 - Run `rock_hero_editor_core_tests.exe`.
 - Run `git diff --check`.
-- If settings serialization changes are substantial, inspect the generated settings XML in a temp
-  test file through assertions rather than manual file inspection.
+- `rock_hero_editor_core_tests.exe` passed with 215 test cases and 1572 assertions.
+- `git diff --check` passed.
 
 ## Impact On Editor Runtime Extraction
 
@@ -295,16 +295,14 @@ history; `EditorController` coordinates the two.
 
 ## Risks And Decisions
 
-- `InputDeviceIdentity` is only as stable as backend/device/channel names. If a driver renames a
-  channel after reconnect, exact-route history will intentionally require recalibration.
+- `InputDeviceIdentity` is only as stable as backend/device/channel index names. Channel display
+  name changes are tolerated, but backend, input device name, and physical channel index changes
+  intentionally require recalibration.
 - Two physical devices with identical backend/device/channel strings cannot be distinguished by the
   current identity model.
 - Settings growth is bounded by the number of routes the user has actually calibrated, because
   records are upserted only on a successful calibration commit and route selection never persists.
-  The one pathological case is a driver that renames a channel on every reconnect combined with a
-  user who recalibrates each time, which accumulates dead records the changed name can no longer
-  match (see the identity-stability risk above). Add a cap or UI cleanup only if that becomes a real
-  problem.
+  Add a cap or UI cleanup only if that becomes a real problem.
 - The migration must not erase a valid legacy single-record calibration if JSON parsing fails.
 - A new helper type should be added only if private `EditorSettings` helpers are not enough to keep
   JSON history parsing and upsert/remove behavior readable.
