@@ -222,88 +222,64 @@ void defaultExit()
     return states;
 }
 
-// Maps write actions to the busy operation shown while the worker owns Project IO.
-[[nodiscard]] BusyOperation busyOperationForProjectWrite(EditorAction::Id action) noexcept
+// Maps Save to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(
+    const EditorAction::SaveProject& /*action*/) noexcept
 {
-    switch (action)
-    {
-        case EditorAction::Id::SaveProject:
-        {
-            return BusyOperation::SavingProject;
-        }
-        case EditorAction::Id::SaveProjectAs:
-        {
-            return BusyOperation::SavingProjectAs;
-        }
-        case EditorAction::Id::PublishProject:
-        {
-            return BusyOperation::PublishingProject;
-        }
-        case EditorAction::Id::OpenProject:
-        case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportSong:
-        case EditorAction::Id::CloseProject:
-        case EditorAction::Id::ExitApplication:
-        case EditorAction::Id::ResolveUnsavedChangesPrompt:
-        case EditorAction::Id::CancelSaveAsPrompt:
-        case EditorAction::Id::PlayPause:
-        case EditorAction::Id::Stop:
-        case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPlugin:
-        case EditorAction::Id::RemovePlugin:
-        case EditorAction::Id::OpenPlugin:
-        {
-            assert(false);
-            return BusyOperation::SavingProject;
-        }
-    }
-
-    assert(false);
     return BusyOperation::SavingProject;
 }
 
-// Keeps write failure prefixes coupled to the action identity rather than split by call site.
-[[nodiscard]] std::string_view projectWriteErrorPrefix(EditorAction::Id action) noexcept
+// Maps Save As to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(
+    const EditorAction::SaveProjectAs& /*action*/) noexcept
 {
-    switch (action)
-    {
-        case EditorAction::Id::SaveProject:
-        {
-            return "Could not save: ";
-        }
-        case EditorAction::Id::SaveProjectAs:
-        {
-            return "Could not save as: ";
-        }
-        case EditorAction::Id::PublishProject:
-        {
-            return "Could not publish: ";
-        }
-        case EditorAction::Id::OpenProject:
-        case EditorAction::Id::RestoreProject:
-        case EditorAction::Id::ImportSong:
-        case EditorAction::Id::CloseProject:
-        case EditorAction::Id::ExitApplication:
-        case EditorAction::Id::ResolveUnsavedChangesPrompt:
-        case EditorAction::Id::CancelSaveAsPrompt:
-        case EditorAction::Id::PlayPause:
-        case EditorAction::Id::Stop:
-        case EditorAction::Id::SeekWaveform:
-        case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPlugin:
-        case EditorAction::Id::RemovePlugin:
-        case EditorAction::Id::OpenPlugin:
-        {
-            assert(false);
-            return "Could not write project: ";
-        }
-    }
+    return BusyOperation::SavingProjectAs;
+}
 
-    assert(false);
-    return "Could not write project: ";
+// Maps Publish to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(
+    const EditorAction::PublishProject& /*action*/) noexcept
+{
+    return BusyOperation::PublishingProject;
+}
+
+// Maps write actions to the busy operation shown while the worker owns Project IO.
+[[nodiscard]] BusyOperation busyOperationForProjectWrite(
+    const EditorAction::ProjectWriteAction& action)
+{
+    return std::visit(
+        [](const auto& alternative) noexcept { return busyOperationForProjectWrite(alternative); },
+        action);
+}
+
+// Keeps Save failure text coupled to the write alternative rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(
+    const EditorAction::SaveProject& /*action*/) noexcept
+{
+    return "Could not save: ";
+}
+
+// Keeps Save As failure text coupled to the write alternative rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(
+    const EditorAction::SaveProjectAs& /*action*/) noexcept
+{
+    return "Could not save as: ";
+}
+
+// Keeps Publish failure text coupled to the write alternative rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(
+    const EditorAction::PublishProject& /*action*/) noexcept
+{
+    return "Could not publish: ";
+}
+
+// Keeps write failure prefixes coupled to write alternatives rather than split by call site.
+[[nodiscard]] std::string_view projectWriteErrorPrefix(
+    const EditorAction::ProjectWriteAction& action)
+{
+    return std::visit(
+        [](const auto& alternative) noexcept { return projectWriteErrorPrefix(alternative); },
+        action);
 }
 
 // Converts plugin-level live rig progress into the percentage value consumed by BusyOverlay.
@@ -2544,7 +2520,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
     }
 
     runBusyOperation(
-        busyOperationForProjectWrite(idOf(state->action)),
+        busyOperationForProjectWrite(state->action),
         state,
         [save_function = m_save_function,
          save_as_function = m_save_as_function,
@@ -2600,7 +2576,7 @@ void EditorController::Impl::completeProjectWriteAction(
             clearDeferredProjectAction();
         }
         finishBusyOperation();
-        reportError(std::string{projectWriteErrorPrefix(action_id)} + message);
+        reportError(std::string{projectWriteErrorPrefix(state->action)} + message);
         return;
     }
 
