@@ -1,6 +1,8 @@
 # Editor Controller Stage 05 Cleanup Plan
 
-Status: in-progress planning note for the active editor runtime extraction work.
+Status: implemented checkpoint cleanup. Steps 1-3 landed as separate commits; Step 4 was deferred
+to Stage 6 because the remaining issue is readability ordering rather than runtime boundary debt.
+Step 5 is recorded in `editor-runtime-extraction-plan.md`.
 
 ## Scope
 
@@ -105,7 +107,7 @@ Exit criteria:
 - long assert-only switch arms disappear;
 - save, Save As, and publish busy messages/errors stay unchanged.
 
-### 4. Regroup `EditorController::Impl`
+### 4. Regroup `EditorController::Impl` (Deferred)
 
 Reorder private declarations and nearby definitions by responsibility so the root facade is easier
 to scan without creating new types.
@@ -141,6 +143,10 @@ Exit criteria:
 - declarations no longer mix unrelated action families in one long block;
 - implementation order makes it clear which functions execute side effects and which only route
   actions or project state.
+
+Decision: defer to Stage 6. Steps 2 and 3 removed the misleading busy-policy branch and the broad
+project-write helper switches. The remaining declaration/definition ordering concern is real, but a
+large pure reorder now would produce review noise without resolving additional runtime ownership.
 
 ### 5. Reassess View-State Availability Projection
 

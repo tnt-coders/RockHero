@@ -337,6 +337,30 @@ If an extracted type is awkward, fix or re-absorb it before continuing.
 intentionally root-facade responsibilities; the effect-returning pattern is confirmed as the
 convention for future editor workflow types.
 
+**Checkpoint result, May 29, 2026.** The Stage 05 cleanup pass confirmed the runtime extraction
+shape and found no additional extraction that should block Stage 6:
+
+- Stages 1-4 deleted real state ownership from `EditorController`. `BusyOperationState` owns busy
+  token/progress state, `DeferredProjectActionState` owns prompt/replay state,
+  `PluginCatalogWorkflow` owns browser catalog state, and `InputCalibrationWorkflow` owns
+  calibration policy state.
+- `EditorController` remains the correct root facade for side-effect execution: it owns app-composed
+  ports, task-runner submission, callback liveness, project IO completion, live-rig/audio-device
+  mutations, settings persistence, view publication, and transient error reporting.
+- The cleanup removed the unused cooperative busy-policy branch and narrowed project-write metadata
+  helpers to `EditorAction::ProjectWriteAction`, so non-write actions are no longer representable at
+  those helper call sites.
+- No broad `ProjectWorkflow`, `EditorActionController`, action router, or `SignalChainWorkflow`
+  should be introduced before Stage 6. The signal-chain workflow remains deferred until the audio
+  boundary exposes a stronger authoritative chain model.
+- A pure `EditorController::Impl` declaration/definition reorder is deferred to Stage 6. It is a
+  readability/taxonomy change, not remaining runtime boundary debt.
+- Availability projection stays in `EditorController` for now. `deriveViewState()` and
+  `actionAvailableWhenIdle()` are still understandable after the cleanup, and an
+  `EditorStateProjector` would currently add indirection without deleting ownership.
+- Framework-isolation Part 2 remains deferred. The remaining direct JUCE message-thread scheduling
+  sites are known and documented in `editor-structure-deferred-work.md`.
+
 ## Stage 6: Editor-Scoped Readability
 
 Now that the extracted runtime types exist, make editor roles visible through names and folders.
