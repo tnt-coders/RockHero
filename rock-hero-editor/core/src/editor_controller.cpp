@@ -2,7 +2,7 @@
 
 #include "audio_device_status_text.h"
 #include "busy_operation_state.h"
-#include "deferred_editor_action_state.h"
+#include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "input_calibration_workflow.h"
 #include "plugin_catalog_workflow.h"
@@ -496,8 +496,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
-    void continueDeferredAction();
-    void clearDeferredAction() noexcept;
+    void replayDeferredProjectActionAfterSave();
+    void clearDeferredProjectAction() noexcept;
     void clearInterruptedRestoreMarker();
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
@@ -682,7 +682,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool m_has_unsaved_changes{false};
 
     // Project-lifecycle action and prompt state waiting on unsaved-change or Save As decisions.
-    DeferredEditorActionState m_deferred_action_state{};
+    DeferredProjectActionState m_deferred_project_action_state{};
 
     // Busy operation and token state used by async callbacks to reject stale work.
     BusyOperationState m_busy_state{};
@@ -1149,7 +1149,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
     m_save_requires_destination = false;
     m_has_unsaved_changes = m_project->audioNormalizationUpdatedOnLoad();
-    clearDeferredAction();
+    clearDeferredProjectAction();
     m_project_audio_ready = true;
     applyLiveInputGate();
 
@@ -1255,7 +1255,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project_file.clear();
     m_save_requires_destination = true;
     m_has_unsaved_changes = true;
-    clearDeferredAction();
+    clearDeferredProjectAction();
     m_project_audio_ready = true;
     applyLiveInputGate();
 
@@ -1697,28 +1697,29 @@ void EditorController::Impl::performActionImpl(EditorAction::ExitApplication /*a
 
 void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action)
 {
-    DeferredEditorActionDecision decision =
-        m_deferred_action_state.resolveUnsavedChanges(action.decision, m_save_requires_destination);
-    switch (decision.kind)
+    DeferredProjectActionState::Resolution resolution =
+        m_deferred_project_action_state.resolveUnsavedChanges(
+            action.decision, m_save_requires_destination);
+    switch (resolution.outcome)
     {
-        case DeferredEditorActionDecisionKind::None:
+        case DeferredProjectActionState::Outcome::None:
         {
             updateView();
             return;
         }
-        case DeferredEditorActionDecisionKind::SaveCurrentProject:
+        case DeferredProjectActionState::Outcome::SaveCurrentProject:
         {
             runProjectAction(EditorAction::SaveProject{});
             return;
         }
-        case DeferredEditorActionDecisionKind::AwaitSaveAsPath:
+        case DeferredProjectActionState::Outcome::AwaitSaveAsPath:
         {
             updateView();
             return;
         }
-        case DeferredEditorActionDecisionKind::DiscardAndReplay:
+        case DeferredProjectActionState::Outcome::DiscardChangesAndReplay:
         {
-            std::optional<DeferredEditorActionReplay> replay = std::move(decision.replay);
+            std::optional<DeferredProjectActionState::Replay> replay = std::move(resolution.replay);
             if (!replay.has_value())
             {
                 updateView();
@@ -1755,7 +1756,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
             }
             return;
         }
-        case DeferredEditorActionDecisionKind::Cancelled:
+        case DeferredProjectActionState::Outcome::Cancelled:
         {
             updateView();
             return;
@@ -1765,7 +1766,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChang
 
 void EditorController::Impl::performActionImpl(EditorAction::CancelSaveAsPrompt /*action*/)
 {
-    if (!m_deferred_action_state.cancelSaveAsPrompt())
+    if (!m_deferred_project_action_state.cancelSaveAsPrompt())
     {
         return;
     }
@@ -2190,11 +2191,11 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
         }
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         {
-            return m_deferred_action_state.unsavedChangesPrompt().has_value();
+            return m_deferred_project_action_state.unsavedChangesPrompt().has_value();
         }
         case EditorAction::Id::CancelSaveAsPrompt:
         {
-            return m_deferred_action_state.saveAsPrompt().has_value();
+            return m_deferred_project_action_state.saveAsPrompt().has_value();
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekWaveform:
@@ -2278,7 +2279,7 @@ void EditorController::Impl::requestProjectAction(EditorAction::ProjectAction ac
 {
     if (hasUnsavedChanges())
     {
-        m_deferred_action_state.defer(std::move(action));
+        m_deferred_project_action_state.defer(std::move(action));
         updateView();
         return;
     }
@@ -2302,7 +2303,7 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
                 const std::filesystem::path displaced = m_displaced_project_file;
                 if (closeProject())
                 {
-                    clearDeferredAction();
+                    clearDeferredProjectAction();
                     if (!displaced.empty())
                     {
                         openProject(displaced, false);
@@ -2341,7 +2342,7 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
                 if (closeProject())
                 {
                     m_pending_restore_project_file.reset();
-                    clearDeferredAction();
+                    clearDeferredProjectAction();
                     m_settings.setLastOpenProject(restorable_project_file);
                     updateView();
                     m_exit_function();
@@ -2616,9 +2617,9 @@ void EditorController::Impl::completeProjectWriteAction(
         // A deferred action present at the moment of a failed save means this save was the one
         // synthesized by the unsaved-changes prompt's Save branch; the user wanted to protect
         // their work first, so dropping the deferred replay is the right escape.
-        if (m_deferred_action_state.hasDeferredAction())
+        if (m_deferred_project_action_state.hasDeferredAction())
         {
-            clearDeferredAction();
+            clearDeferredProjectAction();
         }
         finishBusyOperation();
         reportError(std::string{projectWriteErrorPrefix(action_id)} + message);
@@ -2649,16 +2650,17 @@ void EditorController::Impl::completeProjectWriteAction(
     finishBusyOperation();
     if ((action_id == EditorAction::Id::SaveProject ||
          action_id == EditorAction::Id::SaveProjectAs) &&
-        m_deferred_action_state.hasDeferredAction())
+        m_deferred_project_action_state.hasDeferredAction())
     {
-        continueDeferredAction();
+        replayDeferredProjectActionAfterSave();
     }
 }
 
-// Resumes a deferred action after Save or Save As has successfully protected user changes.
-void EditorController::Impl::continueDeferredAction()
+// Resumes a deferred project action after Save or Save As has protected user changes.
+void EditorController::Impl::replayDeferredProjectActionAfterSave()
 {
-    std::optional<DeferredEditorActionReplay> replay = m_deferred_action_state.takeReplayAction();
+    std::optional<DeferredProjectActionState::Replay> replay =
+        m_deferred_project_action_state.takeReplay();
     if (!replay.has_value())
     {
         updateView();
@@ -2669,9 +2671,9 @@ void EditorController::Impl::continueDeferredAction()
 }
 
 // Clears all prompt-related state without changing the currently loaded project.
-void EditorController::Impl::clearDeferredAction() noexcept
+void EditorController::Impl::clearDeferredProjectAction() noexcept
 {
-    m_deferred_action_state.clear();
+    m_deferred_project_action_state.clear();
 }
 
 // Clears the restore-interrupted marker without touching the normal last-project path.
@@ -2862,8 +2864,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_duration = arrangement->audio_duration,
         };
     }
-    state.unsaved_changes_prompt = m_deferred_action_state.unsavedChangesPrompt();
-    state.save_as_prompt = m_deferred_action_state.saveAsPrompt();
+    state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
+    state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();
 
     if (m_restore_interrupted_prompt_file.has_value())
     {
