@@ -1,7 +1,7 @@
 # Editor Structure — Deferred Work
 
-Status: in-progress register of deferred work. Nothing here is scheduled. Each item lists the
-trigger that should bring it back into active scope.
+Status: deferred work register. Nothing here is scheduled. Each item lists the trigger that should
+bring it back into active scope.
 
 ## Scope
 

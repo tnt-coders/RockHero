@@ -1,6 +1,8 @@
 # Editor Runtime Extraction Plan
 
-Status: in-progress plan. This is the active work to do now.
+Status: in-progress plan. Runtime stages 0-5 are implemented; the active work is Stage 6
+readability cleanup plus the focused action-policy follow-up in
+`editor-action-policy-cleanup-plan.md`.
 
 ## Scope
 
@@ -9,13 +11,15 @@ active development focus for the foreseeable future before any game work begins.
 `EditorController` runtime decomposition and the editor-scoped readability work that naturally falls
 out of doing that decomposition while living in these modules.
 
-Two companion documents hold the rest:
+Related documents hold the rest:
 
-- `editor-structure-deferred-work.md` — work that is real but should wait for a proven need or for
-  attention to move outside the editor (codebase-wide folder reorg, framework-isolation Part 2, the
-  speculative runtime types, durable design-doc updates).
-- `editor-structure-dropped-candidates.md` — process steps that were in the master plan but are not
-  worth formalizing on a solo, early-stage project.
+- `docs/todo/editor-structure-deferred-work.md` - work that is real but should wait for a proven
+  need or for attention to move outside the editor (codebase-wide folder reorg,
+  framework-isolation Part 2, speculative runtime types, durable design-doc updates).
+- `docs/completed/editor-structure-dropped-candidates.md` - process steps from the master plan that
+  are not worth formalizing on a solo, early-stage project.
+- `docs/in-progress/editor-action-policy-cleanup-plan.md` - focused Stage 5/6 follow-up for pure
+  action metadata and availability-policy cleanup.
 
 This document is self-contained: it does not depend on the deleted master plan.
 
@@ -269,7 +273,7 @@ after Stages 1–2, the catalog collapses to simple storage plus pass-through, l
 2. Move catalog storage, sorting, browser open/close, and selected-candidate lookup into it.
 3. Keep plugin scanning task submission in `EditorController`.
 4. Keep `IPluginHost` mutation calls in `EditorController` — do **not** create a signal-chain
-   workflow yet (see `editor-structure-deferred-work.md`).
+   workflow yet (see `docs/todo/editor-structure-deferred-work.md`).
 
 **Exit criteria.** Catalog/browser state is local to one type; add/remove/open behavior is
 unchanged; no premature signal-chain workflow.
@@ -328,8 +332,8 @@ Pause and assess before any further runtime work.
 - (If Stage 3 was skipped) is leaving the plugin catalog in the controller still the right call?
 - **Framework-isolation Part 2 (message-thread scheduling):** is the remaining JUCE usage in
   `editor_controller.cpp` limited enough to leave alone? The conditions and shape for doing it are
-  in `editor-structure-deferred-work.md`. Default expectation: leave it alone unless one of those
-  conditions is met.
+  in `docs/todo/editor-structure-deferred-work.md`. Default expectation: leave it alone unless one
+  of those conditions is met.
 
 If an extracted type is awkward, fix or re-absorb it before continuing.
 
@@ -358,15 +362,23 @@ shape and found no additional extraction that should block Stage 6:
 - Availability projection stays in `EditorController` for now. `deriveViewState()` and
   `actionAvailableWhenIdle()` are still understandable after the cleanup, and an
   `EditorStateProjector` would currently add indirection without deleting ownership.
+- A follow-up action-policy review found that pure action metadata should not remain as loose
+  anonymous controller helpers. See `docs/in-progress/editor-action-policy-cleanup-plan.md`; this
+  refines the Stage 5 cleanup without adding a broad action router.
 - Framework-isolation Part 2 remains deferred. The remaining direct JUCE message-thread scheduling
-  sites are known and documented in `editor-structure-deferred-work.md`.
+  sites are known and documented in `docs/todo/editor-structure-deferred-work.md`.
 
 ## Stage 6: Editor-Scoped Readability
 
 Now that the extracted runtime types exist, make editor roles visible through names and folders.
 This stage is intentionally limited to the editor modules you are actively working in. The
 codebase-wide readability reorg (common/audio, game, namespaces) is deferred to
-`editor-structure-deferred-work.md`. Behavior does not change in this stage.
+`docs/todo/editor-structure-deferred-work.md`. Behavior does not change in this stage.
+
+Before folder moves, apply the focused action-policy cleanup in
+`docs/in-progress/editor-action-policy-cleanup-plan.md`. It is a Stage 5/6 bridge: pure action
+metadata should move out of controller anonymous helpers, while side-effect dispatch stays in the
+root facade.
 
 ### 6a. Editor Naming Fixes
 
@@ -444,6 +456,7 @@ The active scope is complete when:
   view-state publication, and reads as a root facade;
 - no broad replacement controller was created;
 - the Stage 5 checkpoint confirmed the pattern;
+- pure action metadata is no longer represented as loose anonymous helpers in `EditorController`;
 - editor naming fixes are applied, `editor/core` public/private roles are folder-separable, and
   `editor/ui` source is grouped by role.
 
@@ -459,7 +472,8 @@ The active scope is complete when:
 - Do not add broad framework wrappers only for mocking.
 - Do not rename every type with a role suffix, add `Port` to individual interfaces, or introduce
   role namespaces as a substitute for folders.
-- Do not reorganize non-editor module folders here (see `editor-structure-deferred-work.md`).
+- Do not reorganize non-editor module folders here (see
+  `docs/todo/editor-structure-deferred-work.md`).
 - Do not change behavior during pure taxonomy moves.
 - Do not split `Engine` or `EditorController` just to satisfy folder shape.
 - Do not update durable `docs/design/` documents from this plan; that is deferred until the shape
