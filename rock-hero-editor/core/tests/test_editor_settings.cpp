@@ -439,4 +439,28 @@ TEST_CASE("EditorSettings migrates legacy calibration on save", "[core][settings
     CHECK_FALSE(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
 }
 
+// Saving over malformed history replaces the bad blob but keeps the legacy fallback keys.
+TEST_CASE("EditorSettings keeps legacy keys when saving over malformed JSON", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"malformed_save_input_calibration.settings"};
+    const common::audio::InputDeviceIdentity legacy_identity = makeIdentity("Interface A");
+    const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
+    writeLegacyCalibration(settings_file.path(), calibrationFor(legacy_identity, 5.0));
+    writeRawSetting(
+        settings_file.path(), g_input_calibration_states_json_key, juce::String{"[not-json"});
+
+    {
+        EditorSettings settings{settings_file.path()};
+        settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
+    }
+
+    // The unparseable blob is gone, but the legacy fallback was not deleted along with it.
+    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    const auto new_calibration = reloaded_settings.inputCalibrationFor(new_identity);
+    REQUIRE(new_calibration.has_value());
+    CHECK(new_calibration->calibration_gain.db == 7.0);
+}
+
 } // namespace rock_hero::editor::core
