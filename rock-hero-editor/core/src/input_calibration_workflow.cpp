@@ -50,14 +50,24 @@ void InputCalibrationWorkflow::clearCalibration()
 InputCalibrationEffects InputCalibrationWorkflow::syncCommittedInputDeviceIdentity(
     std::optional<common::audio::InputDeviceIdentity> current_identity)
 {
-    if (!current_identity.has_value() && m_audio_device_settings_open)
+    if (!current_identity.has_value())
     {
-        return {};
+        if (m_audio_device_settings_open)
+        {
+            return {};
+        }
+
+        m_active_measurement.reset();
+        m_prompt_visible = false;
+        return {
+            InputCalibrationEffect::DisableCalibrationInputMonitoring,
+            InputCalibrationEffect::DisableLiveInputMonitoring,
+        };
     }
 
     if (!m_committed_input_device_identity.has_value())
     {
-        m_committed_input_device_identity = current_identity;
+        m_committed_input_device_identity = *current_identity;
         if (m_calibration_state.has_value() && !calibrationMatches(current_identity))
         {
             m_calibration_state.reset();
