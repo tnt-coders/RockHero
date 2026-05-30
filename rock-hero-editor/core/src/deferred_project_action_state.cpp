@@ -1,133 +1,129 @@
 #include "deferred_project_action_state.h"
 
 #include <utility>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
 
 bool DeferredProjectActionState::hasDeferredAction() const noexcept
 {
-    return m_deferred_action.has_value();
+    return !std::holds_alternative<Idle>(m_state);
 }
 
-// Stores the project action and makes the unsaved-changes prompt visible.
+// Enters the lifecycle at the unsaved-changes prompt with the action it will eventually replay.
 void DeferredProjectActionState::defer(EditorAction::ProjectAction action)
 {
-    m_deferred_action = std::move(action);
-    m_unsaved_changes_prompt_visible = true;
-    m_save_as_prompt_visible = false;
+    m_state = AwaitingUnsavedChangesDecision{std::move(action)};
 }
 
 // Converts the user's prompt answer into the next controller instruction without executing it.
 DeferredProjectActionState::Resolution DeferredProjectActionState::resolveUnsavedChanges(
     UnsavedChangesDecision decision, bool save_requires_destination)
 {
-    if (!m_deferred_action.has_value())
+    auto* pending = std::get_if<AwaitingUnsavedChangesDecision>(&m_state);
+    if (pending == nullptr)
     {
-        clear();
-        return {};
+        m_state = Idle{};
+        return Refresh{};
     }
 
-    m_unsaved_changes_prompt_visible = false;
+    // Lift the action out before reassigning m_state so we never read a moved-from alternative.
+    EditorAction::ProjectAction action = std::move(pending->action);
     switch (decision)
     {
         case UnsavedChangesDecision::Save:
         {
             if (save_requires_destination)
             {
-                m_save_as_prompt_visible = true;
-                return Resolution{
-                    .outcome = Outcome::AwaitSaveAsPath,
-                };
+                // Park the action behind the Save As chooser; nothing runs until the path arrives.
+                m_state = AwaitingSaveAsPath{std::move(action)};
+                return Refresh{};
             }
 
-            m_save_as_prompt_visible = false;
-            return Resolution{
-                .outcome = Outcome::SaveCurrentProject,
-            };
+            m_state = SavingBeforeReplay{std::move(action)};
+            return SaveThenReplay{};
         }
         case UnsavedChangesDecision::Discard:
         {
-            return Resolution{
-                .outcome = Outcome::DiscardChangesAndReplay,
-                .replay = takeReplayUnchecked(),
-            };
+            m_state = Idle{};
+            return DiscardAndReplay{.action = std::move(action)};
         }
         case UnsavedChangesDecision::Cancel:
         {
-            clear();
-            return Resolution{
-                .outcome = Outcome::Cancelled,
-            };
+            m_state = Idle{};
+            return Refresh{};
         }
     }
 
-    return {};
+    m_state = Idle{};
+    return Refresh{};
 }
 
 // Cancelling Save As drops the deferred project action because the save path cannot continue.
 bool DeferredProjectActionState::cancelSaveAsPrompt() noexcept
 {
-    if (!m_save_as_prompt_visible)
+    if (!std::holds_alternative<AwaitingSaveAsPath>(m_state))
     {
         return false;
     }
 
-    clear();
+    m_state = Idle{};
     return true;
 }
 
-// Releases a saved deferred action exactly once for post-save controller replay.
-std::optional<DeferredProjectActionState::Replay> DeferredProjectActionState::takeReplay()
+// Dismisses the Save As chooser once its path is supplied; the action waits out the save.
+void DeferredProjectActionState::saveAsPathChosen() noexcept
 {
-    if (!m_deferred_action.has_value())
+    auto* awaiting = std::get_if<AwaitingSaveAsPath>(&m_state);
+    if (awaiting == nullptr)
+    {
+        return;
+    }
+
+    m_state = SavingBeforeReplay{std::move(awaiting->action)};
+}
+
+// Releases the parked deferred action exactly once for post-save controller replay.
+std::optional<EditorAction::ProjectAction> DeferredProjectActionState::takeReplay()
+{
+    auto* saving = std::get_if<SavingBeforeReplay>(&m_state);
+    if (saving == nullptr)
     {
         return std::nullopt;
     }
 
-    return takeReplayUnchecked();
+    EditorAction::ProjectAction action = std::move(saving->action);
+    m_state = Idle{};
+    return action;
 }
 
 // Returns the state to the idle prompt-free baseline.
 void DeferredProjectActionState::clear() noexcept
 {
-    m_deferred_action.reset();
-    m_unsaved_changes_prompt_visible = false;
-    m_save_as_prompt_visible = false;
+    m_state = Idle{};
 }
 
 // Projects the visible unsaved-changes prompt without exposing the stored action payload.
 std::optional<UnsavedChangesPrompt> DeferredProjectActionState::unsavedChangesPrompt() const
 {
-    if (!m_deferred_action.has_value() || !m_unsaved_changes_prompt_visible)
+    if (const auto* pending = std::get_if<AwaitingUnsavedChangesDecision>(&m_state))
     {
-        return std::nullopt;
+        return UnsavedChangesPrompt{idOf(pending->action)};
     }
 
-    return UnsavedChangesPrompt{idOf(*m_deferred_action)};
+    return std::nullopt;
 }
 
 // Projects the visible Save As prompt without exposing the stored action payload.
 std::optional<SaveAsPrompt> DeferredProjectActionState::saveAsPrompt() const
 {
-    if (!m_deferred_action.has_value() || !m_save_as_prompt_visible)
+    if (const auto* awaiting = std::get_if<AwaitingSaveAsPath>(&m_state))
     {
-        return std::nullopt;
+        return SaveAsPrompt{idOf(awaiting->action)};
     }
 
-    return SaveAsPrompt{idOf(*m_deferred_action)};
-}
-
-// Moves the deferred action out after callers have already proven one exists.
-std::optional<DeferredProjectActionState::Replay> DeferredProjectActionState::takeReplayUnchecked()
-{
-    EditorAction::ProjectAction action = std::move(*m_deferred_action);
-    const EditorAction::Id action_id = idOf(action);
-    clear();
-    return Replay{
-        .action_id = action_id,
-        .action = std::move(action),
-    };
+    return std::nullopt;
 }
 
 } // namespace rock_hero::editor::core

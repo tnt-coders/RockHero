@@ -467,6 +467,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     void requestProjectAction(EditorAction::ProjectAction action);
     void runProjectAction(EditorAction::ProjectAction action);
+    void runProjectActionImpl(EditorAction::OpenProject action);
+    void runProjectActionImpl(EditorAction::RestoreProject action);
+    void runProjectActionImpl(EditorAction::ImportSong action);
+    void runProjectActionImpl(EditorAction::SaveProject action);
+    void runProjectActionImpl(EditorAction::SaveProjectAs action);
+    void runProjectActionImpl(EditorAction::PublishProject action);
+    void runProjectActionImpl(EditorAction::CloseProject action);
+    void runProjectActionImpl(EditorAction::ExitApplication action);
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
@@ -496,6 +504,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
     void completeProjectWriteAction(const std::shared_ptr<ProjectWriteTaskState>& state);
+    void applyProjectWriteSuccess(const EditorAction::SaveProject& action);
+    void applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action);
+    void applyProjectWriteSuccess(const EditorAction::PublishProject& action);
+    void replayDiscardedProjectAction(EditorAction::ProjectAction action);
     void replayDeferredProjectActionAfterSave();
     void clearDeferredProjectAction() noexcept;
     void clearInterruptedRestoreMarker();
@@ -1677,6 +1689,9 @@ void EditorController::Impl::performActionImpl(EditorAction::SaveProject /*actio
 
 void EditorController::Impl::performActionImpl(EditorAction::SaveProjectAs action)
 {
+    // When this Save As is continuing a deferred action, dismiss the chooser phase after the
+    // action gate accepts the save. A standalone Save As leaves this a no-op.
+    m_deferred_project_action_state.saveAsPathChosen();
     runProjectAction(EditorAction::SaveProjectAs{std::move(action.file)});
 }
 
@@ -1697,70 +1712,55 @@ void EditorController::Impl::performActionImpl(EditorAction::ExitApplication /*a
 
 void EditorController::Impl::performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action)
 {
-    DeferredProjectActionState::Resolution resolution =
-        m_deferred_project_action_state.resolveUnsavedChanges(
-            action.decision, m_save_requires_destination);
-    switch (resolution.outcome)
-    {
-        case DeferredProjectActionState::Outcome::None:
-        {
-            updateView();
-            return;
-        }
-        case DeferredProjectActionState::Outcome::SaveCurrentProject:
-        {
-            runProjectAction(EditorAction::SaveProject{});
-            return;
-        }
-        case DeferredProjectActionState::Outcome::AwaitSaveAsPath:
-        {
-            updateView();
-            return;
-        }
-        case DeferredProjectActionState::Outcome::DiscardChangesAndReplay:
-        {
-            std::optional<DeferredProjectActionState::Replay> replay = std::move(resolution.replay);
-            if (!replay.has_value())
+    std::visit(
+        [this](auto&& step) {
+            using Step = std::decay_t<decltype(step)>;
+            if constexpr (std::is_same_v<Step, DeferredProjectActionState::Refresh>)
             {
                 updateView();
-                return;
             }
+            else if constexpr (std::is_same_v<Step, DeferredProjectActionState::SaveThenReplay>)
+            {
+                runProjectAction(EditorAction::SaveProject{});
+            }
+            else if constexpr (std::is_same_v<Step, DeferredProjectActionState::DiscardAndReplay>)
+            {
+                replayDiscardedProjectAction(std::move(step.action));
+            }
+        },
+        m_deferred_project_action_state.resolveUnsavedChanges(
+            action.decision, m_save_requires_destination));
+}
 
-            const EditorAction::Id deferred_id = replay->action_id;
-            std::filesystem::path displaced_by_import;
-            if (deferred_id == EditorAction::Id::ImportSong)
-            {
-                displaced_by_import =
-                    !m_project_file.empty() ? m_project_file : m_displaced_project_file;
-            }
-            m_has_unsaved_changes = false;
-            m_save_requires_destination = false;
-            // CloseProject and ExitApplication both close the current project as part of their
-            // own action handler, and ExitApplication additionally needs m_project_file alive
-            // when it captures the value to persist as last_open_project. Closing here first
-            // would zero that path out, so let the replay action do its own close + capture.
-            if (deferred_id == EditorAction::Id::CloseProject ||
-                deferred_id == EditorAction::Id::ExitApplication)
-            {
-                runProjectAction(std::move(replay->action));
-                return;
-            }
+// Discards the current project's unsaved changes and replays the released deferred action now.
+void EditorController::Impl::replayDiscardedProjectAction(EditorAction::ProjectAction action)
+{
+    const EditorAction::Id deferred_id = idOf(action);
+    std::filesystem::path displaced_by_import;
+    if (deferred_id == EditorAction::Id::ImportSong)
+    {
+        displaced_by_import = !m_project_file.empty() ? m_project_file : m_displaced_project_file;
+    }
+    m_has_unsaved_changes = false;
+    m_save_requires_destination = false;
+    // CloseProject and ExitApplication both close the current project as part of their own action
+    // handler, and ExitApplication additionally needs m_project_file alive when it captures the
+    // value to persist as last_open_project. Closing here first would zero that path out, so let
+    // the replay action do its own close + capture.
+    if (deferred_id == EditorAction::Id::CloseProject ||
+        deferred_id == EditorAction::Id::ExitApplication)
+    {
+        runProjectAction(std::move(action));
+        return;
+    }
 
-            if (closeProject())
-            {
-                if (!displaced_by_import.empty())
-                {
-                    m_displaced_project_file = std::move(displaced_by_import);
-                }
-                runProjectAction(std::move(replay->action));
-            }
-            return;
-        }
-        case DeferredProjectActionState::Outcome::Cancelled:
+    if (closeProject())
+    {
+        if (!displaced_by_import.empty())
         {
-            updateView();
-            return;
+            m_displaced_project_file = std::move(displaced_by_import);
         }
+        runProjectAction(std::move(action));
     }
 }
 
@@ -2287,69 +2287,77 @@ void EditorController::Impl::requestProjectAction(EditorAction::ProjectAction ac
     runProjectAction(std::move(action));
 }
 
-// Runs a project-level action once dirty-state gates have been satisfied. Write-side cases
-// re-pack the moved alternative into a fresh Action rather than capturing the outer variant by
-// reference, so the visit's view into the source variant cannot dangle if the destination move
-// reassigns it.
+// Runs a project-level action once dirty-state gates have been satisfied. Visits the variant once
+// and dispatches to a typed overload per case, mirroring performAction; each alternative arrives by
+// value so a write-side move into a fresh ProjectWriteAction cannot dangle into the source variant.
 void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action)
 {
     std::visit(
-        [this](auto&& a) {
-            using A = std::decay_t<decltype(a)>;
-            if constexpr (std::is_same_v<A, EditorAction::CloseProject>)
-            {
-                // Capture the displaced path before closeProject() clears it so we can re-open
-                // the project that was displaced by an import the user is now discarding.
-                const std::filesystem::path displaced = m_displaced_project_file;
-                if (closeProject())
-                {
-                    clearDeferredProjectAction();
-                    if (!displaced.empty())
-                    {
-                        openProject(displaced, false);
-                    }
-                    else
-                    {
-                        updateView();
-                    }
-                }
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::OpenProject>)
-            {
-                openProject(a.file, false);
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::RestoreProject>)
-            {
-                openProject(a.file, true);
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::ImportSong>)
-            {
-                importSongSource(a.file);
-            }
-            else if constexpr (
-                std::is_same_v<A, EditorAction::SaveProject> ||
-                std::is_same_v<A, EditorAction::SaveProjectAs> ||
-                std::is_same_v<A, EditorAction::PublishProject>
-            )
-            {
-                runProjectWriteAction(
-                    EditorAction::ProjectWriteAction{std::forward<decltype(a)>(a)});
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::ExitApplication>)
-            {
-                const std::optional<std::filesystem::path> restorable_project_file =
-                    restorableProjectFileForExit();
-                if (closeProject())
-                {
-                    m_pending_restore_project_file.reset();
-                    clearDeferredProjectAction();
-                    m_settings.setLastOpenProject(restorable_project_file);
-                    updateView();
-                    m_exit_function();
-                }
-            }
-        },
+        [this](auto&& a) { runProjectActionImpl(std::forward<decltype(a)>(a)); },
         std::move(action));
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::OpenProject action)
+{
+    openProject(action.file, false);
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::RestoreProject action)
+{
+    openProject(action.file, true);
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::ImportSong action)
+{
+    importSongSource(action.file);
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::SaveProject action)
+{
+    runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::SaveProjectAs action)
+{
+    runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::PublishProject action)
+{
+    runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::CloseProject /*action*/)
+{
+    // Capture the displaced path before closeProject() clears it so we can re-open the project
+    // that was displaced by an import the user is now discarding.
+    const std::filesystem::path displaced = m_displaced_project_file;
+    if (closeProject())
+    {
+        clearDeferredProjectAction();
+        if (!displaced.empty())
+        {
+            openProject(displaced, false);
+        }
+        else
+        {
+            updateView();
+        }
+    }
+}
+
+void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication /*action*/)
+{
+    const std::optional<std::filesystem::path> restorable_project_file =
+        restorableProjectFileForExit();
+    if (closeProject())
+    {
+        m_pending_restore_project_file.reset();
+        clearDeferredProjectAction();
+        m_settings.setLastOpenProject(restorable_project_file);
+        updateView();
+        m_exit_function();
+    }
 }
 
 // Closes the current editor document across transport, backend audio, session, and workspace.
@@ -2627,25 +2635,7 @@ void EditorController::Impl::completeProjectWriteAction(
     }
 
     std::visit(
-        [this](auto&& alternative) {
-            using A = std::decay_t<decltype(alternative)>;
-            if constexpr (std::is_same_v<A, EditorAction::SaveProject>)
-            {
-                m_has_unsaved_changes = false;
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::SaveProjectAs>)
-            {
-                m_save_requires_destination = false;
-                m_project_file = alternative.file;
-                m_displaced_project_file.clear();
-                m_has_unsaved_changes = false;
-            }
-            else if constexpr (std::is_same_v<A, EditorAction::PublishProject>)
-            {
-                // Publish does not change save destination or dirty state.
-            }
-        },
-        state->action);
+        [this](const auto& alternative) { applyProjectWriteSuccess(alternative); }, state->action);
 
     finishBusyOperation();
     if ((action_id == EditorAction::Id::SaveProject ||
@@ -2656,18 +2646,37 @@ void EditorController::Impl::completeProjectWriteAction(
     }
 }
 
+void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProject& /*action*/)
+{
+    m_has_unsaved_changes = false;
+}
+
+void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
+{
+    m_save_requires_destination = false;
+    m_project_file = action.file;
+    m_displaced_project_file.clear();
+    m_has_unsaved_changes = false;
+}
+
+void EditorController::Impl::applyProjectWriteSuccess(
+    const EditorAction::PublishProject& /*action*/)
+{
+    // Publish does not change save destination or dirty state.
+}
+
 // Resumes a deferred project action after Save or Save As has protected user changes.
 void EditorController::Impl::replayDeferredProjectActionAfterSave()
 {
-    std::optional<DeferredProjectActionState::Replay> replay =
+    std::optional<EditorAction::ProjectAction> deferred_action =
         m_deferred_project_action_state.takeReplay();
-    if (!replay.has_value())
+    if (!deferred_action.has_value())
     {
         updateView();
         return;
     }
 
-    runProjectAction(std::move(replay->action));
+    runProjectAction(std::move(*deferred_action));
 }
 
 // Clears all prompt-related state without changing the currently loaded project.
