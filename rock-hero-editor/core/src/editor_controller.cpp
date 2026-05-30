@@ -367,19 +367,6 @@ private:
 struct EditorController::Impl final : private common::audio::ITransport::Listener,
                                       private common::audio::IAudioDeviceConfiguration::Listener
 {
-    // Busy policy for actions that enter through the controller action gate.
-    enum class ActionBusyPolicy : std::uint8_t
-    {
-        // Normal mutating actions are blocked until the active busy operation finishes.
-        BlockedByBusy,
-
-        // Superseding actions intentionally invalidate the active busy operation before running.
-        SupersedesBusy,
-
-        // Cooperative actions may run during busy without clearing or invalidating it.
-        AllowedWhileBusy,
-    };
-
     struct OpenTaskState;
     struct ImportTaskState;
     struct AddPluginTaskState;
@@ -463,7 +450,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] bool actionAvailableWhenIdle(EditorAction::Id action) const;
-    [[nodiscard]] static ActionBusyPolicy actionBusyPolicy(EditorAction::Id action) noexcept;
+    [[nodiscard]] static bool actionSupersedesBusy(EditorAction::Id action) noexcept;
 
     void requestProjectAction(EditorAction::ProjectAction action);
     void runProjectAction(EditorAction::ProjectAction action);
@@ -1646,8 +1633,7 @@ bool EditorController::Impl::prepareAction(EditorAction::Id action)
         return false;
     }
 
-    const ActionBusyPolicy busy_policy = actionBusyPolicy(action);
-    if (isBusy() && busy_policy == ActionBusyPolicy::SupersedesBusy)
+    if (isBusy() && actionSupersedesBusy(action))
     {
         supersedeBusyOperation();
     }
@@ -2136,24 +2122,9 @@ void EditorController::Impl::onOutputGainChanged(double gain_db)
 // Combines natural action availability with the action's busy-state policy.
 bool EditorController::Impl::canRunAction(EditorAction::Id action) const
 {
-    const ActionBusyPolicy busy_policy = actionBusyPolicy(action);
     if (isBusy())
     {
-        switch (busy_policy)
-        {
-            case ActionBusyPolicy::BlockedByBusy:
-            {
-                return false;
-            }
-            case ActionBusyPolicy::SupersedesBusy:
-            {
-                return true;
-            }
-            case ActionBusyPolicy::AllowedWhileBusy:
-            {
-                return actionAvailableWhenIdle(action);
-            }
-        }
+        return actionSupersedesBusy(action);
     }
 
     return actionAvailableWhenIdle(action);
@@ -2226,16 +2197,15 @@ bool EditorController::Impl::actionAvailableWhenIdle(EditorAction::Id action) co
     return false;
 }
 
-// Encodes the small set of actions that intentionally do not follow normal busy blocking.
-EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolicy(
-    EditorAction::Id action) noexcept
+// Encodes the small set of actions that intentionally take over an active busy operation.
+bool EditorController::Impl::actionSupersedesBusy(EditorAction::Id action) noexcept
 {
     switch (action)
     {
         case EditorAction::Id::CloseProject:
         case EditorAction::Id::ExitApplication:
         {
-            return ActionBusyPolicy::SupersedesBusy;
+            return true;
         }
         case EditorAction::Id::OpenProject:
         case EditorAction::Id::RestoreProject:
@@ -2254,11 +2224,11 @@ EditorController::Impl::ActionBusyPolicy EditorController::Impl::actionBusyPolic
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
-            return ActionBusyPolicy::BlockedByBusy;
+            return false;
         }
     }
 
-    return ActionBusyPolicy::BlockedByBusy;
+    return false;
 }
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
