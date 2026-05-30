@@ -127,6 +127,41 @@ TEST_CASE("Input calibration workflow ignores transient null route in settings",
     CHECK_FALSE(snapshot.audio_device_settings_enabled);
 }
 
+TEST_CASE("Input calibration workflow preserves calibration through route loss", "[core][workflow]")
+{
+    InputCalibrationWorkflow workflow;
+    const common::audio::InputDeviceIdentity identity = makeIdentity();
+    REQUIRE_FALSE(workflow.load(calibrationFor(identity, 4.0)));
+    REQUIRE(workflow.syncCommittedInputDeviceIdentity(identity).empty());
+    REQUIRE(workflow.requestPrompt(readyFacts(identity)));
+    auto measurement = workflow.prepareMeasurementStart(readyFacts(identity));
+    REQUIRE(measurement.has_value());
+    workflow.activateMeasurement(std::move(*measurement));
+
+    const InputCalibrationEffects lost_effects =
+        workflow.syncCommittedInputDeviceIdentity(std::nullopt);
+
+    CHECK(hasEffect(lost_effects, InputCalibrationEffect::DisableLiveInputMonitoring));
+    CHECK(hasEffect(lost_effects, InputCalibrationEffect::DisableCalibrationInputMonitoring));
+    CHECK_FALSE(hasEffect(lost_effects, InputCalibrationEffect::PersistCalibration));
+    CHECK_FALSE(workflow.promptVisible());
+    CHECK_FALSE(workflow.hasActiveMeasurement());
+    REQUIRE(workflow.calibrationState().has_value());
+    CHECK(workflow.calibrationState()->calibration_gain.db == 4.0);
+    CHECK(
+        workflow.snapshot(readyFacts(std::nullopt)).status ==
+        InputCalibrationStatus::NoActiveInputDevice);
+
+    const InputCalibrationEffects restored_effects =
+        workflow.syncCommittedInputDeviceIdentity(identity);
+
+    CHECK(restored_effects.empty());
+    CHECK(workflow.calibrationMatches(identity));
+    const InputCalibrationSnapshot restored_snapshot = workflow.snapshot(readyFacts(identity));
+    CHECK(restored_snapshot.status == InputCalibrationStatus::Calibrated);
+    CHECK(restored_snapshot.live_input_audition_available);
+}
+
 TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
