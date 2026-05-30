@@ -23,22 +23,8 @@ namespace
 
 } // namespace
 
-bool InputCalibrationWorkflow::load(
-    std::optional<common::audio::InputCalibrationState> calibration_state)
-{
-    m_calibration_state = std::move(calibration_state);
-    if (m_calibration_state.has_value() &&
-        !common::audio::isValidInputDeviceIdentity(m_calibration_state->input_device_identity))
-    {
-        m_calibration_state.reset();
-        return true;
-    }
-
-    return false;
-}
-
-std::optional<common::audio::InputCalibrationState> InputCalibrationWorkflow::calibrationState()
-    const
+std::optional<common::audio::InputCalibrationState> InputCalibrationWorkflow::
+    activeCalibrationState() const
 {
     return m_calibration_state;
 }
@@ -49,7 +35,8 @@ void InputCalibrationWorkflow::clearCalibration()
 }
 
 InputCalibrationWorkflow::Effects InputCalibrationWorkflow::syncCommittedInputDeviceIdentity(
-    std::optional<common::audio::InputDeviceIdentity> current_identity)
+    std::optional<common::audio::InputDeviceIdentity> current_identity,
+    std::optional<common::audio::InputCalibrationState> saved_calibration)
 {
     if (!current_identity.has_value())
     {
@@ -69,27 +56,32 @@ InputCalibrationWorkflow::Effects InputCalibrationWorkflow::syncCommittedInputDe
     if (!m_committed_input_device_identity.has_value())
     {
         m_committed_input_device_identity = *current_identity;
-        if (m_calibration_state.has_value() && !calibrationMatches(current_identity))
-        {
-            m_calibration_state.reset();
-            return {Effect::PersistCalibration};
-        }
-
+        selectActiveCalibration(*current_identity, std::move(saved_calibration));
         return {};
     }
 
-    if (current_identity == m_committed_input_device_identity)
+    if (common::audio::samePhysicalInputRoute(
+            *current_identity, *m_committed_input_device_identity))
     {
+        m_committed_input_device_identity = *current_identity;
+        if (m_calibration_state.has_value() && common::audio::inputCalibrationMatchesPhysicalRoute(
+                                                   *m_calibration_state, *current_identity))
+        {
+            m_calibration_state->input_device_identity = *current_identity;
+        }
+        else
+        {
+            selectActiveCalibration(*current_identity, std::move(saved_calibration));
+        }
         return {};
     }
 
-    m_committed_input_device_identity = std::move(current_identity);
+    m_committed_input_device_identity = *current_identity;
     m_active_measurement.reset();
     m_prompt_visible = false;
     m_backend_available = true;
-    m_calibration_state.reset();
+    selectActiveCalibration(*current_identity, std::move(saved_calibration));
     return {
-        Effect::PersistCalibration,
         Effect::DisableCalibrationInputMonitoring,
         Effect::DisableLiveInputMonitoring,
     };
@@ -169,7 +161,8 @@ bool InputCalibrationWorkflow::calibrationMatches(
     const std::optional<common::audio::InputDeviceIdentity>& current_identity) const
 {
     return current_identity.has_value() && m_calibration_state.has_value() &&
-           common::audio::inputCalibrationMatchesIdentity(*m_calibration_state, *current_identity);
+           common::audio::inputCalibrationMatchesPhysicalRoute(
+               *m_calibration_state, *current_identity);
 }
 
 std::expected<InputCalibrationWorkflow::MeasurementSession, common::audio::LiveInputError>
@@ -238,7 +231,8 @@ InputCalibrationWorkflow::prepareCommit(
     }
 
     if (expected_identity.has_value() &&
-        *expected_identity != *context.current_input_device_identity)
+        !common::audio::samePhysicalInputRoute(
+            *expected_identity, *context.current_input_device_identity))
     {
         return std::unexpected{inputRouteUnavailable("Input route changed during calibration")};
     }
@@ -281,9 +275,10 @@ std::optional<common::audio::Gain> InputCalibrationWorkflow::
 {
     std::optional<common::audio::Gain> restore_gain;
     if (previous_state.has_value() && current_identity.has_value() &&
-        common::audio::inputCalibrationMatchesIdentity(*previous_state, *current_identity))
+        common::audio::inputCalibrationMatchesPhysicalRoute(*previous_state, *current_identity))
     {
         m_calibration_state = previous_state;
+        m_calibration_state->input_device_identity = *current_identity;
         restore_gain = previous_state->calibration_gain;
     }
     else
@@ -311,21 +306,24 @@ InputCalibrationWorkflow::MeasurementRestorePlan InputCalibrationWorkflow::
     }
 
     if (!context.current_input_device_identity.has_value() ||
-        *context.current_input_device_identity != m_active_measurement->input_device_identity)
+        !common::audio::samePhysicalInputRoute(
+            *context.current_input_device_identity, m_active_measurement->input_device_identity))
     {
         return MeasurementRestore::ClearCalibrationAndClosePrompt{};
     }
 
     const std::optional<common::audio::InputCalibrationState>& previous_state =
         m_active_measurement->previous_calibration_state;
-    if (!previous_state.has_value() || !common::audio::inputCalibrationMatchesIdentity(
+    if (!previous_state.has_value() || !common::audio::inputCalibrationMatchesPhysicalRoute(
                                            *previous_state, *context.current_input_device_identity))
     {
         return MeasurementRestore::ClearCalibration{};
     }
 
+    common::audio::InputCalibrationState restored_state = *previous_state;
+    restored_state.input_device_identity = *context.current_input_device_identity;
     return MeasurementRestore::RestorePreviousCalibration{
-        .previous_calibration_state = *previous_state,
+        .previous_calibration_state = std::move(restored_state),
     };
 }
 
@@ -408,6 +406,23 @@ double InputCalibrationWorkflow::promptGainDb(
 {
     return calibrationMatches(current_identity) ? m_calibration_state->calibration_gain.db
                                                 : common::audio::defaultGainDb();
+}
+
+void InputCalibrationWorkflow::selectActiveCalibration(
+    const common::audio::InputDeviceIdentity& current_identity,
+    std::optional<common::audio::InputCalibrationState> saved_calibration)
+{
+    if (saved_calibration.has_value() &&
+        common::audio::inputCalibrationMatchesPhysicalRoute(*saved_calibration, current_identity))
+    {
+        saved_calibration->calibration_gain =
+            common::audio::clampGain(saved_calibration->calibration_gain);
+        saved_calibration->input_device_identity = current_identity;
+        m_calibration_state = std::move(saved_calibration);
+        return;
+    }
+
+    m_calibration_state.reset();
 }
 
 } // namespace rock_hero::editor::core
