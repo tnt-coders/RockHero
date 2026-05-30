@@ -99,8 +99,9 @@ void removeLegacyInputCalibration(juce::PropertiesFile& properties)
     properties.removeValue(g_input_calibration_input_channel_name_key);
 }
 
-// Keeps the newest record for a route so malformed duplicate history cannot make lookup ambiguous.
-void upsertCalibrationState(
+// Replaces any existing record for a route with the newest one so duplicate history cannot make
+// lookup ambiguous.
+void replaceRouteCalibration(
     std::vector<common::audio::InputCalibrationState>& history,
     common::audio::InputCalibrationState calibration_state)
 {
@@ -193,7 +194,7 @@ void upsertCalibrationState(
                 readCalibrationStateJson(item);
             state.has_value())
         {
-            upsertCalibrationState(history.states, std::move(*state));
+            replaceRouteCalibration(history.states, std::move(*state));
         }
     }
 
@@ -352,7 +353,7 @@ std::optional<common::audio::InputCalibrationState> EditorSettings::inputCalibra
     return calibration;
 }
 
-// Upserts one physical-route calibration and migrates any legacy record into the JSON history.
+// Saves one physical-route calibration and migrates any legacy record into the JSON history.
 void EditorSettings::saveInputCalibration(common::audio::InputCalibrationState calibration_state)
 {
     if (!common::audio::isValidInputDeviceIdentity(calibration_state.input_device_identity))
@@ -361,12 +362,18 @@ void EditorSettings::saveInputCalibration(common::audio::InputCalibrationState c
     }
 
     InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    upsertCalibrationState(history.states, std::move(calibration_state));
+    replaceRouteCalibration(history.states, std::move(calibration_state));
     writeInputCalibrationHistory(m_properties, history.states);
     if (m_properties.save())
     {
-        removeLegacyInputCalibration(m_properties);
-        m_properties.saveIfNeeded();
+        // Only drop the legacy flat schema once the JSON history is the trusted source. If the
+        // prior history was malformed it overwrote any parsed routes, so leave the legacy keys as
+        // a readable fallback rather than deleting known-good data we could not merge.
+        if (!history.malformed_json)
+        {
+            removeLegacyInputCalibration(m_properties);
+            m_properties.saveIfNeeded();
+        }
     }
 }
 

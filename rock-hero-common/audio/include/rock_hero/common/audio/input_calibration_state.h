@@ -31,19 +31,6 @@ struct [[nodiscard]] InputCalibrationState
 };
 
 /*!
-\brief Reports whether calibration state belongs to a given exact input route.
-\param state Stored calibration state.
-\param identity Current input route identity.
-\return True when the stored identity is valid and exactly matches the current route.
-*/
-[[nodiscard]] inline bool inputCalibrationMatchesIdentity(
-    const InputCalibrationState& state, const InputDeviceIdentity& identity)
-{
-    return isValidInputDeviceIdentity(state.input_device_identity) &&
-           state.input_device_identity == identity;
-}
-
-/*!
 \brief Reports whether calibration state belongs to a given physical input route.
 \param state Stored calibration state.
 \param identity Current input route identity.
