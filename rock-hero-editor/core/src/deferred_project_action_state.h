@@ -7,8 +7,8 @@
 
 #include "editor_action.h"
 
-#include <cstdint>
 #include <optional>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -23,44 +23,32 @@ or call any editor ports.
 class DeferredProjectActionState final
 {
 public:
-    /*! \brief High-level controller response after resolving deferred project-action state. */
-    enum class Outcome : std::uint8_t
+    /*! \brief Refresh the view; no project action follows from prompt resolution. */
+    struct Refresh
     {
-        /*! \brief No controller action is needed. */
-        None,
-
-        /*! \brief Save the current project before replaying the deferred project action. */
-        SaveCurrentProject,
-
-        /*! \brief Ask the user for a Save As destination before saving and replaying. */
-        AwaitSaveAsPath,
-
-        /*! \brief Discard current changes and replay the deferred project action now. */
-        DiscardChangesAndReplay,
-
-        /*! \brief Drop the deferred project action and leave the current project unchanged. */
-        Cancelled,
     };
 
-    /*! \brief Deferred project action released for controller-side replay. */
-    struct Replay
+    /*! \brief Save the current project now; the deferred action replays after the save succeeds. */
+    struct SaveThenReplay
     {
-        /*! \brief Stable identity used by controller policy before replaying the action. */
-        EditorAction::Id action_id;
+    };
 
-        /*! \brief Original project action to replay after prompt resolution or save success. */
+    /*! \brief Discard the current project's changes and replay the deferred action immediately. */
+    struct DiscardAndReplay
+    {
+        /*! \brief Released deferred action to replay now; its identity comes from idOf(action). */
         EditorAction::ProjectAction action;
     };
 
-    /*! \brief Resolution returned after the user answers a deferred-action prompt. */
-    struct Resolution
-    {
-        /*! \brief Controller action requested by prompt resolution. */
-        Outcome outcome{Outcome::None};
+    /*!
+    \brief Next controller step after the user answers a deferred-action prompt.
 
-        /*! \brief Deferred action to replay when the outcome requires immediate replay. */
-        std::optional<Replay> replay{};
-    };
+    A sum type so each step carries exactly the data it needs: only DiscardAndReplay releases the
+    deferred action for immediate replay, while SaveThenReplay leaves it stored for post-save
+    replay and Refresh asks only for a view refresh. This keeps illegal pairings (such as a replay
+    action attached to a save or refresh step) unrepresentable.
+    */
+    using Resolution = std::variant<Refresh, SaveThenReplay, DiscardAndReplay>;
 
     /*! \brief Reports whether a project action is waiting behind a prompt. */
     [[nodiscard]] bool hasDeferredAction() const noexcept;
@@ -87,10 +75,19 @@ public:
     [[nodiscard]] bool cancelSaveAsPrompt() noexcept;
 
     /*!
-    \brief Releases the deferred action for replay after a successful save.
-    \return Replay action, or empty when nothing is deferred.
+    \brief Advances a deferred action past the Save As chooser once its path has been supplied.
+
+    Moves the action out of the Save As prompt phase so the chooser stops showing while its
+    protective save runs; the action stays parked for replay after the save succeeds. Does nothing
+    when no deferred action is waiting on a Save As path.
     */
-    [[nodiscard]] std::optional<Replay> takeReplay();
+    void saveAsPathChosen() noexcept;
+
+    /*!
+    \brief Releases the deferred action for replay after a successful save.
+    \return Deferred project action, or empty unless an action is parked for post-save replay.
+    */
+    [[nodiscard]] std::optional<EditorAction::ProjectAction> takeReplay();
 
     /*! \brief Clears all deferred action and prompt state. */
     void clear() noexcept;
@@ -108,11 +105,41 @@ public:
     [[nodiscard]] std::optional<SaveAsPrompt> saveAsPrompt() const;
 
 private:
-    [[nodiscard]] std::optional<Replay> takeReplayUnchecked();
+    /*! \brief No project action is deferred. */
+    struct Idle
+    {
+    };
 
-    std::optional<EditorAction::ProjectAction> m_deferred_action{};
-    bool m_unsaved_changes_prompt_visible{false};
-    bool m_save_as_prompt_visible{false};
+    /*! \brief A deferred action is waiting on the unsaved-changes prompt. */
+    struct AwaitingUnsavedChangesDecision
+    {
+        EditorAction::ProjectAction action;
+    };
+
+    /*! \brief A deferred action is waiting on the user to supply a Save As path. */
+    struct AwaitingSaveAsPath
+    {
+        EditorAction::ProjectAction action;
+    };
+
+    /*! \brief A deferred action is parked while its protective save runs, ready to replay. */
+    struct SavingBeforeReplay
+    {
+        EditorAction::ProjectAction action;
+    };
+
+    /*!
+    \brief Lifecycle phase of a deferred project action.
+
+    Each non-idle phase carries the action it concerns, so "which action is waiting" and "which
+    prompt is showing" are one value that changes shape together. Illegal combinations the old
+    optional-plus-two-bools storage allowed -- both prompts visible at once, or a prompt visible
+    with no action behind it -- cannot be represented.
+    */
+    using DeferralState =
+        std::variant<Idle, AwaitingUnsavedChangesDecision, AwaitingSaveAsPath, SavingBeforeReplay>;
+
+    DeferralState m_state{Idle{}};
 };
 
 } // namespace rock_hero::editor::core

@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <optional>
+#include <variant>
 
 namespace rock_hero::editor::core
 {
@@ -21,6 +22,22 @@ TEST_CASE("DeferredProjectActionState defers action", "[core][deferred-project-a
     CHECK_FALSE(state.saveAsPrompt().has_value());
 }
 
+// Deferred actions cannot be released while the unsaved-changes prompt is still active.
+TEST_CASE(
+    "DeferredProjectActionState does not replay before prompt decision",
+    "[core][deferred-project-action-state]")
+{
+    DeferredProjectActionState state;
+    state.defer(EditorAction::OpenProject{std::filesystem::path{"song.rhp"}});
+
+    CHECK_FALSE(state.takeReplay().has_value());
+
+    CHECK(state.hasDeferredAction());
+    CHECK(
+        state.unsavedChangesPrompt() ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::OpenProject}});
+}
+
 // Prompt resolution without a deferred action is ignored and leaves the state idle.
 TEST_CASE(
     "DeferredProjectActionState ignores resolution without deferred action",
@@ -31,8 +48,7 @@ TEST_CASE(
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Discard, false);
 
-    CHECK(resolution.outcome == DeferredProjectActionState::Outcome::None);
-    CHECK_FALSE(resolution.replay.has_value());
+    CHECK(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
     CHECK_FALSE(state.saveAsPrompt().has_value());
@@ -49,8 +65,7 @@ TEST_CASE(
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Save, false);
 
-    CHECK(resolution.outcome == DeferredProjectActionState::Outcome::SaveCurrentProject);
-    CHECK_FALSE(resolution.replay.has_value());
+    CHECK(std::holds_alternative<DeferredProjectActionState::SaveThenReplay>(resolution));
     CHECK(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
     CHECK_FALSE(state.saveAsPrompt().has_value());
@@ -67,10 +82,26 @@ TEST_CASE(
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Save, true);
 
-    CHECK(resolution.outcome == DeferredProjectActionState::Outcome::AwaitSaveAsPath);
-    CHECK_FALSE(resolution.replay.has_value());
+    CHECK(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
     CHECK(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
+    CHECK(state.saveAsPrompt() == std::optional{SaveAsPrompt{EditorActionId::ExitApplication}});
+}
+
+// Deferred actions cannot be released while the Save As prompt is still waiting for a path.
+TEST_CASE(
+    "DeferredProjectActionState does not replay while awaiting save as",
+    "[core][deferred-project-action-state]")
+{
+    DeferredProjectActionState state;
+    state.defer(EditorAction::ExitApplication{});
+    const DeferredProjectActionState::Resolution resolution =
+        state.resolveUnsavedChanges(UnsavedChangesDecision::Save, true);
+    REQUIRE(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
+
+    CHECK_FALSE(state.takeReplay().has_value());
+
+    CHECK(state.hasDeferredAction());
     CHECK(state.saveAsPrompt() == std::optional{SaveAsPrompt{EditorActionId::ExitApplication}});
 }
 
@@ -83,7 +114,7 @@ TEST_CASE(
     state.defer(EditorAction::CloseProject{});
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Save, true);
-    REQUIRE(resolution.outcome == DeferredProjectActionState::Outcome::AwaitSaveAsPath);
+    REQUIRE(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
 
     const bool cancelled = state.cancelSaveAsPrompt();
 
@@ -91,6 +122,29 @@ TEST_CASE(
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
     CHECK_FALSE(state.saveAsPrompt().has_value());
+}
+
+// Supplying the awaited Save As path dismisses the chooser while the action waits out the save.
+TEST_CASE(
+    "DeferredProjectActionState advances past save as chooser once path chosen",
+    "[core][deferred-project-action-state]")
+{
+    DeferredProjectActionState state;
+    state.defer(EditorAction::OpenProject{std::filesystem::path{"next.rhp"}});
+    const DeferredProjectActionState::Resolution resolution =
+        state.resolveUnsavedChanges(UnsavedChangesDecision::Save, true);
+    REQUIRE(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
+    REQUIRE(state.saveAsPrompt().has_value());
+
+    state.saveAsPathChosen();
+
+    CHECK(state.hasDeferredAction());
+    CHECK_FALSE(state.saveAsPrompt().has_value());
+    CHECK_FALSE(state.unsavedChangesPrompt().has_value());
+
+    const std::optional<EditorAction::ProjectAction> replay = state.takeReplay();
+    REQUIRE(replay.has_value());
+    CHECK(idOf(*replay) == EditorActionId::OpenProject);
 }
 
 // Choosing Discard releases the deferred action for controller-side replay and clears prompts.
@@ -102,9 +156,10 @@ TEST_CASE("DeferredProjectActionState resolves discard", "[core][deferred-projec
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Discard, false);
 
-    CHECK(resolution.outcome == DeferredProjectActionState::Outcome::DiscardChangesAndReplay);
-    REQUIRE(resolution.replay.has_value());
-    CHECK(resolution.replay->action_id == EditorActionId::ImportSong);
+    REQUIRE(std::holds_alternative<DeferredProjectActionState::DiscardAndReplay>(resolution));
+    CHECK(
+        idOf(std::get<DeferredProjectActionState::DiscardAndReplay>(resolution).action) ==
+        EditorActionId::ImportSong);
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
     CHECK_FALSE(state.saveAsPrompt().has_value());
@@ -119,8 +174,7 @@ TEST_CASE("DeferredProjectActionState resolves cancel", "[core][deferred-project
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Cancel, false);
 
-    CHECK(resolution.outcome == DeferredProjectActionState::Outcome::Cancelled);
-    CHECK_FALSE(resolution.replay.has_value());
+    CHECK(std::holds_alternative<DeferredProjectActionState::Refresh>(resolution));
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.unsavedChangesPrompt().has_value());
     CHECK_FALSE(state.saveAsPrompt().has_value());
@@ -134,12 +188,12 @@ TEST_CASE(
     state.defer(EditorAction::CloseProject{});
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Save, false);
-    REQUIRE(resolution.outcome == DeferredProjectActionState::Outcome::SaveCurrentProject);
+    REQUIRE(std::holds_alternative<DeferredProjectActionState::SaveThenReplay>(resolution));
 
-    std::optional<DeferredProjectActionState::Replay> replay = state.takeReplay();
+    std::optional<EditorAction::ProjectAction> replay = state.takeReplay();
 
     REQUIRE(replay.has_value());
-    CHECK(replay->action_id == EditorActionId::CloseProject);
+    CHECK(idOf(*replay) == EditorActionId::CloseProject);
     CHECK_FALSE(state.hasDeferredAction());
     CHECK_FALSE(state.takeReplay().has_value());
 }
