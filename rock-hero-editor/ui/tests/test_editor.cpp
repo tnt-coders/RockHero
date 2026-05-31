@@ -109,7 +109,7 @@ class FakeEditorAudioPorts final : public common::audio::IAudioDeviceConfigurati
 public:
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
-        return device_manager;
+        return m_device_manager;
     }
 
     [[nodiscard]] std::expected<void, common::audio::AudioDeviceConfigurationError>
@@ -248,7 +248,7 @@ public:
     }
 
 private:
-    juce::AudioDeviceManager device_manager{};
+    juce::AudioDeviceManager m_device_manager{};
 };
 
 } // namespace
