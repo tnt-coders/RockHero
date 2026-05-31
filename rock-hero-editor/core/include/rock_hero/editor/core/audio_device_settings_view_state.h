@@ -21,11 +21,11 @@ struct AudioDeviceSettingsViewState
         int id{};
 
         /*! \brief Display text shown to the user. */
-        std::string label;
+        std::string label{};
     };
 
     /*! \brief Audio-system choices in display order. */
-    std::vector<Choice> audio_systems;
+    std::vector<Choice> audio_systems{};
 
     /*! \brief Selected audio-system choice ID, or zero when none is selected. */
     int selected_audio_system_id{};
@@ -34,43 +34,43 @@ struct AudioDeviceSettingsViewState
     bool uses_separate_input_output_devices{};
 
     /*! \brief Combined device choices for single-route audio systems. */
-    std::vector<Choice> devices;
+    std::vector<Choice> devices{};
 
     /*! \brief Selected combined-device choice ID, or zero when none is selected. */
     int selected_device_id{};
 
     /*! \brief Input device choices for split-route audio systems. */
-    std::vector<Choice> input_devices;
+    std::vector<Choice> input_devices{};
 
     /*! \brief Selected input-device choice ID, or zero when none is selected. */
     int selected_input_device_id{};
 
     /*! \brief Output device choices for split-route audio systems. */
-    std::vector<Choice> output_devices;
+    std::vector<Choice> output_devices{};
 
     /*! \brief Selected output-device choice ID, or zero when none is selected. */
     int selected_output_device_id{};
 
     /*! \brief Mono input channel choices. */
-    std::vector<Choice> input_channels;
+    std::vector<Choice> input_channels{};
 
     /*! \brief Selected input-channel choice ID, or zero when none is selected. */
     int selected_input_channel_id{};
 
     /*! \brief Stereo output-pair choices. */
-    std::vector<Choice> stereo_output_pairs;
+    std::vector<Choice> stereo_output_pairs{};
 
     /*! \brief Selected stereo-output-pair choice ID, or zero when none is selected. */
     int selected_stereo_output_pair_id{};
 
     /*! \brief Sample-rate choices. */
-    std::vector<Choice> sample_rates;
+    std::vector<Choice> sample_rates{};
 
     /*! \brief Selected sample-rate choice ID, or zero when none is selected. */
     int selected_sample_rate_id{};
 
     /*! \brief Buffer-size choices. */
-    std::vector<Choice> buffer_sizes;
+    std::vector<Choice> buffer_sizes{};
 
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
@@ -82,7 +82,7 @@ struct AudioDeviceSettingsViewState
     bool ok_enabled{};
 
     /*! \brief Current settings error text, or empty when no error is active. */
-    std::string error_message;
+    std::string error_message{};
 };
 
 } // namespace rock_hero::editor::core
