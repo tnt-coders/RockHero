@@ -181,8 +181,12 @@ TEST_CASE("EditorController deferred save clears busy before open", "[core][edit
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
-    const common::core::AudioAsset replacement_asset{std::filesystem::path{"replacement.wav"}};
+    const common::core::AudioAsset original_asset{
+        .path = std::filesystem::path{"original.wav"}, .normalization = std::nullopt
+    };
+    const common::core::AudioAsset replacement_asset{
+        .path = std::filesystem::path{"replacement.wav"}, .normalization = std::nullopt
+    };
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(std::filesystem::path{"original.rhp"});
@@ -812,8 +816,9 @@ TEST_CASE(
     CHECK(audio_device_busy->presentation == BusyPresentation::Blocking);
     CHECK(view.busy_overlay_paint_callback_count == 1);
     CHECK(audio_device_change_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK_FALSE(view.last_state->busy.has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->busy.has_value());
 }
 
 } // namespace rock_hero::editor::core
