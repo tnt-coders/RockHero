@@ -199,7 +199,7 @@ public:
 
     void scanForDevices() override
     {
-        ++scan_call_count;
+        ++m_scan_call_count;
     }
 
     [[nodiscard]] juce::StringArray getDeviceNames(bool want_input_names) const override
@@ -241,27 +241,37 @@ public:
         const juce::String open_error = m_failing_outputs.contains(output_device_name)
                                             ? juce::String{g_open_output_b_error}
                                             : juce::String{};
-        return new MockAudioDevice{
+        auto device = std::make_unique<MockAudioDevice>(
             getTypeName(),
             output_device_name,
             input_device_name,
             open_error,
             m_has_control_panel,
             m_show_control_panel_result,
-            &control_panel_call_count,
-        };
+            &m_control_panel_call_count);
+
+        // JUCE's AudioIODeviceType factory transfers ownership through the raw pointer return.
+        return device.release(); // NOLINT(cppcoreguidelines-owning-memory)
     }
 
-    // Public test observation for scan-cache behavior exercised through AudioDeviceSettings.
-    int scan_call_count{};
+    // Test observation for scan-cache behavior exercised through AudioDeviceSettings.
+    [[nodiscard]] int scanCallCount() const noexcept
+    {
+        return m_scan_call_count;
+    }
 
-    // Public test observation for backend control-panel dispatches.
-    int control_panel_call_count{};
+    // Test observation for backend control-panel dispatches.
+    [[nodiscard]] int controlPanelCallCount() const noexcept
+    {
+        return m_control_panel_call_count;
+    }
 
 private:
     juce::StringArray m_failing_outputs;
     bool m_has_control_panel{false};
     bool m_show_control_panel_result{false};
+    int m_scan_call_count{};
+    int m_control_panel_call_count{};
 };
 
 // Listener fake that counts public AudioDeviceSettings notifications.
@@ -455,12 +465,12 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
     const AudioDeviceSettings settings{audio_devices};
-    const int initial_scan_count = audio_type.scan_call_count;
+    const int initial_scan_count = audio_type.scanCallCount();
     REQUIRE(initial_scan_count > 0);
 
     audio_devices.notifyChanged();
 
-    CHECK(audio_type.scan_call_count == initial_scan_count + 1);
+    CHECK(audio_type.scanCallCount() == initial_scan_count + 1);
 }
 
 // Apply failures return a typed error and leave the backend closed.
@@ -593,7 +603,7 @@ TEST_CASE("AudioDeviceSettings reports control panel failure", "[audio][audio-de
     CHECK(opened.error().code == AudioDeviceSettingsErrorCode::ControlPanelUnavailable);
     CHECK(opened.error().message == "The selected audio device did not open its control panel.");
     CHECK(settings.state().error_message == opened.error().message);
-    CHECK(audio_type.control_panel_call_count == 1);
+    CHECK(audio_type.controlPanelCallCount() == 1);
 }
 
 // Switching audio systems should reset format selections to their defaults so a stale staged
