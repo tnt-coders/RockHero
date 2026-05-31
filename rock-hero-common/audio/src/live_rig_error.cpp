@@ -73,6 +73,10 @@ namespace
         {
             return "Could not restore tone plugin";
         }
+        case LiveRigErrorCode::MonitoringRouteFailed:
+        {
+            return "Could not restore monitoring after changing the live rig";
+        }
     }
 
     return "Live rig operation failed";

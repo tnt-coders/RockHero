@@ -31,8 +31,11 @@ public:
     }
 
     /*! \brief Ignores last-open project writes. */
-    void setLastOpenProject(std::optional<std::filesystem::path>) override
-    {}
+    [[nodiscard]] std::expected<void, EditorSettingsError> setLastOpenProject(
+        std::optional<std::filesystem::path>) override
+    {
+        return {};
+    }
 
     /*! \brief Reports that no interrupted restore project is stored. */
     [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const override
@@ -41,8 +44,11 @@ public:
     }
 
     /*! \brief Ignores interrupted restore project writes. */
-    void setInterruptedRestoreProject(std::optional<std::filesystem::path>) override
-    {}
+    [[nodiscard]] std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
+        std::optional<std::filesystem::path>) override
+    {
+        return {};
+    }
 
     /*! \brief Reports that no serialized audio-device state is stored. */
     [[nodiscard]] std::optional<std::string> audioDeviceState() const override
@@ -51,23 +57,33 @@ public:
     }
 
     /*! \brief Ignores serialized audio-device state writes. */
-    void setAudioDeviceState(std::optional<std::string>) override
-    {}
+    [[nodiscard]] std::expected<void, EditorSettingsError> setAudioDeviceState(
+        std::optional<std::string>) override
+    {
+        return {};
+    }
 
     /*! \brief Reports that no calibration is stored for the supplied input route. */
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
-        const common::audio::InputDeviceIdentity&) const override
+    [[nodiscard]] std::expected<
+        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
+    inputCalibrationFor(const common::audio::InputDeviceIdentity&) const override
     {
         return std::nullopt;
     }
 
     /*! \brief Ignores input calibration writes. */
-    void saveInputCalibration(common::audio::InputCalibrationState) override
-    {}
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveInputCalibration(
+        common::audio::InputCalibrationState) override
+    {
+        return {};
+    }
 
     /*! \brief Ignores input calibration removal requests. */
-    void removeInputCalibration(const common::audio::InputDeviceIdentity&) override
-    {}
+    [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
+        const common::audio::InputDeviceIdentity&) override
+    {
+        return {};
+    }
 };
 
 } // namespace rock_hero::editor::core::testing

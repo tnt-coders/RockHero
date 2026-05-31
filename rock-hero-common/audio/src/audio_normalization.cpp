@@ -68,16 +68,16 @@ struct LoudnessMeasurement
 };
 
 // Streams decoded blocks from a JUCE reader through libebur128 to produce a single measurement.
-[[nodiscard]] std::optional<LoudnessMeasurement> runLoudnessAnalyzer(
-    juce::AudioFormatReader& reader, AudioNormalizationErrorCode& error_code,
-    std::string& error_message)
+[[nodiscard]] std::expected<LoudnessMeasurement, AudioNormalizationError> runLoudnessAnalyzer(
+    juce::AudioFormatReader& reader)
 {
     const auto channels = static_cast<unsigned int>(reader.numChannels);
     if (!isSupportedChannelCount(channels))
     {
-        error_code = AudioNormalizationErrorCode::UnsupportedInputFormat;
-        error_message = "Loudness analyzer only supports mono or stereo input";
-        return std::nullopt;
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::UnsupportedInputFormat,
+            "Loudness analyzer only supports mono or stereo input",
+        }};
     }
 
     Ebur128StateOwner state{ebur128_init(
@@ -86,9 +86,10 @@ struct LoudnessMeasurement
         EBUR128_MODE_I | EBUR128_MODE_SAMPLE_PEAK)};
     if (state == nullptr)
     {
-        error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-        error_message = "Could not initialize loudness analyzer";
-        return std::nullopt;
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+            "Could not initialize loudness analyzer",
+        }};
     }
 
     juce::AudioBuffer<float> buffer{static_cast<int>(channels), g_block_frames};
@@ -109,9 +110,10 @@ struct LoudnessMeasurement
                 sample_pos,
                 frames_this_block))
         {
-            error_code = AudioNormalizationErrorCode::InvalidInputAudio;
-            error_message = "Could not read input audio block during loudness analysis";
-            return std::nullopt;
+            return std::unexpected{AudioNormalizationError{
+                AudioNormalizationErrorCode::InvalidInputAudio,
+                "Could not read input audio block during loudness analysis",
+            }};
         }
 
         for (int frame = 0; frame < frames_this_block; ++frame)
@@ -127,9 +129,10 @@ struct LoudnessMeasurement
                 state.get(), interleaved.data(), static_cast<std::size_t>(frames_this_block)) !=
             EBUR128_SUCCESS)
         {
-            error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-            error_message = "Loudness analyzer rejected input block";
-            return std::nullopt;
+            return std::unexpected{AudioNormalizationError{
+                AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+                "Loudness analyzer rejected input block",
+            }};
         }
 
         sample_pos += frames_this_block;
@@ -138,9 +141,10 @@ struct LoudnessMeasurement
     double integrated = 0.0;
     if (ebur128_loudness_global(state.get(), &integrated) != EBUR128_SUCCESS)
     {
-        error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-        error_message = "Could not compute integrated loudness";
-        return std::nullopt;
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+            "Could not compute integrated loudness",
+        }};
     }
 
     double max_sample_peak_linear = 0.0;
@@ -149,9 +153,10 @@ struct LoudnessMeasurement
         double channel_peak_linear = 0.0;
         if (ebur128_sample_peak(state.get(), ch, &channel_peak_linear) != EBUR128_SUCCESS)
         {
-            error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-            error_message = "Could not compute sample peak";
-            return std::nullopt;
+            return std::unexpected{AudioNormalizationError{
+                AudioNormalizationErrorCode::LoudnessMeasurementFailed,
+                "Could not compute sample peak",
+            }};
         }
         max_sample_peak_linear = std::max(max_sample_peak_linear, channel_peak_linear);
     }
@@ -307,8 +312,8 @@ private:
 //   gainDb=<one-decimal text>\n
 //   audioBytes\n
 //   <raw file bytes>
-[[nodiscard]] std::optional<std::string> computeValidationHash(
-    const std::filesystem::path& audio_path, double gain_db, std::string& error_message)
+[[nodiscard]] std::expected<std::string, AudioNormalizationError> computeValidationHash(
+    const std::filesystem::path& audio_path, double gain_db)
 {
     const std::string gain_text = formatGainForHash(gain_db);
     std::string prefix = std::string{g_hash_version} + "\ngainDb=" + gain_text + "\naudioBytes\n";
@@ -318,8 +323,10 @@ private:
     };
     if (hash_input.failedToOpen())
     {
-        error_message = "Could not open file for validation hashing: " + hash_input.errorMessage();
-        return std::nullopt;
+        return std::unexpected{AudioNormalizationError{
+            AudioNormalizationErrorCode::ValidationHashFailed,
+            "Could not open file for validation hashing: " + hash_input.errorMessage(),
+        }};
     }
 
     juce::BufferedInputStream buffered_hash_input{hash_input, g_hash_stream_buffer_bytes};
@@ -409,12 +416,10 @@ analyzeAudioForGainNormalization(
         }};
     }
 
-    AudioNormalizationErrorCode error_code = AudioNormalizationErrorCode::LoudnessMeasurementFailed;
-    std::string error_message;
-    auto measurement = runLoudnessAnalyzer(*reader, error_code, error_message);
+    auto measurement = runLoudnessAnalyzer(*reader);
     if (!measurement.has_value())
     {
-        return std::unexpected{AudioNormalizationError{error_code, std::move(error_message)}};
+        return std::unexpected{std::move(measurement.error())};
     }
 
     if (!std::isfinite(measurement->integrated_loudness_lufs) ||
@@ -431,13 +436,10 @@ analyzeAudioForGainNormalization(
     const double peak_headroom_db = 0.0 - measurement->sample_peak_dbfs;
     const double gain_db = roundGainToOneDecimal(std::min(desired_gain_db, peak_headroom_db));
 
-    auto validation_sha256 = computeValidationHash(input, gain_db, error_message);
+    auto validation_sha256 = computeValidationHash(input, gain_db);
     if (!validation_sha256.has_value())
     {
-        return std::unexpected{AudioNormalizationError{
-            AudioNormalizationErrorCode::ValidationHashFailed,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(validation_sha256.error())};
     }
 
     return common::core::AudioNormalization{
@@ -455,8 +457,7 @@ bool validateAudioNormalization(
         return false;
     }
 
-    std::string error_message;
-    const auto current_hash = computeValidationHash(input, normalization.gain_db, error_message);
+    const auto current_hash = computeValidationHash(input, normalization.gain_db);
     if (!current_hash.has_value())
     {
         return false;

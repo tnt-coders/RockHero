@@ -55,8 +55,10 @@ public:
     /*!
     \brief Stores or clears the editor project path to restore on the next editor launch.
     \param project_file Project path to restore, or empty to clear restore state.
+    \return Empty success, or a typed settings failure.
     */
-    void setLastOpenProject(std::optional<std::filesystem::path> project_file) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> setLastOpenProject(
+        std::optional<std::filesystem::path> project_file) override;
 
     /*!
     \brief Reads the project path whose previous startup restore did not finish.
@@ -67,8 +69,10 @@ public:
     /*!
     \brief Stores or clears the project path whose startup restore is in progress.
     \param project_file Interrupted restore path, or empty to clear the recovery prompt state.
+    \return Empty success, or a typed settings failure.
     */
-    void setInterruptedRestoreProject(std::optional<std::filesystem::path> project_file) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
+        std::optional<std::filesystem::path> project_file) override;
 
     /*!
     \brief Reads the opaque serialized audio-device state stored by a previous editor session.
@@ -79,28 +83,35 @@ public:
     /*!
     \brief Stores or clears the opaque serialized audio-device state.
     \param serialized_state Serialized state to restore on next launch, or empty to clear it.
+    \return Empty success, or a typed settings failure.
     */
-    void setAudioDeviceState(std::optional<std::string> serialized_state) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> setAudioDeviceState(
+        std::optional<std::string> serialized_state) override;
 
     /*!
     \brief Reads app-local input calibration for one physical input route.
     \param identity Physical input route to look up.
-    \return Calibration state for the supplied route, or empty when unavailable.
+    \return Calibration state, absence, or a typed settings failure.
     */
-    [[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
-        const common::audio::InputDeviceIdentity& identity) const override;
+    [[nodiscard]] std::expected<
+        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
+    inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const override;
 
     /*!
     \brief Stores or replaces app-local input calibration for its physical route.
     \param calibration_state Calibration state to save.
+    \return Empty success, or a typed settings failure.
     */
-    void saveInputCalibration(common::audio::InputCalibrationState calibration_state) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveInputCalibration(
+        common::audio::InputCalibrationState calibration_state) override;
 
     /*!
     \brief Removes app-local input calibration for one physical input route.
     \param identity Physical input route to remove.
+    \return Empty success, or a typed settings failure.
     */
-    void removeInputCalibration(const common::audio::InputDeviceIdentity& identity) override;
+    [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
+        const common::audio::InputDeviceIdentity& identity) override;
 
 private:
     juce::PropertiesFile m_properties;

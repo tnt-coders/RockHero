@@ -52,6 +52,15 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// Routes non-fatal cleanup/persistence failures to the debug log without hiding the primary
+// workflow result being handled by the caller.
+void logEditorControllerBestEffortFailure(std::string_view context, const std::string& message)
+{
+    const std::string log_message =
+        "Rock Hero editor best-effort failure (" + std::string{context} + "): " + message;
+    juce::Logger::writeToLog(juce::String::fromUTF8(log_message.c_str()));
+}
+
 // Creates the project-level analyzer used by production open/import operations while reporting
 // the analysis phase at the controller-operation boundary.
 [[nodiscard]] AudioNormalizationAnalyzer makeReportingAudioNormalizationAnalyzer(
@@ -446,11 +455,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
         const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
-        std::expected<void, std::string> rig_result);
+        std::expected<void, common::audio::LiveRigError> rig_result);
     void importSongSource(const std::filesystem::path& file);
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
     void finishImportSongSourceAfterLiveRigLoad(
-        const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result);
+        const std::shared_ptr<ImportTaskState>& state,
+        std::expected<void, common::audio::LiveRigError> rig_result);
     [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
@@ -460,13 +470,14 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] bool closeProject();
     [[nodiscard]] std::shared_ptr<ProjectWriteTaskState> takeProjectForWrite(
         EditorAction::ProjectWriteAction action);
-    [[nodiscard]] std::expected<void, std::string> captureLiveRigIntoSong(
+    [[nodiscard]] std::expected<void, common::audio::LiveRigError> captureLiveRigIntoSong(
         common::core::Song& song, const Project& project);
     void runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state);
     void startLiveRigLoadStage(ProjectLoadLiveRigStage stage_state, bool report_progress);
     void restoreLiveRig(
         const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-        std::function<void(std::expected<common::audio::LiveRigLoadResult, std::string>)>
+        std::function<
+            void(std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>)>
             on_loaded);
     void clearLiveRig();
     void runProjectWriteAction(EditorAction::ProjectWriteAction&& action);
@@ -481,7 +492,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
-    [[nodiscard]] bool loadSessionSong(
+    [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(
         common::core::Song song, const std::optional<std::string>& selected_arrangement);
     [[nodiscard]] EditorViewState deriveViewState() const;
     [[nodiscard]] bool isBusy() const noexcept;
@@ -500,6 +511,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void persistAudioDeviceState();
     void selectInputCalibrationForCurrentRoute();
     void saveActiveInputCalibration();
+    void recordSettingsResultBestEffort(
+        std::expected<void, EditorSettingsError> result, std::string_view context);
     void executeInputCalibrationEffects(const InputCalibrationWorkflow::Effects& effects);
     [[nodiscard]] InputCalibrationWorkflow::Context inputCalibrationContext() const;
     [[nodiscard]] std::optional<common::audio::InputDeviceIdentity> currentInputDeviceIdentity()
@@ -515,6 +528,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     };
     [[nodiscard]] InputCalibrationRouteState currentInputCalibrationRouteState() const;
     void restoreInputCalibrationRouteStateBestEffort(const InputCalibrationRouteState& route_state);
+    void clearActiveArrangementBestEffort(std::string_view context);
+    bool setLiveInputMonitoringBestEffort(bool enabled, std::string_view context);
+    bool setCalibrationInputMonitoringBestEffort(bool enabled, std::string_view context);
+    bool setInputGainBestEffort(common::audio::Gain gain, std::string_view context);
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> commitInputCalibration(
         double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity);
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
@@ -739,7 +756,7 @@ struct EditorController::Impl::ProjectLoadLiveRigStage
 {
     std::uint64_t token{};
     std::filesystem::path song_directory{};
-    std::function<void(std::expected<void, std::string>)> finish;
+    std::function<void(std::expected<void, common::audio::LiveRigError>)> finish;
 };
 
 // Subscribes for coarse transport transitions and captures an initial derived state, falling back
@@ -1014,11 +1031,14 @@ void EditorController::Impl::openProject(
     m_restore_interrupted_prompt_file.reset();
     if (clear_last_open_project_on_failure)
     {
-        m_settings.setInterruptedRestoreProject(file);
+        recordSettingsResultBestEffort(
+            m_settings.setInterruptedRestoreProject(file), "mark interrupted restore");
     }
     else
     {
-        m_settings.setInterruptedRestoreProject(std::nullopt);
+        recordSettingsResultBestEffort(
+            m_settings.setInterruptedRestoreProject(std::nullopt),
+            "clear interrupted restore before open");
     }
     const std::uint64_t token = beginBusy(BusyOperation::OpeningProject);
     EditorController::ProjectOperationProgress report_progress =
@@ -1048,7 +1068,8 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
     {
         if (state->clear_last_open_project_on_failure)
         {
-            m_settings.setLastOpenProject(std::nullopt);
+            recordSettingsResultBestEffort(
+                m_settings.setLastOpenProject(std::nullopt), "clear last project after open error");
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
@@ -1061,16 +1082,21 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
     common::core::Song song = std::move(*state->result);
     ProjectEditorState editor_state = state->project.editorState();
 
-    if (!loadSessionSong(std::move(song), editor_state.selected_arrangement))
+    auto song_loaded = loadSessionSong(std::move(song), editor_state.selected_arrangement);
+    if (!song_loaded.has_value())
     {
         if (state->clear_last_open_project_on_failure)
         {
-            m_settings.setLastOpenProject(std::nullopt);
+            recordSettingsResultBestEffort(
+                m_settings.setLastOpenProject(std::nullopt),
+                "clear last project after audio-load error");
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
         finishBusyOperation();
-        reportError(std::string{"Could not load audio from: "} + state->file.string());
+        reportError(
+            std::string{"Could not load audio from: "} + state->file.string() + ": " +
+            song_loaded.error().message);
         return;
     }
 
@@ -1079,7 +1105,7 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
             .token = m_busy_state.currentToken(),
             .song_directory = songDirectoryForProject(state->project),
             .finish = [this, state, captured_editor_state = std::move(editor_state)](
-                          std::expected<void, std::string> rig_result) {
+                          std::expected<void, common::audio::LiveRigError> rig_result) {
                 finishOpenProjectAfterLiveRigLoad(
                     state, captured_editor_state, std::move(rig_result));
             },
@@ -1091,27 +1117,29 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
 // finalizer runs.
 void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
-    std::expected<void, std::string> rig_result)
+    std::expected<void, common::audio::LiveRigError> rig_result)
 {
     assert(isBusy() && "finishOpenProjectAfterLiveRigLoad called outside a busy operation");
 
     if (!rig_result.has_value())
     {
         m_transport.stop();
-        m_song_audio.clearActiveArrangement();
+        clearActiveArrangementBestEffort("open live-rig failure teardown");
         m_session.reset();
         m_plugins.clear();
         m_output_gain_db = 0.0;
         if (state->clear_last_open_project_on_failure)
         {
-            m_settings.setLastOpenProject(std::nullopt);
+            recordSettingsResultBestEffort(
+                m_settings.setLastOpenProject(std::nullopt),
+                "clear last project after live-rig error");
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
         finishBusyOperation();
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
-            rig_result.error());
+            rig_result.error().message);
         return;
     }
 
@@ -1188,10 +1216,13 @@ void EditorController::Impl::completeImportSongSource(const std::shared_ptr<Impo
 
     common::core::Song song = std::move(*state->result);
 
-    if (!loadSessionSong(std::move(song), std::nullopt))
+    auto song_loaded = loadSessionSong(std::move(song), std::nullopt);
+    if (!song_loaded.has_value())
     {
         finishBusyOperation();
-        reportError(std::string{"Could not load imported audio from: "} + state->file.string());
+        reportError(
+            std::string{"Could not load imported audio from: "} + state->file.string() + ": " +
+            song_loaded.error().message);
         return;
     }
 
@@ -1199,7 +1230,7 @@ void EditorController::Impl::completeImportSongSource(const std::shared_ptr<Impo
         ProjectLoadLiveRigStage{
             .token = m_busy_state.currentToken(),
             .song_directory = songDirectoryForProject(state->project),
-            .finish = [this, state](std::expected<void, std::string> rig_result) {
+            .finish = [this, state](std::expected<void, common::audio::LiveRigError> rig_result) {
                 finishImportSongSourceAfterLiveRigLoad(state, std::move(rig_result));
             },
         });
@@ -1209,21 +1240,22 @@ void EditorController::Impl::completeImportSongSource(const std::shared_ptr<Impo
 // failure. Busy-token and controller-liveness checks are owned by ProjectLoadLiveRigStage before
 // this finalizer runs.
 void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
-    const std::shared_ptr<ImportTaskState>& state, std::expected<void, std::string> rig_result)
+    const std::shared_ptr<ImportTaskState>& state,
+    std::expected<void, common::audio::LiveRigError> rig_result)
 {
     assert(isBusy() && "finishImportSongSourceAfterLiveRigLoad called outside a busy operation");
 
     if (!rig_result.has_value())
     {
         m_transport.stop();
-        m_song_audio.clearActiveArrangement();
+        clearActiveArrangementBestEffort("import live-rig failure teardown");
         m_session.reset();
         m_plugins.clear();
         m_output_gain_db = 0.0;
         finishBusyOperation();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
-            rig_result.error());
+            rig_result.error().message);
         return;
     }
 
@@ -1339,7 +1371,8 @@ void EditorController::Impl::startLiveRigLoadStage(
         token,
         safeCallback(
             [this, token, report_progress, captured_stage = std::move(stage_state)](
-                std::expected<common::audio::LiveRigLoadResult, std::string> rig_result) mutable {
+                std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>
+                    rig_result) mutable {
                 if (!m_busy_state.isCurrentToken(token))
                 {
                     return;
@@ -1452,14 +1485,16 @@ void EditorController::Impl::onRestoreInterruptedDecision(RestoreInterruptedDeci
                 return;
             }
 
-            m_settings.setLastOpenProject(project_file);
+            recordSettingsResultBestEffort(
+                m_settings.setLastOpenProject(project_file), "store retry restore project");
             runAction(EditorAction::RestoreProject{project_file});
             break;
         }
         case RestoreInterruptedDecision::Cancel:
         {
             m_pending_restore_project_file.reset();
-            m_settings.setLastOpenProject(std::nullopt);
+            recordSettingsResultBestEffort(
+                m_settings.setLastOpenProject(std::nullopt), "clear canceled restore project");
             clearInterruptedRestoreMarker();
             updateView();
             break;
@@ -2225,7 +2260,8 @@ void EditorController::Impl::runProjectActionImpl(EditorAction::ExitApplication 
     {
         m_pending_restore_project_file.reset();
         clearDeferredProjectAction();
-        m_settings.setLastOpenProject(restorable_project_file);
+        recordSettingsResultBestEffort(
+            m_settings.setLastOpenProject(restorable_project_file), "store exit restore project");
         updateView();
         m_exit_function();
     }
@@ -2247,7 +2283,7 @@ bool EditorController::Impl::closeProject()
             m_transport.stop();
         }
         clearLiveRig();
-        m_song_audio.clearActiveArrangement();
+        clearActiveArrangementBestEffort("close empty project");
         m_session.reset();
         m_plugins.clear();
         m_output_gain_db = 0.0;
@@ -2261,7 +2297,7 @@ bool EditorController::Impl::closeProject()
 
     m_transport.stop();
     clearLiveRig();
-    m_song_audio.clearActiveArrangement();
+    clearActiveArrangementBestEffort("close project");
     m_session.reset();
     m_plugins.clear();
     m_output_gain_db = 0.0;
@@ -2304,7 +2340,7 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
     common::core::Song song = session().song();
     if (const auto rig_captured = captureLiveRigIntoSong(song, project); !rig_captured.has_value())
     {
-        reportError(std::string{"Could not capture live rig: "} + rig_captured.error());
+        reportError(std::string{"Could not capture live rig: "} + rig_captured.error().message);
         return {};
     }
 
@@ -2317,7 +2353,7 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
 
 // Captures the selected arrangement's live rig state into song files before Project IO leaves the
 // message thread.
-std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
+std::expected<void, common::audio::LiveRigError> EditorController::Impl::captureLiveRigIntoSong(
     common::core::Song& song, const Project& project)
 {
     const common::core::Arrangement* const current_arrangement = session().currentArrangement();
@@ -2332,7 +2368,10 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
         });
     if (arrangement == song.arrangements.end())
     {
-        return std::unexpected{std::string{"current arrangement is missing from the song"}};
+        return std::unexpected{common::audio::LiveRigError{
+            common::audio::LiveRigErrorCode::InvalidRequest,
+            "Current arrangement is missing from the song",
+        }};
     }
 
     auto snapshot = m_live_rig.captureActiveRig(
@@ -2343,7 +2382,7 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
         });
     if (!snapshot.has_value())
     {
-        return std::unexpected{snapshot.error().message};
+        return std::unexpected{std::move(snapshot.error())};
     }
 
     arrangement->tone_document_ref = snapshot->tone_document_ref;
@@ -2358,7 +2397,9 @@ std::expected<void, std::string> EditorController::Impl::captureLiveRigIntoSong(
 // without mutating controller state.
 void EditorController::Impl::restoreLiveRig(
     const std::filesystem::path& song_directory, bool report_progress, std::uint64_t token,
-    std::function<void(std::expected<common::audio::LiveRigLoadResult, std::string>)> on_loaded)
+    std::function<
+        void(std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>)>
+        on_loaded)
 {
     if (!on_loaded)
     {
@@ -2417,7 +2458,7 @@ void EditorController::Impl::restoreLiveRig(
                     loaded) {
                 if (!loaded.has_value())
                 {
-                    completion(std::unexpected{loaded.error().message});
+                    completion(std::unexpected{std::move(loaded.error())});
                     return;
                 }
                 completion(std::move(*loaded));
@@ -2559,7 +2600,8 @@ void EditorController::Impl::clearDeferredProjectAction() noexcept
 // Clears the restore-interrupted marker without touching the normal last-project path.
 void EditorController::Impl::clearInterruptedRestoreMarker()
 {
-    m_settings.setInterruptedRestoreProject(std::nullopt);
+    recordSettingsResultBestEffort(
+        m_settings.setInterruptedRestoreProject(std::nullopt), "clear interrupted restore marker");
 }
 
 // Removes the regular last-project path only when it refers to a now-invalid restore target.
@@ -2569,7 +2611,8 @@ void EditorController::Impl::clearLastOpenProjectIfMatches(
     const std::optional<std::filesystem::path> last_project = m_settings.lastOpenProject();
     if (last_project.has_value() && *last_project == project_file)
     {
-        m_settings.setLastOpenProject(std::nullopt);
+        recordSettingsResultBestEffort(
+            m_settings.setLastOpenProject(std::nullopt), "clear missing restore project");
     }
 }
 
@@ -2635,7 +2678,8 @@ void EditorController::Impl::restoreLastOpenProject()
 
     if (!projectFileExists(*project_file))
     {
-        m_settings.setLastOpenProject(std::nullopt);
+        recordSettingsResultBestEffort(
+            m_settings.setLastOpenProject(std::nullopt), "clear missing last project");
         clearInterruptedRestoreMarker();
         return;
     }
@@ -2661,25 +2705,29 @@ ProjectEditorState EditorController::Impl::projectEditorStateForSave() const
 }
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.
-bool EditorController::Impl::loadSessionSong(
+std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadSessionSong(
     common::core::Song song, const std::optional<std::string>& selected_arrangement)
 {
     if (song.arrangements.empty())
     {
-        return false;
+        return std::unexpected{common::audio::SongAudioError{
+            common::audio::SongAudioErrorCode::MissingAudioAssetPath,
+            "Project song contains no arrangements",
+        }};
     }
 
-    if (!m_song_audio.prepareSong(song))
+    auto prepared = m_song_audio.prepareSong(song);
+    if (!prepared.has_value())
     {
-        return false;
+        return std::unexpected{std::move(prepared.error())};
     }
 
     const std::size_t selected_index = getSelectedArrangementIndex(song, selected_arrangement);
     m_session_load_in_progress = true;
-    const bool active_arrangement_set =
+    auto active_arrangement_set =
         m_song_audio.setActiveArrangement(song.arrangements[selected_index]);
     bool committed = false;
-    if (active_arrangement_set)
+    if (active_arrangement_set.has_value())
     {
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
@@ -2689,7 +2737,20 @@ bool EditorController::Impl::loadSessionSong(
     }
     m_session_load_in_progress = false;
 
-    return committed;
+    if (!active_arrangement_set.has_value())
+    {
+        return std::unexpected{std::move(active_arrangement_set.error())};
+    }
+
+    if (!committed)
+    {
+        return std::unexpected{common::audio::SongAudioError{
+            common::audio::SongAudioErrorCode::BackendClipInsertionFailed,
+            "Editor session rejected backend-accepted project song",
+        }};
+    }
+
+    return {};
 }
 
 // Builds the message-thread view state from the session and transport state. Current cursor
@@ -2775,16 +2836,23 @@ void EditorController::Impl::restoreAudioDeviceState()
         return;
     }
 
-    if (!m_audio_devices.restoreSerializedDeviceState(*serialized_state))
+    auto restored = m_audio_devices.restoreSerializedDeviceState(*serialized_state);
+    if (!restored.has_value())
     {
-        m_settings.setAudioDeviceState(std::nullopt);
+        logEditorControllerBestEffortFailure(
+            "restore serialized audio-device state", restored.error().message);
+        recordSettingsResultBestEffort(
+            m_settings.setAudioDeviceState(std::nullopt),
+            "clear invalid serialized audio-device state");
     }
 }
 
 // Stores the current device manager state so the next launch can restore the user's selection.
 void EditorController::Impl::persistAudioDeviceState()
 {
-    m_settings.setAudioDeviceState(m_audio_devices.serializedDeviceState());
+    recordSettingsResultBestEffort(
+        m_settings.setAudioDeviceState(m_audio_devices.serializedDeviceState()),
+        "persist serialized audio-device state");
 }
 
 // Returns the active physical input route identity, if the audio backend can provide one.
@@ -2802,7 +2870,16 @@ void EditorController::Impl::selectInputCalibrationForCurrentRoute()
     std::optional<common::audio::InputCalibrationState> saved_calibration;
     if (current_identity.has_value())
     {
-        saved_calibration = m_settings.inputCalibrationFor(*current_identity);
+        auto loaded_calibration = m_settings.inputCalibrationFor(*current_identity);
+        if (loaded_calibration.has_value())
+        {
+            saved_calibration = std::move(*loaded_calibration);
+        }
+        else
+        {
+            logEditorControllerBestEffortFailure(
+                "load input calibration", loaded_calibration.error().message);
+        }
     }
 
     executeInputCalibrationEffects(m_input_calibration.syncCommittedInputDeviceIdentity(
@@ -2816,7 +2893,17 @@ void EditorController::Impl::saveActiveInputCalibration()
         m_input_calibration.activeCalibrationState();
     if (calibration.has_value())
     {
-        m_settings.saveInputCalibration(*calibration);
+        recordSettingsResultBestEffort(
+            m_settings.saveInputCalibration(*calibration), "save input calibration");
+    }
+}
+
+void EditorController::Impl::recordSettingsResultBestEffort(
+    std::expected<void, EditorSettingsError> result, std::string_view context)
+{
+    if (!result.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, result.error().message);
     }
 }
 
@@ -2830,12 +2917,13 @@ void EditorController::Impl::executeInputCalibrationEffects(
         {
             case InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring:
             {
-                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                setLiveInputMonitoringBestEffort(false, "workflow disable live input monitoring");
                 break;
             }
             case InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring:
             {
-                std::ignore = m_live_input.setCalibrationInputMonitoringEnabled(false);
+                setCalibrationInputMonitoringBestEffort(
+                    false, "workflow disable calibration monitoring");
                 break;
             }
         }
@@ -2855,24 +2943,24 @@ InputCalibrationWorkflow::Context EditorController::Impl::inputCalibrationContex
 // Applies the backend live-input gate from the current route and calibration state.
 void EditorController::Impl::applyLiveInputGate()
 {
-    std::ignore = m_live_input.setCalibrationInputMonitoringEnabled(false);
+    setCalibrationInputMonitoringBestEffort(false, "live-input gate calibration disable");
 
     if (m_input_calibration.audioDeviceSettingsOpen())
     {
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "audio-device settings gate disable");
         return;
     }
 
     const InputCalibrationWorkflow::Context context = inputCalibrationContext();
     if (!context.project_audio_ready || !context.arrangement_loaded)
     {
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "project-audio gate disable");
         return;
     }
 
     if (!context.current_input_device_identity.has_value())
     {
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "missing-input-route gate disable");
         return;
     }
 
@@ -2880,13 +2968,13 @@ void EditorController::Impl::applyLiveInputGate()
         m_input_calibration.activeCalibrationState();
     if (!calibration.has_value())
     {
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "missing-calibration gate disable");
         return;
     }
 
     if (!m_input_calibration.calibrationMatches(context.current_input_device_identity))
     {
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "mismatched-calibration gate disable");
         return;
     }
 
@@ -2894,7 +2982,7 @@ void EditorController::Impl::applyLiveInputGate()
     if (!gain_applied.has_value())
     {
         m_input_calibration.markBackendUnavailable();
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "live-input gate gain failure disable");
         return;
     }
 
@@ -2902,7 +2990,7 @@ void EditorController::Impl::applyLiveInputGate()
     if (!monitoring_enabled.has_value())
     {
         m_input_calibration.markBackendUnavailable();
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "live-input gate enable failure disable");
         return;
     }
 
@@ -2924,14 +3012,68 @@ EditorController::Impl::InputCalibrationRouteState EditorController::Impl::
 void EditorController::Impl::restoreInputCalibrationRouteStateBestEffort(
     const InputCalibrationRouteState& route_state)
 {
-    std::ignore = m_live_input.setCalibrationInputMonitoringEnabled(
-        route_state.calibration_input_monitoring_enabled);
+    setCalibrationInputMonitoringBestEffort(
+        route_state.calibration_input_monitoring_enabled,
+        "restore calibration route monitoring state");
     auto gain_restored = m_live_input.setInputGain(route_state.input_gain);
+    if (!gain_restored.has_value())
+    {
+        logEditorControllerBestEffortFailure(
+            "restore calibration route input gain", gain_restored.error().message);
+    }
     if (!route_state.live_input_monitoring_enabled || gain_restored.has_value())
     {
-        std::ignore =
-            m_live_input.setLiveInputMonitoringEnabled(route_state.live_input_monitoring_enabled);
+        setLiveInputMonitoringBestEffort(
+            route_state.live_input_monitoring_enabled, "restore calibration route monitoring");
     }
+}
+
+void EditorController::Impl::clearActiveArrangementBestEffort(std::string_view context)
+{
+    auto cleared = m_song_audio.clearActiveArrangement();
+    if (!cleared.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, cleared.error().message);
+    }
+}
+
+bool EditorController::Impl::setLiveInputMonitoringBestEffort(
+    bool enabled, std::string_view context)
+{
+    auto result = m_live_input.setLiveInputMonitoringEnabled(enabled);
+    if (!result.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, result.error().message);
+        return false;
+    }
+
+    return true;
+}
+
+bool EditorController::Impl::setCalibrationInputMonitoringBestEffort(
+    bool enabled, std::string_view context)
+{
+    auto result = m_live_input.setCalibrationInputMonitoringEnabled(enabled);
+    if (!result.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, result.error().message);
+        return false;
+    }
+
+    return true;
+}
+
+bool EditorController::Impl::setInputGainBestEffort(
+    common::audio::Gain gain, std::string_view context)
+{
+    auto result = m_live_input.setInputGain(gain);
+    if (!result.has_value())
+    {
+        logEditorControllerBestEffortFailure(context, result.error().message);
+        return false;
+    }
+
+    return true;
 }
 
 // Applies a completed calibration value to the current live route and persists it.
@@ -2974,7 +3116,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
             m_input_calibration.preservePreviousCalibrationAfterCommitFailure(
                 plan.previous_calibration_state, context.current_input_device_identity);
             saveActiveInputCalibration();
-            std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+            setLiveInputMonitoringBestEffort(false, "commit calibration route-unavailable disable");
             updateView();
         }
         return std::unexpected{std::move(gain_applied.error())};
@@ -2991,10 +3133,10 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
                 plan.previous_calibration_state, context.current_input_device_identity);
         if (restore_gain.has_value())
         {
-            std::ignore = m_live_input.setInputGain(*restore_gain);
+            setInputGainBestEffort(*restore_gain, "commit calibration gain rollback");
         }
         saveActiveInputCalibration();
-        std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+        setLiveInputMonitoringBestEffort(false, "commit calibration enable-failure disable");
         updateView();
         return std::unexpected{std::move(monitoring_enabled.error())};
     }
@@ -3039,23 +3181,35 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
             }
             else if constexpr (std::is_same_v<Restore, MeasurementRestore::DisableLiveInput>)
             {
+                auto monitoring_disabled = m_live_input.setLiveInputMonitoringEnabled(false);
+                if (!monitoring_disabled.has_value())
+                {
+                    return std::unexpected{std::move(monitoring_disabled.error())};
+                }
                 m_input_calibration.clearActiveMeasurement();
-                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
                 return {};
             }
             else if constexpr (std::is_same_v<Restore, MeasurementRestore::ClearCalibration>)
             {
+                auto monitoring_disabled = m_live_input.setLiveInputMonitoringEnabled(false);
+                if (!monitoring_disabled.has_value())
+                {
+                    return std::unexpected{std::move(monitoring_disabled.error())};
+                }
                 m_input_calibration.clearCalibrationAfterMeasurement();
-                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
                 return {};
             }
             else if constexpr (
                 std::is_same_v<Restore, MeasurementRestore::ClearCalibrationAndClosePrompt>
             )
             {
+                auto monitoring_disabled = m_live_input.setLiveInputMonitoringEnabled(false);
+                if (!monitoring_disabled.has_value())
+                {
+                    return std::unexpected{std::move(monitoring_disabled.error())};
+                }
                 m_input_calibration.clearCalibrationAfterMeasurement();
                 m_input_calibration.closePrompt();
-                std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
                 return {};
             }
             else
@@ -3076,7 +3230,8 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
                         m_input_calibration.clearCalibrationAfterMeasurement();
                     }
                     saveActiveInputCalibration();
-                    std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                    setLiveInputMonitoringBestEffort(
+                        false, "measurement restore gain-failure disable");
                     return std::unexpected{std::move(gain_restored.error())};
                 }
 
@@ -3085,7 +3240,8 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::
                 {
                     m_input_calibration.restorePreviousCalibration(previous_state, false);
                     saveActiveInputCalibration();
-                    std::ignore = m_live_input.setLiveInputMonitoringEnabled(false);
+                    setLiveInputMonitoringBestEffort(
+                        false, "measurement restore enable-failure disable");
                     return std::unexpected{std::move(monitoring_restored.error())};
                 }
 

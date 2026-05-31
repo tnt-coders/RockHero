@@ -43,6 +43,10 @@ constexpr double g_sample_rate_match_tolerance{0.001};
         {
             return "Could not apply the selected audio device settings.";
         }
+        case AudioDeviceSettingsErrorCode::RestoreFailed:
+        {
+            return "Could not restore the previous audio device settings.";
+        }
         case AudioDeviceSettingsErrorCode::ControlPanelUnavailable:
         {
             return "The selected audio device has no control panel.";
@@ -319,11 +323,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // before the settings edit began.
     ~Impl() override
     {
-        if (m_restore_pending)
-        {
-            static_cast<void>(restorePreviousRoute());
-            m_restore_pending = false;
-        }
+        restorePreviousRouteBestEffort();
     }
 
     Impl(const Impl&) = delete;
@@ -528,15 +528,19 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
 
     // Reopens the captured audio device when there was one to reopen. No-op when settings were
     // opened from an [audio device closed] state, so cancel cannot accidentally start audio that
-    // was not running before the settings edit. Best-effort otherwise: a failure to reopen leaves
-    // the backend closed and the menu-bar status reflects that.
-    void cancel()
+    // was not running before the settings edit.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> cancel()
     {
-        if (m_restore_pending)
+        auto restored = restorePreviousRoute();
+        if (!restored.has_value())
         {
-            static_cast<void>(restorePreviousRoute());
-            m_restore_pending = false;
+            refreshState(restored.error().message);
+            return std::unexpected{std::move(restored.error())};
         }
+
+        m_restore_pending = false;
+        refreshState({});
+        return {};
     }
 
     // Opens the staged backend's control panel through the in-memory staged device so the panel
@@ -552,7 +556,16 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return std::unexpected{std::move(error)};
         }
 
-        m_staged_device->showControlPanel();
+        if (!m_staged_device->showControlPanel())
+        {
+            AudioDeviceSettingsError error{
+                AudioDeviceSettingsErrorCode::ControlPanelUnavailable,
+                "The selected audio device did not open its control panel.",
+            };
+            refreshState(error.message);
+            return std::unexpected{std::move(error)};
+        }
+
         refreshState({});
         return {};
     }
@@ -583,9 +596,8 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     }
 
 private:
-    // Reopens the captured route. Returns JUCE's error string from setAudioDeviceSetup, or empty
-    // when there was no previous route or the open succeeded.
-    [[nodiscard]] juce::String restorePreviousRoute()
+    // Reopens the captured route and translates JUCE's setup error string when restore fails.
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> restorePreviousRoute()
     {
         if (!m_restore_pending || m_previous_device_type.isEmpty())
         {
@@ -597,7 +609,34 @@ private:
             m_device_manager.setCurrentAudioDeviceType(m_previous_device_type, true);
         }
 
-        return m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
+        const juce::String error_text =
+            m_device_manager.setAudioDeviceSetup(m_previous_setup, true);
+        if (error_text.isEmpty())
+        {
+            return {};
+        }
+
+        return std::unexpected{AudioDeviceSettingsError{
+            AudioDeviceSettingsErrorCode::RestoreFailed, error_text.toStdString()
+        }};
+    }
+
+    // Destructor cleanup has no caller-visible channel, so restore failure is intentionally
+    // best-effort after recording the diagnostic in state for any surviving listener snapshot.
+    void restorePreviousRouteBestEffort()
+    {
+        if (!m_restore_pending)
+        {
+            return;
+        }
+
+        const auto restored = restorePreviousRoute();
+        if (!restored.has_value())
+        {
+            refreshState(restored.error().message);
+        }
+
+        m_restore_pending = false;
     }
 
     // Rebuilds the public settings state while preserving a caller-supplied operation error.
@@ -1087,9 +1126,9 @@ std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::apply()
     return m_impl->apply();
 }
 
-void AudioDeviceSettings::cancel()
+std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::cancel()
 {
-    m_impl->cancel();
+    return m_impl->cancel();
 }
 
 std::expected<void, AudioDeviceSettingsError> AudioDeviceSettings::openControlPanel()
