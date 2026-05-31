@@ -137,7 +137,7 @@ using common::core::Song;
     for (const Arrangement& arrangement : song.arrangements)
     {
         const std::filesystem::path& path = arrangement.audio_asset.path;
-        if (std::find(unique_paths.begin(), unique_paths.end(), path) == unique_paths.end())
+        if (std::ranges::find(unique_paths, path) == unique_paths.end())
         {
             unique_paths.push_back(path);
         }

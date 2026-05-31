@@ -1,6 +1,7 @@
 #include "audio_level_meter.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <utility>
 
@@ -22,7 +23,7 @@ const juce::Colour g_meter_mid{juce::Colour{0xffd1b445}};
 const juce::Colour g_meter_hot{juce::Colour{0xffd66a4a}};
 const juce::Colour g_meter_clip{juce::Colour{0xfff04a4a}};
 
-constexpr double g_horizontal_tick_db[] = {
+constexpr std::array<double, 10> g_horizontal_tick_db = {
     0.0,
     -6.0,
     -12.0,
@@ -34,9 +35,7 @@ constexpr double g_horizontal_tick_db[] = {
     -48.0,
     -54.0,
 };
-constexpr int g_horizontal_tick_count = 10;
-constexpr double g_vertical_tick_db[] = {0.0, -12.0, -24.0, -36.0, -48.0};
-constexpr int g_vertical_tick_count = 5;
+constexpr std::array<double, 5> g_vertical_tick_db = {0.0, -12.0, -24.0, -36.0, -48.0};
 constexpr float g_tick_font_size{9.0f};
 constexpr int g_horizontal_tick_min_center_gap{22};
 constexpr int g_vertical_tick_min_center_gap{18};
@@ -83,9 +82,9 @@ void drawHorizontalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
     const int text_y = (inner.getY() + inner.getBottom() - font_height) / 2;
     int last_drawn_x = inner.getRight() + g_horizontal_tick_min_center_gap + 1;
 
-    for (int i = 0; i < g_horizontal_tick_count; ++i)
+    for (const double tick_db : g_horizontal_tick_db)
     {
-        const double fraction = displayFraction(g_horizontal_tick_db[i]);
+        const double fraction = displayFraction(tick_db);
         const int x = inner.getX() + static_cast<int>(std::round(inner.getWidth() * fraction));
 
         if (std::abs(x - last_drawn_x) < g_horizontal_tick_min_center_gap)
@@ -102,7 +101,7 @@ void drawHorizontalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
             static_cast<float>(inner.getY() + tick_inset + tick_length));
 
         g.drawText(
-            juce::String{static_cast<int>(std::abs(g_horizontal_tick_db[i]))},
+            juce::String{static_cast<int>(std::abs(tick_db))},
             label_x,
             text_y,
             label_width,
@@ -136,9 +135,9 @@ void drawVerticalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
     constexpr int tick_inset = 1;
     int last_drawn_y = inner.getY() - g_vertical_tick_min_center_gap - 1;
 
-    for (int i = 0; i < g_vertical_tick_count; ++i)
+    for (const double tick_db : g_vertical_tick_db)
     {
-        const double fraction = displayFraction(g_vertical_tick_db[i]);
+        const double fraction = displayFraction(tick_db);
         const int y =
             inner.getBottom() - static_cast<int>(std::round(inner.getHeight() * fraction));
 
@@ -156,7 +155,7 @@ void drawVerticalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
             static_cast<float>(inner.getX() + tick_inset + tick_length));
 
         g.drawText(
-            juce::String{static_cast<int>(std::abs(g_vertical_tick_db[i]))},
+            juce::String{static_cast<int>(std::abs(tick_db))},
             inner.getX(),
             label_y,
             inner.getWidth(),
