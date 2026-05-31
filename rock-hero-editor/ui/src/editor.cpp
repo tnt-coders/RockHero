@@ -29,9 +29,7 @@ namespace
 // Wires the editor with default production project IO operations.
 Editor::Editor(
     Editor::AudioPorts audio_ports, Editor::Services services, Editor::ExitFunction exit_function)
-    : Editor(
-          std::move(audio_ports), std::move(services), std::move(exit_function),
-          Editor::ProjectOperations{})
+    : Editor(audio_ports, services, std::move(exit_function), Editor::ProjectOperations{})
 {}
 
 // Wires the controller and view after construction dependencies are available.

@@ -110,7 +110,7 @@ void writeAudioFile(const std::filesystem::path& path)
             .id = std::string{g_lead_arrangement_id},
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
-            .audio_asset = AudioAsset{audio_path},
+            .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .note_events = {},

@@ -48,7 +48,8 @@ public:
     common::core::TimeDuration duration = common::core::TimeDuration{4.0})
 {
     return core::ArrangementViewState{
-        .audio_asset = common::core::AudioAsset{std::move(path)},
+        .audio_asset =
+            common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
         .audio_duration = duration,
     };
 }
@@ -72,7 +73,9 @@ TEST_CASE("ArrangementView creates a thumbnail for audio", "[ui][arrangement-vie
     CHECK(thumbnail->set_source_call_count == 1);
     CHECK(
         thumbnail->last_source ==
-        std::optional{common::core::AudioAsset{std::filesystem::path{"full_mix.wav"}}});
+        std::optional{common::core::AudioAsset{
+            .path = std::filesystem::path{"full_mix.wav"}, .normalization = std::nullopt
+        }});
 }
 
 // Verifies reapplying the same audio state reuses the existing thumbnail source.
@@ -111,7 +114,9 @@ TEST_CASE("ArrangementView refreshes thumbnail when asset changes", "[ui][arrang
     CHECK(thumbnail->set_source_call_count == 2);
     CHECK(
         thumbnail->last_source ==
-        std::optional{common::core::AudioAsset{std::filesystem::path{"lead_override.wav"}}});
+        std::optional{common::core::AudioAsset{
+            .path = std::filesystem::path{"lead_override.wav"}, .normalization = std::nullopt
+        }});
 }
 
 // Verifies ArrangementView asks the thumbnail to draw only the visible asset range.

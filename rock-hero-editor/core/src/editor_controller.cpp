@@ -766,8 +766,7 @@ EditorController::EditorController(
     EditorController::AudioPorts audio_ports, EditorController::Services services,
     EditorController::ExitFunction exit_function)
     : EditorController(
-          std::move(audio_ports), std::move(services), std::move(exit_function),
-          EditorController::ProjectOperations{})
+          audio_ports, services, std::move(exit_function), EditorController::ProjectOperations{})
 {}
 
 EditorController::EditorController(
