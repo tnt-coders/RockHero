@@ -18,12 +18,12 @@ namespace
 
 // JUCE reports the shared WASAPI route as the bare "Windows Audio" name; the same literal also
 // serves as the family prefix used to detect any WASAPI variant.
-constexpr char g_asio_type_name[] = "ASIO";
-constexpr char g_windows_audio_type_prefix[] = "Windows Audio";
-constexpr char g_windows_audio_low_latency_type_name[] = "Windows Audio (Low Latency Mode)";
-constexpr char g_windows_audio_exclusive_type_name[] = "Windows Audio (Exclusive Mode)";
-constexpr char g_direct_sound_type_name[] = "DirectSound";
-constexpr char g_wave_out_type_name[] = "WaveOut";
+constexpr const char* g_asio_type_name = "ASIO";
+constexpr const char* g_windows_audio_type_prefix = "Windows Audio";
+constexpr const char* g_windows_audio_low_latency_type_name = "Windows Audio (Low Latency Mode)";
+constexpr const char* g_windows_audio_exclusive_type_name = "Windows Audio (Exclusive Mode)";
+constexpr const char* g_direct_sound_type_name = "DirectSound";
+constexpr const char* g_wave_out_type_name = "WaveOut";
 constexpr double g_sample_rate_match_tolerance{0.001};
 
 // Creates stable fallback text for settings failures that do not carry backend detail.
@@ -371,7 +371,7 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
             return;
         }
 
-        const juce::String type_name = type_names[choice_id - 1];
+        const juce::String& type_name = type_names[choice_id - 1];
         if (type_name == m_staged_device_type)
         {
             return;

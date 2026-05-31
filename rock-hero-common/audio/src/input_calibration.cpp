@@ -236,14 +236,18 @@ bool InputCalibrationCapture::active() const noexcept
 // Builds a neutral update for phases that have no terminal result.
 InputCalibrationCaptureUpdate InputCalibrationCapture::currentUpdate() const
 {
-    return InputCalibrationCaptureUpdate{.phase = m_phase};
+    return InputCalibrationCaptureUpdate{
+        .phase = m_phase, .result = std::nullopt, .error = std::nullopt
+    };
 }
 
 // Records a terminal calibration error and returns it to the caller in one step.
 InputCalibrationCaptureUpdate InputCalibrationCapture::fail(InputCalibrationError error)
 {
     m_phase = InputCalibrationCapturePhase::Failed;
-    return InputCalibrationCaptureUpdate{.phase = m_phase, .error = std::move(error)};
+    return InputCalibrationCaptureUpdate{
+        .phase = m_phase, .result = std::nullopt, .error = std::move(error)
+    };
 }
 
 // Adds one sample to the fixed measurement window and finalizes it when the window ends.
@@ -266,7 +270,9 @@ InputCalibrationCaptureUpdate InputCalibrationCapture::pushMeasurementSample(Aud
     }
 
     m_phase = InputCalibrationCapturePhase::Complete;
-    return InputCalibrationCaptureUpdate{.phase = m_phase, .result = *result};
+    return InputCalibrationCaptureUpdate{
+        .phase = m_phase, .result = *result, .error = std::nullopt
+    };
 }
 
 // Calculates the gain that moves the measured input toward the project calibration targets.
