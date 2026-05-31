@@ -5,9 +5,11 @@
 
 #pragma once
 
+#include <expected>
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/editor/core/editor_settings_error.h>
 #include <string>
 
 namespace rock_hero::editor::core
@@ -35,8 +37,10 @@ public:
     /*!
     \brief Stores or clears the editor project path to restore on the next editor launch.
     \param project_file Project path to restore, or empty to clear restore state.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void setLastOpenProject(std::optional<std::filesystem::path> project_file) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setLastOpenProject(
+        std::optional<std::filesystem::path> project_file) = 0;
 
     /*!
     \brief Reads the project path whose previous startup restore did not finish.
@@ -48,8 +52,9 @@ public:
     /*!
     \brief Stores or clears the project path whose startup restore is in progress.
     \param project_file Interrupted restore path, or empty to clear the recovery prompt state.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void setInterruptedRestoreProject(
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
         std::optional<std::filesystem::path> project_file) = 0;
 
     /*!
@@ -61,28 +66,35 @@ public:
     /*!
     \brief Stores or clears the opaque serialized audio-device state.
     \param serialized_state Serialized state to restore on next launch, or empty to clear it.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void setAudioDeviceState(std::optional<std::string> serialized_state) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> setAudioDeviceState(
+        std::optional<std::string> serialized_state) = 0;
 
     /*!
     \brief Reads app-local input calibration for one physical input route.
     \param identity Physical input route to look up.
-    \return Calibration state for the supplied route, or empty when unavailable.
+    \return Calibration state, absence, or a typed settings failure.
     */
-    [[nodiscard]] virtual std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
-        const common::audio::InputDeviceIdentity& identity) const = 0;
+    [[nodiscard]] virtual std::expected<
+        std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
+    inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const = 0;
 
     /*!
     \brief Stores or replaces app-local input calibration for its physical route.
     \param calibration_state Calibration state to save.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void saveInputCalibration(common::audio::InputCalibrationState calibration_state) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveInputCalibration(
+        common::audio::InputCalibrationState calibration_state) = 0;
 
     /*!
     \brief Removes app-local input calibration for one physical input route.
     \param identity Physical input route to remove.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void removeInputCalibration(const common::audio::InputDeviceIdentity& identity) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> removeInputCalibration(
+        const common::audio::InputDeviceIdentity& identity) = 0;
 
 protected:
     /*! \brief Creates the editor-settings interface. */

@@ -27,6 +27,7 @@ target_sources(
             src/project.cpp
             src/project_io.cpp
             src/project_error.cpp
+            src/editor_settings_error.cpp
             src/psarc_song_importer.cpp
             src/rock_song_importer.cpp
             src/song_import_error.cpp

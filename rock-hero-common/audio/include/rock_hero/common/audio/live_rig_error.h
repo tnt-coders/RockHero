@@ -57,6 +57,9 @@ enum class LiveRigErrorCode
 
     /*! \brief The backend could not restore a plugin from the persisted tone state. */
     PluginRestoreFailed,
+
+    /*! \brief The backend could not restore monitoring after a live-rig mutation. */
+    MonitoringRouteFailed,
 };
 
 /*! \brief Recoverable live rig failure with a stable code and displayable detail. */

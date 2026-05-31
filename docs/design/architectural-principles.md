@@ -204,6 +204,14 @@ converts lower-level library, framework, or filesystem failures into that vocabu
 This keeps callers testable and branchable without parsing display text, while still allowing UI
 and logs to use the error message carried by the domain error value.
 
+Project-owned boundaries should preserve typed, branchable errors until the final UI or logging
+boundary. Async plumbing should carry the same typed errors rather than converting them to raw
+strings between internal stages. Callers must not parse diagnostic message text for behavior.
+
+Side-effect failures that can affect user-visible state must be returned or surfaced. They should
+not be silently folded into refreshed state, generic status text, or ignored cleanup unless the
+cleanup has no caller-visible channel and is explicitly treated as best effort.
+
 ## Why This Matters
 
 Mocking JUCE or Tracktion directly is the wrong abstraction level:

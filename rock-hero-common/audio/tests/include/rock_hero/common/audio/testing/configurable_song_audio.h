@@ -24,12 +24,22 @@ class ConfigurableSongAudio final : public ISongAudio
 {
 public:
     /*! \brief Records preparation and fills arrangement durations on success. */
-    [[nodiscard]] bool prepareSong(common::core::Song& song) override
+    [[nodiscard]] std::expected<void, SongAudioError> prepareSong(common::core::Song& song) override
     {
         prepare_song_call_count += 1;
+        if (next_prepare_error.has_value())
+        {
+            SongAudioError error = std::move(*next_prepare_error);
+            next_prepare_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
         if (!next_prepare_result)
         {
-            return false;
+            return std::unexpected{SongAudioError{
+                SongAudioErrorCode::UnreadableAudioFile,
+                "Configured song preparation failure",
+            }};
         }
 
         for (common::core::Arrangement& arrangement : song.arrangements)
@@ -39,17 +49,22 @@ public:
             if (!failed_prepare_audio_path.empty() &&
                 arrangement.audio_asset.path == failed_prepare_audio_path)
             {
-                return false;
+                return std::unexpected{SongAudioError{
+                    SongAudioErrorCode::UnreadableAudioFile,
+                    "Configured song preparation failure for: " +
+                        failed_prepare_audio_path.string(),
+                }};
             }
 
             arrangement.audio_duration = next_prepared_audio_duration;
         }
 
-        return true;
+        return {};
     }
 
     /*! \brief Records the active arrangement and returns the configured activation outcome. */
-    [[nodiscard]] bool setActiveArrangement(const common::core::Arrangement& arrangement) override
+    [[nodiscard]] std::expected<void, SongAudioError> setActiveArrangement(
+        const common::core::Arrangement& arrangement) override
     {
         last_active_audio_asset = arrangement.audio_asset;
         set_active_arrangement_call_count += 1;
@@ -58,14 +73,37 @@ public:
             during_active_arrangement_action();
         }
 
-        return next_set_active_arrangement_result;
+        if (next_set_active_arrangement_error.has_value())
+        {
+            SongAudioError error = std::move(*next_set_active_arrangement_error);
+            next_set_active_arrangement_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
+        if (!next_set_active_arrangement_result)
+        {
+            return std::unexpected{SongAudioError{
+                SongAudioErrorCode::BackendClipInsertionFailed,
+                "Configured active-arrangement failure",
+            }};
+        }
+
+        return {};
     }
 
     /*! \brief Records that the current active arrangement should be cleared. */
-    void clearActiveArrangement() override
+    [[nodiscard]] std::expected<void, SongAudioError> clearActiveArrangement() override
     {
         last_active_audio_asset.reset();
         clear_active_arrangement_call_count += 1;
+        if (next_clear_active_arrangement_error.has_value())
+        {
+            SongAudioError error = std::move(*next_clear_active_arrangement_error);
+            next_clear_active_arrangement_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
+        return {};
     }
 
     /*! \brief Duration assigned to each arrangement during successful preparation. */
@@ -76,6 +114,15 @@ public:
 
     /*! \brief Controls whether the next setActiveArrangement() call accepts the arrangement. */
     bool next_set_active_arrangement_result{true};
+
+    /*! \brief Optional typed preparation error returned instead of success. */
+    std::optional<SongAudioError> next_prepare_error{};
+
+    /*! \brief Optional typed activation error returned instead of success. */
+    std::optional<SongAudioError> next_set_active_arrangement_error{};
+
+    /*! \brief Optional typed clear error returned instead of success. */
+    std::optional<SongAudioError> next_clear_active_arrangement_error{};
 
     /*! \brief Specific arrangement audio path that should fail during preparation. */
     std::filesystem::path failed_prepare_audio_path{};

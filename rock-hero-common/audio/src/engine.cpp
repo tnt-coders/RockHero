@@ -424,6 +424,52 @@ void logInstrumentMonitoringFailure(const juce::String& message)
     }
 }
 
+// Maps monitoring rebuild failures into plugin-host mutation errors.
+[[nodiscard]] PluginHostError pluginHostErrorFromLiveInputError(const LiveInputError& error)
+{
+    switch (error.code)
+    {
+        case LiveInputErrorCode::MessageThreadRequired:
+        {
+            return PluginHostError{PluginHostErrorCode::MessageThreadRequired, error.message};
+        }
+        case LiveInputErrorCode::TrackMissing:
+        {
+            return PluginHostError{PluginHostErrorCode::TrackMissing, error.message};
+        }
+        default:
+        {
+            return PluginHostError{PluginHostErrorCode::MonitoringRouteFailed, error.message};
+        }
+    }
+}
+
+// Maps monitoring rebuild failures into live-rig mutation errors.
+[[nodiscard]] LiveRigError liveRigErrorFromLiveInputError(const LiveInputError& error)
+{
+    switch (error.code)
+    {
+        case LiveInputErrorCode::MessageThreadRequired:
+        {
+            return LiveRigError{LiveRigErrorCode::MessageThreadRequired, error.message};
+        }
+        case LiveInputErrorCode::TrackMissing:
+        {
+            return LiveRigError{LiveRigErrorCode::TrackMissing, error.message};
+        }
+        default:
+        {
+            return LiveRigError{LiveRigErrorCode::MonitoringRouteFailed, error.message};
+        }
+    }
+}
+
+// Maps monitoring rebuild failures into song-audio activation errors.
+[[nodiscard]] SongAudioError songAudioErrorFromLiveInputError(const LiveInputError& error)
+{
+    return SongAudioError{SongAudioErrorCode::MonitoringRouteFailed, error.message};
+}
+
 // Converts UTF-8-ish command line text from the public startup boundary into JUCE text.
 [[nodiscard]] juce::String toJuceString(std::string_view text)
 {
@@ -518,45 +564,49 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 }
 
 // Creates directories needed for a package-relative output file.
-[[nodiscard]] std::optional<LiveRigError> createParentDirectory(
+[[nodiscard]] std::expected<void, LiveRigError> createParentDirectory(
     const std::filesystem::path& output_file)
 {
     std::error_code error;
     std::filesystem::create_directories(output_file.parent_path(), error);
     if (error)
     {
-        return LiveRigError{
+        return std::unexpected{LiveRigError{
             LiveRigErrorCode::CouldNotCreateDirectory,
             "Could not create tone directory: " + error.message()
-        };
+        }};
     }
 
-    return std::nullopt;
+    return {};
 }
 
 // Writes a UTF-8 text file after creating its parent directories.
-[[nodiscard]] std::optional<LiveRigError> writeTextFile(
+[[nodiscard]] std::expected<void, LiveRigError> writeTextFile(
     const std::filesystem::path& path, const std::string& contents,
     LiveRigErrorCode write_error_code)
 {
-    if (const auto directory_error = createParentDirectory(path); directory_error.has_value())
+    if (auto directory_result = createParentDirectory(path); !directory_result.has_value())
     {
-        return directory_error;
+        return std::unexpected{std::move(directory_result.error())};
     }
 
     std::ofstream file{path, std::ios::binary};
     if (!file.is_open())
     {
-        return LiveRigError{write_error_code, "Could not open tone file: " + path.string()};
+        return std::unexpected{
+            LiveRigError{write_error_code, "Could not open tone file: " + path.string()}
+        };
     }
 
     file << contents;
     if (!file.good())
     {
-        return LiveRigError{write_error_code, "Could not write tone file: " + path.string()};
+        return std::unexpected{
+            LiveRigError{write_error_code, "Could not write tone file: " + path.string()}
+        };
     }
 
-    return std::nullopt;
+    return {};
 }
 
 // Converts a plugin description into durable identity fields plus non-authoritative lookup hints.
@@ -857,7 +907,7 @@ void reportLiveRigLoadProgress(
 }
 
 // Writes the v1 tone document JSON file.
-[[nodiscard]] std::optional<LiveRigError> writeToneDocument(
+[[nodiscard]] std::expected<void, LiveRigError> writeToneDocument(
     const std::filesystem::path& tone_document_path, const ToneDocument& document)
 {
     const juce::String json = juce::JSON::toString(makeToneDocumentJson(document));
@@ -1234,25 +1284,34 @@ public:
 };
 
 // Opens an asset through Tracktion only long enough to validate it and read its duration.
-[[nodiscard]] std::optional<common::core::TimeDuration> readAudioDuration(
+[[nodiscard]] std::expected<common::core::TimeDuration, SongAudioError> readAudioDuration(
     tracktion::Engine& engine, const common::core::AudioAsset& audio_asset)
 {
     const juce::File file = common::core::juceFileFromPath(audio_asset.path);
     if (!file.existsAsFile())
     {
-        return std::nullopt;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::UnreadableAudioFile,
+            "Backing audio file does not exist: " + pathToUtf8String(audio_asset.path)
+        }};
     }
 
     const tracktion::AudioFile audio_file(engine, file);
     if (!audio_file.isValid())
     {
-        return std::nullopt;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::UnreadableAudioFile,
+            "Backing audio file could not be decoded: " + pathToUtf8String(audio_asset.path)
+        }};
     }
 
     const common::core::TimeDuration asset_duration{audio_file.getLength()};
     if (asset_duration.seconds <= 0.0)
     {
-        return std::nullopt;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::InvalidAudioDuration,
+            "Backing audio file has no positive duration: " + pathToUtf8String(audio_asset.path)
+        }};
     }
 
     return asset_duration;
@@ -2342,26 +2401,26 @@ private:
     }
 
     // Binds the selected app-local mono input to the active Tracktion monitoring target.
-    std::optional<LiveInputError> applyInstrumentMonitoringRoute()
+    std::expected<void, LiveInputError> applyInstrumentMonitoringRoute()
     {
         if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
         {
-            return LiveInputError{LiveInputErrorCode::MessageThreadRequired};
+            return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
         }
 
         if (!m_live_input_monitoring_enabled && !m_calibration_input_monitoring_enabled)
         {
             detachInstrumentMonitoringRoute();
-            return std::nullopt;
+            return {};
         }
 
         const tracktion::AudioTrack* const monitoring_target =
             m_calibration_input_monitoring_enabled ? backingTrack() : instrumentTrack();
         if (monitoring_target == nullptr)
         {
-            return liveInputRouteUnavailable(
+            return std::unexpected{liveInputRouteUnavailable(
                 m_calibration_input_monitoring_enabled ? "backing track is missing"
-                                                       : "instrument track is missing");
+                                                       : "instrument track is missing")};
         }
 
         tracktion::DeviceManager& tracktion_device_manager = m_engine->getDeviceManager();
@@ -2369,7 +2428,7 @@ private:
             tracktion_device_manager.deviceManager.getCurrentAudioDevice();
         if (current_device == nullptr)
         {
-            return failInstrumentMonitoringRoute("no current audio device");
+            return std::unexpected{failInstrumentMonitoringRoute("no current audio device")};
         }
 
         const std::optional<InstrumentWaveDeviceDescriptions> wave_descriptions =
@@ -2381,8 +2440,8 @@ private:
                 current_device->getOutputChannelNames());
         if (!wave_descriptions.has_value())
         {
-            return failInstrumentMonitoringRoute(
-                "selected route is not one mono input and one stereo output pair");
+            return std::unexpected{failInstrumentMonitoringRoute(
+                "selected route is not one mono input and one stereo output pair")};
         }
 
         tracktion_device_manager.dispatchPendingUpdates();
@@ -2391,8 +2450,8 @@ private:
             findInstrumentWaveInput(wave_descriptions->input);
         if (wave_input == nullptr)
         {
-            return failInstrumentMonitoringRoute(
-                "selected mono input is not available to Tracktion");
+            return std::unexpected{failInstrumentMonitoringRoute(
+                "selected mono input is not available to Tracktion")};
         }
 
         clearInstrumentInputAssignments();
@@ -2406,7 +2465,8 @@ private:
         if (input_instance == nullptr)
         {
             transport.ensureContextAllocated(true);
-            return liveInputRouteUnavailable("selected mono input has no playback instance");
+            return std::unexpected{liveInputRouteUnavailable(
+                "selected mono input has no playback instance")};
         }
 
         const auto target_result = input_instance->setTarget(
@@ -2414,8 +2474,8 @@ private:
         if (!target_result)
         {
             transport.ensureContextAllocated(true);
-            return liveInputRouteUnavailable(
-                "could not assign live input to monitoring track: " + target_result.error());
+            return std::unexpected{liveInputRouteUnavailable(
+                "could not assign live input to monitoring track: " + target_result.error())};
         }
 
         input_instance->setRecordingEnabled(monitoring_target->itemID, false);
@@ -2424,7 +2484,7 @@ private:
                 ? tracktion::InputDevice::MonitorMode::on
                 : tracktion::InputDevice::MonitorMode::off);
         transport.ensureContextAllocated(true);
-        return std::nullopt;
+        return {};
     }
 
     // Applies Rock Hero Stop-button semantics: halt playback and reset to timeline start.
@@ -2437,11 +2497,23 @@ private:
 
     // Restores the instrument monitoring context after plugin-list graph mutation or failed
     // insertion.
-    std::optional<LiveInputError> rebuildInstrumentMonitoringGraph()
+    std::expected<void, LiveInputError> rebuildInstrumentMonitoringGraph()
     {
-        const std::optional<LiveInputError> route_error = applyInstrumentMonitoringRoute();
+        auto route_result = applyInstrumentMonitoringRoute();
         updateTransportState();
-        return route_error;
+        return route_result;
+    }
+
+    // Cleanup and rollback paths cannot replace their primary failure with monitoring cleanup
+    // detail, so route failures are logged through this named best-effort helper.
+    void rebuildInstrumentMonitoringGraphBestEffort(std::string_view context)
+    {
+        auto route_result = rebuildInstrumentMonitoringGraph();
+        if (!route_result.has_value())
+        {
+            logInstrumentMonitoringFailure(
+                toJuceString(context) + ": " + toJuceString(route_result.error().message));
+        }
     }
 
     // Connects meter readers to the current Tracktion measurers and returns one display snapshot.
@@ -2536,7 +2608,7 @@ Engine::Engine()
     // Start with one instrument input and stereo output; the dialog can reconfigure either at
     // runtime.
     m_impl->m_engine->getDeviceManager().initialise(1, 2);
-    m_impl->applyInstrumentMonitoringRoute();
+    m_impl->rebuildInstrumentMonitoringGraphBestEffort("initial monitoring route setup failed");
 
     auto& device_manager = m_impl->m_engine->getDeviceManager().deviceManager;
     device_manager.addChangeListener(m_impl.get());
@@ -2639,45 +2711,63 @@ common::core::TimePosition Engine::position() const noexcept
 }
 
 // Validates every arrangement audio file and records the accepted backend durations.
-bool Engine::prepareSong(common::core::Song& song)
+std::expected<void, SongAudioError> Engine::prepareSong(common::core::Song& song)
 {
     for (common::core::Arrangement& arrangement : song.arrangements)
     {
         if (arrangement.audio_asset.path.empty())
         {
-            return false;
+            return std::unexpected{SongAudioError{
+                SongAudioErrorCode::MissingAudioAssetPath,
+                "Arrangement is missing a backing audio asset path: " + arrangement.id
+            }};
         }
 
         const auto audio_duration = readAudioDuration(*m_impl->m_engine, arrangement.audio_asset);
         if (!audio_duration.has_value())
         {
-            return false;
+            return std::unexpected{std::move(audio_duration.error())};
         }
 
         arrangement.audio_duration = *audio_duration;
     }
 
-    return true;
+    return {};
 }
 
 // Makes the prepared arrangement active on the Tracktion backing audio track.
-bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
+std::expected<void, SongAudioError> Engine::setActiveArrangement(
+    const common::core::Arrangement& arrangement)
 {
     auto* track = m_impl->backingTrack();
     if (track == nullptr)
     {
-        return false;
+        return std::unexpected{SongAudioError{SongAudioErrorCode::MissingBackingTrack}};
     }
 
-    if (arrangement.audio_asset.path.empty() || arrangement.audio_duration.seconds <= 0.0)
+    if (arrangement.audio_asset.path.empty())
     {
-        return false;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::MissingAudioAssetPath,
+            "Arrangement is missing a backing audio asset path: " + arrangement.id
+        }};
+    }
+
+    if (arrangement.audio_duration.seconds <= 0.0)
+    {
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::InvalidAudioDuration,
+            "Arrangement has no accepted backing audio duration: " + arrangement.id
+        }};
     }
 
     const juce::File file = common::core::juceFileFromPath(arrangement.audio_asset.path);
     if (!file.existsAsFile())
     {
-        return false;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::UnreadableAudioFile,
+            "Backing audio file does not exist: " + pathToUtf8String(arrangement.audio_asset.path)
+        }};
     }
 
     // Candidate is valid; stop playback and clear nodes before replacing Tracktion's edit graph.
@@ -2695,9 +2785,13 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
         track->insertWaveClip(file.getFileNameWithoutExtension(), file, wave_clip_position, true);
     if (wave_clip == nullptr)
     {
-        m_impl->applyInstrumentMonitoringRoute();
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+            "backing clip insertion rollback failed");
         m_impl->updateTransportState();
-        return false;
+        return std::unexpected{SongAudioError{
+            SongAudioErrorCode::BackendClipInsertionFailed,
+            "Could not insert backing audio clip: " + pathToUtf8String(arrangement.audio_asset.path)
+        }};
     }
 
     // Apply persisted normalization gain so playback volume matches the analyzed loudness target.
@@ -2709,13 +2803,17 @@ bool Engine::setActiveArrangement(const common::core::Arrangement& arrangement)
     m_impl->m_loaded_length_seconds = arrangement.audio_duration.seconds;
     transport.looping = false;
     transport.setPosition(tracktion::TimePosition{});
-    m_impl->applyInstrumentMonitoringRoute();
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{songAudioErrorFromLiveInputError(route_result.error())};
+    }
     m_impl->updateTransportState();
-    return true;
+    return {};
 }
 
 // Clears the backing track so closed projects do not leave stale media in Tracktion.
-void Engine::clearActiveArrangement()
+std::expected<void, SongAudioError> Engine::clearActiveArrangement()
 {
     auto& transport = m_impl->m_edit->getTransport();
     m_impl->stopTransportAndReleaseContext();
@@ -2734,8 +2832,13 @@ void Engine::clearActiveArrangement()
     }
 
     m_impl->m_loaded_length_seconds = 0.0;
-    m_impl->applyInstrumentMonitoringRoute();
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{songAudioErrorFromLiveInputError(route_result.error())};
+    }
     m_impl->updateTransportState();
+    return {};
 }
 
 // Discovers default VST3 roots without loading plugin binaries. Callers should read
@@ -2827,7 +2930,7 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
         tracktion::ExternalPlugin::xmlTypeName, *description);
     if (plugin == nullptr)
     {
-        rebuildInstrumentMonitoringGraph();
+        rebuildInstrumentMonitoringGraphBestEffort("plugin creation rollback failed");
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginCreationFailed,
             "Could not create plugin: " + description->name.toStdString()
@@ -2840,7 +2943,7 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
         const juce::String load_error = external_plugin->getLoadError();
         if (load_error.isNotEmpty())
         {
-            rebuildInstrumentMonitoringGraph();
+            rebuildInstrumentMonitoringGraphBestEffort("plugin load rollback failed");
             return std::unexpected{
                 PluginHostError{PluginHostErrorCode::PluginLoadFailed, load_error.toStdString()}
             };
@@ -2855,7 +2958,7 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
     instrument_track->pluginList.insertPlugin(plugin, insert_position, nullptr);
     if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
     {
-        rebuildInstrumentMonitoringGraph();
+        rebuildInstrumentMonitoringGraphBestEffort("plugin insertion rollback failed");
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
@@ -2873,7 +2976,12 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
         }
     }
 
-    rebuildInstrumentMonitoringGraph();
+    auto route_result = rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+    }
+
     return PluginHandle{
         .instance_id = plugin->itemID.toString().toStdString(),
         .plugin_id = resolved_plugin_id,
@@ -2913,7 +3021,11 @@ std::expected<void, PluginHostError> Engine::removePlugin(const std::string& ins
 
     m_impl->stopTransportAndReleaseContext();
     plugin->deleteFromParent();
-    m_impl->rebuildInstrumentMonitoringGraph();
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+    }
     return {};
 }
 
@@ -2981,7 +3093,11 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     m_impl->m_input_meter_plugin_id = {};
     m_impl->m_output_gain_plugin_id = {};
     m_impl->m_output_meter_plugin_id = {};
-    m_impl->rebuildInstrumentMonitoringGraph();
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
+    }
     return {};
 }
 
@@ -3025,7 +3141,11 @@ std::expected<void, LiveInputError> Engine::setInputGain(Gain gain)
 
     if (*ensured)
     {
-        m_impl->rebuildInstrumentMonitoringGraph();
+        auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+        if (!route_result.has_value())
+        {
+            return std::unexpected{std::move(route_result.error())};
+        }
     }
     return {};
 }
@@ -3054,7 +3174,7 @@ std::expected<void, LiveInputError> Engine::setLiveInputMonitoringEnabled(bool e
     {
         m_impl->m_live_input_monitoring_enabled = false;
         m_impl->m_calibration_input_monitoring_enabled = false;
-        m_impl->rebuildInstrumentMonitoringGraph();
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort("live input enable rollback failed");
         return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
     }
 
@@ -3063,13 +3183,17 @@ std::expected<void, LiveInputError> Engine::setLiveInputMonitoringEnabled(bool e
     {
         m_impl->m_calibration_input_monitoring_enabled = false;
     }
-    const std::optional<LiveInputError> route_error = m_impl->rebuildInstrumentMonitoringGraph();
-    if (enabled && route_error.has_value())
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
     {
-        m_impl->m_live_input_monitoring_enabled = false;
-        m_impl->m_calibration_input_monitoring_enabled = false;
-        (void)m_impl->rebuildInstrumentMonitoringGraph();
-        return std::unexpected{std::move(*route_error)};
+        LiveInputError route_error = std::move(route_result.error());
+        if (enabled)
+        {
+            m_impl->m_live_input_monitoring_enabled = false;
+            m_impl->m_calibration_input_monitoring_enabled = false;
+            m_impl->rebuildInstrumentMonitoringGraphBestEffort("live input enable rollback failed");
+        }
+        return std::unexpected{std::move(route_error)};
     }
 
     return {};
@@ -3093,7 +3217,8 @@ std::expected<void, LiveInputError> Engine::setCalibrationInputMonitoringEnabled
     {
         m_impl->m_live_input_monitoring_enabled = false;
         m_impl->m_calibration_input_monitoring_enabled = false;
-        m_impl->rebuildInstrumentMonitoringGraph();
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+            "calibration monitoring enable rollback failed");
         return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
     }
 
@@ -3102,13 +3227,18 @@ std::expected<void, LiveInputError> Engine::setCalibrationInputMonitoringEnabled
     {
         m_impl->m_live_input_monitoring_enabled = false;
     }
-    const std::optional<LiveInputError> route_error = m_impl->rebuildInstrumentMonitoringGraph();
-    if (enabled && route_error.has_value())
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
     {
-        m_impl->m_live_input_monitoring_enabled = false;
-        m_impl->m_calibration_input_monitoring_enabled = false;
-        (void)m_impl->rebuildInstrumentMonitoringGraph();
-        return std::unexpected{std::move(*route_error)};
+        LiveInputError route_error = std::move(route_result.error());
+        if (enabled)
+        {
+            m_impl->m_live_input_monitoring_enabled = false;
+            m_impl->m_calibration_input_monitoring_enabled = false;
+            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                "calibration monitoring enable rollback failed");
+        }
+        return std::unexpected{std::move(route_error)};
     }
 
     return {};
@@ -3142,7 +3272,11 @@ std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
 
     if (*ensured)
     {
-        m_impl->rebuildInstrumentMonitoringGraph();
+        auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+        if (!route_result.has_value())
+        {
+            return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
+        }
     }
     return {};
 }
@@ -3212,7 +3346,8 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
         if (external_plugin == nullptr)
         {
-            m_impl->rebuildInstrumentMonitoringGraph();
+            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                "unsupported plugin capture rollback failed");
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::UnsupportedPlugin,
                 "Only external plugins can be captured right now: " +
@@ -3231,16 +3366,18 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         const auto plugin_state_xml = makePluginStateXml(plugin_state, plugin_state_path);
         if (!plugin_state_xml.has_value())
         {
-            m_impl->rebuildInstrumentMonitoringGraph();
+            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                "plugin-state serialization rollback failed");
             return std::unexpected{plugin_state_xml.error()};
         }
 
-        if (const auto write_error = writeTextFile(
+        if (auto write_result = writeTextFile(
                 plugin_state_path, *plugin_state_xml, LiveRigErrorCode::CouldNotWritePluginState);
-            write_error.has_value())
+            !write_result.has_value())
         {
-            m_impl->rebuildInstrumentMonitoringGraph();
-            return std::unexpected{*write_error};
+            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
+                "plugin-state write rollback failed");
+            return std::unexpected{std::move(write_result.error())};
         }
 
         document.chain.push_back(
@@ -3259,14 +3396,18 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     snapshot.output_gain = captured_output_gain;
 
     const std::filesystem::path tone_document_path = request.song_directory / tone_document_ref;
-    if (const auto write_error = writeToneDocument(tone_document_path, document);
-        write_error.has_value())
+    if (auto write_result = writeToneDocument(tone_document_path, document);
+        !write_result.has_value())
     {
-        m_impl->rebuildInstrumentMonitoringGraph();
-        return std::unexpected{*write_error};
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort("tone document write rollback failed");
+        return std::unexpected{std::move(write_result.error())};
     }
 
-    m_impl->rebuildInstrumentMonitoringGraph();
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
+    }
     return snapshot;
 }
 
@@ -3396,10 +3537,15 @@ void Engine::Impl::beginNextPluginStep()
             return;
         }
 
+        auto route_result = rebuildInstrumentMonitoringGraph();
+        if (!route_result.has_value())
+        {
+            abortLiveRigLoad(liveRigErrorFromLiveInputError(route_result.error()));
+            return;
+        }
+
         auto operation = std::move(m_load_op);
         operation->result.output_gain = operation->output_gain;
-
-        rebuildInstrumentMonitoringGraph();
         operation->on_result(std::move(operation->result));
         return;
     }
@@ -3551,7 +3697,7 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
     m_input_meter_plugin_id = {};
     m_output_gain_plugin_id = {};
     m_output_meter_plugin_id = {};
-    rebuildInstrumentMonitoringGraph();
+    rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
     operation->on_result(std::unexpected{std::move(error)});
 }
 
@@ -3562,17 +3708,43 @@ juce::AudioDeviceManager& Engine::deviceManager() noexcept
 }
 
 // Restores the JUCE device manager state captured by a previous editor session.
-bool Engine::restoreSerializedDeviceState(const std::string& serialized_state)
+std::expected<void, AudioDeviceConfigurationError> Engine::restoreSerializedDeviceState(
+    const std::string& serialized_state)
 {
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{
+            AudioDeviceConfigurationError{AudioDeviceConfigurationErrorCode::MessageThreadRequired}
+        };
+    }
+
     const std::unique_ptr<juce::XmlElement> xml =
         juce::parseXML(juce::String{serialized_state.c_str()});
     if (xml == nullptr)
     {
-        return false;
+        return std::unexpected{
+            AudioDeviceConfigurationError{AudioDeviceConfigurationErrorCode::InvalidSerializedState}
+        };
     }
 
-    m_impl->m_engine->getDeviceManager().deviceManager.initialise(1, 2, xml.get(), true);
-    return true;
+    const juce::String error_text =
+        m_impl->m_engine->getDeviceManager().deviceManager.initialise(1, 2, xml.get(), true);
+    if (error_text.isNotEmpty())
+    {
+        return std::unexpected{AudioDeviceConfigurationError{
+            AudioDeviceConfigurationErrorCode::RestoreFailed, error_text.toStdString()
+        }};
+    }
+
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        return std::unexpected{AudioDeviceConfigurationError{
+            AudioDeviceConfigurationErrorCode::RestoreFailed, route_result.error().message
+        }};
+    }
+
+    return {};
 }
 
 // Captures the JUCE device manager state as an opaque string for editor settings.

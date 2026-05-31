@@ -234,6 +234,34 @@ void writeInputCalibrationHistory(
     properties.setValue(g_input_calibration_states_json_key, juce::JSON::toString(history_json));
 }
 
+// Saves pending changes and translates JUCE persistence failure into the settings domain.
+[[nodiscard]] std::expected<void, EditorSettingsError> saveIfNeeded(
+    juce::PropertiesFile& properties, std::string message)
+{
+    if (properties.saveIfNeeded())
+    {
+        return {};
+    }
+
+    return std::unexpected{
+        EditorSettingsError{EditorSettingsErrorCode::CouldNotSave, std::move(message)}
+    };
+}
+
+// Forces a settings-file write when callers need to know whether a staged update reached disk.
+[[nodiscard]] std::expected<void, EditorSettingsError> saveNow(
+    juce::PropertiesFile& properties, std::string message)
+{
+    if (properties.save())
+    {
+        return {};
+    }
+
+    return std::unexpected{
+        EditorSettingsError{EditorSettingsErrorCode::CouldNotSave, std::move(message)}
+    };
+}
+
 } // namespace
 
 // Opens the JUCE properties file that backs app-local editor settings.
@@ -259,7 +287,8 @@ std::optional<std::filesystem::path> EditorSettings::lastOpenProject() const
 }
 
 // Stores or clears the editor project path to restore on the next editor launch.
-void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> project_file)
+std::expected<void, EditorSettingsError> EditorSettings::setLastOpenProject(
+    std::optional<std::filesystem::path> project_file)
 {
     if (project_file.has_value() && !project_file->empty())
     {
@@ -271,7 +300,7 @@ void EditorSettings::setLastOpenProject(std::optional<std::filesystem::path> pro
         m_properties.removeValue(g_last_open_project_key);
     }
 
-    m_properties.saveIfNeeded();
+    return saveIfNeeded(m_properties, "Could not save last open project setting.");
 }
 
 // Reads the project path whose previous startup restore was interrupted before completion.
@@ -287,7 +316,8 @@ std::optional<std::filesystem::path> EditorSettings::interruptedRestoreProject()
 }
 
 // Stores or clears the startup-restore interruption marker used to avoid retry loops.
-void EditorSettings::setInterruptedRestoreProject(std::optional<std::filesystem::path> project_file)
+std::expected<void, EditorSettingsError> EditorSettings::setInterruptedRestoreProject(
+    std::optional<std::filesystem::path> project_file)
 {
     if (project_file.has_value() && !project_file->empty())
     {
@@ -299,7 +329,7 @@ void EditorSettings::setInterruptedRestoreProject(std::optional<std::filesystem:
         m_properties.removeValue(g_interrupted_restore_project_key);
     }
 
-    m_properties.saveIfNeeded();
+    return saveIfNeeded(m_properties, "Could not save interrupted project restore setting.");
 }
 
 // Reads the opaque serialized audio-device state stored by a previous editor session.
@@ -315,7 +345,8 @@ std::optional<std::string> EditorSettings::audioDeviceState() const
 }
 
 // Stores or clears the opaque serialized audio-device state.
-void EditorSettings::setAudioDeviceState(std::optional<std::string> serialized_state)
+std::expected<void, EditorSettingsError> EditorSettings::setAudioDeviceState(
+    std::optional<std::string> serialized_state)
 {
     if (serialized_state.has_value() && !serialized_state->empty())
     {
@@ -326,12 +357,12 @@ void EditorSettings::setAudioDeviceState(std::optional<std::string> serialized_s
         m_properties.removeValue(g_audio_device_state_key);
     }
 
-    m_properties.saveIfNeeded();
+    return saveIfNeeded(m_properties, "Could not save audio device state setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.
-std::optional<common::audio::InputCalibrationState> EditorSettings::inputCalibrationFor(
-    const common::audio::InputDeviceIdentity& identity) const
+std::expected<std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
+EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& identity) const
 {
     if (!common::audio::isValidInputDeviceIdentity(identity))
     {
@@ -339,6 +370,14 @@ std::optional<common::audio::InputCalibrationState> EditorSettings::inputCalibra
     }
 
     const InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
+    if (history.malformed_json)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
+            "Saved input calibration history is not valid JSON."
+        }};
+    }
+
     const auto found = std::ranges::find_if(
         history.states, [&identity](const common::audio::InputCalibrationState& state) {
             return common::audio::inputCalibrationMatchesPhysicalRoute(state, identity);
@@ -354,41 +393,56 @@ std::optional<common::audio::InputCalibrationState> EditorSettings::inputCalibra
 }
 
 // Saves one physical-route calibration and migrates any legacy record into the JSON history.
-void EditorSettings::saveInputCalibration(common::audio::InputCalibrationState calibration_state)
+std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
+    common::audio::InputCalibrationState calibration_state)
 {
     if (!common::audio::isValidInputDeviceIdentity(calibration_state.input_device_identity))
     {
-        return;
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save input calibration for an invalid input route."
+        }};
     }
 
     InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
     replaceRouteCalibration(history.states, std::move(calibration_state));
     writeInputCalibrationHistory(m_properties, history.states);
-    if (m_properties.save())
+    auto saved = saveNow(m_properties, "Could not save input calibration setting.");
+    if (!saved.has_value())
     {
-        // Only drop the legacy flat schema once the JSON history is the trusted source. If the
-        // prior history was malformed it overwrote any parsed routes, so leave the legacy keys as
-        // a readable fallback rather than deleting known-good data we could not merge.
-        if (!history.malformed_json)
-        {
-            removeLegacyInputCalibration(m_properties);
-            m_properties.saveIfNeeded();
-        }
+        return std::unexpected{std::move(saved.error())};
     }
+
+    // Only drop the legacy flat schema once the JSON history is the trusted source. If the prior
+    // history was malformed it overwrote any parsed routes, so leave legacy keys as a fallback.
+    if (!history.malformed_json)
+    {
+        removeLegacyInputCalibration(m_properties);
+        return saveIfNeeded(m_properties, "Could not remove legacy input calibration setting.");
+    }
+
+    return {};
 }
 
 // Removes one physical-route calibration without touching unrelated saved routes.
-void EditorSettings::removeInputCalibration(const common::audio::InputDeviceIdentity& identity)
+std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
+    const common::audio::InputDeviceIdentity& identity)
 {
     if (!common::audio::isValidInputDeviceIdentity(identity))
     {
-        return;
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot remove input calibration for an invalid input route."
+        }};
     }
 
     InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
     if (history.malformed_json)
     {
-        return;
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
+            "Cannot remove input calibration because saved calibration history is invalid."
+        }};
     }
 
     const std::size_t original_size = history.states.size();
@@ -398,12 +452,17 @@ void EditorSettings::removeInputCalibration(const common::audio::InputDeviceIden
     if (history.states.size() != original_size)
     {
         writeInputCalibrationHistory(m_properties, history.states);
-        if (m_properties.save())
+        auto saved = saveNow(m_properties, "Could not save input calibration removal.");
+        if (!saved.has_value())
         {
-            removeLegacyInputCalibration(m_properties);
-            m_properties.saveIfNeeded();
+            return std::unexpected{std::move(saved.error())};
         }
+
+        removeLegacyInputCalibration(m_properties);
+        return saveIfNeeded(m_properties, "Could not remove legacy input calibration setting.");
     }
+
+    return {};
 }
 
 } // namespace rock_hero::editor::core
