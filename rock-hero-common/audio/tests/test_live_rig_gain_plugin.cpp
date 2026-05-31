@@ -23,7 +23,9 @@ struct LiveRigGainPluginHarness
 {
     const juce::ValueTree state = LiveRigGainPlugin::createState();
     tracktion::EditItemID::readOrCreateNewID(edit, state);
-    return new LiveRigGainPlugin{tracktion::PluginCreationInfo{edit, state, true}};
+    return tracktion::Plugin::Ptr{
+        new LiveRigGainPlugin{tracktion::PluginCreationInfo{edit, state, true}}
+    };
 }
 
 // Builds a render context for processing a deterministic audio block.
@@ -90,9 +92,9 @@ TEST_CASE("LiveRigGainPlugin processes plus twenty four dB", "[audio][live-rig-g
     gain_plugin->setGain(Gain{24.0});
     gain_plugin->initialise(
         tracktion::PluginInitialisationInfo{
-            tracktion::TimePosition::fromSeconds(0.0),
-            48'000.0,
-            4,
+            .startTime = tracktion::TimePosition::fromSeconds(0.0),
+            .sampleRate = 48'000.0,
+            .blockSizeSamples = 4,
         });
 
     juce::AudioBuffer<float> buffer{2, 4};
