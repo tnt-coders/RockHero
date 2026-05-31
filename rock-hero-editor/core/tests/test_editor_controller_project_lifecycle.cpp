@@ -27,8 +27,14 @@ TEST_CASE("EditorController forwards normalization to audio backend", "[core][ed
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
     REQUIRE(audio.last_active_audio_asset.has_value());
-    REQUIRE(audio.last_active_audio_asset->normalization.has_value());
-    CHECK(audio.last_active_audio_asset->normalization->gain_db == -4.0);
+    if (audio.last_active_audio_asset.has_value())
+    {
+        REQUIRE(audio.last_active_audio_asset->normalization.has_value());
+        if (audio.last_active_audio_asset->normalization.has_value())
+        {
+            CHECK(audio.last_active_audio_asset->normalization->gain_db == -4.0);
+        }
+    }
 }
 
 // A failed project-audio activation leaves the session unchanged and surfaces an error.
@@ -62,7 +68,9 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(
         session.currentArrangement()->audio_asset ==
-        common::core::AudioAsset{std::filesystem::path{"old.wav"}});
+        common::core::AudioAsset{
+            .path = std::filesystem::path{"old.wav"}, .normalization = std::nullopt
+        });
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -103,7 +111,9 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
-    const common::core::AudioAsset replacement{std::filesystem::path{"second.wav"}};
+    const common::core::AudioAsset replacement{
+        .path = std::filesystem::path{"second.wav"}, .normalization = std::nullopt
+    };
     project_services.next_song = makeSong(replacement.path, loadedTimelineRange(4.0));
     controller.onOpenRequested(std::filesystem::path{"second.rhp"});
 
@@ -228,7 +238,9 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
+    const common::core::AudioAsset audio_asset{
+        .path = std::filesystem::path{"song.wav"}, .normalization = std::nullopt
+    };
     project_services.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
     transport.current_position = common::core::TimePosition{1.25};
@@ -338,7 +350,9 @@ TEST_CASE("EditorController publish writes package copy", "[core][editor-control
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset audio_asset{std::filesystem::path{"song.wav"}};
+    const common::core::AudioAsset audio_asset{
+        .path = std::filesystem::path{"song.wav"}, .normalization = std::nullopt
+    };
     project_services.next_song = makeSong(audio_asset.path);
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
 
@@ -430,7 +444,9 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
     REQUIRE(session.currentArrangement() != nullptr);
     CHECK(
         session.currentArrangement()->audio_asset ==
-        common::core::AudioAsset{std::filesystem::path{"old.wav"}});
+        common::core::AudioAsset{
+            .path = std::filesystem::path{"old.wav"}, .normalization = std::nullopt
+        });
     CHECK(session.timeline() == loadedTimelineRange(6.0));
     CHECK(project_services.import_call_count == 1);
     CHECK(project_services.open_call_count == 0);
@@ -471,7 +487,9 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
-    const common::core::AudioAsset replacement{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset replacement{
+        .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
+    };
     project_services.next_import_song = makeSong(replacement.path, loadedTimelineRange(4.0));
     controller.onImportRequested(std::filesystem::path{"second.psarc"});
 
@@ -522,7 +540,9 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset audio_asset{
+        .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
+    };
     project_services.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
     transport.current_position = common::core::TimePosition{2.5};
@@ -642,7 +662,9 @@ TEST_CASE(
     controller.attachView(view);
 
     const std::filesystem::path existing_project{"existing.rhp"};
-    const common::core::AudioAsset original_asset{std::filesystem::path{"original.wav"}};
+    const common::core::AudioAsset original_asset{
+        .path = std::filesystem::path{"original.wav"}, .normalization = std::nullopt
+    };
     audio_devices.current_input_identity = makeInputDeviceIdentity();
     project_services.next_song = makeSong(original_asset.path);
     controller.onOpenRequested(existing_project);
@@ -654,7 +676,9 @@ TEST_CASE(
 
     addKnownPlugin(controller);
 
-    const common::core::AudioAsset imported_asset{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset imported_asset{
+        .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
+    };
     project_services.next_import_song = makeSong(imported_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
 
@@ -708,7 +732,9 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset audio_asset{std::filesystem::path{"imported.ogg"}};
+    const common::core::AudioAsset audio_asset{
+        .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
+    };
     project_services.next_import_song = makeSong(audio_asset.path);
     controller.onImportRequested(std::filesystem::path{"song.psarc"});
 
@@ -800,8 +826,12 @@ TEST_CASE("EditorController defaults open to first arrangement", "[core][editor-
         }
     };
 
-    const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
-    const common::core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
+    const common::core::AudioAsset lead_asset{
+        .path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt
+    };
+    const common::core::AudioAsset bass_asset{
+        .path = std::filesystem::path{"bass.wav"}, .normalization = std::nullopt
+    };
     project_services.next_song = makeTwoArrangementSong(lead_asset.path, bass_asset.path);
 
     controller.onOpenRequested(std::filesystem::path{"song.rhp"});
@@ -829,8 +859,12 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
     FakeEditorView view;
     controller.attachView(view);
 
-    const common::core::AudioAsset lead_asset{std::filesystem::path{"lead.wav"}};
-    const common::core::AudioAsset bass_asset{std::filesystem::path{"bass.wav"}};
+    const common::core::AudioAsset lead_asset{
+        .path = std::filesystem::path{"lead.wav"}, .normalization = std::nullopt
+    };
+    const common::core::AudioAsset bass_asset{
+        .path = std::filesystem::path{"bass.wav"}, .normalization = std::nullopt
+    };
     audio.failed_prepare_audio_path = bass_asset.path;
     project_services.next_song = makeTwoArrangementSong(lead_asset.path, bass_asset.path);
 
