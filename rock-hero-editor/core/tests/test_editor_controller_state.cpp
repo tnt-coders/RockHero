@@ -35,7 +35,9 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK_FALSE(empty_state.save_as_prompt.has_value());
     CHECK_FALSE(empty_state.restore_interrupted_prompt.has_value());
 
-    const common::core::AudioAsset audio_asset{std::filesystem::path{"full_mix.wav"}};
+    const common::core::AudioAsset audio_asset{
+        .path = std::filesystem::path{"full_mix.wav"}, .normalization = std::nullopt
+    };
     const EditorViewState loaded_state{
         .open_enabled = true,
         .import_enabled = true,
@@ -75,6 +77,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                             .chain_index = 0,
                         },
                     },
+                .disabled_message = {},
             },
         .plugin_browser =
             PluginBrowserViewState{
@@ -96,6 +99,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .save_as_prompt = SaveAsPrompt{EditorActionId::CloseProject},
         .restore_interrupted_prompt =
             RestoreInterruptedPrompt{std::filesystem::path{"interrupted.rhp"}},
+        .input_calibration_prompt = std::nullopt,
         .busy = std::nullopt,
     };
 
@@ -401,7 +405,9 @@ TEST_CASE("EditorController coalesces reentrant audio callbacks", "[core][editor
             });
     };
 
-    const common::core::AudioAsset replacement{std::filesystem::path{"loop.wav"}};
+    const common::core::AudioAsset replacement{
+        .path = std::filesystem::path{"loop.wav"}, .normalization = std::nullopt
+    };
     project_services.next_song = makeSong(replacement.path);
     controller.onOpenRequested(std::filesystem::path{"loop.rhp"});
 

@@ -473,30 +473,34 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     // Snapshot returned by the next successful capture.
     common::audio::LiveRigSnapshot next_capture_snapshot{
         .tone_document_ref = g_tone_document_ref,
-        .plugins = {
-            common::audio::LiveRigPlugin{
-                .instance_id = "captured-instance",
-                .plugin_id = "captured-plugin",
-                .name = "Captured Amp",
-                .manufacturer = "Example Audio",
-                .format_name = "VST3",
-                .chain_index = 0,
+        .plugins =
+            {
+                common::audio::LiveRigPlugin{
+                    .instance_id = "captured-instance",
+                    .plugin_id = "captured-plugin",
+                    .name = "Captured Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .chain_index = 0,
+                },
             },
-        },
+        .output_gain = common::audio::Gain{},
     };
 
     // Result returned by the next successful load.
     common::audio::LiveRigLoadResult next_load_result{
-        .plugins = {
-            common::audio::LiveRigPlugin{
-                .instance_id = "loaded-instance",
-                .plugin_id = "loaded-plugin",
-                .name = "Loaded Amp",
-                .manufacturer = "Example Audio",
-                .format_name = "VST3",
-                .chain_index = 0,
+        .plugins =
+            {
+                common::audio::LiveRigPlugin{
+                    .instance_id = "loaded-instance",
+                    .plugin_id = "loaded-plugin",
+                    .name = "Loaded Amp",
+                    .manufacturer = "Example Audio",
+                    .format_name = "VST3",
+                    .chain_index = 0,
+                },
             },
-        },
+        .output_gain = common::audio::Gain{},
     };
 
     // Optional capture error returned instead of the configured snapshot.
@@ -1011,7 +1015,8 @@ private:
             .id = g_lead_arrangement_id,
             .part = common::core::Part::Lead,
             .difficulty = common::core::DifficultyRating{},
-            .audio_asset = common::core::AudioAsset{std::move(path)},
+            .audio_asset =
+                common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
             .audio_duration = timeline_range.duration(),
             .tone_document_ref = std::move(tone_document_ref),
             .note_events = {},
@@ -1079,7 +1084,10 @@ private:
             .id = g_lead_arrangement_id,
             .part = common::core::Part::Lead,
             .difficulty = common::core::DifficultyRating{},
-            .audio_asset = common::core::AudioAsset{std::move(lead_path)},
+            .audio_asset =
+                common::core::AudioAsset{
+                    .path = std::move(lead_path), .normalization = std::nullopt
+                },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .note_events = {},
@@ -1089,7 +1097,10 @@ private:
             .id = g_bass_arrangement_id,
             .part = common::core::Part::Bass,
             .difficulty = common::core::DifficultyRating{},
-            .audio_asset = common::core::AudioAsset{std::move(bass_path)},
+            .audio_asset =
+                common::core::AudioAsset{
+                    .path = std::move(bass_path), .normalization = std::nullopt
+                },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
             .note_events = {},

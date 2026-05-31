@@ -13,7 +13,7 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
 
-    EditorController controller{
+    const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings),
         noopExitFunction()
@@ -42,7 +42,7 @@ TEST_CASE(
             "Serialized audio-device state is not XML.",
         };
 
-    EditorController controller{
+    const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings),
         noopExitFunction()
@@ -64,7 +64,7 @@ TEST_CASE("EditorController persists serialized audio device state", "[core][edi
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.serialized_device_state = "updated-serialized-device-state";
-    EditorController controller{
+    const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings),
         noopExitFunction()
@@ -90,7 +90,7 @@ TEST_CASE(
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     audio_devices.serialized_device_state = std::nullopt;
-    EditorController controller{
+    const EditorController controller{
         audioPorts(transport, audio, audio_devices),
         controllerServices(settings),
         noopExitFunction()

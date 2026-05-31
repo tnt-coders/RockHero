@@ -256,7 +256,8 @@ template <class ComponentType>
     std::filesystem::path path, double duration_seconds = 4.0)
 {
     return core::ArrangementViewState{
-        .audio_asset = common::core::AudioAsset{std::move(path)},
+        .audio_asset =
+            common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
         .audio_duration = common::core::TimeDuration{duration_seconds},
     };
 }
@@ -291,9 +292,13 @@ template <class ComponentType>
             core::SignalChainViewState{
                 .add_plugin_enabled = true,
                 .plugins = {},
+                .disabled_message = {},
             },
+        .plugin_browser = {},
         .unsaved_changes_prompt = std::nullopt,
         .save_as_prompt = std::nullopt,
+        .restore_interrupted_prompt = std::nullopt,
+        .input_calibration_prompt = std::nullopt,
         .busy = std::nullopt,
     };
 }

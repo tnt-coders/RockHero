@@ -119,6 +119,7 @@ public:
         .audio_systems = {"ASIO"},
         .selected_audio_system_id = 1,
         .uses_separate_input_output_devices = true,
+        .devices = {},
         .input_devices = {"Input A", "Input B"},
         .selected_input_device_id = 1,
         .output_devices = {"Output A", "Output B"},
@@ -136,6 +137,7 @@ public:
         .buffer_sizes = {128, 256},
         .selected_buffer_size_id = 1,
         .control_panel_enabled = true,
+        .error_message = {},
     };
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
     std::optional<common::audio::AudioDeviceSettingsError> next_cancel_error{};
