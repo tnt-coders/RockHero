@@ -80,7 +80,7 @@ struct LoudnessMeasurement
         }};
     }
 
-    Ebur128StateOwner state{ebur128_init(
+    const Ebur128StateOwner state{ebur128_init(
         channels,
         static_cast<unsigned long>(reader.sampleRate),
         EBUR128_MODE_I | EBUR128_MODE_SAMPLE_PEAK)};

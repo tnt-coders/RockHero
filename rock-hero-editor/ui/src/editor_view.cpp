@@ -807,7 +807,7 @@ void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
         if (!isShowing())
         {
             // Clear the member before invoking so reentrant fence requests see no stale callback.
-            std::function<void()> pending_callback = std::move(m_after_busy_overlay_paint);
+            const std::function<void()> pending_callback = std::move(m_after_busy_overlay_paint);
             m_after_busy_overlay_paint = {};
             pending_callback();
             return;
