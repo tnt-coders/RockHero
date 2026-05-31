@@ -27,7 +27,7 @@ juce::ValueTree LiveRigGainPlugin::createState()
 
 // Wires CachedValue state to the Tracktion ValueTree and prepares a realtime gain target.
 LiveRigGainPlugin::LiveRigGainPlugin(tracktion::PluginCreationInfo info)
-    : tracktion::Plugin{info}
+    : tracktion::Plugin{std::move(info)}
 {
     m_gain_db.referTo(
         state, g_gain_db_property, getUndoManager(), static_cast<float>(defaultGainDb()));
