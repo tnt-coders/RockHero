@@ -160,6 +160,20 @@ public:
     };
 
     /*!
+    \brief Builds the controller with default production project IO operations.
+
+    Delegates to the four-argument constructor with a default-constructed ProjectOperations. A
+    separate overload avoids a `= {}` default argument, which clang rejects for a nested aggregate
+    that carries default member initializers.
+
+    \param audio_ports Required audio ports consumed by controller workflows.
+    \param services Required settings and task-runner services.
+    \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
+    */
+    explicit EditorController(
+        AudioPorts audio_ports, Services services, ExitFunction exit_function);
+
+    /*!
     \brief Builds the controller, subscribes to transport, and captures initial view state.
 
     The owned session starts empty until the user opens a project. The controller does not push
@@ -169,11 +183,11 @@ public:
     \param audio_ports Required audio ports consumed by controller workflows.
     \param services Required settings and task-runner services.
     \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
-    \param project_operations Optional project IO operation overrides.
+    \param project_operations Project IO operation overrides.
     */
     explicit EditorController(
         AudioPorts audio_ports, Services services, ExitFunction exit_function,
-        ProjectOperations project_operations = {});
+        ProjectOperations project_operations);
 
     /*! \brief Releases the transport listener registration before owned references go away. */
     ~EditorController() override;
