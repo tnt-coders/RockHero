@@ -178,7 +178,10 @@ TEST_CASE("Input capture completes after steady input", "[audio][input-calibrati
 
     REQUIRE(update.result.has_value());
     CHECK(update.phase == InputCalibrationCapturePhase::Complete);
-    CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+    if (update.result.has_value())
+    {
+        CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+    }
     CHECK_FALSE(capture.active());
 }
 
@@ -200,7 +203,10 @@ TEST_CASE("Input capture retry clears previous measurement", "[audio][input-cali
         update = capture.pushSample(AudioMeterLevel{.peak_db = -24.0});
     }
     REQUIRE(update.result.has_value());
-    CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+    if (update.result.has_value())
+    {
+        CHECK(update.result->calibration_gain.db == Catch::Approx(12.0));
+    }
 
     capture.start();
     update = capture.pushSample(AudioMeterLevel{.peak_db = minimumAudioMeterDb()});
@@ -211,7 +217,10 @@ TEST_CASE("Input capture retry clears previous measurement", "[audio][input-cali
     }
 
     REQUIRE(update.result.has_value());
-    CHECK(update.result->calibration_gain.db == Catch::Approx(18.0));
+    if (update.result.has_value())
+    {
+        CHECK(update.result->calibration_gain.db == Catch::Approx(18.0));
+    }
 }
 
 // Verifies the automatic capture rejects active input that varies too much.
@@ -236,7 +245,10 @@ TEST_CASE("Input capture rejects inconsistent input", "[audio][input-calibration
 
     REQUIRE(update.error.has_value());
     CHECK(update.phase == InputCalibrationCapturePhase::Failed);
-    CHECK(update.error->code == InputCalibrationErrorCode::InputInconsistent);
+    if (update.error.has_value())
+    {
+        CHECK(update.error->code == InputCalibrationErrorCode::InputInconsistent);
+    }
     CHECK_FALSE(capture.active());
 }
 
@@ -260,7 +272,10 @@ TEST_CASE("Input capture times out waiting for input", "[audio][input-calibratio
 
     REQUIRE(update.error.has_value());
     CHECK(update.phase == InputCalibrationCapturePhase::Failed);
-    CHECK(update.error->code == InputCalibrationErrorCode::NoUsableSignal);
+    if (update.error.has_value())
+    {
+        CHECK(update.error->code == InputCalibrationErrorCode::NoUsableSignal);
+    }
     CHECK_FALSE(capture.active());
 }
 
@@ -282,7 +297,10 @@ TEST_CASE("Input capture rejects clipped waiting input", "[audio][input-calibrat
 
     REQUIRE(update.error.has_value());
     CHECK(update.phase == InputCalibrationCapturePhase::Failed);
-    CHECK(update.error->code == InputCalibrationErrorCode::InputClipped);
+    if (update.error.has_value())
+    {
+        CHECK(update.error->code == InputCalibrationErrorCode::InputClipped);
+    }
     CHECK_FALSE(capture.active());
 }
 

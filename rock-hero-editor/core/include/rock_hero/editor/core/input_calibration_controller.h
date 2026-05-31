@@ -107,7 +107,7 @@ public:
     \param capture_settings Fixed meter-window counts for automatic capture.
     */
     InputCalibrationController(
-        Host& host, InputCalibrationPrompt prompt, CaptureSettings capture_settings);
+        Host& host, const InputCalibrationPrompt& prompt, CaptureSettings capture_settings);
 
     /*! \brief Copies are disabled because the controller stores popup view attachment state. */
     InputCalibrationController(const InputCalibrationController&) = delete;

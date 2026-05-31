@@ -814,7 +814,7 @@ struct SongDocumentForSave
             const auto imported_path = importAudioAsset(workspace_directory, source_path, index);
             if (!imported_path.has_value())
             {
-                return std::unexpected{std::move(imported_path.error())};
+                return std::unexpected{imported_path.error()};
             }
             relative_audio_path = *imported_path;
         }
@@ -825,7 +825,7 @@ struct SongDocumentForSave
         {
             const std::string generated_id =
                 "audio-" + std::to_string(audio_ids_by_path.size() + 1);
-            juce::var audio_entry = Json::makeObject({
+            const juce::var audio_entry = Json::makeObject({
                 {"id", Json::makeString(generated_id)},
                 {"path", Json::makeString(relative_audio_name)},
             });
@@ -845,7 +845,7 @@ struct SongDocumentForSave
         const auto arrangement_id = arrangementIdForSave(arrangement, used_arrangement_ids);
         if (!arrangement_id.has_value())
         {
-            return std::unexpected{std::move(arrangement_id.error())};
+            return std::unexpected{arrangement_id.error()};
         }
 
         const std::filesystem::path arrangement_file = arrangementFilePath(*arrangement_id);
@@ -853,7 +853,7 @@ struct SongDocumentForSave
                 ensureArrangementFile(workspace_directory, arrangement_file);
             !arrangement_error.has_value())
         {
-            return std::unexpected{std::move(arrangement_error.error())};
+            return std::unexpected{arrangement_error.error()};
         }
 
         const juce::var arrangement_document = Json::makeObject({
@@ -1058,7 +1058,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
     const auto audio_assets = readAudioAssets(directory, song_document);
     if (!audio_assets.has_value())
     {
-        return std::unexpected{std::move(audio_assets.error())};
+        return std::unexpected{audio_assets.error()};
     }
 
     auto arrangements = readArrangements(directory, song_document, *audio_assets);

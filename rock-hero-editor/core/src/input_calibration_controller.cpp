@@ -57,7 +57,7 @@ namespace
 [[nodiscard]] std::string gainText(double gain_db)
 {
     const double rounded_gain_db = canonicalInputGainDb(std::round(gain_db * 10.0) / 10.0);
-    std::string text = std::to_string(rounded_gain_db);
+    const std::string text = std::to_string(rounded_gain_db);
     const std::size_t dot = text.find('.');
     if (dot == std::string::npos)
     {
@@ -89,7 +89,7 @@ namespace
 
 // Seeds popup state from the prompt produced by InputCalibrationWorkflow.
 InputCalibrationController::InputCalibrationController(
-    Host& host, InputCalibrationPrompt prompt, CaptureSettings capture_settings)
+    Host& host, const InputCalibrationPrompt& prompt, CaptureSettings capture_settings)
     : m_host(host)
     , m_capture(
           capture_settings.settle_sample_count, capture_settings.wait_sample_count,
