@@ -21,7 +21,7 @@ struct LiveRigGainPluginHarness
 // Creates the private plugin with default Tracktion state.
 [[nodiscard]] tracktion::Plugin::Ptr createTestPlugin(tracktion::Edit& edit)
 {
-    juce::ValueTree state = LiveRigGainPlugin::createState();
+    const juce::ValueTree state = LiveRigGainPlugin::createState();
     tracktion::EditItemID::readOrCreateNewID(edit, state);
     return new LiveRigGainPlugin{tracktion::PluginCreationInfo{edit, state, true}};
 }
@@ -54,7 +54,7 @@ struct LiveRigGainPluginHarness
 // Verifies the plugin stores +24 dB without inheriting Tracktion's +6 dB fader cap.
 TEST_CASE("LiveRigGainPlugin stores plus twenty four dB", "[audio][live-rig-gain-plugin]")
 {
-    LiveRigGainPluginHarness harness;
+    const LiveRigGainPluginHarness harness;
     const tracktion::Plugin::Ptr plugin = createTestPlugin(*harness.edit);
     auto* const gain_plugin = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
     REQUIRE(gain_plugin != nullptr);
@@ -67,7 +67,7 @@ TEST_CASE("LiveRigGainPlugin stores plus twenty four dB", "[audio][live-rig-gain
 // Verifies the plugin clamps values through the shared project-owned gain policy.
 TEST_CASE("LiveRigGainPlugin clamps gain", "[audio][live-rig-gain-plugin]")
 {
-    LiveRigGainPluginHarness harness;
+    const LiveRigGainPluginHarness harness;
     const tracktion::Plugin::Ptr plugin = createTestPlugin(*harness.edit);
     auto* const gain_plugin = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
     REQUIRE(gain_plugin != nullptr);
@@ -82,7 +82,7 @@ TEST_CASE("LiveRigGainPlugin clamps gain", "[audio][live-rig-gain-plugin]")
 // Verifies +24 dB processing applies the expected linear multiplier to every channel.
 TEST_CASE("LiveRigGainPlugin processes plus twenty four dB", "[audio][live-rig-gain-plugin]")
 {
-    LiveRigGainPluginHarness harness;
+    const LiveRigGainPluginHarness harness;
     const tracktion::Plugin::Ptr plugin = createTestPlugin(*harness.edit);
     auto* const gain_plugin = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
     REQUIRE(gain_plugin != nullptr);

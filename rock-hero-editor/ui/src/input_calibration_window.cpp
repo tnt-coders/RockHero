@@ -101,12 +101,12 @@ class InputCalibrationWindow::Content final : public juce::Component,
 public:
     Content(
         InputCalibrationWindow& owner, core::IEditorController& controller,
-        const common::audio::ILiveInput* live_input, core::InputCalibrationPrompt prompt)
+        const common::audio::ILiveInput* live_input, const core::InputCalibrationPrompt& prompt)
         : m_owner(owner)
         , m_editor_controller(controller)
         , m_live_input(live_input)
         , m_calibration_controller(
-              *this, std::move(prompt),
+              *this, prompt,
               core::InputCalibrationController::CaptureSettings{
                   .settle_sample_count = g_input_calibration_settle_sample_count,
                   .wait_sample_count = g_input_calibration_wait_sample_count,
@@ -333,7 +333,7 @@ private:
 
 InputCalibrationWindow::InputCalibrationWindow(
     core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-    core::InputCalibrationPrompt prompt, juce::Component* centering_component)
+    const core::InputCalibrationPrompt& prompt, juce::Component* centering_component)
     : juce::DocumentWindow(
           "Input Calibration", juce::Colours::darkgrey.darker(0.16f),
           juce::DocumentWindow::closeButton)
@@ -342,7 +342,7 @@ InputCalibrationWindow::InputCalibrationWindow(
     setUsingNativeTitleBar(true);
     setResizable(false, false);
     setAlwaysOnTop(juce::WindowUtils::areThereAnyAlwaysOnTopWindows());
-    auto content = std::make_unique<Content>(*this, controller, live_input, std::move(prompt));
+    auto content = std::make_unique<Content>(*this, controller, live_input, prompt);
     m_content = content.get();
     setContentOwned(content.release(), true);
     centreAroundComponent(centering_component, getWidth(), getHeight());
