@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 
 namespace juce
 {
@@ -51,8 +52,10 @@ public:
     \param anchor Launcher component used to find the owning editor window.
     \param dispatcher Optional operation hook supplied by the editor composition layer; receives
            device-manager work to run after the editor's busy overlay paints.
+    \param closed_callback Called when the window reaches a final close path.
+    \return The opened window. The caller owns it and should clear it from the close callback.
     */
-    static void show(
+    [[nodiscard]] static std::unique_ptr<juce::DocumentWindow> show(
         common::audio::IAudioDeviceConfiguration& audio_devices, juce::Component& anchor,
         Dispatcher dispatcher = {}, ClosedCallback closed_callback = {});
 

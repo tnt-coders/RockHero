@@ -741,6 +741,13 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 // Disconnects the menu bar from this model before base and member teardown begins.
 EditorView::~EditorView()
 {
+    if (m_audio_device_settings_window != nullptr && !m_audio_device_settings_window_reset_pending)
+    {
+        m_controller.onAudioDeviceSettingsClosed();
+    }
+
+    m_audio_device_settings_window.reset();
+    m_audio_device_settings_window_reset_pending = false;
     m_busy_overlay.setPaintCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
@@ -1345,6 +1352,12 @@ void EditorView::showAudioDeviceSettingsWindow()
         return;
     }
 
+    if (m_audio_device_settings_window != nullptr)
+    {
+        m_audio_device_settings_window->toFront(true);
+        return;
+    }
+
     // Hand the dispatcher to the settings window so OK and Cancel can dismiss the dialog
     // immediately and run device-manager work behind the editor's blocking busy overlay.
     // juce::AudioDeviceManager occupies the message thread, so the overlay's blocking
@@ -1355,7 +1368,8 @@ void EditorView::showAudioDeviceSettingsWindow()
         return;
     }
 
-    AudioDeviceSettingsWindow::show(
+    m_audio_device_settings_window_reset_pending = false;
+    m_audio_device_settings_window = AudioDeviceSettingsWindow::show(
         m_audio_devices,
         m_audio_device_button,
         [safe_this](std::function<void()> operation) {
@@ -1370,9 +1384,24 @@ void EditorView::showAudioDeviceSettingsWindow()
         [safe_this] {
             if (auto* view = safe_this.getComponent())
             {
+                view->m_audio_device_settings_window_reset_pending = true;
                 view->m_controller.onAudioDeviceSettingsClosed();
+                view->scheduleAudioDeviceSettingsWindowReset();
             }
         });
+}
+
+// Clears the owner-held settings window after JUCE and view callbacks have unwound.
+void EditorView::scheduleAudioDeviceSettingsWindowReset()
+{
+    const juce::Component::SafePointer<EditorView> safe_this{this};
+    juce::MessageManager::callAsync([safe_this] {
+        if (auto* view = safe_this.getComponent())
+        {
+            view->m_audio_device_settings_window.reset();
+            view->m_audio_device_settings_window_reset_pending = false;
+        }
+    });
 }
 
 // Runs the single pending fence callback after BusyOverlay has crossed its paint path. Showing

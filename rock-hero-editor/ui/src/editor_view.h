@@ -231,6 +231,9 @@ private:
     // Opens the audio-device settings window.
     void showAudioDeviceSettingsWindow();
 
+    // Defers settings-window destruction until the current close callback stack unwinds.
+    void scheduleAudioDeviceSettingsWindowReset();
+
     // Posts the pending busy-overlay fence callback after BusyOverlay has painted once.
     void handleBusyOverlayPainted();
 
@@ -317,6 +320,12 @@ private:
 
     // Optional top-level input calibration window.
     std::unique_ptr<juce::DocumentWindow> m_input_calibration_window;
+
+    // Optional top-level audio-device settings window.
+    std::unique_ptr<juce::DocumentWindow> m_audio_device_settings_window;
+
+    // True once the settings window has reported close and is waiting for deferred destruction.
+    bool m_audio_device_settings_window_reset_pending{false};
 
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
