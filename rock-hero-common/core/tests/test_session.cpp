@@ -14,7 +14,7 @@ namespace
 // Builds the project-owned asset value used by session audio tests.
 [[nodiscard]] AudioAsset makeAudioAsset(std::filesystem::path path)
 {
-    return AudioAsset{std::move(path)};
+    return AudioAsset{.path = std::move(path), .normalization = std::nullopt};
 }
 
 // Builds a song with one loaded arrangement for session replacement tests.
@@ -40,9 +40,13 @@ namespace
 // Verifies audio asset references compare by their stored filesystem path.
 TEST_CASE("AudioAsset equality compares stored paths", "[core][audio_asset]")
 {
-    const AudioAsset first{std::filesystem::path{"mix.wav"}};
-    const AudioAsset matching{std::filesystem::path{"mix.wav"}};
-    const AudioAsset different{std::filesystem::path{"stem.wav"}};
+    const AudioAsset first{.path = std::filesystem::path{"mix.wav"}, .normalization = std::nullopt};
+    const AudioAsset matching{
+        .path = std::filesystem::path{"mix.wav"}, .normalization = std::nullopt
+    };
+    const AudioAsset different{
+        .path = std::filesystem::path{"stem.wav"}, .normalization = std::nullopt
+    };
 
     CHECK(first == matching);
     CHECK_FALSE(first == different);

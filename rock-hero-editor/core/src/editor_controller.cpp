@@ -82,7 +82,8 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
     Project& project, const std::filesystem::path& file,
     const EditorController::ProjectOperationProgress& report_progress)
 {
-    AudioNormalizationAnalyzer analyzer = makeReportingAudioNormalizationAnalyzer(report_progress);
+    const AudioNormalizationAnalyzer analyzer =
+        makeReportingAudioNormalizationAnalyzer(report_progress);
     return project.load(file, {}, analyzer);
 }
 
@@ -99,7 +100,7 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
     if (extension == ".rock")
     {
         RockSongImporter importer;
-        AudioNormalizationAnalyzer analyzer =
+        const AudioNormalizationAnalyzer analyzer =
             makeReportingAudioNormalizationAnalyzer(report_progress);
         return project.import(file, importer, {}, analyzer);
     }
@@ -107,7 +108,7 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
     if (extension == ".psarc")
     {
         PsarcSongImporter importer;
-        AudioNormalizationAnalyzer analyzer =
+        const AudioNormalizationAnalyzer analyzer =
             makeReportingAudioNormalizationAnalyzer(report_progress);
         return project.import(file, importer, {}, analyzer);
     }
@@ -330,7 +331,7 @@ public:
     void release()
     {
         {
-            const std::lock_guard lock{m_mutex};
+            const std::scoped_lock lock{m_mutex};
             m_released = true;
         }
         m_condition.notify_one();
@@ -443,9 +444,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     void requestProjectAction(EditorAction::ProjectAction action);
     void runProjectAction(EditorAction::ProjectAction action);
-    void runProjectActionImpl(EditorAction::OpenProject action);
-    void runProjectActionImpl(EditorAction::RestoreProject action);
-    void runProjectActionImpl(EditorAction::ImportSong action);
+    void runProjectActionImpl(const EditorAction::OpenProject& action);
+    void runProjectActionImpl(const EditorAction::RestoreProject& action);
+    void runProjectActionImpl(const EditorAction::ImportSong& action);
     void runProjectActionImpl(EditorAction::SaveProject action);
     void runProjectActionImpl(EditorAction::SaveProjectAs action);
     void runProjectActionImpl(EditorAction::PublishProject action);
@@ -533,7 +534,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     bool setCalibrationInputMonitoringBestEffort(bool enabled, std::string_view context);
     bool setInputGainBestEffort(common::audio::Gain gain, std::string_view context);
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> commitInputCalibration(
-        double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity);
+        double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity);
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
     restoreCalibrationMeasurementState();
     void updateView();
@@ -1294,7 +1295,7 @@ EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProje
                         BusyOperation::AnalyzingBackingAudio, token);
                 };
 
-                juce::MessageManager* const message_manager =
+                const juce::MessageManager* const message_manager =
                     juce::MessageManager::getInstanceWithoutCreating();
                 if (message_manager == nullptr || message_manager->isThisTheMessageThread())
                 {
@@ -2203,24 +2204,24 @@ void EditorController::Impl::runProjectAction(EditorAction::ProjectAction action
         std::move(action));
 }
 
-void EditorController::Impl::runProjectActionImpl(EditorAction::OpenProject action)
+void EditorController::Impl::runProjectActionImpl(const EditorAction::OpenProject& action)
 {
     openProject(action.file, false);
 }
 
-void EditorController::Impl::runProjectActionImpl(EditorAction::RestoreProject action)
+void EditorController::Impl::runProjectActionImpl(const EditorAction::RestoreProject& action)
 {
     openProject(action.file, true);
 }
 
-void EditorController::Impl::runProjectActionImpl(EditorAction::ImportSong action)
+void EditorController::Impl::runProjectActionImpl(const EditorAction::ImportSong& action)
 {
     importSongSource(action.file);
 }
 
 void EditorController::Impl::runProjectActionImpl(EditorAction::SaveProject action)
 {
-    runProjectWriteAction(EditorAction::ProjectWriteAction{std::move(action)});
+    runProjectWriteAction(EditorAction::ProjectWriteAction{action});
 }
 
 void EditorController::Impl::runProjectActionImpl(EditorAction::SaveProjectAs action)
@@ -3078,7 +3079,7 @@ bool EditorController::Impl::setInputGainBestEffort(
 
 // Applies a completed calibration value to the current live route and persists it.
 std::expected<void, common::audio::LiveInputError> EditorController::Impl::commitInputCalibration(
-    double gain_db, std::optional<common::audio::InputDeviceIdentity> expected_identity)
+    double gain_db, const std::optional<common::audio::InputDeviceIdentity>& expected_identity)
 {
     const InputCalibrationWorkflow::Context context = inputCalibrationContext();
     const auto plan_result =
@@ -3092,7 +3093,7 @@ std::expected<void, common::audio::LiveInputError> EditorController::Impl::commi
         return std::unexpected{plan_result.error()};
     }
 
-    const InputCalibrationWorkflow::CommitPlan plan = *plan_result;
+    const InputCalibrationWorkflow::CommitPlan& plan = *plan_result;
     auto calibration_monitoring_disabled = m_live_input.setCalibrationInputMonitoringEnabled(false);
     if (!calibration_monitoring_disabled.has_value())
     {

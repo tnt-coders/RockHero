@@ -211,8 +211,8 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
 // Creates the panel controls and routes the add command through the owner.
 SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
-    , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
+    , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
 {
     setComponentID("signal_chain_panel");
