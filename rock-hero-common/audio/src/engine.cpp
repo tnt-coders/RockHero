@@ -119,7 +119,7 @@ constexpr std::string_view g_vst3_file_candidate_id_prefix{"vst3-file:"};
 
     const std::filesystem::path architecture_directory =
         path / "Contents" / windowsVst3ArchitectureDirectory();
-    const std::filesystem::path expected_module = architecture_directory / path.filename();
+    std::filesystem::path expected_module = architecture_directory / path.filename();
     if (std::filesystem::exists(expected_module, error))
     {
         return expected_module;
@@ -217,7 +217,7 @@ void appendUniquePath(std::vector<std::filesystem::path>& paths, std::filesystem
         return std::nullopt;
     }
 
-    std::unique_ptr<char, decltype(&std::free)> value_owner{value, &std::free};
+    const std::unique_ptr<char, decltype(&std::free)> value_owner{value, &std::free};
     return std::filesystem::path{value_owner.get()};
 #else
     const char* const value = std::getenv(environment_variable);
@@ -2377,7 +2377,7 @@ private:
     // Finds the current mono instrument input device for raw route metering.
     [[nodiscard]] tracktion::WaveInputDevice* currentInstrumentWaveInput() const
     {
-        tracktion::DeviceManager& tracktion_device_manager = m_engine->getDeviceManager();
+        const tracktion::DeviceManager& tracktion_device_manager = m_engine->getDeviceManager();
         juce::AudioIODevice* const current_device =
             tracktion_device_manager.deviceManager.getCurrentAudioDevice();
         if (current_device == nullptr)
@@ -2726,7 +2726,7 @@ std::expected<void, SongAudioError> Engine::prepareSong(common::core::Song& song
         const auto audio_duration = readAudioDuration(*m_impl->m_engine, arrangement.audio_asset);
         if (!audio_duration.has_value())
         {
-            return std::unexpected{std::move(audio_duration.error())};
+            return std::unexpected{audio_duration.error()};
         }
 
         arrangement.audio_duration = *audio_duration;
@@ -2964,7 +2964,7 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
 
     // Compute the external-only chain index by counting non-structural plugins before this one.
     std::size_t external_chain_index = 0;
-    for (tracktion::Plugin* const list_plugin : instrument_track->pluginList)
+    for (const tracktion::Plugin* const list_plugin : instrument_track->pluginList)
     {
         if (list_plugin == plugin.get())
         {

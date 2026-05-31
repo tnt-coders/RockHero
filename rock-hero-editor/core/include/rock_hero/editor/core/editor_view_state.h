@@ -178,7 +178,7 @@ struct EditorViewState
     bool save_requires_destination{false};
 
     /*! \brief Current transport state shown by the editor. */
-    TransportViewState transport;
+    TransportViewState transport{};
 
     /*! \brief Menu-bar status text for the current audio-device route. */
     std::string audio_device_status_text{"[audio device closed]"};
@@ -195,25 +195,25 @@ struct EditorViewState
     common::core::TimeRange visible_timeline{};
 
     /*! \brief Current arrangement waveform state shown by the editor. */
-    ArrangementViewState arrangement;
+    ArrangementViewState arrangement{};
 
     /*! \brief Current signal-chain panel state. */
-    SignalChainViewState signal_chain;
+    SignalChainViewState signal_chain{};
 
     /*! \brief Current plugin browser window state. */
-    PluginBrowserViewState plugin_browser;
+    PluginBrowserViewState plugin_browser{};
 
     /*! \brief Unsaved-changes prompt to present, if the controller is awaiting a decision. */
-    std::optional<UnsavedChangesPrompt> unsaved_changes_prompt;
+    std::optional<UnsavedChangesPrompt> unsaved_changes_prompt{};
 
     /*! \brief Save As chooser request to present, if the controller needs a destination. */
-    std::optional<SaveAsPrompt> save_as_prompt;
+    std::optional<SaveAsPrompt> save_as_prompt{};
 
     /*! \brief Interrupted startup restore prompt to present, if recovery input is needed. */
-    std::optional<RestoreInterruptedPrompt> restore_interrupted_prompt;
+    std::optional<RestoreInterruptedPrompt> restore_interrupted_prompt{};
 
     /*! \brief Input calibration prompt to present, if live input setup is required. */
-    std::optional<InputCalibrationPrompt> input_calibration_prompt;
+    std::optional<InputCalibrationPrompt> input_calibration_prompt{};
 
     /*!
     \brief Active editor-wide busy state, if any.
@@ -221,7 +221,7 @@ struct EditorViewState
     When set, the view displays the busy overlay, blocks input, and the controller drops new
     intents until the operation completes or is superseded.
     */
-    std::optional<BusyViewState> busy;
+    std::optional<BusyViewState> busy{};
 
     /*!
     \brief Compares two editor view states by their stored values.

@@ -68,7 +68,7 @@ struct StereoOutputPair
 struct AudioDeviceSettingsState
 {
     /*! \brief Audio systems available in Rock Hero's preferred default order. */
-    std::vector<std::string> audio_systems;
+    std::vector<std::string> audio_systems{};
 
     /*! \brief Selected audio-system choice ID, or zero when none is selected. */
     int selected_audio_system_id{};
@@ -77,43 +77,43 @@ struct AudioDeviceSettingsState
     bool uses_separate_input_output_devices{};
 
     /*! \brief Combined device names for audio systems that use one route selector. */
-    std::vector<std::string> devices;
+    std::vector<std::string> devices{};
 
     /*! \brief Selected combined-device choice ID, or zero when none is selected. */
     int selected_device_id{};
 
     /*! \brief Input device names for audio systems that expose separate input devices. */
-    std::vector<std::string> input_devices;
+    std::vector<std::string> input_devices{};
 
     /*! \brief Selected input-device choice ID, or zero when none is selected. */
     int selected_input_device_id{};
 
     /*! \brief Output device names for audio systems that expose separate output devices. */
-    std::vector<std::string> output_devices;
+    std::vector<std::string> output_devices{};
 
     /*! \brief Selected output-device choice ID, or zero when none is selected. */
     int selected_output_device_id{};
 
     /*! \brief Mono input channel names available on the staged route. */
-    std::vector<std::string> input_channels;
+    std::vector<std::string> input_channels{};
 
     /*! \brief Selected input-channel choice ID, or zero when none is selected. */
     int selected_input_channel_id{};
 
     /*! \brief Stereo output pairs available on the staged route. */
-    std::vector<StereoOutputPair> stereo_output_pairs;
+    std::vector<StereoOutputPair> stereo_output_pairs{};
 
     /*! \brief Selected stereo-output-pair choice ID, or zero when none is selected. */
     int selected_stereo_output_pair_id{};
 
     /*! \brief Sample rates available on the staged route. */
-    std::vector<double> sample_rates;
+    std::vector<double> sample_rates{};
 
     /*! \brief Selected sample-rate choice ID, or zero when none is selected. */
     int selected_sample_rate_id{};
 
     /*! \brief Buffer sizes available on the staged route. */
-    std::vector<int> buffer_sizes;
+    std::vector<int> buffer_sizes{};
 
     /*! \brief Selected buffer-size choice ID, or zero when none is selected. */
     int selected_buffer_size_id{};
@@ -122,7 +122,7 @@ struct AudioDeviceSettingsState
     bool control_panel_enabled{};
 
     /*! \brief Last operation error to display, or empty when no error is active. */
-    std::string error_message;
+    std::string error_message{};
 };
 
 /*!
