@@ -10,7 +10,7 @@ namespace rock_hero::editor::core
 // Idle state has no current operation token, even before the first operation begins.
 TEST_CASE("BusyOperationState has no current token while idle", "[core][busy-operation-state]")
 {
-    BusyOperationState state;
+    const BusyOperationState state;
 
     CHECK_FALSE(state.isBusy());
     CHECK_FALSE(state.isCurrentToken(state.currentToken()));
@@ -29,11 +29,14 @@ TEST_CASE("BusyOperationState begins operation", "[core][busy-operation-state]")
     CHECK(state.isCurrentToken(token));
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::OpeningProject);
-    CHECK(busy->message == "Opening project...");
-    CHECK(busy->presentation == BusyPresentation::Animated);
-    CHECK_FALSE(busy->progress.has_value());
-    CHECK(busy->cancel_enabled == false);
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::OpeningProject);
+        CHECK(busy->message == "Opening project...");
+        CHECK(busy->presentation == BusyPresentation::Animated);
+        CHECK_FALSE(busy->progress.has_value());
+        CHECK(busy->cancel_enabled == false);
+    }
 }
 
 // Token-matched transitions update the visible phase without invalidating the operation.
@@ -48,8 +51,11 @@ TEST_CASE("BusyOperationState transitions current token", "[core][busy-operation
     CHECK(state.isCurrentToken(token));
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
-    CHECK(busy->message == "Analyzing audio...");
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
+        CHECK(busy->message == "Analyzing audio...");
+    }
 }
 
 // Stale tokens are rejected and cannot replace the current visible operation.
@@ -66,7 +72,10 @@ TEST_CASE("BusyOperationState rejects stale transition", "[core][busy-operation-
     CHECK(state.isCurrentToken(current_token));
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::SavingProject);
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::SavingProject);
+    }
 }
 
 // Ending busy state clears the snapshot and invalidates work that captured the old token.
@@ -96,10 +105,13 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
     CHECK(updated);
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::LoadingLiveRig);
-    CHECK(busy->message == "Loading Amp (1 of 2)...");
-    CHECK(busy->presentation == BusyPresentation::Blocking);
-    CHECK(busy->progress == std::optional{0.5});
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::LoadingLiveRig);
+        CHECK(busy->message == "Loading Amp (1 of 2)...");
+        CHECK(busy->presentation == BusyPresentation::Blocking);
+        CHECK(busy->progress == std::optional{0.5});
+    }
 }
 
 // Generic transitions clear any live-rig progress payload before exposing the new phase.
@@ -115,8 +127,11 @@ TEST_CASE("BusyOperationState transition clears live rig progress", "[core][busy
     CHECK(transitioned);
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
-    CHECK_FALSE(busy->progress.has_value());
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
+        CHECK_FALSE(busy->progress.has_value());
+    }
 }
 
 // Progress updates outside the live-rig phase are ignored.
@@ -132,8 +147,11 @@ TEST_CASE(
     CHECK_FALSE(updated);
     const std::optional<BusyViewState> busy = state.viewState();
     REQUIRE(busy.has_value());
-    CHECK(busy->operation == BusyOperation::OpeningProject);
-    CHECK_FALSE(busy->progress.has_value());
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::OpeningProject);
+        CHECK_FALSE(busy->progress.has_value());
+    }
 }
 
 } // namespace rock_hero::editor::core
