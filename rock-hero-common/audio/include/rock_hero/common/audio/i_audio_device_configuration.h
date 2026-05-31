@@ -5,7 +5,9 @@
 
 #pragma once
 
+#include <expected>
 #include <optional>
+#include <rock_hero/common/audio/audio_device_configuration_error.h>
 #include <rock_hero/common/audio/audio_device_status.h>
 #include <rock_hero/common/audio/input_device_identity.h>
 #include <string>
@@ -73,10 +75,11 @@ public:
     /*!
     \brief Restores an opaque serialized audio-device state on the message thread.
     \param serialized_state State string previously returned by serializedDeviceState().
-    \return True when the state was decoded and submitted, or false when it was rejected.
+    \return Empty success when the state was decoded and restored, or a typed failure.
+    \note Must be called on the message thread.
     */
-    [[nodiscard]] virtual bool restoreSerializedDeviceState(
-        const std::string& serialized_state) = 0;
+    [[nodiscard]] virtual std::expected<void, AudioDeviceConfigurationError>
+    restoreSerializedDeviceState(const std::string& serialized_state) = 0;
 
     /*!
     \brief Captures the current audio-device route as an opaque serialized state string.

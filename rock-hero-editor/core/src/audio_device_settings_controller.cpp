@@ -142,7 +142,9 @@ AudioDeviceSettingsController::~AudioDeviceSettingsController()
     m_alive.reset();
     if (!m_finished)
     {
-        m_settings.cancel();
+        // Destructor-only cleanup has no UI channel; the settings backend records any restore
+        // failure in its state for the active settings workflow.
+        [[maybe_unused]] const auto cancelled = m_settings.cancel();
     }
 }
 
@@ -205,7 +207,12 @@ void AudioDeviceSettingsController::onControlPanelRequested()
 {
     if (m_last_state.control_panel_enabled)
     {
-        static_cast<void>(m_settings.openControlPanel());
+        const auto opened = m_settings.openControlPanel();
+        if (!opened.has_value())
+        {
+            updateView();
+            return;
+        }
     }
     updateView();
 }
@@ -276,13 +283,28 @@ void AudioDeviceSettingsController::onCancelRequested()
                 return;
             }
 
-            m_settings.cancel();
-            finishAndClose();
+            const auto result = m_settings.cancel();
+            updateView();
+            if (result.has_value())
+            {
+                finishAndClose();
+                return;
+            }
+            if (m_view != nullptr)
+            {
+                m_view->setApplying(false);
+            }
         });
         return;
     }
 
-    m_settings.cancel();
+    const auto result = m_settings.cancel();
+    if (!result.has_value())
+    {
+        updateView();
+        return;
+    }
+
     finishAndClose();
 }
 

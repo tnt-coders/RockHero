@@ -4,7 +4,9 @@
 #include <concepts>
 #include <expected>
 #include <filesystem>
+#include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/audio/i_audio_device_configuration.h>
@@ -23,6 +25,9 @@ namespace
 {
 
 constexpr const char* g_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
+constexpr const char* g_rejected_audio_type_name = "Rejected Audio";
+constexpr const char* g_rejected_input_name = "Rejected Input";
+constexpr const char* g_rejected_output_name = "Rejected Output";
 
 // Verifies at compile time that the concrete adapter is usable through its audio port surfaces.
 static_assert(std::derived_from<Engine, ITransport>);
@@ -79,10 +84,10 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
 [[nodiscard]] common::core::TimeDuration requireLoadedFixtureAudio(ISongAudio& audio)
 {
     auto song = makeFixtureSong();
-    REQUIRE(audio.prepareSong(song));
+    REQUIRE(audio.prepareSong(song).has_value());
     REQUIRE(song.arrangements.size() == 1);
     const common::core::Arrangement& arrangement = song.arrangements.front();
-    REQUIRE(audio.setActiveArrangement(arrangement));
+    REQUIRE(audio.setActiveArrangement(arrangement).has_value());
     return arrangement.audio_duration;
 }
 
@@ -114,6 +119,69 @@ public:
     // Real adapter under test; destroyed before scoped_gui because members tear down in reverse.
     Engine engine;
 };
+
+// Device type whose named route exists but cannot create a device, forcing JUCE restore failure.
+class RejectingAudioDeviceType final : public juce::AudioIODeviceType
+{
+public:
+    RejectingAudioDeviceType()
+        : juce::AudioIODeviceType(g_rejected_audio_type_name)
+    {}
+
+    // No scan work is needed because the fake returns a fixed route list.
+    void scanForDevices() override
+    {}
+
+    // Exposes one input and one output name so restore reaches device creation.
+    [[nodiscard]] juce::StringArray getDeviceNames(bool want_input_names) const override
+    {
+        return want_input_names ? juce::StringArray{g_rejected_input_name}
+                                : juce::StringArray{g_rejected_output_name};
+    }
+
+    // The fixed route list has only one default entry for both directions.
+    [[nodiscard]] int getDefaultDeviceIndex(bool /*for_input*/) const override
+    {
+        return 0;
+    }
+
+    // The restore test does not need reverse lookup from an opened device.
+    [[nodiscard]] int getIndexOfDevice(
+        juce::AudioIODevice* /*device*/, bool /*want_input_names*/) const override
+    {
+        return -1;
+    }
+
+    // Separate input/output names make the serialized setup explicit.
+    [[nodiscard]] bool hasSeparateInputsAndOutputs() const override
+    {
+        return true;
+    }
+
+    // Returning null forces AudioDeviceManager to surface a backend restore failure.
+    [[nodiscard]] juce::AudioIODevice* createDevice(
+        const juce::String& /*output_device_name*/,
+        const juce::String& /*input_device_name*/) override
+    {
+        return nullptr;
+    }
+};
+
+// Replaces platform audio types so serialized restore cannot fall back to a real device.
+void installOnlyRejectingAudioDeviceType(juce::AudioDeviceManager& manager)
+{
+    const int original_type_count = manager.getAvailableDeviceTypes().size();
+    for (int index = 0; index < original_type_count; ++index)
+    {
+        juce::AudioIODeviceType* const type = manager.getAvailableDeviceTypes().getFirst();
+        if (type != nullptr)
+        {
+            manager.removeAudioDeviceType(type);
+        }
+    }
+
+    manager.addAudioDeviceType(std::make_unique<RejectingAudioDeviceType>());
+}
 
 // Owns a temporary song workspace for live-rig file persistence tests.
 class TemporarySongDirectory final
@@ -187,6 +255,34 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
 
     CHECK_FALSE(current_state.playing);
     CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Serialized device restore rejects malformed XML with its own stable error code.
+TEST_CASE("Engine rejects invalid serialized audio-device state", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+
+    const auto restored = audio_devices.restoreSerializedDeviceState("[not-xml");
+
+    REQUIRE_FALSE(restored.has_value());
+    CHECK(restored.error().code == AudioDeviceConfigurationErrorCode::InvalidSerializedState);
+}
+
+// Serialized device restore reports backend route rejection separately from parse failure.
+TEST_CASE("Engine reports rejected serialized audio-device state", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IAudioDeviceConfiguration& audio_devices = harness.engine;
+    installOnlyRejectingAudioDeviceType(audio_devices.deviceManager());
+
+    const auto restored = audio_devices.restoreSerializedDeviceState(
+        R"(<DEVICESETUP deviceType="Rejected Audio" audioInputDeviceName="Rejected Input" )"
+        R"(audioOutputDeviceName="Rejected Output"/>)");
+
+    REQUIRE_FALSE(restored.has_value());
+    CHECK(restored.error().code == AudioDeviceConfigurationErrorCode::RestoreFailed);
+    CHECK_FALSE(restored.error().message.empty());
 }
 
 // Verifies meter reads are safe before the playback graph has produced any audio.
@@ -296,17 +392,17 @@ TEST_CASE("Engine audio port sets active arrangement", "[audio][engine][integrat
     ITransport& transport = engine;
 
     auto song = makeFixtureSong();
-    REQUIRE(audio.prepareSong(song));
+    REQUIRE(audio.prepareSong(song).has_value());
     REQUIRE(song.arrangements.size() == 1);
 
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const bool active_set = audio.setActiveArrangement(song.arrangements.front());
+    const auto active_set = audio.setActiveArrangement(song.arrangements.front());
 
     transport.removeListener(recorder);
 
-    CHECK(active_set);
+    CHECK(active_set.has_value());
     CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     const auto current_state = transport.state();
     CHECK_FALSE(current_state.playing);
@@ -323,9 +419,9 @@ TEST_CASE("Engine audio port prepares song", "[audio][engine][integration]")
     const ITransport& transport = harness.engine;
     auto song = makeFixtureSong();
 
-    const bool prepared = audio.prepareSong(song);
+    const auto prepared = audio.prepareSong(song);
 
-    CHECK(prepared);
+    CHECK(prepared.has_value());
     REQUIRE(song.arrangements.size() == 1);
     CHECK(song.arrangements.front().audio_duration.seconds > 0.0);
     CHECK(transport.state() == TransportState{});
@@ -341,9 +437,11 @@ TEST_CASE("Engine audio port rejects missing files", "[audio][engine][integratio
     song.arrangements.front().audio_asset =
         common::core::AudioAsset{fixtureAudioPath().parent_path() / "missing-probe.wav"};
 
-    const bool prepared = audio.prepareSong(song);
+    const auto prepared = audio.prepareSong(song);
 
-    CHECK_FALSE(prepared);
+    REQUIRE_FALSE(prepared.has_value());
+    CHECK(prepared.error().code == SongAudioErrorCode::UnreadableAudioFile);
+    CHECK(prepared.error().message.find("missing-probe.wav") != std::string::npos);
 }
 
 // Verifies plugin insertion reports unknown candidate IDs as a typed boundary failure.
@@ -510,15 +608,15 @@ TEST_CASE("Engine audio port replaces arrangement audio", "[audio][engine][integ
     Engine& engine = harness.engine;
     ISongAudio& audio = engine;
     auto song = makeFixtureSong();
-    REQUIRE(audio.prepareSong(song));
+    REQUIRE(audio.prepareSong(song).has_value());
     REQUIRE(song.arrangements.size() == 1);
     const common::core::Arrangement& arrangement = song.arrangements.front();
 
-    const bool first_audio_set = audio.setActiveArrangement(arrangement);
-    const bool replacement_audio_set = audio.setActiveArrangement(arrangement);
+    const auto first_audio_set = audio.setActiveArrangement(arrangement);
+    const auto replacement_audio_set = audio.setActiveArrangement(arrangement);
 
-    CHECK(first_audio_set);
-    CHECK(replacement_audio_set);
+    CHECK(first_audio_set.has_value());
+    CHECK(replacement_audio_set.has_value());
 }
 
 // Verifies a failed activation leaves the previous transport state visible through state().
@@ -539,7 +637,7 @@ TEST_CASE(
     TransportNotificationRecorder recorder;
     transport.addListener(recorder);
 
-    const bool active_set = audio.setActiveArrangement(
+    const auto active_set = audio.setActiveArrangement(
         common::core::Arrangement{
             .id = "missing",
             .part = common::core::Part::Lead,
@@ -552,7 +650,8 @@ TEST_CASE(
 
     transport.removeListener(recorder);
 
-    CHECK_FALSE(active_set);
+    REQUIRE_FALSE(active_set.has_value());
+    CHECK(active_set.error().code == SongAudioErrorCode::UnreadableAudioFile);
     CHECK(transport.state() == loaded_state);
     CHECK(recorder.transport_state_call_count == 0);
     CHECK(recorder.last_transport_state == TransportState{});

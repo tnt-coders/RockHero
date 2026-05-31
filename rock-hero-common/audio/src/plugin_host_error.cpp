@@ -53,6 +53,10 @@ namespace
         {
             return "Could not append plugin to the hosted chain";
         }
+        case PluginHostErrorCode::MonitoringRouteFailed:
+        {
+            return "Could not restore monitoring after changing the hosted chain";
+        }
         case PluginHostErrorCode::PluginWindowUnavailable:
         {
             return "Could not open plugin editor window";

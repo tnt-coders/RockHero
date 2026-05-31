@@ -43,6 +43,9 @@ enum class PluginHostErrorCode
     /*! \brief The backend could not append the plugin to the hosted chain. */
     PluginInsertionFailed,
 
+    /*! \brief The backend could not restore monitoring after a hosted-chain mutation. */
+    MonitoringRouteFailed,
+
     /*! \brief The plugin editor window could not be created or shown. */
     PluginWindowUnavailable,
 };

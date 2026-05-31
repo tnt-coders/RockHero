@@ -439,7 +439,9 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
     controller.onOpenRequested(std::filesystem::path{"new.rhp"});
 
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not load audio from: new.rhp");
+    CHECK(
+        view.shown_errors.back() ==
+        "Could not load audio from: new.rhp: Configured active-arrangement failure");
 
     transport.setStateAndNotify(
         common::audio::TransportState{

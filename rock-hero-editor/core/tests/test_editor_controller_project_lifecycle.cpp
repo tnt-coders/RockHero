@@ -71,7 +71,9 @@ TEST_CASE("EditorController failed activation preserves session", "[core][editor
         CHECK(state.project_loaded == true);
     }
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not load audio from: new.rhp");
+    CHECK(
+        view.shown_errors.back() ==
+        "Could not load audio from: new.rhp: Configured active-arrangement failure");
 }
 
 // A successful open stores the selected audio without replaying a prior error.
@@ -95,7 +97,9 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     audio.next_set_active_arrangement_result = false;
     controller.onOpenRequested(std::filesystem::path{"first.rhp"});
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not load audio from: first.rhp");
+    CHECK(
+        view.shown_errors.back() ==
+        "Could not load audio from: first.rhp: Configured active-arrangement failure");
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
@@ -461,7 +465,9 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     audio.next_set_active_arrangement_result = false;
     controller.onImportRequested(std::filesystem::path{"first.psarc"});
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not load imported audio from: first.psarc");
+    CHECK(
+        view.shown_errors.back() ==
+        "Could not load imported audio from: first.psarc: Configured active-arrangement failure");
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
@@ -739,7 +745,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
 {
     const ScopedControllerFiles files{"discard_unsaved_import_exit"};
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -840,7 +846,9 @@ TEST_CASE("EditorController rejects invalid project arrangement audio", "[core][
         CHECK(state.project_loaded == false);
     }
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not load audio from: song.rhp");
+    CHECK(
+        view.shown_errors.back() ==
+        "Could not load audio from: song.rhp: Configured song preparation failure for: bass.wav");
 }
 
 } // namespace rock_hero::editor::core
