@@ -1,8 +1,8 @@
 # Error Contract Hardening Plan
 
-Status: in-progress planning note. This captures the active project-wide direction for
-recoverable error contracts, ignored result handling, and the design-doc updates needed to make
-those rules durable.
+Status: completed planning note. The typed recoverable-error contract migration and follow-up
+review fixes are complete. This document remains historical implementation context for the
+project-wide error-contract standard.
 
 Approval note: the durable rule change that removes raw `std::string` error channels, including
 private helper channels, has been explicitly approved. This is an intentional tightening of the
