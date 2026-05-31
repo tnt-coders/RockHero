@@ -36,7 +36,7 @@ public:
     */
     InputCalibrationWindow(
         core::IEditorController& controller, const common::audio::ILiveInput* live_input,
-        core::InputCalibrationPrompt prompt, juce::Component* centering_component);
+        const core::InputCalibrationPrompt& prompt, juce::Component* centering_component);
 
     /*! \brief Forwards the close request to the controller and hides the window. */
     void closeButtonPressed() override;
