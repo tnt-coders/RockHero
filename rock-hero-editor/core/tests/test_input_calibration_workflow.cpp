@@ -100,8 +100,12 @@ TEST_CASE("Input calibration workflow accepts renamed physical channel", "[core]
 
     CHECK(effects.empty());
     CHECK(workflow.calibrationMatches(current_identity));
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->input_device_identity == current_identity);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->input_device_identity == current_identity);
+    }
 }
 
 TEST_CASE(
@@ -149,8 +153,12 @@ TEST_CASE("Input calibration workflow selects saved state on route change", "[co
 
     CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
     CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring));
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->calibration_gain.db == 7.0);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->calibration_gain.db == 7.0);
+    }
     CHECK(workflow.calibrationMatches(next_identity));
 }
 
@@ -175,8 +183,12 @@ TEST_CASE(
 
     CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
     CHECK(hasEffect(effects, InputCalibrationWorkflow::Effect::DisableLiveInputMonitoring));
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->calibration_gain.db == 4.0);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->calibration_gain.db == 4.0);
+    }
     CHECK(workflow.calibrationMatches(initial_identity));
 }
 
@@ -221,8 +233,12 @@ TEST_CASE("Input calibration workflow preserves calibration through route loss",
         lost_effects, InputCalibrationWorkflow::Effect::DisableCalibrationInputMonitoring));
     CHECK_FALSE(workflow.promptVisible());
     CHECK_FALSE(workflow.hasActiveMeasurement());
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->calibration_gain.db == 4.0);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->calibration_gain.db == 4.0);
+    }
     CHECK(
         workflow.snapshot(readyContext(std::nullopt)).status ==
         InputCalibrationStatus::NoActiveInputDevice);
@@ -252,13 +268,17 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[c
     CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
     CHECK_FALSE(snapshot.live_input_audition_available);
     CHECK_FALSE(snapshot.prompt.has_value());
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->calibration_gain.db == 4.0);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->calibration_gain.db == 4.0);
+    }
 }
 
 TEST_CASE("Input calibration workflow rejects stale measurement start", "[core][workflow]")
 {
-    InputCalibrationWorkflow workflow;
+    const InputCalibrationWorkflow workflow;
     const common::audio::InputDeviceIdentity identity = makeIdentity();
 
     const auto measurement = workflow.prepareMeasurementStart(readyContext(identity));
@@ -288,8 +308,12 @@ TEST_CASE(
     const InputCalibrationWorkflow::Snapshot snapshot = workflow.snapshot(readyContext(identity));
     CHECK(snapshot.status == InputCalibrationStatus::Unavailable);
     CHECK_FALSE(snapshot.prompt.has_value());
-    REQUIRE(workflow.activeCalibrationState().has_value());
-    CHECK(workflow.activeCalibrationState()->calibration_gain.db == 4.0);
+    const auto calibration_state = workflow.activeCalibrationState();
+    REQUIRE(calibration_state.has_value());
+    if (calibration_state.has_value())
+    {
+        CHECK(calibration_state->calibration_gain.db == 4.0);
+    }
 }
 
 } // namespace rock_hero::editor::core

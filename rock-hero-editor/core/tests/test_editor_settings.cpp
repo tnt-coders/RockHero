@@ -88,19 +88,20 @@ private:
 }
 
 // Writes one raw property through JUCE so malformed and legacy settings use production storage.
-void writeRawSetting(const std::filesystem::path& settings_file, const char* key, juce::var value)
+void writeRawSetting(
+    const std::filesystem::path& settings_file, const char* key, const juce::var& value)
 {
     juce::PropertiesFile properties{
         common::core::juceFileFromPath(settings_file), testSettingsOptions()
     };
-    properties.setValue(key, std::move(value));
+    properties.setValue(key, value);
     REQUIRE(properties.save());
 }
 
 // Reads whether a raw property remains present after migration or removal behavior.
 [[nodiscard]] bool rawSettingExists(const std::filesystem::path& settings_file, const char* key)
 {
-    juce::PropertiesFile properties{
+    const juce::PropertiesFile properties{
         common::core::juceFileFromPath(settings_file), testSettingsOptions()
     };
     return properties.containsKey(key);
@@ -302,8 +303,11 @@ TEST_CASE("EditorSettings persists physical input calibration", "[core][settings
 
     const auto stored_calibration = inputCalibrationFor(reloaded_settings, identity);
     REQUIRE(stored_calibration.has_value());
-    CHECK(stored_calibration->calibration_gain.db == 6.5);
-    CHECK(stored_calibration->input_device_identity == identity);
+    if (stored_calibration.has_value())
+    {
+        CHECK(stored_calibration->calibration_gain.db == 6.5);
+        CHECK(stored_calibration->input_device_identity == identity);
+    }
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
 }
 
@@ -319,7 +323,10 @@ TEST_CASE("EditorSettings overwrites physical input calibration", "[core][settin
 
     const auto stored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(stored_calibration.has_value());
-    CHECK(stored_calibration->calibration_gain.db == 8.0);
+    if (stored_calibration.has_value())
+    {
+        CHECK(stored_calibration->calibration_gain.db == 8.0);
+    }
 }
 
 // Channel display-name drift must not make the same physical route lose calibration.
@@ -336,14 +343,20 @@ TEST_CASE("EditorSettings restores renamed physical channel", "[core][settings]"
 
     const auto restored_calibration = inputCalibrationFor(settings, current_identity);
     REQUIRE(restored_calibration.has_value());
-    CHECK(restored_calibration->calibration_gain.db == 4.0);
-    CHECK(restored_calibration->input_device_identity == current_identity);
+    if (restored_calibration.has_value())
+    {
+        CHECK(restored_calibration->calibration_gain.db == 4.0);
+        CHECK(restored_calibration->input_device_identity == current_identity);
+    }
 
     REQUIRE(settings.saveInputCalibration(calibrationFor(current_identity, 7.0)).has_value());
     const auto overwritten_calibration = inputCalibrationFor(settings, saved_identity);
     REQUIRE(overwritten_calibration.has_value());
-    CHECK(overwritten_calibration->calibration_gain.db == 7.0);
-    CHECK(overwritten_calibration->input_device_identity == saved_identity);
+    if (overwritten_calibration.has_value())
+    {
+        CHECK(overwritten_calibration->calibration_gain.db == 7.0);
+        CHECK(overwritten_calibration->input_device_identity == saved_identity);
+    }
 
     REQUIRE(settings.removeInputCalibration(saved_identity).has_value());
     CHECK_FALSE(inputCalibrationFor(settings, current_identity).has_value());
@@ -364,8 +377,11 @@ TEST_CASE("EditorSettings keeps input channels separate", "[core][settings]")
     const auto channel_three_calibration = inputCalibrationFor(settings, channel_three);
     REQUIRE(channel_one_calibration.has_value());
     REQUIRE(channel_three_calibration.has_value());
-    CHECK(channel_one_calibration->calibration_gain.db == 3.0);
-    CHECK(channel_three_calibration->calibration_gain.db == 9.0);
+    if (channel_one_calibration.has_value() && channel_three_calibration.has_value())
+    {
+        CHECK(channel_one_calibration->calibration_gain.db == 3.0);
+        CHECK(channel_three_calibration->calibration_gain.db == 9.0);
+    }
 }
 
 // Removing one physical route leaves other saved route calibrations intact.
@@ -383,7 +399,10 @@ TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
     CHECK_FALSE(inputCalibrationFor(settings, first_identity).has_value());
     const auto preserved_calibration = inputCalibrationFor(settings, second_identity);
     REQUIRE(preserved_calibration.has_value());
-    CHECK(preserved_calibration->calibration_gain.db == 6.0);
+    if (preserved_calibration.has_value())
+    {
+        CHECK(preserved_calibration->calibration_gain.db == 6.0);
+    }
 }
 
 // Duplicate JSON records collapse to the last valid record for a physical route.
@@ -403,8 +422,11 @@ TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][sett
 
     const auto stored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(stored_calibration.has_value());
-    CHECK(stored_calibration->calibration_gain.db == 7.0);
-    CHECK(stored_calibration->input_device_identity == identity);
+    if (stored_calibration.has_value())
+    {
+        CHECK(stored_calibration->calibration_gain.db == 7.0);
+        CHECK(stored_calibration->input_device_identity == identity);
+    }
 }
 
 // Malformed JSON blocks lookup and removal without deleting legacy fallback keys.
@@ -448,8 +470,11 @@ TEST_CASE("EditorSettings migrates legacy calibration on save", "[core][settings
     const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
     REQUIRE(legacy_calibration.has_value());
     REQUIRE(new_calibration.has_value());
-    CHECK(legacy_calibration->calibration_gain.db == 4.0);
-    CHECK(new_calibration->calibration_gain.db == 7.0);
+    if (legacy_calibration.has_value() && new_calibration.has_value())
+    {
+        CHECK(legacy_calibration->calibration_gain.db == 4.0);
+        CHECK(new_calibration->calibration_gain.db == 7.0);
+    }
     CHECK_FALSE(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
 }
 
@@ -474,7 +499,10 @@ TEST_CASE("EditorSettings keeps legacy keys when saving over malformed JSON", "[
     const EditorSettings reloaded_settings{settings_file.path()};
     const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
     REQUIRE(new_calibration.has_value());
-    CHECK(new_calibration->calibration_gain.db == 7.0);
+    if (new_calibration.has_value())
+    {
+        CHECK(new_calibration->calibration_gain.db == 7.0);
+    }
 }
 
 } // namespace rock_hero::editor::core
