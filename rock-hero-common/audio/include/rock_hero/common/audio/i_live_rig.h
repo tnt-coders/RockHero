@@ -56,13 +56,13 @@ struct [[nodiscard]] LiveRigCaptureRequest
 struct [[nodiscard]] LiveRigSnapshot
 {
     /*! \brief Package-relative tone document path to store on the arrangement. */
-    std::string tone_document_ref;
+    std::string tone_document_ref{};
 
     /*! \brief Captured chain state for the editor signal-chain panel. */
-    std::vector<LiveRigPlugin> plugins;
+    std::vector<LiveRigPlugin> plugins{};
 
     /*! \brief Captured output gain after the signal chain. */
-    Gain output_gain;
+    Gain output_gain{};
 };
 
 /*! \brief Progress reported while restoring plugins into the live rig. */
@@ -122,10 +122,10 @@ struct [[nodiscard]] LiveRigLoadRequest
 struct [[nodiscard]] LiveRigLoadResult
 {
     /*! \brief Restored chain state for the editor signal-chain panel. */
-    std::vector<LiveRigPlugin> plugins;
+    std::vector<LiveRigPlugin> plugins{};
 
     /*! \brief Restored output gain after the signal chain. */
-    Gain output_gain;
+    Gain output_gain{};
 };
 
 /*!

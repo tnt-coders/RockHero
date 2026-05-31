@@ -31,7 +31,7 @@ struct SignalChainViewState
     bool remove_plugins_enabled{false};
 
     /*! \brief Current linear plugin chain. */
-    std::vector<PluginViewState> plugins;
+    std::vector<PluginViewState> plugins{};
 
     /*! \brief Live input calibration status for the current input route. */
     InputCalibrationStatus input_calibration_status{InputCalibrationStatus::NoActiveInputDevice};
@@ -40,7 +40,7 @@ struct SignalChainViewState
     bool input_calibrate_enabled{false};
 
     /*! \brief Message shown when live guitar audition is disabled. */
-    std::string disabled_message;
+    std::string disabled_message{};
 
     /*! \brief Enables or disables the output gain control. */
     bool output_gain_controls_enabled{false};
