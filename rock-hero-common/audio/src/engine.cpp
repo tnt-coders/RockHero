@@ -1072,7 +1072,8 @@ public:
     {
         if (info.state[tracktion::IDs::type].toString() == LiveRigGainPlugin::xmlTypeName)
         {
-            return new LiveRigGainPlugin{info};
+            // Tracktion's custom-plugin factory adopts this into Plugin::Ptr.
+            return tracktion::Plugin::Ptr{new LiveRigGainPlugin{info}};
         }
 
         return {};
