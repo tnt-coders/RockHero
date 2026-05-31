@@ -1151,19 +1151,25 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         return;
     }
 
+    const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
+    const common::core::TimePosition next_cursor_position =
+        session().timeline().clamp(editor_state.cursor_position);
+    std::filesystem::path next_project_file{state->file};
+
     m_project = std::move(state->project);
-    m_project_file = state->file;
+    m_project_file.swap(next_project_file);
+    m_pending_restore_project_file.reset();
+    m_displaced_project_file.clear();
+    m_save_requires_destination = false;
+    m_has_unsaved_changes = next_has_unsaved_changes;
+    clearDeferredProjectAction();
+    m_project_audio_ready = true;
+
+    m_transport.seek(next_cursor_position);
     if (state->clear_last_open_project_on_failure)
     {
         clearInterruptedRestoreMarker();
     }
-    m_pending_restore_project_file.reset();
-    m_displaced_project_file.clear();
-    m_transport.seek(session().timeline().clamp(editor_state.cursor_position));
-    m_save_requires_destination = false;
-    m_has_unsaved_changes = m_project->audioNormalizationUpdatedOnLoad();
-    clearDeferredProjectAction();
-    m_project_audio_ready = true;
     applyLiveInputGate();
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that

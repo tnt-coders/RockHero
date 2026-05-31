@@ -404,8 +404,18 @@ std::string InputCalibrationWorkflow::disabledMessage(
 double InputCalibrationWorkflow::promptGainDb(
     const std::optional<common::audio::InputDeviceIdentity>& current_identity) const
 {
-    return calibrationMatches(current_identity) ? m_calibration_state->calibration_gain.db
-                                                : common::audio::defaultGainDb();
+    if (!current_identity.has_value() || !m_calibration_state.has_value())
+    {
+        return common::audio::defaultGainDb();
+    }
+
+    if (!common::audio::inputCalibrationMatchesPhysicalRoute(
+            *m_calibration_state, *current_identity))
+    {
+        return common::audio::defaultGainDb();
+    }
+
+    return m_calibration_state->calibration_gain.db;
 }
 
 void InputCalibrationWorkflow::selectActiveCalibration(

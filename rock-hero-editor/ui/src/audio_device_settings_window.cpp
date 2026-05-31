@@ -37,6 +37,11 @@ public:
         }
     }
 
+    AudioDeviceSettingsDialogWindow(const AudioDeviceSettingsDialogWindow&) = delete;
+    AudioDeviceSettingsDialogWindow& operator=(const AudioDeviceSettingsDialogWindow&) = delete;
+    AudioDeviceSettingsDialogWindow(AudioDeviceSettingsDialogWindow&&) = delete;
+    AudioDeviceSettingsDialogWindow& operator=(AudioDeviceSettingsDialogWindow&&) = delete;
+
     // Detaches from the owner component unless the owner itself is already being destroyed.
     ~AudioDeviceSettingsDialogWindow() override
     {

@@ -8,9 +8,14 @@ namespace rock_hero::common::audio
 namespace
 {
 
-const juce::Identifier g_gain_db_property{"gainDb"};
 constexpr double g_smoothing_ramp_seconds{0.02};
 constexpr float g_linear_gain_change_epsilon{0.000001f};
+
+[[nodiscard]] const juce::Identifier& gainDbProperty()
+{
+    static const juce::Identifier property{"gainDb"};
+    return property;
+}
 
 } // namespace
 
@@ -21,7 +26,7 @@ juce::ValueTree LiveRigGainPlugin::createState()
 {
     juce::ValueTree state{tracktion::IDs::PLUGIN};
     state.setProperty(tracktion::IDs::type, xmlTypeName, nullptr);
-    state.setProperty(g_gain_db_property, static_cast<float>(defaultGainDb()), nullptr);
+    state.setProperty(gainDbProperty(), static_cast<float>(defaultGainDb()), nullptr);
     return state;
 }
 
@@ -30,7 +35,7 @@ LiveRigGainPlugin::LiveRigGainPlugin(tracktion::PluginCreationInfo info)
     : tracktion::Plugin{std::move(info)}
 {
     m_gain_db.referTo(
-        state, g_gain_db_property, getUndoManager(), static_cast<float>(defaultGainDb()));
+        state, gainDbProperty(), getUndoManager(), static_cast<float>(defaultGainDb()));
 
     const Gain initial_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
     m_gain_db = static_cast<float>(initial_gain.db);

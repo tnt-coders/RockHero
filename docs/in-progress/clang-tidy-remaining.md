@@ -1,10 +1,12 @@
 # Clang-Tidy Cleanup — Remaining Work and Open Questions
 
 Status: in-progress handoff note. The mechanical, convention-matching clang-tidy
-findings from the full-pass cleanup have been fixed and committed. What remains is a
-small set of findings that need a human decision because the current code is
-intentional, framework-constrained, or conflicts with a check in a way that has no
-single obvious resolution.
+findings from the full-pass cleanup have been fixed and committed. A follow-up full
+project clang-tidy run on 2026-05-31 still fails on the remaining decision items
+below. This pass applied only fixes that follow directly from project conventions or
+make existing invariants visible to clang-tidy; the unresolved items still need a
+human decision because the current code is intentional, framework-constrained, or
+conflicts with a check in a way that has no single obvious resolution.
 
 ## How to reproduce the current state
 
@@ -42,6 +44,18 @@ except for the flagged items below:
 - C-array string constants -> `constexpr const char*`; meter tick tables -> `std::array`
   with range-for; `std::ranges::find` in `project.cpp`.
 
+## Resolved in the 2026-05-31 follow-up pass
+
+- Replaced the UTF-8 path `reinterpret_cast` in `engine.cpp` with an explicit byte copy.
+- Added explicitly deleted copy/move members to non-copyable helper/window classes with custom
+  destructors: `PluginWindow`, `MeterReader`, input-calibration window content, and the
+  audio-device settings dialog window.
+- Replaced the namespace-scope `juce::Identifier` in `live_rig_gain_plugin.cpp` with a
+  function-local static accessor.
+- Made production optional-access invariants visible in `editor_controller.cpp` and
+  `input_calibration_workflow.cpp`.
+- Renamed the private test member `device_manager` to `m_device_manager`.
+
 ## Not a real backlog: generated files
 
 `BinaryData1.cpp`..`BinaryData4.cpp` produce ~48 findings but are JUCE-generated
@@ -51,7 +65,7 @@ them, or add an exclusion to the standalone command if you script it.
 
 ## Remaining findings — each needs a decision
 
-Roughly 20 findings remain, grouped by the decision they require. For each, the
+The remaining findings are grouped by the decision they require. For each, the
 options are usually: (a) a behavior-preserving refactor, (b) a targeted
 `// NOLINT(<check>)` with a justifying comment, or (c) a narrow allowance in
 `.clang-tidy`.
@@ -61,7 +75,6 @@ options are usually: (a) a behavior-preserving refactor, (b) a targeted
 These are dictated by third-party API contracts. A refactor is not straightforward and
 may not be possible without wrappers.
 
-- `rock-hero-common/audio/src/engine.cpp:68` — `cppcoreguidelines-pro-type-reinterpret-cast`.
 - `rock-hero-common/audio/src/engine.cpp:1071` — `cppcoreguidelines-owning-memory`:
   returns a Tracktion `Plugin::Ptr` (a ref-counted pointer) from a non-`gsl::owner`
   function.
@@ -70,11 +83,14 @@ may not be possible without wrappers.
   base signature returns a raw `AudioIODevice*`.
 - `rock-hero-common/audio/tests/test_live_rig_gain_plugin.cpp:26` — `cppcoreguidelines-owning-memory`:
   same pattern for a Tracktion `Plugin::Ptr` factory.
+- `rock-hero-editor/ui/src/audio_device_settings_window.cpp:203` — `cppcoreguidelines-owning-memory`:
+  self-managed JUCE modal lifetime deletes the guarded raw window pointer after the current
+  callback unwinds.
 
 Open question: do we NOLINT these framework-boundary lines with a justification, or is
 there an existing project wrapper convention they should route through?
 
-### 2. Rule-of-five on classes with a user-declared destructor
+### 2. Resolved: rule-of-five on classes with a user-declared destructor
 
 `cppcoreguidelines-special-member-functions`. These are JUCE-adjacent helper/component
 classes that declare a destructor but no copy/move members.
@@ -82,10 +98,11 @@ classes that declare a destructor but no copy/move members.
 - `rock-hero-common/audio/src/engine.cpp:1079` — class `PluginWindow`.
 - `rock-hero-common/audio/src/engine.cpp:1321` — class `MeterReader`.
 - `rock-hero-editor/ui/src/input_calibration_window.cpp:96` — class `Content`.
-- `rock-hero-editor/ui/src/audio_device_settings_window.cpp` — (same check; confirm line).
+- `rock-hero-editor/ui/src/audio_device_settings_window.cpp` — class
+  `AudioDeviceSettingsDialogWindow`.
 
-Open question: standardize on explicitly `= delete`-ing copy/move for these
-non-copyable types, or NOLINT? A project convention here would also prevent recurrence.
+Resolved by explicitly deleting copy and move operations, matching the non-copyable ownership and
+listener lifetimes these helpers already have.
 
 ### 3. Public data members in a test mock
 
@@ -114,16 +131,14 @@ defaults.
 
 Open question: convert using Tracktion's field names, or NOLINT?
 
-### 5. Static initialization that may throw
+### 5. Resolved: static initialization that may throw
 
 `bugprone-throwing-static-initialization`.
 
 - `rock-hero-common/audio/src/live_rig_gain_plugin.cpp:11` — `g_gain_db_property`
   (a `juce::Identifier` with static storage duration).
 
-Safe-but-not-trivial fix: replace the namespace-scope global with a function-local
-static accessor (e.g. `gainDbProperty()`), updating call sites. That is a small,
-behavior-preserving refactor if we want to actually resolve it rather than NOLINT.
+Resolved by replacing the namespace-scope global with a function-local static accessor.
 
 ### 6. Member initialized in the constructor body
 
@@ -163,18 +178,16 @@ hash. Changing the formatter (e.g. to `std::format`) risks altering existing has
 Open question: confirm `std::format("{:.1f}", x)` is byte-identical for the value range
 we hash (then migrate), or NOLINT to preserve the proven snprintf path.
 
-### 9. Identifier naming
+### 9. Resolved: identifier naming
 
 `readability-identifier-naming`.
 
 - `rock-hero-editor/ui/tests/test_editor.cpp:251` — private member `device_manager`
   flagged (expected `m_`-prefixed style for a private member).
 
-Open question: rename to match the member convention, or is this a struct-like test
-helper where the bare name is intended? (If the latter recurs, it may indicate a
-fake-type convention worth documenting.)
+Resolved by renaming the private member to `m_device_manager`.
 
-### 10. Provably-safe production optional access
+### 10. Resolved: provably-safe production optional access
 
 `bugprone-unchecked-optional-access`. Both are production code where the value is
 established by construction but clang cannot track it across the call.
@@ -185,17 +198,16 @@ established by construction but clang cannot track it across the call.
   `calibrationMatches(...)` helper, which checks `has_value()` internally where
   clang cannot see it.
 
-Open question: restructure to make the invariant visible to the checker (e.g. a local
-reference bound inside an explicit `if (...has_value())`), or NOLINT with a
-"checked via <helper>/assignment" justification.
+Resolved by restructuring the code so clang-tidy can see the invariant directly.
 
 ## Suggested next steps
 
-1. Decide a default policy for the framework-boundary findings (sections 1, 2, 4): most
-   likely targeted NOLINT-with-justification, since they are dictated by JUCE/Tracktion
-   APIs. If we prefer zero NOLINT, sections 1 and 2 need small wrapper/helper types.
-2. Do the safe refactors where we agree they are worth it: section 5 (function-local
-   static), section 7 (try/catch in the destructor), section 10 (visible guards).
-3. Validate the hash-formatting question (section 8) before touching `formatGainForHash`.
-4. Run a full local build + `ctest` to confirm the committed mechanical changes compile
-   and pass before pushing (clang-tidy was run read-only; no build has been done here).
+1. Decide a default policy for the framework-boundary ownership findings (section 1):
+   most likely targeted NOLINT-with-justification, since they are dictated by JUCE/Tracktion
+   APIs, unless a project wrapper convention should be introduced.
+2. Decide the test-fake surface policy for the public observation counters in section 3.
+3. Decide whether the third-party designated initializer in section 4 should become a NOLINT or
+   use Tracktion's current field names.
+4. Decide section 6, 7, and 8: constructor-body gain initialization, destructor best-effort
+   exception handling, and persisted hash formatting.
+5. Run a full local build + `ctest` to confirm the changes compile and pass before pushing.

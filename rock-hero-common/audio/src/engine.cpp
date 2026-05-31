@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -65,7 +66,10 @@ constexpr std::string_view g_vst3_file_candidate_id_prefix{"vst3-file:"};
 [[nodiscard]] std::string pathToUtf8String(const std::filesystem::path& path)
 {
     const std::u8string encoded = path.u8string();
-    return std::string{reinterpret_cast<const char*>(encoded.data()), encoded.size()};
+    std::string result(encoded.size(), '\0');
+    std::ranges::transform(
+        encoded, result.begin(), [](char8_t byte) { return std::bit_cast<char>(byte); });
+    return result;
 }
 
 [[nodiscard]] std::string normalizedPathKey(const std::filesystem::path& path)
@@ -1132,6 +1136,11 @@ public:
         m_update_stored_bounds = true;
     }
 
+    PluginWindow(const PluginWindow&) = delete;
+    PluginWindow& operator=(const PluginWindow&) = delete;
+    PluginWindow(PluginWindow&&) = delete;
+    PluginWindow& operator=(PluginWindow&&) = delete;
+
     // Flushes any plugin state touched by the editor before Tracktion releases the window.
     ~PluginWindow() override
     {
@@ -1321,6 +1330,12 @@ public:
 class MeterReader
 {
 public:
+    MeterReader() = default;
+    MeterReader(const MeterReader&) = delete;
+    MeterReader& operator=(const MeterReader&) = delete;
+    MeterReader(MeterReader&&) = delete;
+    MeterReader& operator=(MeterReader&&) = delete;
+
     // Detaches from Tracktion before the reader's client storage is destroyed.
     ~MeterReader()
     {

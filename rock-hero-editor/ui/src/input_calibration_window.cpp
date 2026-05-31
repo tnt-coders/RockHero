@@ -176,6 +176,11 @@ public:
         startTimerHz(g_input_calibration_meter_hz);
     }
 
+    Content(const Content&) = delete;
+    Content& operator=(const Content&) = delete;
+    Content(Content&&) = delete;
+    Content& operator=(Content&&) = delete;
+
     ~Content() override
     {
         stopTimer();
