@@ -156,9 +156,10 @@ public:
     that it is readable and has a positive duration.
 
     \param song Candidate song to prepare for session loading.
-    \return True when every arrangement has usable positive-duration audio.
+    \return Empty success when every arrangement has usable positive-duration audio, or failure.
     */
-    [[nodiscard]] bool prepareSong(common::core::Song& song) override;
+    [[nodiscard]] std::expected<void, SongAudioError> prepareSong(
+        common::core::Song& song) override;
 
     /*!
     \brief Makes an already-prepared arrangement active in the Tracktion edit.
@@ -167,12 +168,16 @@ public:
     track and its input assignment remain separate.
 
     \param arrangement Prepared arrangement to make active.
-    \return True when the playback backend made the arrangement playable.
+    \return Empty success when the playback backend made the arrangement playable, or failure.
     */
-    [[nodiscard]] bool setActiveArrangement(const common::core::Arrangement& arrangement) override;
+    [[nodiscard]] std::expected<void, SongAudioError> setActiveArrangement(
+        const common::core::Arrangement& arrangement) override;
 
-    /*! \brief Clears the active arrangement from the Tracktion edit and resets playback state. */
-    void clearActiveArrangement() override;
+    /*!
+    \brief Clears the active arrangement from the Tracktion edit and resets playback state.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, SongAudioError> clearActiveArrangement() override;
 
     /*!
     \brief Refreshes conventional VST3 catalog locations for filesystem-backed candidates.
@@ -324,9 +329,10 @@ public:
     /*!
     \brief Restores an opaque serialized audio-device state on the message thread.
     \param serialized_state State string previously returned by serializedDeviceState().
-    \return True when the state was decoded and submitted, or false when it was rejected.
+    \return Empty success when the state was decoded and restored, or a typed failure.
     */
-    [[nodiscard]] bool restoreSerializedDeviceState(const std::string& serialized_state) override;
+    [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
+        const std::string& serialized_state) override;
 
     /*!
     \brief Captures the current audio-device route as an opaque serialized state string.

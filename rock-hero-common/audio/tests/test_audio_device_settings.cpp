@@ -26,10 +26,14 @@ class MockAudioDevice final : public juce::AudioIODevice
 public:
     MockAudioDevice(
         juce::String type_name, juce::String output_name, juce::String input_name,
-        juce::String open_error)
+        juce::String open_error, bool has_control_panel, bool show_control_panel_result,
+        int* control_panel_call_count)
         : juce::AudioIODevice(
               output_name.isNotEmpty() ? output_name : input_name, std::move(type_name))
         , m_open_error(std::move(open_error))
+        , m_has_control_panel(has_control_panel)
+        , m_show_control_panel_result(show_control_panel_result)
+        , m_control_panel_call_count(control_panel_call_count)
     {}
 
     [[nodiscard]] juce::StringArray getInputChannelNames() override
@@ -152,8 +156,25 @@ public:
         return 0;
     }
 
+    [[nodiscard]] bool hasControlPanel() const override
+    {
+        return m_has_control_panel;
+    }
+
+    [[nodiscard]] bool showControlPanel() override
+    {
+        if (m_control_panel_call_count != nullptr)
+        {
+            *m_control_panel_call_count += 1;
+        }
+        return m_show_control_panel_result;
+    }
+
 private:
     juce::String m_open_error;
+    bool m_has_control_panel{false};
+    bool m_show_control_panel_result{false};
+    int* m_control_panel_call_count{nullptr};
     juce::String m_last_error;
     juce::AudioIODeviceCallback* m_callback{nullptr};
     juce::BigInteger m_input_channels;
@@ -168,9 +189,13 @@ private:
 class MockAudioDeviceType final : public juce::AudioIODeviceType
 {
 public:
-    explicit MockAudioDeviceType(juce::String type_name, juce::StringArray failing_outputs = {})
+    explicit MockAudioDeviceType(
+        juce::String type_name, juce::StringArray failing_outputs = {},
+        bool has_control_panel = false, bool show_control_panel_result = true)
         : juce::AudioIODeviceType(std::move(type_name))
         , m_failing_outputs(std::move(failing_outputs))
+        , m_has_control_panel(has_control_panel)
+        , m_show_control_panel_result(show_control_panel_result)
     {}
 
     void scanForDevices() override
@@ -218,15 +243,26 @@ public:
                                             ? juce::String{g_open_output_b_error}
                                             : juce::String{};
         return new MockAudioDevice{
-            getTypeName(), output_device_name, input_device_name, open_error
+            getTypeName(),
+            output_device_name,
+            input_device_name,
+            open_error,
+            m_has_control_panel,
+            m_show_control_panel_result,
+            &control_panel_call_count,
         };
     }
 
     // Public test observation for scan-cache behavior exercised through AudioDeviceSettings.
     int scan_call_count{};
 
+    // Public test observation for backend control-panel dispatches.
+    int control_panel_call_count{};
+
 private:
     juce::StringArray m_failing_outputs;
+    bool m_has_control_panel{false};
+    bool m_show_control_panel_result{false};
 };
 
 // Listener fake that counts public AudioDeviceSettings notifications.
@@ -258,10 +294,14 @@ public:
 
 MockAudioDeviceType& addMockAudioType(
     juce::AudioDeviceManager& manager, juce::String type_name,
-    juce::StringArray failing_outputs = {})
+    juce::StringArray failing_outputs = {}, bool has_control_panel = false,
+    bool show_control_panel_result = true)
 {
-    auto device_type =
-        std::make_unique<MockAudioDeviceType>(std::move(type_name), std::move(failing_outputs));
+    auto device_type = std::make_unique<MockAudioDeviceType>(
+        std::move(type_name),
+        std::move(failing_outputs),
+        has_control_panel,
+        show_control_panel_result);
     auto& result = *device_type;
     manager.addAudioDeviceType(std::move(device_type));
     return result;
@@ -444,7 +484,7 @@ TEST_CASE("AudioDeviceSettings leaves failed apply closed", "[audio][audio-devic
     CHECK(settings.state().error_message == g_open_output_b_error);
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 
-    settings.cancel();
+    REQUIRE(settings.cancel().has_value());
 
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
 }
@@ -462,7 +502,7 @@ TEST_CASE("AudioDeviceSettings cancels staged route", "[audio][audio-device-sett
     REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
     settings.selectOutputDevice(2);
 
-    settings.cancel();
+    REQUIRE(settings.cancel().has_value());
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
@@ -481,7 +521,7 @@ TEST_CASE("AudioDeviceSettings cancel preserves closed route", "[audio][audio-de
     REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
     settings.selectOutputDevice(2);
 
-    settings.cancel();
+    REQUIRE(settings.cancel().has_value());
 
     CHECK(audio_devices.device_manager.getAudioDeviceSetup() == initial_setup);
     CHECK(audio_devices.device_manager.getCurrentAudioDevice() == nullptr);
@@ -538,6 +578,26 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
 
     CHECK(state.sample_rates == std::vector<double>{44100.0, 48000.0, 96000.0});
     CHECK(state.selected_sample_rate_id == 2);
+}
+
+// Backend control-panel refusal returns a typed error and keeps the message in settings state.
+TEST_CASE("AudioDeviceSettings reports control panel failure", "[audio][audio-device-settings]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    testing::ConfigurableAudioDeviceConfiguration audio_devices;
+    const auto& audio_type = addMockAudioType(
+        audio_devices.device_manager, g_asio_type_name, juce::StringArray{}, true, false);
+
+    AudioDeviceSettings settings{audio_devices};
+    REQUIRE(settings.state().control_panel_enabled);
+
+    const auto opened = settings.openControlPanel();
+
+    REQUIRE_FALSE(opened.has_value());
+    CHECK(opened.error().code == AudioDeviceSettingsErrorCode::ControlPanelUnavailable);
+    CHECK(opened.error().message == "The selected audio device did not open its control panel.");
+    CHECK(settings.state().error_message == opened.error().message);
+    CHECK(audio_type.control_panel_call_count == 1);
 }
 
 // Switching audio systems should reset format selections to their defaults so a stale staged

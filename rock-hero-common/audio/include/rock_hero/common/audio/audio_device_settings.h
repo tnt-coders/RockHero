@@ -26,6 +26,9 @@ enum class AudioDeviceSettingsErrorCode
     /*! \brief Applying the staged route failed. */
     ApplyFailed,
 
+    /*! \brief Restoring the route captured before the settings edit failed. */
+    RestoreFailed,
+
     /*! \brief The selected route has no backend control panel to open. */
     ControlPanelUnavailable,
 };
@@ -206,8 +209,9 @@ public:
     The settings dialog closes the active device when it opens so the user can edit hardware
     routing without holding the device. Cancel reopens the captured route only when the device
     was actually open before editing began.
+    \return Empty success, or a typed settings failure.
     */
-    virtual void cancel() = 0;
+    [[nodiscard]] virtual std::expected<void, AudioDeviceSettingsError> cancel() = 0;
 
     /*!
     \brief Opens the backend control panel for the staged route.
@@ -295,7 +299,7 @@ public:
     void selectSampleRate(int choice_id) override;
     void selectBufferSize(int choice_id) override;
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply() override;
-    void cancel() override;
+    [[nodiscard]] std::expected<void, AudioDeviceSettingsError> cancel() override;
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel() override;
     void addListener(Listener& listener) override;
     void removeListener(Listener& listener) override;

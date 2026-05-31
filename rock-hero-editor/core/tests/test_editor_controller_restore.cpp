@@ -8,7 +8,7 @@ TEST_CASE("EditorController restores serialized audio device state", "[core][edi
 {
     const ScopedControllerFiles files{"serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
-    settings.setAudioDeviceState("serialized-device-state");
+    REQUIRE(settings.setAudioDeviceState("serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -32,11 +32,15 @@ TEST_CASE(
 {
     const ScopedControllerFiles files{"invalid_serialized_audio_device_restore"};
     EditorSettings settings{files.settingsFile()};
-    settings.setAudioDeviceState("invalid-serialized-device-state");
+    REQUIRE(settings.setAudioDeviceState("invalid-serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
-    audio_devices.restore_serialized_device_state_result = false;
+    audio_devices.next_restore_serialized_device_state_error =
+        common::audio::AudioDeviceConfigurationError{
+            common::audio::AudioDeviceConfigurationErrorCode::InvalidSerializedState,
+            "Serialized audio-device state is not XML.",
+        };
 
     EditorController controller{
         audioPorts(transport, audio, audio_devices),
@@ -81,7 +85,7 @@ TEST_CASE(
 {
     const ScopedControllerFiles files{"empty_serialized_audio_device_persist"};
     EditorSettings settings{files.settingsFile()};
-    settings.setAudioDeviceState("old-serialized-device-state");
+    REQUIRE(settings.setAudioDeviceState("old-serialized-device-state").has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
@@ -103,7 +107,7 @@ TEST_CASE("EditorController clears missing restore path", "[core][editor-control
 {
     const ScopedControllerFiles files{"missing_restore_path"};
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -129,7 +133,7 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     const ScopedControllerFiles files{"valid_restore_path"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -158,7 +162,7 @@ TEST_CASE("EditorController restore keeps path while open is pending", "[core][e
     const ScopedControllerFiles files{"pending_restore_path"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -195,7 +199,7 @@ TEST_CASE(
     const ScopedControllerFiles files{"exit_pending_restore_path"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -237,8 +241,8 @@ TEST_CASE("EditorController prompts after interrupted restore", "[core][editor-c
     const ScopedControllerFiles files{"interrupted_restore_prompt"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
-    settings.setInterruptedRestoreProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
+    REQUIRE(settings.setInterruptedRestoreProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -270,8 +274,8 @@ TEST_CASE("EditorController retries interrupted restore prompt", "[core][editor-
     const ScopedControllerFiles files{"interrupted_restore_retry"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
-    settings.setInterruptedRestoreProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
+    REQUIRE(settings.setInterruptedRestoreProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -312,8 +316,8 @@ TEST_CASE("EditorController cancels interrupted restore prompt", "[core][editor-
     const ScopedControllerFiles files{"interrupted_restore_cancel"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
-    settings.setInterruptedRestoreProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
+    REQUIRE(settings.setInterruptedRestoreProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -345,8 +349,8 @@ TEST_CASE("EditorController clears missing interrupted restore", "[core][editor-
 {
     const ScopedControllerFiles files{"missing_interrupted_restore"};
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
-    settings.setInterruptedRestoreProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
+    REQUIRE(settings.setInterruptedRestoreProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -377,7 +381,7 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     const ScopedControllerFiles files{"failed_restore_path"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -404,7 +408,7 @@ TEST_CASE("EditorController restore clears path after async failure", "[core][ed
     const ScopedControllerFiles files{"async_failed_restore_path"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
@@ -441,7 +445,7 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
     const ScopedControllerFiles files{"restore_prompts_unsaved"};
     files.createProjectFile();
     EditorSettings settings{files.settingsFile()};
-    settings.setLastOpenProject(files.projectFile());
+    REQUIRE(settings.setLastOpenProject(files.projectFile()).has_value());
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;

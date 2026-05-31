@@ -243,15 +243,16 @@ constexpr int g_zip_compression_level = 9;
 }
 
 // Reads song audio assets into an ID map keyed only inside song package IO.
-[[nodiscard]] std::optional<std::unordered_map<std::string, AudioAsset>> readAudioAssets(
-    const std::filesystem::path& directory, const juce::var& song_document,
-    std::string& error_message)
+[[nodiscard]] std::expected<std::unordered_map<std::string, AudioAsset>, SongPackageError>
+readAudioAssets(const std::filesystem::path& directory, const juce::var& song_document)
 {
     const juce::var& audio_assets_json = Json::value(song_document, "audioAssets");
     if (!audio_assets_json.isArray() || audio_assets_json.size() == 0)
     {
-        error_message = "song.json must contain at least one audio asset";
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidAudioAsset,
+            "song.json must contain at least one audio asset",
+        }};
     }
 
     std::unordered_map<std::string, AudioAsset> audio_assets;
@@ -260,23 +261,29 @@ constexpr int g_zip_compression_level = 9;
     {
         if (!asset_json.isObject())
         {
-            error_message = "audioAssets entries must be objects";
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audioAssets entries must be objects",
+            }};
         }
 
         const auto id = Json::tryReadString(asset_json, "id");
         const auto relative_path = Json::tryReadString(asset_json, "path");
         if (!id.has_value() || id->empty() || !relative_path.has_value())
         {
-            error_message = "audio asset entries require non-empty id and path fields";
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audio asset entries require non-empty id and path fields",
+            }};
         }
 
         const auto resolved_path = resolveExistingFile(directory, *relative_path);
         if (!resolved_path.has_value())
         {
-            error_message = "audio asset path is missing or unsafe: " + *relative_path;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "audio asset path is missing or unsafe: " + *relative_path,
+            }};
         }
 
         const auto normalization =
@@ -290,8 +297,10 @@ constexpr int g_zip_compression_level = 9;
             });
         if (!inserted.second)
         {
-            error_message = "duplicate audio asset id: " + *id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidAudioAsset,
+                "duplicate audio asset id: " + *id,
+            }};
         }
     }
 
@@ -299,15 +308,17 @@ constexpr int g_zip_compression_level = 9;
 }
 
 // Reads arrangements from song-document entries into project-owned core values.
-[[nodiscard]] std::optional<std::vector<Arrangement>> readArrangements(
+[[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
-    const std::unordered_map<std::string, AudioAsset>& audio_assets, std::string& error_message)
+    const std::unordered_map<std::string, AudioAsset>& audio_assets)
 {
     const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
     {
-        error_message = "song.json must contain at least one arrangement";
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "song.json must contain at least one arrangement",
+        }};
     }
 
     std::vector<Arrangement> arrangements;
@@ -319,8 +330,10 @@ constexpr int g_zip_compression_level = 9;
     {
         if (!arrangement_json.isObject())
         {
-            error_message = "arrangement entries must be objects";
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement entries must be objects",
+            }};
         }
 
         const auto id = Json::tryReadString(arrangement_json, "id");
@@ -331,40 +344,51 @@ constexpr int g_zip_compression_level = 9;
         if (!id.has_value() || id->empty() || !part_text.has_value() ||
             !arrangement_file.has_value() || !audio_id.has_value())
         {
-            error_message =
-                "arrangement entries require non-empty id, part, file, and audio fields";
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement entries require non-empty id, part, file, and audio fields",
+            }};
         }
 
         if (!isCanonicalPackageId(*id))
         {
-            error_message = "arrangement id must be a canonical UUIDv4: " + *id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement id must be a canonical UUIDv4: " + *id,
+            }};
         }
 
         if (!arrangement_ids.insert(*id).second)
         {
-            error_message = "duplicate arrangement id: " + *id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "duplicate arrangement id: " + *id,
+            }};
         }
 
         const auto part = parsePart(*part_text);
         if (!part.has_value())
         {
-            error_message = "unsupported arrangement part: " + *part_text;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "unsupported arrangement part: " + *part_text,
+            }};
         }
 
         if (!isCanonicalArrangementFileRef(*id, *arrangement_file))
         {
-            error_message = "arrangement file must match arrangement id: " + *arrangement_file;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement file must match arrangement id: " + *arrangement_file,
+            }};
         }
 
         if (!resolveExistingFile(directory, *arrangement_file).has_value())
         {
-            error_message = "arrangement file is missing or unsafe: " + *arrangement_file;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement file is missing or unsafe: " + *arrangement_file,
+            }};
         }
 
         const juce::var& tone_document_json = Json::value(arrangement_json, "toneDocument");
@@ -372,30 +396,37 @@ constexpr int g_zip_compression_level = 9;
         {
             if (!tone_document_json.isString() || tone_document_json.toString().isEmpty())
             {
-                error_message = "arrangement toneDocument must be a non-empty string when present";
-                return std::nullopt;
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "arrangement toneDocument must be a non-empty string when present",
+                }};
             }
 
             tone_document_ref = tone_document_json.toString().toStdString();
             if (!isCanonicalToneDocumentRef(tone_document_ref))
             {
-                error_message =
-                    "tone document path must be tones/<uuid>/tone.json: " + tone_document_ref;
-                return std::nullopt;
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "tone document path must be tones/<uuid>/tone.json: " + tone_document_ref,
+                }};
             }
 
             if (!resolveExistingFile(directory, tone_document_ref).has_value())
             {
-                error_message = "tone document is missing or unsafe: " + tone_document_ref;
-                return std::nullopt;
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    "tone document is missing or unsafe: " + tone_document_ref,
+                }};
             }
         }
 
         const auto audio_asset = audio_assets.find(*audio_id);
         if (audio_asset == audio_assets.end())
         {
-            error_message = "arrangement references unknown audio asset: " + *audio_id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement references unknown audio asset: " + *audio_id,
+            }};
         }
 
         arrangements.push_back(
@@ -623,15 +654,17 @@ constexpr int g_zip_compression_level = 9;
 }
 
 // Copies an external audio asset into the song package workspace and returns its relative path.
-[[nodiscard]] std::optional<std::filesystem::path> importAudioAsset(
+[[nodiscard]] std::expected<std::filesystem::path, SongPackageError> importAudioAsset(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& source_path,
-    std::size_t asset_index, std::string& error_message)
+    std::size_t asset_index)
 {
     std::error_code error;
     if (!std::filesystem::is_regular_file(source_path, error))
     {
-        error_message = "Audio asset does not exist: " + source_path.string();
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidAudioAsset,
+            "Audio asset does not exist: " + source_path.string(),
+        }};
     }
 
     // Intentionally non-const so return-by-value can move the path.
@@ -641,46 +674,56 @@ constexpr int g_zip_compression_level = 9;
     std::filesystem::create_directories(output_path.parent_path(), error);
     if (error)
     {
-        error_message = "Could not create audio asset directory: " + error.message();
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidAudioAsset,
+            "Could not create audio asset directory: " + error.message(),
+        }};
     }
 
     std::filesystem::copy_file(
         source_path, output_path, std::filesystem::copy_options::overwrite_existing, error);
     if (error)
     {
-        error_message = "Could not copy audio asset into song package: " + error.message();
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidAudioAsset,
+            "Could not copy audio asset into song package: " + error.message(),
+        }};
     }
 
     return relative_path;
 }
 
 // Ensures an arrangement file exists for the generated song-document reference.
-[[nodiscard]] std::optional<std::string> ensureArrangementFile(
+[[nodiscard]] std::expected<void, SongPackageError> ensureArrangementFile(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path)
 {
     const std::filesystem::path arrangement_path = workspace_directory / relative_path;
     std::error_code error;
     if (std::filesystem::is_regular_file(arrangement_path, error))
     {
-        return std::nullopt;
+        return std::expected<void, SongPackageError>{};
     }
 
     std::filesystem::create_directories(arrangement_path.parent_path(), error);
     if (error)
     {
-        return "Could not create arrangement directory: " + error.message();
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Could not create arrangement directory: " + error.message(),
+        }};
     }
 
     std::ofstream arrangement_file{arrangement_path};
     if (!arrangement_file.is_open())
     {
-        return "Could not write arrangement file: " + arrangement_path.string();
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Could not write arrangement file: " + arrangement_path.string(),
+        }};
     }
 
     arrangement_file << "<Arrangement formatVersion=\"1\" />\n";
-    return std::nullopt;
+    return std::expected<void, SongPackageError>{};
 }
 
 // Pairs the generated song document with arrangement IDs useful to callers.
@@ -691,21 +734,25 @@ struct SongDocumentForSave
 };
 
 // Chooses the ID to write for one arrangement, generating a stable fallback when needed.
-[[nodiscard]] std::optional<std::string> arrangementIdForSave(
-    const Arrangement& arrangement, std::set<std::string>& used_ids, std::string& error_message)
+[[nodiscard]] std::expected<std::string, SongPackageError> arrangementIdForSave(
+    const Arrangement& arrangement, std::set<std::string>& used_ids)
 {
     if (!arrangement.id.empty())
     {
         if (!isCanonicalPackageId(arrangement.id))
         {
-            error_message = "Cannot save a non-canonical arrangement id: " + arrangement.id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "Cannot save a non-canonical arrangement id: " + arrangement.id,
+            }};
         }
 
         if (!used_ids.insert(arrangement.id).second)
         {
-            error_message = "Cannot save duplicate arrangement id: " + arrangement.id;
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "Cannot save duplicate arrangement id: " + arrangement.id,
+            }};
         }
 
         return arrangement.id;
@@ -716,21 +763,25 @@ struct SongDocumentForSave
     assert(inserted && "Generated UUIDv4 arrangement ID unexpectedly collided");
     if (!inserted)
     {
-        error_message = "Could not generate a unique arrangement id";
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Could not generate a unique arrangement id",
+        }};
     }
 
     return candidate;
 }
 
 // Creates the JSON song document that represents the supplied session song.
-[[nodiscard]] std::optional<SongDocumentForSave> buildSongDocumentForSave(
-    const std::filesystem::path& workspace_directory, const Song& song, std::string& error_message)
+[[nodiscard]] std::expected<SongDocumentForSave, SongPackageError> buildSongDocumentForSave(
+    const std::filesystem::path& workspace_directory, const Song& song)
 {
     if (song.arrangements.empty())
     {
-        error_message = "Cannot save a song package with no arrangements";
-        return std::nullopt;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "Cannot save a song package with no arrangements",
+        }};
     }
 
     juce::var audio_assets = Json::makeArray();
@@ -745,8 +796,10 @@ struct SongDocumentForSave
         const Arrangement& arrangement = song.arrangements[index];
         if (arrangement.audio_asset.path.empty())
         {
-            error_message = "Cannot save an arrangement without audio";
-            return std::nullopt;
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "Cannot save an arrangement without audio",
+            }};
         }
 
         std::filesystem::path relative_audio_path;
@@ -758,11 +811,10 @@ struct SongDocumentForSave
         }
         else
         {
-            const auto imported_path =
-                importAudioAsset(workspace_directory, source_path, index, error_message);
+            const auto imported_path = importAudioAsset(workspace_directory, source_path, index);
             if (!imported_path.has_value())
             {
-                return std::nullopt;
+                return std::unexpected{std::move(imported_path.error())};
             }
             relative_audio_path = *imported_path;
         }
@@ -790,20 +842,18 @@ struct SongDocumentForSave
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
-        const auto arrangement_id =
-            arrangementIdForSave(arrangement, used_arrangement_ids, error_message);
+        const auto arrangement_id = arrangementIdForSave(arrangement, used_arrangement_ids);
         if (!arrangement_id.has_value())
         {
-            return std::nullopt;
+            return std::unexpected{std::move(arrangement_id.error())};
         }
 
         const std::filesystem::path arrangement_file = arrangementFilePath(*arrangement_id);
         if (const auto arrangement_error =
                 ensureArrangementFile(workspace_directory, arrangement_file);
-            arrangement_error.has_value())
+            !arrangement_error.has_value())
         {
-            error_message = *arrangement_error;
-            return std::nullopt;
+            return std::unexpected{std::move(arrangement_error.error())};
         }
 
         const juce::var arrangement_document = Json::makeObject({
@@ -818,9 +868,11 @@ struct SongDocumentForSave
             if (!isSafeRelativePath(tone_document_path) ||
                 !isCanonicalToneDocumentRef(arrangement.tone_document_ref))
             {
-                error_message = "Cannot save a non-canonical tone document path: " +
-                                arrangement.tone_document_ref;
-                return std::nullopt;
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidSongDocument,
+                    "Cannot save a non-canonical tone document path: " +
+                        arrangement.tone_document_ref,
+                }};
             }
 
             std::error_code tone_document_error;
@@ -828,9 +880,10 @@ struct SongDocumentForSave
                 (workspace_directory / tone_document_path).lexically_normal();
             if (!std::filesystem::is_regular_file(resolved_tone_document_path, tone_document_error))
             {
-                error_message =
-                    "Cannot save a missing tone document: " + arrangement.tone_document_ref;
-                return std::nullopt;
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidSongDocument,
+                    "Cannot save a missing tone document: " + arrangement.tone_document_ref,
+                }};
             }
 
             arrangement_document.getDynamicObject()->setProperty(
@@ -862,7 +915,6 @@ struct SongDocumentForSave
 [[nodiscard]] std::expected<std::vector<std::string>, SongPackageError> writeSongFilesForSave(
     const std::filesystem::path& song_directory, const Song& song)
 {
-    std::string error_message;
     std::error_code error;
     std::filesystem::create_directories(song_directory, error);
     if (error)
@@ -873,13 +925,10 @@ struct SongDocumentForSave
         }};
     }
 
-    auto song_document = buildSongDocumentForSave(song_directory, song, error_message);
+    auto song_document = buildSongDocumentForSave(song_directory, song);
     if (!song_document.has_value())
     {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(song_document.error())};
     }
 
     std::ofstream song_document_file{song_directory / g_song_document_name};
@@ -1006,23 +1055,16 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         }};
     }
 
-    std::string error_message;
-    const auto audio_assets = readAudioAssets(directory, song_document, error_message);
+    const auto audio_assets = readAudioAssets(directory, song_document);
     if (!audio_assets.has_value())
     {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidAudioAsset,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(audio_assets.error())};
     }
 
-    auto arrangements = readArrangements(directory, song_document, *audio_assets, error_message);
+    auto arrangements = readArrangements(directory, song_document, *audio_assets);
     if (!arrangements.has_value())
     {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(arrangements.error())};
     }
 
     Song song;

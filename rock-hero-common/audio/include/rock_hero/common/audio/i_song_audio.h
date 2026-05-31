@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <expected>
+#include <rock_hero/common/audio/song_audio_error.h>
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/song.h>
 
@@ -31,9 +33,10 @@ public:
     implementations may partially update durations before discovering an invalid arrangement.
 
     \param song Candidate song to prepare for session loading.
-    \return True when every arrangement has usable positive-duration audio.
+    \return Empty success when every arrangement has usable positive-duration audio, or failure.
     */
-    [[nodiscard]] virtual bool prepareSong(common::core::Song& song) = 0;
+    [[nodiscard]] virtual std::expected<void, SongAudioError> prepareSong(
+        common::core::Song& song) = 0;
 
     /*!
     \brief Makes an already-prepared arrangement active for playback.
@@ -42,13 +45,16 @@ public:
     already have a usable audio asset and positive duration from prepareSong().
 
     \param arrangement Prepared arrangement to make active.
-    \return True when the backend made the arrangement playable.
+    \return Empty success when the backend made the arrangement playable, or failure.
     */
-    [[nodiscard]] virtual bool setActiveArrangement(
+    [[nodiscard]] virtual std::expected<void, SongAudioError> setActiveArrangement(
         const common::core::Arrangement& arrangement) = 0;
 
-    /*! \brief Clears the active arrangement from the playback backend. */
-    virtual void clearActiveArrangement() = 0;
+    /*!
+    \brief Clears the active arrangement from the playback backend.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<void, SongAudioError> clearActiveArrangement() = 0;
 
 protected:
     /*! \brief Creates the song audio port. */

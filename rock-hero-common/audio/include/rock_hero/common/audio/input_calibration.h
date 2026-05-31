@@ -170,7 +170,11 @@ enum class InputCalibrationCapturePhase
     Failed,
 };
 
-/*! \brief Result of advancing an automatic calibration capture by one meter sample. */
+/*!
+\brief Result of advancing an automatic calibration capture by one meter sample.
+
+The phase field is the status discriminant; result and error carry the payload for terminal phases.
+*/
 struct [[nodiscard]] InputCalibrationCaptureUpdate
 {
     /*! \brief Capture phase after the sample was processed. */

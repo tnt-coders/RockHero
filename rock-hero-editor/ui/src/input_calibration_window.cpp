@@ -301,7 +301,8 @@ private:
 
         // rawInputMeterLevel() clears the Tracktion meter reader, so this primes retry runs
         // after the controller has reset input gain and rebuilt the calibration route.
-        (void)m_live_input->rawInputMeterLevel();
+        [[maybe_unused]] const common::audio::AudioMeterLevel primed_level =
+            m_live_input->rawInputMeterLevel();
     }
 
     void timerCallback() override

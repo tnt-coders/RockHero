@@ -219,8 +219,32 @@ parameters.
 
 # Recoverable Error Returns
 
-Use `std::expected<T, DomainError>` for public project-owned APIs that can fail with a recoverable
+Use `std::expected<T, DomainError>` for project-owned operations that can fail with a recoverable
 reason the caller may need to display, log, test, or branch on.
+
+Use these result shapes:
+
+- `[[nodiscard]] std::expected<T, DomainError>` for operations with a success payload
+- `[[nodiscard]] std::expected<void, DomainError>` for commands with no success payload
+- `std::optional<T>` only for true absence, nullable state, cache miss, or lookup miss
+- `[[nodiscard]] std::expected<std::optional<T>, DomainError>` when absence is valid but
+  retrieval or parsing can fail
+
+Do not use:
+
+- `bool` as an operation failure result
+- `void` for setters or commands that can fail to persist, restore, route, open, or otherwise
+  affect user-visible state
+- `std::optional<Error>` as an operation result. A result or snapshot struct may carry
+  `std::optional<Error>` as a payload field only when another field is the operation status
+  discriminant.
+- `std::optional<T>` plus `error_code` or `error_message` out-parameters
+- bare `std::string` as an error channel
+
+`std::string` is allowed as the diagnostic `message` field inside a typed error, or as final
+rendered UI text after a typed error has reached the presentation boundary. Private helpers should
+use the owning domain error type. If no owning type exists, add a small domain error rather than
+returning `std::string`.
 
 Each public failure domain should own:
 
@@ -298,10 +322,6 @@ they perform real policy or cross-domain translation.
 Add structured fields only when callers need the context programmatically. Otherwise, keep runtime
 context in `message` so the error type stays simple.
 
-Raw `std::string` errors are acceptable for private helpers when the caller immediately converts
-them to the owning public domain error. Do not add durable public APIs that expose
-`std::expected<T, std::string>` or `std::optional<std::string>` as an error channel.
-
 Use `[[nodiscard]]` on public functions returning `std::expected`, including virtual interface
 methods and concrete API members. Private helpers should also use `[[nodiscard]]` when ignoring
 the result would be a likely bug.
@@ -323,6 +343,12 @@ implementation-defined ways.
 `std::expected<std::optional<T>, Error>` is acceptable when absence is a valid result but
 retrieving or parsing that result can still fail. Use it sparingly and prefer a named result type
 if the double wrapper starts to obscure the API.
+
+Explicit discards of error-returning calls are acceptable only in destructor-only cleanup, in
+best-effort rollback after a primary error has already been captured, or through a named
+best-effort helper with a comment or log explaining why the failure cannot be returned. All other
+error-returning results must be handled, propagated, reported, or intentionally routed through
+that helper.
 
 # Catch2 Assertions
 

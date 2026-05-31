@@ -265,9 +265,16 @@ entirely to `rock-hero-common/audio`.
 
 The editor-facing song-audio boundary is `common::audio::ISongAudio`: it prepares loaded songs by
 validating arrangement audio and filling accepted durations, makes the selected arrangement active
-in the playback backend, and clears the active arrangement when the project closes.
+in the playback backend, reports typed preparation and activation failures, and clears the active
+arrangement when the project closes.
 `common::audio::IEdit` is reserved for future undoable/redoable model-edit commands and should not
 carry project loading, audio preparation, transport, or playback setup responsibilities.
+
+Audio-device and settings boundaries report recoverable side-effect failures with typed errors.
+`common::audio::IAudioDeviceConfiguration` owns serialized audio-device restore diagnostics,
+`common::audio::IAudioDeviceSettings` owns staged audio-settings operation failures, and
+`rock-hero-editor/core` owns app-local editor settings persistence errors. These boundaries keep
+stable error codes available until final UI or logging code renders a message.
 
 The plugin-host boundary is `common::audio::IPluginHost`. It scans plugin catalog locations into
 project-owned candidate descriptions, then appends a selected candidate to the instrument chain

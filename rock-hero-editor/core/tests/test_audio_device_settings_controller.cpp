@@ -78,9 +78,16 @@ public:
         return {};
     }
 
-    void cancel() override
+    [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> cancel() override
     {
         ++cancel_call_count;
+        if (next_cancel_error.has_value())
+        {
+            current_state.error_message = next_cancel_error->message;
+            return std::unexpected{*next_cancel_error};
+        }
+
+        return {};
     }
 
     [[nodiscard]] std::expected<void, common::audio::AudioDeviceSettingsError> openControlPanel()
@@ -131,6 +138,7 @@ public:
         .control_panel_enabled = true,
     };
     std::optional<common::audio::AudioDeviceSettingsError> next_apply_error{};
+    std::optional<common::audio::AudioDeviceSettingsError> next_cancel_error{};
     std::vector<Listener*> listeners{};
     int cancel_call_count{};
     int apply_call_count{};
@@ -255,6 +263,25 @@ TEST_CASE("AudioDeviceSettingsController cancels and closes", "[core][audio-devi
 
     CHECK(settings.cancel_call_count == 1);
     CHECK(view.close_call_count == 1);
+}
+
+// Failed Cancel keeps the settings window open and renders the route-restore diagnostic.
+TEST_CASE("AudioDeviceSettingsController keeps failed cancel open", "[core][audio-device-settings]")
+{
+    FakeAudioDeviceSettings settings;
+    settings.next_cancel_error = common::audio::AudioDeviceSettingsError{
+        common::audio::AudioDeviceSettingsErrorCode::RestoreFailed,
+        "Could not restore Output A",
+    };
+    AudioDeviceSettingsController controller{settings};
+    FakeAudioDeviceSettingsView view;
+    controller.attachView(view);
+
+    controller.onCancelRequested();
+
+    CHECK(settings.cancel_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    CHECK(view.last_state.error_message == "Could not restore Output A");
 }
 
 // Native window close destroys the controller without a Cancel intent, so the destructor cancels.

@@ -94,7 +94,7 @@ void writeRawSetting(const std::filesystem::path& settings_file, const char* key
         common::core::juceFileFromPath(settings_file), testSettingsOptions()
     };
     properties.setValue(key, std::move(value));
-    static_cast<void>(properties.save());
+    REQUIRE(properties.save());
 }
 
 // Reads whether a raw property remains present after migration or removal behavior.
@@ -134,6 +134,15 @@ void writeRawSetting(const std::filesystem::path& settings_file, const char* key
     };
 }
 
+// Reads calibration through the typed settings contract and returns the optional payload.
+[[nodiscard]] std::optional<common::audio::InputCalibrationState> inputCalibrationFor(
+    const EditorSettings& settings, const common::audio::InputDeviceIdentity& identity)
+{
+    auto result = settings.inputCalibrationFor(identity);
+    REQUIRE(result.has_value());
+    return std::move(*result);
+}
+
 // Seeds the old one-record schema so migration behavior can be verified.
 void writeLegacyCalibration(
     const std::filesystem::path& settings_file,
@@ -155,7 +164,7 @@ void writeLegacyCalibration(
     properties.setValue(
         g_input_calibration_input_channel_name_key,
         juce::String::fromUTF8(calibration.input_device_identity.input_channel_name.c_str()));
-    static_cast<void>(properties.save());
+    REQUIRE(properties.save());
 }
 
 } // namespace
@@ -169,7 +178,7 @@ TEST_CASE("EditorSettings starts without a last open project", "[core][settings]
     CHECK_FALSE(settings.lastOpenProject().has_value());
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
     CHECK_FALSE(settings.audioDeviceState().has_value());
-    CHECK_FALSE(settings.inputCalibrationFor(makeIdentity()).has_value());
+    CHECK_FALSE(inputCalibrationFor(settings, makeIdentity()).has_value());
 }
 
 // The settings file preserves the editor project path that should be restored on next launch.
@@ -181,7 +190,7 @@ TEST_CASE("EditorSettings persists the last open project", "[core][settings]")
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setLastOpenProject(project_file);
+        REQUIRE(settings.setLastOpenProject(project_file).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -198,8 +207,8 @@ TEST_CASE("EditorSettings clears the last open project", "[core][settings]")
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setLastOpenProject(project_file);
-        settings.setLastOpenProject(std::nullopt);
+        REQUIRE(settings.setLastOpenProject(project_file).has_value());
+        REQUIRE(settings.setLastOpenProject(std::nullopt).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -216,7 +225,7 @@ TEST_CASE("EditorSettings persists interrupted restore project", "[core][setting
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setInterruptedRestoreProject(project_file);
+        REQUIRE(settings.setInterruptedRestoreProject(project_file).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -233,8 +242,8 @@ TEST_CASE("EditorSettings clears interrupted restore project", "[core][settings]
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setInterruptedRestoreProject(project_file);
-        settings.setInterruptedRestoreProject(std::nullopt);
+        REQUIRE(settings.setInterruptedRestoreProject(project_file).has_value());
+        REQUIRE(settings.setInterruptedRestoreProject(std::nullopt).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -252,7 +261,7 @@ TEST_CASE("EditorSettings persists the audio device state", "[core][settings]")
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setAudioDeviceState(serialized_state);
+        REQUIRE(settings.setAudioDeviceState(serialized_state).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -268,8 +277,8 @@ TEST_CASE("EditorSettings clears the audio device state", "[core][settings]")
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.setAudioDeviceState(serialized_state);
-        settings.setAudioDeviceState(std::nullopt);
+        REQUIRE(settings.setAudioDeviceState(serialized_state).has_value());
+        REQUIRE(settings.setAudioDeviceState(std::nullopt).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
@@ -286,16 +295,16 @@ TEST_CASE("EditorSettings persists physical input calibration", "[core][settings
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.saveInputCalibration(calibrationFor(identity, 6.5));
+        REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 6.5)).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    const auto stored_calibration = reloaded_settings.inputCalibrationFor(identity);
+    const auto stored_calibration = inputCalibrationFor(reloaded_settings, identity);
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 6.5);
     CHECK(stored_calibration->input_device_identity == identity);
-    CHECK_FALSE(reloaded_settings.inputCalibrationFor(other_identity).has_value());
+    CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
 }
 
 // Saving the same physical route again replaces only that route's gain.
@@ -305,10 +314,10 @@ TEST_CASE("EditorSettings overwrites physical input calibration", "[core][settin
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     EditorSettings settings{settings_file.path()};
 
-    settings.saveInputCalibration(calibrationFor(identity, 2.0));
-    settings.saveInputCalibration(calibrationFor(identity, 8.0));
+    REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 2.0)).has_value());
+    REQUIRE(settings.saveInputCalibration(calibrationFor(identity, 8.0)).has_value());
 
-    const auto stored_calibration = settings.inputCalibrationFor(identity);
+    const auto stored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 8.0);
 }
@@ -323,21 +332,21 @@ TEST_CASE("EditorSettings restores renamed physical channel", "[core][settings]"
         makeIdentity("Interface A", 0, "ASIO", "Mic/Inst 1");
     EditorSettings settings{settings_file.path()};
 
-    settings.saveInputCalibration(calibrationFor(saved_identity, 4.0));
+    REQUIRE(settings.saveInputCalibration(calibrationFor(saved_identity, 4.0)).has_value());
 
-    const auto restored_calibration = settings.inputCalibrationFor(current_identity);
+    const auto restored_calibration = inputCalibrationFor(settings, current_identity);
     REQUIRE(restored_calibration.has_value());
     CHECK(restored_calibration->calibration_gain.db == 4.0);
     CHECK(restored_calibration->input_device_identity == current_identity);
 
-    settings.saveInputCalibration(calibrationFor(current_identity, 7.0));
-    const auto overwritten_calibration = settings.inputCalibrationFor(saved_identity);
+    REQUIRE(settings.saveInputCalibration(calibrationFor(current_identity, 7.0)).has_value());
+    const auto overwritten_calibration = inputCalibrationFor(settings, saved_identity);
     REQUIRE(overwritten_calibration.has_value());
     CHECK(overwritten_calibration->calibration_gain.db == 7.0);
     CHECK(overwritten_calibration->input_device_identity == saved_identity);
 
-    settings.removeInputCalibration(saved_identity);
-    CHECK_FALSE(settings.inputCalibrationFor(current_identity).has_value());
+    REQUIRE(settings.removeInputCalibration(saved_identity).has_value());
+    CHECK_FALSE(inputCalibrationFor(settings, current_identity).has_value());
 }
 
 // Different physical input channels on the same device keep independent calibration records.
@@ -348,11 +357,11 @@ TEST_CASE("EditorSettings keeps input channels separate", "[core][settings]")
     const common::audio::InputDeviceIdentity channel_three = makeIdentity("Interface A", 2);
     EditorSettings settings{settings_file.path()};
 
-    settings.saveInputCalibration(calibrationFor(channel_one, 3.0));
-    settings.saveInputCalibration(calibrationFor(channel_three, 9.0));
+    REQUIRE(settings.saveInputCalibration(calibrationFor(channel_one, 3.0)).has_value());
+    REQUIRE(settings.saveInputCalibration(calibrationFor(channel_three, 9.0)).has_value());
 
-    const auto channel_one_calibration = settings.inputCalibrationFor(channel_one);
-    const auto channel_three_calibration = settings.inputCalibrationFor(channel_three);
+    const auto channel_one_calibration = inputCalibrationFor(settings, channel_one);
+    const auto channel_three_calibration = inputCalibrationFor(settings, channel_three);
     REQUIRE(channel_one_calibration.has_value());
     REQUIRE(channel_three_calibration.has_value());
     CHECK(channel_one_calibration->calibration_gain.db == 3.0);
@@ -366,13 +375,13 @@ TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
     const common::audio::InputDeviceIdentity first_identity = makeIdentity("Interface A");
     const common::audio::InputDeviceIdentity second_identity = makeIdentity("Interface B");
     EditorSettings settings{settings_file.path()};
-    settings.saveInputCalibration(calibrationFor(first_identity, 3.0));
-    settings.saveInputCalibration(calibrationFor(second_identity, 6.0));
+    REQUIRE(settings.saveInputCalibration(calibrationFor(first_identity, 3.0)).has_value());
+    REQUIRE(settings.saveInputCalibration(calibrationFor(second_identity, 6.0)).has_value());
 
-    settings.removeInputCalibration(first_identity);
+    REQUIRE(settings.removeInputCalibration(first_identity).has_value());
 
-    CHECK_FALSE(settings.inputCalibrationFor(first_identity).has_value());
-    const auto preserved_calibration = settings.inputCalibrationFor(second_identity);
+    CHECK_FALSE(inputCalibrationFor(settings, first_identity).has_value());
+    const auto preserved_calibration = inputCalibrationFor(settings, second_identity);
     REQUIRE(preserved_calibration.has_value());
     CHECK(preserved_calibration->calibration_gain.db == 6.0);
 }
@@ -392,7 +401,7 @@ TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][sett
 
     const EditorSettings settings{settings_file.path()};
 
-    const auto stored_calibration = settings.inputCalibrationFor(identity);
+    const auto stored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(stored_calibration.has_value());
     CHECK(stored_calibration->calibration_gain.db == 7.0);
     CHECK(stored_calibration->input_device_identity == identity);
@@ -409,8 +418,13 @@ TEST_CASE("EditorSettings preserves legacy keys with malformed history", "[core]
 
     EditorSettings settings{settings_file.path()};
 
-    CHECK_FALSE(settings.inputCalibrationFor(identity).has_value());
-    settings.removeInputCalibration(identity);
+    const auto loaded = settings.inputCalibrationFor(identity);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
+    CHECK_FALSE(loaded.error().message.empty());
+    const auto removed = settings.removeInputCalibration(identity);
+    REQUIRE_FALSE(removed.has_value());
+    CHECK(removed.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
     CHECK(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
 }
 
@@ -424,14 +438,14 @@ TEST_CASE("EditorSettings migrates legacy calibration on save", "[core][settings
 
     {
         EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.inputCalibrationFor(legacy_identity).has_value());
-        settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
+        REQUIRE(inputCalibrationFor(settings, legacy_identity).has_value());
+        REQUIRE(settings.saveInputCalibration(calibrationFor(new_identity, 7.0)).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    const auto legacy_calibration = reloaded_settings.inputCalibrationFor(legacy_identity);
-    const auto new_calibration = reloaded_settings.inputCalibrationFor(new_identity);
+    const auto legacy_calibration = inputCalibrationFor(reloaded_settings, legacy_identity);
+    const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
     REQUIRE(legacy_calibration.has_value());
     REQUIRE(new_calibration.has_value());
     CHECK(legacy_calibration->calibration_gain.db == 4.0);
@@ -451,14 +465,14 @@ TEST_CASE("EditorSettings keeps legacy keys when saving over malformed JSON", "[
 
     {
         EditorSettings settings{settings_file.path()};
-        settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
+        REQUIRE(settings.saveInputCalibration(calibrationFor(new_identity, 7.0)).has_value());
     }
 
     // The unparseable blob is gone, but the legacy fallback was not deleted along with it.
     CHECK(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
 
     const EditorSettings reloaded_settings{settings_file.path()};
-    const auto new_calibration = reloaded_settings.inputCalibrationFor(new_identity);
+    const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
     REQUIRE(new_calibration.has_value());
     CHECK(new_calibration->calibration_gain.db == 7.0);
 }

@@ -31,11 +31,28 @@ public:
     }
 
     /*! \brief Records a serialized state restore request and returns the configured result. */
-    [[nodiscard]] bool restoreSerializedDeviceState(const std::string& serialized_state) override
+    [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
+        const std::string& serialized_state) override
     {
         last_restored_serialized_device_state = serialized_state;
         restore_serialized_device_state_call_count += 1;
-        return restore_serialized_device_state_result;
+        if (next_restore_serialized_device_state_error.has_value())
+        {
+            AudioDeviceConfigurationError error =
+                std::move(*next_restore_serialized_device_state_error);
+            next_restore_serialized_device_state_error.reset();
+            return std::unexpected{std::move(error)};
+        }
+
+        if (!restore_serialized_device_state_result)
+        {
+            return std::unexpected{AudioDeviceConfigurationError{
+                AudioDeviceConfigurationErrorCode::RestoreFailed,
+                "Configured serialized audio-device restore failure",
+            }};
+        }
+
+        return {};
     }
 
     /*! \brief Returns the configured serialized state capture result. */
@@ -90,6 +107,9 @@ public:
 
     /*! \brief Result returned by restoreSerializedDeviceState(). */
     bool restore_serialized_device_state_result{true};
+
+    /*! \brief Optional typed error returned by the next restoreSerializedDeviceState() call. */
+    std::optional<AudioDeviceConfigurationError> next_restore_serialized_device_state_error{};
 
     /*! \brief Current serialized state returned by serializedDeviceState(). */
     std::optional<std::string> serialized_device_state{};

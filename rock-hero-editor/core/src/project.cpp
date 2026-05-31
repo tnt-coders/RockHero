@@ -34,23 +34,26 @@ using common::core::AudioAsset;
 using common::core::Song;
 
 // Creates one workspace directory under the platform temp directory for an open project.
-[[nodiscard]] std::optional<std::filesystem::path> createWorkspaceDirectory(
-    std::string& error_message)
+[[nodiscard]] std::expected<std::filesystem::path, ProjectError> createWorkspaceDirectory()
 {
     std::error_code error;
     const std::filesystem::path temp_root = std::filesystem::temp_directory_path(error);
     if (error)
     {
-        error_message = "Could not locate temporary directory: " + error.message();
-        return std::nullopt;
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::WorkspaceCreationFailed,
+            "Could not locate temporary directory: " + error.message(),
+        }};
     }
 
     const std::filesystem::path workspace_root = temp_root / "RockHero" / "project-workspaces";
     std::filesystem::create_directories(workspace_root, error);
     if (error)
     {
-        error_message = "Could not create project workspace root: " + error.message();
-        return std::nullopt;
+        return std::unexpected{ProjectError{
+            ProjectErrorCode::WorkspaceCreationFailed,
+            "Could not create project workspace root: " + error.message(),
+        }};
     }
 
     static std::atomic_uint64_t g_workspace_sequence{0};
@@ -72,13 +75,17 @@ using common::core::Song;
 
         if (error)
         {
-            error_message = "Could not create project workspace directory: " + error.message();
-            return std::nullopt;
+            return std::unexpected{ProjectError{
+                ProjectErrorCode::WorkspaceCreationFailed,
+                "Could not create project workspace directory: " + error.message(),
+            }};
         }
     }
 
-    error_message = "Could not allocate a unique project workspace directory";
-    return std::nullopt;
+    return std::unexpected{ProjectError{
+        ProjectErrorCode::WorkspaceCreationFailed,
+        "Could not allocate a unique project workspace directory",
+    }};
 }
 
 // Renamed from normalizeImportedSong because this helper only resolves arrangement audio paths
@@ -350,14 +357,10 @@ std::expected<Song, ProjectError> Project::load(
         }};
     }
 
-    std::string error_message;
-    auto workspace_directory = createWorkspaceDirectory(error_message);
+    auto workspace_directory = createWorkspaceDirectory();
     if (!workspace_directory.has_value())
     {
-        return std::unexpected{ProjectError{
-            ProjectErrorCode::WorkspaceCreationFailed,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(workspace_directory.error())};
     }
 
     Project loaded_project;
@@ -418,14 +421,10 @@ std::expected<Song, ProjectError> Project::import(
     const common::core::AudioNormalizationTarget& target,
     const AudioNormalizationAnalyzer& analyze_audio_normalization)
 {
-    std::string error_message;
-    auto workspace_directory = createWorkspaceDirectory(error_message);
+    auto workspace_directory = createWorkspaceDirectory();
     if (!workspace_directory.has_value())
     {
-        return std::unexpected{ProjectError{
-            ProjectErrorCode::WorkspaceCreationFailed,
-            std::move(error_message),
-        }};
+        return std::unexpected{std::move(workspace_directory.error())};
     }
 
     Project imported_project;
@@ -546,14 +545,10 @@ std::expected<void, ProjectError> Project::saveAs(
 
     if (m_workspace_directory.empty())
     {
-        std::string error_message;
-        auto workspace_directory = createWorkspaceDirectory(error_message);
+        auto workspace_directory = createWorkspaceDirectory();
         if (!workspace_directory.has_value())
         {
-            return std::unexpected{ProjectError{
-                ProjectErrorCode::WorkspaceCreationFailed,
-                std::move(error_message),
-            }};
+            return std::unexpected{std::move(workspace_directory.error())};
         }
 
         Project saved_project;
