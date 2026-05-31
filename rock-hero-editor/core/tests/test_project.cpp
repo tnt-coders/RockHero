@@ -444,7 +444,7 @@ public:
             .id = g_lead_arrangement_id,
             .part = Part::Lead,
             .difficulty = DifficultyRating{},
-            .audio_asset = AudioAsset{audio_path},
+            .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
             .note_events = {},
@@ -476,7 +476,10 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
         std::optional<std::string>{g_lead_arrangement_id});
     CHECK(project.editorState().cursor_position == TimePosition{0.0});
     REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
-    CHECK(result->arrangements.front().audio_asset.normalization->gain_db == -4.0);
+    if (result->arrangements.front().audio_asset.normalization.has_value())
+    {
+        CHECK(result->arrangements.front().audio_asset.normalization->gain_db == -4.0);
+    }
     CHECK(project.audioNormalizationUpdatedOnLoad());
     CHECK(project.path() == path);
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
@@ -529,7 +532,10 @@ TEST_CASE("Project imports a native song package", "[core][project]")
     CHECK(arrangement.audio_asset.path == imported_audio_path);
     CHECK(std::filesystem::exists(imported_audio_path));
     REQUIRE(arrangement.audio_asset.normalization.has_value());
-    CHECK(arrangement.audio_asset.normalization->gain_db == -4.0);
+    if (arrangement.audio_asset.normalization.has_value())
+    {
+        CHECK(arrangement.audio_asset.normalization->gain_db == -4.0);
+    }
     CHECK(project.path().empty());
     CHECK(std::filesystem::is_directory(project.workspaceDirectory()));
     REQUIRE(fake_analyze.invocations.size() == 1);
@@ -831,7 +837,8 @@ TEST_CASE("Project save imports external arrangement audio", "[core][project]")
     auto song = project.load(path, {}, fake_analyze.function());
     REQUIRE(song.has_value());
     REQUIRE(song->arrangements.size() == 1);
-    song->arrangements.front().audio_asset = AudioAsset{external_audio_path};
+    song->arrangements.front().audio_asset =
+        AudioAsset{.path = external_audio_path, .normalization = std::nullopt};
 
     const auto saved = project.save(*song);
     REQUIRE(saved.has_value());
