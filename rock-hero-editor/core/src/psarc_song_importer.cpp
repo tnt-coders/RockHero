@@ -397,7 +397,9 @@ void addImportedArrangement(
     }
 
     std::filesystem::remove_all(audio_staging, error);
-    return AudioAsset{imported_audio_path.lexically_normal()};
+    return AudioAsset{
+        .path = imported_audio_path.lexically_normal(), .normalization = std::nullopt
+    };
 }
 
 // Copies arrangement XML files already present in the PSARC archive.
