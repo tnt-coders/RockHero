@@ -83,10 +83,11 @@ TEST_CASE(
     };
     controller.attachView(view);
 
-    REQUIRE(view.last_state.has_value());
+    const auto* const initial_state = stateOrNull(view.last_state);
+    REQUIRE(initial_state != nullptr);
     CHECK(transport.pause_call_count == 0);
-    CHECK_FALSE(view.last_state->input_calibration_prompt.has_value());
-    CHECK(view.last_state->audio_device_settings_enabled);
+    CHECK_FALSE(initial_state->input_calibration_prompt.has_value());
+    CHECK(initial_state->audio_device_settings_enabled);
 
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
@@ -104,9 +105,10 @@ TEST_CASE(
 
     controller.onInputCalibrationRequested();
     CHECK(transport.pause_call_count == 1);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->input_calibration_prompt.has_value());
-    CHECK_FALSE(view.last_state->audio_device_settings_enabled);
+    const auto* const prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(prompt_state->input_calibration_prompt.has_value());
+    CHECK_FALSE(prompt_state->audio_device_settings_enabled);
 
     controller.onInputCalibrationDismissed();
 
@@ -170,8 +172,11 @@ TEST_CASE(
     const auto stored_calibration =
         inputCalibrationFor(settings, *audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
-    CHECK(stored_calibration->calibration_gain.db == 7.5);
-    CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+    if (stored_calibration.has_value())
+    {
+        CHECK(stored_calibration->calibration_gain.db == 7.5);
+        CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+    }
 }
 
 // Verifies retry starts from a neutral measurement gain after a completed prompt calibration.
@@ -211,8 +216,9 @@ TEST_CASE(
     CHECK(transport.current_input_gain.db == 7.5);
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->input_calibration_prompt.has_value());
+    const auto* const prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(prompt_state->input_calibration_prompt.has_value());
 
     const auto retry_measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(retry_measurement_started.has_value());
@@ -359,8 +365,11 @@ TEST_CASE(
     const auto stored_calibration =
         inputCalibrationFor(settings, *audio_devices.current_input_identity);
     REQUIRE(stored_calibration.has_value());
-    CHECK(stored_calibration->calibration_gain.db == 3.25);
-    CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+    if (stored_calibration.has_value())
+    {
+        CHECK(stored_calibration->calibration_gain.db == 3.25);
+        CHECK(stored_calibration->input_device_identity == *audio_devices.current_input_identity);
+    }
 }
 
 // Verifies settings editing releases the calibrated route before JUCE closes the active device.
@@ -398,20 +407,22 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
     controller.onInputCalibrationDismissed();
     REQUIRE(transport.live_input_monitoring_enabled);
     REQUIRE_FALSE(transport.calibration_input_monitoring_enabled);
-    REQUIRE(view.last_state.has_value());
-    REQUIRE_FALSE(view.last_state->input_calibration_prompt.has_value());
-    REQUIRE(view.last_state->audio_device_settings_enabled);
+    const auto* const enabled_state = stateOrNull(view.last_state);
+    REQUIRE(enabled_state != nullptr);
+    REQUIRE_FALSE(enabled_state->input_calibration_prompt.has_value());
+    REQUIRE(enabled_state->audio_device_settings_enabled);
 
     REQUIRE(controller.onAudioDeviceSettingsOpenRequested());
 
     CHECK_FALSE(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     CHECK(inputCalibrationFor(settings, *audio_devices.current_input_identity).has_value());
-    REQUIRE(view.last_state.has_value());
+    const auto* const settings_open_state = stateOrNull(view.last_state);
+    REQUIRE(settings_open_state != nullptr);
     CHECK(
-        view.last_state->signal_chain.input_calibration_status ==
+        settings_open_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::Calibrated);
-    CHECK_FALSE(view.last_state->audio_device_settings_enabled);
+    CHECK_FALSE(settings_open_state->audio_device_settings_enabled);
 
     audio_devices.notifyChanged();
 
@@ -422,8 +433,9 @@ TEST_CASE("Audio settings open releases calibrated input route", "[core][editor-
 
     CHECK(transport.live_input_monitoring_enabled);
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->audio_device_settings_enabled);
+    const auto* const settings_closed_state = stateOrNull(view.last_state);
+    REQUIRE(settings_closed_state != nullptr);
+    CHECK(settings_closed_state->audio_device_settings_enabled);
 }
 
 // Verifies settings close does not treat JUCE's temporary closed route as a device change.
@@ -466,9 +478,10 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
 
     CHECK(inputCalibrationFor(settings, identity).has_value());
     CHECK_FALSE(transport.live_input_monitoring_enabled);
-    REQUIRE(view.last_state.has_value());
+    const auto* const no_device_state = stateOrNull(view.last_state);
+    REQUIRE(no_device_state != nullptr);
     CHECK(
-        view.last_state->signal_chain.input_calibration_status ==
+        no_device_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::NoActiveInputDevice);
 
     audio_devices.current_input_identity = identity;
@@ -476,9 +489,10 @@ TEST_CASE("Audio settings close waits for settled input route", "[core][editor-c
 
     CHECK(inputCalibrationFor(settings, identity).has_value());
     CHECK(transport.live_input_monitoring_enabled);
-    REQUIRE(view.last_state.has_value());
+    const auto* const reconnected_state = stateOrNull(view.last_state);
+    REQUIRE(reconnected_state != nullptr);
     CHECK(
-        view.last_state->signal_chain.input_calibration_status ==
+        reconnected_state->signal_chain.input_calibration_status ==
         InputCalibrationStatus::Calibrated);
 }
 
@@ -688,7 +702,10 @@ TEST_CASE("Input disconnect preserves calibration for same reconnect", "[core][e
     CHECK(transport.current_input_gain.db == 5.0);
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
-    CHECK(preserved_calibration->calibration_gain.db == 5.0);
+    if (preserved_calibration.has_value())
+    {
+        CHECK(preserved_calibration->calibration_gain.db == 5.0);
+    }
     const auto* const restored_state = stateOrNull(view.last_state);
     REQUIRE(restored_state != nullptr);
     CHECK(
@@ -1029,8 +1046,9 @@ TEST_CASE("Input route change during calibration closes prompt", "[core][editor-
     REQUIRE(
         loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
     controller.onInputCalibrationRequested();
-    REQUIRE(view.last_state.has_value());
-    REQUIRE(view.last_state->input_calibration_prompt.has_value());
+    const auto* const prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    REQUIRE(prompt_state->input_calibration_prompt.has_value());
 
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
@@ -1093,8 +1111,9 @@ TEST_CASE(
     CHECK(transport.live_input_monitoring_enabled);
 
     controller.onInputCalibrationRequested();
-    REQUIRE(view.last_state.has_value());
-    CHECK(view.last_state->input_calibration_prompt.has_value());
+    const auto* const prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(prompt_state->input_calibration_prompt.has_value());
 
     const auto measurement_started = controller.onInputCalibrationMeasurementStarted();
     REQUIRE(measurement_started.has_value());
@@ -1113,7 +1132,10 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto restored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(restored_calibration.has_value());
-    CHECK(restored_calibration->calibration_gain.db == 4.0);
+    if (restored_calibration.has_value())
+    {
+        CHECK(restored_calibration->calibration_gain.db == 4.0);
+    }
 }
 
 // Verifies that a failed manual recalibration attempt restores monitoring without closing retry UI.
@@ -1166,7 +1188,10 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto restored_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(restored_calibration.has_value());
-    CHECK(restored_calibration->calibration_gain.db == 4.0);
+    if (restored_calibration.has_value())
+    {
+        CHECK(restored_calibration->calibration_gain.db == 4.0);
+    }
 }
 
 // Verifies backend restore failure preserves calibration and reports the route as unavailable.
@@ -1227,7 +1252,10 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
-    CHECK(preserved_calibration->calibration_gain.db == 4.0);
+    if (preserved_calibration.has_value())
+    {
+        CHECK(preserved_calibration->calibration_gain.db == 4.0);
+    }
 }
 
 // Verifies final arming failure after a completed recalibration does not delete the old value.
@@ -1291,7 +1319,10 @@ TEST_CASE(
     CHECK_FALSE(transport.calibration_input_monitoring_enabled);
     const auto preserved_calibration = inputCalibrationFor(settings, identity);
     REQUIRE(preserved_calibration.has_value());
-    CHECK(preserved_calibration->calibration_gain.db == 4.0);
+    if (preserved_calibration.has_value())
+    {
+        CHECK(preserved_calibration->calibration_gain.db == 4.0);
+    }
 }
 
 } // namespace rock_hero::editor::core
