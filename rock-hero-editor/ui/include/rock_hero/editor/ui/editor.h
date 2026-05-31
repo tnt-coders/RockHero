@@ -107,15 +107,28 @@ public:
     };
 
     /*!
+    \brief Creates the editor feature with default production project IO operations.
+
+    Delegates to the four-argument constructor with a default-constructed ProjectOperations. A
+    separate overload avoids a `= {}` default argument, which clang rejects for a nested aggregate
+    that carries default member initializers.
+
+    \param audio_ports Required ports used by the composed editor feature.
+    \param services Required settings and task-runner services.
+    \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
+    */
+    explicit Editor(AudioPorts audio_ports, Services services, ExitFunction exit_function);
+
+    /*!
     \brief Creates the editor feature and immediately pushes initial state to the view.
     \param audio_ports Required ports used by the composed editor feature.
     \param services Required settings and task-runner services.
     \param exit_function Host-exit callback invoked after guarded controller shutdown succeeds.
-    \param project_operations Optional project IO operation overrides.
+    \param project_operations Project IO operation overrides.
     */
     explicit Editor(
         AudioPorts audio_ports, Services services, ExitFunction exit_function,
-        ProjectOperations project_operations = {});
+        ProjectOperations project_operations);
 
     /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
     ~Editor();

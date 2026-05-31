@@ -764,6 +764,14 @@ struct EditorController::Impl::ProjectLoadLiveRigStage
 // to production project IO where an optional project operation is omitted.
 EditorController::EditorController(
     EditorController::AudioPorts audio_ports, EditorController::Services services,
+    EditorController::ExitFunction exit_function)
+    : EditorController(
+          std::move(audio_ports), std::move(services), std::move(exit_function),
+          EditorController::ProjectOperations{})
+{}
+
+EditorController::EditorController(
+    EditorController::AudioPorts audio_ports, EditorController::Services services,
     EditorController::ExitFunction exit_function,
     EditorController::ProjectOperations project_operations)
     : m_impl(
