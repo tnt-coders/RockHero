@@ -13,23 +13,22 @@ namespace rock_hero::common::audio
 namespace
 {
 
-constexpr char g_asio_type_name[] = "ASIO";
-constexpr char g_input_a[] = "Input A";
-constexpr char g_input_b[] = "Input B";
-constexpr char g_output_a[] = "Output A";
-constexpr char g_output_b[] = "Output B";
-constexpr char g_open_output_b_error[] = "Could not open Output B";
+constexpr const char* g_asio_type_name = "ASIO";
+constexpr const char* g_input_a = "Input A";
+constexpr const char* g_input_b = "Input B";
+constexpr const char* g_output_a = "Output A";
+constexpr const char* g_output_b = "Output B";
+constexpr const char* g_open_output_b_error = "Could not open Output B";
 
 // Fake device with deterministic channel, sample-rate, buffer-size, and open-failure behavior.
 class MockAudioDevice final : public juce::AudioIODevice
 {
 public:
     MockAudioDevice(
-        juce::String type_name, juce::String output_name, juce::String input_name,
-        juce::String open_error, bool has_control_panel, bool show_control_panel_result,
-        int* control_panel_call_count)
-        : juce::AudioIODevice(
-              output_name.isNotEmpty() ? output_name : input_name, std::move(type_name))
+        const juce::String& type_name, const juce::String& output_name,
+        const juce::String& input_name, juce::String open_error, bool has_control_panel,
+        bool show_control_panel_result, int* control_panel_call_count)
+        : juce::AudioIODevice(output_name.isNotEmpty() ? output_name : input_name, type_name)
         , m_open_error(std::move(open_error))
         , m_has_control_panel(has_control_panel)
         , m_show_control_panel_result(show_control_panel_result)
@@ -190,9 +189,9 @@ class MockAudioDeviceType final : public juce::AudioIODeviceType
 {
 public:
     explicit MockAudioDeviceType(
-        juce::String type_name, juce::StringArray failing_outputs = {},
+        const juce::String& type_name, juce::StringArray failing_outputs = {},
         bool has_control_panel = false, bool show_control_panel_result = true)
-        : juce::AudioIODeviceType(std::move(type_name))
+        : juce::AudioIODeviceType(type_name)
         , m_failing_outputs(std::move(failing_outputs))
         , m_has_control_panel(has_control_panel)
         , m_show_control_panel_result(show_control_panel_result)
@@ -293,15 +292,12 @@ public:
 }
 
 MockAudioDeviceType& addMockAudioType(
-    juce::AudioDeviceManager& manager, juce::String type_name,
+    juce::AudioDeviceManager& manager, const juce::String& type_name,
     juce::StringArray failing_outputs = {}, bool has_control_panel = false,
     bool show_control_panel_result = true)
 {
     auto device_type = std::make_unique<MockAudioDeviceType>(
-        std::move(type_name),
-        std::move(failing_outputs),
-        has_control_panel,
-        show_control_panel_result);
+        type_name, std::move(failing_outputs), has_control_panel, show_control_panel_result);
     auto& result = *device_type;
     manager.addAudioDeviceType(std::move(device_type));
     return result;
@@ -332,7 +328,7 @@ TEST_CASE("AudioDeviceSettings orders Windows audio systems", "[audio][audio-dev
     addMockAudioType(audio_devices.device_manager, "Windows Audio (Low Latency Mode)");
     addMockAudioType(audio_devices.device_manager, "ASIO");
 
-    AudioDeviceSettings settings{audio_devices};
+    const AudioDeviceSettings settings{audio_devices};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(
@@ -356,7 +352,7 @@ TEST_CASE("AudioDeviceSettings initializes active route state", "[audio][audio-d
     openInitialRoute(audio_devices);
     REQUIRE(audio_devices.device_manager.getCurrentAudioDevice() != nullptr);
 
-    AudioDeviceSettings settings{audio_devices};
+    const AudioDeviceSettings settings{audio_devices};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(state.selected_audio_system_id == 1);
@@ -458,7 +454,7 @@ TEST_CASE("AudioDeviceSettings rescans same backend refresh", "[audio][audio-dev
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
     auto& audio_type = addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
-    AudioDeviceSettings settings{audio_devices};
+    const AudioDeviceSettings settings{audio_devices};
     const int initial_scan_count = audio_type.scan_call_count;
     REQUIRE(initial_scan_count > 0);
 
@@ -573,7 +569,7 @@ TEST_CASE("AudioDeviceSettings defaults staged sample rate", "[audio][audio-devi
     testing::ConfigurableAudioDeviceConfiguration audio_devices;
     addMockAudioType(audio_devices.device_manager, g_asio_type_name);
 
-    AudioDeviceSettings settings{audio_devices};
+    const AudioDeviceSettings settings{audio_devices};
     const AudioDeviceSettingsState state = settings.state();
 
     CHECK(state.sample_rates == std::vector<double>{44100.0, 48000.0, 96000.0});
