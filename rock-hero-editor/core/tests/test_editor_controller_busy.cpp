@@ -798,8 +798,10 @@ TEST_CASE(
     controller.attachView(view);
 
     int audio_device_change_call_count = 0;
+    int after_busy_cleared_call_count = 0;
     controller.onAudioDeviceChangeRequested(
-        [&audio_device_change_call_count] { audio_device_change_call_count += 1; });
+        [&audio_device_change_call_count] { audio_device_change_call_count += 1; },
+        [&after_busy_cleared_call_count] { after_busy_cleared_call_count += 1; });
 
     const BusyViewState* audio_device_busy = nullptr;
     for (const EditorViewState& pushed_state : view.pushed_states)
@@ -815,7 +817,9 @@ TEST_CASE(
     CHECK(audio_device_busy->message == "Opening audio device...");
     CHECK(audio_device_busy->presentation == BusyPresentation::Blocking);
     CHECK(view.busy_overlay_paint_callback_count == 1);
+    CHECK(view.busy_overlay_removed_callback_count == 1);
     CHECK(audio_device_change_call_count == 1);
+    CHECK(after_busy_cleared_call_count == 1);
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK_FALSE(state->busy.has_value());

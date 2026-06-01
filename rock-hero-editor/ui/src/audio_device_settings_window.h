@@ -35,14 +35,14 @@ public:
     \brief Dispatches an audio-device operation behind the host editor's busy overlay paint fence.
 
     Empty by default; when supplied, OK and Cancel on the settings dialog hide the window, hand
-    the operation continuation to the dispatcher (which schedules it through the editor's busy
-    overlay), and the dispatcher invokes the continuation after the overlay paints. Used for any
-    blocking JUCE device-manager work the dialog drives (the apply and the cancel both reopen the
-    audio device, which blocks the message thread). Empty leaves the dialog in the synchronous
-    fallback behavior so it can stand alone in tests or in composition contexts that lack a busy
-    overlay.
+    the operation and post-clear continuations to the dispatcher (which schedules them through the
+    editor's busy overlay). Used for any blocking JUCE device-manager work the dialog drives (the
+    apply and the cancel both reopen the audio device, which blocks the message thread). Empty
+    leaves the dialog in the synchronous fallback behavior so it can stand alone in tests or in
+    composition contexts that lack a busy overlay.
     */
-    using Dispatcher = std::function<void(std::function<void()>)>;
+    using Dispatcher =
+        std::function<void(std::function<void()> work, std::function<void()> after_cleared)>;
     /*! \brief Called when the settings window reaches a final close path. */
     using ClosedCallback = std::function<void()>;
 
@@ -51,7 +51,7 @@ public:
     \param audio_devices Audio-device configuration backend; must outlive the window.
     \param anchor Launcher component used to find the owning editor window.
     \param dispatcher Optional operation hook supplied by the editor composition layer; receives
-           device-manager work to run after the editor's busy overlay paints.
+           device-manager work plus a post-clear continuation.
     \param closed_callback Called when the window reaches a final close path.
     \return The opened window. The caller owns it and should clear it from the close callback.
     */

@@ -20,13 +20,14 @@ namespace rock_hero::editor::core
 \brief Callable used by the controller to dispatch audio-device operations behind a host paint
        fence.
 
-The callable accepts an operation continuation that the host invokes after its busy indicator has
-painted. Used by both OK and Cancel because both reopen the audio device, which blocks the
-message thread. When no dispatcher is supplied, the controller falls back to running the
-operation synchronously inside the matching intent handler. The async path is what the editor
-uses to present its busy overlay before running blocking device-manager calls.
+The callable accepts the blocking operation plus a continuation that the host invokes after its
+busy indicator has cleared. Used by both OK and Cancel because both reopen the audio device, which
+blocks the message thread. When no dispatcher is supplied, the controller falls back to running the
+operation synchronously inside the matching intent handler. The async path is what the editor uses
+to present its busy overlay before running blocking device-manager calls.
 */
-using AudioDeviceSettingsDispatcher = std::function<void(std::function<void()>)>;
+using AudioDeviceSettingsDispatcher =
+    std::function<void(std::function<void()> work, std::function<void()> after_cleared)>;
 
 /*! \brief Headless editor workflow controller for one audio-device settings window. */
 class AudioDeviceSettingsController final : public IAudioDeviceSettingsController,

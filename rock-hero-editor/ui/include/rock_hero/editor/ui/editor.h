@@ -85,6 +85,9 @@ public:
 
         /*! \brief Task runner used for off-thread project IO. */
         core::IEditorTaskRunner& task_runner;
+
+        /*! \brief Message-thread scheduler used for busy-presentation ordering. */
+        core::IMessageThreadScheduler& message_thread_scheduler;
     };
 
     /*! \brief Optional project IO operations used by the composed editor workflow. */
@@ -130,7 +133,7 @@ public:
         AudioPorts audio_ports, Services services, ExitFunction exit_function,
         ProjectOperations project_operations);
 
-    /*! \brief Releases the composed editor view before controller-owned subscriptions detach. */
+    /*! \brief Clears controller view callbacks before releasing the composed editor view. */
     ~Editor();
 
     /*! \brief Copying is disabled because the view and controller own registrations. */
