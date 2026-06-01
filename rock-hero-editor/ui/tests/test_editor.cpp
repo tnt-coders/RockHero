@@ -21,6 +21,7 @@
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
+#include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -263,6 +264,7 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
     FakeEditorAudioPorts audio_ports;
     core::testing::NullEditorSettings settings;
     core::testing::ImmediateEditorTaskRunner task_runner;
+    core::testing::ImmediateMessageThreadScheduler message_thread_scheduler;
 
     Editor editor{
         Editor::AudioPorts{
@@ -275,7 +277,11 @@ TEST_CASE("Editor constructs a wired editor view", "[ui][editor]")
             .live_input = audio_ports,
             .meter_source = audio_ports,
         },
-        Editor::Services{.settings = settings, .task_runner = task_runner},
+        Editor::Services{
+            .settings = settings,
+            .task_runner = task_runner,
+            .message_thread_scheduler = message_thread_scheduler,
+        },
         [] {}
     };
     auto& component = editor.component();

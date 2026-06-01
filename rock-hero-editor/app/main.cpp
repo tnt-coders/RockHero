@@ -4,6 +4,7 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/juce_editor_task_runner.h>
+#include <rock_hero/editor/core/juce_message_thread_scheduler.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
 
@@ -68,12 +69,15 @@ public:
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
         m_editor_task_runner = std::make_unique<rock_hero::editor::core::JuceEditorTaskRunner>();
+        m_message_thread_scheduler =
+            std::make_unique<rock_hero::editor::core::JuceMessageThreadScheduler>();
 
         auto editor = std::make_unique<rock_hero::editor::ui::Editor>(
             makeEditorAudioPorts(*m_audio_engine),
             rock_hero::editor::ui::Editor::Services{
                 .settings = *m_editor_settings,
                 .task_runner = *m_editor_task_runner,
+                .message_thread_scheduler = *m_message_thread_scheduler,
             },
             &juce::JUCEApplicationBase::quit);
 
@@ -88,6 +92,7 @@ public:
     void shutdown() override
     {
         m_main_window.reset();
+        m_message_thread_scheduler.reset();
         m_editor_task_runner.reset();
         m_editor_settings.reset();
         m_audio_engine.reset();
@@ -115,6 +120,9 @@ private:
     // Owns the JUCE-backed editor task runner used for background project IO. Outlives the
     // editor so the controller's task_runner pointer remains valid for the editor's lifetime.
     std::unique_ptr<rock_hero::editor::core::JuceEditorTaskRunner> m_editor_task_runner;
+
+    // Owns the JUCE-backed scheduler used for busy presentation callbacks.
+    std::unique_ptr<rock_hero::editor::core::JuceMessageThreadScheduler> m_message_thread_scheduler;
 
     // Owns the editor window after JUCE startup and releases it during shutdown.
     std::unique_ptr<rock_hero::editor::ui::MainWindow> m_main_window;

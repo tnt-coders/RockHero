@@ -321,9 +321,16 @@ struct AudioDeviceSettings::Impl final : IAudioDeviceConfiguration::Listener
     // (for example tests that tear down without driving a cancel). Reopening unconditionally when
     // the device is closed would accidentally start audio in cases where it was already closed
     // before the settings edit began.
-    ~Impl() override
+    ~Impl() noexcept override
     {
-        restorePreviousRouteBestEffort();
+        try
+        {
+            restorePreviousRouteBestEffort();
+        }
+        catch (...)
+        {
+            m_restore_pending = false;
+        }
     }
 
     Impl(const Impl&) = delete;

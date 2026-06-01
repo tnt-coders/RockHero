@@ -364,9 +364,13 @@ TEST_CASE(
 {
     FakeAudioDeviceSettings settings;
     std::function<void()> captured_apply;
+    std::function<void()> captured_after_cleared;
     AudioDeviceSettingsController controller{
-        settings, [&captured_apply](std::function<void()> operation) {
+        settings,
+        [&captured_apply, &captured_after_cleared](
+            std::function<void()> operation, std::function<void()> after_cleared) {
             captured_apply = std::move(operation);
+            captured_after_cleared = std::move(after_cleared);
         }
     };
     FakeAudioDeviceSettingsView view;
@@ -381,6 +385,10 @@ TEST_CASE(
     captured_apply();
 
     CHECK(settings.apply_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    REQUIRE(captured_after_cleared);
+    captured_after_cleared();
+
     CHECK(view.close_call_count == 1);
 }
 
@@ -396,9 +404,13 @@ TEST_CASE(
         "Could not open Output B",
     };
     std::function<void()> captured_apply;
+    std::function<void()> captured_after_cleared;
     AudioDeviceSettingsController controller{
-        settings, [&captured_apply](std::function<void()> operation) {
+        settings,
+        [&captured_apply, &captured_after_cleared](
+            std::function<void()> operation, std::function<void()> after_cleared) {
             captured_apply = std::move(operation);
+            captured_after_cleared = std::move(after_cleared);
         }
     };
     FakeAudioDeviceSettingsView view;
@@ -407,6 +419,8 @@ TEST_CASE(
     controller.onOkRequested();
     REQUIRE(captured_apply);
     captured_apply();
+    REQUIRE(captured_after_cleared);
+    captured_after_cleared();
 
     CHECK(view.applying_transitions == std::vector<bool>{true, false});
     CHECK(view.close_call_count == 0);
@@ -422,9 +436,13 @@ TEST_CASE(
 {
     FakeAudioDeviceSettings settings;
     std::function<void()> captured_cancel;
+    std::function<void()> captured_after_cleared;
     AudioDeviceSettingsController controller{
-        settings, [&captured_cancel](std::function<void()> operation) {
+        settings,
+        [&captured_cancel, &captured_after_cleared](
+            std::function<void()> operation, std::function<void()> after_cleared) {
             captured_cancel = std::move(operation);
+            captured_after_cleared = std::move(after_cleared);
         }
     };
     FakeAudioDeviceSettingsView view;
@@ -439,6 +457,10 @@ TEST_CASE(
     captured_cancel();
 
     CHECK(settings.cancel_call_count == 1);
+    CHECK(view.close_call_count == 0);
+    REQUIRE(captured_after_cleared);
+    captured_after_cleared();
+
     CHECK(view.close_call_count == 1);
 }
 
@@ -450,11 +472,15 @@ TEST_CASE(
 {
     FakeAudioDeviceSettings settings;
     std::function<void()> captured_apply;
+    std::function<void()> captured_after_cleared;
     FakeAudioDeviceSettingsView view;
     {
         AudioDeviceSettingsController controller{
-            settings, [&captured_apply](std::function<void()> operation) {
+            settings,
+            [&captured_apply, &captured_after_cleared](
+                std::function<void()> operation, std::function<void()> after_cleared) {
                 captured_apply = std::move(operation);
+                captured_after_cleared = std::move(after_cleared);
             }
         };
         controller.attachView(view);
@@ -467,6 +493,8 @@ TEST_CASE(
 
     REQUIRE(captured_apply);
     captured_apply();
+    REQUIRE(captured_after_cleared);
+    captured_after_cleared();
 
     CHECK(settings.apply_call_count == 0);
     CHECK(settings.cancel_call_count == 1);

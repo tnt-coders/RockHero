@@ -13,8 +13,8 @@ constexpr float g_linear_gain_change_epsilon{0.000001f};
 
 [[nodiscard]] const juce::Identifier& gainDbProperty()
 {
-    static const juce::Identifier property{"gainDb"};
-    return property;
+    static const juce::Identifier g_property{"gainDb"};
+    return g_property;
 }
 
 } // namespace
@@ -40,8 +40,9 @@ LiveRigGainPlugin::LiveRigGainPlugin(tracktion::PluginCreationInfo info)
     const Gain initial_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
     m_gain_db = static_cast<float>(initial_gain.db);
     setTargetGainDb(static_cast<float>(initial_gain.db));
-    m_last_target_linear_gain = targetLinearGain();
-    m_smoothed_gain.setCurrentAndTargetValue(m_last_target_linear_gain);
+    const float initial_linear_gain = targetLinearGain();
+    setSmoothedGainTarget(initial_linear_gain);
+    m_smoothed_gain.setCurrentAndTargetValue(initial_linear_gain);
 }
 
 // Notifies Tracktion listeners before destruction.

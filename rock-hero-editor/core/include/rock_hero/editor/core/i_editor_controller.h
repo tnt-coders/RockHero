@@ -155,16 +155,18 @@ public:
     /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
 
-    The supplied callable runs on the message thread after the busy overlay paints, so the user
-    sees a static blocking indicator while the underlying juce::AudioDeviceManager call occupies
-    the message thread. The callable is responsible for managing the settings dialog's own state
-    (dismissing on success, restoring on failure); the editor controller only manages the
-    surrounding busy presentation.
+    The supplied work callable runs after the busy overlay paints, so the user sees a static
+    blocking indicator while the underlying device-manager call occupies the message thread. The
+    after-cleared callable runs only after the editor controller has cleared the surrounding busy
+    presentation.
 
     \param change_audio_device Callable run after the busy overlay paints; must be safe to call
     once.
+    \param after_busy_cleared Callable run after the busy overlay clears; must be safe to call
+    once.
     */
-    virtual void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) = 0;
+    virtual void onAudioDeviceChangeRequested(
+        std::function<void()> change_audio_device, std::function<void()> after_busy_cleared) = 0;
 
     /*!
     \brief Requests opening the audio-device settings window.

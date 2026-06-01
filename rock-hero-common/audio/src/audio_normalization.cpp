@@ -1,11 +1,10 @@
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <ebur128.h>
 #include <filesystem>
+#include <format>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_core/juce_core.h>
 #include <juce_cryptography/juce_cryptography.h>
@@ -177,14 +176,10 @@ struct LoudnessMeasurement
     return std::round(gain_db * 10.0) / 10.0;
 }
 
-// Formats a gain value at one decimal place for use in the validation hash. Deterministic
-// across all compilers because fixed one-decimal formatting has no implementation freedom.
+// Formats a gain value at one decimal place for use in the validation hash.
 [[nodiscard]] std::string formatGainForHash(double gain_db)
 {
-    // snprintf with "%.1f" is deterministic for one-decimal formatting across all platforms.
-    std::array<char, 32> buf{};
-    const int len = std::snprintf(buf.data(), buf.size(), "%.1f", gain_db);
-    return std::string{buf.data(), static_cast<std::size_t>(len)};
+    return std::format("{:.1f}", gain_db);
 }
 
 // Presents the hash prefix and audio file as one stream so SHA-256 does not need a full-file

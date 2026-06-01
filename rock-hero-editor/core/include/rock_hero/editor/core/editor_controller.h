@@ -32,6 +32,7 @@ namespace rock_hero::editor::core
 class IEditorSettings;
 class IEditorTaskRunner;
 class IEditorView;
+class IMessageThreadScheduler;
 
 /*!
 \brief Concrete editor workflow coordinator.
@@ -129,6 +130,9 @@ public:
         completion.
         */
         IEditorTaskRunner& task_runner;
+
+        /*! \brief Message-thread scheduler used for busy-presentation ordering. */
+        IMessageThreadScheduler& message_thread_scheduler;
     };
 
     /*!
@@ -219,6 +223,9 @@ public:
     \param view View to receive future state pushes.
     */
     void attachView(IEditorView& view);
+
+    /*! \brief Detaches any bound view and releases view-capturing presentation callbacks. */
+    void detachView();
 
     /*!
     \brief Returns read-only access to the loaded editor session.
@@ -390,8 +397,11 @@ public:
     /*!
     \brief Schedules audio-device open work behind the editor's busy overlay.
     \param change_audio_device Callable run after the busy overlay paints.
+    \param after_busy_cleared Callable run after the busy overlay clears.
     */
-    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override;
+    void onAudioDeviceChangeRequested(
+        std::function<void()> change_audio_device,
+        std::function<void()> after_busy_cleared) override;
 
     /*!
     \brief Requests opening the audio-device settings window.
