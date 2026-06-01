@@ -8,6 +8,8 @@ target_sources(
     rock_hero_editor_core
     PRIVATE src/audio_device_settings_controller.cpp
             src/audio_device_status_text.cpp
+            src/busy_operation_workflow.cpp
+            src/busy_operation_workflow.h
             src/busy_operation_state.cpp
             src/busy_operation_state.h
             src/busy_view_state.cpp
@@ -22,6 +24,7 @@ target_sources(
             src/input_calibration_workflow.cpp
             src/input_calibration_workflow.h
             src/juce_editor_task_runner.cpp
+            src/juce_message_thread_scheduler.cpp
             src/plugin_catalog_workflow.cpp
             src/plugin_catalog_workflow.h
             src/project.cpp

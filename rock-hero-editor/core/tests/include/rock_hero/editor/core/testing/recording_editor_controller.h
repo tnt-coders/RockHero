@@ -205,9 +205,12 @@ public:
     /*!
     \brief Records audio-device change scheduling and stores the supplied completion callback.
     */
-    void onAudioDeviceChangeRequested(std::function<void()> change_audio_device) override
+    void onAudioDeviceChangeRequested(
+        std::function<void()> change_audio_device,
+        std::function<void()> after_busy_cleared) override
     {
         last_audio_device_change = std::move(change_audio_device);
+        last_audio_device_after_busy_cleared = std::move(after_busy_cleared);
         audio_device_change_request_count += 1;
     }
 
@@ -340,6 +343,9 @@ public:
 
     /*! \brief Last audio-device change callback handed to onAudioDeviceChangeRequested(). */
     std::function<void()> last_audio_device_change{};
+
+    /*! \brief Last post-busy callback handed to onAudioDeviceChangeRequested(). */
+    std::function<void()> last_audio_device_after_busy_cleared{};
 
     /*! \brief Number of audio-device change requests received. */
     int audio_device_change_request_count{0};

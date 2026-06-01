@@ -824,6 +824,29 @@ void EditorView::runAfterBusyOverlayPainted(std::function<void()> callback)
     }
 }
 
+// Defers follow-up work until the editor has presented one frame without the busy overlay.
+void EditorView::runAfterBusyOverlayRemoved(std::function<void()> callback)
+{
+    if (!callback)
+    {
+        return;
+    }
+
+    m_after_busy_overlay_removed_paint = std::move(callback);
+    if (!isShowing())
+    {
+        // Headless tests and startup teardown cannot produce a native repaint. Run now so the
+        // workflow never waits indefinitely for a presentation that cannot happen.
+        const std::function<void()> pending_callback =
+            std::move(m_after_busy_overlay_removed_paint);
+        m_after_busy_overlay_removed_paint = {};
+        pending_callback();
+        return;
+    }
+
+    repaint();
+}
+
 // Paints the background and transport strip behind child widgets.
 void EditorView::paint(juce::Graphics& g)
 {
@@ -831,6 +854,7 @@ void EditorView::paint(juce::Graphics& g)
 
     g.setColour(g_transport_bar_colour);
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
+    handleBusyOverlayRemovedPainted();
 }
 
 // Keeps the control strip above the timeline viewport and signal-chain panel.
@@ -1372,14 +1396,22 @@ void EditorView::showAudioDeviceSettingsWindow()
     m_audio_device_settings_window = AudioDeviceSettingsWindow::show(
         m_audio_devices,
         m_audio_device_button,
-        [safe_this](std::function<void()> operation) {
+        [safe_this](std::function<void()> operation, std::function<void()> after_cleared) {
             if (auto* view = safe_this.getComponent())
             {
-                view->m_controller.onAudioDeviceChangeRequested(std::move(operation));
+                view->m_controller.onAudioDeviceChangeRequested(
+                    std::move(operation), std::move(after_cleared));
                 return;
             }
 
-            operation();
+            if (operation)
+            {
+                operation();
+            }
+            if (after_cleared)
+            {
+                after_cleared();
+            }
         },
         [safe_this] {
             if (auto* view = safe_this.getComponent())
@@ -1421,6 +1453,19 @@ void EditorView::handleBusyOverlayPainted()
         return;
     }
 
+    juce::MessageManager::callAsync(std::move(callback));
+}
+
+// Runs the single pending clear-fence callback after the editor has painted with busy cleared.
+void EditorView::handleBusyOverlayRemovedPainted()
+{
+    if (m_state.busy.has_value() || !m_after_busy_overlay_removed_paint)
+    {
+        return;
+    }
+
+    std::function<void()> callback = std::move(m_after_busy_overlay_removed_paint);
+    m_after_busy_overlay_removed_paint = {};
     juce::MessageManager::callAsync(std::move(callback));
 }
 

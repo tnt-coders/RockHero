@@ -72,7 +72,12 @@ public:
     // Hides fully for async apply, then restores modality if the apply fails.
     void setApplying(bool applying)
     {
-        if (m_applying == applying || m_close_requested)
+        if (m_close_requested)
+        {
+            return;
+        }
+
+        if (m_applying == applying)
         {
             return;
         }
@@ -80,6 +85,7 @@ public:
         m_applying = applying;
         if (m_applying)
         {
+            m_restore_after_temporary_modal_exit = false;
             m_modal_end_is_temporary = true;
             setVisible(false);
             if (m_centering_component != nullptr)
@@ -89,9 +95,15 @@ public:
             return;
         }
 
-        setVisible(true);
-        enterManagedModalState();
-        toFront(true);
+        if (m_modal_end_is_temporary)
+        {
+            // setVisible(false) ends JUCE modality asynchronously. Re-entering before that
+            // callback retires the old modal item can leave stale modal state behind the window.
+            m_restore_after_temporary_modal_exit = true;
+            return;
+        }
+
+        restoreAfterApplying();
     }
 
     // Treats OK, Cancel, title-bar close, and Escape as final disposal paths.
@@ -176,10 +188,28 @@ private:
         if (m_modal_end_is_temporary && !m_close_requested)
         {
             m_modal_end_is_temporary = false;
+            if (m_restore_after_temporary_modal_exit)
+            {
+                m_restore_after_temporary_modal_exit = false;
+                restoreAfterApplying();
+            }
             return;
         }
 
         requestClose();
+    }
+
+    // Restores the failed-apply dialog only after JUCE has retired the temporary modal exit.
+    void restoreAfterApplying()
+    {
+        if (m_close_requested)
+        {
+            return;
+        }
+
+        setVisible(true);
+        enterManagedModalState();
+        toFront(true);
     }
 
     // Editor top-level component used for centering and for revealing the busy overlay.
@@ -193,6 +223,9 @@ private:
 
     // Set when the next modal-end callback was caused by apply-driven temporary hiding.
     bool m_modal_end_is_temporary{false};
+
+    // Set when failed apply is ready to restore but JUCE has not fired the temporary modal end yet.
+    bool m_restore_after_temporary_modal_exit{false};
 
     // Set once the workflow has requested final disposal.
     bool m_close_requested{false};
