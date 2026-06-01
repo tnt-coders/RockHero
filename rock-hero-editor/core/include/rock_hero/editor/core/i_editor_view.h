@@ -49,6 +49,18 @@ public:
     */
     virtual void runAfterBusyOverlayPainted(std::function<void()> callback) = 0;
 
+    /*!
+    \brief Runs a callback after the busy overlay has been removed from the presented view.
+
+    Operations that temporarily reveal the editor behind another window can use this fence after
+    clearing busy state. Concrete views should call the callback asynchronously after the first
+    non-busy repaint, not directly from the paint callback itself. If the view cannot currently
+    paint, it should run the callback without waiting indefinitely.
+
+    \param callback Callback to run after the editor repaints without the busy overlay.
+    */
+    virtual void runAfterBusyOverlayRemoved(std::function<void()> callback) = 0;
+
 protected:
     /*! \brief Creates the editor-view interface. */
     IEditorView() = default;

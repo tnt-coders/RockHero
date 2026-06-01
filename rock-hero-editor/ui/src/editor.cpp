@@ -48,6 +48,7 @@ Editor::Editor(
           core::EditorController::Services{
               .settings = services.settings,
               .task_runner = services.task_runner,
+              .message_thread_scheduler = services.message_thread_scheduler,
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(
@@ -63,8 +64,12 @@ Editor::Editor(
     m_controller.attachView(*m_view);
 }
 
-// Uses member declaration order for teardown: the view is destroyed before the controller.
-Editor::~Editor() = default;
+// Clears the controller's view callbacks before destroying the concrete view.
+Editor::~Editor()
+{
+    m_controller.detachView();
+    m_view.reset();
+}
 
 // Exposes the composed JUCE component without exposing controller/view wiring knobs.
 juce::Component& Editor::component() noexcept

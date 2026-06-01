@@ -34,6 +34,7 @@
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
+#include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <string>
@@ -87,6 +88,16 @@ public:
         }
     }
 
+    // Runs the busy-clear paint fence inline so controller tests stay deterministic.
+    void runAfterBusyOverlayRemoved(std::function<void()> callback) override
+    {
+        busy_overlay_removed_callback_count += 1;
+        if (callback)
+        {
+            callback();
+        }
+    }
+
     // Last durable state pushed to the view.
     std::optional<EditorViewState> last_state{};
 
@@ -104,6 +115,9 @@ public:
 
     // Number of busy-overlay paint callbacks requested by the controller.
     int busy_overlay_paint_callback_count{0};
+
+    // Number of busy-overlay removal callbacks requested by the controller.
+    int busy_overlay_removed_callback_count{0};
 };
 
 // Returns the shared no-op settings for tests that do not observe persistence.
@@ -120,11 +134,31 @@ public:
     return task_runner;
 }
 
+// Returns the shared synchronous message-thread scheduler for controller tests.
+[[nodiscard]] inline testing::ImmediateMessageThreadScheduler&
+immediateMessageThreadScheduler() noexcept
+{
+    static testing::ImmediateMessageThreadScheduler scheduler;
+    return scheduler;
+}
+
 // Builds the required service bundle from test-owned or shared fake services.
+[[nodiscard]] inline EditorController::Services controllerServices(
+    IEditorSettings& settings, IEditorTaskRunner& task_runner,
+    IMessageThreadScheduler& message_thread_scheduler) noexcept
+{
+    return EditorController::Services{
+        .settings = settings,
+        .task_runner = task_runner,
+        .message_thread_scheduler = message_thread_scheduler,
+    };
+}
+
+// Builds the required service bundle with the default synchronous message-thread scheduler.
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner) noexcept
 {
-    return EditorController::Services{.settings = settings, .task_runner = task_runner};
+    return controllerServices(settings, task_runner, immediateMessageThreadScheduler());
 }
 
 // Builds the default no-op service bundle for tests that only exercise controller state policy.

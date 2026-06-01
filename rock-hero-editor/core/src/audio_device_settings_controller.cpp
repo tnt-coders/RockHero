@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <format>
+#include <memory>
 #include <string>
 #include <utility>
 
@@ -235,24 +236,34 @@ void AudioDeviceSettingsController::onOkRequested()
         {
             m_view->setApplying(true);
         }
-        m_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
-            if (alive.expired())
-            {
-                return;
-            }
+        const auto apply_succeeded = std::make_shared<bool>(false);
+        m_dispatcher(
+            [this, alive = std::weak_ptr<bool>{m_alive}, apply_succeeded]() {
+                if (alive.expired())
+                {
+                    return;
+                }
 
-            const auto result = m_settings.apply();
-            updateView();
-            if (result.has_value())
-            {
-                finishAndClose();
-                return;
-            }
-            if (m_view != nullptr)
-            {
-                m_view->setApplying(false);
-            }
-        });
+                const auto result = m_settings.apply();
+                *apply_succeeded = result.has_value();
+            },
+            [this, alive = std::weak_ptr<bool>{m_alive}, apply_succeeded]() {
+                if (alive.expired())
+                {
+                    return;
+                }
+
+                updateView();
+                if (*apply_succeeded)
+                {
+                    finishAndClose();
+                    return;
+                }
+                if (m_view != nullptr)
+                {
+                    m_view->setApplying(false);
+                }
+            });
         return;
     }
 
@@ -277,24 +288,34 @@ void AudioDeviceSettingsController::onCancelRequested()
         {
             m_view->setApplying(true);
         }
-        m_dispatcher([this, alive = std::weak_ptr<bool>{m_alive}]() {
-            if (alive.expired())
-            {
-                return;
-            }
+        const auto cancel_succeeded = std::make_shared<bool>(false);
+        m_dispatcher(
+            [this, alive = std::weak_ptr<bool>{m_alive}, cancel_succeeded]() {
+                if (alive.expired())
+                {
+                    return;
+                }
 
-            const auto result = m_settings.cancel();
-            updateView();
-            if (result.has_value())
-            {
-                finishAndClose();
-                return;
-            }
-            if (m_view != nullptr)
-            {
-                m_view->setApplying(false);
-            }
-        });
+                const auto result = m_settings.cancel();
+                *cancel_succeeded = result.has_value();
+            },
+            [this, alive = std::weak_ptr<bool>{m_alive}, cancel_succeeded]() {
+                if (alive.expired())
+                {
+                    return;
+                }
+
+                updateView();
+                if (*cancel_succeeded)
+                {
+                    finishAndClose();
+                    return;
+                }
+                if (m_view != nullptr)
+                {
+                    m_view->setApplying(false);
+                }
+            });
         return;
     }
 
