@@ -7,6 +7,7 @@
 
 #include "audio_level_meter.h"
 
+#include <cstddef>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>
@@ -24,7 +25,7 @@ The panel is intentionally linear for the first plugin-host UI. It renders proje
 emits add-plugin intent through Listener so future rack or parallel-chain models can replace the
 state shape without exposing Tracktion or JUCE plugin descriptions to the view.
 */
-class SignalChainPanel final : public juce::Component
+class SignalChainPanel final : public juce::Component, public juce::DragAndDropContainer
 {
 public:
     /*! \brief Listener for user intents emitted by the signal-chain panel. */
@@ -38,10 +39,24 @@ public:
         virtual void onAddPluginPressed() = 0;
 
         /*!
+        \brief Called when the user requests the plugin browser for an insertion slot.
+        \param chain_index User-visible insertion slot in [0, plugin_count].
+        */
+        virtual void onInsertPluginPressed(std::size_t chain_index) = 0;
+
+        /*!
         \brief Called when the user requests removal of a plugin instance.
         \param instance_id Opaque plugin instance ID selected by the user.
         */
         virtual void onRemovePluginPressed(std::string instance_id) = 0;
+
+        /*!
+        \brief Called when the user requests moving a plugin instance.
+        \param instance_id Opaque plugin instance ID selected by the user.
+        \param destination_index Final user-visible chain index for the instance.
+        */
+        virtual void onMovePluginPressed(
+            std::string instance_id, std::size_t destination_index) = 0;
 
         /*!
         \brief Called when the user requests a plugin instance editor window.
@@ -126,7 +141,12 @@ public:
     void resized() override;
 
 private:
+    class InsertSlotView;
     class PluginRowView;
+
+    // Emits a move intent for a plugin dropped on an insertion slot.
+    void movePluginToInsertionSlot(
+        std::string instance_id, std::size_t source_index, std::size_t slot_index);
 
     // Rebuilds row components after controller-derived plugin state changes.
     void rebuildPluginRows();
@@ -154,6 +174,15 @@ private:
 
     // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;
+
+    // Scrollable viewport that keeps long plugin chains reachable in a compact panel.
+    juce::Viewport m_chain_viewport;
+
+    // Viewed component that owns insert slots and plugin rows.
+    juce::Component m_chain_content;
+
+    // Child insert controls for slots 0 through plugin_count.
+    std::vector<std::unique_ptr<InsertSlotView>> m_insert_slots;
 
     // Child row controls for the current plugin chain.
     std::vector<std::unique_ptr<PluginRowView>> m_plugin_rows;

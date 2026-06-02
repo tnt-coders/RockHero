@@ -203,16 +203,26 @@ public:
     [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalog() const override;
 
     /*!
-    \brief Appends a previously discovered plugin candidate to the hosted Tracktion chain.
+    \brief Inserts a previously discovered plugin candidate into the hosted Tracktion chain.
 
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain.
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
-    \return Handle for the inserted plugin instance, or a typed failure.
+    \param chain_index User-visible insertion index in [0, plugin_count].
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
-    [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPlugin(
-        const PluginCandidate& plugin_candidate) override;
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(
+        const PluginCandidate& plugin_candidate, std::size_t chain_index) override;
+
+    /*!
+    \brief Moves a hosted plugin instance to a final user-visible chain index.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param destination_index Final user-visible chain index for the instance.
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
+    */
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> movePlugin(
+        const std::string& instance_id, std::size_t destination_index) override;
 
     /*!
     \brief Removes a loaded plugin instance from the hosted Tracktion chain.
@@ -220,15 +230,15 @@ public:
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain.
 
-    \param instance_id Opaque instance ID returned by addPlugin().
-    \return Empty success, or a typed failure.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
-    [[nodiscard]] std::expected<void, PluginHostError> removePlugin(
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> removePlugin(
         const std::string& instance_id) override;
 
     /*!
     \brief Opens a hosted plugin editor window for the requested runtime instance.
-    \param instance_id Opaque instance ID returned by addPlugin().
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Empty success, or a typed failure.
     */
     [[nodiscard]] std::expected<void, PluginHostError> openPluginWindow(

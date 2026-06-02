@@ -10,6 +10,7 @@
 #include "project_io.h"
 #include "psarc_song_importer.h"
 #include "rock_song_importer.h"
+#include "signal_chain_workflow.h"
 
 #include <algorithm>
 #include <cassert>
@@ -189,48 +190,6 @@ void defaultExit()
     return static_cast<std::size_t>(std::distance(song.arrangements.begin(), found));
 }
 
-// Converts scanner metadata into stable, framework-free state for the signal-chain panel.
-[[nodiscard]] PluginViewState makePluginViewState(
-    const common::audio::PluginCandidate& plugin_candidate,
-    const common::audio::PluginHandle& handle)
-{
-    return PluginViewState{
-        .instance_id = handle.instance_id,
-        .plugin_id = handle.plugin_id,
-        .name = plugin_candidate.name,
-        .manufacturer = plugin_candidate.manufacturer,
-        .format_name = plugin_candidate.format_name,
-        .chain_index = handle.chain_index,
-    };
-}
-
-// Converts restored or captured live rig state into the signal-chain panel's view model.
-[[nodiscard]] PluginViewState makePluginViewState(const common::audio::LiveRigPlugin& plugin)
-{
-    return PluginViewState{
-        .instance_id = plugin.instance_id,
-        .plugin_id = plugin.plugin_id,
-        .name = plugin.name,
-        .manufacturer = plugin.manufacturer,
-        .format_name = plugin.format_name,
-        .chain_index = plugin.chain_index,
-    };
-}
-
-// Converts a full live rig result vector into editor view state in one place.
-[[nodiscard]] std::vector<PluginViewState> makePluginViewStates(
-    const std::vector<common::audio::LiveRigPlugin>& plugins)
-{
-    std::vector<PluginViewState> states;
-    states.reserve(plugins.size());
-    for (const common::audio::LiveRigPlugin& plugin : plugins)
-    {
-        states.push_back(makePluginViewState(plugin));
-    }
-
-    return states;
-}
-
 // Maps Save to the busy operation shown while the worker owns Project IO.
 [[nodiscard]] BusyOperation busyOperationForProjectWrite(
     const EditorAction::SaveProject& /*action*/) noexcept
@@ -336,10 +295,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
     void onPluginBrowserRequested();
+    void onInsertPluginRequested(std::size_t chain_index);
     void onPluginBrowserClosed();
     void onPluginCatalogScanRequested();
     void onAddPluginRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
+    void onMovePluginRequested(std::string instance_id, std::size_t destination_index);
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
@@ -375,9 +336,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
+    void performActionImpl(EditorAction::InsertPlugin action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
     void performActionImpl(const EditorAction::AddPlugin& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
+    void performActionImpl(const EditorAction::MovePlugin& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] ActionConditions currentActionConditions() const;
@@ -408,7 +371,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
     void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
-    void beginAddKnownPlugin(const common::audio::PluginCandidate& plugin_candidate);
+    void beginAddKnownPlugin(
+        const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
     void refreshKnownPluginCatalog();
     [[nodiscard]] bool closeProject();
@@ -566,8 +530,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
 
-    // Runtime plugin chain shown by the view and refreshed from the live rig boundary.
-    std::vector<PluginViewState> m_plugins;
+    // Headless signal-chain workflow refreshed only from authoritative backend snapshots.
+    SignalChainWorkflow m_signal_chain;
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
@@ -659,6 +623,7 @@ struct EditorController::Impl::ImportTaskState
 struct EditorController::Impl::AddPluginTaskState
 {
     common::audio::PluginCandidate plugin_candidate{};
+    std::size_t chain_index{};
 };
 
 // Per-operation worker state for plugin catalog scanning. The worker owns plugin inspection
@@ -812,6 +777,11 @@ void EditorController::onPluginBrowserRequested()
     m_impl->onPluginBrowserRequested();
 }
 
+void EditorController::onInsertPluginRequested(std::size_t chain_index)
+{
+    m_impl->onInsertPluginRequested(chain_index);
+}
+
 void EditorController::onPluginBrowserClosed()
 {
     m_impl->onPluginBrowserClosed();
@@ -830,6 +800,11 @@ void EditorController::onAddPluginRequested(std::string plugin_id)
 void EditorController::onRemovePluginRequested(std::string instance_id)
 {
     m_impl->onRemovePluginRequested(std::move(instance_id));
+}
+
+void EditorController::onMovePluginRequested(std::string instance_id, std::size_t destination_index)
+{
+    m_impl->onMovePluginRequested(std::move(instance_id), destination_index);
 }
 
 void EditorController::onOpenPluginRequested(std::string instance_id)
@@ -1101,7 +1076,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         m_transport.stop();
         clearActiveArrangementBestEffort("open live-rig failure teardown");
         m_session.reset();
-        m_plugins.clear();
+        m_signal_chain.clear();
         m_output_gain_db = 0.0;
         if (state->clear_last_open_project_on_failure)
         {
@@ -1230,7 +1205,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_transport.stop();
         clearActiveArrangementBestEffort("import live-rig failure teardown");
         m_session.reset();
-        m_plugins.clear();
+        m_signal_chain.clear();
         m_output_gain_db = 0.0;
         finishBusyOperation();
         reportError(
@@ -1334,7 +1309,8 @@ void EditorController::Impl::startLiveRigLoadStage(
                     return;
                 }
 
-                m_plugins = makePluginViewStates(rig_result->plugins);
+                m_signal_chain.replaceSnapshot(
+                    common::audio::PluginChainSnapshot{.plugins = rig_result->plugins});
                 m_output_gain_db = rig_result->output_gain.db;
                 applyLiveInputGate();
                 if (!report_progress)
@@ -1478,10 +1454,17 @@ void EditorController::Impl::onPluginBrowserRequested()
     runAction(EditorAction::ShowPluginBrowser{});
 }
 
+// Opens the plugin browser for a specific signal-chain insertion slot.
+void EditorController::Impl::onInsertPluginRequested(std::size_t chain_index)
+{
+    runAction(EditorAction::InsertPlugin{chain_index});
+}
+
 // Hides the browser directly because closing a presentation window should not be blocked by an
 // unrelated busy operation. In-flight scans still complete against the cached browser state.
 void EditorController::Impl::onPluginBrowserClosed()
 {
+    m_signal_chain.clearPendingInsertion();
     if (!m_plugin_catalog.close())
     {
         return;
@@ -1501,11 +1484,17 @@ void EditorController::Impl::onAddPluginRequested(std::string plugin_id)
     runAction(EditorAction::AddPlugin{std::move(plugin_id)});
 }
 
-// Removes one runtime plugin instance from the current linear chain without marking the project
-// dirty while tone persistence does not exist.
+// Removes one runtime plugin instance from the current linear chain.
 void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
 {
     runAction(EditorAction::RemovePlugin{std::move(instance_id)});
+}
+
+// Moves one runtime plugin instance to a new final index in the current linear chain.
+void EditorController::Impl::onMovePluginRequested(
+    std::string instance_id, std::size_t destination_index)
+{
+    runAction(EditorAction::MovePlugin{std::move(instance_id), destination_index});
 }
 
 // Opens the hosted plugin editor window for a row-level signal-chain request.
@@ -1769,6 +1758,24 @@ void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /
         return;
     }
 
+    m_signal_chain.requestAppend();
+    m_plugin_catalog.open(m_plugin_host.knownPluginCatalog());
+    updateView();
+}
+
+// Makes the browser visible for a specific chain slot and refreshes the lightweight catalog.
+void EditorController::Impl::performActionImpl(EditorAction::InsertPlugin action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    if (!m_signal_chain.requestInsertAt(action.chain_index))
+    {
+        return;
+    }
+
     m_plugin_catalog.open(m_plugin_host.knownPluginCatalog());
     updateView();
 }
@@ -1812,7 +1819,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         return;
     }
 
-    beginAddKnownPlugin(*plugin_candidate);
+    const std::optional<std::size_t> chain_index = m_signal_chain.insertionIndexForSelection();
+    if (!chain_index.has_value())
+    {
+        reportError("Could not add plugin: insertion position is no longer available");
+        updateView();
+        return;
+    }
+
+    beginAddKnownPlugin(*plugin_candidate, *chain_index);
 }
 
 // Inserts the selected browser plugin into the live chain after the loading state has painted.
@@ -1821,16 +1836,17 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
     assert(isBusy() && "completeAddPluginLoad called outside a busy operation");
 
     const common::audio::PluginCandidate& plugin_candidate = state->plugin_candidate;
-    const auto handle = m_plugin_host.addPlugin(plugin_candidate);
-    if (!handle.has_value())
+    auto snapshot = m_plugin_host.insertPlugin(plugin_candidate, state->chain_index);
+    if (!snapshot.has_value())
     {
-        const std::string message = handle.error().message;
+        const std::string message = snapshot.error().message;
         finishBusyOperation();
         reportError(std::string{"Could not add plugin: "} + message);
         return;
     }
 
-    m_plugins.push_back(makePluginViewState(plugin_candidate, *handle));
+    m_signal_chain.replaceSnapshot(std::move(*snapshot));
+    m_signal_chain.clearPendingInsertion();
     m_plugin_catalog.hide();
     if (hasLiveRigPersistence())
     {
@@ -1842,10 +1858,11 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
 
 // Starts the blocking plugin-instantiation phase after pushing LoadingPlugin state first.
 void EditorController::Impl::beginAddKnownPlugin(
-    const common::audio::PluginCandidate& plugin_candidate)
+    const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
     auto state = std::make_shared<AddPluginTaskState>();
     state->plugin_candidate = plugin_candidate;
+    state->chain_index = chain_index;
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
     m_busy.runAfterBusyPresentationReady([this, state, token]() {
@@ -1890,28 +1907,52 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
         return;
     }
 
-    const auto plugin = std::ranges::find_if(m_plugins, [&action](const PluginViewState& item) {
-        return item.instance_id == action.instance_id;
-    });
-    if (plugin == m_plugins.end())
+    if (!m_signal_chain.containsInstance(action.instance_id))
     {
         return;
     }
 
-    const auto result = m_plugin_host.removePlugin(action.instance_id);
-    if (!result.has_value())
+    auto snapshot = m_plugin_host.removePlugin(action.instance_id);
+    if (!snapshot.has_value())
     {
-        reportError(std::string{"Could not remove plugin: "} + result.error().message);
+        reportError(std::string{"Could not remove plugin: "} + snapshot.error().message);
         updateView();
         return;
     }
 
-    m_plugins.erase(plugin);
-    for (std::size_t index = 0; index < m_plugins.size(); ++index)
-    {
-        m_plugins[index].chain_index = index;
-    }
+    m_signal_chain.replaceSnapshot(std::move(*snapshot));
     if (hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
+    updateView();
+}
+
+// Moves a plugin through the audio boundary so backend order remains authoritative.
+void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    const std::optional<std::size_t> current_index =
+        m_signal_chain.chainIndexForInstance(action.instance_id);
+    if (!current_index.has_value() || action.destination_index >= m_signal_chain.appendIndex())
+    {
+        return;
+    }
+
+    auto snapshot = m_plugin_host.movePlugin(action.instance_id, action.destination_index);
+    if (!snapshot.has_value())
+    {
+        reportError(std::string{"Could not move plugin: "} + snapshot.error().message);
+        updateView();
+        return;
+    }
+
+    m_signal_chain.replaceSnapshot(std::move(*snapshot));
+    if (*current_index != action.destination_index && hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
     }
@@ -1925,10 +1966,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& a
         return;
     }
 
-    const auto plugin = std::ranges::find_if(m_plugins, [&action](const PluginViewState& item) {
-        return item.instance_id == action.instance_id;
-    });
-    if (plugin == m_plugins.end())
+    if (!m_signal_chain.containsInstance(action.instance_id))
     {
         return;
     }
@@ -2102,7 +2140,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
-        .has_loaded_plugins = !m_plugins.empty(),
+        .has_loaded_plugins = m_signal_chain.hasPlugins(),
     };
 }
 
@@ -2230,7 +2268,7 @@ bool EditorController::Impl::closeProject()
         clearLiveRig();
         clearActiveArrangementBestEffort("close empty project");
         m_session.reset();
-        m_plugins.clear();
+        m_signal_chain.clear();
         m_output_gain_db = 0.0;
         m_project_file.clear();
         m_displaced_project_file.clear();
@@ -2244,7 +2282,7 @@ bool EditorController::Impl::closeProject()
     clearLiveRig();
     clearActiveArrangementBestEffort("close project");
     m_session.reset();
-    m_plugins.clear();
+    m_signal_chain.clear();
     m_output_gain_db = 0.0;
 
     auto closed = closeExistingProject(m_project);
@@ -2331,7 +2369,8 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
     }
 
     arrangement->tone_document_ref = snapshot->tone_document_ref;
-    m_plugins = makePluginViewStates(snapshot->plugins);
+    m_signal_chain.replaceSnapshot(
+        common::audio::PluginChainSnapshot{.plugins = snapshot->plugins});
     m_output_gain_db = snapshot->output_gain.db;
     return {};
 }
@@ -2676,7 +2715,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
     {
         committed = m_session.loadSong(std::move(song), selected_index);
         assert(committed && "Session rejected backend-accepted project song");
-        m_plugins.clear();
+        m_signal_chain.clear();
         m_output_gain_db = 0.0;
         m_plugin_catalog.hide();
     }
@@ -2735,9 +2774,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.signal_chain = SignalChainViewState{
         .add_plugin_enabled =
             isActionAvailable(EditorAction::Id::ShowPluginBrowser, action_conditions),
+        .insert_plugin_enabled =
+            isActionAvailable(EditorAction::Id::InsertPlugin, action_conditions),
+        .move_plugins_enabled = isActionAvailable(EditorAction::Id::MovePlugin, action_conditions),
         .remove_plugins_enabled =
             isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
-        .plugins = m_plugins,
+        .plugins = m_signal_chain.plugins(),
         .input_calibration_status = input_calibration.status,
         .input_calibrate_enabled = input_calibration.calibrate_enabled,
         .disabled_message = input_calibration.disabled_message,

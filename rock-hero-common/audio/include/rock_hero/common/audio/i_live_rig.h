@@ -11,33 +11,12 @@
 #include <functional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/live_rig_error.h>
+#include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <string>
 #include <vector>
 
 namespace rock_hero::common::audio
 {
-
-/*! \brief One plugin restored into or captured from the active live rig chain. */
-struct [[nodiscard]] LiveRigPlugin
-{
-    /*! \brief Opaque instance ID assigned by the current plugin backend. */
-    std::string instance_id;
-
-    /*! \brief Best-effort plugin identifier for display and same-runtime operations. */
-    std::string plugin_id;
-
-    /*! \brief User-facing plugin name. */
-    std::string name;
-
-    /*! \brief User-facing plugin manufacturer, when supplied by the scanner. */
-    std::string manufacturer;
-
-    /*! \brief Backend plugin format name, such as VST3. */
-    std::string format_name;
-
-    /*! \brief Zero-based position in the current linear plugin chain. */
-    std::size_t chain_index{};
-};
 
 /*! \brief Message-thread request to capture the active live rig into song files. */
 struct [[nodiscard]] LiveRigCaptureRequest
@@ -59,7 +38,7 @@ struct [[nodiscard]] LiveRigSnapshot
     std::string tone_document_ref{};
 
     /*! \brief Captured chain state for the editor signal-chain panel. */
-    std::vector<LiveRigPlugin> plugins{};
+    std::vector<PluginChainEntry> plugins{};
 
     /*! \brief Captured output gain after the signal chain. */
     Gain output_gain{};
@@ -122,7 +101,7 @@ struct [[nodiscard]] LiveRigLoadRequest
 struct [[nodiscard]] LiveRigLoadResult
 {
     /*! \brief Restored chain state for the editor signal-chain panel. */
-    std::vector<LiveRigPlugin> plugins{};
+    std::vector<PluginChainEntry> plugins{};
 
     /*! \brief Restored output gain after the signal chain. */
     Gain output_gain{};
