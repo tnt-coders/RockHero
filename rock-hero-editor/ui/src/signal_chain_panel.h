@@ -140,6 +140,7 @@ public:
 private:
     class InsertSlotView;
     class PluginTileView;
+    class SignalPathContent;
 
     // Emits a move intent for a plugin dropped on an insertion slot.
     void movePluginToInsertionSlot(
@@ -172,8 +173,8 @@ private:
     // Scrollable viewport that keeps long plugin chains reachable in a compact panel.
     juce::Viewport m_chain_viewport;
 
-    // Viewed component that owns insert rails and plugin tiles.
-    juce::Component m_chain_content;
+    // Viewed component that paints the signal path and owns insert rails and plugin tiles.
+    std::unique_ptr<SignalPathContent> m_chain_content;
 
     // Child insert controls for slots 0 through plugin_count.
     std::vector<std::unique_ptr<InsertSlotView>> m_insert_slots;

@@ -14,14 +14,18 @@ namespace
 
 constexpr int g_panel_inset{8};
 constexpr int g_header_height{34};
-constexpr int g_insert_rail_width{16};
-constexpr int g_plugin_tile_width{128};
-constexpr int g_chain_gap{3};
+constexpr int g_insert_rail_width{28};
+constexpr int g_signal_path_padding{20};
+constexpr int g_signal_path_min_cell_width{96};
+constexpr int g_signal_block_width{86};
+constexpr int g_signal_block_height{68};
+constexpr int g_signal_block_icon_size{26};
 constexpr int g_tile_remove_button_size{18};
-constexpr int g_tile_inset{6};
+constexpr int g_tile_inset{7};
+constexpr std::size_t g_signal_path_block_capacity{8};
 // Idle opacity for the hover-revealed insert "+" and tile remove "x" affordances. They stay present
 // (and hit-testable) for discoverability and testing, but fade until the pointer enters their host.
-constexpr float g_idle_affordance_alpha{0.0f};
+constexpr float g_idle_affordance_alpha{0.12f};
 constexpr int g_output_gain_width{72};
 constexpr int g_gain_slider_width{32};
 constexpr int g_gain_meter_width{28};
@@ -36,11 +40,13 @@ constexpr int g_output_gain_visual_width{
 const juce::Colour g_panel_background{juce::Colours::darkgrey.darker(0.24f)};
 const juce::Colour g_panel_header_background{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_panel_border{juce::Colours::black.withAlpha(0.45f)};
-const juce::Colour g_plugin_row_background{juce::Colours::darkgrey.darker(0.12f)};
-const juce::Colour g_plugin_row_hover_background{juce::Colour{0xff263a4c}};
-const juce::Colour g_plugin_row_border{juce::Colours::black.withAlpha(0.35f)};
-const juce::Colour g_plugin_row_hover_border{juce::Colours::lightskyblue.withAlpha(0.95f)};
-const juce::Colour g_plugin_row_hover_accent{juce::Colours::lightskyblue};
+const juce::Colour g_path_background{juce::Colour{0xff101318}};
+const juce::Colour g_signal_path_line{juce::Colours::white.withAlpha(0.82f)};
+const juce::Colour g_signal_path_slot_marker{juce::Colours::white.withAlpha(0.12f)};
+const juce::Colour g_plugin_tile_background{juce::Colour{0xff1b2027}};
+const juce::Colour g_plugin_tile_hover_background{juce::Colour{0xff222b35}};
+const juce::Colour g_plugin_tile_border{juce::Colours::black.withAlpha(0.6f)};
+const juce::Colour g_plugin_tile_hover_border{juce::Colours::white.withAlpha(0.7f)};
 const juce::Colour g_insert_slot_line{juce::Colours::lightgrey.withAlpha(0.36f)};
 const juce::Colour g_insert_slot_drop_fill{juce::Colour{0xff1f3447}};
 const juce::Colour g_insert_slot_drop_line{juce::Colours::lightskyblue};
@@ -54,16 +60,192 @@ struct DraggedPlugin
     std::size_t source_index{};
 };
 
-// Computes the full scrollable content width for a left-to-right rail/tile strip.
-[[nodiscard]] int chainContentWidth(std::size_t plugin_count) noexcept
+enum class PluginIconType
 {
-    const auto rail_count = static_cast<int>(plugin_count + 1);
-    const auto tile_count = static_cast<int>(plugin_count);
-    return (rail_count * g_insert_rail_width) +
-           (tile_count * (g_plugin_tile_width + (g_chain_gap * 2)));
+    Generic,
+    Amp,
+    Cab,
+    Drive,
+    Delay,
+    Reverb,
+    Modulation,
+    Dynamics,
+    Eq,
+    Gate,
+    Pitch,
+    Wah,
+};
+
+// Returns the number of fixed block positions the path surface should reserve.
+[[nodiscard]] std::size_t visualBlockCount(std::size_t plugin_count) noexcept
+{
+    return std::max(g_signal_path_block_capacity, plugin_count);
 }
 
-// Encodes enough row state for slot drop targets to compute final move destinations.
+// Computes the full scrollable content width for the fixed-position signal path.
+[[nodiscard]] int chainContentWidth(std::size_t plugin_count, int viewport_width) noexcept
+{
+    const int natural_width =
+        (static_cast<int>(visualBlockCount(plugin_count)) * g_signal_path_min_cell_width) +
+        (g_signal_path_padding * 2);
+    return std::max(viewport_width, natural_width);
+}
+
+// Returns the inner path bounds shared by painting and child layout.
+[[nodiscard]] juce::Rectangle<int> signalPathArea(juce::Rectangle<int> bounds)
+{
+    return bounds.reduced(g_signal_path_padding, 0);
+}
+
+// Computes one fixed visual block cell by index.
+[[nodiscard]] juce::Rectangle<int> blockCellBounds(
+    juce::Rectangle<int> path_area, std::size_t cell_index, std::size_t block_count)
+{
+    const int cell_width = std::max(1, path_area.getWidth() / static_cast<int>(block_count));
+    return path_area.withX(path_area.getX() + (static_cast<int>(cell_index) * cell_width))
+        .withWidth(cell_width);
+}
+
+// Centers each plugin block inside its path cell so the line remains visually dominant.
+[[nodiscard]] juce::Rectangle<int> pluginBlockBounds(
+    juce::Rectangle<int> path_area, std::size_t block_index, std::size_t block_count)
+{
+    const juce::Rectangle<int> cell = blockCellBounds(path_area, block_index, block_count);
+    const int block_width = std::min(g_signal_block_width, std::max(1, cell.getWidth() - 10));
+    const int block_height =
+        std::min(g_signal_block_height, std::max(1, path_area.getHeight() - 18));
+    return cell.withSizeKeepingCentre(block_width, block_height);
+}
+
+// Places insert slots at path boundaries, with the append slot occupying the next empty block.
+[[nodiscard]] int insertionSlotCenterX(
+    std::size_t slot_index, std::size_t plugin_count, juce::Rectangle<int> path_area,
+    std::size_t block_count)
+{
+    if (block_count == 0)
+    {
+        return path_area.getCentreX();
+    }
+
+    if (plugin_count == 0 || (slot_index == plugin_count && slot_index < block_count))
+    {
+        return blockCellBounds(path_area, slot_index, block_count).getCentreX();
+    }
+
+    if (slot_index == 0)
+    {
+        return path_area.getX() + (g_insert_rail_width / 2);
+    }
+
+    if (slot_index >= block_count)
+    {
+        return path_area.getRight() - (g_insert_rail_width / 2);
+    }
+
+    const juce::Rectangle<int> cell = blockCellBounds(path_area, slot_index, block_count);
+    return cell.getX();
+}
+
+// Builds a lower-case metadata string used only for visual plugin-type hints.
+[[nodiscard]] juce::String pluginSearchText(const core::PluginViewState& plugin)
+{
+    juce::String text{plugin.name};
+    text += " ";
+    text += juce::String{plugin.manufacturer};
+    text += " ";
+    text += juce::String{plugin.format_name};
+    return text.toLowerCase();
+}
+
+// Infers a display icon from common guitar-plugin naming conventions.
+[[nodiscard]] PluginIconType inferPluginIconType(const core::PluginViewState& plugin)
+{
+    const juce::String text = pluginSearchText(plugin);
+    if (text.contains("cab") || text.contains("impulse") || text.contains("loader"))
+    {
+        return PluginIconType::Cab;
+    }
+    if (text.contains("amp") || text.contains("amplifier") || text.contains("neural"))
+    {
+        return PluginIconType::Amp;
+    }
+    if (text.contains("drive") || text.contains("dist") || text.contains("fuzz") ||
+        text.contains("boost") || text.contains("overdrive"))
+    {
+        return PluginIconType::Drive;
+    }
+    if (text.contains("delay") || text.contains("echo"))
+    {
+        return PluginIconType::Delay;
+    }
+    if (text.contains("reverb") || text.contains("room") || text.contains("hall") ||
+        text.contains("plate"))
+    {
+        return PluginIconType::Reverb;
+    }
+    if (text.contains("chorus") || text.contains("flanger") || text.contains("phaser") ||
+        text.contains("tremolo") || text.contains("vibrato"))
+    {
+        return PluginIconType::Modulation;
+    }
+    if (text.contains("comp") || text.contains("limiter"))
+    {
+        return PluginIconType::Dynamics;
+    }
+    if (text.contains("eq") || text.contains("equalizer"))
+    {
+        return PluginIconType::Eq;
+    }
+    if (text.contains("gate") || text.contains("noise"))
+    {
+        return PluginIconType::Gate;
+    }
+    if (text.contains("pitch") || text.contains("octave") || text.contains("harmon"))
+    {
+        return PluginIconType::Pitch;
+    }
+    if (text.contains("wah") || text.contains("filter"))
+    {
+        return PluginIconType::Wah;
+    }
+    return PluginIconType::Generic;
+}
+
+// Assigns a restrained accent so unknown plugins still fit the path while known types differ.
+[[nodiscard]] juce::Colour iconAccentColour(PluginIconType icon_type)
+{
+    switch (icon_type)
+    {
+        case PluginIconType::Amp:
+            return juce::Colour{0xfff1c15b};
+        case PluginIconType::Cab:
+            return juce::Colour{0xff7ed6a5};
+        case PluginIconType::Drive:
+            return juce::Colour{0xfff07f5f};
+        case PluginIconType::Delay:
+            return juce::Colour{0xff7da8ff};
+        case PluginIconType::Reverb:
+            return juce::Colour{0xffb78cff};
+        case PluginIconType::Modulation:
+            return juce::Colour{0xff64d7d0};
+        case PluginIconType::Dynamics:
+            return juce::Colour{0xffffd66b};
+        case PluginIconType::Eq:
+            return juce::Colour{0xff8fd37f};
+        case PluginIconType::Gate:
+            return juce::Colour{0xffff8ea1};
+        case PluginIconType::Pitch:
+            return juce::Colour{0xff8fb8ff};
+        case PluginIconType::Wah:
+            return juce::Colour{0xffe8a66a};
+        case PluginIconType::Generic:
+            return juce::Colour{0xffd7dde6};
+    }
+
+    return juce::Colour{0xffd7dde6};
+}
+
+// Encodes enough tile state for slot drop targets to compute final move destinations.
 [[nodiscard]] juce::String makePluginDragDescription(const core::PluginViewState& plugin)
 {
     juce::String description{g_plugin_drag_prefix};
@@ -73,7 +255,7 @@ struct DraggedPlugin
     return description;
 }
 
-// Decodes a plugin-row drag payload while rejecting unrelated JUCE drag operations.
+// Decodes a plugin-tile drag payload while rejecting unrelated JUCE drag operations.
 [[nodiscard]] std::optional<DraggedPlugin> parsePluginDragDescription(const juce::var& description)
 {
     if (!description.isString())
@@ -112,7 +294,7 @@ struct DraggedPlugin
     };
 }
 
-// Translates an insertion slot into the final destination index after removing the source row.
+// Translates an insertion slot into the final destination index after removing the source tile.
 [[nodiscard]] std::optional<std::size_t> destinationIndexForDrop(
     std::size_t source_index, std::size_t slot_index, std::size_t plugin_count) noexcept
 {
@@ -161,6 +343,157 @@ struct DraggedPlugin
     return label;
 }
 
+// Draws a compact category hint inside a tile without requiring plugin-host-specific artwork.
+void drawPluginIcon(
+    juce::Graphics& g, juce::Rectangle<int> icon_area, PluginIconType icon_type,
+    juce::Colour accent)
+{
+    const auto icon = icon_area.toFloat();
+    g.setColour(accent.withAlpha(0.18f));
+    g.fillRoundedRectangle(icon, 5.0f);
+    g.setColour(accent.withAlpha(0.95f));
+
+    const auto symbol = icon.reduced(5.0f);
+    switch (icon_type)
+    {
+        case PluginIconType::Amp:
+        {
+            g.drawRoundedRectangle(symbol, 3.0f, 1.6f);
+            for (int index = 0; index < 3; ++index)
+            {
+                const float x = symbol.getX() + 5.0f + (static_cast<float>(index) * 6.0f);
+                g.fillEllipse(x, symbol.getY() + 4.0f, 3.0f, 3.0f);
+            }
+            g.drawLine(
+                symbol.getX() + 4.0f,
+                symbol.getBottom() - 5.0f,
+                symbol.getRight() - 4.0f,
+                symbol.getBottom() - 5.0f,
+                1.4f);
+            break;
+        }
+        case PluginIconType::Cab:
+        {
+            const auto speaker = symbol.reduced(2.0f);
+            g.drawEllipse(speaker, 1.8f);
+            g.fillEllipse(speaker.withSizeKeepingCentre(5.0f, 5.0f));
+            break;
+        }
+        case PluginIconType::Drive:
+        {
+            const auto pedal = symbol.reduced(2.0f, 0.0f);
+            g.drawRoundedRectangle(pedal, 2.5f, 1.6f);
+            g.fillEllipse(pedal.getCentreX() - 2.5f, pedal.getY() + 4.0f, 5.0f, 5.0f);
+            g.drawLine(
+                pedal.getX() + 4.0f,
+                pedal.getBottom() - 5.0f,
+                pedal.getRight() - 4.0f,
+                pedal.getBottom() - 5.0f,
+                1.4f);
+            break;
+        }
+        case PluginIconType::Delay:
+        {
+            for (int index = 0; index < 3; ++index)
+            {
+                const float radius = 10.0f - (static_cast<float>(index) * 3.0f);
+                g.drawEllipse(symbol.withSizeKeepingCentre(radius, radius), 1.3f);
+            }
+            break;
+        }
+        case PluginIconType::Reverb:
+        {
+            juce::Path cloud;
+            cloud.addEllipse(symbol.getX(), symbol.getY() + 6.0f, 9.0f, 9.0f);
+            cloud.addEllipse(symbol.getX() + 6.0f, symbol.getY() + 2.0f, 10.0f, 10.0f);
+            cloud.addEllipse(symbol.getX() + 13.0f, symbol.getY() + 7.0f, 8.0f, 8.0f);
+            g.strokePath(cloud, juce::PathStrokeType{1.6f});
+            break;
+        }
+        case PluginIconType::Modulation:
+        {
+            juce::Path wave;
+            wave.startNewSubPath(symbol.getX(), symbol.getCentreY());
+            wave.cubicTo(
+                symbol.getX() + 5.0f,
+                symbol.getY(),
+                symbol.getX() + 10.0f,
+                symbol.getBottom(),
+                symbol.getX() + 15.0f,
+                symbol.getCentreY());
+            wave.cubicTo(
+                symbol.getX() + 18.0f,
+                symbol.getY(),
+                symbol.getRight() - 2.0f,
+                symbol.getBottom(),
+                symbol.getRight(),
+                symbol.getCentreY());
+            g.strokePath(wave, juce::PathStrokeType{1.8f});
+            break;
+        }
+        case PluginIconType::Dynamics:
+        {
+            for (int index = 0; index < 4; ++index)
+            {
+                const float height = 6.0f + (static_cast<float>(index % 2) * 8.0f);
+                const float x = symbol.getX() + 3.0f + (static_cast<float>(index) * 5.0f);
+                g.fillRect(juce::Rectangle<float>{x, symbol.getBottom() - height, 3.0f, height});
+            }
+            break;
+        }
+        case PluginIconType::Eq:
+        {
+            for (int index = 0; index < 3; ++index)
+            {
+                const float x = symbol.getX() + 4.0f + (static_cast<float>(index) * 7.0f);
+                g.drawLine(x, symbol.getY(), x, symbol.getBottom(), 1.1f);
+                const float y = symbol.getY() + 4.0f + (static_cast<float>(index) * 4.0f);
+                g.fillRoundedRectangle(x - 3.0f, y, 6.0f, 3.0f, 1.5f);
+            }
+            break;
+        }
+        case PluginIconType::Gate:
+        {
+            g.drawLine(symbol.getX(), symbol.getBottom(), symbol.getCentreX(), symbol.getY(), 1.6f);
+            g.drawLine(
+                symbol.getCentreX(), symbol.getY(), symbol.getRight(), symbol.getBottom(), 1.6f);
+            break;
+        }
+        case PluginIconType::Pitch:
+        {
+            juce::Path arrow;
+            arrow.startNewSubPath(symbol.getX() + 3.0f, symbol.getBottom() - 3.0f);
+            arrow.lineTo(symbol.getCentreX(), symbol.getY() + 2.0f);
+            arrow.lineTo(symbol.getRight() - 3.0f, symbol.getBottom() - 3.0f);
+            g.strokePath(arrow, juce::PathStrokeType{1.8f});
+            break;
+        }
+        case PluginIconType::Wah:
+        {
+            juce::Path pedal;
+            pedal.startNewSubPath(symbol.getX() + 3.0f, symbol.getBottom());
+            pedal.lineTo(symbol.getX() + 8.0f, symbol.getY());
+            pedal.lineTo(symbol.getRight() - 3.0f, symbol.getY() + 4.0f);
+            pedal.lineTo(symbol.getRight() - 2.0f, symbol.getBottom());
+            pedal.closeSubPath();
+            g.strokePath(pedal, juce::PathStrokeType{1.5f});
+            break;
+        }
+        case PluginIconType::Generic:
+        {
+            juce::Path wave;
+            wave.startNewSubPath(symbol.getX(), symbol.getCentreY());
+            wave.lineTo(symbol.getX() + 5.0f, symbol.getCentreY());
+            wave.lineTo(symbol.getX() + 8.0f, symbol.getY() + 3.0f);
+            wave.lineTo(symbol.getX() + 12.0f, symbol.getBottom() - 3.0f);
+            wave.lineTo(symbol.getX() + 15.0f, symbol.getCentreY());
+            wave.lineTo(symbol.getRight(), symbol.getCentreY());
+            g.strokePath(wave, juce::PathStrokeType{1.7f});
+            break;
+        }
+    }
+}
+
 // Keeps JUCE's normal editable slider textbox while shifting only the vertical track left enough
 // to sit as a compact pair beside the output meter.
 class OutputGainSliderLookAndFeel final : public juce::LookAndFeel_V4
@@ -196,7 +529,59 @@ public:
 
 } // namespace
 
-// Presents one insertion slot between plugin rows and accepts plugin-row drops.
+// Paints the Quad Cortex-style signal rail behind insertion slots and plugin tiles.
+class SignalChainPanel::SignalPathContent final : public juce::Component
+{
+public:
+    // Stores the current plugin count so empty block positions remain visible.
+    void setPluginCount(std::size_t plugin_count)
+    {
+        if (m_plugin_count == plugin_count)
+        {
+            return;
+        }
+
+        m_plugin_count = plugin_count;
+        repaint();
+    }
+
+    // Draws the dark path surface, white signal line, and subtle fixed-position markers.
+    void paint(juce::Graphics& g) override
+    {
+        const auto bounds = getLocalBounds();
+        g.fillAll(g_path_background);
+
+        const auto path_area = signalPathArea(bounds);
+        const std::size_t block_count = visualBlockCount(m_plugin_count);
+        if (path_area.isEmpty() || block_count == 0)
+        {
+            return;
+        }
+
+        const int path_y = path_area.getCentreY();
+        g.setColour(g_signal_path_line);
+        g.drawLine(
+            static_cast<float>(path_area.getX()),
+            static_cast<float>(path_y),
+            static_cast<float>(path_area.getRight()),
+            static_cast<float>(path_y),
+            3.0f);
+
+        g.setColour(g_signal_path_slot_marker);
+        for (std::size_t index = 0; index < block_count; ++index)
+        {
+            const auto marker_bounds =
+                blockCellBounds(path_area, index, block_count).withSizeKeepingCentre(8, 8);
+            g.fillEllipse(marker_bounds.toFloat());
+        }
+    }
+
+private:
+    // Number of plugins currently projected into the path renderer.
+    std::size_t m_plugin_count{};
+};
+
+// Presents one insertion slot on the path and accepts plugin-tile drops.
 class SignalChainPanel::InsertSlotView final : public juce::Component,
                                                public juce::DragAndDropTarget
 {
@@ -224,6 +609,7 @@ public:
     void setEditingEnabled(bool insert_enabled, bool move_enabled)
     {
         m_button.setEnabled(insert_enabled);
+        m_button.setTooltip(insert_enabled ? "Insert plugin here" : "Maximum 8 blocks");
         m_drop_enabled = move_enabled;
         if (!m_drop_enabled && m_is_drag_hovered)
         {
@@ -232,8 +618,8 @@ public:
         }
     }
 
-    // Reports whether dropping the current payload here would actually relocate the row. Slots
-    // adjacent to the dragged row resolve to a no-op, so they must decline interest rather than
+    // Reports whether dropping the current payload here would actually relocate the tile. Slots
+    // adjacent to the dragged tile resolve to a no-op, so they must decline interest rather than
     // highlight a drop that would do nothing.
     [[nodiscard]] bool isInterestedInDragSource(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
@@ -297,34 +683,33 @@ public:
             std::move(plugin->instance_id), plugin->source_index, m_chain_index);
     }
 
-    // Draws the slot as a thin vertical insertion rail, with stronger feedback while dragging.
+    // Draws the slot as a short path crossing, with stronger feedback while dragging.
     void paint(juce::Graphics& g) override
     {
         auto area = getLocalBounds();
         if (m_is_drag_hovered)
         {
             g.setColour(g_insert_slot_drop_fill);
-            g.fillRect(area);
+            g.fillRoundedRectangle(area.reduced(1).toFloat(), 6.0f);
         }
 
         const int x = area.getCentreX();
+        const int y = area.getCentreY();
+        const int half_height = std::min(28, std::max(0, area.getHeight() / 2));
         g.setColour(m_is_drag_hovered ? g_insert_slot_drop_line : g_insert_slot_line);
         g.drawLine(
             static_cast<float>(x),
-            0.0f,
+            static_cast<float>(y - half_height),
             static_cast<float>(x),
-            static_cast<float>(area.getHeight()),
+            static_cast<float>(y + half_height),
             m_is_drag_hovered ? 2.0f : 1.0f);
     }
 
-    // Keeps the compact insertion button centered near the top of the vertical rail.
+    // Keeps the compact insertion button centered on the signal path.
     void resized() override
     {
         const int button_size = std::min(g_insert_rail_width, getWidth());
-        m_button.setBounds(
-            getLocalBounds()
-                .removeFromTop(g_insert_rail_width)
-                .withSizeKeepingCentre(button_size, button_size));
+        m_button.setBounds(getLocalBounds().withSizeKeepingCentre(button_size, button_size));
     }
 
     // Brightens the "+" affordance while the pointer is over the rail or its button.
@@ -360,10 +745,10 @@ private:
     // Compact insertion command button.
     juce::TextButton m_button;
 
-    // True when plugin rows may be dropped on this insertion slot.
+    // True when plugin tiles may be dropped on this insertion slot.
     bool m_drop_enabled{false};
 
-    // True while a compatible row drag is hovering over this slot.
+    // True while a compatible tile drag is hovering over this slot.
     bool m_is_drag_hovered{false};
 };
 
@@ -378,6 +763,8 @@ public:
     PluginTileView(core::PluginViewState plugin, std::size_t plugin_count, Listener& listener)
         : m_listener(listener)
         , m_plugin(std::move(plugin))
+        , m_icon_type(inferPluginIconType(m_plugin))
+        , m_accent(iconAccentColour(m_icon_type))
         , m_plugin_count(plugin_count)
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
@@ -393,7 +780,7 @@ public:
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
-        // The "x" stays dim until the tile is hovered, so a resting tile reads as one clean target.
+        // The "x" stays dim until hover, so a resting tile reads as one clean target.
         m_remove_button.setAlpha(g_idle_affordance_alpha);
         addAndMakeVisible(m_remove_button);
     }
@@ -410,38 +797,43 @@ public:
     void paint(juce::Graphics& g) override
     {
         const auto bounds = getLocalBounds();
-        g.setColour(m_is_hovered ? g_plugin_row_hover_background : g_plugin_row_background);
-        g.fillRect(bounds);
-        if (m_is_hovered)
-        {
-            g.setColour(g_plugin_row_hover_accent);
-            g.fillRect(bounds.withWidth(4));
-        }
-        g.setColour(m_is_hovered ? g_plugin_row_hover_border : g_plugin_row_border);
-        g.drawRect(bounds, m_is_hovered ? 2 : 1);
+        const auto tile_bounds = bounds.toFloat().reduced(1.0f);
+        g.setColour(m_is_hovered ? g_plugin_tile_hover_background : g_plugin_tile_background);
+        g.fillRoundedRectangle(tile_bounds, 8.0f);
+        g.setColour(m_accent.withAlpha(m_is_hovered ? 0.95f : 0.62f));
+        g.fillRoundedRectangle(tile_bounds.withHeight(4.0f), 4.0f);
+        g.setColour(m_is_hovered ? g_plugin_tile_hover_border : g_plugin_tile_border);
+        g.drawRoundedRectangle(tile_bounds, 8.0f, m_is_hovered ? 1.8f : 1.1f);
 
         auto content = bounds.reduced(g_tile_inset);
 
-        // Top: order-number badge on the left; the remove "x" child occupies the right corner.
-        auto badge_area = content.removeFromTop(g_tile_remove_button_size);
+        // Top: order-number badge on the left and inferred category icon centered in the tile.
+        auto icon_row = content.removeFromTop(g_signal_block_icon_size);
+        auto badge_area = icon_row.removeFromLeft(18);
         g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions{13.0f, juce::Font::bold});
+        g.setFont(juce::FontOptions{11.0f, juce::Font::bold});
         g.drawText(
             juce::String{std::to_string(m_plugin.chain_index + 1)},
-            badge_area.withTrimmedRight(g_tile_remove_button_size),
+            badge_area,
             juce::Justification::centredLeft);
+        drawPluginIcon(
+            g,
+            icon_row.withSizeKeepingCentre(g_signal_block_icon_size, g_signal_block_icon_size),
+            m_icon_type,
+            m_accent);
 
         // Bottom: dimmed manufacturer/format line; what remains in the middle holds the name.
+        content.removeFromTop(3);
         auto maker_area = content.removeFromBottom(g_tile_inset * 3);
         const juce::String name =
             m_plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{m_plugin.name};
         g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(name, content, juce::Justification::topLeft, 2);
+        g.setFont(juce::FontOptions{12.0f, juce::Font::bold});
+        g.drawFittedText(name, content, juce::Justification::centred, 2);
 
-        g.setColour(juce::Colours::lightgrey);
-        g.setFont(juce::FontOptions{11.0f});
-        g.drawFittedText(makerLabel(m_plugin), maker_area, juce::Justification::bottomLeft, 1);
+        g.setColour(juce::Colours::lightgrey.withAlpha(0.82f));
+        g.setFont(juce::FontOptions{10.0f});
+        g.drawFittedText(makerLabel(m_plugin), maker_area, juce::Justification::centred, 1);
     }
 
     // Pins the remove button to the tile's top-right corner.
@@ -540,6 +932,12 @@ private:
     // Stable plugin snapshot represented by this tile.
     core::PluginViewState m_plugin;
 
+    // Inferred display-only category used to draw the tile icon.
+    PluginIconType m_icon_type{PluginIconType::Generic};
+
+    // Accent color paired with the inferred display category.
+    juce::Colour m_accent{};
+
     // Total user-visible plugin count used to gate single-plugin drag reordering.
     std::size_t m_plugin_count{};
 
@@ -575,6 +973,7 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
     , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
+    , m_chain_content(std::make_unique<SignalPathContent>())
 {
     setComponentID("signal_chain_panel");
 
@@ -598,8 +997,8 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     addAndMakeVisible(m_output_meter);
 
     m_chain_viewport.setComponentID("signal_chain_viewport");
-    m_chain_content.setComponentID("signal_chain_content");
-    m_chain_viewport.setViewedComponent(&m_chain_content, false);
+    m_chain_content->setComponentID("signal_chain_content");
+    m_chain_viewport.setViewedComponent(m_chain_content.get(), false);
     m_chain_viewport.setScrollBarsShown(false, true);
     addAndMakeVisible(m_chain_viewport);
 
@@ -621,12 +1020,13 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
+    m_chain_content->setPluginCount(m_state.plugins.size());
     rebuildPluginTiles();
     resized();
     repaint();
 }
 
-// Applies the live-rig meter values without rebuilding plugin rows or changing controls.
+// Applies the live-rig meter values without rebuilding plugin tiles or changing controls.
 void SignalChainPanel::setMeterLevels(
     common::audio::AudioMeterLevel input_level, common::audio::AudioMeterLevel output_level)
 {
@@ -686,7 +1086,7 @@ void SignalChainPanel::paint(juce::Graphics& g)
     }
 }
 
-// Keeps gain sliders on the sides and plugin rows in the center.
+// Keeps gain sliders on the sides and plugin tiles in the center.
 void SignalChainPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
@@ -724,9 +1124,10 @@ void SignalChainPanel::resized()
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
     const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
-    const int content_width = std::max(area.getWidth(), chainContentWidth(m_plugin_tiles.size()));
-    m_chain_content.setSize(content_width, content_height);
-    auto content_area = m_chain_content.getLocalBounds();
+    const int content_width = chainContentWidth(m_plugin_tiles.size(), area.getWidth());
+    m_chain_content->setSize(content_width, content_height);
+    const auto path_area = signalPathArea(m_chain_content->getLocalBounds());
+    const std::size_t block_count = visualBlockCount(m_plugin_tiles.size());
 
     for (std::size_t index = 0; index < m_insert_slots.size(); ++index)
     {
@@ -737,8 +1138,11 @@ void SignalChainPanel::resized()
         }
 
         slot->setVisible(true);
-        slot->setBounds(content_area.removeFromLeft(g_insert_rail_width));
-        content_area.removeFromLeft(std::min(g_chain_gap, content_area.getWidth()));
+        const int slot_center_x =
+            insertionSlotCenterX(index, m_plugin_tiles.size(), path_area, block_count);
+        auto slot_bounds = path_area.withWidth(g_insert_rail_width);
+        slot_bounds.setCentre(slot_center_x, path_area.getCentreY());
+        slot->setBounds(slot_bounds);
 
         if (index >= m_plugin_tiles.size())
         {
@@ -752,8 +1156,7 @@ void SignalChainPanel::resized()
         }
 
         tile->setVisible(true);
-        tile->setBounds(content_area.removeFromLeft(g_plugin_tile_width));
-        content_area.removeFromLeft(std::min(g_chain_gap, content_area.getWidth()));
+        tile->setBounds(pluginBlockBounds(path_area, index, block_count));
     }
 }
 
@@ -783,7 +1186,7 @@ void SignalChainPanel::rebuildPluginTiles()
     {
         if (slot != nullptr)
         {
-            m_chain_content.removeChildComponent(slot.get());
+            m_chain_content->removeChildComponent(slot.get());
         }
     }
 
@@ -791,7 +1194,7 @@ void SignalChainPanel::rebuildPluginTiles()
     {
         if (tile != nullptr)
         {
-            m_chain_content.removeChildComponent(tile.get());
+            m_chain_content->removeChildComponent(tile.get());
         }
     }
 
@@ -803,11 +1206,13 @@ void SignalChainPanel::rebuildPluginTiles()
     }
 
     m_insert_slots.reserve(m_state.plugins.size() + 1);
+    const bool has_free_block = m_state.plugins.size() < g_signal_path_block_capacity;
     for (std::size_t index = 0; index <= m_state.plugins.size(); ++index)
     {
         auto slot = std::make_unique<InsertSlotView>(index, *this, m_listener);
-        slot->setEditingEnabled(m_state.insert_plugin_enabled, m_state.move_plugins_enabled);
-        m_chain_content.addAndMakeVisible(*slot);
+        slot->setEditingEnabled(
+            m_state.insert_plugin_enabled && has_free_block, m_state.move_plugins_enabled);
+        m_chain_content->addAndMakeVisible(*slot);
         m_insert_slots.push_back(std::move(slot));
     }
 
@@ -816,7 +1221,7 @@ void SignalChainPanel::rebuildPluginTiles()
     {
         auto tile = std::make_unique<PluginTileView>(plugin, m_state.plugins.size(), m_listener);
         tile->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
-        m_chain_content.addAndMakeVisible(*tile);
+        m_chain_content->addAndMakeVisible(*tile);
         m_plugin_tiles.push_back(std::move(tile));
     }
 }
