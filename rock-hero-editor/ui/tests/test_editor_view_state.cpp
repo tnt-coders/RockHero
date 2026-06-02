@@ -228,8 +228,8 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
     };
     view.setState(state);
 
-    auto& plugin_row = findRequiredDescendant<juce::Component>(view, "plugin_row_instance");
-    plugin_row.mouseUp(makeMouseDownEvent(plugin_row, 4.0f, 4.0f));
+    auto& plugin_tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_instance");
+    plugin_tile.mouseUp(makeMouseDownEvent(plugin_tile, 4.0f, 4.0f));
 
     CHECK(controller.open_plugin_request_count == 1);
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance"});

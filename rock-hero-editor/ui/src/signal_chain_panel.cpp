@@ -14,12 +14,14 @@ namespace
 
 constexpr int g_panel_inset{8};
 constexpr int g_header_height{34};
-constexpr int g_insert_slot_height{18};
-constexpr int g_plugin_row_height{28};
-constexpr int g_plugin_row_gap{3};
-constexpr int g_row_icon_button_width{42};
-constexpr int g_remove_button_width{64};
-constexpr int g_row_button_gap{4};
+constexpr int g_insert_rail_width{16};
+constexpr int g_plugin_tile_width{128};
+constexpr int g_chain_gap{3};
+constexpr int g_tile_remove_button_size{18};
+constexpr int g_tile_inset{6};
+// Idle opacity for the hover-revealed insert "+" and tile remove "x" affordances. They stay present
+// (and hit-testable) for discoverability and testing, but fade until the pointer enters their host.
+constexpr float g_idle_affordance_alpha{0.0f};
 constexpr int g_output_gain_width{72};
 constexpr int g_gain_slider_width{32};
 constexpr int g_gain_meter_width{28};
@@ -52,13 +54,13 @@ struct DraggedPlugin
     std::size_t source_index{};
 };
 
-// Computes the full scrollable content height for slots and rows.
-[[nodiscard]] int chainContentHeight(std::size_t plugin_count) noexcept
+// Computes the full scrollable content width for a left-to-right rail/tile strip.
+[[nodiscard]] int chainContentWidth(std::size_t plugin_count) noexcept
 {
-    const auto slot_count = static_cast<int>(plugin_count + 1);
-    const auto row_count = static_cast<int>(plugin_count);
-    return (slot_count * g_insert_slot_height) +
-           (row_count * (g_plugin_row_height + (g_plugin_row_gap * 2)));
+    const auto rail_count = static_cast<int>(plugin_count + 1);
+    const auto tile_count = static_cast<int>(plugin_count);
+    return (rail_count * g_insert_rail_width) +
+           (tile_count * (g_plugin_tile_width + (g_chain_gap * 2)));
 }
 
 // Encodes enough row state for slot drop targets to compute final move destinations.
@@ -211,6 +213,10 @@ public:
         m_button.setButtonText("+");
         m_button.setTooltip("Insert plugin here");
         m_button.onClick = [this] { m_listener.onInsertPluginPressed(m_chain_index); };
+        // The rail is mostly empty space; the "+" stays dim until the pointer enters the rail (or
+        // the button itself), so the gap reads as a discoverable insertion affordance on hover.
+        m_button.setAlpha(g_idle_affordance_alpha);
+        m_button.addMouseListener(this, false);
         addAndMakeVisible(m_button);
     }
 
@@ -291,7 +297,7 @@ public:
             std::move(plugin->instance_id), plugin->source_index, m_chain_index);
     }
 
-    // Draws the slot as a thin insertion rail, with stronger feedback while dragging.
+    // Draws the slot as a thin vertical insertion rail, with stronger feedback while dragging.
     void paint(juce::Graphics& g) override
     {
         auto area = getLocalBounds();
@@ -301,23 +307,47 @@ public:
             g.fillRect(area);
         }
 
-        const int y = area.getCentreY();
+        const int x = area.getCentreX();
         g.setColour(m_is_drag_hovered ? g_insert_slot_drop_line : g_insert_slot_line);
         g.drawLine(
+            static_cast<float>(x),
             0.0f,
-            static_cast<float>(y),
-            static_cast<float>(area.getWidth()),
-            static_cast<float>(y),
+            static_cast<float>(x),
+            static_cast<float>(area.getHeight()),
             m_is_drag_hovered ? 2.0f : 1.0f);
     }
 
-    // Keeps the compact insertion button centered in the available strip.
+    // Keeps the compact insertion button centered near the top of the vertical rail.
     void resized() override
     {
-        m_button.setBounds(getLocalBounds().withSizeKeepingCentre(32, std::max(14, getHeight())));
+        const int button_size = std::min(g_insert_rail_width, getWidth());
+        m_button.setBounds(
+            getLocalBounds()
+                .removeFromTop(g_insert_rail_width)
+                .withSizeKeepingCentre(button_size, button_size));
+    }
+
+    // Brightens the "+" affordance while the pointer is over the rail or its button.
+    void mouseEnter(const juce::MouseEvent& /*event*/) override
+    {
+        updateButtonAffordance();
+    }
+
+    // Restores the dim "+" affordance once the pointer leaves the rail and its button.
+    void mouseExit(const juce::MouseEvent& /*event*/) override
+    {
+        updateButtonAffordance();
     }
 
 private:
+    // Recomputes the "+" opacity from whether the pointer is over the rail or its child button.
+    // isMouseOver(true) includes descendants, so it stays bright while the pointer sits on the
+    // button itself even though that hides the rail's own hover.
+    void updateButtonAffordance()
+    {
+        m_button.setAlpha(isMouseOver(true) ? 1.0f : g_idle_affordance_alpha);
+    }
+
     // Owning panel used to translate drops into move intents.
     SignalChainPanel& m_panel;
 
@@ -337,102 +367,91 @@ private:
     bool m_is_drag_hovered{false};
 };
 
-// Presents one plugin-chain row and emits row edit intents for its stored instance ID.
-class SignalChainPanel::PluginRowView final : public juce::Component
+// Presents one fixed-width plugin tile in the horizontal chain strip and emits edit intents for
+// its stored instance ID. SettableTooltipClient carries the full plugin label, which the fixed
+// tile width would otherwise truncate.
+class SignalChainPanel::PluginTileView final : public juce::Component,
+                                               public juce::SettableTooltipClient
 {
 public:
-    // Creates the row with a stable plugin snapshot and the parent panel listener.
-    PluginRowView(core::PluginViewState plugin, std::size_t plugin_count, Listener& listener)
+    // Creates the tile with a stable plugin snapshot and the parent panel listener.
+    PluginTileView(core::PluginViewState plugin, std::size_t plugin_count, Listener& listener)
         : m_listener(listener)
         , m_plugin(std::move(plugin))
         , m_plugin_count(plugin_count)
     {
-        setComponentID(juce::String{"plugin_row_"} + juce::String{m_plugin.instance_id});
+        setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        m_move_up_button.setComponentID(
-            juce::String{"move_plugin_up_button_"} + juce::String{m_plugin.instance_id});
-        m_move_up_button.setButtonText("Up");
-        m_move_up_button.setTooltip("Move plugin up");
-        m_move_up_button.onClick = [this] {
-            if (m_plugin.chain_index > 0)
-            {
-                m_listener.onMovePluginPressed(m_plugin.instance_id, m_plugin.chain_index - 1);
-            }
-        };
-        addAndMakeVisible(m_move_up_button);
-
-        m_move_down_button.setComponentID(
-            juce::String{"move_plugin_down_button_"} + juce::String{m_plugin.instance_id});
-        m_move_down_button.setButtonText("Down");
-        m_move_down_button.setTooltip("Move plugin down");
-        m_move_down_button.onClick = [this] {
-            if (m_plugin.chain_index + 1 < m_plugin_count)
-            {
-                m_listener.onMovePluginPressed(m_plugin.instance_id, m_plugin.chain_index + 1);
-            }
-        };
-        addAndMakeVisible(m_move_down_button);
+        // The fixed tile width truncates the on-tile name, so surface the full label on hover.
+        setTooltip(pluginLabel(m_plugin));
 
         m_remove_button.setComponentID(
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
-        m_remove_button.setButtonText("Remove");
+        // Keep the remove affordance compact in the tile corner.
+        m_remove_button.setButtonText("x");
         m_remove_button.setTooltip("Remove plugin");
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
+        // The "x" stays dim until the tile is hovered, so a resting tile reads as one clean target.
+        m_remove_button.setAlpha(g_idle_affordance_alpha);
         addAndMakeVisible(m_remove_button);
     }
 
-    // Applies controller-derived edit availability to the row buttons.
+    // Applies controller-derived edit availability. The move gate now governs drag-to-reorder
+    // rather than discrete buttons, so it no longer toggles any child control.
     void setEditEnabled(bool move_enabled, bool remove_enabled)
     {
         m_move_enabled = move_enabled;
-        m_move_up_button.setEnabled(move_enabled && m_plugin.chain_index > 0);
-        m_move_down_button.setEnabled(move_enabled && m_plugin.chain_index + 1 < m_plugin_count);
         m_remove_button.setEnabled(remove_enabled);
     }
 
-    // Draws the highlight box around the clickable label area only; the Remove button sits
-    // visually beside it so the two interactive zones never overlap.
+    // Draws the tile background, hover accent, order badge, wrapped name, and dimmed maker/format.
     void paint(juce::Graphics& g) override
     {
-        auto highlight_area = getLocalBounds();
-        const int button_area_width =
-            (g_row_icon_button_width * 2) + g_remove_button_width + (g_row_button_gap * 3);
-        highlight_area.removeFromRight(button_area_width);
-
+        const auto bounds = getLocalBounds();
         g.setColour(m_is_hovered ? g_plugin_row_hover_background : g_plugin_row_background);
-        g.fillRect(highlight_area);
+        g.fillRect(bounds);
         if (m_is_hovered)
         {
             g.setColour(g_plugin_row_hover_accent);
-            g.fillRect(highlight_area.withWidth(4));
+            g.fillRect(bounds.withWidth(4));
         }
-
         g.setColour(m_is_hovered ? g_plugin_row_hover_border : g_plugin_row_border);
-        g.drawRect(highlight_area, m_is_hovered ? 2 : 1);
+        g.drawRect(bounds, m_is_hovered ? 2 : 1);
 
-        const auto label_area = highlight_area.reduced(8, 0);
+        auto content = bounds.reduced(g_tile_inset);
+
+        // Top: order-number badge on the left; the remove "x" child occupies the right corner.
+        auto badge_area = content.removeFromTop(g_tile_remove_button_size);
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::FontOptions{13.0f, juce::Font::bold});
+        g.drawText(
+            juce::String{std::to_string(m_plugin.chain_index + 1)},
+            badge_area.withTrimmedRight(g_tile_remove_button_size),
+            juce::Justification::centredLeft);
+
+        // Bottom: dimmed manufacturer/format line; what remains in the middle holds the name.
+        auto maker_area = content.removeFromBottom(g_tile_inset * 3);
+        const juce::String name =
+            m_plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{m_plugin.name};
         g.setColour(juce::Colours::white);
         g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(pluginLabel(m_plugin), label_area, juce::Justification::centredLeft, 1);
+        g.drawFittedText(name, content, juce::Justification::topLeft, 2);
+
+        g.setColour(juce::Colours::lightgrey);
+        g.setFont(juce::FontOptions{11.0f});
+        g.drawFittedText(makerLabel(m_plugin), maker_area, juce::Justification::bottomLeft, 1);
     }
 
-    // Keeps the remove button fixed on the right side of the row.
+    // Pins the remove button to the tile's top-right corner.
     void resized() override
     {
-        auto button_area = getLocalBounds().reduced(4, 3);
         m_remove_button.setBounds(
-            button_area.removeFromRight(g_remove_button_width)
-                .withSizeKeepingCentre(g_remove_button_width, button_area.getHeight()));
-        button_area.removeFromRight(std::min(g_row_button_gap, button_area.getWidth()));
-        m_move_down_button.setBounds(
-            button_area.removeFromRight(g_row_icon_button_width)
-                .withSizeKeepingCentre(g_row_icon_button_width, button_area.getHeight()));
-        button_area.removeFromRight(std::min(g_row_button_gap, button_area.getWidth()));
-        m_move_up_button.setBounds(
-            button_area.removeFromRight(g_row_icon_button_width)
-                .withSizeKeepingCentre(g_row_icon_button_width, button_area.getHeight()));
+            getLocalBounds()
+                .reduced(g_tile_inset)
+                .removeFromTop(g_tile_remove_button_size)
+                .removeFromRight(g_tile_remove_button_size));
     }
 
     // Resets drag-start state at the beginning of each pointer sequence.
@@ -441,7 +460,7 @@ public:
         m_drag_started = false;
     }
 
-    // Starts a JUCE drag operation for reorderable plugin rows.
+    // Starts a JUCE drag operation for reorderable plugin tiles.
     void mouseDrag(const juce::MouseEvent& event) override
     {
         if (!m_move_enabled || m_drag_started || m_plugin_count < 2 ||
@@ -467,7 +486,7 @@ public:
             &event.source);
     }
 
-    // Treats a row click as an editor-window request while ignoring drag releases.
+    // Treats a tile click as an editor-window request while ignoring drag releases.
     void mouseUp(const juce::MouseEvent& event) override
     {
         m_drag_started = false;
@@ -477,43 +496,60 @@ public:
         }
     }
 
-    // Shows that the row itself has a click action independent of the remove button.
+    // Highlights the tile and reveals its remove "x" while the pointer is over it.
     void mouseEnter(const juce::MouseEvent& /*event*/) override
     {
         m_is_hovered = true;
+        m_remove_button.setAlpha(1.0f);
         repaint();
     }
 
-    // Clears the row affordance when the pointer leaves the plugin row.
+    // Clears the tile affordances when the pointer leaves the plugin tile.
     void mouseExit(const juce::MouseEvent& /*event*/) override
     {
         m_is_hovered = false;
+        m_remove_button.setAlpha(g_idle_affordance_alpha);
         repaint();
     }
 
 private:
-    // Listener that receives this row's remove intent.
+    // Builds the dimmed bottom line carrying manufacturer and format when present.
+    [[nodiscard]] static juce::String makerLabel(const core::PluginViewState& plugin)
+    {
+        juce::String label;
+        if (!plugin.manufacturer.empty())
+        {
+            label += juce::String{plugin.manufacturer};
+        }
+        if (!plugin.format_name.empty())
+        {
+            if (label.isNotEmpty())
+            {
+                label += " ";
+            }
+            label += "(";
+            label += juce::String{plugin.format_name};
+            label += ")";
+        }
+        return label;
+    }
+
+    // Listener that receives this tile's remove, open, and move intents.
     Listener& m_listener;
 
-    // Stable plugin snapshot represented by this row.
+    // Stable plugin snapshot represented by this tile.
     core::PluginViewState m_plugin;
 
-    // Total user-visible plugin count used to disable edge move controls.
+    // Total user-visible plugin count used to gate single-plugin drag reordering.
     std::size_t m_plugin_count{};
 
-    // Button that emits a move-up intent for this row's plugin instance.
-    juce::TextButton m_move_up_button;
-
-    // Button that emits a move-down intent for this row's plugin instance.
-    juce::TextButton m_move_down_button;
-
-    // Button that emits a remove intent for this row's plugin instance.
+    // Button that emits a remove intent for this tile's plugin instance.
     juce::TextButton m_remove_button;
 
-    // True while the pointer is over the row, used only for the clickable-row affordance.
+    // True while the pointer is over the tile, driving the hover accent and remove reveal.
     bool m_is_hovered{false};
 
-    // True when the row can initiate drag-based reordering.
+    // True when the tile can initiate drag-based reordering.
     bool m_move_enabled{false};
 
     // Prevents repeated startDragging() calls during one mouse drag sequence.
@@ -564,7 +600,7 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     m_chain_viewport.setComponentID("signal_chain_viewport");
     m_chain_content.setComponentID("signal_chain_content");
     m_chain_viewport.setViewedComponent(&m_chain_content, false);
-    m_chain_viewport.setScrollBarsShown(true, false);
+    m_chain_viewport.setScrollBarsShown(false, true);
     addAndMakeVisible(m_chain_viewport);
 
     setState(core::SignalChainViewState{});
@@ -585,7 +621,7 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
-    rebuildPluginRows();
+    rebuildPluginTiles();
     resized();
     repaint();
 }
@@ -643,13 +679,9 @@ void SignalChainPanel::paint(juce::Graphics& g)
 
     if (m_state.plugins.empty())
     {
-        auto placeholder_area = chain_area;
-        placeholder_area.removeFromTop(
-            std::min(g_insert_slot_height + g_plugin_row_gap, placeholder_area.getHeight()));
         g.setColour(juce::Colours::lightgrey);
         g.setFont(juce::FontOptions{14.0f});
-        g.drawFittedText(
-            "No plugins loaded", placeholder_area, juce::Justification::centredLeft, 1);
+        g.drawFittedText("No plugins loaded", chain_area, juce::Justification::centred, 1);
         return;
     }
 }
@@ -691,8 +723,8 @@ void SignalChainPanel::resized()
     area.removeFromTop(g_header_height);
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
-    const int content_width = std::max(0, m_chain_viewport.getMaximumVisibleWidth());
-    const int content_height = std::max(area.getHeight(), chainContentHeight(m_plugin_rows.size()));
+    const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
+    const int content_width = std::max(area.getWidth(), chainContentWidth(m_plugin_tiles.size()));
     m_chain_content.setSize(content_width, content_height);
     auto content_area = m_chain_content.getLocalBounds();
 
@@ -705,27 +737,27 @@ void SignalChainPanel::resized()
         }
 
         slot->setVisible(true);
-        slot->setBounds(content_area.removeFromTop(g_insert_slot_height));
-        content_area.removeFromTop(std::min(g_plugin_row_gap, content_area.getHeight()));
+        slot->setBounds(content_area.removeFromLeft(g_insert_rail_width));
+        content_area.removeFromLeft(std::min(g_chain_gap, content_area.getWidth()));
 
-        if (index >= m_plugin_rows.size())
+        if (index >= m_plugin_tiles.size())
         {
             continue;
         }
 
-        const std::unique_ptr<PluginRowView>& row = m_plugin_rows[index];
-        if (row == nullptr)
+        const std::unique_ptr<PluginTileView>& tile = m_plugin_tiles[index];
+        if (tile == nullptr)
         {
             continue;
         }
 
-        row->setVisible(true);
-        row->setBounds(content_area.removeFromTop(g_plugin_row_height));
-        content_area.removeFromTop(std::min(g_plugin_row_gap, content_area.getHeight()));
+        tile->setVisible(true);
+        tile->setBounds(content_area.removeFromLeft(g_plugin_tile_width));
+        content_area.removeFromLeft(std::min(g_chain_gap, content_area.getWidth()));
     }
 }
 
-// Converts a row drop on an insertion slot into the existing move-plugin intent.
+// Converts a tile drop on an insertion slot into the existing move-plugin intent.
 void SignalChainPanel::movePluginToInsertionSlot(
     std::string instance_id, std::size_t source_index, std::size_t slot_index)
 {
@@ -744,8 +776,8 @@ void SignalChainPanel::movePluginToInsertionSlot(
     m_listener.onMovePluginPressed(std::move(instance_id), *destination_index);
 }
 
-// Recreates child rows from the latest controller state so each button carries a stable ID.
-void SignalChainPanel::rebuildPluginRows()
+// Recreates child tiles from the latest controller state so each control carries a stable ID.
+void SignalChainPanel::rebuildPluginTiles()
 {
     for (const std::unique_ptr<InsertSlotView>& slot : m_insert_slots)
     {
@@ -755,16 +787,16 @@ void SignalChainPanel::rebuildPluginRows()
         }
     }
 
-    for (const std::unique_ptr<PluginRowView>& row : m_plugin_rows)
+    for (const std::unique_ptr<PluginTileView>& tile : m_plugin_tiles)
     {
-        if (row != nullptr)
+        if (tile != nullptr)
         {
-            m_chain_content.removeChildComponent(row.get());
+            m_chain_content.removeChildComponent(tile.get());
         }
     }
 
     m_insert_slots.clear();
-    m_plugin_rows.clear();
+    m_plugin_tiles.clear();
     if (!m_state.disabled_message.empty())
     {
         return;
@@ -779,13 +811,13 @@ void SignalChainPanel::rebuildPluginRows()
         m_insert_slots.push_back(std::move(slot));
     }
 
-    m_plugin_rows.reserve(m_state.plugins.size());
+    m_plugin_tiles.reserve(m_state.plugins.size());
     for (const core::PluginViewState& plugin : m_state.plugins)
     {
-        auto row = std::make_unique<PluginRowView>(plugin, m_state.plugins.size(), m_listener);
-        row->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
-        m_chain_content.addAndMakeVisible(*row);
-        m_plugin_rows.push_back(std::move(row));
+        auto tile = std::make_unique<PluginTileView>(plugin, m_state.plugins.size(), m_listener);
+        tile->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
+        m_chain_content.addAndMakeVisible(*tile);
+        m_plugin_tiles.push_back(std::move(tile));
     }
 }
 
