@@ -217,7 +217,6 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .signal_chain =
                 core::SignalChainViewState{
-                    .add_plugin_enabled = true,
                     .plugins = {},
                 },
             .unsaved_changes_prompt = std::nullopt,

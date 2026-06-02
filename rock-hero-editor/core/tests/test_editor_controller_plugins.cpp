@@ -26,7 +26,7 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     if (view.last_state.has_value())
     {
         const EditorViewState& initial_state = view.last_state.value();
-        CHECK_FALSE(initial_state.signal_chain.add_plugin_enabled);
+        CHECK_FALSE(initial_state.signal_chain.insert_plugin_enabled);
         CHECK_FALSE(initial_state.signal_chain.remove_plugins_enabled);
     }
 
@@ -37,7 +37,7 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
     if (view.last_state.has_value())
     {
         const EditorViewState& loaded_state = view.last_state.value();
-        CHECK(loaded_state.signal_chain.add_plugin_enabled);
+        CHECK(loaded_state.signal_chain.insert_plugin_enabled);
         CHECK_FALSE(loaded_state.signal_chain.remove_plugins_enabled);
         CHECK(loaded_state.signal_chain.plugins.empty());
     }
@@ -163,7 +163,6 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     CHECK(view.busy_overlay_paint_callback_count == 1);
     CHECK_FALSE(final_state->plugin_browser.visible);
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
-    CHECK(final_state->signal_chain.add_plugin_enabled);
     CHECK(final_state->signal_chain.insert_plugin_enabled);
     CHECK(final_state->signal_chain.move_plugins_enabled);
     CHECK(final_state->signal_chain.remove_plugins_enabled);

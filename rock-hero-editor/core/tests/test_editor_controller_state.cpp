@@ -24,7 +24,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
-    CHECK(empty_state.signal_chain.add_plugin_enabled == false);
+    CHECK(empty_state.signal_chain.insert_plugin_enabled == false);
     CHECK(empty_state.signal_chain.remove_plugins_enabled == false);
     CHECK(empty_state.signal_chain.plugins.empty());
     CHECK(empty_state.plugin_browser.visible == false);
@@ -64,7 +64,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
             },
         .signal_chain =
             SignalChainViewState{
-                .add_plugin_enabled = true,
+                .insert_plugin_enabled = true,
                 .remove_plugins_enabled = true,
                 .plugins =
                     {
@@ -108,7 +108,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.audio_devices_available);
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
-    CHECK(loaded_state.signal_chain.add_plugin_enabled);
+    CHECK(loaded_state.signal_chain.insert_plugin_enabled);
     CHECK(loaded_state.signal_chain.remove_plugins_enabled);
     REQUIRE(loaded_state.signal_chain.plugins.size() == 1);
     CHECK(loaded_state.signal_chain.plugins[0].name == "Amp Sim");
@@ -290,7 +290,7 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.audio_device_status_text == "[audio device closed]");
         CHECK(state.visible_timeline == common::core::TimeRange{});
         CHECK_FALSE(state.arrangement.hasAudio());
-        CHECK_FALSE(state.signal_chain.add_plugin_enabled);
+        CHECK_FALSE(state.signal_chain.insert_plugin_enabled);
         CHECK(state.signal_chain.plugins.empty());
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
         CHECK_FALSE(state.save_as_prompt.has_value());

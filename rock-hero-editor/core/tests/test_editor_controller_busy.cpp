@@ -342,7 +342,7 @@ TEST_CASE("EditorController busy routing disables ordinary commands", "[core][ed
     CHECK(state->publish_enabled == false);
     CHECK(state->transport.play_pause_enabled == false);
     CHECK(state->transport.stop_enabled == false);
-    CHECK(state->signal_chain.add_plugin_enabled == false);
+    CHECK(state->signal_chain.insert_plugin_enabled == false);
     CHECK(state->signal_chain.remove_plugins_enabled == false);
     CHECK(state->plugin_browser.scan_enabled == false);
     CHECK(state->plugin_browser.add_enabled == false);
