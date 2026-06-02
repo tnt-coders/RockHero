@@ -13,9 +13,11 @@ namespace
     {
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::InsertPlugin:
         case EditorAction::Id::ScanPluginCatalog:
         case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::MovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
             return true;
@@ -84,6 +86,7 @@ namespace
             return conditions.can_stop_transport;
         }
         case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::InsertPlugin:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
@@ -94,6 +97,7 @@ namespace
                    conditions.has_plugin_candidates;
         }
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::MovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
@@ -128,9 +132,11 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::InsertPlugin:
         case EditorAction::Id::ScanPluginCatalog:
         case EditorAction::Id::AddPlugin:
         case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::MovePlugin:
         case EditorAction::Id::OpenPlugin:
         {
             return false;

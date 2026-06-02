@@ -13,6 +13,7 @@
 #include "signal_chain_panel.h"
 #include "transport_controls.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -259,7 +260,13 @@ private:
     void onAddPluginPressed() override;
 
     // SignalChainPanel::Listener implementation.
+    void onInsertPluginPressed(std::size_t chain_index) override;
+
+    // SignalChainPanel::Listener implementation.
     void onRemovePluginPressed(std::string instance_id) override;
+
+    // SignalChainPanel::Listener implementation.
+    void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override;
 
     // SignalChainPanel::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;

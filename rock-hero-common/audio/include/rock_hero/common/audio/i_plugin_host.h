@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin_host_error.h>
 #include <string>
 #include <vector>
@@ -48,25 +49,6 @@ struct [[nodiscard]] PluginCandidate
 };
 
 /*!
-\brief Handle returned after a plugin is appended to the hosted chain.
-
-The instance ID is opaque to callers and identifies the concrete inserted plugin in the current
-backend edit. The chain index describes the current linear chain insertion position; future
-parallel or rack-based tone graphs may add richer addressing without changing candidate discovery.
-*/
-struct [[nodiscard]] PluginHandle
-{
-    /*! \brief Opaque ID for the concrete plugin instance in the current backend edit. */
-    std::string instance_id;
-
-    /*! \brief Opaque backend plugin ID associated with the inserted instance. */
-    std::string plugin_id;
-
-    /*! \brief Zero-based index of the inserted plugin in the current chain. */
-    std::size_t chain_index{};
-};
-
-/*!
 \brief Project-owned facade for plugin discovery and chain mutation.
 
 Plugin catalog discovery may run on a non-realtime worker thread because it can traverse user
@@ -86,7 +68,7 @@ public:
     Implementations own the platform- and host-specific default locations for the plugin formats
     they support. Callers should use this for a user-initiated full catalog refresh instead of
     resolving platform search paths themselves. Implementations may return optimistic filesystem
-    candidates and defer plugin validation until addPlugin().
+    candidates and defer plugin validation until insertPlugin().
 
     \return Success after the refresh, or a typed failure when scanning cannot proceed.
     \note This method may be called from a non-realtime worker thread.
@@ -99,7 +81,7 @@ public:
     Implementations may recurse through supplied directories and should return an empty list when
     no compatible candidate paths are found. Returned candidates may be optimistic filesystem
     results that are validated only if the caller later passes the selected candidate to
-    addPlugin().
+    insertPlugin().
 
     \param roots Files or directories to inspect for plugin candidates.
     \return Discovered plugin candidates, or a typed failure when scanning itself cannot proceed.
@@ -120,16 +102,31 @@ public:
     [[nodiscard]] virtual std::vector<PluginCandidate> knownPluginCatalog() const = 0;
 
     /*!
-    \brief Appends a previously discovered plugin candidate to the hosted chain.
+    \brief Inserts a previously discovered plugin candidate into the hosted chain.
 
-    The first implementation appends to the linear Tracktion plugin list owned by the instrument
-    track. It stops and rebuilds backend playback graph state as needed.
+    The chain index is in the user-visible chain, excluding hidden structural gain and meter
+    plugins. Passing the current plugin count appends. The implementation stops and rebuilds
+    backend playback graph state as needed.
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
-    \return Handle for the inserted plugin instance, or a typed failure.
+    \param chain_index User-visible insertion index in [0, plugin_count].
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<PluginHandle, PluginHostError> addPlugin(
-        const PluginCandidate& plugin_candidate) = 0;
+    [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(
+        const PluginCandidate& plugin_candidate, std::size_t chain_index) = 0;
+
+    /*!
+    \brief Moves a loaded plugin instance to a new user-visible chain index.
+
+    The destination index describes the final plugin index after the move. Moving to the current
+    index is a no-op that still returns the current authoritative snapshot.
+
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param destination_index Final user-visible chain index for the instance.
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
+    */
+    [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> movePlugin(
+        const std::string& instance_id, std::size_t destination_index) = 0;
 
     /*!
     \brief Removes a loaded plugin instance from the hosted chain.
@@ -137,10 +134,10 @@ public:
     The first implementation removes from the linear Tracktion plugin list owned by the
     instrument track. It stops and rebuilds backend playback graph state as needed.
 
-    \param instance_id Opaque instance ID returned by addPlugin().
-    \return Empty success, or a typed failure.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
-    [[nodiscard]] virtual std::expected<void, PluginHostError> removePlugin(
+    [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> removePlugin(
         const std::string& instance_id) = 0;
 
     /*!
@@ -149,7 +146,7 @@ public:
     The first implementation asks Tracktion to show the plugin's native/editor component and bring
     it to the front if it is already open.
 
-    \param instance_id Opaque instance ID returned by addPlugin().
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Empty success, or a typed failure.
     \note This method must be called on the message thread.
     */

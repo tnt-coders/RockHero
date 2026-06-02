@@ -99,17 +99,21 @@ TEST_CASE("Plugin actions require auditionable live input", "[core][editor-actio
     ActionConditions conditions{.has_loaded_arrangement = true};
 
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.live_input_audition_available = true;
 
     CHECK(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
+    CHECK(isActionAvailable(ActionId::InsertPlugin, conditions));
     CHECK(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.has_plugin_candidates = true;
@@ -117,6 +121,7 @@ TEST_CASE("Plugin actions require auditionable live input", "[core][editor-actio
 
     CHECK(isActionAvailable(ActionId::AddPlugin, conditions));
     CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
 }
 
@@ -135,9 +140,11 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
 
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     CHECK(isActionAvailable(ActionId::SeekWaveform, conditions));

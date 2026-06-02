@@ -51,7 +51,19 @@ namespace
         }
         case PluginHostErrorCode::PluginInsertionFailed:
         {
-            return "Could not append plugin to the hosted chain";
+            return "Could not insert plugin into the hosted chain";
+        }
+        case PluginHostErrorCode::InvalidChainIndex:
+        {
+            return "Plugin chain index is out of range";
+        }
+        case PluginHostErrorCode::PluginMoveFailed:
+        {
+            return "Could not move plugin in the hosted chain";
+        }
+        case PluginHostErrorCode::PluginRemovalFailed:
+        {
+            return "Could not remove plugin from the hosted chain";
         }
         case PluginHostErrorCode::MonitoringRouteFailed:
         {

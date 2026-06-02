@@ -1,7 +1,98 @@
+#include <cstddef>
+#include <optional>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <string>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
+
+namespace
+{
+
+constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
+
+// Builds one plugin row for signal-chain UI intent tests.
+[[nodiscard]] core::PluginViewState makePlugin(std::string instance_id, std::size_t chain_index)
+{
+    return core::PluginViewState{
+        .instance_id = std::move(instance_id),
+        .plugin_id = "plugin-" + std::to_string(chain_index),
+        .name = "Plugin " + std::to_string(chain_index),
+        .manufacturer = "Tests",
+        .format_name = "VST3",
+        .chain_index = chain_index,
+    };
+}
+
+// Minimal panel listener used by direct SignalChainPanel layout tests.
+class RecordingSignalChainPanelListener final : public SignalChainPanel::Listener
+{
+public:
+    void onAddPluginPressed() override
+    {}
+
+    void onInsertPluginPressed(std::size_t chain_index) override
+    {
+        last_insert_index = chain_index;
+        insert_call_count += 1;
+    }
+
+    void onRemovePluginPressed(std::string /*instance_id*/) override
+    {}
+
+    void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override
+    {
+        last_moved_instance_id = std::move(instance_id);
+        last_move_destination_index = destination_index;
+        move_call_count += 1;
+    }
+
+    void onOpenPluginPressed(std::string /*instance_id*/) override
+    {}
+
+    void onInputCalibrationPressed() override
+    {}
+
+    void onOutputGainChanged(double /*gain_db*/) override
+    {}
+
+    std::optional<std::size_t> last_insert_index{};
+    std::optional<std::string> last_moved_instance_id{};
+    std::optional<std::size_t> last_move_destination_index{};
+    int insert_call_count{0};
+    int move_call_count{0};
+};
+
+// Builds the row drag payload used by SignalChainPanel's internal JUCE drag targets.
+[[nodiscard]] juce::String pluginDragPayload(
+    std::size_t source_index, const std::string& instance_id)
+{
+    juce::String payload{g_plugin_drag_prefix};
+    payload += juce::String{std::to_string(source_index)};
+    payload += ":";
+    payload += juce::String{instance_id};
+    return payload;
+}
+
+// Drops a plugin-row payload directly onto a slot's JUCE drag target.
+void dropPluginOnSlot(
+    juce::Component& slot, juce::Component& source_row, std::size_t source_index,
+    const std::string& instance_id)
+{
+    auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot);
+    REQUIRE(drop_target != nullptr);
+
+    juce::DragAndDropTarget::SourceDetails details{
+        juce::var{pluginDragPayload(source_index, instance_id)},
+        &source_row,
+        juce::Point<int>{4, 4},
+    };
+    CHECK(drop_target->isInterestedInDragSource(details));
+    drop_target->itemDropped(details);
+}
+
+} // namespace
 
 // Verifies that input calibration and output gain controls exist and are disabled by default.
 TEST_CASE("Signal-chain controls present and disabled by default", "[ui][editor-view]")
@@ -124,6 +215,255 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
     CHECK(calibrate_button.isEnabled());
     CHECK(output_slider.isEnabled());
     CHECK(output_slider.getValue() == -24.0);
+}
+
+// Verifies insert controls emit their rendered chain insertion index.
+TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .add_plugin_enabled = true,
+                .insert_plugin_enabled = true,
+                .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
+            },
+        });
+
+    auto& add_button = findRequiredDescendant<juce::TextButton>(view, "add_plugin_button");
+    auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
+    auto& insert_middle = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_1");
+    auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
+
+    testing::clickButton(add_button);
+    testing::clickButton(insert_first);
+    testing::clickButton(insert_middle);
+    testing::clickButton(insert_append);
+
+    CHECK(controller.plugin_browser_request_count == 1);
+    CHECK(controller.insert_plugin_request_count == 3);
+    CHECK(controller.last_insert_plugin_index == std::optional<std::size_t>{2});
+}
+
+// Verifies row move controls emit destination indices and disable edge moves.
+TEST_CASE("Signal-chain move controls emit destinations", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .move_plugins_enabled = true,
+                .plugins = {
+                    makePlugin("amp", 0),
+                    makePlugin("drive", 1),
+                    makePlugin("cab", 2),
+                },
+            },
+        });
+
+    auto& amp_up = findRequiredDescendant<juce::TextButton>(view, "move_plugin_up_button_amp");
+    auto& drive_up = findRequiredDescendant<juce::TextButton>(view, "move_plugin_up_button_drive");
+    auto& drive_down =
+        findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_drive");
+    auto& cab_down = findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_cab");
+
+    CHECK_FALSE(amp_up.isEnabled());
+    CHECK(drive_up.isEnabled());
+    CHECK(drive_down.isEnabled());
+    CHECK_FALSE(cab_down.isEnabled());
+
+    testing::clickButton(drive_up);
+    CHECK(controller.last_moved_plugin_instance_id == std::optional<std::string>{"drive"});
+    CHECK(controller.last_move_plugin_destination_index == std::optional<std::size_t>{0});
+
+    testing::clickButton(drive_down);
+    CHECK(controller.move_plugin_request_count == 2);
+    CHECK(controller.last_moved_plugin_instance_id == std::optional<std::string>{"drive"});
+    CHECK(controller.last_move_plugin_destination_index == std::optional<std::size_t>{2});
+}
+
+// Verifies row drag/drop emits final destinations and rejects adjacent no-op slots.
+TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .move_plugins_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("drive", 1),
+                makePlugin("cab", 2),
+            },
+        });
+
+    auto& row_amp = findRequiredDescendant<juce::Component>(panel, "plugin_row_amp");
+    auto& row_drive = findRequiredDescendant<juce::Component>(panel, "plugin_row_drive");
+    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
+    auto& slot_after_amp = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
+    auto& slot_after_drive = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
+    auto& slot_append = findRequiredDescendant<juce::Component>(panel, "insert_slot_3");
+
+    dropPluginOnSlot(slot_first, row_cab, 2, "cab");
+    CHECK(listener.move_call_count == 1);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
+
+    dropPluginOnSlot(slot_after_drive, row_amp, 0, "amp");
+    CHECK(listener.move_call_count == 2);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{1});
+
+    dropPluginOnSlot(slot_append, row_amp, 0, "amp");
+    CHECK(listener.move_call_count == 3);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{2});
+
+    auto* const no_op_drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_after_amp);
+    REQUIRE(no_op_drop_target != nullptr);
+    const juce::DragAndDropTarget::SourceDetails no_op_details{
+        juce::var{pluginDragPayload(1, "drive")},
+        &row_drive,
+        juce::Point<int>{4, 4},
+    };
+
+    CHECK_FALSE(no_op_drop_target->isInterestedInDragSource(no_op_details));
+    no_op_drop_target->itemDropped(no_op_details);
+    CHECK(listener.move_call_count == 3);
+}
+
+// Verifies drop targets are quiet while move editing is disabled.
+TEST_CASE("Signal-chain drag drops respect move gate", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("cab", 1),
+            },
+        });
+
+    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
+    auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_first);
+    REQUIRE(drop_target != nullptr);
+
+    juce::DragAndDropTarget::SourceDetails details{
+        juce::var{pluginDragPayload(1, "cab")},
+        &row_cab,
+        juce::Point<int>{4, 4},
+    };
+
+    CHECK_FALSE(drop_target->isInterestedInDragSource(details));
+    drop_target->itemDropped(details);
+
+    CHECK(listener.move_call_count == 0);
+}
+
+// Verifies disabled edit controls do not emit insert, move, or remove intents.
+TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
+            },
+        });
+
+    auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
+    auto& amp_down = findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_amp");
+    auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
+
+    CHECK_FALSE(insert_first.isEnabled());
+    CHECK_FALSE(amp_down.isEnabled());
+    CHECK_FALSE(remove_amp.isEnabled());
+
+    testing::clickButton(insert_first);
+    testing::clickButton(amp_down);
+    testing::clickButton(remove_amp);
+
+    CHECK(controller.insert_plugin_request_count == 0);
+    CHECK(controller.move_plugin_request_count == 0);
+    CHECK(controller.remove_plugin_request_count == 0);
+}
+
+// Verifies cramped panels keep every row reachable through the signal-chain viewport.
+TEST_CASE("Signal-chain cramped panel scrolls overflowing rows", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 520, 107);
+    panel.setState(
+        core::SignalChainViewState{
+            .insert_plugin_enabled = true,
+            .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
+        });
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(panel, "signal_chain_viewport");
+    auto& content = findRequiredDescendant<juce::Component>(panel, "signal_chain_content");
+    auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
+    auto& row_first = findRequiredDescendant<juce::Component>(panel, "plugin_row_amp");
+    auto& slot_second = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
+    auto& row_second = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& append_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
+
+    CHECK(content.getHeight() > viewport.getHeight());
+    CHECK(slot_first.isVisible());
+    CHECK(row_first.isVisible());
+    CHECK(slot_second.isVisible());
+    CHECK(row_second.isVisible());
+    CHECK(append_slot.isVisible());
+    CHECK(row_second.getY() >= viewport.getHeight());
+    CHECK(listener.insert_call_count == 0);
+}
+
+// Verifies row clicks still open plugin windows independently of row edit buttons.
+TEST_CASE("Signal-chain row click still opens plugin", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .plugins = {makePlugin("amp", 0)},
+            },
+        });
+
+    auto& row = findRequiredDescendant<juce::Component>(view, "plugin_row_amp");
+    juce::MouseEvent event = testing::makeMouseDownEvent(row, 8.0f, 8.0f);
+    row.mouseDown(event);
+    row.mouseUp(event);
+
+    CHECK(controller.open_plugin_request_count == 1);
+    CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"amp"});
 }
 
 } // namespace rock_hero::editor::ui

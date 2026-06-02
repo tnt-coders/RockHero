@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -90,6 +91,12 @@ public:
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;
 
+    /*!
+    \brief Handles a request to show the scanned plugin browser for an insertion slot.
+    \param chain_index User-visible insertion slot in [0, plugin_count].
+    */
+    virtual void onInsertPluginRequested(std::size_t chain_index) = 0;
+
     /*! \brief Handles the plugin browser window closing. */
     virtual void onPluginBrowserClosed() = 0;
 
@@ -107,6 +114,13 @@ public:
     \param instance_id Opaque plugin instance ID selected by the user.
     */
     virtual void onRemovePluginRequested(std::string instance_id) = 0;
+
+    /*!
+    \brief Handles a request to move a plugin instance within the plugin chain.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    \param destination_index Final user-visible chain index for the instance.
+    */
+    virtual void onMovePluginRequested(std::string instance_id, std::size_t destination_index) = 0;
 
     /*!
     \brief Handles a request to open a plugin instance editor window.
