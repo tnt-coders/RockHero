@@ -24,9 +24,6 @@ enum class InputCalibrationStatus
 /*! \brief State rendered by the signal-chain panel. */
 struct SignalChainViewState
 {
-    /*! \brief Enables or disables the add-plugin command. */
-    bool add_plugin_enabled{false};
-
     /*! \brief Enables or disables gap insert commands. */
     bool insert_plugin_enabled{false};
 
