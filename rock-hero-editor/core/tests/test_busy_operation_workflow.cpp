@@ -54,16 +54,15 @@ TEST_CASE("BusyOperationWorkflow runs operation after busy presentation", "[core
     workflow_ptr = &workflow;
 
     std::function<void()> busy_ready;
-    workflow.setRunAfterBusyPresentationReady(
-        [&busy_ready](const std::function<void()>& callback) { busy_ready = callback; });
     std::function<void()> busy_cleared;
-    workflow.setRunAfterBusyPresentationCleared(
+    workflow.attachPresentation(
+        [&busy_ready](const std::function<void()>& callback) { busy_ready = callback; },
         [&busy_cleared](const std::function<void()>& callback) { busy_cleared = callback; });
 
     bool work_ran = false;
     bool after_cleared_ran = false;
     bool after_cleared_saw_busy = true;
-    workflow.runWithBusyOverlay(
+    workflow.runMessageThreadBusyOperation(
         BusyOperation::OpeningAudioDevice,
         [&work_ran] { work_ran = true; },
         [&workflow, &after_cleared_ran, &after_cleared_saw_busy] {
@@ -88,21 +87,61 @@ TEST_CASE("BusyOperationWorkflow runs operation after busy presentation", "[core
     CHECK_FALSE(pushed_states.back().has_value());
 }
 
+// Detaching presentation callbacks returns the workflow to immediate continuations.
+TEST_CASE("BusyOperationWorkflow detaches presentation callbacks", "[core][busy-workflow]")
+{
+    testing::ImmediateMessageThreadScheduler scheduler;
+    BusyOperationWorkflow workflow{scheduler, [] {}};
+
+    int ready_callback_count = 0;
+    int cleared_callback_count = 0;
+    workflow.attachPresentation(
+        [&ready_callback_count](const std::function<void()>& callback) {
+            ++ready_callback_count;
+            if (callback)
+            {
+                callback();
+            }
+        },
+        [&cleared_callback_count](const std::function<void()>& callback) {
+            ++cleared_callback_count;
+            if (callback)
+            {
+                callback();
+            }
+        });
+    workflow.detachPresentation();
+
+    bool work_ran = false;
+    bool after_cleared_ran = false;
+    workflow.runMessageThreadBusyOperation(
+        BusyOperation::OpeningAudioDevice,
+        [&work_ran] { work_ran = true; },
+        [&after_cleared_ran] { after_cleared_ran = true; });
+
+    CHECK(work_ran);
+    CHECK(after_cleared_ran);
+    CHECK(ready_callback_count == 0);
+    CHECK(cleared_callback_count == 0);
+}
+
 // Superseding a busy token from inside the work callback prevents the old operation from clearing
 // the new busy state or running its post-clear continuation.
 TEST_CASE("BusyOperationWorkflow ignores stale busy completion", "[core][busy-workflow]")
 {
     testing::ImmediateMessageThreadScheduler scheduler;
     BusyOperationWorkflow workflow{scheduler, [] {}};
-    workflow.setRunAfterBusyPresentationReady([](const std::function<void()>& callback) {
-        if (callback)
-        {
-            callback();
-        }
-    });
+    workflow.attachPresentation(
+        [](const std::function<void()>& callback) {
+            if (callback)
+            {
+                callback();
+            }
+        },
+        {});
 
     bool after_cleared_ran = false;
-    workflow.runWithBusyOverlay(
+    workflow.runMessageThreadBusyOperation(
         BusyOperation::OpeningProject,
         [&workflow] {
             const std::uint64_t token = workflow.begin(BusyOperation::SavingProject);
@@ -122,14 +161,15 @@ TEST_CASE("BusyOperationWorkflow transitions worker progress after paint", "[cor
     int refresh_count = 0;
     int busy_ready_count = 0;
     BusyOperationWorkflow workflow{scheduler, [&refresh_count] { ++refresh_count; }};
-    workflow.setRunAfterBusyPresentationReady(
+    workflow.attachPresentation(
         [&busy_ready_count](const std::function<void()>& callback) {
             ++busy_ready_count;
             if (callback)
             {
                 callback();
             }
-        });
+        },
+        {});
 
     const std::uint64_t token = workflow.begin(BusyOperation::OpeningProject);
     workflow.transitionAfterPaintAndWaitFromWorker(BusyOperation::AnalyzingBackingAudio, token);
