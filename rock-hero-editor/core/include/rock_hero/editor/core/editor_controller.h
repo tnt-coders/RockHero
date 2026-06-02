@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -329,6 +330,12 @@ public:
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 
+    /*!
+    \brief Shows the scanned plugin browser for a specific insertion slot.
+    \param chain_index User-visible insertion slot in [0, plugin_count].
+    */
+    void onInsertPluginRequested(std::size_t chain_index) override;
+
     /*! \brief Hides the scanned plugin browser. */
     void onPluginBrowserClosed() override;
 
@@ -349,6 +356,13 @@ public:
     \param instance_id Opaque plugin instance ID selected by the user.
     */
     void onRemovePluginRequested(std::string instance_id) override;
+
+    /*!
+    \brief Moves a plugin instance within the current runtime plugin chain.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    \param destination_index Final user-visible chain index for the instance.
+    */
+    void onMovePluginRequested(std::string instance_id, std::size_t destination_index) override;
 
     /*!
     \brief Opens a plugin instance editor window for the current runtime plugin chain.

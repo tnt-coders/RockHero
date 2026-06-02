@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <optional>
@@ -53,33 +54,60 @@ TEST_CASE("IPluginHost returns known plugin candidates", "[audio][plugin-host]")
     CHECK(plugin_host.catalog_scan_call_count == 0);
 }
 
-// Verifies selected plugin candidates are appended through an opaque returned instance handle.
-TEST_CASE("IPluginHost adds a plugin", "[audio][plugin-host]")
+// Verifies selected plugin candidates can be inserted at any visible chain slot.
+TEST_CASE("IPluginHost inserts plugins at visible chain positions", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
-    const PluginCandidate selected_candidate{
+    const PluginCandidate amp_candidate{
         .id = "vst3:amp",
         .name = "Amp",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
         .file_path = std::filesystem::path{"Amp.vst3"},
     };
+    const PluginCandidate cab_candidate{
+        .id = "vst3:cab",
+        .name = "Cab",
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = std::filesystem::path{"Cab.vst3"},
+    };
+    const PluginCandidate drive_candidate{
+        .id = "vst3:drive",
+        .name = "Drive",
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = std::filesystem::path{"Drive.vst3"},
+    };
 
-    const auto handle = plugin_host.addPlugin(selected_candidate);
+    plugin_host.next_instance_id = "amp-instance";
+    const auto first_snapshot = plugin_host.insertPlugin(amp_candidate, 0);
+    plugin_host.next_instance_id = "cab-instance";
+    const auto append_snapshot = plugin_host.insertPlugin(cab_candidate, 1);
+    plugin_host.next_instance_id = "drive-instance";
+    const auto middle_snapshot = plugin_host.insertPlugin(drive_candidate, 1);
 
-    REQUIRE(handle.has_value());
-    CHECK(handle->instance_id == "instance-id");
-    CHECK(handle->plugin_id == "vst3:amp");
-    CHECK(handle->chain_index == 0);
-    CHECK(plugin_host.last_added_plugin_candidate == std::optional{selected_candidate});
-    CHECK(plugin_host.add_call_count == 1);
+    REQUIRE(first_snapshot.has_value());
+    REQUIRE(append_snapshot.has_value());
+    REQUIRE(middle_snapshot.has_value());
+    REQUIRE(middle_snapshot->plugins.size() == 3);
+    CHECK(middle_snapshot->plugins[0].instance_id == "amp-instance");
+    CHECK(middle_snapshot->plugins[0].chain_index == 0);
+    CHECK(middle_snapshot->plugins[1].instance_id == "drive-instance");
+    CHECK(middle_snapshot->plugins[1].plugin_id == "vst3:drive");
+    CHECK(middle_snapshot->plugins[1].chain_index == 1);
+    CHECK(middle_snapshot->plugins[2].instance_id == "cab-instance");
+    CHECK(middle_snapshot->plugins[2].chain_index == 2);
+    CHECK(plugin_host.last_inserted_plugin_candidate == std::optional{drive_candidate});
+    CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
+    CHECK(plugin_host.insert_call_count == 3);
 }
 
 // Verifies plugin-host failures cross the port as typed errors.
-TEST_CASE("IPluginHost add can fail with a typed error", "[audio][plugin-host]")
+TEST_CASE("IPluginHost insert can fail with a typed error", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
-    plugin_host.next_add_error = PluginHostError{PluginHostErrorCode::PluginNotFound};
+    plugin_host.next_insert_error = PluginHostError{PluginHostErrorCode::PluginNotFound};
     const PluginCandidate selected_candidate{
         .id = "missing",
         .name = "Missing",
@@ -88,22 +116,126 @@ TEST_CASE("IPluginHost add can fail with a typed error", "[audio][plugin-host]")
         .file_path = {},
     };
 
-    const auto handle = plugin_host.addPlugin(selected_candidate);
+    const auto snapshot = plugin_host.insertPlugin(selected_candidate, 0);
 
-    REQUIRE_FALSE(handle.has_value());
-    CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
-    CHECK(plugin_host.last_added_plugin_candidate == std::optional{selected_candidate});
-    CHECK(plugin_host.add_call_count == 1);
+    REQUIRE_FALSE(snapshot.has_value());
+    CHECK(snapshot.error().code == PluginHostErrorCode::PluginNotFound);
+    CHECK(plugin_host.last_inserted_plugin_candidate == std::optional{selected_candidate});
+    CHECK(plugin_host.insert_call_count == 1);
+}
+
+// Verifies invalid insertion slots are rejected without changing the visible chain.
+TEST_CASE("IPluginHost rejects invalid insert positions", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    const PluginCandidate selected_candidate{
+        .id = "vst3:amp",
+        .name = "Amp",
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = {},
+    };
+
+    const auto snapshot = plugin_host.insertPlugin(selected_candidate, 1);
+
+    REQUIRE_FALSE(snapshot.has_value());
+    CHECK(snapshot.error().code == PluginHostErrorCode::InvalidChainIndex);
+    CHECK(plugin_host.chain.empty());
+}
+
+// Verifies loaded plugin instances can move up, down, and no-op in the visible chain.
+TEST_CASE("IPluginHost moves plugin instances", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        PluginChainEntry{
+            .instance_id = "amp-instance",
+            .plugin_id = "amp",
+            .name = "Amp",
+            .chain_index = 0,
+        },
+        PluginChainEntry{
+            .instance_id = "drive-instance",
+            .plugin_id = "drive",
+            .name = "Drive",
+            .chain_index = 1,
+        },
+        PluginChainEntry{
+            .instance_id = "cab-instance",
+            .plugin_id = "cab",
+            .name = "Cab",
+            .chain_index = 2,
+        },
+    };
+
+    const auto move_down_snapshot = plugin_host.movePlugin("amp-instance", 2);
+    const auto move_up_snapshot = plugin_host.movePlugin("cab-instance", 0);
+    const auto noop_snapshot = plugin_host.movePlugin("cab-instance", 0);
+
+    REQUIRE(move_down_snapshot.has_value());
+    REQUIRE(move_up_snapshot.has_value());
+    REQUIRE(noop_snapshot.has_value());
+    REQUIRE(noop_snapshot->plugins.size() == 3);
+    CHECK(noop_snapshot->plugins[0].instance_id == "cab-instance");
+    CHECK(noop_snapshot->plugins[0].chain_index == 0);
+    CHECK(noop_snapshot->plugins[1].instance_id == "drive-instance");
+    CHECK(noop_snapshot->plugins[1].chain_index == 1);
+    CHECK(noop_snapshot->plugins[2].instance_id == "amp-instance");
+    CHECK(noop_snapshot->plugins[2].chain_index == 2);
+    CHECK(plugin_host.last_moved_instance_id == std::optional<std::string>{"cab-instance"});
+    CHECK(plugin_host.last_move_destination_index == std::optional<std::size_t>{0});
+    CHECK(plugin_host.move_call_count == 3);
+}
+
+// Verifies invalid move requests return typed errors before changing the visible chain.
+TEST_CASE("IPluginHost rejects invalid plugin moves", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        PluginChainEntry{
+            .instance_id = "amp-instance",
+            .plugin_id = "amp",
+            .name = "Amp",
+            .chain_index = 0,
+        },
+    };
+
+    const auto missing = plugin_host.movePlugin("missing-instance", 0);
+    const auto invalid_index = plugin_host.movePlugin("amp-instance", 1);
+
+    REQUIRE_FALSE(missing.has_value());
+    CHECK(missing.error().code == PluginHostErrorCode::PluginInstanceNotFound);
+    REQUIRE_FALSE(invalid_index.has_value());
+    CHECK(invalid_index.error().code == PluginHostErrorCode::InvalidChainIndex);
+    REQUIRE(plugin_host.chain.size() == 1);
+    CHECK(plugin_host.chain[0].instance_id == "amp-instance");
 }
 
 // Verifies loaded plugin instances are removed through opaque instance IDs.
 TEST_CASE("IPluginHost removes a plugin instance", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        PluginChainEntry{
+            .instance_id = "instance-1",
+            .plugin_id = "amp",
+            .name = "Amp",
+            .chain_index = 0,
+        },
+        PluginChainEntry{
+            .instance_id = "instance-2",
+            .plugin_id = "cab",
+            .name = "Cab",
+            .chain_index = 1,
+        },
+    };
 
     const auto result = plugin_host.removePlugin("instance-1");
 
     REQUIRE(result.has_value());
+    REQUIRE(result->plugins.size() == 1);
+    CHECK(result->plugins[0].instance_id == "instance-2");
+    CHECK(result->plugins[0].chain_index == 0);
     CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-1"});
     CHECK(plugin_host.remove_call_count == 1);
 }

@@ -152,10 +152,11 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
 
     controller.onAddPluginRequested("catalog-plugin-id");
 
-    CHECK(plugin_host.add_call_count == 1);
+    CHECK(plugin_host.insert_call_count == 1);
     CHECK(
-        plugin_host.last_added_plugin_candidate ==
+        plugin_host.last_inserted_plugin_candidate ==
         std::optional{plugin_host.next_known_candidates.front()});
+    CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{0});
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK_FALSE(final_state->busy.has_value());
@@ -163,6 +164,8 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     CHECK_FALSE(final_state->plugin_browser.visible);
     REQUIRE(final_state->signal_chain.plugins.size() == 1);
     CHECK(final_state->signal_chain.add_plugin_enabled);
+    CHECK(final_state->signal_chain.insert_plugin_enabled);
+    CHECK(final_state->signal_chain.move_plugins_enabled);
     CHECK(final_state->signal_chain.remove_plugins_enabled);
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     CHECK(final_state->signal_chain.plugins[0].plugin_id == "catalog-plugin-id");
@@ -194,7 +197,7 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     controller.onPluginBrowserRequested();
-    plugin_host.next_add_error = common::audio::PluginHostError{
+    plugin_host.next_insert_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginLoadFailed,
         "plugin rejected",
     };
@@ -213,6 +216,92 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
     REQUIRE(error_state != nullptr);
     CHECK_FALSE(error_state->busy.has_value());
+}
+
+// Opening the browser from a gap inserts the selected plugin at that backend slot.
+TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-c";
+
+    controller.onInsertPluginRequested(1);
+    controller.onAddPluginRequested("catalog-plugin-id");
+
+    CHECK(plugin_host.insert_call_count == 3);
+    CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 3);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
+    CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(final_state->signal_chain.plugins[1].chain_index == 1);
+    CHECK(final_state->signal_chain.plugins[2].instance_id == "instance-b");
+    CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
+    CHECK_FALSE(final_state->plugin_browser.visible);
+    CHECK(view.shown_errors.empty());
+}
+
+// Add failures preserve the selected gap so a retry inserts at the same position.
+TEST_CASE("EditorController preserves failed insert target", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "retry-instance";
+    plugin_host.next_insert_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginLoadFailed,
+        "plugin rejected",
+    };
+
+    controller.onInsertPluginRequested(1);
+    controller.onAddPluginRequested("catalog-plugin-id");
+    plugin_host.next_insert_error.reset();
+    controller.onAddPluginRequested("catalog-plugin-id");
+
+    CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 3);
+    CHECK(final_state->signal_chain.plugins[1].instance_id == "retry-instance");
 }
 
 // Browser close only hides the window state; it does not discard the current catalog.
@@ -335,7 +424,7 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins = {
-        common::audio::LiveRigPlugin{
+        common::audio::PluginChainEntry{
             .instance_id = "amp-instance",
             .plugin_id = "amp-plugin",
             .name = "Amp Sim",
@@ -343,7 +432,7 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
             .format_name = "VST3",
             .chain_index = 0,
         },
-        common::audio::LiveRigPlugin{
+        common::audio::PluginChainEntry{
             .instance_id = "cab-instance",
             .plugin_id = "cab-plugin",
             .name = "Cab IR",
@@ -552,11 +641,9 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
 
-    plugin_host.next_handle.instance_id = "instance-a";
-    plugin_host.next_handle.chain_index = 0;
+    plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
-    plugin_host.next_handle.instance_id = "instance-b";
-    plugin_host.next_handle.chain_index = 1;
+    plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
 
     controller.onRemovePluginRequested("instance-a");
@@ -569,6 +656,82 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-b");
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(final_state->signal_chain.remove_plugins_enabled);
+    CHECK(view.shown_errors.empty());
+}
+
+// Moving a plugin applies the backend's authoritative reordered chain snapshot.
+TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-c";
+    addKnownPlugin(controller);
+
+    controller.onMovePluginRequested("instance-a", 2);
+
+    CHECK(plugin_host.move_call_count == 1);
+    CHECK(plugin_host.last_moved_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_move_destination_index == std::optional<std::size_t>{2});
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 3);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-b");
+    CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
+    CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(final_state->signal_chain.plugins[1].chain_index == 1);
+    CHECK(final_state->signal_chain.plugins[2].instance_id == "instance-a");
+    CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
+    CHECK(view.shown_errors.empty());
+}
+
+// A stale move request is ignored before the backend can mutate the chain.
+TEST_CASE("EditorController ignores stale plugin moves", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    addKnownPlugin(controller);
+
+    controller.onMovePluginRequested("stale-instance", 0);
+
+    CHECK(plugin_host.move_call_count == 0);
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 1);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     CHECK(view.shown_errors.empty());
 }
 
@@ -729,6 +892,47 @@ TEST_CASE("EditorController reports plugin remove errors", "[core][editor-contro
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-id");
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not remove plugin: backend rejected removal");
+}
+
+// Backend move failures report an error without changing controller-visible row order.
+TEST_CASE("EditorController reports plugin move errors", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    plugin_host.next_move_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginMoveFailed,
+        "backend rejected move",
+    };
+
+    controller.onMovePluginRequested("instance-a", 1);
+
+    CHECK(plugin_host.move_call_count == 1);
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 2);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-b");
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back() == "Could not move plugin: backend rejected move");
 }
 
 } // namespace rock_hero::editor::core

@@ -60,6 +60,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 
+    /*! \brief Show the scanned plugin browser for a chain insertion slot. */
+    InsertPlugin,
+
     /*! \brief Scan default plugin catalog locations for browser plugins. */
     ScanPluginCatalog,
 
@@ -68,6 +71,9 @@ enum class EditorActionId : std::uint8_t
 
     /*! \brief Remove a plugin instance from the signal chain. */
     RemovePlugin,
+
+    /*! \brief Move a plugin instance within the signal chain. */
+    MovePlugin,
 
     /*! \brief Open a plugin instance editor window. */
     OpenPlugin,

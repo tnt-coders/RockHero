@@ -17,6 +17,7 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/package_id.h>
 #include <string>
+#include <utility>
 
 namespace rock_hero::common::audio
 {
@@ -454,17 +455,33 @@ TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][inte
     IPluginHost& plugin_host = harness.engine;
     const ITransport& transport = harness.engine;
 
-    const auto handle = plugin_host.addPlugin(
+    const auto snapshot = plugin_host.insertPlugin(
         PluginCandidate{
             .id = "missing-plugin-id",
             .name = "Missing Plugin",
             .manufacturer = {},
             .format_name = "VST3",
             .file_path = {},
-        });
+        },
+        0);
 
-    REQUIRE_FALSE(handle.has_value());
-    CHECK(handle.error().code == PluginHostErrorCode::PluginNotFound);
+    REQUIRE_FALSE(snapshot.has_value());
+    CHECK(snapshot.error().code == PluginHostErrorCode::PluginNotFound);
+    CHECK(transport.state() == TransportState{});
+    CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Verifies plugin moves report unknown instance IDs as a typed boundary failure.
+TEST_CASE("Engine plugin host rejects unknown plugin moves", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+    const ITransport& transport = harness.engine;
+
+    const auto result = plugin_host.movePlugin("missing-instance-id", 0);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
     CHECK(transport.state() == TransportState{});
     CHECK(transport.position() == common::core::TimePosition{});
 }
