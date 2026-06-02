@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <filesystem>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
@@ -161,6 +162,20 @@ struct EditorAction
     {
     };
 
+    /*! \brief Show the scanned plugin browser for a chain insertion slot. */
+    struct InsertPlugin
+    {
+        /*!
+        \brief Creates an insert-plugin action.
+        \param chain_index_value User-visible insertion slot in [0, plugin_count].
+        */
+        explicit constexpr InsertPlugin(std::size_t chain_index_value) noexcept
+            : chain_index(chain_index_value)
+        {}
+
+        std::size_t chain_index{};
+    };
+
     /*! \brief Scan configured plugin catalog locations. */
     struct ScanPluginCatalog
     {
@@ -194,6 +209,23 @@ struct EditorAction
         std::string instance_id;
     };
 
+    /*! \brief Move a plugin instance within the signal chain. */
+    struct MovePlugin
+    {
+        /*!
+        \brief Creates a move-plugin action.
+        \param instance_id_value Opaque plugin instance ID selected by the user.
+        \param destination_index_value Final user-visible chain index for the instance.
+        */
+        MovePlugin(std::string instance_id_value, std::size_t destination_index_value)
+            : instance_id(std::move(instance_id_value))
+            , destination_index(destination_index_value)
+        {}
+
+        std::string instance_id;
+        std::size_t destination_index{};
+    };
+
     /*! \brief Open a plugin instance editor window. */
     struct OpenPlugin
     {
@@ -220,8 +252,8 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, ShowPluginBrowser, ScanPluginCatalog, AddPlugin, RemovePlugin,
-        OpenPlugin>;
+        Stop, SeekWaveform, ShowPluginBrowser, InsertPlugin, ScanPluginCatalog, AddPlugin,
+        RemovePlugin, MovePlugin, OpenPlugin>;
 };
 
 /*!

@@ -158,16 +158,22 @@ public:
         return {};
     }
 
-    [[nodiscard]] std::expected<common::audio::PluginHandle, common::audio::PluginHostError>
-    addPlugin(const common::audio::PluginCandidate&) override
+    [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
+    insertPlugin(const common::audio::PluginCandidate&, std::size_t) override
     {
-        return common::audio::PluginHandle{};
+        return common::audio::PluginChainSnapshot{};
     }
 
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> removePlugin(
-        const std::string&) override
+    [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
+    movePlugin(const std::string&, std::size_t) override
     {
-        return {};
+        return common::audio::PluginChainSnapshot{};
+    }
+
+    [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
+    removePlugin(const std::string&) override
+    {
+        return common::audio::PluginChainSnapshot{};
     }
 
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(

@@ -423,7 +423,8 @@ struct FakeLiveRig final : public common::audio::ILiveRig
                 });
             for (std::size_t plugin_index = 0; plugin_index < total_plugins; ++plugin_index)
             {
-                const common::audio::LiveRigPlugin& plugin = next_load_result.plugins[plugin_index];
+                const common::audio::PluginChainEntry& plugin =
+                    next_load_result.plugins[plugin_index];
                 request.progress_callback(
                     common::audio::LiveRigLoadProgress{
                         .completed_plugins = plugin_index,
@@ -509,7 +510,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
         .tone_document_ref = g_tone_document_ref,
         .plugins =
             {
-                common::audio::LiveRigPlugin{
+                common::audio::PluginChainEntry{
                     .instance_id = "captured-instance",
                     .plugin_id = "captured-plugin",
                     .name = "Captured Amp",
@@ -525,7 +526,7 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     common::audio::LiveRigLoadResult next_load_result{
         .plugins =
             {
-                common::audio::LiveRigPlugin{
+                common::audio::PluginChainEntry{
                     .instance_id = "loaded-instance",
                     .plugin_id = "loaded-plugin",
                     .name = "Loaded Amp",

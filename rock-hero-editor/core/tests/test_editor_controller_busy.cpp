@@ -425,7 +425,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     addKnownPlugin(controller);
     plugin_host.catalog_scan_call_count = 0;
     plugin_host.known_candidates_call_count = 0;
-    plugin_host.add_call_count = 0;
+    plugin_host.insert_call_count = 0;
     plugin_host.remove_call_count = 0;
     plugin_host.open_call_count = 0;
 
@@ -463,7 +463,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     CHECK(transport.seek_call_count == 1);
     CHECK(plugin_host.catalog_scan_call_count == 0);
     CHECK(plugin_host.known_candidates_call_count == 0);
-    CHECK(plugin_host.add_call_count == 0);
+    CHECK(plugin_host.insert_call_count == 0);
     CHECK(plugin_host.remove_call_count == 0);
     CHECK(plugin_host.open_call_count == 0);
 }

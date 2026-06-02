@@ -1,6 +1,7 @@
 ﻿#include "engine.h"
 
 #include "live_rig_gain_plugin.h"
+#include "plugin_move_index.h"
 #include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
 
@@ -686,16 +687,31 @@ void reportLiveRigLoadProgress(
         });
 }
 
-// Converts a Tracktion external plugin into editor-facing runtime chain state.
-[[nodiscard]] LiveRigPlugin makeLiveRigPlugin(
-    const tracktion::ExternalPlugin& plugin, std::size_t chain_index)
+// Converts a Tracktion plugin into editor-facing runtime chain state.
+[[nodiscard]] PluginChainEntry makePluginChainEntry(
+    const tracktion::Plugin& plugin, std::size_t chain_index)
 {
-    return LiveRigPlugin{
+    if (const auto* const external_plugin = dynamic_cast<const tracktion::ExternalPlugin*>(&plugin))
+    {
+        return PluginChainEntry{
+            .instance_id = external_plugin->itemID.toString().toStdString(),
+            .plugin_id = external_plugin->desc.createIdentifierString().toStdString(),
+            .name = external_plugin->desc.name.toStdString(),
+            .manufacturer = external_plugin->desc.manufacturerName.toStdString(),
+            .format_name = external_plugin->desc.pluginFormatName.toStdString(),
+            .chain_index = chain_index,
+        };
+    }
+
+    // Non-external plugins expose no plugin descriptor, so there is no stable plugin identifier to
+    // report. Leave plugin_id empty rather than duplicating the instance ID, which would falsely
+    // present a per-instance ID as a reusable plugin identity.
+    return PluginChainEntry{
         .instance_id = plugin.itemID.toString().toStdString(),
-        .plugin_id = plugin.desc.createIdentifierString().toStdString(),
-        .name = plugin.desc.name.toStdString(),
-        .manufacturer = plugin.desc.manufacturerName.toStdString(),
-        .format_name = plugin.desc.pluginFormatName.toStdString(),
+        .plugin_id = {},
+        .name = plugin.getName().toStdString(),
+        .manufacturer = {},
+        .format_name = {},
         .chain_index = chain_index,
     };
 }
@@ -1427,7 +1443,7 @@ private:
     tracktion::EditItemID m_instrument_track_id;
 
     // Stable IDs for structural live-rig plugins around the external plugin chain. These are
-    // hidden from the LiveRigPlugin vector and from the removable plugin rows in the editor.
+    // hidden from PluginChainEntry snapshots and from the removable plugin rows in the editor.
     tracktion::EditItemID m_input_gain_plugin_id;
     tracktion::EditItemID m_input_meter_plugin_id;
     tracktion::EditItemID m_output_gain_plugin_id;
@@ -1906,9 +1922,126 @@ private:
         return plugin_candidates;
     }
 
-    // Appends a selected plugin candidate to the instrument track.
-    [[nodiscard]] std::expected<PluginHandle, PluginHostError> addPluginCandidateToTrack(
-        const PluginCandidate& plugin_candidate);
+    // Inserts a selected plugin candidate into the instrument track's user-visible chain.
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPluginCandidateToTrack(
+        const PluginCandidate& plugin_candidate, std::size_t chain_index);
+
+    // Builds the authoritative user-visible plugin chain snapshot from Tracktion state.
+    [[nodiscard]] PluginChainSnapshot pluginChainSnapshot() const
+    {
+        PluginChainSnapshot snapshot;
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return snapshot;
+        }
+
+        const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
+        snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
+        for (tracktion::Plugin* const plugin : plugins)
+        {
+            if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
+            {
+                continue;
+            }
+
+            snapshot.plugins.push_back(makePluginChainEntry(*plugin, snapshot.plugins.size()));
+        }
+
+        return snapshot;
+    }
+
+    // Counts user-visible plugins while optionally ignoring a plugin being moved.
+    [[nodiscard]] std::size_t userVisiblePluginCount(
+        const tracktion::Plugin* ignored_plugin = nullptr) const
+    {
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return 0;
+        }
+
+        std::size_t count = 0;
+        for (const tracktion::Plugin* const plugin : instrument_track->pluginList)
+        {
+            if (plugin != nullptr && plugin != ignored_plugin && !isStructuralLiveRigPlugin(plugin))
+            {
+                ++count;
+            }
+        }
+        return count;
+    }
+
+    // Maps a user-visible insertion slot to the raw Tracktion plugin-list index.
+    [[nodiscard]] std::expected<int, PluginHostError> tracktionIndexForUserPluginSlot(
+        std::size_t chain_index, const tracktion::Plugin* ignored_plugin = nullptr) const
+    {
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+        }
+
+        std::size_t user_index = 0;
+        for (int raw_index = 0; raw_index < instrument_track->pluginList.size(); ++raw_index)
+        {
+            const tracktion::Plugin* const plugin = instrument_track->pluginList[raw_index];
+            if (plugin == nullptr || plugin == ignored_plugin || isStructuralLiveRigPlugin(plugin))
+            {
+                continue;
+            }
+
+            if (user_index == chain_index)
+            {
+                return raw_index;
+            }
+            ++user_index;
+        }
+
+        if (user_index != chain_index)
+        {
+            return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+        }
+
+        const tracktion::Plugin* const output_gain =
+            findStructuralGainPlugin(m_output_gain_plugin_id);
+        const int output_gain_index =
+            output_gain != nullptr ? instrument_track->pluginList.indexOf(output_gain) : -1;
+        return output_gain_index >= 0 ? output_gain_index : -1;
+    }
+
+    // Finds one plugin's current user-visible index, excluding structural live-rig plugins.
+    [[nodiscard]] std::optional<std::size_t> userVisiblePluginIndexOf(
+        const tracktion::Plugin* target_plugin) const
+    {
+        if (target_plugin == nullptr || isStructuralLiveRigPlugin(target_plugin))
+        {
+            return std::nullopt;
+        }
+
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
+        {
+            return std::nullopt;
+        }
+
+        std::size_t user_index = 0;
+        for (const tracktion::Plugin* const plugin : instrument_track->pluginList)
+        {
+            if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
+            {
+                continue;
+            }
+
+            if (plugin == target_plugin)
+            {
+                return user_index;
+            }
+            ++user_index;
+        }
+
+        return std::nullopt;
+    }
 
     // Checks the current known-plugin list for a plugin matching persisted identity.
     [[nodiscard]] bool hasKnownPluginForIdentity(const PluginIdentity& identity) const
@@ -2015,6 +2148,27 @@ private:
                plugin->itemID == m_input_meter_plugin_id ||
                plugin->itemID == m_output_gain_plugin_id ||
                plugin->itemID == m_output_meter_plugin_id;
+    }
+
+    // Finalizes a committed plugin removal after rollback is no longer possible.
+    void commitPluginRemoval(tracktion::Plugin& plugin) const
+    {
+        if (auto* const macro_parameters = plugin.getMacroParameterList();
+            macro_parameters != nullptr)
+        {
+            macro_parameters->hideMacroParametersFromTracks();
+        }
+
+        for (tracktion::Track* const track : tracktion::getAllTracks(*m_edit))
+        {
+            if (track != nullptr)
+            {
+                track->hideAutomatableParametersForSource(plugin.itemID);
+            }
+        }
+
+        plugin.hideWindowForShutdown();
+        plugin.deselect();
     }
 
     // Finds a structural live-rig gain plugin by its stored EditItemID, or null if absent.
@@ -2884,9 +3038,9 @@ std::vector<PluginCandidate> Engine::knownPluginCatalog() const
     return m_impl->knownPluginCatalog();
 }
 
-// Appends a selected VST3 candidate to the instrument track's plugin list.
-std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToTrack(
-    const PluginCandidate& plugin_candidate)
+// Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
+std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCandidateToTrack(
+    const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
@@ -2902,6 +3056,12 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
     if (!instrument_track->pluginList.canInsertPlugin())
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
+    }
+
+    auto insert_position = tracktionIndexForUserPluginSlot(chain_index);
+    if (!insert_position.has_value())
+    {
+        return std::unexpected{std::move(insert_position.error())};
     }
 
     std::unique_ptr<juce::PluginDescription> description = findKnownPlugin(plugin_candidate.id);
@@ -2966,61 +3126,137 @@ std::expected<PluginHandle, PluginHostError> Engine::Impl::addPluginCandidateToT
         }
     }
 
-    // Insert before the structural output gain plugin so gain and metering stay after the chain.
-    const int insert_position = m_output_gain_plugin_id.isValid()
-                                    ? instrument_track->pluginList.indexOf(
-                                          findStructuralGainPlugin(m_output_gain_plugin_id))
-                                    : -1;
-    instrument_track->pluginList.insertPlugin(plugin, insert_position, nullptr);
+    instrument_track->pluginList.insertPlugin(plugin, *insert_position, nullptr);
     if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
     {
         rebuildInstrumentMonitoringGraphBestEffort("plugin insertion rollback failed");
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
-    // Compute the external-only chain index by counting non-structural plugins before this one.
-    std::size_t external_chain_index = 0;
-    for (const tracktion::Plugin* const list_plugin : instrument_track->pluginList)
-    {
-        if (list_plugin == plugin.get())
-        {
-            break;
-        }
-        if (list_plugin != nullptr && !isStructuralLiveRigPlugin(list_plugin))
-        {
-            ++external_chain_index;
-        }
-    }
-
     auto route_result = rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
+        plugin->deleteFromParent();
+        rebuildInstrumentMonitoringGraphBestEffort("plugin insertion route rollback failed");
         return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
     }
 
-    return PluginHandle{
-        .instance_id = plugin->itemID.toString().toStdString(),
-        .plugin_id = resolved_plugin_id,
-        .chain_index = external_chain_index,
-    };
+    auto snapshot = pluginChainSnapshot();
+    for (PluginChainEntry& entry : snapshot.plugins)
+    {
+        if (entry.instance_id == plugin->itemID.toString().toStdString())
+        {
+            entry.plugin_id = resolved_plugin_id;
+            break;
+        }
+    }
+    return snapshot;
 }
 
-// Appends a selected VST3 candidate to the instrument track's plugin list.
-std::expected<PluginHandle, PluginHostError> Engine::addPlugin(
-    const PluginCandidate& plugin_candidate)
+// Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
+std::expected<PluginChainSnapshot, PluginHostError> Engine::insertPlugin(
+    const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
-    return m_impl->addPluginCandidateToTrack(plugin_candidate);
+    return m_impl->insertPluginCandidateToTrack(plugin_candidate, chain_index);
 }
 
-// Removes a loaded plugin from the instrument track and rebuilds monitoring around the mutation.
-std::expected<void, PluginHostError> Engine::removePlugin(const std::string& instance_id)
+// Moves a loaded plugin inside the instrument track and rebuilds monitoring around the mutation.
+std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
+    const std::string& instance_id, std::size_t destination_index)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    const tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id
+        }};
+    }
+
+    const std::size_t plugin_count = m_impl->userVisiblePluginCount();
+    if (destination_index >= plugin_count)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+    }
+
+    const std::optional<std::size_t> current_index = m_impl->userVisiblePluginIndexOf(plugin);
+    if (!current_index.has_value())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id
+        }};
+    }
+
+    if (*current_index == destination_index)
+    {
+        return m_impl->pluginChainSnapshot();
+    }
+
+    const int original_tracktion_index = instrument_track->pluginList.indexOf(plugin);
+    auto destination_tracktion_index =
+        m_impl->tracktionIndexForUserPluginSlot(destination_index, plugin);
+    if (!destination_tracktion_index.has_value())
+    {
+        return std::unexpected{std::move(destination_tracktion_index.error())};
+    }
+
+    m_impl->stopTransportAndReleaseContext();
+    const tracktion::Plugin::Ptr moved_plugin{plugin};
+    const auto rollback_move =
+        [this, &instrument_track, &moved_plugin, current_index, original_tracktion_index] {
+            auto rollback_tracktion_index =
+                m_impl->tracktionIndexForUserPluginSlot(*current_index, moved_plugin.get());
+            instrument_track->pluginList.insertPlugin(
+                moved_plugin,
+                rollback_tracktion_index.has_value() ? *rollback_tracktion_index
+                                                     : original_tracktion_index,
+                nullptr);
+        };
+
+    const int move_insert_index = tracktionInsertionIndexForExistingPluginMove(
+        original_tracktion_index, *destination_tracktion_index);
+    instrument_track->pluginList.insertPlugin(moved_plugin, move_insert_index, nullptr);
+    if (instrument_track->pluginList.indexOf(plugin) < 0 ||
+        m_impl->userVisiblePluginIndexOf(plugin) != std::optional<std::size_t>{destination_index})
+    {
+        rollback_move();
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin move rollback failed");
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginMoveFailed}};
+    }
+
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (!route_result.has_value())
+    {
+        rollback_move();
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin move route rollback failed");
+        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+    }
+
+    return m_impl->pluginChainSnapshot();
+}
+
+// Removes a loaded plugin from the instrument track and rebuilds monitoring around the mutation.
+std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
+    const std::string& instance_id)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
     if (instrument_track == nullptr)
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
@@ -3036,13 +3272,24 @@ std::expected<void, PluginHostError> Engine::removePlugin(const std::string& ins
     }
 
     m_impl->stopTransportAndReleaseContext();
-    plugin->deleteFromParent();
+    const int original_tracktion_index = instrument_track->pluginList.indexOf(plugin);
+    const tracktion::Plugin::Ptr removed_plugin{plugin};
+    plugin->removeFromParent();
+    if (instrument_track->pluginList.indexOf(plugin) >= 0)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginRemovalFailed}};
+    }
+
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
+        instrument_track->pluginList.insertPlugin(
+            removed_plugin, original_tracktion_index, nullptr);
+        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin removal route rollback failed");
         return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
     }
-    return {};
+    m_impl->commitPluginRemoval(*removed_plugin);
+    return m_impl->pluginChainSnapshot();
 }
 
 // Opens a plugin editor window through Tracktion's plugin window state.
@@ -3402,7 +3649,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
                 .identity = makePluginIdentity(external_plugin->desc),
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
             });
-        snapshot.plugins.push_back(makeLiveRigPlugin(*external_plugin, chain_index));
+        snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
         ++captured_plugin_index;
     }
 
@@ -3654,7 +3901,7 @@ void Engine::Impl::executePluginStep()
     }
 
     m_load_op->result.plugins.push_back(
-        makeLiveRigPlugin(*external_plugin, m_load_op->result.plugins.size()));
+        makePluginChainEntry(*external_plugin, m_load_op->result.plugins.size()));
     m_load_op->next_index = plugin_index + 1;
 
     // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec

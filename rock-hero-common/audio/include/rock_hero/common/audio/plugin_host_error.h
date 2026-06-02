@@ -43,6 +43,15 @@ enum class PluginHostErrorCode
     /*! \brief The backend could not append the plugin to the hosted chain. */
     PluginInsertionFailed,
 
+    /*! \brief The requested user-visible chain index is outside the current chain range. */
+    InvalidChainIndex,
+
+    /*! \brief The backend could not reorder an existing plugin in the hosted chain. */
+    PluginMoveFailed,
+
+    /*! \brief The backend could not remove a plugin from the hosted chain. */
+    PluginRemovalFailed,
+
     /*! \brief The backend could not restore monitoring after a hosted-chain mutation. */
     MonitoringRouteFailed,
 

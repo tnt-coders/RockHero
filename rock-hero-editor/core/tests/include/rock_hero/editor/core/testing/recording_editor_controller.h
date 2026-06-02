@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -118,6 +119,13 @@ public:
         plugin_browser_request_count += 1;
     }
 
+    /*! \brief Captures plugin-browser insert intents emitted by signal-chain gap controls. */
+    void onInsertPluginRequested(std::size_t chain_index) override
+    {
+        last_insert_plugin_index = chain_index;
+        insert_plugin_request_count += 1;
+    }
+
     /*! \brief Counts plugin-browser close intents emitted by the browser window. */
     void onPluginBrowserClosed() override
     {
@@ -142,6 +150,14 @@ public:
     {
         last_removed_plugin_instance_id = std::move(instance_id);
         remove_plugin_request_count += 1;
+    }
+
+    /*! \brief Captures plugin moves selected through the signal-chain panel. */
+    void onMovePluginRequested(std::string instance_id, std::size_t destination_index) override
+    {
+        last_moved_plugin_instance_id = std::move(instance_id);
+        last_move_plugin_destination_index = destination_index;
+        move_plugin_request_count += 1;
     }
 
     /*! \brief Captures plugin instances selected for editor-window opening. */
@@ -245,8 +261,17 @@ public:
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_plugin_id{};
 
+    /*! \brief Last insertion slot selected through the signal-chain panel. */
+    std::optional<std::size_t> last_insert_plugin_index{};
+
     /*! \brief Last plugin instance ID selected through the signal-chain panel. */
     std::optional<std::string> last_removed_plugin_instance_id{};
+
+    /*! \brief Last plugin instance ID selected for a move request. */
+    std::optional<std::string> last_moved_plugin_instance_id{};
+
+    /*! \brief Last plugin destination index selected for a move request. */
+    std::optional<std::size_t> last_move_plugin_destination_index{};
 
     /*! \brief Last plugin instance ID selected for editor-window opening. */
     std::optional<std::string> last_opened_plugin_instance_id{};
@@ -299,6 +324,9 @@ public:
     /*! \brief Number of plugin-browser open intents received. */
     int plugin_browser_request_count{0};
 
+    /*! \brief Number of insert-plugin intents received. */
+    int insert_plugin_request_count{0};
+
     /*! \brief Number of plugin-browser close intents received. */
     int plugin_browser_close_count{0};
 
@@ -310,6 +338,9 @@ public:
 
     /*! \brief Number of remove-plugin intents received. */
     int remove_plugin_request_count{0};
+
+    /*! \brief Number of move-plugin intents received. */
+    int move_plugin_request_count{0};
 
     /*! \brief Number of open-plugin intents received. */
     int open_plugin_request_count{0};

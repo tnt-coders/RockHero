@@ -33,6 +33,7 @@ add_executable(
     test_input_calibration_controller.cpp
     test_input_calibration_workflow.cpp
     test_plugin_catalog_workflow.cpp
+    test_signal_chain_workflow.cpp
     test_project.cpp
     test_editor_settings.cpp)
 

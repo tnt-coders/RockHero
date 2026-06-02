@@ -139,9 +139,11 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekWaveform:
         case core::EditorActionId::ShowPluginBrowser:
+        case core::EditorActionId::InsertPlugin:
         case core::EditorActionId::ScanPluginCatalog:
         case core::EditorActionId::AddPlugin:
         case core::EditorActionId::RemovePlugin:
+        case core::EditorActionId::MovePlugin:
         case core::EditorActionId::OpenPlugin:
         {
             return "Save changes before continuing?";
@@ -1531,6 +1533,17 @@ void EditorView::onAddPluginPressed()
     m_controller.onPluginBrowserRequested();
 }
 
+// Opens the plugin browser for a specific insertion slot selected in the signal-chain panel.
+void EditorView::onInsertPluginPressed(std::size_t chain_index)
+{
+    if (!m_state.signal_chain.insert_plugin_enabled)
+    {
+        return;
+    }
+
+    m_controller.onInsertPluginRequested(chain_index);
+}
+
 // Forwards row-level remove intent to the controller after checking derived availability.
 void EditorView::onRemovePluginPressed(std::string instance_id)
 {
@@ -1540,6 +1553,17 @@ void EditorView::onRemovePluginPressed(std::string instance_id)
     }
 
     m_controller.onRemovePluginRequested(std::move(instance_id));
+}
+
+// Forwards row-level move intent to the controller after checking derived availability.
+void EditorView::onMovePluginPressed(std::string instance_id, std::size_t destination_index)
+{
+    if (!m_state.signal_chain.move_plugins_enabled)
+    {
+        return;
+    }
+
+    m_controller.onMovePluginRequested(std::move(instance_id), destination_index);
 }
 
 // Forwards row-level open intent to the controller; controller-side routing handles busy gating.

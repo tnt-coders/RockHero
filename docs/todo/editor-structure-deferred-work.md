@@ -11,6 +11,9 @@ doing them now would be premature: they are either gated on a prerequisite that 
 or they touch modules outside the current editor focus, or they should only happen after the
 extracted shape has proven itself.
 
+The former `SignalChainWorkflow` item has moved into active scope as
+`docs/in-progress/signal-chain-plugin-editing-plan.md`.
+
 Shared principles and the role vocabulary live in
 `docs/completed/editor-runtime-extraction-plan.md`; this document does not repeat them.
 
@@ -53,19 +56,6 @@ narrower `IMessageThreadScheduler`). Production implements them via `juce::Messa
 `juce::Timer`; the inline test runner runs them synchronously/immediately, removing the
 `MessageManager == nullptr` branch. Replace the three direct calls and drop the `juce_events`
 include from `editor_controller.cpp` — which would make that file free of direct JUCE includes.
-
-### `SignalChainWorkflow`
-
-Would own the user-visible plugin chain snapshot and request append, insert, remove, move, and
-reorder mutations; the root facade would execute mutations against `common/audio` and update the
-workflow with the returned authoritative snapshot.
-
-**Why deferred.** Do not create until `common/audio` exposes chain mutation beyond append/remove
-with authoritative post-mutation snapshots, and plugin addressing can grow beyond a flat vector.
-Extracting earlier would harden today's temporary linear signal-chain shape.
-
-**Revisit when** the audio boundary exposes an authoritative chain model and addressing beyond a
-flat list.
 
 ### Project Lifecycle Slices
 
