@@ -162,7 +162,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(transport.position_read_count == 0);
 }
 
-// Verifies plugin row remove controls reflect state and emit the selected instance ID.
+// Verifies plugin tile remove controls reflect state and emit the selected instance ID.
 TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -203,7 +203,7 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance"});
 }
 
-// Verifies plugin row clicks request opening the selected plugin editor window.
+// Verifies plugin tile clicks request opening the selected plugin editor window.
 TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
