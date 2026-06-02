@@ -41,7 +41,7 @@ The busy *orchestration* around it is not cohesive. It is spread across:
   `supersedeBusyOperation`, `endBusy`, `beginLiveRigLoadProgress`, `setLiveRigLoadProgress`,
   `updateLiveRigLoadProgress`, `runAfterBusyOverlayPainted` — most of which are "mutate
   `m_busy_state`, then `updateView()`";
-- `AnalysisPaintGate`, the worker/message-thread rendezvous used by the paint-fenced transition;
+- `PaintGate`, the worker/message-thread rendezvous used by the paint-fenced transition;
 - the paint fence itself, which lives in `EditorView::runAfterBusyOverlayPainted` and is reached
   through the view;
 - ad-hoc message-thread scheduling inlined at each site (`juce::MessageManager::callAsync`,
@@ -77,9 +77,9 @@ a `BusyOperationWorkflow` member and delegates lifecycle to it, exactly as it al
 
 In scope:
 
-- busy-operation lifecycle orchestration (the ~10 thin methods + `AnalysisPaintGate`);
+- busy-operation lifecycle orchestration (the ~10 thin methods + `PaintGate`);
 - a message-thread scheduling boundary (the three deferred Framework-Isolation Part 2 sites);
-- a private busy-presentation callback seam wired from the attached view;
+- private busy-presentation callback seams wired from the attached view;
 - the explicit "clear busy, then continue" ordering seam;
 - audio-device apply/cancel ordering around the editor busy overlay.
 
@@ -133,7 +133,7 @@ a method asks at runtime where it came from before deciding how to behave.
 workflow must treat `false` as a non-fatal scheduling failure: release any waiters, skip cosmetic
 paint/delay waiting, and continue in the least surprising way rather than hanging an operation. For
 the live-rig completion hold, a failed delay schedule means running the completion immediately.
-This preserves the current `callAsync` failure handling around `AnalysisPaintGate`.
+This preserves the current `callAsync` failure handling around `PaintGate`.
 
 For `transitionAfterPaintAndWaitFromWorker()` tests, the scheduler/presentation fakes must let the
 posted transition and presentation callback resolve while the worker path is waiting. A fake that
@@ -147,33 +147,37 @@ Do **not** add a separate busy-paint interface. The single production implementa
 view's existing `runAfterBusyOverlayPainted(...)`, and naming a one-method interface around this
 mechanism makes the design read worse than the behavior it represents.
 
-Instead, `BusyOperationWorkflow` stores one late-bound callback:
+Instead, `BusyOperationWorkflow` stores a paired late-bound presentation handoff:
 
 ```cpp
-using RunAfterBusyPresentationReady = std::function<void(std::function<void()>)>;
+using Continuation = std::function<void()>;
+using PresentationFence = std::function<void(Continuation)>;
+
+void attachPresentation(PresentationFence ready, PresentationFence cleared);
+void detachPresentation();
 ```
 
-This callback is an implementation seam, not a public architecture concept. `EditorController`
-wires it from `attachView()` to the current view's `runAfterBusyOverlayPainted(...)`; workflow tests
-can install a fake callback that runs immediately or waits for an explicit "paint" signal. If no
-callback is attached, the workflow runs continuations immediately so startup/shutdown paths cannot
-wait for an impossible paint.
+These callbacks are implementation seams, not public architecture concepts. `EditorController`
+wires them from `attachView()` to the current view's `runAfterBusyOverlayPainted(...)` and
+`runAfterBusyOverlayRemoved(...)`; workflow tests can install fake callbacks that run immediately
+or wait for explicit "paint" signals. If no callbacks are attached, the workflow runs
+continuations immediately so startup/shutdown paths cannot wait for an impossible paint.
 
 This work also adds a `detachView()` clear path, which closes a **pre-existing latent dangling
 pointer**, not just a risk introduced by the new callback. `Editor` declares `m_controller` before
 `m_view` (`editor.h`), so the view `unique_ptr` is destroyed *before* the controller, and the
 controller's raw `m_view` is never nulled today — there is already a teardown window where
 `m_view` dangles. The clear path must therefore retire **both** bindings: the existing `m_view`
-and the workflow callback. Ownership of the call is explicit: `Editor` teardown must invoke
+and the workflow callbacks. Ownership of the call is explicit: `Editor` teardown must invoke
 `EditorController::detachView()` *before* it resets `m_view`. "Clear before the view is destroyed"
 is not enough on its own; the call site and ordering are the contract. `detachView()` must clear
-both the existing `m_view` pointer and the workflow's busy-presentation callback.
+both the existing `m_view` pointer and the workflow's busy-presentation callbacks.
 
-The clear operation must reset the stored `std::function`, not merely make it return early. The
-callback installed from `attachView()` captures the current view so it can call
+The clear operation must reset the stored `std::function` objects, not merely make them return
+early. The callbacks installed from `attachView()` capture the current view so they can call
 `runAfterBusyOverlayPainted(...)`; the captured view pointer's lifetime is therefore the
-`std::function`'s lifetime. Resetting the function releases that capture and prevents the dangling
-view problem from moving from `m_view` into the workflow callback.
+`std::function` lifetime. Resetting the functions releases those captures and prevents the dangling
+view problem from moving from `m_view` into the workflow callbacks.
 
 ### View refresh
 
@@ -194,7 +198,7 @@ destroyed controller. The production `IMessageThreadScheduler` is composed in `a
 is gone.
 
 The workflow must own a private `std::shared_ptr<bool>` liveness token and capture
-`std::weak_ptr<bool>` in every callback it hands to the scheduler or the busy-presentation callback,
+`std::weak_ptr<bool>` in every callback it hands to the scheduler or busy-presentation callbacks,
 per
 `architectural-principles.md` ("Keep Threading at the Boundary"): a weak liveness guard for
 project-owned non-component owners whose callbacks may outlive them. This is specifically about the
@@ -206,9 +210,9 @@ post.
 ## `BusyOperationWorkflow` API
 
 The workflow owns `BusyOperationState m_state`, references `IMessageThreadScheduler`, stores the
-late-bound busy-presentation callback, stores the refresh callback, owns a private
+late-bound busy-presentation callbacks, stores the refresh callback, owns a private
 `std::shared_ptr<bool>` liveness token for weak-guarding its own posted callbacks, and absorbs
-`AnalysisPaintGate`. It exposes the lifecycle as composable primitives plus one ordered
+`PaintGate`. It exposes the lifecycle as composable primitives plus one ordered
 convenience seam:
 
 Primitives (each refreshes the view after mutating state, except where noted):
@@ -219,18 +223,18 @@ Primitives (each refreshes the view after mutating state, except where noted):
 - `isCurrent(token)`, `currentToken()`
 - `transition(BusyOperation, token)`
 - `transitionAfterPaintAndWaitFromWorker(BusyOperation, token)` — owns the busy-presentation
-  callback + `AnalysisPaintGate` rendezvous internally and is for worker-thread progress only
+  callback + `PaintGate` rendezvous internally and is for worker-thread progress only
 - `finish()` — clears and refreshes
 - `supersede()` — clears without refreshing (caller owns the next push)
 - `beginLiveRigProgress()`, `setLiveRigProgress(message, fraction)`,
   `updateLiveRigProgress(progress)`
-- `setRunAfterBusyPresentationReady(callback)` / `clearRunAfterBusyPresentationReady()` —
-  late-bind the view-owned presentation handoff
+- `attachPresentation(ready, cleared)` / `detachPresentation()` — late-bind and clear the
+  view-owned presentation handoff as one lifecycle pair
 - `postToMessageThread(callback)`, `callAfterDelay(delay, callback)` — delegate to the scheduler
 
 Ordered seam (the missing rule, made explicit and given the human-facing name callers should use):
 
-- `runWithBusyOverlay(BusyOperation op, std::function<void()> work,
+- `runMessageThreadBusyOperation(BusyOperation op, std::function<void()> work,
   std::function<void()> after_cleared = {})`
 
 Semantics:
@@ -247,23 +251,22 @@ run after busy presentation is ready:
 
 `finish()` runs before `after_cleared()`, so the overlay-cleared state is published before any
 post-operation UI. The busy-presentation readiness callback stays private to the workflow; callers
-ask for the outcome they want through `runWithBusyOverlay(...)`, not for a paint gate or readiness
-hook. The second token check is required: `work()` may re-enter controller behavior, trigger
-shutdown, or supersede the busy operation. In that case the workflow must not clear a newer
-operation or run a stale continuation. This is the shape the audio-device and plugin-load handlers
-already want; the live-rig and project-open/import handlers keep using the lower-level primitives
-because they span worker-thread phases and determinate progress.
+ask for the outcome they want through `runMessageThreadBusyOperation(...)`, not for a paint gate
+or readiness hook. The second token check is required: `work()` may re-enter controller behavior,
+trigger shutdown, or supersede the busy operation. In that case the workflow must not clear a
+newer operation or run a stale continuation. This is the shape the audio-device and plugin-load
+handlers already want; the live-rig and project-open/import handlers keep using the lower-level
+primitives because they span worker-thread phases and determinate progress.
 
 ### Paint-Gate Threading Contract
 
-`transitionAfterPaintAndWaitFromWorker()` preserves the current `AnalysisPaintGate` behavior while
+`transitionAfterPaintAndWaitFromWorker()` preserves the current paint-gate behavior while
 making the thread contract explicit. It is not a "maybe message thread, maybe worker" method.
 Message-thread callers use `transition()` directly. Worker-progress callers use this method when
 they need the next expensive worker step to wait briefly until the new busy state has had a chance
 to paint. The behavior:
 
 - it is used by project-operation progress callbacks, which normally run on a worker thread;
-- debug builds should assert that it is not called from the message thread;
 - otherwise it posts the transition to the message thread, waits for the busy presentation to be
   ready, and then releases the worker;
 - waiting has the existing short timeout so a hidden, minimized, or tearing-down view cannot turn a
@@ -272,10 +275,11 @@ to paint. The behavior:
 
 These rules are part of the workflow contract, not caller folklore. The method name and call sites
 carry the thread assumption; the scheduler does not expose an `isMessageThread()` query to paper
-over unclear ownership. Calling this method from the message thread would self-post the transition
-and then block the message thread waiting for a presentation callback that cannot run, causing an
-avoidable stall and missed paint until the timeout releases the gate. Unit tests should cover the
-timeout/post-failure paths with fakes rather than depending on JUCE's real message loop.
+over unclear ownership, so this remains a documented precondition rather than a runtime assertion.
+Calling this method from the message thread would self-post the transition and then block the
+message thread waiting for a presentation callback that cannot run, causing an avoidable stall and
+missed paint until the timeout releases the gate. Unit tests should cover the timeout/post-failure
+paths with fakes rather than depending on JUCE's real message loop.
 
 ## Audio-Device Ordering Fix
 
@@ -299,8 +303,8 @@ callable:
 
 `EditorController::Impl::onAudioDeviceChangeRequested(work, after_cleared)` keeps the
 calibration-prompt and empty-callable guards, then delegates to
-`m_busy.runWithBusyOverlay(BusyOperation::OpeningAudioDevice, work, after_cleared)`. The editor
-never learns settings-window presentation details; it only guarantees ordering.
+`m_busy.runMessageThreadBusyOperation(BusyOperation::OpeningAudioDevice, work, after_cleared)`.
+The editor never learns settings-window presentation details; it only guarantees ordering.
 
 `editor_view.cpp`'s dispatcher lambda forwards both callables to `onAudioDeviceChangeRequested`.
 
@@ -316,23 +320,23 @@ settings dialog reopens with inline error
 ```
 
 The previous `callAsync`-in-`setApplying(false)` fallback is no longer needed: ordering is now a
-property of `runWithBusyOverlay`, not an implicit reliance on stack unwinding.
+property of `runMessageThreadBusyOperation`, not an implicit reliance on stack unwinding.
 
 ## Implementation Stages
 
 1. Add `IMessageThreadScheduler` + JUCE production impl + deterministic test fake; compose the
    production impl in `app/`. Preserve scheduling failure as a boolean result.
 2. Create `BusyOperationWorkflow` owning `BusyOperationState` + scheduler + refresh callback +
-   storage for the late-bound busy-presentation callback + a private `std::shared_ptr<bool>`
-   liveness token; move `AnalysisPaintGate` and the lifecycle methods off `EditorController::Impl`
+   storage for the late-bound busy-presentation callbacks + a private `std::shared_ptr<bool>`
+   liveness token; move `PaintGate` and the lifecycle methods off `EditorController::Impl`
    into it, carrying the `safeCallback`-equivalent weak guard into the workflow's own
    scheduler/presentation posts. Wire `EditorController` to hold and delegate to it.
-3. Wire the busy-presentation callback from `EditorController::attachView()` to the current view's
-   `runAfterBusyOverlayPainted(...)`, and add an explicit `detachView()` clear path that retires
-   both the existing `m_view` binding and the workflow callback (resetting the stored
-   `std::function`, not just flagging it inert). Invoke `detachView()` from `Editor` teardown
+3. Wire the busy-presentation callbacks from `EditorController::attachView()` to the current
+   view's `runAfterBusyOverlayPainted(...)` and `runAfterBusyOverlayRemoved(...)`, and add an
+   explicit `detachView()` clear path that retires both the existing `m_view` binding and the
+   workflow callbacks through `detachPresentation()`. Invoke `detachView()` from `Editor` teardown
    *before* `m_view` is reset, since `Editor` destroys the view before the controller.
-4. Add `runWithBusyOverlay` and change the audio-device dispatcher contract; update
+4. Add `runMessageThreadBusyOperation` and change the audio-device dispatcher contract; update
    `onAudioDeviceChangeRequested`, `AudioDeviceSettingsController::onOkRequested()` /
    `onCancelRequested()`, the dispatcher type, and the `editor_view.cpp` wiring.
 5. Migrate the remaining handlers (open / import / plugin-load / live-rig) to the workflow
@@ -348,9 +352,10 @@ property of `runWithBusyOverlay`, not an implicit reliance on stack unwinding.
 
 ## Testing
 
-- `BusyOperationWorkflow` gets focused unit tests over its primitives and `runWithBusyOverlay`
-  ordering, using the scheduler fake and a fake busy-presentation callback. These are the
-  "pure/headless" and "adapter" tiers the architecture favors, not UI tests.
+- `BusyOperationWorkflow` gets focused unit tests over its primitives and
+  `runMessageThreadBusyOperation` ordering, using the scheduler fake and a fake busy-presentation
+  callback. These are the "pure/headless" and "adapter" tiers the architecture favors, not UI
+  tests.
 - Settings-controller tests assert apply/cancel route work through the dispatcher and that success
   closes / failure re-shows after the busy clears, against a fake dispatcher.
 - No new tests should require a JUCE message loop; the fakes remove the `MessageManager == nullptr`
@@ -375,12 +380,13 @@ After implementing:
 - Failed audio-device apply clears the editor busy overlay *before* the settings dialog reappears.
 - Successful apply still closes the settings dialog; focus returns to it on reopen after failure.
 - Cancel failure, if reproducible, follows the same visual ordering.
-- Superseding or destroying the controller during `runWithBusyOverlay` work does not clear a
-  newer busy operation and does not run the stale post-busy continuation.
+- Superseding or destroying the controller during `runMessageThreadBusyOperation` work does not
+  clear a newer busy operation and does not run the stale post-busy continuation.
 - Paint-gated worker progress never blocks the message thread, times out when the busy presentation
   cannot paint, and releases immediately when message-thread posting fails.
-- Destroying the view before the controller clears the busy-presentation callback and the `m_view`
-  binding through `detachView()`, leaving no stale view pointer in the controller or workflow.
+- Destroying the view before the controller clears the busy-presentation callbacks and the
+  `m_view` binding through `detachView()`, leaving no stale view pointer in the controller or
+  workflow.
 - A scheduled workflow post or delay that fires after the editor is destroyed is dropped by the
   workflow's liveness token rather than touching freed state.
 - `EditorController` no longer calls JUCE message-thread scheduling primitives directly for the
