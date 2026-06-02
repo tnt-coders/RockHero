@@ -22,7 +22,8 @@ class BusyOperationWorkflow final
 {
 public:
     using RefreshCallback = std::function<void()>;
-    using PresentationFence = std::function<void(std::function<void()>)>;
+    using Continuation = std::function<void()>;
+    using PresentationFence = std::function<void(Continuation)>;
 
     BusyOperationWorkflow(
         IMessageThreadScheduler& message_thread_scheduler, RefreshCallback refresh_view);
@@ -33,10 +34,8 @@ public:
     BusyOperationWorkflow(BusyOperationWorkflow&&) = delete;
     BusyOperationWorkflow& operator=(BusyOperationWorkflow&&) = delete;
 
-    void setRunAfterBusyPresentationReady(PresentationFence callback);
-    void clearRunAfterBusyPresentationReady();
-    void setRunAfterBusyPresentationCleared(PresentationFence callback);
-    void clearRunAfterBusyPresentationCleared();
+    void attachPresentation(PresentationFence ready, PresentationFence cleared);
+    void detachPresentation();
 
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t currentToken() const noexcept;
@@ -60,7 +59,7 @@ public:
 
     [[nodiscard]] bool setLiveRigLoadProgress(std::string message, double fraction);
 
-    void runWithBusyOverlay(
+    void runMessageThreadBusyOperation(
         BusyOperation operation, std::function<void()> work,
         std::function<void()> after_cleared = {});
 
@@ -71,7 +70,7 @@ public:
         std::chrono::milliseconds delay, std::function<void()> callback);
 
 private:
-    class AnalysisPaintGate;
+    class PaintGate;
 
     void refresh();
     void runAfterBusyPresentationCleared(std::function<void()> callback);
