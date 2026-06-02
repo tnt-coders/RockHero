@@ -243,48 +243,6 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     CHECK(controller.last_insert_plugin_index == std::optional<std::size_t>{2});
 }
 
-// Verifies row move controls emit destination indices and disable edge moves.
-TEST_CASE("Signal-chain move controls emit destinations", "[ui][editor-view]")
-{
-    const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    core::testing::RecordingEditorController controller;
-    const FakeTransport transport;
-    RecordingThumbnailFactory thumbnail_factory;
-    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
-    view.setBounds(0, 0, 1280, 800);
-    view.setState(
-        core::EditorViewState{
-            .signal_chain = core::SignalChainViewState{
-                .move_plugins_enabled = true,
-                .plugins = {
-                    makePlugin("amp", 0),
-                    makePlugin("drive", 1),
-                    makePlugin("cab", 2),
-                },
-            },
-        });
-
-    auto& amp_up = findRequiredDescendant<juce::TextButton>(view, "move_plugin_up_button_amp");
-    auto& drive_up = findRequiredDescendant<juce::TextButton>(view, "move_plugin_up_button_drive");
-    auto& drive_down =
-        findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_drive");
-    auto& cab_down = findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_cab");
-
-    CHECK_FALSE(amp_up.isEnabled());
-    CHECK(drive_up.isEnabled());
-    CHECK(drive_down.isEnabled());
-    CHECK_FALSE(cab_down.isEnabled());
-
-    testing::clickButton(drive_up);
-    CHECK(controller.last_moved_plugin_instance_id == std::optional<std::string>{"drive"});
-    CHECK(controller.last_move_plugin_destination_index == std::optional<std::size_t>{0});
-
-    testing::clickButton(drive_down);
-    CHECK(controller.move_plugin_request_count == 2);
-    CHECK(controller.last_moved_plugin_instance_id == std::optional<std::string>{"drive"});
-    CHECK(controller.last_move_plugin_destination_index == std::optional<std::size_t>{2});
-}
-
 // Verifies row drag/drop emits final destinations and rejects adjacent no-op slots.
 TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-view]")
 {
@@ -302,9 +260,9 @@ TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-v
             },
         });
 
-    auto& row_amp = findRequiredDescendant<juce::Component>(panel, "plugin_row_amp");
-    auto& row_drive = findRequiredDescendant<juce::Component>(panel, "plugin_row_drive");
-    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& row_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    auto& row_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
     auto& slot_after_amp = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
     auto& slot_after_drive = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
@@ -353,7 +311,7 @@ TEST_CASE("Signal-chain drag drops respect move gate", "[ui][editor-view]")
             },
         });
 
-    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
     auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_first);
     REQUIRE(drop_target != nullptr);
@@ -387,29 +345,28 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
         });
 
     auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
-    auto& amp_down = findRequiredDescendant<juce::TextButton>(view, "move_plugin_down_button_amp");
     auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
 
     CHECK_FALSE(insert_first.isEnabled());
-    CHECK_FALSE(amp_down.isEnabled());
     CHECK_FALSE(remove_amp.isEnabled());
 
     testing::clickButton(insert_first);
-    testing::clickButton(amp_down);
     testing::clickButton(remove_amp);
 
     CHECK(controller.insert_plugin_request_count == 0);
-    CHECK(controller.move_plugin_request_count == 0);
     CHECK(controller.remove_plugin_request_count == 0);
 }
 
-// Verifies cramped panels keep every row reachable through the signal-chain viewport.
-TEST_CASE("Signal-chain cramped panel scrolls overflowing rows", "[ui][editor-view]")
+// Verifies cramped panels keep every tile reachable through the horizontal signal-chain viewport.
+TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingSignalChainPanelListener listener;
     SignalChainPanel panel{listener};
-    panel.setBounds(0, 0, 520, 107);
+    // The center strip width is roughly panel_width - 176 (two side columns plus insets). 320px
+    // leaves ~144px of strip, narrower than the second tile's left edge and the full content width,
+    // so the rail/tile strip must scroll horizontally to stay reachable.
+    panel.setBounds(0, 0, 320, 160);
     panel.setState(
         core::SignalChainViewState{
             .insert_plugin_enabled = true,
@@ -419,18 +376,18 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing rows", "[ui][editor-vi
     auto& viewport = findRequiredDescendant<juce::Viewport>(panel, "signal_chain_viewport");
     auto& content = findRequiredDescendant<juce::Component>(panel, "signal_chain_content");
     auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
-    auto& row_first = findRequiredDescendant<juce::Component>(panel, "plugin_row_amp");
+    auto& tile_first = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
     auto& slot_second = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
-    auto& row_second = findRequiredDescendant<juce::Component>(panel, "plugin_row_cab");
+    auto& tile_second = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& append_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
 
-    CHECK(content.getHeight() > viewport.getHeight());
+    CHECK(content.getWidth() > viewport.getWidth());
     CHECK(slot_first.isVisible());
-    CHECK(row_first.isVisible());
+    CHECK(tile_first.isVisible());
     CHECK(slot_second.isVisible());
-    CHECK(row_second.isVisible());
+    CHECK(tile_second.isVisible());
     CHECK(append_slot.isVisible());
-    CHECK(row_second.getY() >= viewport.getHeight());
+    CHECK(tile_second.getX() >= viewport.getWidth());
     CHECK(listener.insert_call_count == 0);
 }
 
@@ -450,7 +407,7 @@ TEST_CASE("Signal-chain row click still opens plugin", "[ui][editor-view]")
             },
         });
 
-    auto& row = findRequiredDescendant<juce::Component>(view, "plugin_row_amp");
+    auto& row = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
     juce::MouseEvent event = testing::makeMouseDownEvent(row, 8.0f, 8.0f);
     row.mouseDown(event);
     row.mouseUp(event);
