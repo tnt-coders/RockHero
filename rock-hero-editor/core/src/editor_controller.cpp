@@ -441,12 +441,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] EditorViewState deriveViewState() const;
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);
-    void transitionBusyOperationAfterPaint(BusyOperation operation, std::uint64_t token);
     void finishBusyOperation();
-    void supersedeBusyOperation();
-    void beginLiveRigLoadProgress();
-    void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
-    void runAfterBusyOverlayPainted(std::function<void()> callback);
     void detachView();
     void restoreAudioDeviceState();
     void persistAudioDeviceState();
@@ -482,9 +477,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Wraps an async callback with a liveness guard against this Impl. Captures a weak_ptr to
     // m_alive at the call site; the returned callable checks expiry before invoking the
-    // wrapped callback. Use this for any callback that may fire from the task runner / timer
-    // / external scheduler after Impl is destroyed. For task-runner-driven busy operations,
-    // use runBusyOperation(), which composes the liveness check with token validation.
+    // wrapped callback. Use this for any callback that may fire from the task runner or an
+    // external backend after Impl is destroyed. For task-runner-driven busy operations,
+    // use runWorkerThreadBusyOperation(), which composes the liveness check with token validation.
     template <typename Callback> auto safeCallback(Callback&& callback)
     {
         return [wrapped_callback = std::forward<Callback>(callback),
@@ -504,7 +499,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // The completion receives the shared state pointer only, because the helper already
     // guarantees that the captured busy token still matches at the call site.
     template <typename TaskState, typename Worker, typename Completion>
-    void runBusyOperation(
+    void runWorkerThreadBusyOperation(
         BusyOperation operation, const std::shared_ptr<TaskState>& state, Worker&& worker,
         Completion&& completion)
     {
@@ -959,30 +954,31 @@ EditorController::Impl::~Impl()
 void EditorController::Impl::attachView(IEditorView& view)
 {
     m_view = &view;
-    m_busy.setRunAfterBusyPresentationReady([this](std::function<void()> callback) {
-        if (m_view == nullptr)
-        {
-            if (callback)
+    m_busy.attachPresentation(
+        [this](std::function<void()> callback) {
+            if (m_view == nullptr)
             {
-                callback();
+                if (callback)
+                {
+                    callback();
+                }
+                return;
             }
-            return;
-        }
 
-        m_view->runAfterBusyOverlayPainted(std::move(callback));
-    });
-    m_busy.setRunAfterBusyPresentationCleared([this](std::function<void()> callback) {
-        if (m_view == nullptr)
-        {
-            if (callback)
+            m_view->runAfterBusyOverlayPainted(std::move(callback));
+        },
+        [this](std::function<void()> callback) {
+            if (m_view == nullptr)
             {
-                callback();
+                if (callback)
+                {
+                    callback();
+                }
+                return;
             }
-            return;
-        }
 
-        m_view->runAfterBusyOverlayRemoved(std::move(callback));
-    });
+            m_view->runAfterBusyOverlayRemoved(std::move(callback));
+        });
     view.setState(m_last_state);
 }
 
@@ -1273,7 +1269,7 @@ EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProje
                 {
                     return;
                 }
-                controller->transitionBusyOperationAfterPaint(
+                controller->m_busy.transitionAfterPaintAndWaitFromWorker(
                     BusyOperation::AnalyzingBackingAudio, token);
                 break;
             }
@@ -1297,11 +1293,10 @@ void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_s
         return;
     }
 
-    beginLiveRigLoadProgress();
-    runAfterBusyOverlayPainted(
-        safeCallback([this, captured_stage = std::move(stage_state)]() mutable {
-            startLiveRigLoadStage(std::move(captured_stage), true);
-        }));
+    m_busy.beginLiveRigLoadProgress();
+    m_busy.runAfterBusyPresentationReady([this, captured_stage = std::move(stage_state)]() mutable {
+        startLiveRigLoadStage(std::move(captured_stage), true);
+    });
 }
 
 // Starts the audio-boundary live-rig restore and routes only current-token completions to the
@@ -1356,13 +1351,13 @@ void EditorController::Impl::startLiveRigLoadStage(
                 // Wall-clock delay so the 100% state stays visible long enough for the user to see.
                 constexpr std::chrono::milliseconds minimum_completion_display_time{500};
                 const std::function<void()> finish_stage_after_hold =
-                    safeCallback([this, token, timer_stage = std::move(captured_stage)]() mutable {
+                    [this, token, timer_stage = std::move(captured_stage)]() mutable {
                         if (!m_busy.isCurrentToken(token))
                         {
                             return;
                         }
                         timer_stage.finish({});
-                    });
+                    };
 
                 if (!m_busy.callAfterDelay(
                         minimum_completion_display_time, finish_stage_after_hold))
@@ -1535,15 +1530,10 @@ void EditorController::Impl::onAudioDeviceChangeRequested(
         return;
     }
 
-    m_busy.runWithBusyOverlay(
+    m_busy.runMessageThreadBusyOperation(
         BusyOperation::OpeningAudioDevice,
-        [captured_change = std::move(change_audio_device)]() mutable { captured_change(); },
-        [captured_after_cleared = std::move(after_busy_cleared)]() mutable {
-            if (captured_after_cleared)
-            {
-                captured_after_cleared();
-            }
-        });
+        std::move(change_audio_device),
+        std::move(after_busy_cleared));
 }
 
 // Persists the new device manager state and re-derives view state after a configuration change.
@@ -1604,7 +1594,7 @@ bool EditorController::Impl::prepareAction(EditorAction::Id action)
 
     if (isBusy() && actionSupersedesBusy(action))
     {
-        supersedeBusyOperation();
+        m_busy.supersede();
     }
 
     return true;
@@ -1793,7 +1783,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
     }
 
     auto state = std::make_shared<PluginCatalogTaskState>();
-    runBusyOperation(
+    runWorkerThreadBusyOperation(
         BusyOperation::ScanningPlugins,
         state,
         [plugin_host = &m_plugin_host](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
@@ -1858,13 +1848,13 @@ void EditorController::Impl::beginAddKnownPlugin(
     state->plugin_candidate = plugin_candidate;
 
     const std::uint64_t token = beginBusy(BusyOperation::LoadingPlugin);
-    runAfterBusyOverlayPainted(safeCallback([this, state, token]() {
+    m_busy.runAfterBusyPresentationReady([this, state, token]() {
         if (!m_busy.isCurrentToken(token))
         {
             return;
         }
         completeAddPluginLoad(state);
-    }));
+    });
 }
 
 // Replaces the browser catalog with the latest scan result while keeping the browser open.
@@ -2382,7 +2372,7 @@ void EditorController::Impl::restoreLiveRig(
                 {
                     return;
                 }
-                updateLiveRigLoadProgress(progress);
+                m_busy.updateLiveRigLoadProgress(progress);
             });
         // Route the engine's per-step yield through the busy-overlay paint fence so each plugin's
         // progress update actually paints before the next step blocks the message thread.
@@ -2391,8 +2381,8 @@ void EditorController::Impl::restoreLiveRig(
             {
                 return;
             }
-            runAfterBusyOverlayPainted(
-                safeCallback([this, token, continuation = std::move(next)]() mutable {
+            m_busy.runAfterBusyPresentationReady(
+                [this, token, continuation = std::move(next)]() mutable {
                     if (!m_busy.isCurrentToken(token))
                     {
                         return;
@@ -2401,7 +2391,7 @@ void EditorController::Impl::restoreLiveRig(
                     {
                         continuation();
                     }
-                }));
+                });
         });
     }
 
@@ -2440,7 +2430,7 @@ void EditorController::Impl::runProjectWriteAction(EditorAction::ProjectWriteAct
         return;
     }
 
-    runBusyOperation(
+    runWorkerThreadBusyOperation(
         busyOperationForProjectWrite(state->action),
         state,
         [save_function = m_save_function,
@@ -3266,14 +3256,6 @@ std::uint64_t EditorController::Impl::beginBusy(BusyOperation operation)
     return m_busy.begin(operation);
 }
 
-// Moves to a visible phase and releases the worker after that phase has had a chance to paint.
-// This is only a presentation fence; the expensive audio work still runs on the worker thread.
-void EditorController::Impl::transitionBusyOperationAfterPaint(
-    BusyOperation operation, std::uint64_t token)
-{
-    m_busy.transitionAfterPaintAndWaitFromWorker(operation, token);
-}
-
 // Normal operation completion: clears busy state and pushes the resulting view state so the
 // overlay clears in the same frame. Completion paths call this only after their captured busy
 // token has already matched the current busy token. Failure sites call this BEFORE
@@ -3284,39 +3266,9 @@ void EditorController::Impl::finishBusyOperation()
     m_busy.finish();
 }
 
-// Close/Exit-style commands that intentionally take over the busy lifecycle. Does not push view
-// state itself; the accepted action's close or exit path owns the next visible state push.
-void EditorController::Impl::supersedeBusyOperation()
-{
-    m_busy.supersede();
-}
-
-// Switches a project-load busy operation into determinate live rig restore progress and pushes
-// the new state so the overlay paints at 0% before any plugin construction starts. Promoting
-// the busy operation is part of this transition because LoadingLiveRig is a distinct phase from
-// the surrounding project-open or import operation.
-void EditorController::Impl::beginLiveRigLoadProgress()
-{
-    m_busy.beginLiveRigLoadProgress();
-}
-
-// Applies plugin-level progress reported by the live rig boundary to the busy overlay state.
-void EditorController::Impl::updateLiveRigLoadProgress(
-    const common::audio::LiveRigLoadProgress& progress)
-{
-    m_busy.updateLiveRigLoadProgress(progress);
-}
-
-// Routes message-thread-only load work through the attached view's busy-overlay paint fence.
-void EditorController::Impl::runAfterBusyOverlayPainted(std::function<void()> callback)
-{
-    m_busy.runAfterBusyPresentationReady(std::move(callback));
-}
-
 void EditorController::Impl::detachView()
 {
-    m_busy.clearRunAfterBusyPresentationReady();
-    m_busy.clearRunAfterBusyPresentationCleared();
+    m_busy.detachPresentation();
     m_view = nullptr;
 }
 

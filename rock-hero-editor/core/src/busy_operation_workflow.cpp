@@ -37,7 +37,7 @@ namespace
 }
 } // namespace
 
-class BusyOperationWorkflow::AnalysisPaintGate final
+class BusyOperationWorkflow::PaintGate final
 {
 public:
     void release()
@@ -72,28 +72,19 @@ BusyOperationWorkflow::BusyOperationWorkflow(
 
 BusyOperationWorkflow::~BusyOperationWorkflow()
 {
-    m_run_after_busy_presentation_ready = {};
-    m_run_after_busy_presentation_cleared = {};
+    detachPresentation();
     m_alive.reset();
 }
 
-void BusyOperationWorkflow::setRunAfterBusyPresentationReady(PresentationFence callback)
+void BusyOperationWorkflow::attachPresentation(PresentationFence ready, PresentationFence cleared)
 {
-    m_run_after_busy_presentation_ready = std::move(callback);
+    m_run_after_busy_presentation_ready = std::move(ready);
+    m_run_after_busy_presentation_cleared = std::move(cleared);
 }
 
-void BusyOperationWorkflow::clearRunAfterBusyPresentationReady()
+void BusyOperationWorkflow::detachPresentation()
 {
     m_run_after_busy_presentation_ready = {};
-}
-
-void BusyOperationWorkflow::setRunAfterBusyPresentationCleared(PresentationFence callback)
-{
-    m_run_after_busy_presentation_cleared = std::move(callback);
-}
-
-void BusyOperationWorkflow::clearRunAfterBusyPresentationCleared()
-{
     m_run_after_busy_presentation_cleared = {};
 }
 
@@ -135,7 +126,7 @@ void BusyOperationWorkflow::transition(BusyOperation operation, const std::uint6
 void BusyOperationWorkflow::transitionAfterPaintAndWaitFromWorker(
     BusyOperation operation, const std::uint64_t token)
 {
-    const auto gate = std::make_shared<AnalysisPaintGate>();
+    const auto gate = std::make_shared<PaintGate>();
     const auto posted = postToMessageThread([this, gate, operation, token]() {
         if (!isBusy() || !isCurrentToken(token))
         {
@@ -188,7 +179,7 @@ bool BusyOperationWorkflow::setLiveRigLoadProgress(std::string message, const do
     return m_state.setLiveRigLoadProgress(std::move(message), fraction);
 }
 
-void BusyOperationWorkflow::runWithBusyOverlay(
+void BusyOperationWorkflow::runMessageThreadBusyOperation(
     BusyOperation operation, std::function<void()> work, std::function<void()> after_cleared)
 {
     const auto token = begin(operation);
