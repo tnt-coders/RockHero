@@ -2772,8 +2772,6 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
-        .add_plugin_enabled =
-            isActionAvailable(EditorAction::Id::ShowPluginBrowser, action_conditions),
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::InsertPlugin, action_conditions),
         .move_plugins_enabled = isActionAvailable(EditorAction::Id::MovePlugin, action_conditions),

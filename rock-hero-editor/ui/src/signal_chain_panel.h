@@ -22,7 +22,7 @@ namespace rock_hero::editor::ui
 \brief Displays the current plugin chain and emits panel intents.
 
 The panel is intentionally linear for the first plugin-host UI. It renders project-owned state and
-emits add-plugin intent through Listener so future rack or parallel-chain models can replace the
+emits insert-plugin intent through Listener so future rack or parallel-chain models can replace the
 state shape without exposing Tracktion or JUCE plugin descriptions to the view.
 */
 class SignalChainPanel final : public juce::Component, public juce::DragAndDropContainer
@@ -34,9 +34,6 @@ public:
     public:
         /*! \brief Destroys the listener interface. */
         virtual ~Listener() = default;
-
-        /*! \brief Called when the user requests the plugin browser for the chain. */
-        virtual void onAddPluginPressed() = 0;
 
         /*!
         \brief Called when the user requests the plugin browser for an insertion slot.
@@ -137,7 +134,7 @@ public:
     */
     void paint(juce::Graphics& g) override;
 
-    /*! \brief Lays out the add button within the panel. */
+    /*! \brief Lays out the panel controls. */
     void resized() override;
 
 private:
@@ -156,9 +153,6 @@ private:
 
     // Last render state pushed by the editor controller.
     core::SignalChainViewState m_state{};
-
-    // Button that opens plugin selection through the owning editor view.
-    juce::TextButton m_add_plugin_button;
 
     // Raw or calibrated input peak meter positioned on the left side of the plugin chain.
     AudioLevelMeter m_input_meter;
