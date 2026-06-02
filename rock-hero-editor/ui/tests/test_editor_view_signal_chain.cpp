@@ -3,6 +3,7 @@
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -12,7 +13,7 @@ namespace
 
 constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
 
-// Builds one plugin row for signal-chain UI intent tests.
+// Builds one plugin tile for signal-chain UI intent tests.
 [[nodiscard]] core::PluginViewState makePlugin(std::string instance_id, std::size_t chain_index)
 {
     return core::PluginViewState{
@@ -23,6 +24,18 @@ constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
         .format_name = "VST3",
         .chain_index = chain_index,
     };
+}
+
+// Builds a contiguous chain for capacity and overflow tests.
+[[nodiscard]] std::vector<core::PluginViewState> makePlugins(std::size_t count)
+{
+    std::vector<core::PluginViewState> plugins;
+    plugins.reserve(count);
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        plugins.push_back(makePlugin("block-" + std::to_string(index), index));
+    }
+    return plugins;
 }
 
 // Minimal panel listener used by direct SignalChainPanel layout tests.
@@ -61,7 +74,7 @@ public:
     int move_call_count{0};
 };
 
-// Builds the row drag payload used by SignalChainPanel's internal JUCE drag targets.
+// Builds the tile drag payload used by SignalChainPanel's internal JUCE drag targets.
 [[nodiscard]] juce::String pluginDragPayload(
     std::size_t source_index, const std::string& instance_id)
 {
@@ -72,9 +85,9 @@ public:
     return payload;
 }
 
-// Drops a plugin-row payload directly onto a slot's JUCE drag target.
+// Drops a plugin-tile payload directly onto a slot's JUCE drag target.
 void dropPluginOnSlot(
-    juce::Component& slot, juce::Component& source_row, std::size_t source_index,
+    juce::Component& slot, juce::Component& source_tile, std::size_t source_index,
     const std::string& instance_id)
 {
     auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot);
@@ -82,7 +95,7 @@ void dropPluginOnSlot(
 
     juce::DragAndDropTarget::SourceDetails details{
         juce::var{pluginDragPayload(source_index, instance_id)},
-        &source_row,
+        &source_tile,
         juce::Point<int>{4, 4},
     };
     CHECK(drop_target->isInterestedInDragSource(details));
@@ -243,8 +256,35 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     CHECK(controller.last_insert_plugin_index == std::optional<std::size_t>{2});
 }
 
-// Verifies row drag/drop emits final destinations and rejects adjacent no-op slots.
-TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-view]")
+// Verifies the Quad Cortex-style path caps add controls at eight visible blocks.
+TEST_CASE("Signal-chain insert controls stop at eight blocks", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .insert_plugin_enabled = true,
+                .plugins = makePlugins(8),
+            },
+        });
+
+    auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
+    auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_8");
+
+    CHECK_FALSE(insert_first.isEnabled());
+    CHECK_FALSE(insert_append.isEnabled());
+    testing::clickButton(insert_append);
+
+    CHECK(controller.insert_plugin_request_count == 0);
+}
+
+// Verifies tile drag/drop emits final destinations and rejects adjacent no-op slots.
+TEST_CASE("Signal-chain drag drops move tiles to insertion slots", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingSignalChainPanelListener listener;
@@ -260,25 +300,25 @@ TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-v
             },
         });
 
-    auto& row_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
-    auto& row_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
-    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& tile_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    auto& tile_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
     auto& slot_after_amp = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
     auto& slot_after_drive = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
     auto& slot_append = findRequiredDescendant<juce::Component>(panel, "insert_slot_3");
 
-    dropPluginOnSlot(slot_first, row_cab, 2, "cab");
+    dropPluginOnSlot(slot_first, tile_cab, 2, "cab");
     CHECK(listener.move_call_count == 1);
     CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
 
-    dropPluginOnSlot(slot_after_drive, row_amp, 0, "amp");
+    dropPluginOnSlot(slot_after_drive, tile_amp, 0, "amp");
     CHECK(listener.move_call_count == 2);
     CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{1});
 
-    dropPluginOnSlot(slot_append, row_amp, 0, "amp");
+    dropPluginOnSlot(slot_append, tile_amp, 0, "amp");
     CHECK(listener.move_call_count == 3);
     CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{2});
@@ -287,7 +327,7 @@ TEST_CASE("Signal-chain drag drops move rows to insertion slots", "[ui][editor-v
     REQUIRE(no_op_drop_target != nullptr);
     const juce::DragAndDropTarget::SourceDetails no_op_details{
         juce::var{pluginDragPayload(1, "drive")},
-        &row_drive,
+        &tile_drive,
         juce::Point<int>{4, 4},
     };
 
@@ -311,14 +351,14 @@ TEST_CASE("Signal-chain drag drops respect move gate", "[ui][editor-view]")
             },
         });
 
-    auto& row_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& slot_first = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
     auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_first);
     REQUIRE(drop_target != nullptr);
 
     juce::DragAndDropTarget::SourceDetails details{
         juce::var{pluginDragPayload(1, "cab")},
-        &row_cab,
+        &tile_cab,
         juce::Point<int>{4, 4},
     };
 
@@ -364,8 +404,8 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-v
     RecordingSignalChainPanelListener listener;
     SignalChainPanel panel{listener};
     // The center strip width is roughly panel_width - 176 (two side columns plus insets). 320px
-    // leaves ~144px of strip, narrower than the second tile's left edge and the full content width,
-    // so the rail/tile strip must scroll horizontally to stay reachable.
+    // leaves ~144px of strip, narrower than the append slot and the full content width, so the
+    // rail/tile strip must scroll horizontally to stay reachable.
     panel.setBounds(0, 0, 320, 160);
     panel.setState(
         core::SignalChainViewState{
@@ -387,12 +427,12 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-v
     CHECK(slot_second.isVisible());
     CHECK(tile_second.isVisible());
     CHECK(append_slot.isVisible());
-    CHECK(tile_second.getX() >= viewport.getWidth());
+    CHECK(append_slot.getX() >= viewport.getWidth());
     CHECK(listener.insert_call_count == 0);
 }
 
-// Verifies row clicks still open plugin windows independently of row edit buttons.
-TEST_CASE("Signal-chain row click still opens plugin", "[ui][editor-view]")
+// Verifies tile clicks still open plugin windows independently of tile edit buttons.
+TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -407,10 +447,10 @@ TEST_CASE("Signal-chain row click still opens plugin", "[ui][editor-view]")
             },
         });
 
-    auto& row = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
-    juce::MouseEvent event = testing::makeMouseDownEvent(row, 8.0f, 8.0f);
-    row.mouseDown(event);
-    row.mouseUp(event);
+    auto& tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
+    juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
+    tile.mouseDown(event);
+    tile.mouseUp(event);
 
     CHECK(controller.open_plugin_request_count == 1);
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"amp"});
