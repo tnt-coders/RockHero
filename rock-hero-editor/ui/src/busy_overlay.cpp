@@ -55,12 +55,14 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
 
     if (should_be_visible)
     {
-        const bool has_progress = busy->progress.has_value();
-        m_progress = has_progress ? std::clamp(*busy->progress, 0.0, 1.0) : -1.0;
+        const bool has_determinate_progress =
+            busy->indicator == core::BusyIndicator::DeterminateProgress;
+        const bool has_progress_bar = busy->indicator != core::BusyIndicator::MessageOnly;
+        m_progress =
+            has_determinate_progress ? std::clamp(busy->progress.value_or(0.0), 0.0, 1.0) : -1.0;
         m_message_label.setText(busy->message, juce::dontSendNotification);
-        m_progress_bar.setPercentageDisplay(has_progress);
-        m_progress_bar.setVisible(
-            has_progress || busy->presentation == core::BusyPresentation::Animated);
+        m_progress_bar.setPercentageDisplay(has_determinate_progress);
+        m_progress_bar.setVisible(has_progress_bar);
         m_progress_bar.repaint();
         resized();
     }
