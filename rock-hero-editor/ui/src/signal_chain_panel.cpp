@@ -16,14 +16,14 @@ constexpr int g_panel_inset{8};
 constexpr int g_header_height{34};
 constexpr int g_insert_rail_width{28};
 constexpr int g_signal_path_padding{20};
-constexpr int g_signal_path_min_cell_width{112};
-constexpr int g_signal_plugin_view_width{98};
-constexpr int g_signal_block_width{58};
-constexpr int g_signal_block_height{54};
-constexpr int g_signal_block_icon_size{34};
-constexpr int g_signal_block_label_gap{5};
-constexpr int g_signal_block_name_height{14};
-constexpr int g_signal_block_maker_height{12};
+constexpr int g_signal_path_min_cell_width{128};
+constexpr int g_signal_plugin_view_width{118};
+constexpr int g_signal_block_width{70};
+constexpr int g_signal_block_height{64};
+constexpr int g_signal_block_icon_size{44};
+constexpr int g_signal_block_label_gap{6};
+constexpr int g_signal_block_name_height{18};
+constexpr int g_signal_block_maker_height{15};
 constexpr int g_signal_plugin_view_height{
     g_signal_block_height + g_signal_block_label_gap + g_signal_block_name_height +
     g_signal_block_maker_height
@@ -125,8 +125,8 @@ enum class PluginIconType
         std::min(g_signal_plugin_view_height, std::max(1, path_area.getHeight() - 6));
     auto bounds = cell.withSizeKeepingCentre(view_width, view_height);
 
-    // The component also paints labels below the block, so align the block itself to the path
-    // center instead of centering the whole component.
+    // The caption extends below the block, so align the block itself to the path center instead
+    // of centering the whole component.
     const int ideal_top = path_area.getCentreY() - (g_signal_block_height / 2);
     const int min_top = path_area.getY();
     const int max_top = std::max(min_top, path_area.getBottom() - view_height);
@@ -139,9 +139,12 @@ enum class PluginIconType
 {
     const int tile_width = std::min(g_signal_block_width, std::max(1, bounds.getWidth()));
     const int tile_height = std::min(g_signal_block_height, std::max(1, bounds.getHeight()));
-    auto tile_area = bounds.withSizeKeepingCentre(tile_width, tile_height);
-    tile_area.setY(bounds.getY());
-    return tile_area;
+    return juce::Rectangle<int>{
+        bounds.getX() + ((bounds.getWidth() - tile_width) / 2),
+        bounds.getY(),
+        tile_width,
+        tile_height,
+    };
 }
 
 // Places insert slots at path boundaries, with the append slot occupying the next empty block.
@@ -347,7 +350,7 @@ enum class PluginIconType
     return destination_index;
 }
 
-// Builds the plugin name shown below the block and used as the tooltip's lead text.
+// Builds the plugin name shown below the block.
 [[nodiscard]] juce::String pluginDisplayName(const core::PluginViewState& plugin)
 {
     return plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{plugin.name};
@@ -362,27 +365,6 @@ enum class PluginIconType
     }
 
     return plugin.format_name.empty() ? juce::String{} : juce::String{plugin.format_name};
-}
-
-// Builds the hover text for the full plugin identity.
-[[nodiscard]] juce::String pluginTooltip(const core::PluginViewState& plugin)
-{
-    juce::String label = pluginDisplayName(plugin);
-
-    if (!plugin.manufacturer.empty())
-    {
-        label += " - ";
-        label += juce::String{plugin.manufacturer};
-    }
-
-    if (!plugin.format_name.empty())
-    {
-        label += " (";
-        label += juce::String{plugin.format_name};
-        label += ")";
-    }
-
-    return label;
 }
 
 // Draws a compact category hint inside a tile without requiring plugin-host-specific artwork.
@@ -496,9 +478,12 @@ void drawPluginIcon(
         }
         case PluginIconType::Gate:
         {
-            g.drawLine(symbol.getX(), symbol.getBottom(), symbol.getCentreX(), symbol.getY(), 1.6f);
-            g.drawLine(
-                symbol.getCentreX(), symbol.getY(), symbol.getRight(), symbol.getBottom(), 1.6f);
+            const float left = symbol.getX();
+            const float top = symbol.getY();
+            const float centre_x = symbol.getCentreX();
+            const float bottom = symbol.getBottom();
+            g.drawLine(left, bottom, centre_x, top, 1.6f);
+            g.drawLine(centre_x, top, symbol.getRight(), bottom, 1.6f);
             break;
         }
         case PluginIconType::Pitch:
@@ -638,7 +623,6 @@ public:
         setComponentID(juce::String{"insert_slot_"} + chain_index_text);
         m_button.setComponentID(juce::String{"insert_plugin_button_"} + chain_index_text);
         m_button.setButtonText("+");
-        m_button.setTooltip("Insert plugin here");
         m_button.onClick = [this] { m_listener.onInsertPluginPressed(m_chain_index); };
         // The rail is mostly empty space; the "+" stays dim until the pointer enters the rail (or
         // the button itself), so the gap reads as a discoverable insertion affordance on hover.
@@ -651,7 +635,6 @@ public:
     void setEditingEnabled(bool insert_enabled, bool move_enabled)
     {
         m_button.setEnabled(insert_enabled);
-        m_button.setTooltip(insert_enabled ? "Insert plugin here" : "Maximum 8 blocks");
         m_drop_enabled = move_enabled;
         if (!m_drop_enabled && m_is_drag_hovered)
         {
@@ -795,10 +778,8 @@ private:
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
-// stored instance ID. SettableTooltipClient carries the full identity beyond the two external
-// ellipsized label lines.
-class SignalChainPanel::PluginTileView final : public juce::Component,
-                                               public juce::SettableTooltipClient
+// stored instance ID. The name and manufacturer sit below the block as a caption.
+class SignalChainPanel::PluginTileView final : public juce::Component
 {
 public:
     // Creates the tile with a stable plugin snapshot and the parent panel listener.
@@ -811,13 +792,11 @@ public:
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        setTooltip(pluginTooltip(m_plugin));
 
         m_remove_button.setComponentID(
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
         // Keep the remove affordance compact in the tile corner.
         m_remove_button.setButtonText("x");
-        m_remove_button.setTooltip("Remove plugin");
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
@@ -834,11 +813,16 @@ public:
         m_remove_button.setEnabled(remove_enabled);
     }
 
-    // Draws the icon-only block plus two compact labels below it for quick chain scanning.
+    // Draws the icon-only block, primary name, and secondary maker line for quick chain scanning.
     void paint(juce::Graphics& g) override
     {
         const auto bounds = getLocalBounds();
         const auto tile_area = pluginTileArea(bounds);
+        auto label_area = bounds.withTrimmedTop(
+            (tile_area.getBottom() - bounds.getY()) + g_signal_block_label_gap);
+        auto name_area = label_area.removeFromTop(g_signal_block_name_height);
+        auto maker_area = label_area.removeFromTop(g_signal_block_maker_height);
+
         const auto tile_bounds = tile_area.toFloat().reduced(1.0f);
         g.setColour(m_is_hovered ? g_plugin_tile_hover_background : g_plugin_tile_background);
         g.fillRoundedRectangle(tile_bounds, 8.0f);
@@ -854,19 +838,15 @@ public:
             m_icon_type,
             m_accent);
 
-        auto label_area = bounds.withTrimmedTop(tile_area.getHeight() + g_signal_block_label_gap);
-        auto name_area = label_area.removeFromTop(g_signal_block_name_height);
-        auto maker_area = label_area.removeFromTop(g_signal_block_maker_height);
-
         g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions{11.0f, juce::Font::bold});
+        g.setFont(juce::FontOptions{13.0f, juce::Font::bold});
         g.drawText(pluginDisplayName(m_plugin), name_area, juce::Justification::centred, true);
 
         const juce::String maker = pluginDisplayMaker(m_plugin);
         if (maker.isNotEmpty())
         {
-            g.setColour(juce::Colours::lightgrey.withAlpha(0.82f));
-            g.setFont(juce::FontOptions{9.5f});
+            g.setColour(juce::Colours::lightgrey.withAlpha(0.68f));
+            g.setFont(juce::FontOptions{11.0f});
             g.drawText(maker, maker_area, juce::Justification::centred, true);
         }
     }

@@ -343,9 +343,6 @@ private:
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
 
-    // Hidden editor-wide popup renderer required for TooltipClient text to appear on hover.
-    std::unique_ptr<juce::TooltipWindow> m_tooltip_window;
-
     // Vblank callback used for continuous meter refresh without controller state churn.
     juce::VBlankAttachment m_meter_vblank_attachment;
 
