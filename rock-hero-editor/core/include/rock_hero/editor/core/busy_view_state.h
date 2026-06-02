@@ -53,26 +53,30 @@ enum class BusyOperation : std::uint8_t
 };
 
 /*!
-\brief Visual treatment for the active busy operation.
+\brief Progress indicator shown by the busy overlay for the active operation.
 
-Animated presentation is for operations whose work runs away from the message thread, letting JUCE
-repaint normally. Blocking presentation is for operations that intentionally occupy the message
-thread, where animated controls would freeze and misrepresent progress.
+Indeterminate progress is for work that can repaint but does not expose a known fraction.
+Determinate progress is for countable phases that report a current fraction. Message-only mode is
+for operations that occupy the message thread, where a progress bar would freeze and misrepresent
+progress.
 */
-enum class BusyPresentation : std::uint8_t
+enum class BusyIndicator : std::uint8_t
 {
-    /*! \brief Show a live progress bar while the message thread can repaint. */
-    Animated,
+    /*! \brief Show an animated progress bar without a known fraction. */
+    IndeterminateProgress,
 
-    /*! \brief Show only static blocking text while the message thread may be occupied. */
-    Blocking,
+    /*! \brief Show a progress bar with a known fraction. */
+    DeterminateProgress,
+
+    /*! \brief Show only the busy message with no progress bar. */
+    MessageOnly,
 };
 
 /*!
 \brief Editor-wide busy state pushed to the view through EditorViewState.
 
 The root controller pushes this snapshot through EditorViewState. The view renders the requested
-presentation, blocks input, displays message, and uses progress when busy state has entered a
+indicator, blocks input, displays message, and uses progress when busy state has entered a
 determinate phase.
 */
 struct BusyViewState
@@ -83,15 +87,14 @@ struct BusyViewState
     /*! \brief Canonical user-facing text rendered by the view. */
     std::string message;
 
-    /*! \brief Visual treatment used by the view for this busy state. */
-    BusyPresentation presentation{BusyPresentation::Animated};
+    /*! \brief Progress indicator rendered by the busy overlay. */
+    BusyIndicator indicator{BusyIndicator::IndeterminateProgress};
 
     /*!
     \brief Optional determinate progress value from 0.0 to 1.0.
 
-    When present, the view renders a percentage bar instead of an indeterminate animation. The
-    open-project flow should set this only after it enters a countable phase such as restoring
-    multiple plugins.
+    Used by BusyIndicator::DeterminateProgress. The open-project flow should set this only after
+    it enters a countable phase such as restoring multiple plugins.
     */
     std::optional<double> progress{};
 
@@ -120,11 +123,11 @@ call site retyping it.
 [[nodiscard]] std::string busyMessage(BusyOperation operation);
 
 /*!
-\brief Returns the default visual treatment for an operation.
+\brief Returns the default busy-overlay indicator for an operation.
 
-\param operation Operation whose default presentation should be returned.
-\return Default presentation for the operation.
+\param operation Operation whose default indicator should be returned.
+\return Default indicator for the operation.
 */
-[[nodiscard]] BusyPresentation busyPresentation(BusyOperation operation) noexcept;
+[[nodiscard]] BusyIndicator busyIndicator(BusyOperation operation) noexcept;
 
 } // namespace rock_hero::editor::core
