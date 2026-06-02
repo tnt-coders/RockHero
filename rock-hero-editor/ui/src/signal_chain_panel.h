@@ -139,14 +139,14 @@ public:
 
 private:
     class InsertSlotView;
-    class PluginRowView;
+    class PluginTileView;
 
     // Emits a move intent for a plugin dropped on an insertion slot.
     void movePluginToInsertionSlot(
         std::string instance_id, std::size_t source_index, std::size_t slot_index);
 
-    // Rebuilds row components after controller-derived plugin state changes.
-    void rebuildPluginRows();
+    // Rebuilds tile components after controller-derived plugin state changes.
+    void rebuildPluginTiles();
 
     // Listener that receives panel user intents.
     Listener& m_listener;
@@ -172,14 +172,14 @@ private:
     // Scrollable viewport that keeps long plugin chains reachable in a compact panel.
     juce::Viewport m_chain_viewport;
 
-    // Viewed component that owns insert slots and plugin rows.
+    // Viewed component that owns insert rails and plugin tiles.
     juce::Component m_chain_content;
 
     // Child insert controls for slots 0 through plugin_count.
     std::vector<std::unique_ptr<InsertSlotView>> m_insert_slots;
 
-    // Child row controls for the current plugin chain.
-    std::vector<std::unique_ptr<PluginRowView>> m_plugin_rows;
+    // Child tile controls for the current plugin chain.
+    std::vector<std::unique_ptr<PluginTileView>> m_plugin_tiles;
 };
 
 } // namespace rock_hero::editor::ui
