@@ -34,18 +34,18 @@ std::string busyMessage(BusyOperation operation)
     return {};
 }
 
-// Central source of busy-overlay presentation policy. Plugin load and audio-device open both use
-// a static blocking presentation because the JUCE call that does the work
-// (Tracktion plugin instantiation, juce::AudioDeviceManager::setAudioDeviceSetup) occupies the
-// message thread; an animated bar would freeze and misrepresent progress.
-BusyPresentation busyPresentation(BusyOperation operation) noexcept
+// Central source of busy-overlay indicator policy. Plugin load and audio-device open both use
+// message-only indicators because the JUCE call that does the work occupies the message thread;
+// a progress bar would freeze and misrepresent progress.
+BusyIndicator busyIndicator(BusyOperation operation) noexcept
 {
     switch (operation)
     {
         case BusyOperation::LoadingPlugin:
-        case BusyOperation::LoadingLiveRig:
         case BusyOperation::OpeningAudioDevice:
-            return BusyPresentation::Blocking;
+            return BusyIndicator::MessageOnly;
+        case BusyOperation::LoadingLiveRig:
+            return BusyIndicator::DeterminateProgress;
         case BusyOperation::OpeningProject:
         case BusyOperation::ImportingProject:
         case BusyOperation::SavingProject:
@@ -53,10 +53,10 @@ BusyPresentation busyPresentation(BusyOperation operation) noexcept
         case BusyOperation::PublishingProject:
         case BusyOperation::ScanningPlugins:
         case BusyOperation::AnalyzingBackingAudio:
-            return BusyPresentation::Animated;
+            return BusyIndicator::IndeterminateProgress;
     }
 
-    return BusyPresentation::Animated;
+    return BusyIndicator::IndeterminateProgress;
 }
 
 } // namespace rock_hero::editor::core

@@ -30,7 +30,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
         .message = "Opening project...",
-        .presentation = core::BusyPresentation::Animated,
+        .indicator = core::BusyIndicator::IndeterminateProgress,
         .cancel_enabled = false,
     };
     view.setState(busy_state);
@@ -41,7 +41,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
         .message = "Loading plugin 1 of 4: Amp Sim",
-        .presentation = core::BusyPresentation::Animated,
+        .indicator = core::BusyIndicator::DeterminateProgress,
         .progress = std::optional<double>{0.25},
         .cancel_enabled = false,
     };
@@ -53,7 +53,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::LoadingPlugin,
         .message = "Loading plugin: Amp Sim",
-        .presentation = core::BusyPresentation::Blocking,
+        .indicator = core::BusyIndicator::MessageOnly,
         .cancel_enabled = false,
     };
     view.setState(busy_state);
@@ -95,7 +95,7 @@ TEST_CASE("EditorView runs busy callback after overlay paint", "[ui][editor-view
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::LoadingPlugin,
         .message = "Loading plugin...",
-        .presentation = core::BusyPresentation::Blocking,
+        .indicator = core::BusyIndicator::MessageOnly,
         .cancel_enabled = false,
     };
     view.setState(busy_state);
@@ -133,7 +133,7 @@ TEST_CASE("EditorView runs busy callback when hidden", "[ui][editor-view]")
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
         .message = "Opening project...",
-        .presentation = core::BusyPresentation::Blocking,
+        .indicator = core::BusyIndicator::MessageOnly,
         .cancel_enabled = false,
     };
     view.setState(busy_state);

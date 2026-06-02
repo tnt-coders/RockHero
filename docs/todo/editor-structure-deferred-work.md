@@ -11,8 +11,8 @@ doing them now would be premature: they are either gated on a prerequisite that 
 or they touch modules outside the current editor focus, or they should only happen after the
 extracted shape has proven itself.
 
-Shared principles and the role vocabulary live in `editor-runtime-extraction-plan.md`; this document
-does not repeat them.
+Shared principles and the role vocabulary live in
+`docs/completed/editor-runtime-extraction-plan.md`; this document does not repeat them.
 
 ---
 
@@ -85,13 +85,23 @@ should be a near-pure projection helper, not a second controller.
 
 ---
 
-## Deferred Readability Work (Non-Editor Modules)
+## Deferred Readability Work
 
-The active plan reorganizes only the editor modules being actively worked in. The rest of the
-codebase-wide taxonomy is deferred until attention moves to those modules or a concrete navigation
-problem appears there. The rule from the active plan still holds: do not move public headers before
-the include-path churn is clearly worthwhile, and never move a monolithic file into a role folder
-and call it cleaner.
+The runtime extraction plan closed without a standalone readability pass. Treat the remaining
+taxonomy and naming ideas as opportunistic cleanup: do the local rename or folder grouping only when
+a feature already touches the same area, or when the current shape creates a concrete navigation
+problem. Do not move public headers before the include-path churn is clearly worthwhile, and never
+move a monolithic file into a role folder and call it cleaner.
+
+### Editor Naming And Folder Cleanup
+
+The skipped Stage 6 ideas include reevaluating `InputCalibrationPrompt`, renaming the launcher-like
+`AudioDeviceSettingsWindow` when touched, grouping private `editor/core` workflow files, and
+grouping `editor/ui` source by role. They are not completion blockers and should not be implemented
+as a broad mechanical pass.
+
+**Revisit when** a feature changes the affected type or adds enough files that the flat editor tree
+becomes a real cost. Keep behavior changes separate from pure taxonomy moves.
 
 ### `common/audio` Public Ports And Values
 

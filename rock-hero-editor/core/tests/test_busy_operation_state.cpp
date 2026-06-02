@@ -33,7 +33,7 @@ TEST_CASE("BusyOperationState begins operation", "[core][busy-operation-state]")
     {
         CHECK(busy->operation == BusyOperation::OpeningProject);
         CHECK(busy->message == "Opening project...");
-        CHECK(busy->presentation == BusyPresentation::Animated);
+        CHECK(busy->indicator == BusyIndicator::IndeterminateProgress);
         CHECK_FALSE(busy->progress.has_value());
         CHECK(busy->cancel_enabled == false);
     }
@@ -109,7 +109,7 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
     {
         CHECK(busy->operation == BusyOperation::LoadingLiveRig);
         CHECK(busy->message == "Loading Amp (1 of 2)...");
-        CHECK(busy->presentation == BusyPresentation::Blocking);
+        CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
         CHECK(busy->progress == std::optional{0.5});
     }
 }

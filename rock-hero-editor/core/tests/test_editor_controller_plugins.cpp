@@ -373,7 +373,7 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     REQUIRE_FALSE(progress_states.empty());
     CHECK(progress_states.front().message == "Loading live rig...");
     CHECK(progress_states.front().progress == std::optional<double>{0.0});
-    CHECK(progress_states.front().presentation == BusyPresentation::Blocking);
+    CHECK(progress_states.front().indicator == BusyIndicator::DeterminateProgress);
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
         return state.message == "Loading Amp Sim (1 of 2)..." &&
                state.progress == std::optional<double>{0.5};

@@ -30,7 +30,7 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::OpeningProject);
     CHECK(busy->message == "Opening project...");
-    CHECK(busy->presentation == BusyPresentation::Animated);
+    CHECK(busy->indicator == BusyIndicator::IndeterminateProgress);
     CHECK_FALSE(busy->progress.has_value());
     CHECK(busy->cancel_enabled == false);
 }
@@ -815,7 +815,7 @@ TEST_CASE(
     REQUIRE(audio_device_busy != nullptr);
     CHECK(audio_device_busy->operation == BusyOperation::OpeningAudioDevice);
     CHECK(audio_device_busy->message == "Opening audio device...");
-    CHECK(audio_device_busy->presentation == BusyPresentation::Blocking);
+    CHECK(audio_device_busy->indicator == BusyIndicator::MessageOnly);
     CHECK(view.busy_overlay_paint_callback_count == 1);
     CHECK(view.busy_overlay_removed_callback_count == 1);
     CHECK(audio_device_change_call_count == 1);
