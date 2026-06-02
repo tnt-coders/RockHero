@@ -1522,17 +1522,6 @@ void EditorView::onStopPressed()
     m_controller.onStopPressed();
 }
 
-// Opens the plugin browser through the controller-owned workflow state.
-void EditorView::onAddPluginPressed()
-{
-    if (!m_state.signal_chain.add_plugin_enabled)
-    {
-        return;
-    }
-
-    m_controller.onPluginBrowserRequested();
-}
-
 // Opens the plugin browser for a specific insertion slot selected in the signal-chain panel.
 void EditorView::onInsertPluginPressed(std::size_t chain_index)
 {

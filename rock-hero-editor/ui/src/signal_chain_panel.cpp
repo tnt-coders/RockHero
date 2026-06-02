@@ -13,8 +13,6 @@ namespace
 {
 
 constexpr int g_panel_inset{8};
-constexpr int g_add_button_width{112};
-constexpr int g_add_button_height{28};
 constexpr int g_header_height{34};
 constexpr int g_insert_slot_height{18};
 constexpr int g_plugin_row_height{28};
@@ -535,7 +533,7 @@ void configureGainSlider(juce::Slider& slider, const juce::String& component_id)
     slider.setTextValueSuffix(" dB");
 }
 
-// Creates the panel controls and routes the add command through the owner.
+// Creates the panel controls and routes user intents through the owner.
 SignalChainPanel::SignalChainPanel(Listener& listener)
     : m_listener(listener)
     , m_input_meter(AudioLevelMeterOrientation::Vertical)
@@ -543,10 +541,6 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
 {
     setComponentID("signal_chain_panel");
-    m_add_plugin_button.setComponentID("add_plugin_button");
-    m_add_plugin_button.setButtonText("Add Plugin");
-    m_add_plugin_button.onClick = [this] { m_listener.onAddPluginPressed(); };
-    addAndMakeVisible(m_add_plugin_button);
 
     m_input_meter.setComponentID("input_meter");
     addAndMakeVisible(m_input_meter);
@@ -587,7 +581,6 @@ SignalChainPanel::~SignalChainPanel()
 void SignalChainPanel::setState(const core::SignalChainViewState& state)
 {
     m_state = state;
-    m_add_plugin_button.setEnabled(m_state.add_plugin_enabled);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
@@ -631,7 +624,6 @@ void SignalChainPanel::paint(juce::Graphics& g)
     area.removeFromLeft(g_panel_inset);
     area.removeFromRight(g_panel_inset);
     auto header = area.removeFromTop(g_header_height);
-    header.removeFromRight(g_add_button_width + g_panel_inset);
 
     g.setColour(g_panel_header_background);
     g.fillRect(header);
@@ -662,8 +654,7 @@ void SignalChainPanel::paint(juce::Graphics& g)
     }
 }
 
-// Keeps the add button in the header area, gain sliders on the sides, and plugin rows in the
-// center.
+// Keeps gain sliders on the sides and plugin rows in the center.
 void SignalChainPanel::resized()
 {
     auto area = getLocalBounds().reduced(g_panel_inset);
@@ -697,12 +688,7 @@ void SignalChainPanel::resized()
     area.removeFromLeft(g_panel_inset);
     area.removeFromRight(g_panel_inset);
 
-    auto header = area.removeFromTop(g_header_height);
-    m_add_plugin_button.setBounds(
-        header.removeFromRight(g_add_button_width)
-            .withSizeKeepingCentre(
-                g_add_button_width, std::min(g_add_button_height, header.getHeight())));
-
+    area.removeFromTop(g_header_height);
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
     const int content_width = std::max(0, m_chain_viewport.getMaximumVisibleWidth());

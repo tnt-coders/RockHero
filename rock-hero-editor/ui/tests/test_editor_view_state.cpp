@@ -45,7 +45,6 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
             .arrangement = makeArrangementState(std::filesystem::path{"full_mix.wav"}),
             .signal_chain =
                 core::SignalChainViewState{
-                    .add_plugin_enabled = false,
                     .plugins = {},
                 },
             .unsaved_changes_prompt = std::nullopt,
@@ -73,7 +72,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
-    auto& add_plugin_button = findRequiredDescendant<juce::TextButton>(view, "add_plugin_button");
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
@@ -95,7 +93,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK_FALSE(arrangement_view.isVisible());
     CHECK_FALSE(cursor_overlay.isVisible());
     CHECK(signal_chain_panel.isVisible());
-    CHECK_FALSE(add_plugin_button.isEnabled());
+    CHECK(findDescendant(view, "add_plugin_button") == nullptr);
     CHECK(transport.position_read_count == 0);
 
     view.setState(
@@ -124,7 +122,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}),
             .signal_chain =
                 core::SignalChainViewState{
-                    .add_plugin_enabled = true,
                     .remove_plugins_enabled = true,
                     .plugins =
                         {
@@ -156,10 +153,6 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.exit_request_count == 1);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
-    CHECK(add_plugin_button.isEnabled());
-    REQUIRE(add_plugin_button.onClick);
-    add_plugin_button.onClick();
-    CHECK(controller.plugin_browser_request_count == 1);
     CHECK(
         findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_instance")
             .isEnabled());
@@ -180,7 +173,6 @@ TEST_CASE("EditorView emits plugin remove intents", "[ui][editor-view]")
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
-        .add_plugin_enabled = true,
         .remove_plugins_enabled = false,
         .plugins = {
             core::PluginViewState{
@@ -222,7 +214,6 @@ TEST_CASE("EditorView emits plugin open intents", "[ui][editor-view]")
 
     core::EditorViewState state;
     state.signal_chain = core::SignalChainViewState{
-        .add_plugin_enabled = true,
         .remove_plugins_enabled = true,
         .plugins = {
             core::PluginViewState{

@@ -290,7 +290,7 @@ template <class ComponentType>
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
         .signal_chain =
             core::SignalChainViewState{
-                .add_plugin_enabled = true,
+                .insert_plugin_enabled = true,
                 .plugins = {},
                 .disabled_message = {},
             },

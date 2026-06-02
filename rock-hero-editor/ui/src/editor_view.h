@@ -257,9 +257,6 @@ private:
     void onStopPressed() override;
 
     // SignalChainPanel::Listener implementation.
-    void onAddPluginPressed() override;
-
-    // SignalChainPanel::Listener implementation.
     void onInsertPluginPressed(std::size_t chain_index) override;
 
     // SignalChainPanel::Listener implementation.

@@ -29,9 +29,6 @@ constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
 class RecordingSignalChainPanelListener final : public SignalChainPanel::Listener
 {
 public:
-    void onAddPluginPressed() override
-    {}
-
     void onInsertPluginPressed(std::size_t chain_index) override
     {
         last_insert_index = chain_index;
@@ -229,23 +226,19 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     view.setState(
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
-                .add_plugin_enabled = true,
                 .insert_plugin_enabled = true,
                 .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
             },
         });
 
-    auto& add_button = findRequiredDescendant<juce::TextButton>(view, "add_plugin_button");
     auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
     auto& insert_middle = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_1");
     auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
 
-    testing::clickButton(add_button);
     testing::clickButton(insert_first);
     testing::clickButton(insert_middle);
     testing::clickButton(insert_append);
 
-    CHECK(controller.plugin_browser_request_count == 1);
     CHECK(controller.insert_plugin_request_count == 3);
     CHECK(controller.last_insert_plugin_index == std::optional<std::size_t>{2});
 }
