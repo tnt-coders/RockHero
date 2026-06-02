@@ -16,16 +16,25 @@ constexpr int g_panel_inset{8};
 constexpr int g_header_height{34};
 constexpr int g_insert_rail_width{28};
 constexpr int g_signal_path_padding{20};
-constexpr int g_signal_path_min_cell_width{96};
-constexpr int g_signal_block_width{86};
-constexpr int g_signal_block_height{68};
-constexpr int g_signal_block_icon_size{26};
-constexpr int g_tile_remove_button_size{18};
-constexpr int g_tile_inset{7};
+constexpr int g_signal_path_min_cell_width{112};
+constexpr int g_signal_plugin_view_width{98};
+constexpr int g_signal_block_width{58};
+constexpr int g_signal_block_height{54};
+constexpr int g_signal_block_icon_size{34};
+constexpr int g_signal_block_label_gap{5};
+constexpr int g_signal_block_name_height{14};
+constexpr int g_signal_block_maker_height{12};
+constexpr int g_signal_plugin_view_height{
+    g_signal_block_height + g_signal_block_label_gap + g_signal_block_name_height +
+    g_signal_block_maker_height
+};
+constexpr int g_tile_remove_button_size{16};
+constexpr int g_tile_inset{6};
 constexpr std::size_t g_signal_path_block_capacity{8};
-// Idle opacity for the hover-revealed insert "+" and tile remove "x" affordances. They stay present
-// (and hit-testable) for discoverability and testing, but fade until the pointer enters their host.
-constexpr float g_idle_affordance_alpha{0.12f};
+// Insert rails stay faintly visible for discoverability; tile removal stays invisible at rest so
+// plugin blocks read as icon-only until hovered.
+constexpr float g_idle_insert_affordance_alpha{0.12f};
+constexpr float g_idle_remove_affordance_alpha{0.0f};
 constexpr int g_output_gain_width{72};
 constexpr int g_gain_slider_width{32};
 constexpr int g_gain_meter_width{28};
@@ -106,15 +115,33 @@ enum class PluginIconType
         .withWidth(cell_width);
 }
 
-// Centers each plugin block inside its path cell so the line remains visually dominant.
+// Places one plugin block-plus-label view inside a fixed signal-path cell.
 [[nodiscard]] juce::Rectangle<int> pluginBlockBounds(
     juce::Rectangle<int> path_area, std::size_t block_index, std::size_t block_count)
 {
     const juce::Rectangle<int> cell = blockCellBounds(path_area, block_index, block_count);
-    const int block_width = std::min(g_signal_block_width, std::max(1, cell.getWidth() - 10));
-    const int block_height =
-        std::min(g_signal_block_height, std::max(1, path_area.getHeight() - 18));
-    return cell.withSizeKeepingCentre(block_width, block_height);
+    const int view_width = std::min(g_signal_plugin_view_width, std::max(1, cell.getWidth() - 10));
+    const int view_height =
+        std::min(g_signal_plugin_view_height, std::max(1, path_area.getHeight() - 6));
+    auto bounds = cell.withSizeKeepingCentre(view_width, view_height);
+
+    // The component also paints labels below the block, so align the block itself to the path
+    // center instead of centering the whole component.
+    const int ideal_top = path_area.getCentreY() - (g_signal_block_height / 2);
+    const int min_top = path_area.getY();
+    const int max_top = std::max(min_top, path_area.getBottom() - view_height);
+    bounds.setY(std::clamp(ideal_top, min_top, max_top));
+    return bounds;
+}
+
+// Returns the compact block rectangle inside a wider tile view that also carries external labels.
+[[nodiscard]] juce::Rectangle<int> pluginTileArea(juce::Rectangle<int> bounds)
+{
+    const int tile_width = std::min(g_signal_block_width, std::max(1, bounds.getWidth()));
+    const int tile_height = std::min(g_signal_block_height, std::max(1, bounds.getHeight()));
+    auto tile_area = bounds.withSizeKeepingCentre(tile_width, tile_height);
+    tile_area.setY(bounds.getY());
+    return tile_area;
 }
 
 // Places insert slots at path boundaries, with the append slot occupying the next empty block.
@@ -320,12 +347,27 @@ enum class PluginIconType
     return destination_index;
 }
 
-// Builds the compact slot label shown in the linear plugin chain.
-[[nodiscard]] juce::String pluginLabel(const core::PluginViewState& plugin)
+// Builds the plugin name shown below the block and used as the tooltip's lead text.
+[[nodiscard]] juce::String pluginDisplayName(const core::PluginViewState& plugin)
 {
-    juce::String label{std::to_string(plugin.chain_index + 1)};
-    label += ". ";
-    label += plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{plugin.name};
+    return plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{plugin.name};
+}
+
+// Builds the second label line from the separate plugin manufacturer metadata.
+[[nodiscard]] juce::String pluginDisplayMaker(const core::PluginViewState& plugin)
+{
+    if (!plugin.manufacturer.empty())
+    {
+        return juce::String{plugin.manufacturer};
+    }
+
+    return plugin.format_name.empty() ? juce::String{} : juce::String{plugin.format_name};
+}
+
+// Builds the hover text for the full plugin identity.
+[[nodiscard]] juce::String pluginTooltip(const core::PluginViewState& plugin)
+{
+    juce::String label = pluginDisplayName(plugin);
 
     if (!plugin.manufacturer.empty())
     {
@@ -600,7 +642,7 @@ public:
         m_button.onClick = [this] { m_listener.onInsertPluginPressed(m_chain_index); };
         // The rail is mostly empty space; the "+" stays dim until the pointer enters the rail (or
         // the button itself), so the gap reads as a discoverable insertion affordance on hover.
-        m_button.setAlpha(g_idle_affordance_alpha);
+        m_button.setAlpha(g_idle_insert_affordance_alpha);
         m_button.addMouseListener(this, false);
         addAndMakeVisible(m_button);
     }
@@ -730,7 +772,7 @@ private:
     // button itself even though that hides the rail's own hover.
     void updateButtonAffordance()
     {
-        m_button.setAlpha(isMouseOver(true) ? 1.0f : g_idle_affordance_alpha);
+        m_button.setAlpha(isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
     }
 
     // Owning panel used to translate drops into move intents.
@@ -752,9 +794,9 @@ private:
     bool m_is_drag_hovered{false};
 };
 
-// Presents one fixed-width plugin tile in the horizontal chain strip and emits edit intents for
-// its stored instance ID. SettableTooltipClient carries the full plugin label, which the fixed
-// tile width would otherwise truncate.
+// Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
+// stored instance ID. SettableTooltipClient carries the full identity beyond the two external
+// ellipsized label lines.
 class SignalChainPanel::PluginTileView final : public juce::Component,
                                                public juce::SettableTooltipClient
 {
@@ -769,8 +811,7 @@ public:
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
-        // The fixed tile width truncates the on-tile name, so surface the full label on hover.
-        setTooltip(pluginLabel(m_plugin));
+        setTooltip(pluginTooltip(m_plugin));
 
         m_remove_button.setComponentID(
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
@@ -780,8 +821,8 @@ public:
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
-        // The "x" stays dim until hover, so a resting tile reads as one clean target.
-        m_remove_button.setAlpha(g_idle_affordance_alpha);
+        // The "x" stays hidden until hover, so a resting tile reads as one clean icon target.
+        m_remove_button.setAlpha(g_idle_remove_affordance_alpha);
         addAndMakeVisible(m_remove_button);
     }
 
@@ -793,11 +834,12 @@ public:
         m_remove_button.setEnabled(remove_enabled);
     }
 
-    // Draws the tile background, hover accent, order badge, wrapped name, and dimmed maker/format.
+    // Draws the icon-only block plus two compact labels below it for quick chain scanning.
     void paint(juce::Graphics& g) override
     {
         const auto bounds = getLocalBounds();
-        const auto tile_bounds = bounds.toFloat().reduced(1.0f);
+        const auto tile_area = pluginTileArea(bounds);
+        const auto tile_bounds = tile_area.toFloat().reduced(1.0f);
         g.setColour(m_is_hovered ? g_plugin_tile_hover_background : g_plugin_tile_background);
         g.fillRoundedRectangle(tile_bounds, 8.0f);
         g.setColour(m_accent.withAlpha(m_is_hovered ? 0.95f : 0.62f));
@@ -805,45 +847,37 @@ public:
         g.setColour(m_is_hovered ? g_plugin_tile_hover_border : g_plugin_tile_border);
         g.drawRoundedRectangle(tile_bounds, 8.0f, m_is_hovered ? 1.8f : 1.1f);
 
-        auto content = bounds.reduced(g_tile_inset);
-
-        // Top: order-number badge on the left and inferred category icon centered in the tile.
-        auto icon_row = content.removeFromTop(g_signal_block_icon_size);
-        auto badge_area = icon_row.removeFromLeft(18);
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions{11.0f, juce::Font::bold});
-        g.drawText(
-            juce::String{std::to_string(m_plugin.chain_index + 1)},
-            badge_area,
-            juce::Justification::centredLeft);
+        const auto content = tile_area.reduced(g_tile_inset);
         drawPluginIcon(
             g,
-            icon_row.withSizeKeepingCentre(g_signal_block_icon_size, g_signal_block_icon_size),
+            content.withSizeKeepingCentre(g_signal_block_icon_size, g_signal_block_icon_size),
             m_icon_type,
             m_accent);
 
-        // Bottom: dimmed manufacturer/format line; what remains in the middle holds the name.
-        content.removeFromTop(3);
-        auto maker_area = content.removeFromBottom(g_tile_inset * 3);
-        const juce::String name =
-            m_plugin.name.empty() ? juce::String{"Unnamed Plugin"} : juce::String{m_plugin.name};
-        g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions{12.0f, juce::Font::bold});
-        g.drawFittedText(name, content, juce::Justification::centred, 2);
+        auto label_area = bounds.withTrimmedTop(tile_area.getHeight() + g_signal_block_label_gap);
+        auto name_area = label_area.removeFromTop(g_signal_block_name_height);
+        auto maker_area = label_area.removeFromTop(g_signal_block_maker_height);
 
-        g.setColour(juce::Colours::lightgrey.withAlpha(0.82f));
-        g.setFont(juce::FontOptions{10.0f});
-        g.drawFittedText(makerLabel(m_plugin), maker_area, juce::Justification::centred, 1);
+        g.setColour(juce::Colours::white);
+        g.setFont(juce::FontOptions{11.0f, juce::Font::bold});
+        g.drawText(pluginDisplayName(m_plugin), name_area, juce::Justification::centred, true);
+
+        const juce::String maker = pluginDisplayMaker(m_plugin);
+        if (maker.isNotEmpty())
+        {
+            g.setColour(juce::Colours::lightgrey.withAlpha(0.82f));
+            g.setFont(juce::FontOptions{9.5f});
+            g.drawText(maker, maker_area, juce::Justification::centred, true);
+        }
     }
 
     // Pins the remove button to the tile's top-right corner.
     void resized() override
     {
-        m_remove_button.setBounds(
-            getLocalBounds()
-                .reduced(g_tile_inset)
-                .removeFromTop(g_tile_remove_button_size)
-                .removeFromRight(g_tile_remove_button_size));
+        m_remove_button.setBounds(pluginTileArea(getLocalBounds())
+                                      .reduced(g_tile_inset)
+                                      .removeFromTop(g_tile_remove_button_size)
+                                      .removeFromRight(g_tile_remove_button_size));
     }
 
     // Resets drag-start state at the beginning of each pointer sequence.
@@ -900,32 +934,11 @@ public:
     void mouseExit(const juce::MouseEvent& /*event*/) override
     {
         m_is_hovered = false;
-        m_remove_button.setAlpha(g_idle_affordance_alpha);
+        m_remove_button.setAlpha(g_idle_remove_affordance_alpha);
         repaint();
     }
 
 private:
-    // Builds the dimmed bottom line carrying manufacturer and format when present.
-    [[nodiscard]] static juce::String makerLabel(const core::PluginViewState& plugin)
-    {
-        juce::String label;
-        if (!plugin.manufacturer.empty())
-        {
-            label += juce::String{plugin.manufacturer};
-        }
-        if (!plugin.format_name.empty())
-        {
-            if (label.isNotEmpty())
-            {
-                label += " ";
-            }
-            label += "(";
-            label += juce::String{plugin.format_name};
-            label += ")";
-        }
-        return label;
-    }
-
     // Listener that receives this tile's remove, open, and move intents.
     Listener& m_listener;
 

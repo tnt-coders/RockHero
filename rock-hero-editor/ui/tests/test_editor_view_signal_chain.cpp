@@ -448,6 +448,14 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
         });
 
     auto& tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
+    auto& tooltip_window =
+        findRequiredDescendant<juce::TooltipWindow>(view, "editor_tooltip_window");
+    CHECK(tooltip_window.getParentComponent() == &view);
+
+    auto* const tooltip_client = dynamic_cast<juce::TooltipClient*>(&tile);
+    REQUIRE(tooltip_client != nullptr);
+    CHECK(tooltip_client->getTooltip() == "Plugin 0 - Tests (VST3)");
+
     juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
     tile.mouseDown(event);
     tile.mouseUp(event);
