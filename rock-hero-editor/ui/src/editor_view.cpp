@@ -44,7 +44,6 @@ constexpr int g_tracks_visible_at_default_size{3};
 constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
-constexpr int g_tooltip_delay_ms{450};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
@@ -736,9 +735,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     // toFront() on activation, but adding it here as the final child means the initial Z-order
     // is already correct before the first push.
     addChildComponent(m_busy_overlay);
-    // TooltipClient only supplies text; this hidden window owns JUCE's hover polling and display.
-    m_tooltip_window = std::make_unique<juce::TooltipWindow>(this, g_tooltip_delay_ms);
-    m_tooltip_window->setComponentID("editor_tooltip_window");
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
 
     setSize(1280, 800);
@@ -754,7 +750,6 @@ EditorView::~EditorView()
 
     m_audio_device_settings_window.reset();
     m_audio_device_settings_window_reset_pending = false;
-    m_tooltip_window.reset();
     m_busy_overlay.setPaintCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
