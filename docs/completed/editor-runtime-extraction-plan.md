@@ -1,20 +1,22 @@
 # Editor Runtime Extraction Plan
 
-Status: in-progress plan. Runtime stages 0-5 are implemented; the focused action-policy
-follow-up is implemented. The remaining active scope is Stage 6 naming/folder readability cleanup.
+Status: completed. Runtime stages 0-5 and the focused action-policy follow-up are implemented.
+The remaining Stage 6 naming/folder readability ideas were evaluated and deferred rather than
+treated as completion blockers.
 
 ## Scope
 
-This is the part of the former master plan judged worth doing now, given that the editor is the
+This was the part of the former master plan judged worth doing now, given that the editor is the
 active development focus for the foreseeable future before any game work begins. It covers the
-`EditorController` runtime decomposition and the editor-scoped readability work that naturally falls
-out of doing that decomposition while living in these modules.
+`EditorController` runtime decomposition. The editor-scoped readability work that naturally fell
+out of that decomposition is now tracked as deferred cleanup.
 
 Related documents hold the rest:
 
 - `docs/todo/editor-structure-deferred-work.md` - work that is real but should wait for a proven
   need or for attention to move outside the editor (codebase-wide folder reorg,
-  framework-isolation Part 2, speculative runtime types, durable design-doc updates).
+  framework-isolation Part 2, speculative runtime types, deferred editor readability cleanup,
+  durable design-doc updates).
 - `docs/completed/editor-structure-dropped-candidates.md` - process steps from the master plan that
   are not worth formalizing on a solo, early-stage project.
 - `docs/completed/editor-action-policy-cleanup-plan.md` - completed Stage 5/6 follow-up for
@@ -142,17 +144,18 @@ EditorView
       -> common/audio, editor/core Project, EditorSettings, IEditorTaskRunner
 ```
 
-After Stage 6, that structure is also legible from the editor folder tree: ports, view-state,
-controllers, and workflows are visually separable in `editor/core`, and `editor/ui` source is
-grouped by shell/feature/widget.
+The deferred Stage 6 candidate would make that structure more visible from the folder tree: ports,
+view-state, controllers, and workflows would be visually separable in `editor/core`, and `editor/ui`
+source would be grouped by shell/feature/widget.
 
 ---
 
 # Rollout
 
-The stages are ordered so each one settles before the next. Stages 0–5 are runtime structure; Stage
-6 is the editor-scoped readability pass, folded in only once the extracted types exist. Pause after
-each extraction — if a boundary proves wrong, fix or re-absorb it rather than layering workarounds.
+The stages were ordered so each one settled before the next. Stages 0-5 were runtime structure.
+Stage 6 was evaluated as an editor-scoped readability pass and deferred because it was not needed to
+ship the runtime extraction. Pause after each future extraction: if a boundary proves wrong, fix or
+re-absorb it rather than layering workarounds.
 
 ## Stage 0: Framework Isolation — Audio Device Serialization
 
@@ -366,10 +369,10 @@ shape and found no additional extraction that should block Stage 6:
 
 ## Stage 6: Editor-Scoped Readability
 
-Now that the extracted runtime types exist, make editor roles visible through names and folders.
-This stage is intentionally limited to the editor modules you are actively working in. The
-codebase-wide readability reorg (common/audio, game, namespaces) is deferred to
-`docs/todo/editor-structure-deferred-work.md`. Behavior does not change in this stage.
+This candidate stage was evaluated but not implemented as standalone shipping work. The remaining
+ideas are tracked in `docs/todo/editor-structure-deferred-work.md` and should be handled when a
+feature naturally touches the same area or the current tree creates a concrete navigation problem.
+Behavior should not change during these taxonomy moves.
 
 The focused action-policy cleanup in `docs/completed/editor-action-policy-cleanup-plan.md` has
 been applied. Pure action metadata and availability policy no longer live as loose controller
@@ -440,7 +443,7 @@ tests build and pass; the resulting tree is easier to scan.
 
 # Definition Of Done
 
-The active scope is complete when:
+The completed runtime scope is complete when:
 
 - audio-device state serialization is behind `IAudioDeviceConfiguration`;
 - busy, deferred-action, plugin-catalog (if Stage 3 proceeded), and input-calibration state no longer
@@ -452,8 +455,7 @@ The active scope is complete when:
 - no broad replacement controller was created;
 - the Stage 5 checkpoint confirmed the pattern;
 - pure action metadata is no longer represented as loose anonymous helpers in `EditorController`;
-- editor naming fixes are applied, `editor/core` public/private roles are folder-separable, and
-  `editor/ui` source is grouped by role.
+- remaining editor naming/folder cleanup is tracked as deferred, opportunistic work.
 
 # Non-Goals
 

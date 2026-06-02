@@ -86,7 +86,7 @@ std::optional<BusyViewState> BusyOperationState::viewState() const
     BusyViewState busy{
         .operation = *m_operation,
         .message = busyMessage(*m_operation),
-        .presentation = busyPresentation(*m_operation),
+        .indicator = busyIndicator(*m_operation),
         .cancel_enabled = false,
     };
     if (*m_operation == BusyOperation::LoadingLiveRig && m_live_rig_progress.has_value())

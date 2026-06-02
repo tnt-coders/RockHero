@@ -1,6 +1,6 @@
 # Busy-Operation Workflow Plan (Editor)
 
-Status: in-progress plan.
+Status: completed.
 
 This plan supersedes the narrower `audio-device-settings-busy-overlay-ordering` note. That note
 identified one symptom; this plan addresses the design smell underneath it. It also pulls
