@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
@@ -142,9 +143,40 @@ private:
     class PluginTileView;
     class SignalPathContent;
 
-    // Emits a move intent for a plugin dropped on an insertion slot.
-    void movePluginToInsertionSlot(
-        std::string instance_id, std::size_t source_index, std::size_t slot_index);
+    // Transient layout state used while a drag hover previews a reordered chain.
+    struct DragPreview
+    {
+        std::size_t source_index{};
+        std::size_t destination_index{};
+        std::vector<std::size_t> block_indices;
+    };
+
+    // Emits an insert intent for an empty fixed block location.
+    void insertPluginAtBlockLocation(std::size_t block_index);
+
+    // Emits a move intent for a plugin dropped on a fixed block location.
+    void movePluginToBlockLocation(
+        std::string instance_id, std::size_t source_index, std::size_t destination_index);
+
+    // Applies a transient drag preview and relayouts tiles into their preview positions.
+    void previewPluginMove(
+        std::size_t source_index, std::size_t destination_index,
+        std::vector<std::size_t> block_indices);
+
+    // Keeps a successfully dropped preview visible until controller state catches up.
+    void commitPluginMovePreview();
+
+    // Applies a view-only block placement change that does not alter linear chain order.
+    void applyPluginBlockIndices(std::vector<std::size_t> block_indices);
+
+    // Clears a transient drag preview after a drop leaves the chain or completes.
+    void clearPluginMovePreview();
+
+    // Clears only previews that have not emitted a valid drop yet.
+    void clearUncommittedPluginMovePreview();
+
+    // Defers uncommitted preview cleanup until pending JUCE drop callbacks have run.
+    void clearUncommittedPluginMovePreviewAsync();
 
     // Rebuilds tile components after controller-derived plugin state changes.
     void rebuildPluginTiles();
@@ -176,11 +208,20 @@ private:
     // Viewed component that paints the signal path and owns insert rails and plugin tiles.
     std::unique_ptr<SignalPathContent> m_chain_content;
 
-    // Child insert controls for slots 0 through plugin_count.
+    // Child placeholder controls for the fixed signal-chain block positions.
     std::vector<std::unique_ptr<InsertSlotView>> m_insert_slots;
 
     // Child tile controls for the current plugin chain.
     std::vector<std::unique_ptr<PluginTileView>> m_plugin_tiles;
+
+    // Stable visual block position for each plugin in the controller-provided linear chain.
+    std::vector<std::size_t> m_plugin_block_indices;
+
+    // Active drag-hover preview, when a valid reorder target is under the pointer.
+    std::optional<DragPreview> m_drag_preview;
+
+    // True once a drop emitted a move intent and is waiting for authoritative controller state.
+    bool m_drag_preview_committed{false};
 };
 
 } // namespace rock_hero::editor::ui

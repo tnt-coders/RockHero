@@ -57,8 +57,7 @@ const juce::Colour g_plugin_tile_background{juce::Colour{0xff1b2027}};
 const juce::Colour g_plugin_tile_hover_background{juce::Colour{0xff222b35}};
 const juce::Colour g_plugin_tile_border{juce::Colours::black.withAlpha(0.6f)};
 const juce::Colour g_plugin_tile_hover_border{juce::Colours::white.withAlpha(0.7f)};
-const juce::Colour g_insert_slot_line{juce::Colours::lightgrey.withAlpha(0.36f)};
-const juce::Colour g_insert_slot_drop_fill{juce::Colour{0xff1f3447}};
+const juce::Colour g_insert_slot_placeholder{juce::Colours::white.withAlpha(0.16f)};
 const juce::Colour g_insert_slot_drop_line{juce::Colours::lightskyblue};
 constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
 constexpr int g_plugin_drag_prefix_length{static_cast<int>(
@@ -68,6 +67,18 @@ struct DraggedPlugin
 {
     std::string instance_id;
     std::size_t source_index{};
+};
+
+enum class BlockDropDirection
+{
+    PushLeft,
+    PushRight,
+};
+
+struct BlockDropIntent
+{
+    std::size_t destination_index{};
+    std::vector<std::size_t> block_indices;
 };
 
 enum class PluginIconType
@@ -146,35 +157,6 @@ enum class PluginIconType
         tile_width,
         tile_height,
     };
-}
-
-// Places insert slots at path boundaries, with the append slot occupying the next empty block.
-[[nodiscard]] int insertionSlotCenterX(
-    std::size_t slot_index, std::size_t plugin_count, juce::Rectangle<int> path_area,
-    std::size_t block_count)
-{
-    if (block_count == 0)
-    {
-        return path_area.getCentreX();
-    }
-
-    if (plugin_count == 0 || (slot_index == plugin_count && slot_index < block_count))
-    {
-        return blockCellBounds(path_area, slot_index, block_count).getCentreX();
-    }
-
-    if (slot_index == 0)
-    {
-        return path_area.getX() + (g_insert_rail_width / 2);
-    }
-
-    if (slot_index >= block_count)
-    {
-        return path_area.getRight() - (g_insert_rail_width / 2);
-    }
-
-    const juce::Rectangle<int> cell = blockCellBounds(path_area, slot_index, block_count);
-    return cell.getX();
 }
 
 // Builds a lower-case metadata string used only for visual plugin-type hints.
@@ -325,30 +307,338 @@ enum class PluginIconType
     };
 }
 
-// Translates an insertion slot into the final destination index after removing the source tile.
-[[nodiscard]] std::optional<std::size_t> destinationIndexForDrop(
-    std::size_t source_index, std::size_t slot_index, std::size_t plugin_count) noexcept
+// Returns the direction the occupied target should move to make room for the dragged block.
+[[nodiscard]] BlockDropDirection blockDropDirectionForLocalX(int local_x, int width) noexcept
 {
-    if (plugin_count < 2 || source_index >= plugin_count || slot_index > plugin_count)
+    return local_x >= width / 2 ? BlockDropDirection::PushLeft : BlockDropDirection::PushRight;
+}
+
+// Finds the plugin currently assigned to a fixed visual block, if any.
+[[nodiscard]] std::optional<std::size_t> pluginIndexAtBlock(
+    const std::vector<std::size_t>& block_indices, std::size_t block_index) noexcept
+{
+    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
+    {
+        if (block_indices[plugin_index] == block_index)
+        {
+            return plugin_index;
+        }
+    }
+
+    return std::nullopt;
+}
+
+// Reports whether every plugin has one unique fixed block assignment inside the visual range.
+[[nodiscard]] bool validBlockIndices(
+    const std::vector<std::size_t>& block_indices, std::size_t plugin_count,
+    std::size_t block_count)
+{
+    if (block_indices.size() != plugin_count)
+    {
+        return false;
+    }
+
+    std::vector<bool> used_blocks(block_count, false);
+    for (const std::size_t block_index : block_indices)
+    {
+        if (block_index >= block_count || used_blocks[block_index])
+        {
+            return false;
+        }
+
+        used_blocks[block_index] = true;
+    }
+
+    return true;
+}
+
+// Builds the default compact visual placement for a controller-provided linear plugin order.
+[[nodiscard]] std::vector<std::size_t> compactPluginBlockIndices(std::size_t plugin_count)
+{
+    std::vector<std::size_t> block_indices;
+    block_indices.reserve(plugin_count);
+    for (std::size_t index = 0; index < plugin_count; ++index)
+    {
+        block_indices.push_back(index);
+    }
+
+    return block_indices;
+}
+
+// Compares plugin identity order while ignoring non-identity state updates.
+[[nodiscard]] bool samePluginOrder(
+    const std::vector<core::PluginViewState>& previous_plugins,
+    const std::vector<core::PluginViewState>& next_plugins)
+{
+    if (previous_plugins.size() != next_plugins.size())
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
+    {
+        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Preserves visual block gaps across state refreshes that did not reorder the plugin chain.
+[[nodiscard]] std::vector<std::size_t> reconciledPluginBlockIndices(
+    const std::vector<core::PluginViewState>& previous_plugins,
+    const std::vector<std::size_t>& previous_block_indices,
+    const std::vector<core::PluginViewState>& next_plugins)
+{
+    const std::size_t block_count = visualBlockCount(next_plugins.size());
+    if (samePluginOrder(previous_plugins, next_plugins) &&
+        validBlockIndices(previous_block_indices, next_plugins.size(), block_count))
+    {
+        return previous_block_indices;
+    }
+
+    return compactPluginBlockIndices(next_plugins.size());
+}
+
+// Maps a committed preview onto the next controller state only when the order matches the drop.
+[[nodiscard]] std::optional<std::vector<std::size_t>> committedPreviewBlockIndicesForState(
+    const std::vector<std::size_t>& preview_block_indices,
+    const std::vector<core::PluginViewState>& previous_plugins,
+    const std::vector<core::PluginViewState>& next_plugins)
+{
+    const std::size_t plugin_count = previous_plugins.size();
+    if (plugin_count != next_plugins.size() ||
+        !validBlockIndices(preview_block_indices, plugin_count, visualBlockCount(plugin_count)))
     {
         return std::nullopt;
     }
 
-    std::size_t destination_index = slot_index;
-    if (source_index < slot_index)
+    std::vector<std::size_t> preview_order;
+    preview_order.reserve(plugin_count);
+    for (std::size_t index = 0; index < plugin_count; ++index)
     {
-        destination_index -= 1;
+        preview_order.push_back(index);
     }
-    if (destination_index >= plugin_count)
+
+    std::ranges::sort(preview_order, [&preview_block_indices](std::size_t lhs, std::size_t rhs) {
+        return preview_block_indices[lhs] == preview_block_indices[rhs]
+                   ? lhs < rhs
+                   : preview_block_indices[lhs] < preview_block_indices[rhs];
+    });
+
+    std::vector<std::size_t> next_block_indices(plugin_count);
+    for (std::size_t next_index = 0; next_index < plugin_count; ++next_index)
     {
-        destination_index = plugin_count - 1;
+        const std::size_t previous_index = preview_order[next_index];
+        if (next_plugins[next_index].instance_id != previous_plugins[previous_index].instance_id)
+        {
+            return std::nullopt;
+        }
+
+        next_block_indices[next_index] = preview_block_indices[previous_index];
     }
-    if (destination_index == source_index)
+
+    return next_block_indices;
+}
+
+// Converts an empty visual block to the linear insertion index implied by left-to-right order.
+[[nodiscard]] std::size_t chainIndexForBlockInsertion(
+    const std::vector<std::size_t>& block_indices, std::size_t target_block_index) noexcept
+{
+    std::size_t chain_index = 0;
+    for (const std::size_t block_index : block_indices)
     {
-        return std::nullopt;
+        if (block_index < target_block_index)
+        {
+            ++chain_index;
+        }
+    }
+
+    return chain_index;
+}
+
+// Computes the moved plugin's final linear index from a proposed fixed-block placement.
+[[nodiscard]] std::size_t destinationIndexForBlockIndices(
+    const std::vector<std::size_t>& block_indices, std::size_t source_index) noexcept
+{
+    const std::size_t source_block_index = block_indices[source_index];
+    std::size_t destination_index = 0;
+    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
+    {
+        if (plugin_index != source_index && block_indices[plugin_index] < source_block_index)
+        {
+            ++destination_index;
+        }
     }
 
     return destination_index;
+}
+
+// Maps an empty fixed block drop to a visual placement and its implied linear destination.
+[[nodiscard]] std::optional<BlockDropIntent> emptyBlockDropIntent(
+    std::size_t source_index, std::size_t target_block_index,
+    const std::vector<std::size_t>& block_indices, std::size_t block_count)
+{
+    if (source_index >= block_indices.size() || target_block_index >= block_count ||
+        block_indices[source_index] == target_block_index ||
+        pluginIndexAtBlock(block_indices, target_block_index).has_value())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::size_t> next_block_indices = block_indices;
+    next_block_indices[source_index] = target_block_index;
+    return BlockDropIntent{
+        .destination_index = destinationIndexForBlockIndices(next_block_indices, source_index),
+        .block_indices = std::move(next_block_indices),
+    };
+}
+
+// Maps an occupied fixed block drop to a placement by pushing blocks toward the nearest gap.
+[[nodiscard]] std::optional<BlockDropIntent> occupiedBlockDropIntent(
+    std::size_t source_index, std::size_t target_block_index, BlockDropDirection direction,
+    const std::vector<std::size_t>& block_indices, std::size_t block_count)
+{
+    if (source_index >= block_indices.size() || target_block_index >= block_count ||
+        block_indices[source_index] == target_block_index ||
+        !validBlockIndices(block_indices, block_indices.size(), block_count))
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::optional<std::size_t>> plugin_at_block(block_count);
+    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
+    {
+        if (plugin_index == source_index)
+        {
+            continue;
+        }
+
+        plugin_at_block[block_indices[plugin_index]] = plugin_index;
+    }
+
+    if (!plugin_at_block[target_block_index].has_value())
+    {
+        return std::nullopt;
+    }
+
+    std::size_t empty_block_index = target_block_index;
+    while (plugin_at_block[empty_block_index].has_value())
+    {
+        if (direction == BlockDropDirection::PushLeft)
+        {
+            if (empty_block_index == 0)
+            {
+                return std::nullopt;
+            }
+
+            --empty_block_index;
+        }
+        else
+        {
+            if (empty_block_index + 1 >= block_count)
+            {
+                return std::nullopt;
+            }
+
+            ++empty_block_index;
+        }
+    }
+
+    std::vector<std::size_t> next_block_indices = block_indices;
+    if (direction == BlockDropDirection::PushLeft)
+    {
+        for (std::size_t block_index = empty_block_index; block_index < target_block_index;
+             ++block_index)
+        {
+            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block_index + 1];
+            if (!shifted_plugin.has_value())
+            {
+                return std::nullopt;
+            }
+
+            next_block_indices[*shifted_plugin] = block_index;
+        }
+    }
+    else
+    {
+        for (std::size_t block_index = empty_block_index; block_index > target_block_index;
+             --block_index)
+        {
+            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block_index - 1];
+            if (!shifted_plugin.has_value())
+            {
+                return std::nullopt;
+            }
+
+            next_block_indices[*shifted_plugin] = block_index;
+        }
+    }
+
+    next_block_indices[source_index] = target_block_index;
+    if (!validBlockIndices(next_block_indices, block_indices.size(), block_count))
+    {
+        return std::nullopt;
+    }
+
+    return BlockDropIntent{
+        .destination_index = destinationIndexForBlockIndices(next_block_indices, source_index),
+        .block_indices = std::move(next_block_indices),
+    };
+}
+
+// Resolves the hovered fixed block and pointer side into a concrete visual drop placement.
+[[nodiscard]] std::optional<BlockDropIntent> blockDropIntent(
+    std::size_t source_index, std::size_t target_block_index, int local_x, int width,
+    const std::vector<std::size_t>& block_indices, std::size_t block_count)
+{
+    const std::optional<std::size_t> target_plugin =
+        pluginIndexAtBlock(block_indices, target_block_index);
+    if (target_plugin.has_value() && *target_plugin != source_index)
+    {
+        return occupiedBlockDropIntent(
+            source_index,
+            target_block_index,
+            blockDropDirectionForLocalX(local_x, width),
+            block_indices,
+            block_count);
+    }
+
+    return emptyBlockDropIntent(source_index, target_block_index, block_indices, block_count);
+}
+
+// Reports whether a fixed cell has any valid side or empty-space drop for this dragged plugin.
+[[nodiscard]] bool canBlockReceiveDrop(
+    std::size_t source_index, std::size_t target_block_index,
+    const std::vector<std::size_t>& block_indices, std::size_t block_count)
+{
+    if (source_index >= block_indices.size() || target_block_index >= block_count)
+    {
+        return false;
+    }
+
+    if (emptyBlockDropIntent(source_index, target_block_index, block_indices, block_count)
+            .has_value())
+    {
+        return true;
+    }
+
+    return occupiedBlockDropIntent(
+               source_index,
+               target_block_index,
+               BlockDropDirection::PushLeft,
+               block_indices,
+               block_count)
+               .has_value() ||
+           occupiedBlockDropIntent(
+               source_index,
+               target_block_index,
+               BlockDropDirection::PushRight,
+               block_indices,
+               block_count)
+               .has_value();
 }
 
 // Builds the plugin name shown below the block.
@@ -557,7 +847,7 @@ public:
 
 } // namespace
 
-// Paints the Quad Cortex-style signal rail behind insertion slots and plugin tiles.
+// Paints the signal rail behind fixed block placeholders and plugin tiles.
 class SignalChainPanel::SignalPathContent final : public juce::Component
 {
 public:
@@ -573,7 +863,7 @@ public:
         repaint();
     }
 
-    // Draws the dark path surface, white signal line, and subtle fixed-position markers.
+    // Draws the dark path surface, full-width signal line, and subtle fixed-position markers.
     void paint(juce::Graphics& g) override
     {
         const auto bounds = getLocalBounds();
@@ -589,9 +879,9 @@ public:
         const int path_y = path_area.getCentreY();
         g.setColour(g_signal_path_line);
         g.drawLine(
-            static_cast<float>(path_area.getX()),
+            static_cast<float>(bounds.getX()),
             static_cast<float>(path_y),
-            static_cast<float>(path_area.getRight()),
+            static_cast<float>(bounds.getRight()),
             static_cast<float>(path_y),
             3.0f);
 
@@ -609,44 +899,47 @@ private:
     std::size_t m_plugin_count{};
 };
 
-// Presents one insertion slot on the path and accepts plugin-tile drops.
+// Presents one fixed block placeholder on the path and accepts plugin-tile drops.
 class SignalChainPanel::InsertSlotView final : public juce::Component,
                                                public juce::DragAndDropTarget
 {
 public:
-    // Creates the slot control for a stable chain insertion index.
-    InsertSlotView(std::size_t chain_index, SignalChainPanel& panel, Listener& listener)
+    // Creates the placeholder control for a stable fixed block index.
+    InsertSlotView(std::size_t block_index, SignalChainPanel& panel)
         : m_panel(panel)
-        , m_listener(listener)
-        , m_chain_index(chain_index)
+        , m_block_index(block_index)
     {
-        const juce::String chain_index_text{std::to_string(m_chain_index)};
-        setComponentID(juce::String{"insert_slot_"} + chain_index_text);
-        m_button.setComponentID(juce::String{"insert_plugin_button_"} + chain_index_text);
+        const juce::String block_index_text{std::to_string(m_block_index)};
+        setComponentID(juce::String{"insert_slot_"} + block_index_text);
+        m_button.setComponentID(juce::String{"insert_plugin_button_"} + block_index_text);
         m_button.setButtonText("+");
-        m_button.onClick = [this] { m_listener.onInsertPluginPressed(m_chain_index); };
-        // The rail is mostly empty space; the "+" stays dim until the pointer enters the rail (or
-        // the button itself), so the gap reads as a discoverable insertion affordance on hover.
+        m_button.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
+        m_button.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
+        m_button.setColour(juce::TextButton::textColourOffId, g_insert_slot_placeholder);
+        m_button.setColour(juce::TextButton::textColourOnId, g_insert_slot_drop_line);
+        m_button.onClick = [this] { m_panel.insertPluginAtBlockLocation(m_block_index); };
+        // Empty fixed block locations stay visible without drawing old boundary rails.
         m_button.setAlpha(g_idle_insert_affordance_alpha);
         m_button.addMouseListener(this, false);
         addAndMakeVisible(m_button);
     }
 
-    // Applies controller-derived editing availability to the slot.
-    void setEditingEnabled(bool insert_enabled, bool move_enabled)
+    // Applies controller-derived editing availability to this fixed block location.
+    void setEditingEnabled(bool is_empty, bool insert_enabled, bool move_enabled)
     {
+        m_button.setVisible(is_empty);
         m_button.setEnabled(insert_enabled);
         m_drop_enabled = move_enabled;
         if (!m_drop_enabled && m_is_drag_hovered)
         {
             m_is_drag_hovered = false;
+            m_panel.clearPluginMovePreview();
             repaint();
         }
+        updateButtonAffordance();
     }
 
-    // Reports whether dropping the current payload here would actually relocate the tile. Slots
-    // adjacent to the dragged tile resolve to a no-op, so they must decline interest rather than
-    // highlight a drop that would do nothing.
+    // Reports whether this placeholder can accept the dragged tile into a valid final position.
     [[nodiscard]] bool isInterestedInDragSource(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
@@ -662,32 +955,34 @@ public:
             return false;
         }
 
-        return destinationIndexForDrop(
-                   plugin->source_index, m_chain_index, m_panel.m_state.plugins.size())
-            .has_value();
+        return canBlockReceiveDrop(
+            plugin->source_index,
+            m_block_index,
+            m_panel.m_plugin_block_indices,
+            visualBlockCount(m_panel.m_state.plugins.size()));
     }
 
-    // Highlights the slot as a concrete drop target.
+    // Shows the preview for dropping onto this empty fixed block location.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        if (!isInterestedInDragSource(drag_source_details))
-        {
-            return;
-        }
-
-        m_is_drag_hovered = true;
-        repaint();
+        updateDropPreview(drag_source_details);
     }
 
-    // Clears the drop highlight when the drag leaves the slot.
-    void itemDragExit(
-        const juce::DragAndDropTarget::SourceDetails& /*drag_source_details*/) override
+    // Keeps the preview current while JUCE reports movement over the empty block location.
+    void itemDragMove(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
+    {
+        updateDropPreview(drag_source_details);
+    }
+
+    // Clears the drop preview when the drag leaves the fixed block location.
+    void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
     {
         m_is_drag_hovered = false;
+        m_panel.clearUncommittedPluginMovePreview();
         repaint();
     }
 
-    // Emits the same move intent used by keyboard/button move paths.
+    // Emits the same move intent used by tile-level drop paths.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
         m_is_drag_hovered = false;
@@ -695,6 +990,7 @@ public:
 
         if (!m_drop_enabled)
         {
+            m_panel.clearPluginMovePreview();
             return;
         }
 
@@ -702,90 +998,154 @@ public:
             parsePluginDragDescription(drag_source_details.description);
         if (!plugin.has_value())
         {
+            m_panel.clearPluginMovePreview();
             return;
         }
 
-        m_panel.movePluginToInsertionSlot(
-            std::move(plugin->instance_id), plugin->source_index, m_chain_index);
-    }
-
-    // Draws the slot as a short path crossing, with stronger feedback while dragging.
-    void paint(juce::Graphics& g) override
-    {
-        auto area = getLocalBounds();
-        if (m_is_drag_hovered)
+        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        if (!intent.has_value())
         {
-            g.setColour(g_insert_slot_drop_fill);
-            g.fillRoundedRectangle(area.reduced(1).toFloat(), 6.0f);
+            m_panel.clearPluginMovePreview();
+            return;
         }
 
-        const int x = area.getCentreX();
-        const int y = area.getCentreY();
-        const int half_height = std::min(28, std::max(0, area.getHeight() / 2));
-        g.setColour(m_is_drag_hovered ? g_insert_slot_drop_line : g_insert_slot_line);
-        g.drawLine(
-            static_cast<float>(x),
-            static_cast<float>(y - half_height),
-            static_cast<float>(x),
-            static_cast<float>(y + half_height),
-            m_is_drag_hovered ? 2.0f : 1.0f);
+        m_panel.previewPluginMove(
+            plugin->source_index, intent->destination_index, intent->block_indices);
+        if (intent->destination_index == plugin->source_index)
+        {
+            m_panel.applyPluginBlockIndices(intent->block_indices);
+            return;
+        }
+
+        m_panel.commitPluginMovePreview();
+        m_panel.movePluginToBlockLocation(
+            std::move(plugin->instance_id), plugin->source_index, intent->destination_index);
     }
 
-    // Keeps the compact insertion button centered on the signal path.
+    // Keeps fixed cells above moving tiles during drags without blocking normal tile clicks.
+    bool hitTest(int x, int y) override
+    {
+        juce::DragAndDropContainer* const container =
+            juce::DragAndDropContainer::findParentDragContainerFor(this);
+        if (container != nullptr && container->isDragAndDropActive())
+        {
+            return true;
+        }
+
+        return m_button.isVisible() && m_button.isEnabled() && m_button.getBounds().contains(x, y);
+    }
+
+    // Draws only the cell-level drop feedback; the placeholder button owns the subtle plus icon.
+    void paint(juce::Graphics& g) override
+    {
+        if (m_is_drag_hovered)
+        {
+            const auto area = getLocalBounds().reduced(1).toFloat();
+            g.setColour(g_insert_slot_drop_line);
+            g.drawRoundedRectangle(area, 6.0f, 1.4f);
+        }
+    }
+
+    // Keeps the compact placeholder icon centered on the signal path.
     void resized() override
     {
         const int button_size = std::min(g_insert_rail_width, getWidth());
         m_button.setBounds(getLocalBounds().withSizeKeepingCentre(button_size, button_size));
     }
 
-    // Brightens the "+" affordance while the pointer is over the rail or its button.
+    // Brightens the "+" affordance while the pointer is over an active placeholder.
     void mouseEnter(const juce::MouseEvent& /*event*/) override
     {
         updateButtonAffordance();
     }
 
-    // Restores the dim "+" affordance once the pointer leaves the rail and its button.
+    // Restores the dim "+" affordance once the pointer leaves the placeholder and its button.
     void mouseExit(const juce::MouseEvent& /*event*/) override
     {
         updateButtonAffordance();
     }
 
 private:
-    // Recomputes the "+" opacity from whether the pointer is over the rail or its child button.
-    // isMouseOver(true) includes descendants, so it stays bright while the pointer sits on the
-    // button itself even though that hides the rail's own hover.
+    // Recomputes the "+" opacity from whether the pointer is over this active placeholder.
     void updateButtonAffordance()
     {
-        m_button.setAlpha(isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
+        m_button.setAlpha(
+            m_button.isEnabled() && isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
+    }
+
+    // Resolves this fixed cell plus the current pointer side into a concrete drop intent.
+    [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
+        const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
+    {
+        if (!m_drop_enabled)
+        {
+            return std::nullopt;
+        }
+
+        const std::optional<DraggedPlugin> plugin =
+            parsePluginDragDescription(drag_source_details.description);
+        if (!plugin.has_value())
+        {
+            return std::nullopt;
+        }
+
+        return blockDropIntent(
+            plugin->source_index,
+            m_block_index,
+            drag_source_details.localPosition.x,
+            getWidth(),
+            m_panel.m_plugin_block_indices,
+            visualBlockCount(m_panel.m_state.plugins.size()));
+    }
+
+    // Applies drag feedback for this fixed cell when it represents a valid move.
+    void updateDropPreview(const juce::DragAndDropTarget::SourceDetails& drag_source_details)
+    {
+        const std::optional<DraggedPlugin> plugin =
+            parsePluginDragDescription(drag_source_details.description);
+        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        if (!plugin.has_value() || !intent.has_value())
+        {
+            m_is_drag_hovered = false;
+            m_panel.clearPluginMovePreview();
+            repaint();
+            return;
+        }
+
+        m_is_drag_hovered = true;
+        m_panel.previewPluginMove(
+            plugin->source_index, intent->destination_index, intent->block_indices);
+        repaint();
     }
 
     // Owning panel used to translate drops into move intents.
     SignalChainPanel& m_panel;
 
-    // Listener that receives this slot's insert intent.
-    Listener& m_listener;
-
-    // Stable user-visible chain slot represented by this control.
-    std::size_t m_chain_index{};
+    // Stable fixed block location represented by this control.
+    std::size_t m_block_index{};
 
     // Compact insertion command button.
     juce::TextButton m_button;
 
-    // True when plugin tiles may be dropped on this insertion slot.
+    // True when plugin tiles may be dropped on this placeholder.
     bool m_drop_enabled{false};
 
-    // True while a compatible tile drag is hovering over this slot.
+    // True while a compatible tile drag is hovering over this placeholder.
     bool m_is_drag_hovered{false};
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
 // stored instance ID. The name and manufacturer sit below the block as a caption.
-class SignalChainPanel::PluginTileView final : public juce::Component
+class SignalChainPanel::PluginTileView final : public juce::Component,
+                                               public juce::DragAndDropTarget
 {
 public:
     // Creates the tile with a stable plugin snapshot and the parent panel listener.
-    PluginTileView(core::PluginViewState plugin, std::size_t plugin_count, Listener& listener)
-        : m_listener(listener)
+    PluginTileView(
+        core::PluginViewState plugin, std::size_t plugin_count, SignalChainPanel& panel,
+        Listener& listener)
+        : m_panel(panel)
+        , m_listener(listener)
         , m_plugin(std::move(plugin))
         , m_icon_type(inferPluginIconType(m_plugin))
         , m_accent(iconAccentColour(m_icon_type))
@@ -873,8 +1233,7 @@ public:
     // Starts a JUCE drag operation for reorderable plugin tiles.
     void mouseDrag(const juce::MouseEvent& event) override
     {
-        if (!m_move_enabled || m_drag_started || m_plugin_count < 2 ||
-            !event.mouseWasDraggedSinceMouseDown())
+        if (!m_move_enabled || m_drag_started || !event.mouseWasDraggedSinceMouseDown())
         {
             return;
         }
@@ -900,10 +1259,67 @@ public:
     void mouseUp(const juce::MouseEvent& event) override
     {
         m_drag_started = false;
+        m_panel.clearUncommittedPluginMovePreviewAsync();
         if (event.mouseWasClicked())
         {
             m_listener.onOpenPluginPressed(m_plugin.instance_id);
         }
+    }
+
+    // Reports whether this occupied block can receive the dragged tile on the hovered side.
+    [[nodiscard]] bool isInterestedInDragSource(
+        const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
+    {
+        return dropIntent(drag_source_details).has_value();
+    }
+
+    // Starts a visual reorder preview as the dragged tile enters this occupied block.
+    void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
+    {
+        updateDropPreview(drag_source_details);
+    }
+
+    // Recomputes before/after intent when the pointer crosses the tile midpoint.
+    void itemDragMove(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
+    {
+        updateDropPreview(drag_source_details);
+    }
+
+    // Clears transient reorder layout when the drag leaves this occupied block.
+    void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
+    {
+        m_panel.clearUncommittedPluginMovePreview();
+    }
+
+    // Emits a move intent using the same final-index contract as the existing controller path.
+    void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
+    {
+        const std::optional<DraggedPlugin> plugin =
+            parsePluginDragDescription(drag_source_details.description);
+        if (!plugin.has_value())
+        {
+            m_panel.clearPluginMovePreview();
+            return;
+        }
+
+        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        if (!intent.has_value())
+        {
+            m_panel.clearPluginMovePreview();
+            return;
+        }
+
+        m_panel.previewPluginMove(
+            plugin->source_index, intent->destination_index, intent->block_indices);
+        if (intent->destination_index == plugin->source_index)
+        {
+            m_panel.applyPluginBlockIndices(intent->block_indices);
+            return;
+        }
+
+        m_panel.commitPluginMovePreview();
+        m_panel.movePluginToBlockLocation(
+            std::move(plugin->instance_id), plugin->source_index, intent->destination_index);
     }
 
     // Highlights the tile and reveals its remove "X" while the pointer is over it.
@@ -919,6 +1335,57 @@ public:
     }
 
 private:
+    // Resolves the hovered side of this block to a final visual placement.
+    [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
+        const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
+    {
+        if (!m_move_enabled)
+        {
+            return std::nullopt;
+        }
+
+        const std::optional<DraggedPlugin> plugin =
+            parsePluginDragDescription(drag_source_details.description);
+        if (!plugin.has_value())
+        {
+            return std::nullopt;
+        }
+
+        if (m_plugin.chain_index >= m_panel.m_plugin_block_indices.size())
+        {
+            return std::nullopt;
+        }
+
+        return blockDropIntent(
+            plugin->source_index,
+            m_panel.m_plugin_block_indices[m_plugin.chain_index],
+            drag_source_details.localPosition.x,
+            getWidth(),
+            m_panel.m_plugin_block_indices,
+            visualBlockCount(m_plugin_count));
+    }
+
+    // Applies transient layout so the chain previews where the dragged block would land.
+    void updateDropPreview(const juce::DragAndDropTarget::SourceDetails& drag_source_details)
+    {
+        const std::optional<DraggedPlugin> plugin =
+            parsePluginDragDescription(drag_source_details.description);
+        if (!plugin.has_value())
+        {
+            return;
+        }
+
+        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        if (!intent.has_value())
+        {
+            m_panel.clearPluginMovePreview();
+            return;
+        }
+
+        m_panel.previewPluginMove(
+            plugin->source_index, intent->destination_index, intent->block_indices);
+    }
+
     // Keeps the block highlight and remove affordance alive while either the tile or the child
     // remove button has the pointer.
     void updateHoverAffordance()
@@ -928,6 +1395,9 @@ private:
         m_remove_button.setAlpha(is_hovered ? 1.0f : g_idle_remove_affordance_alpha);
         repaint();
     }
+
+    // Owning panel used to preview and emit block-location drops.
+    SignalChainPanel& m_panel;
 
     // Listener that receives this tile's remove, open, and move intents.
     Listener& m_listener;
@@ -1018,12 +1488,43 @@ SignalChainPanel::~SignalChainPanel()
 // Stores the render state and updates controls whose enabledness is derived outside the view.
 void SignalChainPanel::setState(const core::SignalChainViewState& state)
 {
+    std::vector<std::size_t> next_block_indices =
+        reconciledPluginBlockIndices(m_state.plugins, m_plugin_block_indices, state.plugins);
+    bool keep_committed_preview = false;
+    if (m_drag_preview_committed && m_drag_preview.has_value())
+    {
+        std::optional<std::vector<std::size_t>> committed_block_indices =
+            committedPreviewBlockIndicesForState(
+                m_drag_preview->block_indices, m_state.plugins, state.plugins);
+        if (committed_block_indices.has_value())
+        {
+            next_block_indices = std::move(*committed_block_indices);
+        }
+        else if (
+            samePluginOrder(m_state.plugins, state.plugins) &&
+            validBlockIndices(
+                m_drag_preview->block_indices,
+                state.plugins.size(),
+                visualBlockCount(state.plugins.size()))
+        )
+        {
+            next_block_indices = m_drag_preview->block_indices;
+            keep_committed_preview = true;
+        }
+    }
+
     m_state = state;
+    m_plugin_block_indices = std::move(next_block_indices);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
     m_chain_content->setPluginCount(m_state.plugins.size());
+    if (!keep_committed_preview)
+    {
+        m_drag_preview.reset();
+        m_drag_preview_committed = false;
+    }
     rebuildPluginTiles();
     resized();
     repaint();
@@ -1131,6 +1632,8 @@ void SignalChainPanel::resized()
     m_chain_content->setSize(content_width, content_height);
     const auto path_area = signalPathArea(m_chain_content->getLocalBounds());
     const std::size_t block_count = visualBlockCount(m_plugin_tiles.size());
+    const std::vector<std::size_t>& active_block_indices =
+        m_drag_preview.has_value() ? m_drag_preview->block_indices : m_plugin_block_indices;
 
     for (std::size_t index = 0; index < m_insert_slots.size(); ++index)
     {
@@ -1141,17 +1644,11 @@ void SignalChainPanel::resized()
         }
 
         slot->setVisible(true);
-        const int slot_center_x =
-            insertionSlotCenterX(index, m_plugin_tiles.size(), path_area, block_count);
-        auto slot_bounds = path_area.withWidth(g_insert_rail_width);
-        slot_bounds.setCentre(slot_center_x, path_area.getCentreY());
-        slot->setBounds(slot_bounds);
+        slot->setBounds(blockCellBounds(path_area, index, block_count));
+    }
 
-        if (index >= m_plugin_tiles.size())
-        {
-            continue;
-        }
-
+    for (std::size_t index = 0; index < m_plugin_tiles.size(); ++index)
+    {
         const std::unique_ptr<PluginTileView>& tile = m_plugin_tiles[index];
         if (tile == nullptr)
         {
@@ -1159,27 +1656,139 @@ void SignalChainPanel::resized()
         }
 
         tile->setVisible(true);
-        tile->setBounds(pluginBlockBounds(path_area, index, block_count));
+        std::size_t block_index = index;
+        if (index < active_block_indices.size() && active_block_indices[index] < block_count)
+        {
+            block_index = active_block_indices[index];
+        }
+        tile->setBounds(pluginBlockBounds(path_area, block_index, block_count));
     }
 }
 
-// Converts a tile drop on an insertion slot into the existing move-plugin intent.
-void SignalChainPanel::movePluginToInsertionSlot(
-    std::string instance_id, std::size_t source_index, std::size_t slot_index)
+// Converts an empty fixed block location into the matching linear insertion index.
+void SignalChainPanel::insertPluginAtBlockLocation(std::size_t block_index)
+{
+    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
+    if (!m_state.insert_plugin_enabled || block_index >= block_count ||
+        pluginIndexAtBlock(m_plugin_block_indices, block_index).has_value())
+    {
+        return;
+    }
+
+    m_listener.onInsertPluginPressed(
+        chainIndexForBlockInsertion(m_plugin_block_indices, block_index));
+}
+
+// Converts a tile drop on a fixed block location into the existing move-plugin intent.
+void SignalChainPanel::movePluginToBlockLocation(
+    std::string instance_id, std::size_t source_index, std::size_t destination_index)
 {
     if (!m_state.move_plugins_enabled)
     {
         return;
     }
 
-    const std::optional<std::size_t> destination_index =
-        destinationIndexForDrop(source_index, slot_index, m_state.plugins.size());
-    if (!destination_index.has_value())
+    if (source_index >= m_state.plugins.size() || destination_index >= m_state.plugins.size() ||
+        source_index == destination_index)
     {
         return;
     }
 
-    m_listener.onMovePluginPressed(std::move(instance_id), *destination_index);
+    m_listener.onMovePluginPressed(std::move(instance_id), destination_index);
+}
+
+// Stores a drag-hover preview and relayouts the chain if the preview target changed.
+void SignalChainPanel::previewPluginMove(
+    std::size_t source_index, std::size_t destination_index, std::vector<std::size_t> block_indices)
+{
+    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
+    if (source_index >= m_state.plugins.size() || destination_index >= m_state.plugins.size() ||
+        !validBlockIndices(block_indices, m_state.plugins.size(), block_count))
+    {
+        clearPluginMovePreview();
+        return;
+    }
+
+    const DragPreview next_preview{
+        .source_index = source_index,
+        .destination_index = destination_index,
+        .block_indices = std::move(block_indices),
+    };
+    if (m_drag_preview.has_value() && m_drag_preview->source_index == next_preview.source_index &&
+        m_drag_preview->destination_index == next_preview.destination_index &&
+        m_drag_preview->block_indices == next_preview.block_indices)
+    {
+        return;
+    }
+
+    m_drag_preview = next_preview;
+    m_drag_preview_committed = false;
+    resized();
+    m_chain_content->repaint();
+}
+
+// Commits the current preview so release and same-order refreshes keep the fixed-slot layout.
+void SignalChainPanel::commitPluginMovePreview()
+{
+    if (m_drag_preview.has_value())
+    {
+        m_plugin_block_indices = m_drag_preview->block_indices;
+        m_drag_preview_committed = true;
+    }
+}
+
+// Applies a fixed-slot placement that leaves the plugin chain's linear order unchanged.
+void SignalChainPanel::applyPluginBlockIndices(std::vector<std::size_t> block_indices)
+{
+    if (!validBlockIndices(
+            block_indices, m_state.plugins.size(), visualBlockCount(m_state.plugins.size())))
+    {
+        clearPluginMovePreview();
+        return;
+    }
+
+    m_plugin_block_indices = std::move(block_indices);
+    m_drag_preview.reset();
+    m_drag_preview_committed = false;
+    resized();
+    m_chain_content->repaint();
+}
+
+// Removes any drag-hover preview and restores authoritative chain layout.
+void SignalChainPanel::clearPluginMovePreview()
+{
+    m_drag_preview_committed = false;
+    if (!m_drag_preview.has_value())
+    {
+        return;
+    }
+
+    m_drag_preview.reset();
+    resized();
+    m_chain_content->repaint();
+}
+
+// Leaves committed previews alone so source mouse-up does not snap back a valid drop.
+void SignalChainPanel::clearUncommittedPluginMovePreview()
+{
+    if (m_drag_preview_committed)
+    {
+        return;
+    }
+
+    clearPluginMovePreview();
+}
+
+// Lets JUCE deliver the target drop callback before source mouse-up can clear the preview.
+void SignalChainPanel::clearUncommittedPluginMovePreviewAsync()
+{
+    juce::Component::SafePointer<SignalChainPanel> safe_this{this};
+    (void)juce::MessageManager::callAsync([safe_this] {
+        if (safe_this != nullptr)
+        {
+            safe_this->clearUncommittedPluginMovePreview();
+        }
+    });
 }
 
 // Recreates child tiles from the latest controller state so each control carries a stable ID.
@@ -1208,24 +1817,29 @@ void SignalChainPanel::rebuildPluginTiles()
         return;
     }
 
-    m_insert_slots.reserve(m_state.plugins.size() + 1);
-    const bool has_free_block = m_state.plugins.size() < g_signal_path_block_capacity;
-    for (std::size_t index = 0; index <= m_state.plugins.size(); ++index)
-    {
-        auto slot = std::make_unique<InsertSlotView>(index, *this, m_listener);
-        slot->setEditingEnabled(
-            m_state.insert_plugin_enabled && has_free_block, m_state.move_plugins_enabled);
-        m_chain_content->addAndMakeVisible(*slot);
-        m_insert_slots.push_back(std::move(slot));
-    }
-
     m_plugin_tiles.reserve(m_state.plugins.size());
     for (const core::PluginViewState& plugin : m_state.plugins)
     {
-        auto tile = std::make_unique<PluginTileView>(plugin, m_state.plugins.size(), m_listener);
+        auto tile =
+            std::make_unique<PluginTileView>(plugin, m_state.plugins.size(), *this, m_listener);
         tile->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
         m_chain_content->addAndMakeVisible(*tile);
         m_plugin_tiles.push_back(std::move(tile));
+    }
+
+    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
+    m_insert_slots.reserve(block_count);
+    const bool has_free_block = m_state.plugins.size() < block_count;
+    for (std::size_t index = 0; index < block_count; ++index)
+    {
+        auto slot = std::make_unique<InsertSlotView>(index, *this);
+        const bool is_empty = !pluginIndexAtBlock(m_plugin_block_indices, index).has_value();
+        slot->setEditingEnabled(
+            is_empty,
+            m_state.insert_plugin_enabled && has_free_block && is_empty,
+            m_state.move_plugins_enabled);
+        m_chain_content->addAndMakeVisible(*slot);
+        m_insert_slots.push_back(std::move(slot));
     }
 }
 
