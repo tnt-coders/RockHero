@@ -387,6 +387,9 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
     auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
     auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
 
+    CHECK(remove_amp.getButtonText() == "X");
+    CHECK(remove_amp.getWidth() == 20);
+    CHECK(remove_amp.getHeight() == 20);
     CHECK_FALSE(insert_first.isEnabled());
     CHECK_FALSE(remove_amp.isEnabled());
 
