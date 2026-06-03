@@ -143,6 +143,12 @@ private:
     class PluginTileView;
     class SignalPathContent;
 
+    enum class TileLayoutMotion
+    {
+        Immediate,
+        Animated,
+    };
+
     // Transient layout state used while a drag hover previews a reordered chain.
     struct DragPreview
     {
@@ -184,6 +190,9 @@ private:
 
     // Defers uncommitted preview cleanup until pending JUCE drop callbacks have run.
     void clearUncommittedPluginMovePreviewAsync();
+
+    // Positions fixed block placeholders and plugin tiles inside the signal path.
+    void layoutSignalPathContent(TileLayoutMotion motion);
 
     // Rebuilds tile components after controller-derived plugin state changes.
     void rebuildPluginTiles();

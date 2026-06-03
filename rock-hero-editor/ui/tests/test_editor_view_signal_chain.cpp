@@ -102,6 +102,12 @@ void dropPluginOnTarget(
     drop_target->itemDropped(details);
 }
 
+// Returns the final bounds a component is moving toward during animated preview tests.
+[[nodiscard]] juce::Rectangle<int> componentTargetBounds(juce::Component& component)
+{
+    return juce::Desktop::getInstance().getAnimator().getComponentDestination(&component);
+}
+
 } // namespace
 
 // Verifies that input calibration and output gain controls exist and are disabled by default.
@@ -507,14 +513,14 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getBounds() == cab_bounds);
-    CHECK(tile_amp.getX() > cab_bounds.getRight());
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp).getX() > cab_bounds.getRight());
 
     drop_target->itemDragExit(details);
-    CHECK(tile_amp.getBounds() == amp_bounds);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
 
     drop_target->itemDragEnter(details);
     drop_target->itemDropped(details);
@@ -523,9 +529,9 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
     CHECK(listener.move_call_count == 1);
     CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{2});
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getBounds() == cab_bounds);
-    CHECK(tile_amp.getX() > cab_bounds.getRight());
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp).getX() > cab_bounds.getRight());
 
     panel.setState(
         core::SignalChainViewState{
@@ -599,17 +605,17 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_amp.getBounds() == amp_bounds);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getX() > cab_bounds.getRight());
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab).getX() > cab_bounds.getRight());
 
     drop_target->itemDropped(details);
     tile_cab.mouseUp(testing::makeMouseDownEvent(tile_cab, 8.0f, 8.0f));
 
     CHECK(listener.move_call_count == 0);
-    CHECK(tile_amp.getBounds() == amp_bounds);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getX() > cab_bounds.getRight());
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab).getX() > cab_bounds.getRight());
 
     panel.setState(
         core::SignalChainViewState{
@@ -665,14 +671,15 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_cab.getBounds() == amp_bounds);
-    CHECK(tile_amp.getBounds() == drive_bounds);
-    CHECK(tile_drive.getBounds() == cab_bounds);
+    CHECK(tile_cab.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     drop_target->itemDragExit(details);
-    CHECK(tile_amp.getBounds() == amp_bounds);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
     CHECK(listener.move_call_count == 0);
 }
 
@@ -711,9 +718,9 @@ TEST_CASE("Signal-chain valid drops hold preview until state", "[ui][editor-view
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_cab.getBounds() == amp_bounds);
-    CHECK(tile_amp.getBounds() == drive_bounds);
-    CHECK(tile_drive.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     drop_target->itemDropped(details);
     tile_cab.mouseUp(testing::makeMouseDownEvent(tile_cab, 8.0f, 8.0f));
@@ -721,9 +728,9 @@ TEST_CASE("Signal-chain valid drops hold preview until state", "[ui][editor-view
     CHECK(listener.move_call_count == 1);
     CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
-    CHECK(tile_cab.getBounds() == amp_bounds);
-    CHECK(tile_amp.getBounds() == drive_bounds);
-    CHECK(tile_drive.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     panel.setState(
         core::SignalChainViewState{
@@ -779,14 +786,14 @@ TEST_CASE("Signal-chain release keeps preview before drop callback", "[ui][edito
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_cab.getBounds() == amp_bounds);
-    CHECK(tile_amp.getBounds() == drive_bounds);
-    CHECK(tile_drive.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     tile_cab.mouseUp(testing::makeMouseDownEvent(tile_cab, 8.0f, 8.0f));
-    CHECK(tile_cab.getBounds() == amp_bounds);
-    CHECK(tile_amp.getBounds() == drive_bounds);
-    CHECK(tile_drive.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     drop_target->itemDropped(details);
     CHECK(listener.move_call_count == 1);
@@ -829,9 +836,9 @@ TEST_CASE("Signal-chain drag preview rejects blocked push direction", "[ui][edit
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(tile_amp.getBounds() == amp_bounds);
-    CHECK(tile_drive.getBounds() == drive_bounds);
-    CHECK(tile_cab.getBounds() == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
 
     drop_target->itemDropped(details);
     CHECK(listener.move_call_count == 0);

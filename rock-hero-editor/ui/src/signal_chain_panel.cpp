@@ -28,6 +28,9 @@ constexpr int g_signal_plugin_view_height{
     g_signal_block_height + g_signal_block_label_gap + g_signal_block_name_height +
     g_signal_block_maker_height
 };
+constexpr int g_signal_preview_animation_ms{110};
+constexpr double g_signal_preview_animation_start_speed{3.0};
+constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr int g_tile_remove_button_size{20};
 constexpr int g_tile_remove_button_inset{3};
 constexpr int g_tile_inset{6};
@@ -1527,6 +1530,15 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
 // Detaches the custom slider look-and-feel before owned children are destroyed.
 SignalChainPanel::~SignalChainPanel()
 {
+    auto& animator = juce::Desktop::getInstance().getAnimator();
+    for (const std::unique_ptr<PluginTileView>& tile : m_plugin_tiles)
+    {
+        if (tile != nullptr)
+        {
+            animator.cancelAnimation(tile.get(), false);
+        }
+    }
+
     m_chain_viewport.setViewedComponent(nullptr, false);
     m_output_gain_slider.setLookAndFeel(nullptr);
 }
@@ -1696,10 +1708,17 @@ void SignalChainPanel::resized()
     const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
     const int content_width = chainContentWidth(m_plugin_tiles.size(), area.getWidth());
     m_chain_content->setSize(content_width, content_height);
+    layoutSignalPathContent(TileLayoutMotion::Immediate);
+}
+
+// Positions placeholders and moves plugin tiles using either immediate or animated bounds.
+void SignalChainPanel::layoutSignalPathContent(TileLayoutMotion motion)
+{
     const auto path_area = signalPathArea(m_chain_content->getLocalBounds());
     const std::size_t block_count = visualBlockCount(m_plugin_tiles.size());
     const std::vector<std::size_t>& active_block_indices =
         m_drag_preview.has_value() ? m_drag_preview->block_indices : m_plugin_block_indices;
+    auto& animator = juce::Desktop::getInstance().getAnimator();
 
     for (std::size_t index = 0; index < m_insert_slots.size(); ++index)
     {
@@ -1727,7 +1746,29 @@ void SignalChainPanel::resized()
         {
             block_index = active_block_indices[index];
         }
-        tile->setBounds(pluginBlockBounds(path_area, block_index, block_count));
+
+        const juce::Rectangle<int> target_bounds =
+            pluginBlockBounds(path_area, block_index, block_count);
+        if (motion == TileLayoutMotion::Animated)
+        {
+            if (animator.getComponentDestination(tile.get()) != target_bounds)
+            {
+                animator.animateComponent(
+                    tile.get(),
+                    target_bounds,
+                    1.0f,
+                    g_signal_preview_animation_ms,
+                    false,
+                    g_signal_preview_animation_start_speed,
+                    g_signal_preview_animation_end_speed);
+            }
+        }
+        else
+        {
+            animator.cancelAnimation(tile.get(), false);
+            tile->setAlpha(1.0f);
+            tile->setBounds(target_bounds);
+        }
     }
 }
 
@@ -1794,7 +1835,7 @@ void SignalChainPanel::previewPluginMove(
 
     m_drag_preview = next_preview;
     m_drag_preview_committed = false;
-    resized();
+    layoutSignalPathContent(TileLayoutMotion::Animated);
     m_chain_content->repaint();
 }
 
@@ -1821,7 +1862,7 @@ void SignalChainPanel::applyPluginBlockIndices(std::vector<std::size_t> block_in
     m_plugin_block_indices = std::move(block_indices);
     m_drag_preview.reset();
     m_drag_preview_committed = false;
-    resized();
+    layoutSignalPathContent(TileLayoutMotion::Animated);
     m_chain_content->repaint();
 }
 
@@ -1835,7 +1876,7 @@ void SignalChainPanel::clearPluginMovePreview()
     }
 
     m_drag_preview.reset();
-    resized();
+    layoutSignalPathContent(TileLayoutMotion::Animated);
     m_chain_content->repaint();
 }
 
@@ -1877,6 +1918,7 @@ void SignalChainPanel::rebuildPluginTiles()
     {
         if (tile != nullptr)
         {
+            juce::Desktop::getInstance().getAnimator().cancelAnimation(tile.get(), false);
             m_chain_content->removeChildComponent(tile.get());
         }
     }
