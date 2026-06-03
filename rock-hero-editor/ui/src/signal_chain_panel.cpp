@@ -28,7 +28,8 @@ constexpr int g_signal_plugin_view_height{
     g_signal_block_height + g_signal_block_label_gap + g_signal_block_name_height +
     g_signal_block_maker_height
 };
-constexpr int g_tile_remove_button_size{16};
+constexpr int g_tile_remove_button_size{20};
+constexpr int g_tile_remove_button_inset{3};
 constexpr int g_tile_inset{6};
 constexpr std::size_t g_signal_path_block_capacity{8};
 // Insert rails stay faintly visible for discoverability; tile removal stays invisible at rest so
@@ -796,11 +797,14 @@ public:
         m_remove_button.setComponentID(
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
         // Keep the remove affordance compact in the tile corner.
-        m_remove_button.setButtonText("x");
+        m_remove_button.setButtonText("X");
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
-        // The "x" stays hidden until hover, so a resting tile reads as one clean icon target.
+        // Child-button hover can hide the tile's own hover, so keep the shared affordance in sync
+        // with descendant pointer state as well as direct tile pointer state.
+        m_remove_button.onStateChange = [this] { updateHoverAffordance(); };
+        // The "X" stays hidden until hover, so a resting tile reads as one clean icon target.
         m_remove_button.setAlpha(g_idle_remove_affordance_alpha);
         addAndMakeVisible(m_remove_button);
     }
@@ -855,7 +859,7 @@ public:
     void resized() override
     {
         m_remove_button.setBounds(pluginTileArea(getLocalBounds())
-                                      .reduced(g_tile_inset)
+                                      .reduced(g_tile_remove_button_inset)
                                       .removeFromTop(g_tile_remove_button_size)
                                       .removeFromRight(g_tile_remove_button_size));
     }
@@ -902,23 +906,29 @@ public:
         }
     }
 
-    // Highlights the tile and reveals its remove "x" while the pointer is over it.
+    // Highlights the tile and reveals its remove "X" while the pointer is over it.
     void mouseEnter(const juce::MouseEvent& /*event*/) override
     {
-        m_is_hovered = true;
-        m_remove_button.setAlpha(1.0f);
-        repaint();
+        updateHoverAffordance();
     }
 
     // Clears the tile affordances when the pointer leaves the plugin tile.
     void mouseExit(const juce::MouseEvent& /*event*/) override
     {
-        m_is_hovered = false;
-        m_remove_button.setAlpha(g_idle_remove_affordance_alpha);
-        repaint();
+        updateHoverAffordance();
     }
 
 private:
+    // Keeps the block highlight and remove affordance alive while either the tile or the child
+    // remove button has the pointer.
+    void updateHoverAffordance()
+    {
+        const bool is_hovered = isMouseOver(true);
+        m_is_hovered = is_hovered;
+        m_remove_button.setAlpha(is_hovered ? 1.0f : g_idle_remove_affordance_alpha);
+        repaint();
+    }
+
     // Listener that receives this tile's remove, open, and move intents.
     Listener& m_listener;
 
