@@ -179,10 +179,14 @@ private:
     // Keeps a successfully dropped preview visible until controller state catches up.
     void commitPluginMovePreview();
 
+    // Uses the last valid preview as the drop result when the pointer is over an invalid side.
+    [[nodiscard]] bool dropCurrentPluginMovePreview(
+        std::string instance_id, std::size_t source_index);
+
     // Applies a view-only block placement change that does not alter linear chain order.
     void applyPluginBlockIndices(std::vector<std::size_t> block_indices);
 
-    // Clears a transient drag preview after a drop leaves the chain or completes.
+    // Clears a transient drag preview after a drag cancels or completes.
     void clearPluginMovePreview();
 
     // Clears only previews that have not emitted a valid drop yet.
@@ -236,7 +240,7 @@ private:
     // Fixed block selected for a plugin browser insertion that has not reached state yet.
     std::optional<PendingInsert> m_pending_insert;
 
-    // Active drag-hover preview, when a valid reorder target is under the pointer.
+    // Last valid drag-hover preview kept while the pointer crosses invalid target sides.
     std::optional<DragPreview> m_drag_preview;
 
     // True once a drop emitted a move intent and is waiting for authoritative controller state.
