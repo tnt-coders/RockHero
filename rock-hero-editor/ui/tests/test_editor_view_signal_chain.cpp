@@ -518,9 +518,9 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
     CHECK(componentTargetBounds(tile_amp).getX() > cab_bounds.getRight());
 
     drop_target->itemDragExit(details);
-    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
     CHECK(componentTargetBounds(tile_drive) == drive_bounds);
     CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+    CHECK(componentTargetBounds(tile_amp).getX() > cab_bounds.getRight());
 
     drop_target->itemDragEnter(details);
     drop_target->itemDropped(details);
@@ -636,6 +636,101 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
     CHECK(refreshed_cab.getX() > cab_bounds.getRight());
 }
 
+// Verifies blocked hover keeps the last reachable fixed-slot preview.
+TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .insert_plugin_enabled = true,
+            .move_plugins_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("drive", 1),
+                makePlugin("cab", 2),
+            },
+        });
+
+    auto& initial_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& fourth_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_3");
+    const juce::Rectangle<int> third_block_bounds = initial_cab.getBounds();
+    auto* const fourth_target = dynamic_cast<juce::DragAndDropTarget*>(&fourth_slot);
+    REQUIRE(fourth_target != nullptr);
+
+    const juce::DragAndDropTarget::SourceDetails fourth_details{
+        juce::var{pluginDragPayload(2, "cab")},
+        &initial_cab,
+        juce::Point<int>{8, 8},
+    };
+
+    CHECK(fourth_target->isInterestedInDragSource(fourth_details));
+    fourth_target->itemDropped(fourth_details);
+    CHECK(listener.move_call_count == 0);
+
+    panel.setState(
+        core::SignalChainViewState{
+            .insert_plugin_enabled = true,
+            .move_plugins_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("drive", 1),
+                makePlugin("cab", 2),
+            },
+        });
+
+    auto& tile_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    auto& tile_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& third_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
+    auto& third_insert = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
+    auto& drive_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
+    const juce::Rectangle<int> amp_bounds = tile_amp.getBounds();
+    const juce::Rectangle<int> drive_bounds = tile_drive.getBounds();
+    CHECK(tile_cab.getBounds().getX() > third_block_bounds.getRight());
+    CHECK(third_insert.isVisible());
+    CHECK(third_insert.isEnabled());
+
+    auto* const third_target = dynamic_cast<juce::DragAndDropTarget*>(&third_slot);
+    auto* const blocked_target = dynamic_cast<juce::DragAndDropTarget*>(&drive_slot);
+    REQUIRE(third_target != nullptr);
+    REQUIRE(blocked_target != nullptr);
+
+    const juce::DragAndDropTarget::SourceDetails third_details{
+        juce::var{pluginDragPayload(2, "cab")},
+        &tile_cab,
+        juce::Point<int>{8, 8},
+    };
+
+    CHECK(third_target->isInterestedInDragSource(third_details));
+    third_target->itemDragEnter(third_details);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
+
+    const juce::DragAndDropTarget::SourceDetails blocked_details{
+        juce::var{pluginDragPayload(2, "cab")},
+        &tile_cab,
+        juce::Point<int>{drive_slot.getWidth() - 2, 8},
+    };
+
+    CHECK(blocked_target->isInterestedInDragSource(blocked_details));
+    blocked_target->itemDragEnter(blocked_details);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
+
+    blocked_target->itemDropped(blocked_details);
+    CHECK(listener.move_call_count == 0);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
+    CHECK_FALSE(third_insert.isVisible());
+    CHECK_FALSE(third_insert.isEnabled());
+}
+
 // Verifies drag hover relayouts tiles into their transient reorder preview positions.
 TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]")
 {
@@ -677,9 +772,9 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
     CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     drop_target->itemDragExit(details);
-    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
-    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
-    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
     CHECK(listener.move_call_count == 0);
 }
 

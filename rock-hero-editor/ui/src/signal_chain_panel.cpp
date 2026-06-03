@@ -28,8 +28,8 @@ constexpr int g_signal_plugin_view_height{
     g_signal_block_height + g_signal_block_label_gap + g_signal_block_name_height +
     g_signal_block_maker_height
 };
-constexpr int g_signal_preview_animation_ms{110};
-constexpr double g_signal_preview_animation_start_speed{3.0};
+constexpr int g_signal_preview_animation_ms{420};
+constexpr double g_signal_preview_animation_start_speed{1.0};
 constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr int g_tile_remove_button_size{20};
 constexpr int g_tile_remove_button_inset{3};
@@ -1023,11 +1023,10 @@ public:
         updateDropPreview(drag_source_details);
     }
 
-    // Clears the drop preview when the drag leaves the fixed block location.
+    // Clears this cell's hover feedback when the drag leaves the fixed block location.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
     {
         m_is_drag_hovered = false;
-        m_panel.clearUncommittedPluginMovePreview();
         repaint();
     }
 
@@ -1054,7 +1053,11 @@ public:
         const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
         if (!intent.has_value())
         {
-            m_panel.clearPluginMovePreview();
+            if (!m_panel.dropCurrentPluginMovePreview(
+                    std::move(plugin->instance_id), plugin->source_index))
+            {
+                m_panel.clearPluginMovePreview();
+            }
             return;
         }
 
@@ -1156,7 +1159,7 @@ private:
         if (!plugin.has_value() || !intent.has_value())
         {
             m_is_drag_hovered = false;
-            m_panel.clearPluginMovePreview();
+            // Keep the last valid preview while the pointer crosses a blocked side.
             repaint();
             return;
         }
@@ -1334,11 +1337,9 @@ public:
         updateDropPreview(drag_source_details);
     }
 
-    // Clears transient reorder layout when the drag leaves this occupied block.
+    // Leaves the last valid preview active while the drag crosses between block targets.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
-    {
-        m_panel.clearUncommittedPluginMovePreview();
-    }
+    {}
 
     // Emits a move intent using the same final-index contract as the existing controller path.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
@@ -1354,7 +1355,11 @@ public:
         const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
         if (!intent.has_value())
         {
-            m_panel.clearPluginMovePreview();
+            if (!m_panel.dropCurrentPluginMovePreview(
+                    std::move(plugin->instance_id), plugin->source_index))
+            {
+                m_panel.clearPluginMovePreview();
+            }
             return;
         }
 
@@ -1427,7 +1432,7 @@ private:
         const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
         if (!intent.has_value())
         {
-            m_panel.clearPluginMovePreview();
+            // Keep the last valid preview while the pointer crosses a blocked side.
             return;
         }
 
@@ -1719,6 +1724,7 @@ void SignalChainPanel::layoutSignalPathContent(TileLayoutMotion motion)
     const std::vector<std::size_t>& active_block_indices =
         m_drag_preview.has_value() ? m_drag_preview->block_indices : m_plugin_block_indices;
     auto& animator = juce::Desktop::getInstance().getAnimator();
+    const bool has_free_block = m_state.plugins.size() < block_count;
 
     for (std::size_t index = 0; index < m_insert_slots.size(); ++index)
     {
@@ -1729,6 +1735,11 @@ void SignalChainPanel::layoutSignalPathContent(TileLayoutMotion motion)
         }
 
         slot->setVisible(true);
+        const bool is_empty = !pluginIndexAtBlock(active_block_indices, index).has_value();
+        slot->setEditingEnabled(
+            is_empty,
+            m_state.insert_plugin_enabled && has_free_block && is_empty,
+            m_state.move_plugins_enabled);
         slot->setBounds(blockCellBounds(path_area, index, block_count));
     }
 
@@ -1847,6 +1858,27 @@ void SignalChainPanel::commitPluginMovePreview()
         m_plugin_block_indices = m_drag_preview->block_indices;
         m_drag_preview_committed = true;
     }
+}
+
+// Applies the current preview when release lands on a side that cannot produce a new preview.
+bool SignalChainPanel::dropCurrentPluginMovePreview(
+    std::string instance_id, std::size_t source_index)
+{
+    if (!m_drag_preview.has_value() || m_drag_preview->source_index != source_index)
+    {
+        return false;
+    }
+
+    const DragPreview preview = *m_drag_preview;
+    if (preview.destination_index == source_index)
+    {
+        applyPluginBlockIndices(preview.block_indices);
+        return true;
+    }
+
+    commitPluginMovePreview();
+    movePluginToBlockLocation(std::move(instance_id), source_index, preview.destination_index);
+    return true;
 }
 
 // Applies a fixed-slot placement that leaves the plugin chain's linear order unchanged.
