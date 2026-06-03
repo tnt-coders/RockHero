@@ -151,6 +151,13 @@ private:
         std::vector<std::size_t> block_indices;
     };
 
+    // Pending fixed-slot target for the next plugin inserted through this panel.
+    struct PendingInsert
+    {
+        std::size_t chain_index{};
+        std::size_t block_index{};
+    };
+
     // Emits an insert intent for an empty fixed block location.
     void insertPluginAtBlockLocation(std::size_t block_index);
 
@@ -216,6 +223,9 @@ private:
 
     // Stable visual block position for each plugin in the controller-provided linear chain.
     std::vector<std::size_t> m_plugin_block_indices;
+
+    // Fixed block selected for a plugin browser insertion that has not reached state yet.
+    std::optional<PendingInsert> m_pending_insert;
 
     // Active drag-hover preview, when a valid reorder target is under the pointer.
     std::optional<DragPreview> m_drag_preview;
