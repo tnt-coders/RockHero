@@ -294,6 +294,50 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
     CHECK(listener.last_insert_index == std::optional<std::size_t>{0});
 }
 
+// Verifies the clicked fixed block is preserved when the inserted plugin reaches state.
+TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .insert_plugin_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("cab", 1),
+            },
+        });
+
+    auto& selected_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_7");
+    auto& insert_later = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_7");
+    const int selected_block_center_x = selected_slot.getBounds().getCentreX();
+    testing::clickButton(insert_later);
+    CHECK(listener.insert_call_count == 1);
+    CHECK(listener.last_insert_index == std::optional<std::size_t>{2});
+
+    panel.setState(
+        core::SignalChainViewState{
+            .insert_plugin_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("cab", 1),
+                makePlugin("lead", 2),
+            },
+        });
+
+    auto& inserted_tile = findRequiredDescendant<juce::Component>(panel, "plugin_tile_lead");
+    auto& gap_insert = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
+    auto& occupied_insert =
+        findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_7");
+
+    CHECK(inserted_tile.getBounds().getCentreX() == selected_block_center_x);
+    CHECK(gap_insert.isVisible());
+    CHECK(gap_insert.isEnabled());
+    CHECK_FALSE(occupied_insert.isVisible());
+}
+
 // Verifies fixed block placeholders expose eight visible locations without an overflow add slot.
 TEST_CASE("Signal-chain insert controls stop at eight blocks", "[ui][editor-view]")
 {
