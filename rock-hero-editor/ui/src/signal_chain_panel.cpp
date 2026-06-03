@@ -402,6 +402,52 @@ enum class PluginIconType
     return compactPluginBlockIndices(next_plugins.size());
 }
 
+// Maps one pending insert onto the clicked fixed block while preserving existing gaps.
+[[nodiscard]] std::optional<std::vector<std::size_t>> pendingInsertBlockIndicesForState(
+    const std::vector<core::PluginViewState>& previous_plugins,
+    const std::vector<std::size_t>& previous_block_indices,
+    const std::vector<core::PluginViewState>& next_plugins, std::size_t insert_chain_index,
+    std::size_t insert_block_index)
+{
+    const std::size_t previous_plugin_count = previous_plugins.size();
+    const std::size_t next_plugin_count = next_plugins.size();
+    const std::size_t block_count = visualBlockCount(next_plugin_count);
+    if (next_plugin_count != previous_plugin_count + 1 ||
+        insert_chain_index > previous_plugin_count || insert_block_index >= block_count ||
+        !validBlockIndices(previous_block_indices, previous_plugin_count, block_count) ||
+        pluginIndexAtBlock(previous_block_indices, insert_block_index).has_value())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::size_t> next_block_indices;
+    next_block_indices.reserve(next_plugin_count);
+    for (std::size_t next_index = 0; next_index < next_plugin_count; ++next_index)
+    {
+        if (next_index == insert_chain_index)
+        {
+            next_block_indices.push_back(insert_block_index);
+            continue;
+        }
+
+        const std::size_t previous_index =
+            next_index < insert_chain_index ? next_index : next_index - 1;
+        if (next_plugins[next_index].instance_id != previous_plugins[previous_index].instance_id)
+        {
+            return std::nullopt;
+        }
+
+        next_block_indices.push_back(previous_block_indices[previous_index]);
+    }
+
+    if (!validBlockIndices(next_block_indices, next_plugin_count, block_count))
+    {
+        return std::nullopt;
+    }
+
+    return next_block_indices;
+}
+
 // Maps a committed preview onto the next controller state only when the order matches the drop.
 [[nodiscard]] std::optional<std::vector<std::size_t>> committedPreviewBlockIndicesForState(
     const std::vector<std::size_t>& preview_block_indices,
@@ -1491,6 +1537,26 @@ void SignalChainPanel::setState(const core::SignalChainViewState& state)
     std::vector<std::size_t> next_block_indices =
         reconciledPluginBlockIndices(m_state.plugins, m_plugin_block_indices, state.plugins);
     bool keep_committed_preview = false;
+    if (m_pending_insert.has_value())
+    {
+        std::optional<std::vector<std::size_t>> inserted_block_indices =
+            pendingInsertBlockIndicesForState(
+                m_state.plugins,
+                m_plugin_block_indices,
+                state.plugins,
+                m_pending_insert->chain_index,
+                m_pending_insert->block_index);
+        if (inserted_block_indices.has_value())
+        {
+            next_block_indices = std::move(*inserted_block_indices);
+            m_pending_insert.reset();
+        }
+        else if (!samePluginOrder(m_state.plugins, state.plugins))
+        {
+            m_pending_insert.reset();
+        }
+    }
+
     if (m_drag_preview_committed && m_drag_preview.has_value())
     {
         std::optional<std::vector<std::size_t>> committed_block_indices =
@@ -1675,8 +1741,13 @@ void SignalChainPanel::insertPluginAtBlockLocation(std::size_t block_index)
         return;
     }
 
-    m_listener.onInsertPluginPressed(
-        chainIndexForBlockInsertion(m_plugin_block_indices, block_index));
+    const std::size_t chain_index =
+        chainIndexForBlockInsertion(m_plugin_block_indices, block_index);
+    m_pending_insert = PendingInsert{
+        .chain_index = chain_index,
+        .block_index = block_index,
+    };
+    m_listener.onInsertPluginPressed(chain_index);
 }
 
 // Converts a tile drop on a fixed block location into the existing move-plugin intent.
