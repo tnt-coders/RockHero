@@ -197,7 +197,7 @@ struct EditorViewState
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};
 
-    /*! \brief Current signal-chain panel state. */
+    /*! \brief Current signal-chain view state. */
     SignalChainViewState signal_chain{};
 
     /*! \brief Current plugin browser window state. */

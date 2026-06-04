@@ -1,6 +1,6 @@
 /*!
 \file signal_chain_view_state.h
-\brief Framework-free state rendered by the signal-chain panel.
+\brief Framework-free state rendered by the signal-chain view.
 */
 
 #pragma once
@@ -12,7 +12,7 @@
 namespace rock_hero::editor::core
 {
 
-/*! \brief Live input calibration state shown by the signal-chain panel. */
+/*! \brief Live input calibration state shown by the signal-chain view. */
 enum class InputCalibrationStatus
 {
     NoActiveInputDevice,
@@ -21,7 +21,7 @@ enum class InputCalibrationStatus
     Unavailable,
 };
 
-/*! \brief State rendered by the signal-chain panel. */
+/*! \brief State rendered by the signal-chain view. */
 struct SignalChainViewState
 {
     /*! \brief Enables or disables gap insert commands. */
