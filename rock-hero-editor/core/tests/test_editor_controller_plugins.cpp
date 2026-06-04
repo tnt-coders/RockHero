@@ -1,4 +1,6 @@
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -41,6 +43,47 @@ TEST_CASE("EditorController enables plugin add after load", "[core][editor-contr
         CHECK_FALSE(loaded_state.signal_chain.remove_plugins_enabled);
         CHECK(loaded_state.signal_chain.plugins.empty());
     }
+}
+
+// The editor disables plugin insertion once the product chain cap is reached.
+TEST_CASE("EditorController disables plugin insertion at limit", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    for (std::size_t index = 0; index < common::audio::max_signal_chain_plugins; ++index)
+    {
+        plugin_host.next_instance_id = "instance-" + std::to_string(index);
+        addKnownPlugin(controller);
+    }
+    const int insert_call_count = plugin_host.insert_call_count;
+
+    const EditorViewState* full_state = stateOrNull(view.last_state);
+    REQUIRE(full_state != nullptr);
+    REQUIRE(full_state->signal_chain.plugins.size() == common::audio::max_signal_chain_plugins);
+    CHECK_FALSE(full_state->signal_chain.insert_plugin_enabled);
+    CHECK_FALSE(full_state->plugin_browser.visible);
+
+    controller.onPluginBrowserRequested();
+    controller.onAddPluginRequested("catalog-plugin-id");
+
+    CHECK(plugin_host.insert_call_count == insert_call_count);
+    CHECK(view.shown_errors.empty());
 }
 
 // Opening the plugin browser makes it visible from the already-known catalog only.
@@ -412,6 +455,55 @@ TEST_CASE("EditorController loads live rig on open", "[core][editor-controller]"
     REQUIRE(state->signal_chain.plugins.size() == 1);
     CHECK(state->signal_chain.plugins[0].instance_id == "loaded-instance");
     CHECK(state->signal_chain.plugins[0].name == "Loaded Amp");
+}
+
+// Opening a project aborts before commit when the restored live rig exceeds the plugin cap.
+TEST_CASE("EditorController rejects over-limit live rig on open", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    for (std::size_t index = 0; index <= common::audio::max_signal_chain_plugins; ++index)
+    {
+        live_rig.next_load_result.plugins.push_back(
+            common::audio::PluginChainEntry{
+                .instance_id = "loaded-instance-" + std::to_string(index),
+                .plugin_id = "loaded-plugin-" + std::to_string(index),
+                .name = "Loaded Plugin " + std::to_string(index),
+                .manufacturer = "Example Audio",
+                .format_name = "VST3",
+                .chain_index = index,
+            });
+    }
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(), g_tone_document_ref);
+
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+
+    CHECK(live_rig.load_call_count == 1);
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->project_loaded);
+    CHECK(state->signal_chain.plugins.empty());
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(
+        view.shown_errors.back() == "Could not load live rig from: song.rhp: " +
+                                        common::audio::pluginChainLimitExceededMessage(
+                                            common::audio::max_signal_chain_plugins + 1));
 }
 
 // Project load switches to determinate live-rig progress before restoring saved plugins.

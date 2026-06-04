@@ -11,6 +11,7 @@
 #include <functional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/live_rig_error.h>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <string>
 #include <vector>
@@ -144,7 +145,9 @@ public:
     The operation runs cooperatively on the message thread: each plugin is restored in its own
     message-loop turn so the message loop can service paints and input between plugins. The
     completion callback fires on the message thread with the restored chain or a typed failure.
-    For an empty tone document reference the completion fires immediately with an empty result.
+    Tone documents with more than max_signal_chain_plugins user plugins fail before plugin
+    instantiation. For an empty tone document reference the completion fires immediately with an
+    empty result.
 
     \param request Song workspace, tone document reference, and optional progress callback.
     \param completion Callback invoked once the operation finishes or fails.

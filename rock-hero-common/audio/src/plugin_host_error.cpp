@@ -57,6 +57,10 @@ namespace
         {
             return "Plugin chain index is out of range";
         }
+        case PluginHostErrorCode::PluginChainLimitExceeded:
+        {
+            return "Signal chain plugin limit was exceeded";
+        }
         case PluginHostErrorCode::PluginMoveFailed:
         {
             return "Could not move plugin in the hosted chain";

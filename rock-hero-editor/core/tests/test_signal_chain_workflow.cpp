@@ -3,9 +3,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <optional>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -25,6 +27,18 @@ namespace
         .format_name = "VST3",
         .chain_index = chain_index,
     };
+}
+
+// Builds a contiguous plugin chain with stable IDs.
+[[nodiscard]] std::vector<common::audio::PluginChainEntry> makeEntries(std::size_t count)
+{
+    std::vector<common::audio::PluginChainEntry> plugins;
+    plugins.reserve(count);
+    for (std::size_t index = 0; index < count; ++index)
+    {
+        plugins.push_back(makeEntry("plugin-" + std::to_string(index), index));
+    }
+    return plugins;
 }
 
 } // namespace
@@ -66,6 +80,48 @@ TEST_CASE("SignalChainWorkflow stores pending insertion slots", "[core][signal-c
     workflow.requestAppend();
 
     CHECK(workflow.insertionIndexForSelection() == std::optional<std::size_t>{2});
+}
+
+// Verifies the product plugin cap blocks new browser insertion state.
+TEST_CASE("SignalChainWorkflow rejects insertion at capacity", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = makeEntries(common::audio::max_signal_chain_plugins),
+        });
+
+    CHECK_FALSE(workflow.hasInsertCapacity());
+    CHECK_FALSE(workflow.requestInsertAt(0));
+    CHECK_FALSE(workflow.insertionIndexForSelection().has_value());
+
+    workflow.requestAppend();
+
+    CHECK_FALSE(workflow.insertionIndexForSelection().has_value());
+}
+
+// Verifies a full authoritative snapshot drops pending browser insertion state.
+TEST_CASE("SignalChainWorkflow clears pending insertion at capacity", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = makeEntries(common::audio::max_signal_chain_plugins - 1),
+        });
+    REQUIRE(workflow.requestInsertAt(1));
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = makeEntries(common::audio::max_signal_chain_plugins),
+        });
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = makeEntries(common::audio::max_signal_chain_plugins - 1),
+        });
+
+    CHECK(
+        workflow.insertionIndexForSelection() ==
+        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
 }
 
 // Verifies stale row requests are rejected before controller code calls the backend.
