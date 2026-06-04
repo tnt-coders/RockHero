@@ -85,6 +85,20 @@ struct BlockDropIntent
     std::vector<std::size_t> block_indices;
 };
 
+// Splits an optional block-placement intent into the shape the view's drop finalizer consumes.
+[[nodiscard]] std::pair<std::optional<std::size_t>, std::vector<std::size_t>> dropPlacementParts(
+    std::optional<BlockDropIntent> intent)
+{
+    if (!intent.has_value())
+    {
+        return {std::nullopt, std::vector<std::size_t>{}};
+    }
+
+    return {
+        std::optional<std::size_t>{intent->destination_index}, std::move(intent->block_indices)
+    };
+}
+
 enum class PluginIconType
 {
     Generic,
@@ -1049,36 +1063,10 @@ public:
             return;
         }
 
-        std::optional<DraggedPlugin> plugin =
-            parsePluginDragDescription(drag_source_details.description);
-        if (!plugin.has_value())
-        {
-            m_view.clearPluginMovePreview();
-            return;
-        }
-
-        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
-        if (!intent.has_value())
-        {
-            if (!m_view.dropCurrentPluginMovePreview(
-                    std::move(plugin->instance_id), plugin->source_index))
-            {
-                m_view.clearPluginMovePreview();
-            }
-            return;
-        }
-
-        m_view.previewPluginMove(
-            plugin->source_index, intent->destination_index, intent->block_indices);
-        if (intent->destination_index == plugin->source_index)
-        {
-            m_view.applyPluginBlockIndices(intent->block_indices);
-            return;
-        }
-
-        m_view.commitPluginMovePreview();
-        m_view.movePluginToBlockLocation(
-            std::move(plugin->instance_id), plugin->source_index, intent->destination_index);
+        auto [destination_index, block_indices] =
+            dropPlacementParts(dropIntent(drag_source_details));
+        m_view.completePluginDrop(
+            drag_source_details.description, destination_index, std::move(block_indices));
     }
 
     // Keeps fixed cells above moving tiles during drags without blocking normal tile clicks.
@@ -1352,36 +1340,10 @@ public:
     // Emits a move intent using the same final-index contract as the existing controller path.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        const std::optional<DraggedPlugin> plugin =
-            parsePluginDragDescription(drag_source_details.description);
-        if (!plugin.has_value())
-        {
-            m_view.clearPluginMovePreview();
-            return;
-        }
-
-        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
-        if (!intent.has_value())
-        {
-            if (!m_view.dropCurrentPluginMovePreview(
-                    std::move(plugin->instance_id), plugin->source_index))
-            {
-                m_view.clearPluginMovePreview();
-            }
-            return;
-        }
-
-        m_view.previewPluginMove(
-            plugin->source_index, intent->destination_index, intent->block_indices);
-        if (intent->destination_index == plugin->source_index)
-        {
-            m_view.applyPluginBlockIndices(intent->block_indices);
-            return;
-        }
-
-        m_view.commitPluginMovePreview();
-        m_view.movePluginToBlockLocation(
-            std::move(plugin->instance_id), plugin->source_index, intent->destination_index);
+        auto [destination_index, block_indices] =
+            dropPlacementParts(dropIntent(drag_source_details));
+        m_view.completePluginDrop(
+            drag_source_details.description, destination_index, std::move(block_indices));
     }
 
     // Highlights the tile and reveals its remove "X" while the pointer is over it.
@@ -1828,6 +1790,39 @@ void SignalChainView::movePluginToBlockLocation(
     }
 
     m_listener.onMovePluginPressed(std::move(instance_id), destination_index);
+}
+
+// Centralizes drop finalization so every target preserves preview and no-op placement behavior.
+void SignalChainView::completePluginDrop(
+    const juce::var& drag_description, std::optional<std::size_t> destination_index,
+    std::vector<std::size_t> block_indices)
+{
+    std::optional<DraggedPlugin> plugin = parsePluginDragDescription(drag_description);
+    if (!plugin.has_value())
+    {
+        clearPluginMovePreview();
+        return;
+    }
+
+    if (!destination_index.has_value())
+    {
+        if (!dropCurrentPluginMovePreview(std::move(plugin->instance_id), plugin->source_index))
+        {
+            clearPluginMovePreview();
+        }
+        return;
+    }
+
+    previewPluginMove(plugin->source_index, *destination_index, block_indices);
+    if (*destination_index == plugin->source_index)
+    {
+        applyPluginBlockIndices(std::move(block_indices));
+        return;
+    }
+
+    commitPluginMovePreview();
+    movePluginToBlockLocation(
+        std::move(plugin->instance_id), plugin->source_index, *destination_index);
 }
 
 // Stores a drag-hover preview and relayouts the chain if the preview target changed.
