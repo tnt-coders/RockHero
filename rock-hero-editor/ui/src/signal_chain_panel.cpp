@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <string>
 #include <utility>
 
@@ -34,7 +35,7 @@ constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr int g_tile_remove_button_size{20};
 constexpr int g_tile_remove_button_inset{3};
 constexpr int g_tile_inset{6};
-constexpr std::size_t g_signal_path_block_capacity{8};
+constexpr std::size_t g_signal_path_min_block_count{common::audio::max_signal_chain_plugins};
 // Insert rails stay faintly visible for discoverability; tile removal stays invisible at rest so
 // plugin blocks read as icon-only until hovered.
 constexpr float g_idle_insert_affordance_alpha{0.12f};
@@ -103,7 +104,7 @@ enum class PluginIconType
 // Returns the number of fixed block positions the path surface should reserve.
 [[nodiscard]] std::size_t visualBlockCount(std::size_t plugin_count) noexcept
 {
-    return std::max(g_signal_path_block_capacity, plugin_count);
+    return std::max(g_signal_path_min_block_count, plugin_count);
 }
 
 // Computes the full scrollable content width for the fixed-position signal path.

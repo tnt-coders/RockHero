@@ -206,10 +206,11 @@ public:
     \brief Inserts a previously discovered plugin candidate into the hosted Tracktion chain.
 
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
-    route is rebound afterward so monitoring continues through the updated plugin chain.
+    route is rebound afterward so monitoring continues through the updated plugin chain. Insertion
+    fails once the chain already contains max_signal_chain_plugins user plugins.
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
-    \param chain_index User-visible insertion index in [0, plugin_count].
+    \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
     \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
     [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(

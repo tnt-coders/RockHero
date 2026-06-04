@@ -80,6 +80,14 @@ public:
             return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
         }
 
+        if (chain.size() >= max_signal_chain_plugins)
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginChainLimitExceeded,
+                pluginChainLimitExceededMessage(chain.size()),
+            }};
+        }
+
         PluginChainEntry entry{
             .instance_id = next_instance_id,
             .plugin_id = plugin_candidate.id,

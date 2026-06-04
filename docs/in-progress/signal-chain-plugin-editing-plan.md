@@ -71,7 +71,8 @@ Add a project-owned chain snapshot surface before adding UI movement:
    instance ID, plugin ID, display name, manufacturer, format name, and chain index.
 2. Introduce `PluginChainSnapshot` as the authoritative ordered vector returned after mutations.
 3. Extend `IPluginHost` with position-aware mutation methods:
-   - insert a `PluginCandidate` at an index in `[0, plugin_count]`, where `plugin_count` appends;
+   - insert a `PluginCandidate` at an index in `[0, plugin_count]` while the current chain has
+     capacity, where `plugin_count` appends;
    - remove a plugin by instance ID and return the resulting snapshot;
    - move a plugin by instance ID to a destination index and return the resulting snapshot.
 4. Either replace `addPlugin()` with insert-at-end semantics in one migration, or keep `addPlugin()`
@@ -126,7 +127,8 @@ Exit criteria:
 Add explicit controls first. Avoid starting with drag-and-drop because drag introduces hit testing,
 drop previews, and pointer-state complexity before the chain mutation semantics are proven.
 
-1. Add insertion affordances for index `0` through `plugin_count`:
+1. Add insertion affordances for index `0` through `plugin_count` while the chain is below the
+   product plugin cap:
    - an empty-chain insert control;
    - gap insert controls before/between rows;
    - an append control after the last row.

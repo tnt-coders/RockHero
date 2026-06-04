@@ -46,6 +46,9 @@ enum class PluginHostErrorCode
     /*! \brief The requested user-visible chain index is outside the current chain range. */
     InvalidChainIndex,
 
+    /*! \brief The hosted chain already contains the maximum supported user plugin count. */
+    PluginChainLimitExceeded,
+
     /*! \brief The backend could not reorder an existing plugin in the hosted chain. */
     PluginMoveFailed,
 
