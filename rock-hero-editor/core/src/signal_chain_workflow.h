@@ -35,7 +35,7 @@ public:
 
     /*!
     \brief Starts a browser-backed insert at a specific chain slot.
-    \param chain_index User-visible insertion slot in [0, plugin_count].
+    \param chain_index User-visible insertion slot while the current chain has capacity.
     \return True when the slot is current and has been stored.
     */
     [[nodiscard]] bool requestInsertAt(std::size_t chain_index);
@@ -65,6 +65,9 @@ public:
 
     /*! \brief Reports whether the current chain contains any loaded plugins. */
     [[nodiscard]] bool hasPlugins() const noexcept;
+
+    /*! \brief Reports whether the chain can accept another user plugin. */
+    [[nodiscard]] bool hasInsertCapacity() const noexcept;
 
     /*! \brief Returns the slot that appends after the current chain. */
     [[nodiscard]] std::size_t appendIndex() const noexcept;

@@ -21,6 +21,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/package_id.h>
@@ -866,10 +867,19 @@ void reportLiveRigLoadProgress(
         }};
     }
 
+    const std::size_t plugin_count = static_cast<std::size_t>(chain_json.size());
+    if (plugin_count > max_signal_chain_plugins)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(plugin_count),
+        }};
+    }
+
     const std::filesystem::path expected_state_directory =
         toneDocumentStateDirectory(std::filesystem::path{tone_document_ref});
     ToneDocument document;
-    document.chain.reserve(static_cast<std::size_t>(chain_json.size()));
+    document.chain.reserve(plugin_count);
     for (int index = 0; index < chain_json.size(); ++index)
     {
         const juce::var& plugin_json = chain_json[index];
@@ -3058,6 +3068,20 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCa
         return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
+    const std::size_t plugin_count = userVisiblePluginCount();
+    if (chain_index > plugin_count)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+    }
+
+    if (plugin_count >= max_signal_chain_plugins)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(plugin_count),
+        }};
+    }
+
     auto insert_position = tracktionIndexForUserPluginSlot(chain_index);
     if (!insert_position.has_value())
     {
@@ -3576,6 +3600,15 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     if (instrument_track == nullptr)
     {
         return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    const std::size_t user_plugin_count = m_impl->userVisiblePluginCount();
+    if (user_plugin_count > max_signal_chain_plugins)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(user_plugin_count),
+        }};
     }
 
     m_impl->stopTransportAndReleaseContext();

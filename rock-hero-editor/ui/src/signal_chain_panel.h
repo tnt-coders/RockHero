@@ -38,7 +38,7 @@ public:
 
         /*!
         \brief Called when the user requests the plugin browser for an insertion slot.
-        \param chain_index User-visible insertion slot in [0, plugin_count].
+        \param chain_index User-visible insertion slot while the current chain has capacity.
         */
         virtual void onInsertPluginPressed(std::size_t chain_index) = 0;
 

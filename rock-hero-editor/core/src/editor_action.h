@@ -167,7 +167,7 @@ struct EditorAction
     {
         /*!
         \brief Creates an insert-plugin action.
-        \param chain_index_value User-visible insertion slot in [0, plugin_count].
+        \param chain_index_value User-visible insertion slot while the current chain has capacity.
         */
         explicit constexpr InsertPlugin(std::size_t chain_index_value) noexcept
             : chain_index(chain_index_value)

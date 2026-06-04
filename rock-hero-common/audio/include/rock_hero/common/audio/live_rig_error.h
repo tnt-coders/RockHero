@@ -58,6 +58,9 @@ enum class LiveRigErrorCode
     /*! \brief The backend could not restore a plugin from the persisted tone state. */
     PluginRestoreFailed,
 
+    /*! \brief The tone chain contains more user plugins than this version supports. */
+    PluginChainLimitExceeded,
+
     /*! \brief The backend could not restore monitoring after a live-rig mutation. */
     MonitoringRouteFailed,
 };

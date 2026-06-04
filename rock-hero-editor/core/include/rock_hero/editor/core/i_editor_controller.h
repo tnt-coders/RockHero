@@ -93,7 +93,7 @@ public:
 
     /*!
     \brief Handles a request to show the scanned plugin browser for an insertion slot.
-    \param chain_index User-visible insertion slot in [0, plugin_count].
+    \param chain_index User-visible insertion slot while the current chain has capacity.
     */
     virtual void onInsertPluginRequested(std::size_t chain_index) = 0;
 

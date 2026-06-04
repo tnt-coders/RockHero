@@ -1,6 +1,7 @@
 #include "signal_chain_workflow.h"
 
 #include <algorithm>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 
 namespace rock_hero::editor::core
 {
@@ -40,6 +41,11 @@ namespace
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
     m_plugins = makePluginViewStates(snapshot.plugins);
+    if (!hasInsertCapacity() ||
+        (m_pending_insertion_index.has_value() && *m_pending_insertion_index > appendIndex()))
+    {
+        clearPendingInsertion();
+    }
 }
 
 // Closes the signal-chain editing state when a project or live rig leaves the editor.
@@ -52,7 +58,7 @@ void SignalChainWorkflow::clear()
 // Stores a slot emitted by an insertion gap while rejecting stale UI slots.
 bool SignalChainWorkflow::requestInsertAt(std::size_t chain_index)
 {
-    if (chain_index > appendIndex())
+    if (!hasInsertCapacity() || chain_index > appendIndex())
     {
         return false;
     }
@@ -64,6 +70,12 @@ bool SignalChainWorkflow::requestInsertAt(std::size_t chain_index)
 // Uses the current end of the chain as the next browser insertion target.
 void SignalChainWorkflow::requestAppend()
 {
+    if (!hasInsertCapacity())
+    {
+        clearPendingInsertion();
+        return;
+    }
+
     m_pending_insertion_index = appendIndex();
 }
 
@@ -77,10 +89,15 @@ std::optional<std::size_t> SignalChainWorkflow::insertionIndexForSelection() con
 {
     if (!m_pending_insertion_index.has_value())
     {
+        if (!hasInsertCapacity())
+        {
+            return std::nullopt;
+        }
+
         return appendIndex();
     }
 
-    if (*m_pending_insertion_index > appendIndex())
+    if (!hasInsertCapacity() || *m_pending_insertion_index > appendIndex())
     {
         return std::nullopt;
     }
@@ -110,6 +127,11 @@ std::optional<std::size_t> SignalChainWorkflow::chainIndexForInstance(
 bool SignalChainWorkflow::hasPlugins() const noexcept
 {
     return !m_plugins.empty();
+}
+
+bool SignalChainWorkflow::hasInsertCapacity() const noexcept
+{
+    return m_plugins.size() < common::audio::max_signal_chain_plugins;
 }
 
 std::size_t SignalChainWorkflow::appendIndex() const noexcept

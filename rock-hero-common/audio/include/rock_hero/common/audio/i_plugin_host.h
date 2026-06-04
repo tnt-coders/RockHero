@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin_host_error.h>
 #include <string>
@@ -106,10 +107,11 @@ public:
 
     The chain index is in the user-visible chain, excluding hidden structural gain and meter
     plugins. Passing the current plugin count appends. The implementation stops and rebuilds
-    backend playback graph state as needed.
+    backend playback graph state as needed. Insertion fails once the chain already contains
+    max_signal_chain_plugins user plugins.
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
-    \param chain_index User-visible insertion index in [0, plugin_count].
+    \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
     \return Authoritative post-mutation chain snapshot, or a typed failure.
     */
     [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(

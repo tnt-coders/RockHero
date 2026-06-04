@@ -73,6 +73,10 @@ namespace
         {
             return "Could not restore tone plugin";
         }
+        case LiveRigErrorCode::PluginChainLimitExceeded:
+        {
+            return "Tone plugin chain limit was exceeded";
+        }
         case LiveRigErrorCode::MonitoringRouteFailed:
         {
             return "Could not restore monitoring after changing the live rig";

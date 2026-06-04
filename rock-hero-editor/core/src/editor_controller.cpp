@@ -29,6 +29,7 @@
 #include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/common/audio/i_song_audio.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
@@ -57,6 +58,15 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
     const std::string log_message =
         "Rock Hero editor best-effort failure (" + std::string{context} + "): " + message;
     juce::Logger::writeToLog(juce::String::fromUTF8(log_message.c_str()));
+}
+
+// Reports a boundary result that violated the product cap before it reaches view state.
+[[nodiscard]] common::audio::LiveRigError signalChainLimitError(std::size_t plugin_count)
+{
+    return common::audio::LiveRigError{
+        common::audio::LiveRigErrorCode::PluginChainLimitExceeded,
+        common::audio::pluginChainLimitExceededMessage(plugin_count),
+    };
 }
 
 // Creates the project-level analyzer used by production open/import operations while reporting
@@ -1309,6 +1319,13 @@ void EditorController::Impl::startLiveRigLoadStage(
                     return;
                 }
 
+                if (rig_result->plugins.size() > common::audio::max_signal_chain_plugins)
+                {
+                    captured_stage.finish(
+                        std::unexpected{signalChainLimitError(rig_result->plugins.size())});
+                    return;
+                }
+
                 m_signal_chain.replaceSnapshot(
                     common::audio::PluginChainSnapshot{.plugins = rig_result->plugins});
                 m_output_gain_db = rig_result->output_gain.db;
@@ -1753,7 +1770,7 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekWaveform action
 // Makes the browser visible and refreshes the lightweight in-memory catalog.
 void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /*action*/)
 {
-    if (!hasLoadedArrangement())
+    if (!hasLoadedArrangement() || !m_signal_chain.hasInsertCapacity())
     {
         return;
     }
@@ -2140,6 +2157,7 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
+        .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
         .has_loaded_plugins = m_signal_chain.hasPlugins(),
     };
 }
@@ -2366,6 +2384,11 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
     if (!snapshot.has_value())
     {
         return std::unexpected{std::move(snapshot.error())};
+    }
+
+    if (snapshot->plugins.size() > common::audio::max_signal_chain_plugins)
+    {
+        return std::unexpected{signalChainLimitError(snapshot->plugins.size())};
     }
 
     arrangement->tone_document_ref = snapshot->tone_document_ref;

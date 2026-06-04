@@ -332,7 +332,7 @@ public:
 
     /*!
     \brief Shows the scanned plugin browser for a specific insertion slot.
-    \param chain_index User-visible insertion slot in [0, plugin_count].
+    \param chain_index User-visible insertion slot while the current chain has capacity.
     */
     void onInsertPluginRequested(std::size_t chain_index) override;
 

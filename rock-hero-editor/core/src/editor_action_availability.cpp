@@ -87,6 +87,10 @@ namespace
         }
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::InsertPlugin:
+        {
+            return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
+                   conditions.has_plugin_insert_capacity;
+        }
         case EditorAction::Id::ScanPluginCatalog:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
@@ -94,7 +98,7 @@ namespace
         case EditorAction::Id::AddPlugin:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
-                   conditions.has_plugin_candidates;
+                   conditions.has_plugin_candidates && conditions.has_plugin_insert_capacity;
         }
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:

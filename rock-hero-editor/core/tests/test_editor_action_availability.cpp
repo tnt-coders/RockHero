@@ -24,6 +24,7 @@ TEST_CASE("Busy actions are limited to close and exit", "[core][editor-action]")
         .has_loaded_arrangement = true,
         .can_stop_transport = true,
         .has_plugin_candidates = true,
+        .has_plugin_insert_capacity = true,
         .has_loaded_plugins = true,
     };
 
@@ -93,8 +94,8 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
     CHECK(isActionAvailable(ActionId::Stop, conditions));
 }
 
-// Verifies that plugin actions require both an arrangement and auditionable live input.
-TEST_CASE("Plugin actions require auditionable live input", "[core][editor-action]")
+// Verifies plugin actions require arrangement, auditionable input, and insert capacity.
+TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action]")
 {
     ActionConditions conditions{.has_loaded_arrangement = true};
 
@@ -107,6 +108,16 @@ TEST_CASE("Plugin actions require auditionable live input", "[core][editor-actio
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.live_input_audition_available = true;
+
+    CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
+
+    conditions.has_plugin_insert_capacity = true;
 
     CHECK(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
     CHECK(isActionAvailable(ActionId::InsertPlugin, conditions));
@@ -135,6 +146,7 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
         .has_loaded_arrangement = true,
         .can_stop_transport = true,
         .has_plugin_candidates = true,
+        .has_plugin_insert_capacity = true,
         .has_loaded_plugins = true,
     };
 
