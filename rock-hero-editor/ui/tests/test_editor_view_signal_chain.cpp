@@ -244,6 +244,38 @@ TEST_CASE("Signal-chain controls follow view-state gates", "[ui][editor-view]")
     CHECK(output_slider.getValue() == -24.0);
 }
 
+// Verifies signal-chain buttons cannot steal focus from editor-level keyboard shortcuts.
+TEST_CASE("Signal-chain action buttons do not take keyboard focus", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+    view.setBounds(0, 0, 1280, 800);
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .insert_plugin_enabled = true,
+                .remove_plugins_enabled = true,
+                .plugins = {makePlugin("amp", 0), makePlugin("cab", 1)},
+                .input_calibrate_enabled = true,
+            },
+        });
+
+    auto& calibrate_button =
+        findRequiredDescendant<juce::TextButton>(view, "input_calibrate_button");
+    auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
+    auto& remove_amp = findRequiredDescendant<juce::TextButton>(view, "remove_plugin_button_amp");
+
+    CHECK_FALSE(calibrate_button.getWantsKeyboardFocus());
+    CHECK_FALSE(calibrate_button.getMouseClickGrabsKeyboardFocus());
+    CHECK_FALSE(insert_append.getWantsKeyboardFocus());
+    CHECK_FALSE(insert_append.getMouseClickGrabsKeyboardFocus());
+    CHECK_FALSE(remove_amp.getWantsKeyboardFocus());
+    CHECK_FALSE(remove_amp.getMouseClickGrabsKeyboardFocus());
+}
+
 // Verifies fixed block placeholders emit the next legal append insertion index.
 TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
 {
