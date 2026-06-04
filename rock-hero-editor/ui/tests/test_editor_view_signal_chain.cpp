@@ -472,7 +472,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
             juce::Point<int>{2, 8},
         };
 
-        CHECK_FALSE(no_op_drop_target->isInterestedInDragSource(no_op_details));
+        CHECK(no_op_drop_target->isInterestedInDragSource(no_op_details));
         no_op_drop_target->itemDropped(no_op_details);
         CHECK(listener.move_call_count == 0);
     }
@@ -776,6 +776,67 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
     CHECK(componentTargetBounds(tile_amp) == drive_bounds);
     CHECK(componentTargetBounds(tile_drive) == cab_bounds);
     CHECK(listener.move_call_count == 0);
+}
+
+// Verifies the dragged block can return to its source slot after another preview.
+TEST_CASE("Signal-chain drag preview accepts source slot", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainPanelListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .move_plugins_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("drive", 1),
+                makePlugin("cab", 2),
+            },
+        });
+
+    auto& tile_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    auto& tile_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& slot_amp = findRequiredDescendant<juce::Component>(panel, "insert_slot_0");
+    auto& slot_cab = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
+    const juce::Rectangle<int> amp_bounds = tile_amp.getBounds();
+    const juce::Rectangle<int> drive_bounds = tile_drive.getBounds();
+    const juce::Rectangle<int> cab_bounds = tile_cab.getBounds();
+    auto* const amp_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_amp);
+    auto* const source_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_cab);
+    REQUIRE(amp_target != nullptr);
+    REQUIRE(source_target != nullptr);
+
+    const juce::DragAndDropTarget::SourceDetails amp_details{
+        juce::var{pluginDragPayload(2, "cab")},
+        &tile_cab,
+        juce::Point<int>{2, 8},
+    };
+
+    CHECK(amp_target->isInterestedInDragSource(amp_details));
+    amp_target->itemDragEnter(amp_details);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
+
+    const juce::DragAndDropTarget::SourceDetails source_details{
+        juce::var{pluginDragPayload(2, "cab")},
+        &tile_cab,
+        juce::Point<int>{8, 8},
+    };
+
+    CHECK(source_target->isInterestedInDragSource(source_details));
+    source_target->itemDragEnter(source_details);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+
+    source_target->itemDropped(source_details);
+    CHECK(listener.move_call_count == 0);
+    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
+    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
 }
 
 // Verifies a valid drop does not snap the preview back before controller state arrives.
