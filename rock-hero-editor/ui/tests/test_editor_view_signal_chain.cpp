@@ -49,8 +49,8 @@ constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
     return plugins;
 }
 
-// Minimal panel listener used by direct SignalChainPanel layout tests.
-class RecordingSignalChainPanelListener final : public SignalChainPanel::Listener
+// Minimal signal-chain view listener used by direct panel layout tests.
+class RecordingSignalChainViewListener final : public SignalChainView::Listener
 {
 public:
     void onInsertPluginPressed(std::size_t chain_index) override
@@ -313,7 +313,7 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
 TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -348,7 +348,7 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
 TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -427,7 +427,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
     {
-        RecordingSignalChainPanelListener listener;
+        RecordingSignalChainViewListener listener;
         SignalChainPanel panel{listener};
         panel.setBounds(0, 0, 720, 220);
         panel.setState(
@@ -450,7 +450,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
     }
 
     {
-        RecordingSignalChainPanelListener listener;
+        RecordingSignalChainViewListener listener;
         SignalChainPanel panel{listener};
         panel.setBounds(0, 0, 720, 220);
         panel.setState(
@@ -474,7 +474,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
     }
 
     {
-        RecordingSignalChainPanelListener listener;
+        RecordingSignalChainViewListener listener;
         SignalChainPanel panel{listener};
         panel.setBounds(0, 0, 720, 220);
         panel.setState(
@@ -498,7 +498,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
     }
 
     {
-        RecordingSignalChainPanelListener listener;
+        RecordingSignalChainViewListener listener;
         SignalChainPanel panel{listener};
         panel.setBounds(0, 0, 720, 220);
         panel.setState(
@@ -531,7 +531,7 @@ TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view
 TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -623,7 +623,7 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
 TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -689,7 +689,7 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
 TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -784,7 +784,7 @@ TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
 TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -831,7 +831,7 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
 TEST_CASE("Signal-chain drag preview accepts source slot", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -892,7 +892,7 @@ TEST_CASE("Signal-chain drag preview accepts source slot", "[ui][editor-view]")
 TEST_CASE("Signal-chain valid drops hold preview until state", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -960,7 +960,7 @@ TEST_CASE("Signal-chain valid drops hold preview until state", "[ui][editor-view
 TEST_CASE("Signal-chain release keeps preview before drop callback", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -1010,7 +1010,7 @@ TEST_CASE("Signal-chain release keeps preview before drop callback", "[ui][edito
 TEST_CASE("Signal-chain drag preview rejects blocked push direction", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -1053,7 +1053,7 @@ TEST_CASE("Signal-chain drag preview rejects blocked push direction", "[ui][edit
 TEST_CASE("Signal-chain drag drops respect move gate", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     panel.setBounds(0, 0, 720, 220);
     panel.setState(
@@ -1117,7 +1117,7 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
 TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    RecordingSignalChainPanelListener listener;
+    RecordingSignalChainViewListener listener;
     SignalChainPanel panel{listener};
     // The center strip width is roughly panel_width - 176 (two side columns plus insets). 320px
     // leaves ~144px of strip, narrower than the append slot and the full content width, so the

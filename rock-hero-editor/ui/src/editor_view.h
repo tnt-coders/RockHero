@@ -63,7 +63,7 @@ class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
                          private TransportControls::Listener,
-                         private SignalChainPanel::Listener,
+                         private SignalChainView::Listener,
                          private PluginBrowserWindow::Listener
 {
 public:
@@ -256,22 +256,22 @@ private:
     // TransportControls::Listener implementation.
     void onStopPressed() override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onInsertPluginPressed(std::size_t chain_index) override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onRemovePluginPressed(std::string instance_id) override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onInputCalibrationPressed() override;
 
-    // SignalChainPanel::Listener implementation.
+    // SignalChainView::Listener implementation.
     void onOutputGainChanged(double gain_db) override;
 
     // PluginBrowserWindow::Listener implementation.

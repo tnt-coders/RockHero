@@ -1,6 +1,6 @@
 /*!
 \file plugin_view_state.h
-\brief Framework-free state for one plugin rendered by the signal-chain panel.
+\brief Framework-free state for one plugin rendered by the signal-chain view.
 */
 
 #pragma once
