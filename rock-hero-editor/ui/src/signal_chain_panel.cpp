@@ -968,6 +968,8 @@ public:
         setComponentID(juce::String{"insert_slot_"} + block_index_text);
         m_button.setComponentID(juce::String{"insert_plugin_button_"} + block_index_text);
         m_button.setButtonText("+");
+        m_button.setWantsKeyboardFocus(false);
+        m_button.setMouseClickGrabsKeyboardFocus(false);
         m_button.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
         m_button.setColour(juce::TextButton::buttonOnColourId, juce::Colours::transparentBlack);
         m_button.setColour(juce::TextButton::textColourOffId, g_insert_slot_placeholder);
@@ -1216,6 +1218,8 @@ public:
             juce::String{"remove_plugin_button_"} + juce::String{m_plugin.instance_id});
         // Keep the remove affordance compact in the tile corner.
         m_remove_button.setButtonText("X");
+        m_remove_button.setWantsKeyboardFocus(false);
+        m_remove_button.setMouseClickGrabsKeyboardFocus(false);
         m_remove_button.onClick = [this] {
             m_listener.onRemovePluginPressed(m_plugin.instance_id);
         };
@@ -1514,6 +1518,8 @@ SignalChainPanel::SignalChainPanel(Listener& listener)
     addAndMakeVisible(m_input_meter);
     m_input_calibrate_button.setComponentID("input_calibrate_button");
     m_input_calibrate_button.setButtonText("Calibrate");
+    m_input_calibrate_button.setWantsKeyboardFocus(false);
+    m_input_calibrate_button.setMouseClickGrabsKeyboardFocus(false);
     m_input_calibrate_button.onClick = [this] { m_listener.onInputCalibrationPressed(); };
     addAndMakeVisible(m_input_calibrate_button);
 
