@@ -525,14 +525,19 @@ enum class PluginIconType
     return destination_index;
 }
 
-// Maps an empty fixed block drop to a visual placement and its implied linear destination.
+// Maps an empty or source-owned fixed block drop to its implied linear destination.
 [[nodiscard]] std::optional<BlockDropIntent> emptyBlockDropIntent(
     std::size_t source_index, std::size_t target_block_index,
     const std::vector<std::size_t>& block_indices, std::size_t block_count)
 {
-    if (source_index >= block_indices.size() || target_block_index >= block_count ||
-        block_indices[source_index] == target_block_index ||
-        pluginIndexAtBlock(block_indices, target_block_index).has_value())
+    if (source_index >= block_indices.size() || target_block_index >= block_count)
+    {
+        return std::nullopt;
+    }
+
+    const std::optional<std::size_t> target_plugin =
+        pluginIndexAtBlock(block_indices, target_block_index);
+    if (target_plugin.has_value() && *target_plugin != source_index)
     {
         return std::nullopt;
     }
