@@ -3,6 +3,7 @@
 #include <expected>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <string>
 #include <vector>
@@ -141,6 +142,35 @@ TEST_CASE("IPluginHost rejects invalid insert positions", "[audio][plugin-host]"
     REQUIRE_FALSE(snapshot.has_value());
     CHECK(snapshot.error().code == PluginHostErrorCode::InvalidChainIndex);
     CHECK(plugin_host.chain.empty());
+}
+
+// Verifies the hosted chain rejects insertions once the product plugin cap is reached.
+TEST_CASE("IPluginHost rejects inserts at plugin limit", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    for (std::size_t index = 0; index < max_signal_chain_plugins; ++index)
+    {
+        plugin_host.chain.push_back(
+            PluginChainEntry{
+                .instance_id = "instance-" + std::to_string(index),
+                .plugin_id = "plugin-" + std::to_string(index),
+                .name = "Plugin " + std::to_string(index),
+                .chain_index = index,
+            });
+    }
+    const PluginCandidate selected_candidate{
+        .id = "vst3:extra",
+        .name = "Extra",
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = {},
+    };
+
+    const auto snapshot = plugin_host.insertPlugin(selected_candidate, max_signal_chain_plugins);
+
+    REQUIRE_FALSE(snapshot.has_value());
+    CHECK(snapshot.error().code == PluginHostErrorCode::PluginChainLimitExceeded);
+    CHECK(plugin_host.chain.size() == max_signal_chain_plugins);
 }
 
 // Verifies loaded plugin instances can move up, down, and no-op in the visible chain.

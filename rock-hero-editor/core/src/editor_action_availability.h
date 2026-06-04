@@ -46,6 +46,9 @@ struct ActionConditions
     /*! \brief True when the plugin catalog has candidates that can be inserted. */
     bool has_plugin_candidates{false};
 
+    /*! \brief True when the current signal chain can accept another user plugin. */
+    bool has_plugin_insert_capacity{false};
+
     /*! \brief True when the live rig has loaded plugin instances. */
     bool has_loaded_plugins{false};
 };
