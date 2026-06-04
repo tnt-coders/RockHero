@@ -11,8 +11,8 @@ doing them now would be premature: they are either gated on a prerequisite that 
 or they touch modules outside the current editor focus, or they should only happen after the
 extracted shape has proven itself.
 
-The former `SignalChainWorkflow` item has moved into active scope as
-`docs/in-progress/signal-chain-plugin-editing-plan.md`.
+The former `SignalChainWorkflow` item was completed as part of
+`docs/completed/signal-chain-plugin-editing-plan.md`.
 
 Shared principles and the role vocabulary live in
 `docs/completed/editor-runtime-extraction-plan.md`; this document does not repeat them.

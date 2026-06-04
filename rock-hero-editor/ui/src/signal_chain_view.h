@@ -171,6 +171,11 @@ private:
     void movePluginToBlockLocation(
         std::string instance_id, std::size_t source_index, std::size_t destination_index);
 
+    // Completes a tile drop, falling back to the last valid preview when no target resolved.
+    void completePluginDrop(
+        const juce::var& drag_description, std::optional<std::size_t> destination_index,
+        std::vector<std::size_t> block_indices);
+
     // Applies a transient drag preview and relayouts tiles into their preview positions.
     void previewPluginMove(
         std::size_t source_index, std::size_t destination_index,
