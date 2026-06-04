@@ -72,6 +72,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
+    auto& signal_chain_view = findRequiredDescendant<SignalChainView>(view, "signal_chain_view");
     constexpr int save_command{3};
     constexpr int close_command{5};
     constexpr int exit_command{6};
@@ -93,6 +94,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK_FALSE(arrangement_view.isVisible());
     CHECK_FALSE(cursor_overlay.isVisible());
     CHECK(signal_chain_panel.isVisible());
+    CHECK(signal_chain_view.isVisible());
     CHECK(findDescendant(view, "add_plugin_button") == nullptr);
     CHECK(transport.position_read_count == 0);
 
