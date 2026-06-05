@@ -92,27 +92,6 @@ void applyPlacement(
     }
 }
 
-// Compares stable runtime plugin IDs so display-name updates do not look structural.
-[[nodiscard]] bool hasSamePluginOrder(
-    const std::vector<PluginViewState>& previous_plugins,
-    const std::vector<PluginViewState>& next_plugins)
-{
-    if (previous_plugins.size() != next_plugins.size())
-    {
-        return false;
-    }
-
-    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
-    {
-        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 // Recognizes a pure deletion snapshot and preserves exact authored blocks for survivors. This
 // runs before accepting snapshot block indices because runtime mutation snapshots may carry the
 // backend's default zero/compact values rather than the editor-authored placement.

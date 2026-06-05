@@ -7,31 +7,11 @@
 namespace rock_hero::editor::ui
 {
 
+using core::hasSamePluginOrder;
 using core::SignalChainBlockPlacement;
 
 namespace
 {
-
-// Compares stable plugin IDs so label or manufacturer updates do not collapse visual gaps.
-[[nodiscard]] bool hasSamePluginOrder(
-    const std::vector<core::PluginViewState>& previous_plugins,
-    const std::vector<core::PluginViewState>& next_plugins)
-{
-    if (previous_plugins.size() != next_plugins.size())
-    {
-        return false;
-    }
-
-    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
-    {
-        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
 
 // Builds a placement from the authored block indices the controller attached to each plugin, when
 // they form a valid layout. This is how a saved gap arrangement (carried on a project load) is
