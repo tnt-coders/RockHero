@@ -43,6 +43,17 @@ public:
     /*! \brief Starts a browser-backed append at the current chain end. */
     void requestAppend();
 
+    /*!
+    \brief Records the visual block a pending browser insert should occupy.
+
+    Set after requestInsertAt for a specific-slot insert; the next insertion snapshot places the
+    new plugin at this block while surviving plugins keep their authored blocks. Empty means no
+    chosen block (an append), so the snapshot falls back to its default placement.
+
+    \param block_index Fixed visual block for the pending insert, or empty for an append.
+    */
+    void setPendingInsertBlock(std::optional<std::size_t> block_index) noexcept;
+
     /*! \brief Clears any pending browser insertion target. */
     void clearPendingInsertion() noexcept;
 
@@ -96,6 +107,8 @@ public:
 private:
     std::vector<PluginViewState> m_plugins;
     std::optional<std::size_t> m_pending_insertion_index;
+    // Visual block a pending specific-slot insert should occupy; empty for an append.
+    std::optional<std::size_t> m_pending_insert_block;
 };
 
 } // namespace rock_hero::editor::core
