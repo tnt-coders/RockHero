@@ -73,32 +73,6 @@ struct DraggedPlugin
     std::size_t source_index{};
 };
 
-enum class BlockDropDirection
-{
-    PushLeft,
-    PushRight,
-};
-
-struct BlockDropIntent
-{
-    std::size_t destination_index{};
-    std::vector<std::size_t> block_indices;
-};
-
-// Splits an optional block-placement intent into the shape the view's drop finalizer consumes.
-[[nodiscard]] std::pair<std::optional<std::size_t>, std::vector<std::size_t>> dropPlacementParts(
-    std::optional<BlockDropIntent> intent)
-{
-    if (!intent.has_value())
-    {
-        return {std::nullopt, std::vector<std::size_t>{}};
-    }
-
-    return {
-        std::optional<std::size_t>{intent->destination_index}, std::move(intent->block_indices)
-    };
-}
-
 enum class PluginIconType
 {
     Generic,
@@ -115,7 +89,8 @@ enum class PluginIconType
     Wah,
 };
 
-// Returns the number of fixed block positions the path surface should reserve.
+// Returns the number of fixed block positions the path surface should reserve. SignalChainBlockLayout
+// applies the same minimum so its block count and this geometry helper always agree.
 [[nodiscard]] std::size_t visualBlockCount(std::size_t plugin_count) noexcept
 {
     return std::max(g_signal_path_min_block_count, plugin_count);
@@ -323,387 +298,6 @@ enum class PluginIconType
         .instance_id = instance_id.toStdString(),
         .source_index = static_cast<std::size_t>(source_index_text.getIntValue()),
     };
-}
-
-// Returns the direction the occupied target should move to make room for the dragged block.
-[[nodiscard]] BlockDropDirection blockDropDirectionForLocalX(int local_x, int width) noexcept
-{
-    return local_x >= width / 2 ? BlockDropDirection::PushLeft : BlockDropDirection::PushRight;
-}
-
-// Finds the plugin currently assigned to a fixed visual block, if any.
-[[nodiscard]] std::optional<std::size_t> pluginIndexAtBlock(
-    const std::vector<std::size_t>& block_indices, std::size_t block_index) noexcept
-{
-    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
-    {
-        if (block_indices[plugin_index] == block_index)
-        {
-            return plugin_index;
-        }
-    }
-
-    return std::nullopt;
-}
-
-// Reports whether every plugin has one unique fixed block assignment inside the visual range.
-[[nodiscard]] bool validBlockIndices(
-    const std::vector<std::size_t>& block_indices, std::size_t plugin_count,
-    std::size_t block_count)
-{
-    if (block_indices.size() != plugin_count)
-    {
-        return false;
-    }
-
-    std::vector<bool> used_blocks(block_count, false);
-    for (const std::size_t block_index : block_indices)
-    {
-        if (block_index >= block_count || used_blocks[block_index])
-        {
-            return false;
-        }
-
-        used_blocks[block_index] = true;
-    }
-
-    return true;
-}
-
-// Builds the default compact visual placement for a controller-provided linear plugin order.
-[[nodiscard]] std::vector<std::size_t> compactPluginBlockIndices(std::size_t plugin_count)
-{
-    std::vector<std::size_t> block_indices;
-    block_indices.reserve(plugin_count);
-    for (std::size_t index = 0; index < plugin_count; ++index)
-    {
-        block_indices.push_back(index);
-    }
-
-    return block_indices;
-}
-
-// Compares plugin identity order while ignoring non-identity state updates.
-[[nodiscard]] bool samePluginOrder(
-    const std::vector<core::PluginViewState>& previous_plugins,
-    const std::vector<core::PluginViewState>& next_plugins)
-{
-    if (previous_plugins.size() != next_plugins.size())
-    {
-        return false;
-    }
-
-    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
-    {
-        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
-        {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-// Preserves visual block gaps across state refreshes that did not reorder the plugin chain.
-[[nodiscard]] std::vector<std::size_t> reconciledPluginBlockIndices(
-    const std::vector<core::PluginViewState>& previous_plugins,
-    const std::vector<std::size_t>& previous_block_indices,
-    const std::vector<core::PluginViewState>& next_plugins)
-{
-    const std::size_t block_count = visualBlockCount(next_plugins.size());
-    if (samePluginOrder(previous_plugins, next_plugins) &&
-        validBlockIndices(previous_block_indices, next_plugins.size(), block_count))
-    {
-        return previous_block_indices;
-    }
-
-    return compactPluginBlockIndices(next_plugins.size());
-}
-
-// Maps one pending insert onto the clicked fixed block while preserving existing gaps.
-[[nodiscard]] std::optional<std::vector<std::size_t>> pendingInsertBlockIndicesForState(
-    const std::vector<core::PluginViewState>& previous_plugins,
-    const std::vector<std::size_t>& previous_block_indices,
-    const std::vector<core::PluginViewState>& next_plugins, std::size_t insert_chain_index,
-    std::size_t insert_block_index)
-{
-    const std::size_t previous_plugin_count = previous_plugins.size();
-    const std::size_t next_plugin_count = next_plugins.size();
-    const std::size_t block_count = visualBlockCount(next_plugin_count);
-    if (next_plugin_count != previous_plugin_count + 1 ||
-        insert_chain_index > previous_plugin_count || insert_block_index >= block_count ||
-        !validBlockIndices(previous_block_indices, previous_plugin_count, block_count) ||
-        pluginIndexAtBlock(previous_block_indices, insert_block_index).has_value())
-    {
-        return std::nullopt;
-    }
-
-    std::vector<std::size_t> next_block_indices;
-    next_block_indices.reserve(next_plugin_count);
-    for (std::size_t next_index = 0; next_index < next_plugin_count; ++next_index)
-    {
-        if (next_index == insert_chain_index)
-        {
-            next_block_indices.push_back(insert_block_index);
-            continue;
-        }
-
-        const std::size_t previous_index =
-            next_index < insert_chain_index ? next_index : next_index - 1;
-        if (next_plugins[next_index].instance_id != previous_plugins[previous_index].instance_id)
-        {
-            return std::nullopt;
-        }
-
-        next_block_indices.push_back(previous_block_indices[previous_index]);
-    }
-
-    if (!validBlockIndices(next_block_indices, next_plugin_count, block_count))
-    {
-        return std::nullopt;
-    }
-
-    return next_block_indices;
-}
-
-// Maps a committed preview onto the next controller state only when the order matches the drop.
-[[nodiscard]] std::optional<std::vector<std::size_t>> committedPreviewBlockIndicesForState(
-    const std::vector<std::size_t>& preview_block_indices,
-    const std::vector<core::PluginViewState>& previous_plugins,
-    const std::vector<core::PluginViewState>& next_plugins)
-{
-    const std::size_t plugin_count = previous_plugins.size();
-    if (plugin_count != next_plugins.size() ||
-        !validBlockIndices(preview_block_indices, plugin_count, visualBlockCount(plugin_count)))
-    {
-        return std::nullopt;
-    }
-
-    std::vector<std::size_t> preview_order;
-    preview_order.reserve(plugin_count);
-    for (std::size_t index = 0; index < plugin_count; ++index)
-    {
-        preview_order.push_back(index);
-    }
-
-    std::ranges::sort(preview_order, [&preview_block_indices](std::size_t lhs, std::size_t rhs) {
-        return preview_block_indices[lhs] == preview_block_indices[rhs]
-                   ? lhs < rhs
-                   : preview_block_indices[lhs] < preview_block_indices[rhs];
-    });
-
-    std::vector<std::size_t> next_block_indices(plugin_count);
-    for (std::size_t next_index = 0; next_index < plugin_count; ++next_index)
-    {
-        const std::size_t previous_index = preview_order[next_index];
-        if (next_plugins[next_index].instance_id != previous_plugins[previous_index].instance_id)
-        {
-            return std::nullopt;
-        }
-
-        next_block_indices[next_index] = preview_block_indices[previous_index];
-    }
-
-    return next_block_indices;
-}
-
-// Converts an empty visual block to the linear insertion index implied by left-to-right order.
-[[nodiscard]] std::size_t chainIndexForBlockInsertion(
-    const std::vector<std::size_t>& block_indices, std::size_t target_block_index) noexcept
-{
-    std::size_t chain_index = 0;
-    for (const std::size_t block_index : block_indices)
-    {
-        if (block_index < target_block_index)
-        {
-            ++chain_index;
-        }
-    }
-
-    return chain_index;
-}
-
-// Computes the moved plugin's final linear index from a proposed fixed-block placement.
-[[nodiscard]] std::size_t destinationIndexForBlockIndices(
-    const std::vector<std::size_t>& block_indices, std::size_t source_index) noexcept
-{
-    const std::size_t source_block_index = block_indices[source_index];
-    std::size_t destination_index = 0;
-    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
-    {
-        if (plugin_index != source_index && block_indices[plugin_index] < source_block_index)
-        {
-            ++destination_index;
-        }
-    }
-
-    return destination_index;
-}
-
-// Maps an empty or source-owned fixed block drop to its implied linear destination.
-[[nodiscard]] std::optional<BlockDropIntent> emptyBlockDropIntent(
-    std::size_t source_index, std::size_t target_block_index,
-    const std::vector<std::size_t>& block_indices, std::size_t block_count)
-{
-    if (source_index >= block_indices.size() || target_block_index >= block_count)
-    {
-        return std::nullopt;
-    }
-
-    const std::optional<std::size_t> target_plugin =
-        pluginIndexAtBlock(block_indices, target_block_index);
-    if (target_plugin.has_value() && *target_plugin != source_index)
-    {
-        return std::nullopt;
-    }
-
-    std::vector<std::size_t> next_block_indices = block_indices;
-    next_block_indices[source_index] = target_block_index;
-    return BlockDropIntent{
-        .destination_index = destinationIndexForBlockIndices(next_block_indices, source_index),
-        .block_indices = std::move(next_block_indices),
-    };
-}
-
-// Maps an occupied fixed block drop to a placement by pushing blocks toward the nearest gap.
-[[nodiscard]] std::optional<BlockDropIntent> occupiedBlockDropIntent(
-    std::size_t source_index, std::size_t target_block_index, BlockDropDirection direction,
-    const std::vector<std::size_t>& block_indices, std::size_t block_count)
-{
-    if (source_index >= block_indices.size() || target_block_index >= block_count ||
-        block_indices[source_index] == target_block_index ||
-        !validBlockIndices(block_indices, block_indices.size(), block_count))
-    {
-        return std::nullopt;
-    }
-
-    std::vector<std::optional<std::size_t>> plugin_at_block(block_count);
-    for (std::size_t plugin_index = 0; plugin_index < block_indices.size(); ++plugin_index)
-    {
-        if (plugin_index == source_index)
-        {
-            continue;
-        }
-
-        plugin_at_block[block_indices[plugin_index]] = plugin_index;
-    }
-
-    if (!plugin_at_block[target_block_index].has_value())
-    {
-        return std::nullopt;
-    }
-
-    std::size_t empty_block_index = target_block_index;
-    while (plugin_at_block[empty_block_index].has_value())
-    {
-        if (direction == BlockDropDirection::PushLeft)
-        {
-            if (empty_block_index == 0)
-            {
-                return std::nullopt;
-            }
-
-            --empty_block_index;
-        }
-        else
-        {
-            if (empty_block_index + 1 >= block_count)
-            {
-                return std::nullopt;
-            }
-
-            ++empty_block_index;
-        }
-    }
-
-    std::vector<std::size_t> next_block_indices = block_indices;
-    if (direction == BlockDropDirection::PushLeft)
-    {
-        for (std::size_t block_index = empty_block_index; block_index < target_block_index;
-             ++block_index)
-        {
-            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block_index + 1];
-            if (!shifted_plugin.has_value())
-            {
-                return std::nullopt;
-            }
-
-            next_block_indices[*shifted_plugin] = block_index;
-        }
-    }
-    else
-    {
-        for (std::size_t block_index = empty_block_index; block_index > target_block_index;
-             --block_index)
-        {
-            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block_index - 1];
-            if (!shifted_plugin.has_value())
-            {
-                return std::nullopt;
-            }
-
-            next_block_indices[*shifted_plugin] = block_index;
-        }
-    }
-
-    next_block_indices[source_index] = target_block_index;
-    if (!validBlockIndices(next_block_indices, block_indices.size(), block_count))
-    {
-        return std::nullopt;
-    }
-
-    return BlockDropIntent{
-        .destination_index = destinationIndexForBlockIndices(next_block_indices, source_index),
-        .block_indices = std::move(next_block_indices),
-    };
-}
-
-// Resolves the hovered fixed block and latched entry side into a visual drop placement.
-[[nodiscard]] std::optional<BlockDropIntent> blockDropIntent(
-    std::size_t source_index, std::size_t target_block_index, BlockDropDirection direction,
-    const std::vector<std::size_t>& block_indices, std::size_t block_count)
-{
-    const std::optional<std::size_t> target_plugin =
-        pluginIndexAtBlock(block_indices, target_block_index);
-    if (target_plugin.has_value() && *target_plugin != source_index)
-    {
-        return occupiedBlockDropIntent(
-            source_index, target_block_index, direction, block_indices, block_count);
-    }
-
-    return emptyBlockDropIntent(source_index, target_block_index, block_indices, block_count);
-}
-
-// Reports whether a fixed cell has any valid side or empty-space drop for this dragged plugin.
-[[nodiscard]] bool canBlockReceiveDrop(
-    std::size_t source_index, std::size_t target_block_index,
-    const std::vector<std::size_t>& block_indices, std::size_t block_count)
-{
-    if (source_index >= block_indices.size() || target_block_index >= block_count)
-    {
-        return false;
-    }
-
-    if (emptyBlockDropIntent(source_index, target_block_index, block_indices, block_count)
-            .has_value())
-    {
-        return true;
-    }
-
-    return occupiedBlockDropIntent(
-               source_index,
-               target_block_index,
-               BlockDropDirection::PushLeft,
-               block_indices,
-               block_count)
-               .has_value() ||
-           occupiedBlockDropIntent(
-               source_index,
-               target_block_index,
-               BlockDropDirection::PushRight,
-               block_indices,
-               block_count)
-               .has_value();
 }
 
 // Builds the plugin name shown below the block.
@@ -1025,18 +619,14 @@ public:
             return false;
         }
 
-        return canBlockReceiveDrop(
-            plugin->source_index,
-            m_block_index,
-            m_view.m_plugin_block_indices,
-            visualBlockCount(m_view.m_state.plugins.size()));
+        return m_view.m_block_layout.canReceiveDrop(plugin->source_index, m_block_index);
     }
 
     // Shows the preview for dropping onto this fixed block location.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        m_drag_entry_direction =
-            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth());
+        m_drag_entry_direction = SignalChainBlockLayout::pushDirectionForLocalX(
+            drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
@@ -1067,11 +657,9 @@ public:
             return;
         }
 
-        auto [destination_index, block_indices] =
-            dropPlacementParts(dropIntent(drag_source_details));
+        std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
         m_drag_entry_direction.reset();
-        m_view.completePluginDrop(
-            drag_source_details.description, destination_index, std::move(block_indices));
+        m_view.completePluginDrop(drag_source_details.description, std::move(intent));
     }
 
     // Keeps fixed cells above moving tiles during drags without blocking normal tile clicks.
@@ -1126,7 +714,7 @@ private:
     }
 
     // Resolves this fixed cell plus the latched entry side into a concrete drop intent.
-    [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
+    [[nodiscard]] std::optional<SignalChainBlockLayout::DropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
         if (!m_drop_enabled)
@@ -1141,14 +729,10 @@ private:
             return std::nullopt;
         }
 
-        const BlockDropDirection direction = m_drag_entry_direction.value_or(
-            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth()));
-        return blockDropIntent(
-            plugin->source_index,
-            m_block_index,
-            direction,
-            m_view.m_plugin_block_indices,
-            visualBlockCount(m_view.m_state.plugins.size()));
+        const BlockPushDirection direction = m_drag_entry_direction.value_or(
+            SignalChainBlockLayout::pushDirectionForLocalX(
+                drag_source_details.localPosition.x, getWidth()));
+        return m_view.m_block_layout.dropIntent(plugin->source_index, m_block_index, direction);
     }
 
     // Applies drag feedback for this fixed cell when it represents a valid move.
@@ -1156,7 +740,7 @@ private:
     {
         const std::optional<DraggedPlugin> plugin =
             parsePluginDragDescription(drag_source_details.description);
-        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
         if (!plugin.has_value() || !intent.has_value())
         {
             m_is_drag_hovered = false;
@@ -1166,8 +750,7 @@ private:
         }
 
         m_is_drag_hovered = true;
-        m_view.previewPluginMove(
-            plugin->source_index, intent->destination_index, intent->block_indices);
+        m_view.previewPluginMove(plugin->source_index, std::move(*intent));
         repaint();
     }
 
@@ -1187,7 +770,7 @@ private:
     bool m_is_drag_hovered{false};
 
     // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<BlockDropDirection> m_drag_entry_direction;
+    std::optional<BlockPushDirection> m_drag_entry_direction;
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
@@ -1333,8 +916,8 @@ public:
     // Starts a visual reorder preview as the dragged tile enters this occupied block.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        m_drag_entry_direction =
-            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth());
+        m_drag_entry_direction = SignalChainBlockLayout::pushDirectionForLocalX(
+            drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
@@ -1353,11 +936,9 @@ public:
     // Emits a move intent using the same final-index contract as the existing controller path.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        auto [destination_index, block_indices] =
-            dropPlacementParts(dropIntent(drag_source_details));
+        std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
         m_drag_entry_direction.reset();
-        m_view.completePluginDrop(
-            drag_source_details.description, destination_index, std::move(block_indices));
+        m_view.completePluginDrop(drag_source_details.description, std::move(intent));
     }
 
     // Highlights the tile and reveals its remove "X" while the pointer is over it.
@@ -1374,7 +955,7 @@ public:
 
 private:
     // Resolves the entry side of this block to a final visual placement.
-    [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
+    [[nodiscard]] std::optional<SignalChainBlockLayout::DropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
         if (!m_move_enabled)
@@ -1389,19 +970,18 @@ private:
             return std::nullopt;
         }
 
-        if (m_plugin.chain_index >= m_view.m_plugin_block_indices.size())
+        const std::optional<std::size_t> target_block_index =
+            m_view.m_block_layout.blockForPlugin(m_plugin.chain_index);
+        if (!target_block_index.has_value())
         {
             return std::nullopt;
         }
 
-        const BlockDropDirection direction = m_drag_entry_direction.value_or(
-            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth()));
-        return blockDropIntent(
-            plugin->source_index,
-            m_view.m_plugin_block_indices[m_plugin.chain_index],
-            direction,
-            m_view.m_plugin_block_indices,
-            visualBlockCount(m_plugin_count));
+        const BlockPushDirection direction = m_drag_entry_direction.value_or(
+            SignalChainBlockLayout::pushDirectionForLocalX(
+                drag_source_details.localPosition.x, getWidth()));
+        return m_view.m_block_layout.dropIntent(
+            plugin->source_index, *target_block_index, direction);
     }
 
     // Applies transient layout so the chain previews where the dragged block would land.
@@ -1414,15 +994,14 @@ private:
             return;
         }
 
-        const std::optional<BlockDropIntent> intent = dropIntent(drag_source_details);
+        std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
         if (!intent.has_value())
         {
             // Keep the last valid preview while the pointer crosses a blocked side.
             return;
         }
 
-        m_view.previewPluginMove(
-            plugin->source_index, intent->destination_index, intent->block_indices);
+        m_view.previewPluginMove(plugin->source_index, std::move(*intent));
     }
 
     // Keeps the block highlight and remove affordance alive while either the tile or the child
@@ -1466,7 +1045,7 @@ private:
     bool m_drag_started{false};
 
     // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<BlockDropDirection> m_drag_entry_direction;
+    std::optional<BlockPushDirection> m_drag_entry_direction;
 };
 
 // Configures a vertical gain slider with the shared gain range and dB suffix.
@@ -1489,6 +1068,7 @@ SignalChainView::SignalChainView(Listener& listener)
     , m_output_gain_slider_look_and_feel(std::make_unique<OutputGainSliderLookAndFeel>())
     , m_output_meter(AudioLevelMeterOrientation::Vertical)
     , m_chain_content(std::make_unique<SignalPathContent>())
+    , m_block_layout(g_signal_path_min_block_count)
 {
     setComponentID("signal_chain_view");
 
@@ -1541,63 +1121,13 @@ SignalChainView::~SignalChainView()
 // Stores the render state and updates controls whose enabledness is derived outside the view.
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
-    std::vector<std::size_t> next_block_indices =
-        reconciledPluginBlockIndices(m_state.plugins, m_plugin_block_indices, state.plugins);
-    bool keep_committed_preview = false;
-    if (m_pending_insert.has_value())
-    {
-        std::optional<std::vector<std::size_t>> inserted_block_indices =
-            pendingInsertBlockIndicesForState(
-                m_state.plugins,
-                m_plugin_block_indices,
-                state.plugins,
-                m_pending_insert->chain_index,
-                m_pending_insert->block_index);
-        if (inserted_block_indices.has_value())
-        {
-            next_block_indices = std::move(*inserted_block_indices);
-            m_pending_insert.reset();
-        }
-        else if (!samePluginOrder(m_state.plugins, state.plugins))
-        {
-            m_pending_insert.reset();
-        }
-    }
-
-    if (m_drag_preview_committed && m_drag_preview.has_value())
-    {
-        std::optional<std::vector<std::size_t>> committed_block_indices =
-            committedPreviewBlockIndicesForState(
-                m_drag_preview->block_indices, m_state.plugins, state.plugins);
-        if (committed_block_indices.has_value())
-        {
-            next_block_indices = std::move(*committed_block_indices);
-        }
-        else if (
-            samePluginOrder(m_state.plugins, state.plugins) &&
-            validBlockIndices(
-                m_drag_preview->block_indices,
-                state.plugins.size(),
-                visualBlockCount(state.plugins.size()))
-        )
-        {
-            next_block_indices = m_drag_preview->block_indices;
-            keep_committed_preview = true;
-        }
-    }
-
+    m_block_layout.applyPlugins(state.plugins);
     m_state = state;
-    m_plugin_block_indices = std::move(next_block_indices);
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
     m_chain_content->setPluginCount(m_state.plugins.size());
-    if (!keep_committed_preview)
-    {
-        m_drag_preview.reset();
-        m_drag_preview_committed = false;
-    }
     rebuildPluginTiles();
     resized();
     repaint();
@@ -1710,9 +1240,8 @@ void SignalChainView::resized()
 void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
 {
     const auto path_area = signalPathArea(m_chain_content->getLocalBounds());
-    const std::size_t block_count = visualBlockCount(m_plugin_tiles.size());
-    const std::vector<std::size_t>& active_block_indices =
-        m_drag_preview.has_value() ? m_drag_preview->block_indices : m_plugin_block_indices;
+    const std::size_t block_count = m_block_layout.blockCount();
+    const BlockPlacement& active_placement = m_block_layout.activePlacement();
     auto& animator = juce::Desktop::getInstance().getAnimator();
     const bool has_free_block = m_state.plugins.size() < block_count;
 
@@ -1725,7 +1254,7 @@ void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
         }
 
         slot->setVisible(true);
-        const bool is_empty = !pluginIndexAtBlock(active_block_indices, index).has_value();
+        const bool is_empty = !active_placement.pluginAtBlock(index).has_value();
         slot->setEditingEnabled(
             is_empty,
             m_state.insert_plugin_enabled && has_free_block && is_empty,
@@ -1743,9 +1272,10 @@ void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
 
         tile->setVisible(true);
         std::size_t block_index = index;
-        if (index < active_block_indices.size() && active_block_indices[index] < block_count)
+        if (const std::optional<std::size_t> placed_block = active_placement.blockForPlugin(index);
+            placed_block.has_value() && *placed_block < block_count)
         {
-            block_index = active_block_indices[index];
+            block_index = *placed_block;
         }
 
         const juce::Rectangle<int> target_bounds =
@@ -1776,20 +1306,16 @@ void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
 // Converts an empty fixed block location into the matching linear insertion index.
 void SignalChainView::insertPluginAtBlockLocation(std::size_t block_index)
 {
-    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
-    if (!m_state.insert_plugin_enabled || block_index >= block_count ||
-        pluginIndexAtBlock(m_plugin_block_indices, block_index).has_value())
+    if (!m_state.insert_plugin_enabled)
     {
         return;
     }
 
-    const std::size_t chain_index =
-        chainIndexForBlockInsertion(m_plugin_block_indices, block_index);
-    m_pending_insert = PendingInsert{
-        .chain_index = chain_index,
-        .block_index = block_index,
-    };
-    m_listener.onInsertPluginPressed(chain_index);
+    std::optional<std::size_t> chain_index = m_block_layout.beginInsertAtBlock(block_index);
+    if (chain_index.has_value())
+    {
+        m_listener.onInsertPluginPressed(*chain_index);
+    }
 }
 
 // Converts a tile drop on a fixed block location into the existing move-plugin intent.
@@ -1812,8 +1338,7 @@ void SignalChainView::movePluginToBlockLocation(
 
 // Centralizes drop finalization so every target preserves preview and no-op placement behavior.
 void SignalChainView::completePluginDrop(
-    const juce::var& drag_description, std::optional<std::size_t> destination_index,
-    std::vector<std::size_t> block_indices)
+    const juce::var& drag_description, std::optional<SignalChainBlockLayout::DropIntent> intent)
 {
     std::optional<DraggedPlugin> plugin = parsePluginDragDescription(drag_description);
     if (!plugin.has_value())
@@ -1822,101 +1347,32 @@ void SignalChainView::completePluginDrop(
         return;
     }
 
-    if (!destination_index.has_value())
+    const SignalChainBlockLayout::DropCompletion completion =
+        m_block_layout.completeDrop(plugin->source_index, std::move(intent));
+    if (completion.layout_changed)
     {
-        if (!dropCurrentPluginMovePreview(std::move(plugin->instance_id), plugin->source_index))
-        {
-            clearPluginMovePreview();
-        }
-        return;
+        layoutSignalPathContent(TileLayoutMotion::Animated);
+        m_chain_content->repaint();
     }
 
-    previewPluginMove(plugin->source_index, *destination_index, block_indices);
-    if (*destination_index == plugin->source_index)
+    if (completion.move_destination_index.has_value())
     {
-        applyPluginBlockIndices(std::move(block_indices));
-        return;
+        movePluginToBlockLocation(
+            std::move(plugin->instance_id),
+            plugin->source_index,
+            *completion.move_destination_index);
     }
-
-    commitPluginMovePreview();
-    movePluginToBlockLocation(
-        std::move(plugin->instance_id), plugin->source_index, *destination_index);
 }
 
 // Stores a drag-hover preview and relayouts the chain if the preview target changed.
 void SignalChainView::previewPluginMove(
-    std::size_t source_index, std::size_t destination_index, std::vector<std::size_t> block_indices)
+    std::size_t source_index, SignalChainBlockLayout::DropIntent intent)
 {
-    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
-    if (source_index >= m_state.plugins.size() || destination_index >= m_state.plugins.size() ||
-        !validBlockIndices(block_indices, m_state.plugins.size(), block_count))
-    {
-        clearPluginMovePreview();
-        return;
-    }
-
-    const DragPreview next_preview{
-        .source_index = source_index,
-        .destination_index = destination_index,
-        .block_indices = std::move(block_indices),
-    };
-    if (m_drag_preview.has_value() && m_drag_preview->source_index == next_preview.source_index &&
-        m_drag_preview->destination_index == next_preview.destination_index &&
-        m_drag_preview->block_indices == next_preview.block_indices)
+    if (!m_block_layout.previewMove(source_index, std::move(intent)))
     {
         return;
     }
 
-    m_drag_preview = next_preview;
-    m_drag_preview_committed = false;
-    layoutSignalPathContent(TileLayoutMotion::Animated);
-    m_chain_content->repaint();
-}
-
-// Commits the current preview so release and same-order refreshes keep the fixed-slot layout.
-void SignalChainView::commitPluginMovePreview()
-{
-    if (m_drag_preview.has_value())
-    {
-        m_plugin_block_indices = m_drag_preview->block_indices;
-        m_drag_preview_committed = true;
-    }
-}
-
-// Applies the current preview when release lands on a side that cannot produce a new preview.
-bool SignalChainView::dropCurrentPluginMovePreview(
-    std::string instance_id, std::size_t source_index)
-{
-    if (!m_drag_preview.has_value() || m_drag_preview->source_index != source_index)
-    {
-        return false;
-    }
-
-    const DragPreview preview = *m_drag_preview;
-    if (preview.destination_index == source_index)
-    {
-        applyPluginBlockIndices(preview.block_indices);
-        return true;
-    }
-
-    commitPluginMovePreview();
-    movePluginToBlockLocation(std::move(instance_id), source_index, preview.destination_index);
-    return true;
-}
-
-// Applies a fixed-slot placement that leaves the plugin chain's linear order unchanged.
-void SignalChainView::applyPluginBlockIndices(std::vector<std::size_t> block_indices)
-{
-    if (!validBlockIndices(
-            block_indices, m_state.plugins.size(), visualBlockCount(m_state.plugins.size())))
-    {
-        clearPluginMovePreview();
-        return;
-    }
-
-    m_plugin_block_indices = std::move(block_indices);
-    m_drag_preview.reset();
-    m_drag_preview_committed = false;
     layoutSignalPathContent(TileLayoutMotion::Animated);
     m_chain_content->repaint();
 }
@@ -1924,13 +1380,11 @@ void SignalChainView::applyPluginBlockIndices(std::vector<std::size_t> block_ind
 // Removes any drag-hover preview and restores authoritative chain layout.
 void SignalChainView::clearPluginMovePreview()
 {
-    m_drag_preview_committed = false;
-    if (!m_drag_preview.has_value())
+    if (!m_block_layout.clearPreview())
     {
         return;
     }
 
-    m_drag_preview.reset();
     layoutSignalPathContent(TileLayoutMotion::Animated);
     m_chain_content->repaint();
 }
@@ -1938,12 +1392,11 @@ void SignalChainView::clearPluginMovePreview()
 // Leaves committed previews alone so source mouse-up does not snap back a valid drop.
 void SignalChainView::clearUncommittedPluginMovePreview()
 {
-    if (m_drag_preview_committed)
+    if (m_block_layout.clearUncommittedPreview())
     {
-        return;
+        layoutSignalPathContent(TileLayoutMotion::Animated);
+        m_chain_content->repaint();
     }
-
-    clearPluginMovePreview();
 }
 
 // Lets JUCE deliver the target drop callback before source mouse-up can clear the preview.
@@ -1995,13 +1448,14 @@ void SignalChainView::rebuildPluginTiles()
         m_plugin_tiles.push_back(std::move(tile));
     }
 
-    const std::size_t block_count = visualBlockCount(m_state.plugins.size());
+    const std::size_t block_count = m_block_layout.blockCount();
+    const BlockPlacement& committed_placement = m_block_layout.committedPlacement();
     m_insert_slots.reserve(block_count);
     const bool has_free_block = m_state.plugins.size() < block_count;
     for (std::size_t index = 0; index < block_count; ++index)
     {
         auto slot = std::make_unique<InsertSlotView>(index, *this);
-        const bool is_empty = !pluginIndexAtBlock(m_plugin_block_indices, index).has_value();
+        const bool is_empty = !committed_placement.pluginAtBlock(index).has_value();
         slot->setEditingEnabled(
             is_empty,
             m_state.insert_plugin_enabled && has_free_block && is_empty,
