@@ -260,7 +260,7 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     CHECK_FALSE(error_state->busy.has_value());
 }
 
-// Opening the browser from a gap inserts the selected plugin at that backend slot.
+// Opening the browser from a gap inserts the selected plugin at that backend slot and block.
 TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -284,9 +284,10 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     addKnownPlugin(controller);
     plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
+    controller.onSignalChainPlacementChanged({0, 4});
     plugin_host.next_instance_id = "instance-c";
 
-    controller.onPluginInsertSlotSelected(1);
+    controller.onPluginInsertSlotSelected(1, 2);
     controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     CHECK(plugin_host.insert_call_count == 3);
@@ -296,10 +297,13 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     REQUIRE(final_state->signal_chain.plugins.size() == 3);
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-a");
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
+    CHECK(final_state->signal_chain.plugins[0].block_index == 0);
     CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-c");
     CHECK(final_state->signal_chain.plugins[1].chain_index == 1);
+    CHECK(final_state->signal_chain.plugins[1].block_index == 2);
     CHECK(final_state->signal_chain.plugins[2].instance_id == "instance-b");
     CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
+    CHECK(final_state->signal_chain.plugins[2].block_index == 4);
     CHECK_FALSE(final_state->plugin_browser.visible);
     CHECK(view.shown_errors.empty());
 }
@@ -328,13 +332,14 @@ TEST_CASE("EditorController preserves failed insert target", "[core][editor-cont
     addKnownPlugin(controller);
     plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
+    controller.onSignalChainPlacementChanged({0, 4});
     plugin_host.next_instance_id = "retry-instance";
     plugin_host.next_insert_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginLoadFailed,
         "plugin rejected",
     };
 
-    controller.onPluginInsertSlotSelected(1);
+    controller.onPluginInsertSlotSelected(1, 2);
     controller.onSelectedPluginInsertRequested("catalog-plugin-id");
     plugin_host.next_insert_error.reset();
     controller.onSelectedPluginInsertRequested("catalog-plugin-id");
@@ -344,6 +349,8 @@ TEST_CASE("EditorController preserves failed insert target", "[core][editor-cont
     REQUIRE(final_state != nullptr);
     REQUIRE(final_state->signal_chain.plugins.size() == 3);
     CHECK(final_state->signal_chain.plugins[1].instance_id == "retry-instance");
+    CHECK(final_state->signal_chain.plugins[1].block_index == 2);
+    CHECK(final_state->signal_chain.plugins[2].block_index == 4);
 }
 
 // Browser close only hides the window state; it does not discard the current catalog.

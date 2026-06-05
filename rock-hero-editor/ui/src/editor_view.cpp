@@ -1524,14 +1524,14 @@ void EditorView::onStopPressed()
 }
 
 // Opens the plugin browser for a specific insertion slot selected in the signal-chain panel.
-void EditorView::onInsertPluginPressed(std::size_t chain_index)
+void EditorView::onInsertPluginPressed(std::size_t chain_index, std::size_t block_index)
 {
     if (!m_state.signal_chain.insert_plugin_enabled)
     {
         return;
     }
 
-    m_controller.onPluginInsertSlotSelected(chain_index);
+    m_controller.onPluginInsertSlotSelected(chain_index, block_index);
 }
 
 // Forwards row-level remove intent to the controller after checking derived availability.

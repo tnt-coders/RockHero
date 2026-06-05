@@ -127,14 +127,69 @@ void applyPlacement(
     return SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
 }
 
+// Recognizes a single-plugin insertion and places the new plugin at the editor-chosen block while
+// surviving plugins keep their authored blocks. Mirrors placementAfterRemovingPlugins because the
+// backend insertion snapshot carries default blocks, not the editor placement.
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementAfterInserting(
+    const std::vector<PluginViewState>& previous_plugins,
+    const std::vector<PluginViewState>& next_plugins, std::size_t insert_block,
+    std::size_t block_count)
+{
+    if (next_plugins.size() != previous_plugins.size() + 1)
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::size_t> blocks;
+    blocks.reserve(next_plugins.size());
+    std::size_t previous_index = 0;
+    bool inserted = false;
+    for (const PluginViewState& next_plugin : next_plugins)
+    {
+        if (previous_index < previous_plugins.size() &&
+            previous_plugins[previous_index].instance_id == next_plugin.instance_id)
+        {
+            blocks.push_back(previous_plugins[previous_index].block_index);
+            ++previous_index;
+            continue;
+        }
+
+        if (inserted)
+        {
+            return std::nullopt;
+        }
+
+        blocks.push_back(insert_block);
+        inserted = true;
+    }
+
+    if (!inserted || previous_index != previous_plugins.size())
+    {
+        return std::nullopt;
+    }
+
+    return SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
+}
+
 // Chooses the canonical placement for a fresh backend snapshot. Valid snapshot placement wins for
-// project loads, captures, and future undo restores; pure removals keep survivor blocks when the
-// backend has no placement model of its own.
+// project loads, captures, and future undo restores; pure insertions and removals keep survivor
+// blocks when the backend has no placement model of its own.
 [[nodiscard]] SignalChainBlockPlacement placementForSnapshot(
     const std::vector<PluginViewState>& previous_plugins,
-    const std::vector<PluginViewState>& next_plugins)
+    const std::vector<PluginViewState>& next_plugins,
+    std::optional<std::size_t> pending_insert_block)
 {
     const std::size_t block_count = blockCountFor(next_plugins.size());
+    if (pending_insert_block.has_value())
+    {
+        if (std::optional<SignalChainBlockPlacement> inserted = placementAfterInserting(
+                previous_plugins, next_plugins, *pending_insert_block, block_count);
+            inserted.has_value())
+        {
+            return *inserted;
+        }
+    }
+
     if (std::optional<SignalChainBlockPlacement> removed =
             placementAfterRemovingPlugins(previous_plugins, next_plugins, block_count);
         removed.has_value())
@@ -168,7 +223,8 @@ void applyPlacement(
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
     std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
-    const SignalChainBlockPlacement placement = placementForSnapshot(m_plugins, next_plugins);
+    const SignalChainBlockPlacement placement =
+        placementForSnapshot(m_plugins, next_plugins, m_pending_insert_block);
     applyPlacement(next_plugins, placement);
     m_plugins = std::move(next_plugins);
     if (!hasInsertCapacity() ||
@@ -207,12 +263,21 @@ void SignalChainWorkflow::requestAppend()
     }
 
     m_pending_insertion_index = appendIndex();
+    // An append has no editor-chosen block; the snapshot uses its default placement.
+    m_pending_insert_block.reset();
+}
+
+// Records the block a pending specific-slot insert should occupy; used by the next snapshot.
+void SignalChainWorkflow::setPendingInsertBlock(std::optional<std::size_t> block_index) noexcept
+{
+    m_pending_insert_block = block_index;
 }
 
 // Clears stale browser target state when the browser closes or a mutation succeeds.
 void SignalChainWorkflow::clearPendingInsertion() noexcept
 {
     m_pending_insertion_index.reset();
+    m_pending_insert_block.reset();
 }
 
 std::optional<std::size_t> SignalChainWorkflow::insertionIndexForSelection() const noexcept

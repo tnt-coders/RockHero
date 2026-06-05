@@ -121,9 +121,10 @@ public:
     }
 
     /*! \brief Captures insertion-slot selections emitted by signal-chain gap controls. */
-    void onPluginInsertSlotSelected(std::size_t chain_index) override
+    void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index) override
     {
         last_plugin_insert_slot = chain_index;
+        last_plugin_insert_block = block_index;
         plugin_insert_slot_selection_count += 1;
     }
 
@@ -271,6 +272,9 @@ public:
 
     /*! \brief Last insertion slot selected through the signal-chain panel. */
     std::optional<std::size_t> last_plugin_insert_slot{};
+
+    /*! \brief Last visual block selected for a signal-chain insertion. */
+    std::optional<std::size_t> last_plugin_insert_block{};
 
     /*! \brief Last plugin instance ID selected through the signal-chain panel. */
     std::optional<std::string> last_removed_plugin_instance_id{};

@@ -95,8 +95,9 @@ public:
     /*!
     \brief Handles selection of a signal-chain slot where a plugin may be inserted.
     \param chain_index User-visible insertion slot while the current chain has capacity.
+    \param block_index Fixed visual block the inserted plugin should occupy.
     */
-    virtual void onPluginInsertSlotSelected(std::size_t chain_index) = 0;
+    virtual void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index) = 0;
 
     /*! \brief Handles the plugin browser window closing. */
     virtual void onPluginBrowserClosed() = 0;

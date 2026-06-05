@@ -53,9 +53,10 @@ constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
 class RecordingSignalChainViewListener final : public SignalChainView::Listener
 {
 public:
-    void onInsertPluginPressed(std::size_t chain_index) override
+    void onInsertPluginPressed(std::size_t chain_index, std::size_t block_index) override
     {
         last_insert_index = chain_index;
+        last_insert_block = block_index;
         insert_call_count += 1;
     }
 
@@ -85,6 +86,7 @@ public:
     {}
 
     std::optional<std::size_t> last_insert_index{};
+    std::optional<std::size_t> last_insert_block{};
     std::optional<std::string> last_moved_instance_id{};
     std::optional<std::size_t> last_move_destination_index{};
     std::vector<std::size_t> last_block_indices{};
@@ -350,6 +352,9 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
 
     CHECK(listener.insert_call_count == 2);
     CHECK(listener.last_insert_index == std::optional<std::size_t>{0});
+    CHECK(
+        listener.last_insert_block ==
+        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
 }
 
 // Verifies the clicked fixed block is preserved when the inserted plugin reaches state.
@@ -376,6 +381,9 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
     testing::clickButton(insert_later);
     CHECK(listener.insert_call_count == 1);
     CHECK(listener.last_insert_index == std::optional<std::size_t>{2});
+    CHECK(
+        listener.last_insert_block ==
+        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
 
     panel.setState(
         core::SignalChainViewState{

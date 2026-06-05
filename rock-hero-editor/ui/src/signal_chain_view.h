@@ -40,8 +40,9 @@ public:
         /*!
         \brief Called when the user requests the plugin browser for an insertion slot.
         \param chain_index User-visible insertion slot while the current chain has capacity.
+        \param block_index Fixed visual block the inserted plugin should occupy.
         */
-        virtual void onInsertPluginPressed(std::size_t chain_index) = 0;
+        virtual void onInsertPluginPressed(std::size_t chain_index, std::size_t block_index) = 0;
 
         /*!
         \brief Called when the user requests removal of a plugin instance.

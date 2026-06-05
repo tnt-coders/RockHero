@@ -305,7 +305,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
     void onPluginBrowserRequested();
-    void onPluginInsertSlotSelected(std::size_t chain_index);
+    void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
     void onPluginCatalogScanRequested();
     void onSelectedPluginInsertRequested(std::string plugin_id);
@@ -791,9 +791,9 @@ void EditorController::onPluginBrowserRequested()
     m_impl->onPluginBrowserRequested();
 }
 
-void EditorController::onPluginInsertSlotSelected(std::size_t chain_index)
+void EditorController::onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index)
 {
-    m_impl->onPluginInsertSlotSelected(chain_index);
+    m_impl->onPluginInsertSlotSelected(chain_index, block_index);
 }
 
 void EditorController::onPluginBrowserClosed()
@@ -1481,9 +1481,10 @@ void EditorController::Impl::onPluginBrowserRequested()
 }
 
 // Opens the plugin browser for a specific signal-chain insertion slot.
-void EditorController::Impl::onPluginInsertSlotSelected(std::size_t chain_index)
+void EditorController::Impl::onPluginInsertSlotSelected(
+    std::size_t chain_index, std::size_t block_index)
 {
-    runAction(EditorAction::BeginPluginInsert{chain_index});
+    runAction(EditorAction::BeginPluginInsert{chain_index, block_index});
 }
 
 // Hides the browser directly because closing a presentation window should not be blocked by an
@@ -1809,6 +1810,8 @@ void EditorController::Impl::performActionImpl(EditorAction::BeginPluginInsert a
         return;
     }
 
+    // Record the chosen visual block so the insertion snapshot keeps the authored gap layout.
+    m_signal_chain.setPendingInsertBlock(action.block_index);
     m_plugin_catalog.open(m_plugin_host.knownPluginCatalog());
     updateView();
 }

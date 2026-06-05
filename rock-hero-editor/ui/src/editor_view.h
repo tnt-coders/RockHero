@@ -258,7 +258,7 @@ private:
     void onStopPressed() override;
 
     // SignalChainView::Listener implementation.
-    void onInsertPluginPressed(std::size_t chain_index) override;
+    void onInsertPluginPressed(std::size_t chain_index, std::size_t block_index) override;
 
     // SignalChainView::Listener implementation.
     void onRemovePluginPressed(std::string instance_id) override;

@@ -156,6 +156,50 @@ TEST_CASE("SignalChainWorkflow preserves blocks when plugins are removed", "[cor
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{7});
 }
 
+// Verifies an insertion snapshot places the new plugin at the chosen block, keeping survivor gaps.
+TEST_CASE("SignalChainWorkflow inserts a plugin at the chosen block", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    common::audio::PluginChainEntry first = makeEntry("first", 0);
+    first.block_index = 0;
+    common::audio::PluginChainEntry second = makeEntry("second", 1);
+    second.block_index = 4;
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {first, second}});
+
+    // Request an insert at chain slot 1 / visual block 2 (an empty gap between the two plugins).
+    REQUIRE(workflow.requestInsertAt(1));
+    workflow.setPendingInsertBlock(2);
+
+    // The backend insertion snapshot carries default blocks; the new plugin must land on block 2
+    // while the survivors keep blocks 0 and 4.
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("inserted", 1), makeEntry("second", 2)},
+        });
+
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 2, 4});
+}
+
+// Verifies an append insertion (no chosen block) falls back to a gapless layout.
+TEST_CASE("SignalChainWorkflow appends without a chosen block", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("second", 1)},
+        });
+
+    workflow.requestAppend();
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("second", 1), makeEntry("third", 2)},
+        });
+
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1, 2});
+}
+
 // Verifies browser insertion state uses append by default and rejects stale slots.
 TEST_CASE("SignalChainWorkflow stores pending insertion slots", "[core][signal-chain]")
 {
