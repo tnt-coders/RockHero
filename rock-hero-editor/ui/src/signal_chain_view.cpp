@@ -1286,7 +1286,7 @@ void SignalChainView::insertPluginAtBlockLocation(std::size_t block_index)
     std::optional<std::size_t> chain_index = m_block_layout.beginInsertAtBlock(block_index);
     if (chain_index.has_value())
     {
-        m_listener.onInsertPluginPressed(*chain_index);
+        m_listener.onInsertPluginPressed(*chain_index, block_index);
     }
 }
 
