@@ -169,12 +169,16 @@ struct EditorAction
         /*!
         \brief Creates a begin-plugin-insert action.
         \param chain_index_value User-visible insertion slot while the current chain has capacity.
+        \param block_index_value Fixed visual block the inserted plugin should occupy.
         */
-        explicit constexpr BeginPluginInsert(std::size_t chain_index_value) noexcept
+        constexpr BeginPluginInsert(
+            std::size_t chain_index_value, std::size_t block_index_value) noexcept
             : chain_index(chain_index_value)
+            , block_index(block_index_value)
         {}
 
         std::size_t chain_index{};
+        std::size_t block_index{};
     };
 
     /*! \brief Scan configured plugin catalog locations. */
