@@ -11,6 +11,7 @@
 #include <functional>
 #include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <string>
 #include <vector>
 
@@ -121,19 +122,22 @@ public:
     \brief Handles a request to move a plugin instance within the plugin chain.
     \param instance_id Opaque plugin instance ID selected by the user.
     \param destination_index Final user-visible chain index for the instance.
+    \param placement Fixed visual block assignments after the move.
     */
-    virtual void onMovePluginRequested(std::string instance_id, std::size_t destination_index) = 0;
+    virtual void onMovePluginRequested(
+        std::string instance_id, std::size_t destination_index,
+        std::vector<PluginBlockAssignment> placement) = 0;
 
     /*!
     \brief Reports the editor-authored visual block placement so it persists with the project.
 
-    The view owns the placement gesture math and emits the committed result here whenever it
-    changes. The controller stores it as the authoritative placement and writes it on the next
-    capture, keeping save/reload faithful to the on-screen gap arrangement.
+    The view owns the transient gesture math and emits the committed result here whenever a
+    placement-only edit lands. The controller stores it as the authoritative placement and writes it
+    on the next capture, keeping save/reload faithful to the on-screen gap arrangement.
 
-    \param block_indices Fixed visual block for each plugin in current chain order.
+    \param placement Fixed visual block assignments for current plugin instances.
     */
-    virtual void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) = 0;
+    virtual void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement) = 0;
 
     /*!
     \brief Handles a request to open a plugin instance editor window.

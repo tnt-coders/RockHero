@@ -264,10 +264,12 @@ private:
     void onRemovePluginPressed(std::string instance_id) override;
 
     // SignalChainView::Listener implementation.
-    void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override;
+    void onMovePluginPressed(
+        std::string instance_id, std::size_t destination_index,
+        std::vector<core::PluginBlockAssignment> placement) override;
 
     // SignalChainView::Listener implementation.
-    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override;
+    void onSignalChainPlacementChanged(std::vector<core::PluginBlockAssignment> placement) override;
 
     // SignalChainView::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;

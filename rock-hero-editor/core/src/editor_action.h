@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -221,14 +222,19 @@ struct EditorAction
         \brief Creates a move-plugin action.
         \param instance_id_value Opaque plugin instance ID selected by the user.
         \param destination_index_value Final user-visible chain index for the instance.
+        \param placement_value Fixed visual block assignments after the move.
         */
-        MovePlugin(std::string instance_id_value, std::size_t destination_index_value)
+        MovePlugin(
+            std::string instance_id_value, std::size_t destination_index_value,
+            std::vector<PluginBlockAssignment> placement_value)
             : instance_id(std::move(instance_id_value))
             , destination_index(destination_index_value)
+            , placement(std::move(placement_value))
         {}
 
         std::string instance_id;
         std::size_t destination_index{};
+        std::vector<PluginBlockAssignment> placement;
     };
 
     /*! \brief Set the visual block placement of the current signal chain. */
@@ -236,13 +242,13 @@ struct EditorAction
     {
         /*!
         \brief Creates a set-signal-chain-placement action.
-        \param block_indices_value Fixed visual block for each plugin in current chain order.
+        \param placement_value Fixed visual block assignments for current plugin instances.
         */
-        explicit SetSignalChainPlacement(std::vector<std::size_t> block_indices_value)
-            : block_indices(std::move(block_indices_value))
+        explicit SetSignalChainPlacement(std::vector<PluginBlockAssignment> placement_value)
+            : placement(std::move(placement_value))
         {}
 
-        std::vector<std::size_t> block_indices;
+        std::vector<PluginBlockAssignment> placement;
     };
 
     /*! \brief Open a plugin instance editor window. */

@@ -5,6 +5,7 @@
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -39,6 +40,15 @@ namespace
         plugins.push_back(makeEntry("plugin-" + std::to_string(index), index));
     }
     return plugins;
+}
+
+// Builds an instance-keyed visual block assignment.
+[[nodiscard]] PluginBlockAssignment blockAssignment(std::string instance_id, std::size_t block)
+{
+    return PluginBlockAssignment{
+        .instance_id = std::move(instance_id),
+        .block_index = block,
+    };
 }
 
 } // namespace
@@ -86,11 +96,11 @@ TEST_CASE("SignalChainWorkflow carries authored block placement", "[core][signal
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
 
     // A view-reported placement overrides the stored blocks for the next capture.
-    CHECK(workflow.setBlockPlacement({3, 6}));
+    CHECK(workflow.setBlockPlacement({blockAssignment("first", 3), blockAssignment("second", 6)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{3, 6});
 
     // A stale report whose size no longer matches the chain is ignored.
-    CHECK_FALSE(workflow.setBlockPlacement({7}));
+    CHECK_FALSE(workflow.setBlockPlacement({blockAssignment("first", 7)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{3, 6});
 }
 
@@ -118,14 +128,61 @@ TEST_CASE("SignalChainWorkflow compacts invalid reported placement", "[core][sig
             .plugins = {makeEntry("first", 0), makeEntry("second", 1)},
         });
 
-    CHECK_FALSE(workflow.setBlockPlacement({3, 3}));
+    CHECK_FALSE(
+        workflow.setBlockPlacement({blockAssignment("first", 3), blockAssignment("second", 3)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
 
-    CHECK(workflow.setBlockPlacement({2, 5}));
+    CHECK(workflow.setBlockPlacement({blockAssignment("first", 2), blockAssignment("second", 5)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
 
-    CHECK(workflow.setBlockPlacement({0, common::audio::max_signal_chain_plugins}));
+    CHECK(workflow.setBlockPlacement(
+        {blockAssignment("first", 0),
+         blockAssignment("second", common::audio::max_signal_chain_plugins)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
+}
+
+// Verifies stale instance-keyed placement reports do not overwrite authored gaps.
+TEST_CASE("SignalChainWorkflow ignores stale block assignments", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("second", 1)},
+        });
+
+    REQUIRE(
+        workflow.setBlockPlacement({blockAssignment("first", 2), blockAssignment("second", 5)}));
+
+    CHECK_FALSE(
+        workflow.setBlockPlacement({blockAssignment("first", 0), blockAssignment("missing", 1)}));
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+}
+
+// Verifies committed move previews are applied by instance after the backend reorders the chain.
+TEST_CASE("SignalChainWorkflow applies moved block assignments", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {
+                makeEntry("amp", 0),
+                makeEntry("drive", 1),
+                makeEntry("cab", 2),
+            },
+        });
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {
+                makeEntry("drive", 0),
+                makeEntry("cab", 1),
+                makeEntry("amp", 2),
+            },
+        });
+
+    CHECK(workflow.setBlockPlacement(
+        {blockAssignment("amp", 4), blockAssignment("drive", 1), blockAssignment("cab", 2)}));
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{1, 2, 4});
 }
 
 // Verifies runtime removal snapshots preserve authored block gaps for surviving instances.
