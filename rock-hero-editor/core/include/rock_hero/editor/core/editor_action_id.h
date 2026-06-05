@@ -75,6 +75,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Move a plugin instance within the signal chain. */
     MovePlugin,
 
+    /*! \brief Set the editor-authored fixed block placement for the signal chain. */
+    SetSignalChainPlacement,
+
     /*! \brief Open a plugin instance editor window. */
     OpenPlugin,
 };

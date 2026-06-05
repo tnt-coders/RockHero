@@ -1,7 +1,10 @@
 #include "signal_chain_workflow.h"
 
 #include <algorithm>
+#include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/editor/core/signal_chain_block_placement.h>
+#include <utility>
 
 namespace rock_hero::editor::core
 {
@@ -36,38 +39,148 @@ namespace
     return states;
 }
 
-// The audio layer carries block placement opaquely, so the editor owns its validity. A snapshot
-// (from a loaded tone document or a runtime mutation) may carry a placement that is not a valid
-// layout - duplicate or out-of-range blocks, or simply the runtime default. Keep it when it is a
-// valid one-to-one layout within range; otherwise fall back to a gapless layout. Placement is
-// presentation metadata, so an invalid set never fails anything - it just drops the gaps.
-void compactInvalidBlockPlacement(std::vector<PluginViewState>& plugins)
+// Fixed blocks have a product cap minimum, but the value type still allows recovery from any
+// oversized test or future migrated chain.
+[[nodiscard]] std::size_t blockCountFor(std::size_t plugin_count) noexcept
 {
-    const std::size_t plugin_count = plugins.size();
-    const std::size_t block_count = std::max(common::audio::max_signal_chain_plugins, plugin_count);
+    return std::max(common::audio::max_signal_chain_plugins, plugin_count);
+}
 
-    bool valid = true;
-    std::vector<bool> used_blocks(block_count, false);
+// Extracts the raw opaque block indices carried by a plugin snapshot.
+[[nodiscard]] std::vector<std::size_t> blockIndicesFor(const std::vector<PluginViewState>& plugins)
+{
+    std::vector<std::size_t> block_indices;
+    block_indices.reserve(plugins.size());
     for (const PluginViewState& plugin : plugins)
     {
-        if (plugin.block_index >= block_count || used_blocks[plugin.block_index])
+        block_indices.push_back(plugin.block_index);
+    }
+
+    return block_indices;
+}
+
+// Converts raw block indices into the canonical placement value, compacting malformed data.
+[[nodiscard]] SignalChainBlockPlacement normalizedPlacement(
+    std::vector<std::size_t> block_indices, std::size_t plugin_count)
+{
+    const std::size_t block_count = blockCountFor(plugin_count);
+    std::optional<SignalChainBlockPlacement> placement =
+        SignalChainBlockPlacement::fromIndices(std::move(block_indices), block_count);
+    if (placement.has_value())
+    {
+        return *placement;
+    }
+
+    return SignalChainBlockPlacement::compact(plugin_count, block_count);
+}
+
+// Builds a placement from snapshot/plugin rows only when those rows already carry a valid layout.
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementFromPluginBlocks(
+    const std::vector<PluginViewState>& plugins, std::size_t block_count)
+{
+    return SignalChainBlockPlacement::fromIndices(blockIndicesFor(plugins), block_count);
+}
+
+// Applies a known-valid placement back onto mutable plugin rows for persistence and view state.
+void applyPlacement(
+    std::vector<PluginViewState>& plugins, const SignalChainBlockPlacement& placement)
+{
+    const std::vector<std::size_t>& blocks = placement.blocks();
+    for (std::size_t index = 0; index < plugins.size(); ++index)
+    {
+        plugins[index].block_index = blocks[index];
+    }
+}
+
+// Compares stable runtime plugin IDs so display-name updates do not look structural.
+[[nodiscard]] bool hasSamePluginOrder(
+    const std::vector<PluginViewState>& previous_plugins,
+    const std::vector<PluginViewState>& next_plugins)
+{
+    if (previous_plugins.size() != next_plugins.size())
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
+    {
+        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
         {
-            valid = false;
-            break;
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Recognizes a pure deletion snapshot and preserves exact authored blocks for survivors. This
+// runs before accepting snapshot block indices because runtime mutation snapshots may carry the
+// backend's default zero/compact values rather than the editor-authored placement.
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementAfterRemovingPlugins(
+    const std::vector<PluginViewState>& previous_plugins,
+    const std::vector<PluginViewState>& next_plugins, std::size_t block_count)
+{
+    if (next_plugins.size() >= previous_plugins.size())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::size_t> blocks;
+    blocks.reserve(next_plugins.size());
+    std::size_t previous_index = 0;
+    for (const PluginViewState& next_plugin : next_plugins)
+    {
+        while (previous_index < previous_plugins.size() &&
+               previous_plugins[previous_index].instance_id != next_plugin.instance_id)
+        {
+            ++previous_index;
         }
 
-        used_blocks[plugin.block_index] = true;
+        if (previous_index == previous_plugins.size())
+        {
+            return std::nullopt;
+        }
+
+        blocks.push_back(previous_plugins[previous_index].block_index);
+        ++previous_index;
     }
 
-    if (valid)
+    return SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
+}
+
+// Chooses the canonical placement for a fresh backend snapshot. Valid snapshot placement wins for
+// project loads, captures, and future undo restores; pure removals keep survivor blocks when the
+// backend has no placement model of its own.
+[[nodiscard]] SignalChainBlockPlacement placementForSnapshot(
+    const std::vector<PluginViewState>& previous_plugins,
+    const std::vector<PluginViewState>& next_plugins)
+{
+    const std::size_t block_count = blockCountFor(next_plugins.size());
+    if (std::optional<SignalChainBlockPlacement> removed =
+            placementAfterRemovingPlugins(previous_plugins, next_plugins, block_count);
+        removed.has_value())
     {
-        return;
+        return *removed;
     }
 
-    for (std::size_t index = 0; index < plugin_count; ++index)
+    if (std::optional<SignalChainBlockPlacement> adopted =
+            placementFromPluginBlocks(next_plugins, block_count);
+        adopted.has_value())
     {
-        plugins[index].block_index = index;
+        return *adopted;
     }
+
+    if (hasSamePluginOrder(previous_plugins, next_plugins))
+    {
+        if (std::optional<SignalChainBlockPlacement> preserved =
+                placementFromPluginBlocks(previous_plugins, block_count);
+            preserved.has_value())
+        {
+            return *preserved;
+        }
+    }
+
+    return SignalChainBlockPlacement::compact(next_plugins.size(), block_count);
 }
 
 } // namespace
@@ -75,8 +188,10 @@ void compactInvalidBlockPlacement(std::vector<PluginViewState>& plugins)
 // Applies the backend order exactly as returned; local reindexing would hide adapter drift.
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
-    m_plugins = makePluginViewStates(snapshot.plugins);
-    compactInvalidBlockPlacement(m_plugins);
+    std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
+    const SignalChainBlockPlacement placement = placementForSnapshot(m_plugins, next_plugins);
+    applyPlacement(next_plugins, placement);
+    m_plugins = std::move(next_plugins);
     if (!hasInsertCapacity() ||
         (m_pending_insertion_index.has_value() && *m_pending_insertion_index > appendIndex()))
     {
@@ -186,31 +301,27 @@ const std::vector<PluginViewState>& SignalChainWorkflow::plugins() const noexcep
 // the latest snapshot. A valid one-to-one layout is the core invariant, so an invalid report
 // (duplicate or out-of-range blocks, e.g. from a future undo/redo path) is compacted rather than
 // stored as-is.
-void SignalChainWorkflow::setBlockPlacement(const std::vector<std::size_t>& block_indices)
+bool SignalChainWorkflow::setBlockPlacement(const std::vector<std::size_t>& block_indices)
 {
     if (block_indices.size() != m_plugins.size())
     {
-        return;
+        return false;
     }
 
-    for (std::size_t index = 0; index < m_plugins.size(); ++index)
+    const SignalChainBlockPlacement placement =
+        normalizedPlacement(block_indices, m_plugins.size());
+    if (placement.blocks() == blockIndices())
     {
-        m_plugins[index].block_index = block_indices[index];
+        return false;
     }
 
-    compactInvalidBlockPlacement(m_plugins);
+    applyPlacement(m_plugins, placement);
+    return true;
 }
 
 std::vector<std::size_t> SignalChainWorkflow::blockIndices() const
 {
-    std::vector<std::size_t> block_indices;
-    block_indices.reserve(m_plugins.size());
-    for (const PluginViewState& plugin : m_plugins)
-    {
-        block_indices.push_back(plugin.block_index);
-    }
-
-    return block_indices;
+    return blockIndicesFor(m_plugins);
 }
 
 } // namespace rock_hero::editor::core

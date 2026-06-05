@@ -352,6 +352,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::InsertSelectedPlugin& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::MovePlugin& action);
+    void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] ActionConditions currentActionConditions() const;
@@ -1522,23 +1523,11 @@ void EditorController::Impl::onMovePluginRequested(
     runAction(EditorAction::MovePlugin{std::move(instance_id), destination_index});
 }
 
-// Records the view's committed visual placement so it is written on the next capture. A no-op
-// report (e.g. echoing a freshly loaded placement) is ignored so opening a project does not look
-// dirty. A genuine placement-only edit, such as opening a gap without reordering, is not routed
-// through an action, so it must flag unsaved changes itself and refresh save availability.
+// Records the view's committed visual placement through the normal action gate. A no-op report
+// (e.g. echoing a freshly loaded placement) is ignored by the workflow action.
 void EditorController::Impl::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
 {
-    if (m_signal_chain.blockIndices() == block_indices)
-    {
-        return;
-    }
-
-    m_signal_chain.setBlockPlacement(block_indices);
-    if (hasLiveRigPersistence() && !m_has_unsaved_changes)
-    {
-        m_has_unsaved_changes = true;
-        updateView();
-    }
+    runAction(EditorAction::SetSignalChainPlacement{std::move(block_indices)});
 }
 
 // Opens the hosted plugin editor window for a row-level signal-chain request.
@@ -2001,6 +1990,26 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
     }
 
     applySignalChainMutationSnapshot(std::move(*snapshot), true);
+    updateView();
+}
+
+// Stores a placement-only edit at the same controller boundary future undo history will observe.
+void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChainPlacement& action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    if (!m_signal_chain.setBlockPlacement(action.block_indices))
+    {
+        return;
+    }
+
+    if (hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
     updateView();
 }
 

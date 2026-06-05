@@ -79,13 +79,19 @@ TEST_CASE("SignalChainWorkflow carries authored block placement", "[core][signal
     CHECK(workflow.plugins()[1].block_index == 4);
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{1, 4});
 
-    // A view-reported placement overrides the stored blocks for the next capture.
-    workflow.setBlockPlacement({2, 5});
+    // A later authoritative snapshot with the same chain can still restore different blocks.
+    first.block_index = 2;
+    second.block_index = 5;
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {first, second}});
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
 
+    // A view-reported placement overrides the stored blocks for the next capture.
+    CHECK(workflow.setBlockPlacement({3, 6}));
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{3, 6});
+
     // A stale report whose size no longer matches the chain is ignored.
-    workflow.setBlockPlacement({7});
-    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+    CHECK_FALSE(workflow.setBlockPlacement({7}));
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{3, 6});
 }
 
 // Verifies the editor owns placement validity: an opaque, invalid snapshot placement compacts.
@@ -112,14 +118,42 @@ TEST_CASE("SignalChainWorkflow compacts invalid reported placement", "[core][sig
             .plugins = {makeEntry("first", 0), makeEntry("second", 1)},
         });
 
-    workflow.setBlockPlacement({3, 3});
+    CHECK_FALSE(workflow.setBlockPlacement({3, 3}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
 
-    workflow.setBlockPlacement({2, 5});
+    CHECK(workflow.setBlockPlacement({2, 5}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
 
-    workflow.setBlockPlacement({0, common::audio::max_signal_chain_plugins});
+    CHECK(workflow.setBlockPlacement({0, common::audio::max_signal_chain_plugins}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
+}
+
+// Verifies runtime removal snapshots preserve authored block gaps for surviving instances.
+TEST_CASE("SignalChainWorkflow preserves blocks when plugins are removed", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    common::audio::PluginChainEntry first = makeEntry("first", 0);
+    first.block_index = 2;
+    common::audio::PluginChainEntry second = makeEntry("second", 1);
+    second.block_index = 4;
+    common::audio::PluginChainEntry third = makeEntry("third", 2);
+    third.block_index = 7;
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {first, second, third}});
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("third", 1)},
+        });
+
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 7});
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("third", 0)},
+        });
+
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{7});
 }
 
 // Verifies browser insertion state uses append by default and rejects stale slots.

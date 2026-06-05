@@ -31,11 +31,13 @@ TEST_CASE("Busy actions are limited to close and exit", "[core][editor-action]")
     CHECK(actionSupersedesBusy(ActionId::CloseProject));
     CHECK(actionSupersedesBusy(ActionId::ExitApplication));
     CHECK_FALSE(actionSupersedesBusy(ActionId::SaveProject));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::SetSignalChainPlacement));
 
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
     CHECK(isActionAvailable(ActionId::ExitApplication, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
 }
 
 // Verifies that project write and close actions are disabled without a loaded project.
@@ -105,6 +107,7 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.live_input_audition_available = true;
@@ -115,6 +118,7 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.has_plugin_insert_capacity = true;
@@ -125,6 +129,7 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     conditions.has_plugin_candidates = true;
@@ -133,6 +138,7 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     CHECK(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
 }
 
@@ -157,6 +163,7 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
     CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
 
     CHECK(isActionAvailable(ActionId::SeekWaveform, conditions));

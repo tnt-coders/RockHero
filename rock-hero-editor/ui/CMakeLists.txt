@@ -19,7 +19,6 @@ target_sources(
             src/menu_bar_button.cpp
             src/plugin_browser_window.cpp
             src/signal_chain_block_layout.cpp
-            src/signal_chain_block_placement.cpp
             src/signal_chain_panel.cpp
             src/signal_chain_view.cpp
             src/main_window.cpp

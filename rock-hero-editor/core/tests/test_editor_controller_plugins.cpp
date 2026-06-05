@@ -674,6 +674,38 @@ TEST_CASE("EditorController captures live rig before save", "[core][editor-contr
     CHECK(state->signal_chain.plugins[0].name == "Captured Amp");
 }
 
+// Saving after a placement-only edit captures the exact authored block indices.
+TEST_CASE("EditorController captures signal-chain placement", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onSignalChainPlacementChanged({3});
+
+    controller.onSaveRequested();
+
+    REQUIRE(live_rig.last_capture_request.has_value());
+    CHECK(live_rig.last_capture_request->block_indices == std::vector<std::size_t>{3});
+}
+
 // Once tone persistence is available, plugin mutations become unsaved project changes.
 TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-controller]")
 {
@@ -709,6 +741,54 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
         const auto& prompt = state->unsaved_changes_prompt.value();
         CHECK(prompt.prompted_action == EditorActionId::CloseProject);
     }
+}
+
+// Placement-only edits are persisted tone changes even when the plugin chain order is unchanged.
+TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    const EditorViewState* loaded_state = stateOrNull(view.last_state);
+    REQUIRE(loaded_state != nullptr);
+    REQUIRE(loaded_state->signal_chain.plugins.size() == 1);
+    CHECK(loaded_state->signal_chain.plugins[0].block_index == 1);
+
+    const int loaded_state_count = view.set_state_call_count;
+    controller.onSignalChainPlacementChanged({1});
+
+    CHECK(view.set_state_call_count == loaded_state_count);
+
+    controller.onSignalChainPlacementChanged({3});
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    REQUIRE(edited_state->signal_chain.plugins.size() == 1);
+    CHECK(edited_state->signal_chain.plugins[0].block_index == 3);
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    REQUIRE(prompt_state->unsaved_changes_prompt.has_value());
+    CHECK(prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
 }
 
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.

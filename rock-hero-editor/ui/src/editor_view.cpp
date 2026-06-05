@@ -144,6 +144,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::InsertSelectedPlugin:
         case core::EditorActionId::RemovePlugin:
         case core::EditorActionId::MovePlugin:
+        case core::EditorActionId::SetSignalChainPlacement:
         case core::EditorActionId::OpenPlugin:
         {
             return "Save changes before continuing?";
