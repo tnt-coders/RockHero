@@ -5,10 +5,9 @@
 
 #pragma once
 
-#include "signal_chain_block_placement.h"
-
 #include <cstddef>
 #include <optional>
+#include <rock_hero/editor/core/signal_chain_block_placement.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <vector>
 
@@ -33,7 +32,7 @@ public:
         std::size_t destination_index{};
 
         /*! \brief Visual placement the drop would produce. */
-        SignalChainBlockPlacement placement;
+        core::SignalChainBlockPlacement placement;
     };
 
     /*! \brief Result of completing a drag/drop operation against the current preview state. */
@@ -108,13 +107,13 @@ public:
     [[nodiscard]] bool clearUncommittedPreview();
 
     /*! \brief Returns the authoritative placement for the current plugin order. */
-    [[nodiscard]] const SignalChainBlockPlacement& committedPlacement() const noexcept;
+    [[nodiscard]] const core::SignalChainBlockPlacement& committedPlacement() const noexcept;
 
     /*!
     \brief Returns the placement the view should currently render.
     \return Drag-preview placement when active, otherwise the committed placement.
     */
-    [[nodiscard]] const SignalChainBlockPlacement& activePlacement() const noexcept;
+    [[nodiscard]] const core::SignalChainBlockPlacement& activePlacement() const noexcept;
 
     /*! \brief Returns the number of visual blocks for the current plugin state. */
     [[nodiscard]] std::size_t blockCount() const noexcept;
@@ -133,7 +132,7 @@ private:
     {
         std::size_t source_index{};
         std::size_t destination_index{};
-        SignalChainBlockPlacement placement;
+        core::SignalChainBlockPlacement placement;
         // True once a drop emitted a move intent and is waiting for authoritative controller state.
         bool committed{false};
     };
@@ -150,7 +149,7 @@ private:
 
     // Keeps a fixed-block placement that leaves linear plugin order unchanged; returns whether the
     // active visual placement changed.
-    [[nodiscard]] bool applyPlacement(SignalChainBlockPlacement placement);
+    [[nodiscard]] bool applyPlacement(core::SignalChainBlockPlacement placement);
 
     // Promotes the active preview to committed so release and same-order refreshes keep it.
     void commitPreview();
@@ -161,7 +160,7 @@ private:
 
     std::size_t m_minimum_block_count{};
     std::vector<core::PluginViewState> m_plugins;
-    SignalChainBlockPlacement m_placement;
+    core::SignalChainBlockPlacement m_placement;
     std::optional<PendingInsert> m_pending_insert;
     std::optional<DragPreview> m_drag_preview;
 };
