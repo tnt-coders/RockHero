@@ -203,12 +203,19 @@ std::optional<std::size_t> SignalChainBlockLayout::beginInsertAtBlock(std::size_
     return chain_index;
 }
 
-// Resolves a target block against the current authoritative placement.
+// Occupied targets are resolved from the visible preview so reversing direction swaps locally.
+// Empty targets still start from the committed placement so displaced plugins return home.
 std::optional<SignalChainBlockLayout::DropIntent> SignalChainBlockLayout::dropIntent(
     std::size_t source_index, std::size_t target_block_index) const
 {
+    const SignalChainBlockPlacement& active_placement = activePlacement();
+    const bool use_active_preview = m_drag_preview.has_value() &&
+                                    m_drag_preview->source_index == source_index &&
+                                    active_placement.pluginAtBlock(target_block_index).has_value();
+    const SignalChainBlockPlacement& base_placement =
+        use_active_preview ? active_placement : m_placement;
     std::optional<SignalChainBlockPlacement> moved =
-        m_placement.withPluginAtBlock(source_index, target_block_index);
+        base_placement.withPluginAtBlock(source_index, target_block_index);
     if (!moved.has_value())
     {
         return std::nullopt;
@@ -350,7 +357,7 @@ std::size_t SignalChainBlockLayout::blockCount() const noexcept
 std::optional<std::size_t> SignalChainBlockLayout::blockForPlugin(
     std::size_t plugin_index) const noexcept
 {
-    return m_placement.blockForPlugin(plugin_index);
+    return activePlacement().blockForPlugin(plugin_index);
 }
 
 // Chooses the visible fixed-block count without letting loaded plugin count hide overflow.
@@ -369,7 +376,7 @@ void SignalChainBlockLayout::commitPreview()
     }
 }
 
-// Applies the current preview when release lands on a side that cannot produce a new preview.
+// Applies the current preview when release lacks a fresh target intent.
 std::optional<SignalChainBlockLayout::DropCompletion> SignalChainBlockLayout::
     completeCurrentPreviewDrop(std::size_t source_index)
 {
