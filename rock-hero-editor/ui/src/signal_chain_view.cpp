@@ -658,9 +658,9 @@ enum class PluginIconType
     };
 }
 
-// Resolves the hovered fixed block and pointer side into a concrete visual drop placement.
+// Resolves the hovered fixed block and latched entry side into a visual drop placement.
 [[nodiscard]] std::optional<BlockDropIntent> blockDropIntent(
-    std::size_t source_index, std::size_t target_block_index, int local_x, int width,
+    std::size_t source_index, std::size_t target_block_index, BlockDropDirection direction,
     const std::vector<std::size_t>& block_indices, std::size_t block_count)
 {
     const std::optional<std::size_t> target_plugin =
@@ -668,11 +668,7 @@ enum class PluginIconType
     if (target_plugin.has_value() && *target_plugin != source_index)
     {
         return occupiedBlockDropIntent(
-            source_index,
-            target_block_index,
-            blockDropDirectionForLocalX(local_x, width),
-            block_indices,
-            block_count);
+            source_index, target_block_index, direction, block_indices, block_count);
     }
 
     return emptyBlockDropIntent(source_index, target_block_index, block_indices, block_count);
@@ -1000,11 +996,15 @@ public:
         m_button.setVisible(is_empty);
         m_button.setEnabled(insert_enabled);
         m_drop_enabled = move_enabled;
-        if (!m_drop_enabled && m_is_drag_hovered)
+        if (!m_drop_enabled)
         {
-            m_is_drag_hovered = false;
-            m_view.clearPluginMovePreview();
-            repaint();
+            m_drag_entry_direction.reset();
+            if (m_is_drag_hovered)
+            {
+                m_is_drag_hovered = false;
+                m_view.clearPluginMovePreview();
+                repaint();
+            }
         }
         updateButtonAffordance();
     }
@@ -1032,9 +1032,11 @@ public:
             visualBlockCount(m_view.m_state.plugins.size()));
     }
 
-    // Shows the preview for dropping onto this empty fixed block location.
+    // Shows the preview for dropping onto this fixed block location.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
+        m_drag_entry_direction =
+            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
@@ -1047,6 +1049,7 @@ public:
     // Clears this cell's hover feedback when the drag leaves the fixed block location.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
     {
+        m_drag_entry_direction.reset();
         m_is_drag_hovered = false;
         repaint();
     }
@@ -1059,12 +1062,14 @@ public:
 
         if (!m_drop_enabled)
         {
+            m_drag_entry_direction.reset();
             m_view.clearPluginMovePreview();
             return;
         }
 
         auto [destination_index, block_indices] =
             dropPlacementParts(dropIntent(drag_source_details));
+        m_drag_entry_direction.reset();
         m_view.completePluginDrop(
             drag_source_details.description, destination_index, std::move(block_indices));
     }
@@ -1120,7 +1125,7 @@ private:
             m_button.isEnabled() && isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
     }
 
-    // Resolves this fixed cell plus the current pointer side into a concrete drop intent.
+    // Resolves this fixed cell plus the latched entry side into a concrete drop intent.
     [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
@@ -1136,11 +1141,12 @@ private:
             return std::nullopt;
         }
 
+        const BlockDropDirection direction = m_drag_entry_direction.value_or(
+            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth()));
         return blockDropIntent(
             plugin->source_index,
             m_block_index,
-            drag_source_details.localPosition.x,
-            getWidth(),
+            direction,
             m_view.m_plugin_block_indices,
             visualBlockCount(m_view.m_state.plugins.size()));
     }
@@ -1179,6 +1185,9 @@ private:
 
     // True while a compatible tile drag is hovering over this placeholder.
     bool m_is_drag_hovered{false};
+
+    // Direction captured on entry so crossing the midpoint does not flip the block nudge.
+    std::optional<BlockDropDirection> m_drag_entry_direction;
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
@@ -1324,6 +1333,8 @@ public:
     // Starts a visual reorder preview as the dragged tile enters this occupied block.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
+        m_drag_entry_direction =
+            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
@@ -1335,13 +1346,16 @@ public:
 
     // Leaves the last valid preview active while the drag crosses between block targets.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
-    {}
+    {
+        m_drag_entry_direction.reset();
+    }
 
     // Emits a move intent using the same final-index contract as the existing controller path.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
         auto [destination_index, block_indices] =
             dropPlacementParts(dropIntent(drag_source_details));
+        m_drag_entry_direction.reset();
         m_view.completePluginDrop(
             drag_source_details.description, destination_index, std::move(block_indices));
     }
@@ -1359,7 +1373,7 @@ public:
     }
 
 private:
-    // Resolves the hovered side of this block to a final visual placement.
+    // Resolves the entry side of this block to a final visual placement.
     [[nodiscard]] std::optional<BlockDropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
@@ -1380,11 +1394,12 @@ private:
             return std::nullopt;
         }
 
+        const BlockDropDirection direction = m_drag_entry_direction.value_or(
+            blockDropDirectionForLocalX(drag_source_details.localPosition.x, getWidth()));
         return blockDropIntent(
             plugin->source_index,
             m_view.m_plugin_block_indices[m_plugin.chain_index],
-            drag_source_details.localPosition.x,
-            getWidth(),
+            direction,
             m_view.m_plugin_block_indices,
             visualBlockCount(m_plugin_count));
     }
@@ -1449,6 +1464,9 @@ private:
 
     // Prevents repeated startDragging() calls during one mouse drag sequence.
     bool m_drag_started{false};
+
+    // Direction captured on entry so crossing the midpoint does not flip the block nudge.
+    std::optional<BlockDropDirection> m_drag_entry_direction;
 };
 
 // Configures a vertical gain slider with the shared gain range and dB suffix.
