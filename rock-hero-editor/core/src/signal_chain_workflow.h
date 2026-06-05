@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_view_state.h>
 #include <string_view>
 #include <vector>
@@ -89,14 +90,14 @@ public:
     /*!
     \brief Stores the editor-authored visual block placement reported by the view.
 
-    The view owns the placement gesture math; the workflow holds the committed result so it persists
-    on capture. The placement is aligned to the current chain order; a size mismatch is treated as a
-    stale report and ignored.
+    The view owns transient placement gesture math; the workflow holds the committed result so it
+    persists on capture. Assignments are keyed by plugin instance ID so they survive backend
+    reorders before being applied to the current chain.
 
-    \param block_indices Fixed visual block for each plugin in current chain order.
+    \param placement Fixed visual block assignments for current plugin instances.
     \return True when the normalized placement changed workflow state.
     */
-    [[nodiscard]] bool setBlockPlacement(const std::vector<std::size_t>& block_indices);
+    [[nodiscard]] bool setBlockPlacement(const std::vector<PluginBlockAssignment>& placement);
 
     /*!
     \brief Returns the authored visual block of each plugin in chain order for persistence.

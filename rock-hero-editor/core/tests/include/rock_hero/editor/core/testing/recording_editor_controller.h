@@ -155,17 +155,20 @@ public:
     }
 
     /*! \brief Captures plugin moves selected through the signal-chain panel. */
-    void onMovePluginRequested(std::string instance_id, std::size_t destination_index) override
+    void onMovePluginRequested(
+        std::string instance_id, std::size_t destination_index,
+        std::vector<PluginBlockAssignment> placement) override
     {
         last_moved_plugin_instance_id = std::move(instance_id);
         last_move_plugin_destination_index = destination_index;
+        last_move_plugin_placement = std::move(placement);
         move_plugin_request_count += 1;
     }
 
     /*! \brief Captures the authored visual block placement reported for persistence. */
-    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override
+    void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement) override
     {
-        last_signal_chain_block_indices = std::move(block_indices);
+        last_signal_chain_placement = std::move(placement);
         signal_chain_placement_change_count += 1;
     }
 
@@ -285,8 +288,11 @@ public:
     /*! \brief Last plugin destination index selected for a move request. */
     std::optional<std::size_t> last_move_plugin_destination_index{};
 
-    /*! \brief Last authored block placement reported for persistence, in chain order. */
-    std::vector<std::size_t> last_signal_chain_block_indices{};
+    /*! \brief Last authored move placement reported for persistence. */
+    std::vector<PluginBlockAssignment> last_move_plugin_placement{};
+
+    /*! \brief Last authored block placement reported for persistence. */
+    std::vector<PluginBlockAssignment> last_signal_chain_placement{};
 
     /*! \brief Last plugin instance ID selected for editor-window opening. */
     std::optional<std::string> last_opened_plugin_instance_id{};
