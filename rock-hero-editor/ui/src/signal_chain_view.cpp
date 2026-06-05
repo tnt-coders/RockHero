@@ -89,19 +89,12 @@ enum class PluginIconType
     Wah,
 };
 
-// Returns the number of fixed block positions the path surface should reserve. SignalChainBlockLayout
-// applies the same minimum so its block count and this geometry helper always agree.
-[[nodiscard]] std::size_t visualBlockCount(std::size_t plugin_count) noexcept
+// Computes the scrollable content width for the signal path. The block count comes from
+// SignalChainBlockLayout, the single owner of the minimum-block-count rule.
+[[nodiscard]] int chainContentWidth(std::size_t block_count, int viewport_width) noexcept
 {
-    return std::max(g_signal_path_min_block_count, plugin_count);
-}
-
-// Computes the full scrollable content width for the fixed-position signal path.
-[[nodiscard]] int chainContentWidth(std::size_t plugin_count, int viewport_width) noexcept
-{
-    const int natural_width =
-        (static_cast<int>(visualBlockCount(plugin_count)) * g_signal_path_min_cell_width) +
-        (g_signal_path_padding * 2);
+    const int natural_width = (static_cast<int>(block_count) * g_signal_path_min_cell_width) +
+                              (g_signal_path_padding * 2);
     return std::max(viewport_width, natural_width);
 }
 
@@ -510,15 +503,15 @@ public:
 class SignalChainView::SignalPathContent final : public juce::Component
 {
 public:
-    // Stores the current plugin count so empty block positions remain visible.
-    void setPluginCount(std::size_t plugin_count)
+    // Stores the current fixed block count so empty positions stay visible on the path.
+    void setBlockCount(std::size_t block_count)
     {
-        if (m_plugin_count == plugin_count)
+        if (m_block_count == block_count)
         {
             return;
         }
 
-        m_plugin_count = plugin_count;
+        m_block_count = block_count;
         repaint();
     }
 
@@ -529,7 +522,7 @@ public:
         g.fillAll(g_path_background);
 
         const auto path_area = signalPathArea(bounds);
-        const std::size_t block_count = visualBlockCount(m_plugin_count);
+        const std::size_t block_count = m_block_count;
         if (path_area.isEmpty() || block_count == 0)
         {
             return;
@@ -554,8 +547,8 @@ public:
     }
 
 private:
-    // Number of plugins currently projected into the path renderer.
-    std::size_t m_plugin_count{};
+    // Number of fixed visual blocks the path renderer reserves.
+    std::size_t m_block_count{};
 };
 
 // Presents one fixed block placeholder on the path and accepts plugin-tile drops.
@@ -729,7 +722,7 @@ private:
             return std::nullopt;
         }
 
-        const BlockPushDirection direction = m_drag_entry_direction.value_or(
+        const SignalChainBlockPlacement::PushDirection direction = m_drag_entry_direction.value_or(
             SignalChainBlockLayout::pushDirectionForLocalX(
                 drag_source_details.localPosition.x, getWidth()));
         return m_view.m_block_layout.dropIntent(plugin->source_index, m_block_index, direction);
@@ -770,7 +763,7 @@ private:
     bool m_is_drag_hovered{false};
 
     // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<BlockPushDirection> m_drag_entry_direction;
+    std::optional<SignalChainBlockPlacement::PushDirection> m_drag_entry_direction;
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
@@ -779,15 +772,12 @@ class SignalChainView::PluginTileView final : public juce::Component, public juc
 {
 public:
     // Creates the tile with a stable plugin snapshot and the parent view listener.
-    PluginTileView(
-        core::PluginViewState plugin, std::size_t plugin_count, SignalChainView& view,
-        Listener& listener)
+    PluginTileView(core::PluginViewState plugin, SignalChainView& view, Listener& listener)
         : m_view(view)
         , m_listener(listener)
         , m_plugin(std::move(plugin))
         , m_icon_type(inferPluginIconType(m_plugin))
         , m_accent(iconAccentColour(m_icon_type))
-        , m_plugin_count(plugin_count)
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
         setMouseCursor(juce::MouseCursor::PointingHandCursor);
@@ -977,7 +967,7 @@ private:
             return std::nullopt;
         }
 
-        const BlockPushDirection direction = m_drag_entry_direction.value_or(
+        const SignalChainBlockPlacement::PushDirection direction = m_drag_entry_direction.value_or(
             SignalChainBlockLayout::pushDirectionForLocalX(
                 drag_source_details.localPosition.x, getWidth()));
         return m_view.m_block_layout.dropIntent(
@@ -1029,9 +1019,6 @@ private:
     // Accent color paired with the inferred display category.
     juce::Colour m_accent{};
 
-    // Total user-visible plugin count used to gate single-plugin drag reordering.
-    std::size_t m_plugin_count{};
-
     // Button that emits a remove intent for this tile's plugin instance.
     juce::TextButton m_remove_button;
 
@@ -1045,7 +1032,7 @@ private:
     bool m_drag_started{false};
 
     // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<BlockPushDirection> m_drag_entry_direction;
+    std::optional<SignalChainBlockPlacement::PushDirection> m_drag_entry_direction;
 };
 
 // Configures a vertical gain slider with the shared gain range and dB suffix.
@@ -1127,7 +1114,7 @@ void SignalChainView::setState(const core::SignalChainViewState& state)
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
     m_output_gain_slider.setValue(m_state.output_gain_db, juce::dontSendNotification);
     m_chain_viewport.setVisible(m_state.disabled_message.empty());
-    m_chain_content->setPluginCount(m_state.plugins.size());
+    m_chain_content->setBlockCount(m_block_layout.blockCount());
     rebuildPluginTiles();
     resized();
     repaint();
@@ -1231,7 +1218,7 @@ void SignalChainView::resized()
     area.removeFromTop(g_panel_inset);
     m_chain_viewport.setBounds(area);
     const int content_height = std::max(0, m_chain_viewport.getMaximumVisibleHeight());
-    const int content_width = chainContentWidth(m_plugin_tiles.size(), area.getWidth());
+    const int content_width = chainContentWidth(m_block_layout.blockCount(), area.getWidth());
     m_chain_content->setSize(content_width, content_height);
     layoutSignalPathContent(TileLayoutMotion::Immediate);
 }
@@ -1241,7 +1228,7 @@ void SignalChainView::layoutSignalPathContent(TileLayoutMotion motion)
 {
     const auto path_area = signalPathArea(m_chain_content->getLocalBounds());
     const std::size_t block_count = m_block_layout.blockCount();
-    const BlockPlacement& active_placement = m_block_layout.activePlacement();
+    const SignalChainBlockPlacement& active_placement = m_block_layout.activePlacement();
     auto& animator = juce::Desktop::getInstance().getAnimator();
     const bool has_free_block = m_state.plugins.size() < block_count;
 
@@ -1441,15 +1428,14 @@ void SignalChainView::rebuildPluginTiles()
     m_plugin_tiles.reserve(m_state.plugins.size());
     for (const core::PluginViewState& plugin : m_state.plugins)
     {
-        auto tile =
-            std::make_unique<PluginTileView>(plugin, m_state.plugins.size(), *this, m_listener);
+        auto tile = std::make_unique<PluginTileView>(plugin, *this, m_listener);
         tile->setEditEnabled(m_state.move_plugins_enabled, m_state.remove_plugins_enabled);
         m_chain_content->addAndMakeVisible(*tile);
         m_plugin_tiles.push_back(std::move(tile));
     }
 
     const std::size_t block_count = m_block_layout.blockCount();
-    const BlockPlacement& committed_placement = m_block_layout.committedPlacement();
+    const SignalChainBlockPlacement& committed_placement = m_block_layout.committedPlacement();
     m_insert_slots.reserve(block_count);
     const bool has_free_block = m_state.plugins.size() < block_count;
     for (std::size_t index = 0; index < block_count; ++index)

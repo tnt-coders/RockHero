@@ -20,8 +20,8 @@ namespace rock_hero::editor::ui
 
 SignalChainBlockLayout is private UI-module logic, but it deliberately avoids JUCE. The view feeds
 it controller-derived plugin snapshots and drag/drop events; the layout reconciles them against the
-authoritative BlockPlacement and any in-flight insertion or drag preview, then reports back what the
-view must render and which move intent, if any, to emit.
+authoritative SignalChainBlockPlacement and any in-flight insertion or drag preview, then reports
+back what the view must render and which move intent, if any, to emit.
 */
 class SignalChainBlockLayout final
 {
@@ -33,7 +33,7 @@ public:
         std::size_t destination_index{};
 
         /*! \brief Visual placement the drop would produce. */
-        BlockPlacement placement;
+        SignalChainBlockPlacement placement;
     };
 
     /*! \brief Result of completing a drag/drop operation against the current preview state. */
@@ -58,7 +58,8 @@ public:
     \param width Hovered block width in pixels.
     \return Push direction implied by the side where the pointer entered or hovered.
     */
-    [[nodiscard]] static BlockPushDirection pushDirectionForLocalX(int local_x, int width) noexcept;
+    [[nodiscard]] static SignalChainBlockPlacement::PushDirection pushDirectionForLocalX(
+        int local_x, int width) noexcept;
 
     /*!
     \brief Applies a controller-provided plugin snapshot and reconciles visual placement.
@@ -82,7 +83,7 @@ public:
     */
     [[nodiscard]] std::optional<DropIntent> dropIntent(
         std::size_t source_index, std::size_t target_block_index,
-        BlockPushDirection direction) const;
+        SignalChainBlockPlacement::PushDirection direction) const;
 
     /*!
     \brief Reports whether any side of a fixed block can receive the dragged plugin.
@@ -116,21 +117,14 @@ public:
     /*! \brief Clears only previews that have not emitted a valid drop yet. */
     [[nodiscard]] bool clearUncommittedPreview();
 
-    /*!
-    \brief Applies a fixed-block placement without changing linear plugin order.
-    \param placement Visual placement to keep.
-    \return True when the active visual placement changed.
-    */
-    [[nodiscard]] bool applyPlacement(BlockPlacement placement);
-
     /*! \brief Returns the authoritative placement for the current plugin order. */
-    [[nodiscard]] const BlockPlacement& committedPlacement() const noexcept;
+    [[nodiscard]] const SignalChainBlockPlacement& committedPlacement() const noexcept;
 
     /*!
     \brief Returns the placement the view should currently render.
     \return Drag-preview placement when active, otherwise the committed placement.
     */
-    [[nodiscard]] const BlockPlacement& activePlacement() const noexcept;
+    [[nodiscard]] const SignalChainBlockPlacement& activePlacement() const noexcept;
 
     /*! \brief Returns the number of visual blocks for the current plugin state. */
     [[nodiscard]] std::size_t blockCount() const noexcept;
@@ -149,7 +143,7 @@ private:
     {
         std::size_t source_index{};
         std::size_t destination_index{};
-        BlockPlacement placement;
+        SignalChainBlockPlacement placement;
         // True once a drop emitted a move intent and is waiting for authoritative controller state.
         bool committed{false};
     };
@@ -164,6 +158,10 @@ private:
     // Number of visual blocks for a plugin count, honoring the configured minimum.
     [[nodiscard]] std::size_t blockCountFor(std::size_t plugin_count) const noexcept;
 
+    // Keeps a fixed-block placement that leaves linear plugin order unchanged; returns whether the
+    // active visual placement changed.
+    [[nodiscard]] bool applyPlacement(SignalChainBlockPlacement placement);
+
     // Promotes the active preview to committed so release and same-order refreshes keep it.
     void commitPreview();
 
@@ -173,7 +171,7 @@ private:
 
     std::size_t m_minimum_block_count{};
     std::vector<core::PluginViewState> m_plugins;
-    BlockPlacement m_placement;
+    SignalChainBlockPlacement m_placement;
     std::optional<PendingInsert> m_pending_insert;
     std::optional<DragPreview> m_drag_preview;
 };
