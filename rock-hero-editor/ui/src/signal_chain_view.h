@@ -185,11 +185,8 @@ private:
     // Clears a transient drag preview after a drag cancels or completes.
     void clearPluginMovePreview();
 
-    // Clears only previews that have not emitted a valid drop yet.
-    void clearUncommittedPluginMovePreview();
-
-    // Defers uncommitted preview cleanup until pending JUCE drop callbacks have run.
-    void clearUncommittedPluginMovePreviewAsync();
+    // Defers preview cleanup until pending JUCE drop callbacks have run.
+    void clearPluginMovePreviewAsync();
 
     // Positions fixed block placeholders and plugin tiles inside the signal path.
     void layoutSignalPathContent(TileLayoutMotion motion);

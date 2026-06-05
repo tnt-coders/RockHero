@@ -102,9 +102,6 @@ public:
     /*! \brief Clears any active drag preview. */
     [[nodiscard]] bool clearPreview();
 
-    /*! \brief Clears any preview that is still transient. */
-    [[nodiscard]] bool clearUncommittedPreview();
-
     /*! \brief Returns the cached controller placement for the current plugin order. */
     [[nodiscard]] const core::SignalChainBlockPlacement& cachedPlacement() const noexcept;
 
