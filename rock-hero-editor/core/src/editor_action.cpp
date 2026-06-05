@@ -71,17 +71,17 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::ShowPluginBrowser;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::InsertPlugin>)
+    else if constexpr (std::is_same_v<A, EditorAction::BeginPluginInsert>)
     {
-        return EditorAction::Id::InsertPlugin;
+        return EditorAction::Id::BeginPluginInsert;
     }
     else if constexpr (std::is_same_v<A, EditorAction::ScanPluginCatalog>)
     {
         return EditorAction::Id::ScanPluginCatalog;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::AddPlugin>)
+    else if constexpr (std::is_same_v<A, EditorAction::InsertSelectedPlugin>)
     {
-        return EditorAction::Id::AddPlugin;
+        return EditorAction::Id::InsertSelectedPlugin;
     }
     else if constexpr (std::is_same_v<A, EditorAction::RemovePlugin>)
     {

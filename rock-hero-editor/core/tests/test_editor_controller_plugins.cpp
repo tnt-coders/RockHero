@@ -80,7 +80,7 @@ TEST_CASE("EditorController disables plugin insertion at limit", "[core][editor-
     CHECK_FALSE(full_state->plugin_browser.visible);
 
     controller.onPluginBrowserRequested();
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     CHECK(plugin_host.insert_call_count == insert_call_count);
     CHECK(view.shown_errors.empty());
@@ -193,7 +193,7 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     controller.onPluginBrowserRequested();
 
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     CHECK(plugin_host.insert_call_count == 1);
     CHECK(
@@ -244,7 +244,7 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
         "plugin rejected",
     };
 
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
@@ -252,7 +252,7 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     CHECK(final_state->plugin_browser.visible);
     CHECK(final_state->signal_chain.plugins.empty());
     REQUIRE(view.shown_errors.size() == 1);
-    CHECK(view.shown_errors.back() == "Could not add plugin: plugin rejected");
+    CHECK(view.shown_errors.back() == "Could not insert plugin: plugin rejected");
     REQUIRE(view.states_seen_at_errors.size() == 1);
     REQUIRE(view.states_seen_at_errors.back().has_value());
     const EditorViewState* error_state = stateOrNull(view.states_seen_at_errors.back());
@@ -286,8 +286,8 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     addKnownPlugin(controller);
     plugin_host.next_instance_id = "instance-c";
 
-    controller.onInsertPluginRequested(1);
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onPluginInsertSlotSelected(1);
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     CHECK(plugin_host.insert_call_count == 3);
     CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
@@ -334,10 +334,10 @@ TEST_CASE("EditorController preserves failed insert target", "[core][editor-cont
         "plugin rejected",
     };
 
-    controller.onInsertPluginRequested(1);
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onPluginInsertSlotSelected(1);
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
     plugin_host.next_insert_error.reset();
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
 
     CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
     const EditorViewState* final_state = stateOrNull(view.last_state);
@@ -791,6 +791,42 @@ TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[1].chain_index == 1);
     CHECK(final_state->signal_chain.plugins[2].instance_id == "instance-a");
     CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
+    CHECK(view.shown_errors.empty());
+}
+
+// A same-index move request is ignored before the backend can create a no-op mutation.
+TEST_CASE("EditorController ignores same-index plugin moves", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+
+    controller.onMovePluginRequested("instance-a", 0);
+
+    CHECK(plugin_host.move_call_count == 0);
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    REQUIRE(final_state->signal_chain.plugins.size() == 2);
+    CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-b");
     CHECK(view.shown_errors.empty());
 }
 

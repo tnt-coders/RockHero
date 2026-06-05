@@ -331,10 +331,10 @@ public:
     void onPluginBrowserRequested() override;
 
     /*!
-    \brief Shows the scanned plugin browser for a specific insertion slot.
+    \brief Handles selection of a signal-chain slot where a plugin may be inserted.
     \param chain_index User-visible insertion slot while the current chain has capacity.
     */
-    void onInsertPluginRequested(std::size_t chain_index) override;
+    void onPluginInsertSlotSelected(std::size_t chain_index) override;
 
     /*! \brief Hides the scanned plugin browser. */
     void onPluginBrowserClosed() override;
@@ -343,10 +343,10 @@ public:
     void onPluginCatalogScanRequested() override;
 
     /*!
-    \brief Adds a selected browser plugin to the runtime plugin chain.
+    \brief Inserts the selected browser plugin into the runtime plugin chain.
     \param plugin_id Opaque plugin ID selected by the user.
     */
-    void onAddPluginRequested(std::string plugin_id) override;
+    void onSelectedPluginInsertRequested(std::string plugin_id) override;
 
     /*!
     \brief Removes a plugin instance from the current runtime plugin chain.

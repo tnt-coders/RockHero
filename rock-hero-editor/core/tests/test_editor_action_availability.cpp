@@ -100,9 +100,9 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     ActionConditions conditions{.has_loaded_arrangement = true};
 
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
@@ -110,9 +110,9 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     conditions.live_input_audition_available = true;
 
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
@@ -120,9 +120,9 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     conditions.has_plugin_insert_capacity = true;
 
     CHECK(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
-    CHECK(isActionAvailable(ActionId::InsertPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
@@ -130,7 +130,7 @@ TEST_CASE("Plugin actions require signal-chain readiness", "[core][editor-action
     conditions.has_plugin_candidates = true;
     conditions.has_loaded_plugins = true;
 
-    CHECK(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK(isActionAvailable(ActionId::OpenPlugin, conditions));
@@ -152,9 +152,9 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
 
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::InsertPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::BeginPluginInsert, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::ScanPluginCatalog, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::AddPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::InsertSelectedPlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
