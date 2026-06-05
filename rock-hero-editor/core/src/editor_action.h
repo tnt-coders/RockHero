@@ -162,14 +162,14 @@ struct EditorAction
     {
     };
 
-    /*! \brief Show the scanned plugin browser for a chain insertion slot. */
-    struct InsertPlugin
+    /*! \brief Begin inserting a plugin by showing the scanned browser for a chain slot. */
+    struct BeginPluginInsert
     {
         /*!
-        \brief Creates an insert-plugin action.
+        \brief Creates a begin-plugin-insert action.
         \param chain_index_value User-visible insertion slot while the current chain has capacity.
         */
-        explicit constexpr InsertPlugin(std::size_t chain_index_value) noexcept
+        explicit constexpr BeginPluginInsert(std::size_t chain_index_value) noexcept
             : chain_index(chain_index_value)
         {}
 
@@ -181,14 +181,14 @@ struct EditorAction
     {
     };
 
-    /*! \brief Add a selected browser plugin to the signal chain. */
-    struct AddPlugin
+    /*! \brief Insert the currently selected browser plugin into the signal chain. */
+    struct InsertSelectedPlugin
     {
         /*!
-        \brief Creates an add-plugin action.
+        \brief Creates an insert-selected-plugin action.
         \param plugin_id_value Opaque plugin ID selected by the user.
         */
-        explicit AddPlugin(std::string plugin_id_value)
+        explicit InsertSelectedPlugin(std::string plugin_id_value)
             : plugin_id(std::move(plugin_id_value))
         {}
 
@@ -252,8 +252,8 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, ShowPluginBrowser, InsertPlugin, ScanPluginCatalog, AddPlugin,
-        RemovePlugin, MovePlugin, OpenPlugin>;
+        Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, OpenPlugin>;
 };
 
 /*!

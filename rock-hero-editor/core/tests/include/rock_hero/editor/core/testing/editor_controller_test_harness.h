@@ -1185,7 +1185,7 @@ inline void addKnownPlugin(
     EditorController& controller, std::string plugin_id = "catalog-plugin-id")
 {
     controller.onPluginBrowserRequested();
-    controller.onAddPluginRequested(std::move(plugin_id));
+    controller.onSelectedPluginInsertRequested(std::move(plugin_id));
 }
 
 // Exposes stop enabledness as an optional value so tests can assert presence and value together.

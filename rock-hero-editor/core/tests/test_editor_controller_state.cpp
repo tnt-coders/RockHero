@@ -151,7 +151,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPluginBrowserRequested();
     controller.onPluginBrowserClosed();
     controller.onPluginCatalogScanRequested();
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
     controller.onRemovePluginRequested("instance-id");
     controller.onOpenPluginRequested("instance-id");
 
@@ -181,8 +181,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.plugin_browser_request_count == 1);
     CHECK(controller.plugin_browser_close_count == 1);
     CHECK(controller.plugin_catalog_scan_request_count == 1);
-    CHECK(controller.plugin_add_request_count == 1);
-    CHECK(controller.last_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
+    CHECK(controller.selected_plugin_insert_request_count == 1);
+    CHECK(controller.last_selected_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance-id"});
     CHECK(controller.open_plugin_request_count == 1);

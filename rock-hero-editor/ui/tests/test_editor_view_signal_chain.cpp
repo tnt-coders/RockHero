@@ -305,8 +305,8 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     testing::clickButton(insert_append);
     testing::clickButton(insert_later);
 
-    CHECK(controller.insert_plugin_request_count == 2);
-    CHECK(controller.last_insert_plugin_index == std::optional<std::size_t>{2});
+    CHECK(controller.plugin_insert_slot_selection_count == 2);
+    CHECK(controller.last_plugin_insert_slot == std::optional<std::size_t>{2});
 }
 
 // Verifies an empty chain still presents the configured fixed block locations.
@@ -418,7 +418,7 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
         nullptr);
     testing::clickButton(insert_last);
 
-    CHECK(controller.insert_plugin_request_count == 0);
+    CHECK(controller.plugin_insert_slot_selection_count == 0);
 }
 
 // Verifies tile drag/drop emits final destinations from occupied block targets.
@@ -1169,7 +1169,7 @@ TEST_CASE("Signal-chain disabled edit controls stay quiet", "[ui][editor-view]")
     testing::clickButton(insert_first);
     testing::clickButton(remove_amp);
 
-    CHECK(controller.insert_plugin_request_count == 0);
+    CHECK(controller.plugin_insert_slot_selection_count == 0);
     CHECK(controller.remove_plugin_request_count == 0);
 }
 

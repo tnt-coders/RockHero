@@ -448,7 +448,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onWaveformClicked(0.5);
     controller.onPluginBrowserRequested();
     controller.onPluginCatalogScanRequested();
-    controller.onAddPluginRequested("catalog-plugin-id");
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
     controller.onRemovePluginRequested("instance-id");
     controller.onOpenPluginRequested("instance-id");
 

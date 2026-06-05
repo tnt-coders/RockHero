@@ -13,9 +13,9 @@ namespace
     {
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::InsertPlugin:
+        case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::InsertSelectedPlugin:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::OpenPlugin:
@@ -86,7 +86,7 @@ namespace
             return conditions.can_stop_transport;
         }
         case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::InsertPlugin:
+        case EditorAction::Id::BeginPluginInsert:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
                    conditions.has_plugin_insert_capacity;
@@ -95,7 +95,7 @@ namespace
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available;
         }
-        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::InsertSelectedPlugin:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
                    conditions.has_plugin_candidates && conditions.has_plugin_insert_capacity;
@@ -136,9 +136,9 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         case EditorAction::Id::ShowPluginBrowser:
-        case EditorAction::Id::InsertPlugin:
+        case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:
-        case EditorAction::Id::AddPlugin:
+        case EditorAction::Id::InsertSelectedPlugin:
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::OpenPlugin:
