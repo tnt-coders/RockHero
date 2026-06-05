@@ -1555,6 +1555,13 @@ void EditorView::onMovePluginPressed(std::string instance_id, std::size_t destin
     m_controller.onMovePluginRequested(std::move(instance_id), destination_index);
 }
 
+// Forwards the authored block placement so the controller can persist it with the project. This is
+// document state, not a gated user action, so it is reported regardless of edit availability.
+void EditorView::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+{
+    m_controller.onSignalChainPlacementChanged(std::move(block_indices));
+}
+
 // Forwards row-level open intent to the controller; controller-side routing handles busy gating.
 void EditorView::onOpenPluginPressed(std::string instance_id)
 {

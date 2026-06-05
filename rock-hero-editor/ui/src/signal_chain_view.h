@@ -58,6 +58,12 @@ public:
             std::string instance_id, std::size_t destination_index) = 0;
 
         /*!
+        \brief Called when the authored visual block placement changes and should be persisted.
+        \param block_indices Fixed visual block for each plugin in current chain order.
+        */
+        virtual void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) = 0;
+
+        /*!
         \brief Called when the user requests a plugin instance editor window.
         \param instance_id Opaque plugin instance ID selected by the user.
         */
@@ -161,6 +167,9 @@ private:
     void completePluginDrop(
         const juce::var& drag_description,
         std::optional<SignalChainBlockLayout::DropIntent> intent);
+
+    // Reports the committed block placement so the controller can persist it with the project.
+    void reportSignalChainPlacement();
 
     // Applies a transient drag preview and relayouts tiles into their preview positions.
     void previewPluginMove(std::size_t source_index, SignalChainBlockLayout::DropIntent intent);

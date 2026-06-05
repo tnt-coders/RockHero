@@ -14,6 +14,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core::testing
 {
@@ -160,6 +161,13 @@ public:
         move_plugin_request_count += 1;
     }
 
+    /*! \brief Captures the authored visual block placement reported for persistence. */
+    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override
+    {
+        last_signal_chain_block_indices = std::move(block_indices);
+        signal_chain_placement_change_count += 1;
+    }
+
     /*! \brief Captures plugin instances selected for editor-window opening. */
     void onOpenPluginRequested(std::string instance_id) override
     {
@@ -273,6 +281,9 @@ public:
     /*! \brief Last plugin destination index selected for a move request. */
     std::optional<std::size_t> last_move_plugin_destination_index{};
 
+    /*! \brief Last authored block placement reported for persistence, in chain order. */
+    std::vector<std::size_t> last_signal_chain_block_indices{};
+
     /*! \brief Last plugin instance ID selected for editor-window opening. */
     std::optional<std::string> last_opened_plugin_instance_id{};
 
@@ -341,6 +352,9 @@ public:
 
     /*! \brief Number of move-plugin intents received. */
     int move_plugin_request_count{0};
+
+    /*! \brief Number of signal-chain placement reports received. */
+    int signal_chain_placement_change_count{0};
 
     /*! \brief Number of open-plugin intents received. */
     int open_plugin_request_count{0};

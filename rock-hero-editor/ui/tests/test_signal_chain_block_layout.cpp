@@ -83,10 +83,23 @@ void previewDrop(
 TEST_CASE("Block layout keeps configured fixed block count", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "cab"}));
 
     CHECK(layout.blockCount() == 8);
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1});
+}
+
+// Verifies an authored placement carried on the snapshot (a project load) is adopted as gaps.
+TEST_CASE("Block layout adopts authored block placement", "[ui][signal-chain-layout]")
+{
+    SignalChainBlockLayout layout{8};
+    std::vector<core::PluginViewState> plugins = makePlugins({"amp", "cab"});
+    plugins[0].block_index = 1;
+    plugins[1].block_index = 4;
+
+    CHECK(layout.applyPlugins(plugins));
+
+    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 4});
 }
 
 // Verifies metadata refreshes keep visual gaps while real reorder refreshes compact them.
@@ -97,13 +110,13 @@ TEST_CASE("Block layout preserves gaps on metadata refresh", "[ui][signal-chain-
     renamed_plugins[0].name = "Renamed Amp";
 
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(previous_plugins);
+    (void)layout.applyPlugins(previous_plugins);
     installPlacement(layout, {1, 4}, 8);
-    layout.applyPlugins(renamed_plugins);
+    (void)layout.applyPlugins(renamed_plugins);
 
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 4});
 
-    layout.applyPlugins(makePlugins({"cab", "amp"}));
+    (void)layout.applyPlugins(makePlugins({"cab", "amp"}));
 
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1});
 }
@@ -112,14 +125,14 @@ TEST_CASE("Block layout preserves gaps on metadata refresh", "[ui][signal-chain-
 TEST_CASE("Block layout maps pending inserts to empty blocks", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "cab"}));
     installPlacement(layout, {0, 4}, 8);
 
     const std::optional<std::size_t> chain_index = layout.beginInsertAtBlock(2);
     REQUIRE(chain_index.has_value());
     CHECK(*chain_index == 1);
 
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 2, 4});
 
     CHECK_FALSE(layout.beginInsertAtBlock(4).has_value());
@@ -129,7 +142,7 @@ TEST_CASE("Block layout maps pending inserts to empty blocks", "[ui][signal-chai
 TEST_CASE("Block layout maps committed previews to backend order", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
     const SignalChainBlockLayout::DropCompletion completion = layout.completeDrop(
         0,
@@ -139,7 +152,7 @@ TEST_CASE("Block layout maps committed previews to backend order", "[ui][signal-
         });
     CHECK(completion.move_destination_index == std::optional<std::size_t>{2});
 
-    layout.applyPlugins(makePlugins({"drive", "cab", "amp"}));
+    (void)layout.applyPlugins(makePlugins({"drive", "cab", "amp"}));
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 2, 4});
 }
 
@@ -147,7 +160,7 @@ TEST_CASE("Block layout maps committed previews to backend order", "[ui][signal-
 TEST_CASE("Block layout drops onto occupied blocks", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{4};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     installPlacement(layout, {0, 2, 3}, 4);
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(0, 2);
@@ -161,7 +174,7 @@ TEST_CASE("Block layout drops onto occupied blocks", "[ui][signal-chain-layout]"
 TEST_CASE("Block layout swaps adjacent occupied blocks", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 1);
 
@@ -175,7 +188,7 @@ TEST_CASE("Block layout swaps adjacent occupied blocks", "[ui][signal-chain-layo
 TEST_CASE("Block layout reverses rightward previews", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
     previewDrop(layout, 0, 1, {1, 0, 2});
     CHECK(layout.blockForPlugin(1) == std::optional<std::size_t>{0});
@@ -190,7 +203,7 @@ TEST_CASE("Block layout reverses rightward previews", "[ui][signal-chain-layout]
 TEST_CASE("Block layout reverses leftward previews", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     installPlacement(layout, {2, 3, 4}, 8);
 
     previewDrop(layout, 2, 3, {2, 4, 3});
@@ -205,7 +218,7 @@ TEST_CASE("Block layout reverses leftward previews", "[ui][signal-chain-layout]"
 TEST_CASE("Block layout drops into empty fixed blocks", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 5);
 
@@ -218,7 +231,7 @@ TEST_CASE("Block layout drops into empty fixed blocks", "[ui][signal-chain-layou
 TEST_CASE("Block layout accepts source block drops", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     installPlacement(layout, {0, 4, 5}, 8);
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(1, 4);
@@ -232,7 +245,7 @@ TEST_CASE("Block layout accepts source block drops", "[ui][signal-chain-layout]"
 TEST_CASE("Block layout completes drops from current preview", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     REQUIRE(layout.previewMove(
         2,
         SignalChainBlockLayout::DropIntent{
