@@ -6,6 +6,7 @@
 #pragma once
 
 #include "audio_level_meter.h"
+#include "signal_chain_block_layout.h"
 
 #include <cstddef>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -149,21 +150,6 @@ private:
         Animated,
     };
 
-    // Transient layout state used while a drag hover previews a reordered chain.
-    struct DragPreview
-    {
-        std::size_t source_index{};
-        std::size_t destination_index{};
-        std::vector<std::size_t> block_indices;
-    };
-
-    // Pending fixed-slot target for the next plugin inserted through this view.
-    struct PendingInsert
-    {
-        std::size_t chain_index{};
-        std::size_t block_index{};
-    };
-
     // Emits an insert intent for an empty fixed block location.
     void insertPluginAtBlockLocation(std::size_t block_index);
 
@@ -173,23 +159,11 @@ private:
 
     // Completes a tile drop, falling back to the last valid preview when no target resolved.
     void completePluginDrop(
-        const juce::var& drag_description, std::optional<std::size_t> destination_index,
-        std::vector<std::size_t> block_indices);
+        const juce::var& drag_description,
+        std::optional<SignalChainBlockLayout::DropIntent> intent);
 
     // Applies a transient drag preview and relayouts tiles into their preview positions.
-    void previewPluginMove(
-        std::size_t source_index, std::size_t destination_index,
-        std::vector<std::size_t> block_indices);
-
-    // Keeps a successfully dropped preview visible until controller state catches up.
-    void commitPluginMovePreview();
-
-    // Uses the last valid preview as the drop result when the pointer is over an invalid side.
-    [[nodiscard]] bool dropCurrentPluginMovePreview(
-        std::string instance_id, std::size_t source_index);
-
-    // Applies a view-only block placement change that does not alter linear chain order.
-    void applyPluginBlockIndices(std::vector<std::size_t> block_indices);
+    void previewPluginMove(std::size_t source_index, SignalChainBlockLayout::DropIntent intent);
 
     // Clears a transient drag preview after a drag cancels or completes.
     void clearPluginMovePreview();
@@ -239,17 +213,8 @@ private:
     // Child tile controls for the current plugin chain.
     std::vector<std::unique_ptr<PluginTileView>> m_plugin_tiles;
 
-    // Stable visual block position for each plugin in the controller-provided linear chain.
-    std::vector<std::size_t> m_plugin_block_indices;
-
-    // Fixed block selected for a plugin browser insertion that has not reached state yet.
-    std::optional<PendingInsert> m_pending_insert;
-
-    // Last valid drag-hover preview kept while the pointer crosses invalid target sides.
-    std::optional<DragPreview> m_drag_preview;
-
-    // True once a drop emitted a move intent and is waiting for authoritative controller state.
-    bool m_drag_preview_committed{false};
+    // Framework-free fixed-block placement and drag-preview state.
+    SignalChainBlockLayout m_block_layout;
 };
 
 } // namespace rock_hero::editor::ui
