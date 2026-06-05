@@ -12,6 +12,7 @@
 #include <string>
 #include <utility>
 #include <variant>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -226,6 +227,20 @@ struct EditorAction
         std::size_t destination_index{};
     };
 
+    /*! \brief Set the visual block placement of the current signal chain. */
+    struct SetSignalChainPlacement
+    {
+        /*!
+        \brief Creates a set-signal-chain-placement action.
+        \param block_indices_value Fixed visual block for each plugin in current chain order.
+        */
+        explicit SetSignalChainPlacement(std::vector<std::size_t> block_indices_value)
+            : block_indices(std::move(block_indices_value))
+        {}
+
+        std::vector<std::size_t> block_indices;
+    };
+
     /*! \brief Open a plugin instance editor window. */
     struct OpenPlugin
     {
@@ -253,7 +268,7 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
         Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, OpenPlugin>;
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement, OpenPlugin>;
 };
 
 /*!

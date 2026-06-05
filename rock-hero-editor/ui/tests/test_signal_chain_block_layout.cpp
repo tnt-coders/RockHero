@@ -10,6 +10,8 @@
 namespace rock_hero::editor::ui
 {
 
+using core::SignalChainBlockPlacement;
+
 namespace
 {
 

@@ -9,7 +9,7 @@
 #include <optional>
 #include <vector>
 
-namespace rock_hero::editor::ui
+namespace rock_hero::editor::core
 {
 
 /*!
@@ -17,8 +17,9 @@ namespace rock_hero::editor::ui
 
 Each plugin, identified by its linear chain position, owns exactly one visual block in
 [0, blockCount()). Instances are valid by construction: compact() and the transform methods only
-ever yield bijections, and fromIndices() rejects malformed input. Callers can therefore manipulate
-placement without repeating the range and uniqueness checks the raw index vector would require.
+ever yield one-to-one assignments, and fromIndices() rejects malformed input. Callers can
+therefore manipulate placement without repeating the range and uniqueness checks the raw index
+vector would require.
 */
 class SignalChainBlockPlacement final
 {
@@ -36,7 +37,7 @@ public:
     \brief Validates untrusted block assignments into a placement.
     \param blocks One visual block per plugin in chain order.
     \param block_count Number of fixed visual blocks.
-    \return Placement when blocks is a bijection into [0, block_count), otherwise empty.
+    \return Placement when blocks is one-to-one into [0, block_count), otherwise empty.
     */
     [[nodiscard]] static std::optional<SignalChainBlockPlacement> fromIndices(
         std::vector<std::size_t> blocks, std::size_t block_count);
@@ -84,8 +85,8 @@ public:
     \param plugin_index Plugin being moved.
     \param target_block Visual block receiving the plugin.
 
-    Occupied targets shift the contiguous occupied run toward the dragged plugin's source gap. An
-    adjacent occupied target therefore swaps with the dragged plugin while longer moves preserve
+    Occupied targets shift the contiguous occupied run toward the moved plugin's source gap. An
+    adjacent occupied target therefore swaps with the moved plugin while longer moves preserve
     the same order as the controller's single move command.
 
     \return Resulting placement, or empty when source or target is outside this placement.
@@ -101,7 +102,7 @@ public:
     [[nodiscard]] bool operator==(const SignalChainBlockPlacement& other) const = default;
 
 private:
-    // Private so every placement originates from a factory that guarantees the bijection invariant.
+    // Private so every placement originates from a factory that guarantees the uniqueness invariant.
     SignalChainBlockPlacement(std::vector<std::size_t> blocks, std::size_t block_count);
 
     // Visual block owned by each plugin in chain order; entries are distinct and stay below
@@ -112,4 +113,4 @@ private:
     std::size_t m_block_count{};
 };
 
-} // namespace rock_hero::editor::ui
+} // namespace rock_hero::editor::core

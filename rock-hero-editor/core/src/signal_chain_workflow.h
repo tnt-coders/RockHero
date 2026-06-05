@@ -83,8 +83,9 @@ public:
     stale report and ignored.
 
     \param block_indices Fixed visual block for each plugin in current chain order.
+    \return True when the normalized placement changed workflow state.
     */
-    void setBlockPlacement(const std::vector<std::size_t>& block_indices);
+    [[nodiscard]] bool setBlockPlacement(const std::vector<std::size_t>& block_indices);
 
     /*!
     \brief Returns the authored visual block of each plugin in chain order for persistence.
