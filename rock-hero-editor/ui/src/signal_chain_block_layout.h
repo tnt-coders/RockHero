@@ -53,15 +53,6 @@ public:
     explicit SignalChainBlockLayout(std::size_t minimum_block_count);
 
     /*!
-    \brief Resolves a horizontal pointer position into an occupied-block push direction.
-    \param local_x Pointer x coordinate in the hovered block's local coordinate space.
-    \param width Hovered block width in pixels.
-    \return Push direction implied by the side where the pointer entered or hovered.
-    */
-    [[nodiscard]] static SignalChainBlockPlacement::PushDirection pushDirectionForLocalX(
-        int local_x, int width) noexcept;
-
-    /*!
     \brief Applies a controller-provided plugin snapshot and reconciles visual placement.
     \param plugins Current linear plugin state from the controller.
     */
@@ -78,18 +69,16 @@ public:
     \brief Resolves a fixed-block drop into a visual placement and controller destination.
     \param source_index Plugin being dragged.
     \param target_block_index Fixed visual block receiving the drop.
-    \param direction Direction occupied blocks should move to make room.
-    \return Drop intent, or empty when that block side cannot receive the dragged plugin.
+    \return Drop intent, or empty when source or target is outside the current block layout.
     */
     [[nodiscard]] std::optional<DropIntent> dropIntent(
-        std::size_t source_index, std::size_t target_block_index,
-        SignalChainBlockPlacement::PushDirection direction) const;
+        std::size_t source_index, std::size_t target_block_index) const;
 
     /*!
-    \brief Reports whether any side of a fixed block can receive the dragged plugin.
+    \brief Reports whether a fixed block can receive the dragged plugin.
     \param source_index Plugin being dragged.
     \param target_block_index Fixed visual block to test.
-    \return True when the block has at least one valid empty or occupied drop result.
+    \return True when the block has a valid empty or occupied drop result.
     */
     [[nodiscard]] bool canReceiveDrop(
         std::size_t source_index, std::size_t target_block_index) const;
@@ -138,7 +127,7 @@ public:
         std::size_t plugin_index) const noexcept;
 
 private:
-    // Last valid drag-hover preview, kept active while the pointer crosses invalid target sides.
+    // Last valid drag-hover preview, kept active while the pointer crosses invalid targets.
     struct DragPreview
     {
         std::size_t source_index{};
@@ -165,7 +154,7 @@ private:
     // Promotes the active preview to committed so release and same-order refreshes keep it.
     void commitPreview();
 
-    // Applies the current committed-or-no-op preview when release lands on a blocked side.
+    // Applies the current committed-or-no-op preview when release lacks a fresh target intent.
     [[nodiscard]] std::optional<DropCompletion> completeCurrentPreviewDrop(
         std::size_t source_index);
 

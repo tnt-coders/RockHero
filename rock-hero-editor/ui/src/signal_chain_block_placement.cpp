@@ -123,10 +123,9 @@ std::size_t SignalChainBlockPlacement::chainIndexForPlugin(std::size_t plugin_in
     return chain_index;
 }
 
-// Resolves either empty-space placement or occupied-block nudging for one target block.
+// Resolves one target block using the dragged plugin's source block as the guaranteed gap.
 std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAtBlock(
-    std::size_t plugin_index, std::size_t target_block,
-    SignalChainBlockPlacement::PushDirection direction) const
+    std::size_t plugin_index, std::size_t target_block) const
 {
     if (plugin_index >= m_blocks.size() || target_block >= m_block_count)
     {
@@ -134,15 +133,15 @@ std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAt
     }
 
     // An empty or source-owned target simply relocates the dragged plugin onto it.
-    const std::optional<std::size_t> occupant = pluginAtBlock(target_block);
-    if (!occupant.has_value() || *occupant == plugin_index)
+    const std::optional<std::size_t> target_occupant = pluginAtBlock(target_block);
+    if (!target_occupant.has_value() || *target_occupant == plugin_index)
     {
         std::vector<std::size_t> blocks = m_blocks;
         blocks[plugin_index] = target_block;
         return fromIndices(std::move(blocks), m_block_count);
     }
 
-    // An occupied target pushes the contiguous run toward the nearest gap on the entry side.
+    const std::size_t source_block = m_blocks[plugin_index];
     std::vector<std::optional<std::size_t>> plugin_at_block(m_block_count);
     for (std::size_t index = 0; index < m_blocks.size(); ++index)
     {
@@ -152,35 +151,18 @@ std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAt
         }
     }
 
-    std::size_t gap_block = target_block;
-    while (plugin_at_block[gap_block].has_value())
+    std::vector<std::size_t> blocks = m_blocks;
+    if (target_block < source_block)
     {
-        if (direction == SignalChainBlockPlacement::PushDirection::Left)
+        std::size_t gap_block = target_block;
+        while (plugin_at_block[gap_block].has_value())
         {
-            if (gap_block == 0)
-            {
-                return std::nullopt;
-            }
-
-            --gap_block;
-        }
-        else
-        {
-            if (gap_block + 1 >= m_block_count)
-            {
-                return std::nullopt;
-            }
-
             ++gap_block;
         }
-    }
 
-    std::vector<std::size_t> blocks = m_blocks;
-    if (direction == SignalChainBlockPlacement::PushDirection::Left)
-    {
-        for (std::size_t block = gap_block; block < target_block; ++block)
+        for (std::size_t block = gap_block; block > target_block; --block)
         {
-            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block + 1];
+            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block - 1];
             if (!shifted_plugin.has_value())
             {
                 return std::nullopt;
@@ -191,9 +173,15 @@ std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAt
     }
     else
     {
-        for (std::size_t block = gap_block; block > target_block; --block)
+        std::size_t gap_block = target_block;
+        while (plugin_at_block[gap_block].has_value())
         {
-            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block - 1];
+            --gap_block;
+        }
+
+        for (std::size_t block = gap_block; block < target_block; ++block)
+        {
+            const std::optional<std::size_t> shifted_plugin = plugin_at_block[block + 1];
             if (!shifted_plugin.has_value())
             {
                 return std::nullopt;

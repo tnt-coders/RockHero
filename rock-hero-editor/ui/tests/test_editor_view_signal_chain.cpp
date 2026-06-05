@@ -421,8 +421,8 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
     CHECK(controller.insert_plugin_request_count == 0);
 }
 
-// Verifies tile drag/drop emits final destinations from occupied block sides.
-TEST_CASE("Signal-chain drag drops move tiles to block sides", "[ui][editor-view]")
+// Verifies tile drag/drop emits final destinations from occupied block targets.
+TEST_CASE("Signal-chain drag drops move tiles to occupied blocks", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
 
@@ -685,8 +685,8 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
     CHECK(refreshed_cab.getX() > cab_bounds.getRight());
 }
 
-// Verifies blocked hover keeps the last reachable fixed-slot preview.
-TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
+// Verifies an occupied hover replaces a prior gap preview with the matching move preview.
+TEST_CASE("Signal-chain drag preview replaces gap preview", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingSignalChainViewListener listener;
@@ -743,9 +743,9 @@ TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
     CHECK(third_insert.isEnabled());
 
     auto* const third_target = dynamic_cast<juce::DragAndDropTarget*>(&third_slot);
-    auto* const blocked_target = dynamic_cast<juce::DragAndDropTarget*>(&drive_slot);
+    auto* const drive_target = dynamic_cast<juce::DragAndDropTarget*>(&drive_slot);
     REQUIRE(third_target != nullptr);
-    REQUIRE(blocked_target != nullptr);
+    REQUIRE(drive_target != nullptr);
 
     const juce::DragAndDropTarget::SourceDetails third_details{
         juce::var{pluginDragPayload(2, "cab")},
@@ -759,23 +759,25 @@ TEST_CASE("Signal-chain drag preview keeps last valid gap", "[ui][editor-view]")
     CHECK(componentTargetBounds(tile_drive) == drive_bounds);
     CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
 
-    const juce::DragAndDropTarget::SourceDetails blocked_details{
+    const juce::DragAndDropTarget::SourceDetails drive_details{
         juce::var{pluginDragPayload(2, "cab")},
         &tile_cab,
         juce::Point<int>{drive_slot.getWidth() - 2, 8},
     };
 
-    CHECK(blocked_target->isInterestedInDragSource(blocked_details));
-    blocked_target->itemDragEnter(blocked_details);
+    CHECK(drive_target->isInterestedInDragSource(drive_details));
+    drive_target->itemDragEnter(drive_details);
     CHECK(componentTargetBounds(tile_amp) == amp_bounds);
-    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
-    CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
+    CHECK(componentTargetBounds(tile_drive) == third_block_bounds);
+    CHECK(componentTargetBounds(tile_cab) == drive_bounds);
 
-    blocked_target->itemDropped(blocked_details);
-    CHECK(listener.move_call_count == 0);
+    drive_target->itemDropped(drive_details);
+    CHECK(listener.move_call_count == 1);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{1});
     CHECK(componentTargetBounds(tile_amp) == amp_bounds);
-    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
-    CHECK(componentTargetBounds(tile_cab) == third_block_bounds);
+    CHECK(componentTargetBounds(tile_drive) == third_block_bounds);
+    CHECK(componentTargetBounds(tile_cab) == drive_bounds);
     CHECK_FALSE(third_insert.isVisible());
     CHECK_FALSE(third_insert.isEnabled());
 }
@@ -827,8 +829,8 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
     CHECK(listener.move_call_count == 0);
 }
 
-// Verifies the block nudge direction stays tied to the side that received the drag.
-TEST_CASE("Signal-chain drag preview keeps entry side in block", "[ui][editor-view]")
+// Verifies the hovered side of an occupied block does not alter the swap preview.
+TEST_CASE("Signal-chain drag preview ignores occupied side", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingSignalChainViewListener listener;
@@ -1062,8 +1064,8 @@ TEST_CASE("Signal-chain release keeps preview before drop callback", "[ui][edito
     CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
 }
 
-// Verifies the wrong side of an occupied cell does not produce a reorder preview.
-TEST_CASE("Signal-chain drag preview rejects blocked push direction", "[ui][editor-view]")
+// Verifies the occupied-target preview is independent of pointer side.
+TEST_CASE("Signal-chain drag preview ignores target side", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     RecordingSignalChainViewListener listener;
@@ -1097,12 +1099,14 @@ TEST_CASE("Signal-chain drag preview rejects blocked push direction", "[ui][edit
 
     CHECK(drop_target->isInterestedInDragSource(details));
     drop_target->itemDragEnter(details);
-    CHECK(componentTargetBounds(tile_amp) == amp_bounds);
-    CHECK(componentTargetBounds(tile_drive) == drive_bounds);
-    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+    CHECK(componentTargetBounds(tile_cab) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_drive) == cab_bounds);
 
     drop_target->itemDropped(details);
-    CHECK(listener.move_call_count == 0);
+    CHECK(listener.move_call_count == 1);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
 }
 
 // Verifies drop targets are quiet while move editing is disabled.

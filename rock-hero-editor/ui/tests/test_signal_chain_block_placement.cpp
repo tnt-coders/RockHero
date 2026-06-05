@@ -66,36 +66,35 @@ TEST_CASE("Block placement moves plugin onto empty block", "[ui][signal-chain-la
 {
     const SignalChainBlockPlacement placement = SignalChainBlockPlacement::compact(3, 8);
 
-    const std::optional<SignalChainBlockPlacement> moved =
-        placement.withPluginAtBlock(2, 5, SignalChainBlockPlacement::PushDirection::Right);
+    const std::optional<SignalChainBlockPlacement> moved = placement.withPluginAtBlock(2, 5);
 
     REQUIRE(moved.has_value());
     CHECK(moved->blocks() == std::vector<std::size_t>{0, 1, 5});
     CHECK(moved->chainIndexForPlugin(2) == 2);
 }
 
-// Verifies an occupied target pushes the run toward the gap on the entry side.
-TEST_CASE("Block placement pushes occupied blocks by side", "[ui][signal-chain-layout]")
+// Verifies adjacent occupied targets swap with the dragged plugin.
+TEST_CASE("Block placement swaps adjacent occupied blocks", "[ui][signal-chain-layout]")
+{
+    const SignalChainBlockPlacement placement = SignalChainBlockPlacement::compact(3, 8);
+
+    const std::optional<SignalChainBlockPlacement> moved = placement.withPluginAtBlock(2, 1);
+
+    REQUIRE(moved.has_value());
+    CHECK(moved->blocks() == std::vector<std::size_t>{0, 2, 1});
+    CHECK(moved->chainIndexForPlugin(2) == 1);
+}
+
+// Verifies longer occupied-target moves shift the run toward the dragged plugin's source gap.
+TEST_CASE("Block placement shifts occupied targets from source", "[ui][signal-chain-layout]")
 {
     const SignalChainBlockPlacement placement = placementOf({0, 2, 3}, 4);
 
-    const std::optional<SignalChainBlockPlacement> moved =
-        placement.withPluginAtBlock(0, 2, SignalChainBlockPlacement::PushDirection::Left);
+    const std::optional<SignalChainBlockPlacement> moved = placement.withPluginAtBlock(0, 2);
 
     REQUIRE(moved.has_value());
     CHECK(moved->blocks() == std::vector<std::size_t>{2, 1, 3});
     CHECK(moved->chainIndexForPlugin(0) == 1);
-}
-
-// Verifies a side with no reachable gap rejects the drop instead of inventing one.
-TEST_CASE("Block placement rejects blocked occupied sides", "[ui][signal-chain-layout]")
-{
-    const SignalChainBlockPlacement placement = placementOf({0, 1, 3}, 4);
-
-    CHECK_FALSE(placement.withPluginAtBlock(2, 1, SignalChainBlockPlacement::PushDirection::Left)
-                    .has_value());
-    CHECK(placement.withPluginAtBlock(2, 1, SignalChainBlockPlacement::PushDirection::Right)
-              .has_value());
 }
 
 // Verifies dropping a plugin on its own block is a valid no-op placement.
@@ -103,8 +102,7 @@ TEST_CASE("Block placement accepts source-owned block drops", "[ui][signal-chain
 {
     const SignalChainBlockPlacement placement = placementOf({0, 4, 5}, 8);
 
-    const std::optional<SignalChainBlockPlacement> moved =
-        placement.withPluginAtBlock(1, 4, SignalChainBlockPlacement::PushDirection::Left);
+    const std::optional<SignalChainBlockPlacement> moved = placement.withPluginAtBlock(1, 4);
 
     REQUIRE(moved.has_value());
     CHECK(moved->blocks() == std::vector<std::size_t>{0, 4, 5});
