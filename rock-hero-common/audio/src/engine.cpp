@@ -357,6 +357,11 @@ struct PluginRecord
     std::string id;
     PluginIdentity identity;
     std::string tracktion_state_ref;
+
+    // Opaque editor-owned visual block carried through the tone document. The audio layer never
+    // interprets it (no gap rules, no validation); playback ignores it entirely. The editor owns
+    // its meaning and validity.
+    std::size_t block_index{};
 };
 
 // V1 tone document subset currently used by the linear plugin-chain runtime.
@@ -746,6 +751,7 @@ void reportLiveRigLoadProgress(
                 {"id", core::Json::makeString(plugin.id)},
                 {"identity", makeIdentityJson(plugin.identity)},
                 {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
+                {"blockIndex", juce::var{static_cast<int>(plugin.block_index)}},
             }));
     }
 
@@ -919,12 +925,21 @@ void reportLiveRigLoadProgress(
         }
 
         const juce::var& identity_json = core::Json::value(plugin_json, "identity");
+        // Block placement is editor-owned metadata; carry the raw value through opaquely and leave
+        // interpretation (validity, gap rules, fallback) to the editor. Absent or negative values
+        // default to zero and are resolved by the editor like any other invalid placement.
+        const std::optional<std::int64_t> block_index_value =
+            core::Json::tryReadInt64(plugin_json, "blockIndex");
+        const std::size_t block_index = block_index_value.has_value() && *block_index_value >= 0
+                                            ? static_cast<std::size_t>(*block_index_value)
+                                            : 0;
         document.chain.push_back(
             PluginRecord{
                 .id = *id,
                 .identity =
                     identity_json.isObject() ? readPluginIdentity(identity_json) : PluginIdentity{},
                 .tracktion_state_ref = *tracktion_state,
+                .block_index = block_index,
             });
     }
 
@@ -3652,6 +3667,10 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         }
 
         const std::size_t chain_index = captured_plugin_index;
+        // The editor owns the visual placement; fall back to a gapless block when none is supplied.
+        const std::size_t block_index = chain_index < request.block_indices.size()
+                                            ? request.block_indices[chain_index]
+                                            : chain_index;
         external_plugin->flushPluginStateToValueTree();
         juce::ValueTree plugin_state = external_plugin->state.createCopy();
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
@@ -3681,8 +3700,10 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
                 .id = "plugin-" + std::to_string(chain_index + 1),
                 .identity = makePluginIdentity(external_plugin->desc),
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
+                .block_index = block_index,
             });
         snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
+        snapshot.plugins.back().block_index = block_index;
         ++captured_plugin_index;
     }
 
@@ -3935,6 +3956,9 @@ void Engine::Impl::executePluginStep()
 
     m_load_op->result.plugins.push_back(
         makePluginChainEntry(*external_plugin, m_load_op->result.plugins.size()));
+    // The runtime chain has no gap concept, so carry the authored block placement from the parsed
+    // tone document into the restored chain entry.
+    m_load_op->result.plugins.back().block_index = m_load_op->chain[plugin_index].block_index;
     m_load_op->next_index = plugin_index + 1;
 
     // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec

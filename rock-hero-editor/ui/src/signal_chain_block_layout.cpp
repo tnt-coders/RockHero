@@ -31,9 +31,26 @@ namespace
     return true;
 }
 
+// Builds a placement from the authored block indices the controller attached to each plugin, when
+// they form a valid layout. This is how a saved gap arrangement (carried on a project load) is
+// adopted as the visual placement instead of being collapsed to a gapless layout.
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementFromPluginBlocks(
+    const std::vector<core::PluginViewState>& plugins, std::size_t block_count)
+{
+    std::vector<std::size_t> block_indices;
+    block_indices.reserve(plugins.size());
+    for (const core::PluginViewState& plugin : plugins)
+    {
+        block_indices.push_back(plugin.block_index);
+    }
+
+    return SignalChainBlockPlacement::fromIndices(std::move(block_indices), block_count);
+}
+
 // Preserves gaps only when the same plugin IDs still occupy the same linear positions. When the
 // order is unchanged the previous placement is already valid for the new state, because block
-// count depends solely on plugin count.
+// count depends solely on plugin count. When the order changed, adopt any authored placement the
+// snapshot carries (a project load) before falling back to a gapless layout.
 [[nodiscard]] SignalChainBlockPlacement reconciledPlacement(
     const std::vector<core::PluginViewState>& previous_plugins,
     const SignalChainBlockPlacement& previous_placement,
@@ -42,6 +59,13 @@ namespace
     if (hasSamePluginOrder(previous_plugins, next_plugins))
     {
         return previous_placement;
+    }
+
+    if (std::optional<SignalChainBlockPlacement> adopted =
+            placementFromPluginBlocks(next_plugins, block_count);
+        adopted.has_value())
+    {
+        return *adopted;
     }
 
     return SignalChainBlockPlacement::compact(next_plugins.size(), block_count);
@@ -136,8 +160,9 @@ SignalChainBlockLayout::SignalChainBlockLayout(std::size_t minimum_block_count)
 {}
 
 // Reconciles controller state with any pending insert or committed preview held by the view.
-void SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewState>& plugins)
+bool SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewState>& plugins)
 {
+    const SignalChainBlockPlacement previous_placement = m_placement;
     const std::size_t block_count = blockCountFor(plugins.size());
     SignalChainBlockPlacement next_placement =
         reconciledPlacement(m_plugins, m_placement, plugins, block_count);
@@ -185,6 +210,8 @@ void SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewStat
     {
         m_drag_preview.reset();
     }
+
+    return m_placement != previous_placement;
 }
 
 // Converts an empty fixed block location into the matching linear insertion index.

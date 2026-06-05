@@ -55,8 +55,9 @@ public:
     /*!
     \brief Applies a controller-provided plugin snapshot and reconciles visual placement.
     \param plugins Current linear plugin state from the controller.
+    \return True when the committed placement changed and should be reported to the controller.
     */
-    void applyPlugins(const std::vector<core::PluginViewState>& plugins);
+    [[nodiscard]] bool applyPlugins(const std::vector<core::PluginViewState>& plugins);
 
     /*!
     \brief Starts a pending insertion at an empty fixed block.

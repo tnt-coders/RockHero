@@ -19,6 +19,7 @@ namespace
         .manufacturer = plugin.manufacturer,
         .format_name = plugin.format_name,
         .chain_index = plugin.chain_index,
+        .block_index = plugin.block_index,
     };
 }
 
@@ -35,12 +36,47 @@ namespace
     return states;
 }
 
+// The audio layer carries block placement opaquely, so the editor owns its validity. A snapshot
+// (from a loaded tone document or a runtime mutation) may carry a placement that is not a valid
+// layout - duplicate or out-of-range blocks, or simply the runtime default. Keep it when it is a
+// valid one-to-one layout within range; otherwise fall back to a gapless layout. Placement is
+// presentation metadata, so an invalid set never fails anything - it just drops the gaps.
+void compactInvalidBlockPlacement(std::vector<PluginViewState>& plugins)
+{
+    const std::size_t plugin_count = plugins.size();
+    const std::size_t block_count = std::max(common::audio::max_signal_chain_plugins, plugin_count);
+
+    bool valid = true;
+    std::vector<bool> used_blocks(block_count, false);
+    for (const PluginViewState& plugin : plugins)
+    {
+        if (plugin.block_index >= block_count || used_blocks[plugin.block_index])
+        {
+            valid = false;
+            break;
+        }
+
+        used_blocks[plugin.block_index] = true;
+    }
+
+    if (valid)
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < plugin_count; ++index)
+    {
+        plugins[index].block_index = index;
+    }
+}
+
 } // namespace
 
 // Applies the backend order exactly as returned; local reindexing would hide adapter drift.
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
     m_plugins = makePluginViewStates(snapshot.plugins);
+    compactInvalidBlockPlacement(m_plugins);
     if (!hasInsertCapacity() ||
         (m_pending_insertion_index.has_value() && *m_pending_insertion_index > appendIndex()))
     {
@@ -142,6 +178,39 @@ std::size_t SignalChainWorkflow::appendIndex() const noexcept
 const std::vector<PluginViewState>& SignalChainWorkflow::plugins() const noexcept
 {
     return m_plugins;
+}
+
+// Stores the editor-authored visual placement reported by the view. The view owns the placement
+// algebra and gaps; the workflow holds the committed result so it persists on capture. The vector
+// is aligned to the current chain order; a size mismatch is ignored as a stale report from before
+// the latest snapshot. A valid one-to-one layout is the core invariant, so an invalid report
+// (duplicate or out-of-range blocks, e.g. from a future undo/redo path) is compacted rather than
+// stored as-is.
+void SignalChainWorkflow::setBlockPlacement(const std::vector<std::size_t>& block_indices)
+{
+    if (block_indices.size() != m_plugins.size())
+    {
+        return;
+    }
+
+    for (std::size_t index = 0; index < m_plugins.size(); ++index)
+    {
+        m_plugins[index].block_index = block_indices[index];
+    }
+
+    compactInvalidBlockPlacement(m_plugins);
+}
+
+std::vector<std::size_t> SignalChainWorkflow::blockIndices() const
+{
+    std::vector<std::size_t> block_indices;
+    block_indices.reserve(m_plugins.size());
+    for (const PluginViewState& plugin : m_plugins)
+    {
+        block_indices.push_back(plugin.block_index);
+    }
+
+    return block_indices;
 }
 
 } // namespace rock_hero::editor::core
