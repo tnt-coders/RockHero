@@ -16,6 +16,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/project.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::common::audio
 {
@@ -363,6 +364,12 @@ public:
     \param destination_index Final user-visible chain index for the instance.
     */
     void onMovePluginRequested(std::string instance_id, std::size_t destination_index) override;
+
+    /*!
+    \brief Stores the editor-authored visual block placement so it persists with the project.
+    \param block_indices Fixed visual block for each plugin in current chain order.
+    */
+    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override;
 
     /*!
     \brief Opens a plugin instance editor window for the current runtime plugin chain.

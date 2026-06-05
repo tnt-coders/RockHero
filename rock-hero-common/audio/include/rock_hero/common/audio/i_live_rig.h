@@ -30,6 +30,16 @@ struct [[nodiscard]] LiveRigCaptureRequest
 
     /*! \brief Existing package-relative tone document path, when one should be overwritten. */
     std::string existing_tone_document_ref;
+
+    /*!
+    \brief Opaque editor-owned visual block per user plugin, in chain order.
+
+    The audio layer writes these through to the tone document without interpreting them; the editor
+    owns their meaning and validity. Index i is the block for the i-th user plugin in the captured
+    chain. Entries beyond the supplied size default to the gapless block equal to the chain
+    position, so an empty vector persists a gapless layout.
+    */
+    std::vector<std::size_t> block_indices;
 };
 
 /*! \brief Result of writing the active live rig into song tone files. */
