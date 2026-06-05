@@ -171,12 +171,6 @@ bool SignalChainBlockLayout::clearPreview()
     return true;
 }
 
-// Clears any preview that has not already been converted into cached placement.
-bool SignalChainBlockLayout::clearUncommittedPreview()
-{
-    return clearPreview();
-}
-
 // Applies a fixed-slot placement that leaves the plugin chain's linear order unchanged.
 bool SignalChainBlockLayout::applyPlacement(SignalChainBlockPlacement placement)
 {
