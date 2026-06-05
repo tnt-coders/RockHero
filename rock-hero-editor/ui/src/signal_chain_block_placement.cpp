@@ -6,13 +6,15 @@ namespace rock_hero::editor::ui
 {
 
 // Stores already-validated assignments; factories are the only construction path.
-BlockPlacement::BlockPlacement(std::vector<std::size_t> blocks, std::size_t block_count)
+SignalChainBlockPlacement::SignalChainBlockPlacement(
+    std::vector<std::size_t> blocks, std::size_t block_count)
     : m_blocks(std::move(blocks))
     , m_block_count(block_count)
 {}
 
 // Builds the identity placement and expands capacity so construction preserves the invariant.
-BlockPlacement BlockPlacement::compact(std::size_t plugin_count, std::size_t block_count)
+SignalChainBlockPlacement SignalChainBlockPlacement::compact(
+    std::size_t plugin_count, std::size_t block_count)
 {
     const std::size_t effective_block_count =
         block_count < plugin_count ? plugin_count : block_count;
@@ -23,11 +25,11 @@ BlockPlacement BlockPlacement::compact(std::size_t plugin_count, std::size_t blo
         blocks.push_back(index);
     }
 
-    return BlockPlacement{std::move(blocks), effective_block_count};
+    return SignalChainBlockPlacement{std::move(blocks), effective_block_count};
 }
 
 // Rejects anything that is not a one-to-one mapping into the visual block range.
-std::optional<BlockPlacement> BlockPlacement::fromIndices(
+std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::fromIndices(
     std::vector<std::size_t> blocks, std::size_t block_count)
 {
     if (blocks.size() > block_count)
@@ -46,25 +48,26 @@ std::optional<BlockPlacement> BlockPlacement::fromIndices(
         used_blocks[block] = true;
     }
 
-    return BlockPlacement{std::move(blocks), block_count};
+    return SignalChainBlockPlacement{std::move(blocks), block_count};
 }
 
-std::size_t BlockPlacement::pluginCount() const noexcept
+std::size_t SignalChainBlockPlacement::pluginCount() const noexcept
 {
     return m_blocks.size();
 }
 
-std::size_t BlockPlacement::blockCount() const noexcept
+std::size_t SignalChainBlockPlacement::blockCount() const noexcept
 {
     return m_block_count;
 }
 
-const std::vector<std::size_t>& BlockPlacement::blocks() const noexcept
+const std::vector<std::size_t>& SignalChainBlockPlacement::blocks() const noexcept
 {
     return m_blocks;
 }
 
-std::optional<std::size_t> BlockPlacement::blockForPlugin(std::size_t plugin_index) const noexcept
+std::optional<std::size_t> SignalChainBlockPlacement::blockForPlugin(
+    std::size_t plugin_index) const noexcept
 {
     if (plugin_index >= m_blocks.size())
     {
@@ -74,7 +77,8 @@ std::optional<std::size_t> BlockPlacement::blockForPlugin(std::size_t plugin_ind
     return m_blocks[plugin_index];
 }
 
-std::optional<std::size_t> BlockPlacement::pluginAtBlock(std::size_t block_index) const noexcept
+std::optional<std::size_t> SignalChainBlockPlacement::pluginAtBlock(
+    std::size_t block_index) const noexcept
 {
     for (std::size_t plugin_index = 0; plugin_index < m_blocks.size(); ++plugin_index)
     {
@@ -88,7 +92,8 @@ std::optional<std::size_t> BlockPlacement::pluginAtBlock(std::size_t block_index
 }
 
 // Counts plugins to the left of a free block to derive its linear insertion point.
-std::size_t BlockPlacement::insertionIndexForBlock(std::size_t block_index) const noexcept
+std::size_t SignalChainBlockPlacement::insertionIndexForBlock(
+    std::size_t block_index) const noexcept
 {
     std::size_t chain_index = 0;
     for (const std::size_t block : m_blocks)
@@ -103,7 +108,7 @@ std::size_t BlockPlacement::insertionIndexForBlock(std::size_t block_index) cons
 }
 
 // Counts plugins left of this plugin's block to produce its final linear chain index.
-std::size_t BlockPlacement::chainIndexForPlugin(std::size_t plugin_index) const noexcept
+std::size_t SignalChainBlockPlacement::chainIndexForPlugin(std::size_t plugin_index) const noexcept
 {
     const std::size_t plugin_block = m_blocks[plugin_index];
     std::size_t chain_index = 0;
@@ -119,8 +124,9 @@ std::size_t BlockPlacement::chainIndexForPlugin(std::size_t plugin_index) const 
 }
 
 // Resolves either empty-space placement or occupied-block nudging for one target block.
-std::optional<BlockPlacement> BlockPlacement::withPluginAtBlock(
-    std::size_t plugin_index, std::size_t target_block, BlockPushDirection direction) const
+std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAtBlock(
+    std::size_t plugin_index, std::size_t target_block,
+    SignalChainBlockPlacement::PushDirection direction) const
 {
     if (plugin_index >= m_blocks.size() || target_block >= m_block_count)
     {
@@ -149,7 +155,7 @@ std::optional<BlockPlacement> BlockPlacement::withPluginAtBlock(
     std::size_t gap_block = target_block;
     while (plugin_at_block[gap_block].has_value())
     {
-        if (direction == BlockPushDirection::Left)
+        if (direction == SignalChainBlockPlacement::PushDirection::Left)
         {
             if (gap_block == 0)
             {
@@ -170,7 +176,7 @@ std::optional<BlockPlacement> BlockPlacement::withPluginAtBlock(
     }
 
     std::vector<std::size_t> blocks = m_blocks;
-    if (direction == BlockPushDirection::Left)
+    if (direction == SignalChainBlockPlacement::PushDirection::Left)
     {
         for (std::size_t block = gap_block; block < target_block; ++block)
         {
