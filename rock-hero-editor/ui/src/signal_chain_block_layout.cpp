@@ -34,9 +34,9 @@ namespace
 // Preserves gaps only when the same plugin IDs still occupy the same linear positions. When the
 // order is unchanged the previous placement is already valid for the new state, because block
 // count depends solely on plugin count.
-[[nodiscard]] BlockPlacement reconciledPlacement(
+[[nodiscard]] SignalChainBlockPlacement reconciledPlacement(
     const std::vector<core::PluginViewState>& previous_plugins,
-    const BlockPlacement& previous_placement,
+    const SignalChainBlockPlacement& previous_placement,
     const std::vector<core::PluginViewState>& next_plugins, std::size_t block_count)
 {
     if (hasSamePluginOrder(previous_plugins, next_plugins))
@@ -44,13 +44,13 @@ namespace
         return previous_placement;
     }
 
-    return BlockPlacement::compact(next_plugins.size(), block_count);
+    return SignalChainBlockPlacement::compact(next_plugins.size(), block_count);
 }
 
 // Applies a just-requested insert to the selected empty block after controller state refreshes.
-[[nodiscard]] std::optional<BlockPlacement> placementAfterInsert(
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementAfterInsert(
     const std::vector<core::PluginViewState>& previous_plugins,
-    const BlockPlacement& previous_placement,
+    const SignalChainBlockPlacement& previous_placement,
     const std::vector<core::PluginViewState>& next_plugins, std::size_t insert_chain_index,
     std::size_t insert_block_index, std::size_t block_count)
 {
@@ -83,12 +83,12 @@ namespace
         blocks.push_back(previous_placement.blocks()[previous_index]);
     }
 
-    return BlockPlacement::fromIndices(std::move(blocks), block_count);
+    return SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
 }
 
 // Keeps the committed preview placement only when the backend confirms the same reordered chain.
-[[nodiscard]] std::optional<BlockPlacement> placementAfterCommittedPreview(
-    const BlockPlacement& preview_placement,
+[[nodiscard]] std::optional<SignalChainBlockPlacement> placementAfterCommittedPreview(
+    const SignalChainBlockPlacement& preview_placement,
     const std::vector<core::PluginViewState>& previous_plugins,
     const std::vector<core::PluginViewState>& next_plugins, std::size_t block_count)
 {
@@ -124,7 +124,7 @@ namespace
         blocks[next_index] = preview_blocks[previous_index];
     }
 
-    return BlockPlacement::fromIndices(std::move(blocks), block_count);
+    return SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
 }
 
 } // namespace
@@ -132,26 +132,28 @@ namespace
 // Starts empty: no plugins, the minimum number of free blocks, no insertion or preview in flight.
 SignalChainBlockLayout::SignalChainBlockLayout(std::size_t minimum_block_count)
     : m_minimum_block_count(minimum_block_count)
-    , m_placement(BlockPlacement::compact(0, minimum_block_count))
+    , m_placement(SignalChainBlockPlacement::compact(0, minimum_block_count))
 {}
 
 // Uses the same half-split as the visual block affordance for before/after intent.
-BlockPushDirection SignalChainBlockLayout::pushDirectionForLocalX(int local_x, int width) noexcept
+SignalChainBlockPlacement::PushDirection SignalChainBlockLayout::pushDirectionForLocalX(
+    int local_x, int width) noexcept
 {
-    return local_x >= width / 2 ? BlockPushDirection::Left : BlockPushDirection::Right;
+    return local_x >= width / 2 ? SignalChainBlockPlacement::PushDirection::Left
+                                : SignalChainBlockPlacement::PushDirection::Right;
 }
 
 // Reconciles controller state with any pending insert or committed preview held by the view.
 void SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewState>& plugins)
 {
     const std::size_t block_count = blockCountFor(plugins.size());
-    BlockPlacement next_placement =
+    SignalChainBlockPlacement next_placement =
         reconciledPlacement(m_plugins, m_placement, plugins, block_count);
     bool keep_committed_preview = false;
 
     if (m_pending_insert.has_value())
     {
-        std::optional<BlockPlacement> inserted = placementAfterInsert(
+        std::optional<SignalChainBlockPlacement> inserted = placementAfterInsert(
             m_plugins,
             m_placement,
             plugins,
@@ -171,7 +173,7 @@ void SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewStat
 
     if (m_drag_preview.has_value() && m_drag_preview->committed)
     {
-        std::optional<BlockPlacement> committed = placementAfterCommittedPreview(
+        std::optional<SignalChainBlockPlacement> committed = placementAfterCommittedPreview(
             m_drag_preview->placement, m_plugins, plugins, block_count);
         if (committed.has_value())
         {
@@ -211,9 +213,10 @@ std::optional<std::size_t> SignalChainBlockLayout::beginInsertAtBlock(std::size_
 
 // Resolves a target block against the current authoritative placement.
 std::optional<SignalChainBlockLayout::DropIntent> SignalChainBlockLayout::dropIntent(
-    std::size_t source_index, std::size_t target_block_index, BlockPushDirection direction) const
+    std::size_t source_index, std::size_t target_block_index,
+    SignalChainBlockPlacement::PushDirection direction) const
 {
-    std::optional<BlockPlacement> moved =
+    std::optional<SignalChainBlockPlacement> moved =
         m_placement.withPluginAtBlock(source_index, target_block_index, direction);
     if (!moved.has_value())
     {
@@ -230,8 +233,12 @@ std::optional<SignalChainBlockLayout::DropIntent> SignalChainBlockLayout::dropIn
 bool SignalChainBlockLayout::canReceiveDrop(
     std::size_t source_index, std::size_t target_block_index) const
 {
-    return dropIntent(source_index, target_block_index, BlockPushDirection::Left).has_value() ||
-           dropIntent(source_index, target_block_index, BlockPushDirection::Right).has_value();
+    return dropIntent(
+               source_index, target_block_index, SignalChainBlockPlacement::PushDirection::Left)
+               .has_value() ||
+           dropIntent(
+               source_index, target_block_index, SignalChainBlockPlacement::PushDirection::Right)
+               .has_value();
 }
 
 // Stores a drag-hover preview and reports whether the visible placement changed.
@@ -281,7 +288,7 @@ SignalChainBlockLayout::DropCompletion SignalChainBlockLayout::completeDrop(
     }
 
     const std::size_t destination_index = intent->destination_index;
-    BlockPlacement placement = std::move(intent->placement);
+    SignalChainBlockPlacement placement = std::move(intent->placement);
     bool layout_changed = previewMove(
         source_index, DropIntent{.destination_index = destination_index, .placement = placement});
     if (destination_index == source_index)
@@ -324,7 +331,7 @@ bool SignalChainBlockLayout::clearUncommittedPreview()
 }
 
 // Applies a fixed-slot placement that leaves the plugin chain's linear order unchanged.
-bool SignalChainBlockLayout::applyPlacement(BlockPlacement placement)
+bool SignalChainBlockLayout::applyPlacement(SignalChainBlockPlacement placement)
 {
     if (placement.pluginCount() != m_placement.pluginCount() ||
         placement.blockCount() != blockCount())
@@ -338,13 +345,13 @@ bool SignalChainBlockLayout::applyPlacement(BlockPlacement placement)
     return layout_changed;
 }
 
-const BlockPlacement& SignalChainBlockLayout::committedPlacement() const noexcept
+const SignalChainBlockPlacement& SignalChainBlockLayout::committedPlacement() const noexcept
 {
     return m_placement;
 }
 
 // Exposes the placement the view should currently render, including transient drag previews.
-const BlockPlacement& SignalChainBlockLayout::activePlacement() const noexcept
+const SignalChainBlockPlacement& SignalChainBlockLayout::activePlacement() const noexcept
 {
     return m_drag_preview.has_value() ? m_drag_preview->placement : m_placement;
 }

@@ -40,12 +40,29 @@ namespace
 }
 
 // Builds a valid placement from explicit block assignments or fails the test setup loudly.
-[[nodiscard]] BlockPlacement placementOf(std::vector<std::size_t> blocks, std::size_t block_count)
+[[nodiscard]] SignalChainBlockPlacement placementOf(
+    std::vector<std::size_t> blocks, std::size_t block_count)
 {
-    std::optional<BlockPlacement> built =
-        BlockPlacement::fromIndices(std::move(blocks), block_count);
+    std::optional<SignalChainBlockPlacement> built =
+        SignalChainBlockPlacement::fromIndices(std::move(blocks), block_count);
     REQUIRE(built.has_value());
     return *built;
+}
+
+// Starts a test from a gapped layout through the public drop path: a drop whose destination equals
+// its source keeps linear order and only fixes the visual blocks.
+void installPlacement(
+    SignalChainBlockLayout& layout, std::vector<std::size_t> blocks, std::size_t block_count)
+{
+    SignalChainBlockPlacement placement = placementOf(std::move(blocks), block_count);
+    const std::vector<std::size_t> expected_blocks = placement.blocks();
+    (void)layout.completeDrop(
+        0,
+        SignalChainBlockLayout::DropIntent{
+            .destination_index = 0,
+            .placement = std::move(placement),
+        });
+    REQUIRE(layout.committedPlacement().blocks() == expected_blocks);
 }
 
 } // namespace
@@ -63,10 +80,18 @@ TEST_CASE("Block layout keeps configured fixed block count", "[ui][signal-chain-
 // Verifies pointer side maps to the occupied-block push direction used by drag entry latching.
 TEST_CASE("Block layout maps pointer side to push direction", "[ui][signal-chain-layout]")
 {
-    CHECK(SignalChainBlockLayout::pushDirectionForLocalX(0, 100) == BlockPushDirection::Right);
-    CHECK(SignalChainBlockLayout::pushDirectionForLocalX(49, 100) == BlockPushDirection::Right);
-    CHECK(SignalChainBlockLayout::pushDirectionForLocalX(50, 100) == BlockPushDirection::Left);
-    CHECK(SignalChainBlockLayout::pushDirectionForLocalX(99, 100) == BlockPushDirection::Left);
+    CHECK(
+        SignalChainBlockLayout::pushDirectionForLocalX(0, 100) ==
+        SignalChainBlockPlacement::PushDirection::Right);
+    CHECK(
+        SignalChainBlockLayout::pushDirectionForLocalX(49, 100) ==
+        SignalChainBlockPlacement::PushDirection::Right);
+    CHECK(
+        SignalChainBlockLayout::pushDirectionForLocalX(50, 100) ==
+        SignalChainBlockPlacement::PushDirection::Left);
+    CHECK(
+        SignalChainBlockLayout::pushDirectionForLocalX(99, 100) ==
+        SignalChainBlockPlacement::PushDirection::Left);
 }
 
 // Verifies metadata refreshes keep visual gaps while real reorder refreshes compact them.
@@ -78,7 +103,7 @@ TEST_CASE("Block layout preserves gaps on metadata refresh", "[ui][signal-chain-
 
     SignalChainBlockLayout layout{8};
     layout.applyPlugins(previous_plugins);
-    REQUIRE(layout.applyPlacement(placementOf({1, 4}, 8)));
+    installPlacement(layout, {1, 4}, 8);
     layout.applyPlugins(renamed_plugins);
 
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 4});
@@ -93,7 +118,7 @@ TEST_CASE("Block layout maps pending inserts to empty blocks", "[ui][signal-chai
 {
     SignalChainBlockLayout layout{8};
     layout.applyPlugins(makePlugins({"amp", "cab"}));
-    REQUIRE(layout.applyPlacement(placementOf({0, 4}, 8)));
+    installPlacement(layout, {0, 4}, 8);
 
     const std::optional<std::size_t> chain_index = layout.beginInsertAtBlock(2);
     REQUIRE(chain_index.has_value());
@@ -128,10 +153,10 @@ TEST_CASE("Block layout drops onto occupied blocks by side", "[ui][signal-chain-
 {
     SignalChainBlockLayout layout{4};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-    REQUIRE(layout.applyPlacement(placementOf({0, 2, 3}, 4)));
+    installPlacement(layout, {0, 2, 3}, 4);
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(0, 2, BlockPushDirection::Left);
+        layout.dropIntent(0, 2, SignalChainBlockPlacement::PushDirection::Left);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 1);
@@ -143,9 +168,10 @@ TEST_CASE("Block layout rejects blocked occupied sides", "[ui][signal-chain-layo
 {
     SignalChainBlockLayout layout{4};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-    REQUIRE(layout.applyPlacement(placementOf({0, 1, 3}, 4)));
+    installPlacement(layout, {0, 1, 3}, 4);
 
-    CHECK_FALSE(layout.dropIntent(2, 1, BlockPushDirection::Left).has_value());
+    CHECK_FALSE(
+        layout.dropIntent(2, 1, SignalChainBlockPlacement::PushDirection::Left).has_value());
     CHECK(layout.canReceiveDrop(2, 1));
 }
 
@@ -156,7 +182,7 @@ TEST_CASE("Block layout drops into empty fixed blocks", "[ui][signal-chain-layou
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(2, 5, BlockPushDirection::Right);
+        layout.dropIntent(2, 5, SignalChainBlockPlacement::PushDirection::Right);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 2);
@@ -168,10 +194,10 @@ TEST_CASE("Block layout accepts source block drops", "[ui][signal-chain-layout]"
 {
     SignalChainBlockLayout layout{8};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-    REQUIRE(layout.applyPlacement(placementOf({0, 4, 5}, 8)));
+    installPlacement(layout, {0, 4, 5}, 8);
 
     const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(1, 4, BlockPushDirection::Left);
+        layout.dropIntent(1, 4, SignalChainBlockPlacement::PushDirection::Left);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 1);
