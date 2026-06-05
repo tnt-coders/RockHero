@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -48,5 +49,35 @@ struct PluginViewState
     */
     friend bool operator==(const PluginViewState& lhs, const PluginViewState& rhs) = default;
 };
+
+/*!
+\brief Reports whether two plugin lists hold the same instances in the same order.
+
+Compares stable instance IDs only, so display-only changes such as a renamed plugin are not treated
+as a structural reorder. Used by signal-chain reconciliation in both the editor core and the view.
+
+\param previous_plugins Earlier plugin list.
+\param next_plugins Later plugin list.
+\return True when both lists are the same length with matching instance IDs at every position.
+*/
+[[nodiscard]] inline bool hasSamePluginOrder(
+    const std::vector<PluginViewState>& previous_plugins,
+    const std::vector<PluginViewState>& next_plugins)
+{
+    if (previous_plugins.size() != next_plugins.size())
+    {
+        return false;
+    }
+
+    for (std::size_t index = 0; index < previous_plugins.size(); ++index)
+    {
+        if (previous_plugins[index].instance_id != next_plugins[index].instance_id)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 } // namespace rock_hero::editor::core
