@@ -1084,7 +1084,7 @@ SignalChainView::~SignalChainView()
 // Stores the render state and updates controls whose enabledness is derived outside the view.
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
-    m_block_layout.applyPlugins(state.plugins);
+    const bool placement_changed = m_block_layout.applyPlugins(state.plugins);
     m_state = state;
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
@@ -1094,6 +1094,13 @@ void SignalChainView::setState(const core::SignalChainViewState& state)
     rebuildPluginTiles();
     resized();
     repaint();
+
+    // The placement is editor-authored document state, so report changes (an adopted load layout
+    // or a settled drag) to the controller, which persists them on the next capture.
+    if (placement_changed)
+    {
+        reportSignalChainPlacement();
+    }
 }
 
 // Applies the live-rig meter values without rebuilding plugin tiles or changing controls.
@@ -1320,11 +1327,29 @@ void SignalChainView::completePluginDrop(
 
     if (completion.move_destination_index.has_value())
     {
+        // A reordering drop intentionally does not report here. The backend move snapshot carries
+        // default block indices, but the committed preview is realigned onto the new order by
+        // applyPlugins (placementAfterCommittedPreview) during this move's setState refresh, which
+        // then reports the authored placement. Reporting here instead would send a stale, pre-move
+        // placement, and if the move is rejected it would persist a layout inconsistent with the
+        // chain.
         movePluginToBlockLocation(
             std::move(plugin->instance_id),
             plugin->source_index,
             *completion.move_destination_index);
     }
+    else if (completion.layout_changed)
+    {
+        // An order-preserving drop (e.g. opening a gap) changes only the visual placement and
+        // never round-trips through the controller, so report it directly or it would not persist.
+        reportSignalChainPlacement();
+    }
+}
+
+// Hands the committed block placement to the controller so it is written on the next capture.
+void SignalChainView::reportSignalChainPlacement()
+{
+    m_listener.onSignalChainPlacementChanged(m_block_layout.committedPlacement().blocks());
 }
 
 // Stores a drag-hover preview and relayouts the chain if the preview target changed.

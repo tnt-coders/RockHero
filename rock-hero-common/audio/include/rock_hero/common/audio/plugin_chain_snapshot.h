@@ -40,6 +40,15 @@ struct [[nodiscard]] PluginChainEntry
     std::size_t chain_index{};
 
     /*!
+    \brief Opaque editor-owned visual block carried alongside this plugin.
+
+    The audio layer only shuttles this value between the tone document and the editor; it does not
+    interpret it, enforce gap rules, or use it for playback. The editor owns its meaning and
+    validity. Distinct from chain_index, which is the dense playback position.
+    */
+    std::size_t block_index{};
+
+    /*!
     \brief Compares two plugin chain entries by their stored values.
     \param lhs Left-hand plugin chain entry.
     \param rhs Right-hand plugin chain entry.

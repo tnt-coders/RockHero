@@ -69,6 +69,12 @@ public:
         move_call_count += 1;
     }
 
+    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override
+    {
+        last_block_indices = std::move(block_indices);
+        placement_change_count += 1;
+    }
+
     void onOpenPluginPressed(std::string /*instance_id*/) override
     {}
 
@@ -81,8 +87,10 @@ public:
     std::optional<std::size_t> last_insert_index{};
     std::optional<std::string> last_moved_instance_id{};
     std::optional<std::size_t> last_move_destination_index{};
+    std::vector<std::size_t> last_block_indices{};
     int insert_call_count{0};
     int move_call_count{0};
+    int placement_change_count{0};
 };
 
 // Builds the tile drag payload used by SignalChainPanel's internal JUCE drag targets.

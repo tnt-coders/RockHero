@@ -311,6 +311,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onSelectedPluginInsertRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onMovePluginRequested(std::string instance_id, std::size_t destination_index);
+    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices);
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
@@ -817,6 +818,11 @@ void EditorController::onRemovePluginRequested(std::string instance_id)
 void EditorController::onMovePluginRequested(std::string instance_id, std::size_t destination_index)
 {
     m_impl->onMovePluginRequested(std::move(instance_id), destination_index);
+}
+
+void EditorController::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+{
+    m_impl->onSignalChainPlacementChanged(std::move(block_indices));
 }
 
 void EditorController::onOpenPluginRequested(std::string instance_id)
@@ -1514,6 +1520,25 @@ void EditorController::Impl::onMovePluginRequested(
     std::string instance_id, std::size_t destination_index)
 {
     runAction(EditorAction::MovePlugin{std::move(instance_id), destination_index});
+}
+
+// Records the view's committed visual placement so it is written on the next capture. A no-op
+// report (e.g. echoing a freshly loaded placement) is ignored so opening a project does not look
+// dirty. A genuine placement-only edit, such as opening a gap without reordering, is not routed
+// through an action, so it must flag unsaved changes itself and refresh save availability.
+void EditorController::Impl::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+{
+    if (m_signal_chain.blockIndices() == block_indices)
+    {
+        return;
+    }
+
+    m_signal_chain.setBlockPlacement(block_indices);
+    if (hasLiveRigPersistence() && !m_has_unsaved_changes)
+    {
+        m_has_unsaved_changes = true;
+        updateView();
+    }
 }
 
 // Opens the hosted plugin editor window for a row-level signal-chain request.
@@ -2383,6 +2408,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
             .song_directory = songDirectoryForProject(project),
             .arrangement_id = arrangement->id,
             .existing_tone_document_ref = arrangement->tone_document_ref,
+            .block_indices = m_signal_chain.blockIndices(),
         });
     if (!snapshot.has_value())
     {

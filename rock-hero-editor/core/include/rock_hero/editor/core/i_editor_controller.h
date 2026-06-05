@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -121,6 +122,17 @@ public:
     \param destination_index Final user-visible chain index for the instance.
     */
     virtual void onMovePluginRequested(std::string instance_id, std::size_t destination_index) = 0;
+
+    /*!
+    \brief Reports the editor-authored visual block placement so it persists with the project.
+
+    The view owns the placement gesture math and emits the committed result here whenever it
+    changes. The controller stores it as the authoritative placement and writes it on the next
+    capture, keeping save/reload faithful to the on-screen gap arrangement.
+
+    \param block_indices Fixed visual block for each plugin in current chain order.
+    */
+    virtual void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) = 0;
 
     /*!
     \brief Handles a request to open a plugin instance editor window.

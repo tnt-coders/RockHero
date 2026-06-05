@@ -62,6 +62,66 @@ TEST_CASE("SignalChainWorkflow projects authoritative snapshots", "[core][signal
     CHECK(workflow.appendIndex() == 2);
 }
 
+// Verifies the authored block placement round-trips through the snapshot and the view report.
+TEST_CASE("SignalChainWorkflow carries authored block placement", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    common::audio::PluginChainEntry first = makeEntry("first", 0);
+    first.block_index = 1;
+    common::audio::PluginChainEntry second = makeEntry("second", 1);
+    second.block_index = 4;
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {first, second}});
+
+    // A loaded snapshot's authored blocks reach the view rows and the capture vector.
+    REQUIRE(workflow.plugins().size() == 2);
+    CHECK(workflow.plugins()[0].block_index == 1);
+    CHECK(workflow.plugins()[1].block_index == 4);
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{1, 4});
+
+    // A view-reported placement overrides the stored blocks for the next capture.
+    workflow.setBlockPlacement({2, 5});
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+
+    // A stale report whose size no longer matches the chain is ignored.
+    workflow.setBlockPlacement({7});
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+}
+
+// Verifies the editor owns placement validity: an opaque, invalid snapshot placement compacts.
+TEST_CASE("SignalChainWorkflow compacts an invalid block placement", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    common::audio::PluginChainEntry first = makeEntry("first", 0);
+    first.block_index = 3;
+    common::audio::PluginChainEntry second = makeEntry("second", 1);
+    second.block_index = 3;
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {first, second}});
+
+    // Duplicate blocks are not a valid layout, so the workflow falls back to a gapless one.
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
+}
+
+// Verifies malformed view reports are normalized before they can be captured.
+TEST_CASE("SignalChainWorkflow compacts invalid reported placement", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0), makeEntry("second", 1)},
+        });
+
+    workflow.setBlockPlacement({3, 3});
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
+
+    workflow.setBlockPlacement({2, 5});
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{2, 5});
+
+    workflow.setBlockPlacement({0, common::audio::max_signal_chain_plugins});
+    CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
+}
+
 // Verifies browser insertion state uses append by default and rejects stale slots.
 TEST_CASE("SignalChainWorkflow stores pending insertion slots", "[core][signal-chain]")
 {

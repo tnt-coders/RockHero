@@ -29,6 +29,7 @@
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <string>
+#include <vector>
 
 namespace juce
 {
@@ -264,6 +265,9 @@ private:
 
     // SignalChainView::Listener implementation.
     void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override;
+
+    // SignalChainView::Listener implementation.
+    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override;
 
     // SignalChainView::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;

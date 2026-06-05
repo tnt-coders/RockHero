@@ -33,6 +33,14 @@ struct PluginViewState
     std::size_t chain_index{};
 
     /*!
+    \brief Fixed visual block this plugin occupies, allowing gaps in the editor layout.
+
+    Distinct from chain_index: the chain index is the dense playback position, while the block index
+    is the authored editor slot, which may leave empty blocks between plugins.
+    */
+    std::size_t block_index{};
+
+    /*!
     \brief Compares two plugin view states by their stored values.
     \param lhs Left-hand plugin view state.
     \param rhs Right-hand plugin view state.

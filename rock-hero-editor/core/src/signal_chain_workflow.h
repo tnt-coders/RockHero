@@ -75,6 +75,23 @@ public:
     /*! \brief Returns view-ready plugin rows in authoritative backend order. */
     [[nodiscard]] const std::vector<PluginViewState>& plugins() const noexcept;
 
+    /*!
+    \brief Stores the editor-authored visual block placement reported by the view.
+
+    The view owns the placement gesture math; the workflow holds the committed result so it persists
+    on capture. The placement is aligned to the current chain order; a size mismatch is treated as a
+    stale report and ignored.
+
+    \param block_indices Fixed visual block for each plugin in current chain order.
+    */
+    void setBlockPlacement(const std::vector<std::size_t>& block_indices);
+
+    /*!
+    \brief Returns the authored visual block of each plugin in chain order for persistence.
+    \return Fixed visual block per plugin, aligned to the current chain order.
+    */
+    [[nodiscard]] std::vector<std::size_t> blockIndices() const;
+
 private:
     std::vector<PluginViewState> m_plugins;
     std::optional<std::size_t> m_pending_insertion_index;
