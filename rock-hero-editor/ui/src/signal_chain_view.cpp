@@ -879,7 +879,7 @@ public:
     void mouseUp(const juce::MouseEvent& event) override
     {
         m_drag_started = false;
-        m_view.clearUncommittedPluginMovePreviewAsync();
+        m_view.clearPluginMovePreviewAsync();
         if (event.mouseWasClicked())
         {
             m_listener.onOpenPluginPressed(m_plugin.instance_id);
@@ -1393,24 +1393,14 @@ void SignalChainView::clearPluginMovePreview()
     m_chain_content->repaint();
 }
 
-// Clears any drag preview that has not already been converted into cached placement.
-void SignalChainView::clearUncommittedPluginMovePreview()
-{
-    if (m_block_layout.clearUncommittedPreview())
-    {
-        layoutSignalPathContent(TileLayoutMotion::Animated);
-        m_chain_content->repaint();
-    }
-}
-
 // Lets JUCE deliver the target drop callback before source mouse-up can clear the preview.
-void SignalChainView::clearUncommittedPluginMovePreviewAsync()
+void SignalChainView::clearPluginMovePreviewAsync()
 {
     juce::Component::SafePointer<SignalChainView> safe_this{this};
     (void)juce::MessageManager::callAsync([safe_this] {
         if (safe_this != nullptr)
         {
-            safe_this->clearUncommittedPluginMovePreview();
+            safe_this->clearPluginMovePreview();
         }
     });
 }
