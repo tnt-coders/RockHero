@@ -12,16 +12,6 @@
 namespace rock_hero::editor::ui
 {
 
-/*! \brief Side an occupied block is pushed toward to open a gap for a dropped plugin. */
-enum class BlockPushDirection
-{
-    /*! \brief Push occupied blocks toward lower visual block indices. */
-    Left,
-
-    /*! \brief Push occupied blocks toward higher visual block indices. */
-    Right,
-};
-
 /*!
 \brief Valid one-to-one assignment of chain plugins to fixed visual blocks.
 
@@ -30,16 +20,27 @@ Each plugin, identified by its linear chain position, owns exactly one visual bl
 ever yield bijections, and fromIndices() rejects malformed input. Callers can therefore manipulate
 placement without repeating the range and uniqueness checks the raw index vector would require.
 */
-class BlockPlacement final
+class SignalChainBlockPlacement final
 {
 public:
+    /*! \brief Side an occupied block is pushed toward to open a gap for a dropped plugin. */
+    enum class PushDirection
+    {
+        /*! \brief Push occupied blocks toward lower visual block indices. */
+        Left,
+
+        /*! \brief Push occupied blocks toward higher visual block indices. */
+        Right,
+    };
+
     /*!
     \brief Builds the default placement where plugin i occupies block i.
     \param plugin_count Number of plugins in linear chain order.
     \param block_count Requested fixed visual blocks; expanded when smaller than plugin_count.
     \return Compact placement that fills the leading blocks in order.
     */
-    [[nodiscard]] static BlockPlacement compact(std::size_t plugin_count, std::size_t block_count);
+    [[nodiscard]] static SignalChainBlockPlacement compact(
+        std::size_t plugin_count, std::size_t block_count);
 
     /*!
     \brief Validates untrusted block assignments into a placement.
@@ -47,7 +48,7 @@ public:
     \param block_count Number of fixed visual blocks.
     \return Placement when blocks is a bijection into [0, block_count), otherwise empty.
     */
-    [[nodiscard]] static std::optional<BlockPlacement> fromIndices(
+    [[nodiscard]] static std::optional<SignalChainBlockPlacement> fromIndices(
         std::vector<std::size_t> blocks, std::size_t block_count);
 
     /*! \brief Returns the number of plugins assigned to blocks. */
@@ -95,19 +96,19 @@ public:
     \param direction Side occupied blocks shift toward to open a gap.
     \return Resulting placement, or empty when that side cannot absorb the move.
     */
-    [[nodiscard]] std::optional<BlockPlacement> withPluginAtBlock(
-        std::size_t plugin_index, std::size_t target_block, BlockPushDirection direction) const;
+    [[nodiscard]] std::optional<SignalChainBlockPlacement> withPluginAtBlock(
+        std::size_t plugin_index, std::size_t target_block, PushDirection direction) const;
 
     /*!
     \brief Compares placements by plugin-to-block assignment and block count.
     \param other Placement compared against this one.
     \return True when both placements assign the same blocks over the same range.
     */
-    [[nodiscard]] bool operator==(const BlockPlacement& other) const = default;
+    [[nodiscard]] bool operator==(const SignalChainBlockPlacement& other) const = default;
 
 private:
     // Private so every placement originates from a factory that guarantees the bijection invariant.
-    BlockPlacement(std::vector<std::size_t> blocks, std::size_t block_count);
+    SignalChainBlockPlacement(std::vector<std::size_t> blocks, std::size_t block_count);
 
     // Visual block owned by each plugin in chain order; entries are distinct and stay below
     // m_block_count.
