@@ -1546,21 +1546,24 @@ void EditorView::onRemovePluginPressed(std::string instance_id)
 }
 
 // Forwards row-level move intent to the controller after checking derived availability.
-void EditorView::onMovePluginPressed(std::string instance_id, std::size_t destination_index)
+void EditorView::onMovePluginPressed(
+    std::string instance_id, std::size_t destination_index,
+    std::vector<core::PluginBlockAssignment> placement)
 {
     if (!m_state.signal_chain.move_plugins_enabled)
     {
         return;
     }
 
-    m_controller.onMovePluginRequested(std::move(instance_id), destination_index);
+    m_controller.onMovePluginRequested(
+        std::move(instance_id), destination_index, std::move(placement));
 }
 
 // Forwards the authored block placement so the controller can persist it with the project. This is
 // document state, not a gated user action, so it is reported regardless of edit availability.
-void EditorView::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+void EditorView::onSignalChainPlacementChanged(std::vector<core::PluginBlockAssignment> placement)
 {
-    m_controller.onSignalChainPlacementChanged(std::move(block_indices));
+    m_controller.onSignalChainPlacementChanged(std::move(placement));
 }
 
 // Forwards row-level open intent to the controller; controller-side routing handles busy gating.

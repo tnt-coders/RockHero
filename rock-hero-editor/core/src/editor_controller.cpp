@@ -310,8 +310,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPluginCatalogScanRequested();
     void onSelectedPluginInsertRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
-    void onMovePluginRequested(std::string instance_id, std::size_t destination_index);
-    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices);
+    void onMovePluginRequested(
+        std::string instance_id, std::size_t destination_index,
+        std::vector<PluginBlockAssignment> placement);
+    void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement);
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
@@ -816,14 +818,16 @@ void EditorController::onRemovePluginRequested(std::string instance_id)
     m_impl->onRemovePluginRequested(std::move(instance_id));
 }
 
-void EditorController::onMovePluginRequested(std::string instance_id, std::size_t destination_index)
+void EditorController::onMovePluginRequested(
+    std::string instance_id, std::size_t destination_index,
+    std::vector<PluginBlockAssignment> placement)
 {
-    m_impl->onMovePluginRequested(std::move(instance_id), destination_index);
+    m_impl->onMovePluginRequested(std::move(instance_id), destination_index, std::move(placement));
 }
 
-void EditorController::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+void EditorController::onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement)
 {
-    m_impl->onSignalChainPlacementChanged(std::move(block_indices));
+    m_impl->onSignalChainPlacementChanged(std::move(placement));
 }
 
 void EditorController::onOpenPluginRequested(std::string instance_id)
@@ -1519,16 +1523,19 @@ void EditorController::Impl::onRemovePluginRequested(std::string instance_id)
 
 // Moves one runtime plugin instance to a new final index in the current linear chain.
 void EditorController::Impl::onMovePluginRequested(
-    std::string instance_id, std::size_t destination_index)
+    std::string instance_id, std::size_t destination_index,
+    std::vector<PluginBlockAssignment> placement)
 {
-    runAction(EditorAction::MovePlugin{std::move(instance_id), destination_index});
+    runAction(
+        EditorAction::MovePlugin{std::move(instance_id), destination_index, std::move(placement)});
 }
 
-// Records the view's committed visual placement through the normal action gate. A no-op report
-// (e.g. echoing a freshly loaded placement) is ignored by the workflow action.
-void EditorController::Impl::onSignalChainPlacementChanged(std::vector<std::size_t> block_indices)
+// Records a placement-only edit through the normal action gate. A no-op report is ignored by the
+// workflow action.
+void EditorController::Impl::onSignalChainPlacementChanged(
+    std::vector<PluginBlockAssignment> placement)
 {
-    runAction(EditorAction::SetSignalChainPlacement{std::move(block_indices)});
+    runAction(EditorAction::SetSignalChainPlacement{std::move(placement)});
 }
 
 // Opens the hosted plugin editor window for a row-level signal-chain request.
@@ -1993,6 +2000,9 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
     }
 
     applySignalChainMutationSnapshot(std::move(*snapshot), true);
+    // The reorder already changed chain state, so the view must refresh whether or not the
+    // instance-keyed placement differed; the [[nodiscard]] result is intentionally ignored.
+    (void)m_signal_chain.setBlockPlacement(action.placement);
     updateView();
 }
 
@@ -2004,7 +2014,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChai
         return;
     }
 
-    if (!m_signal_chain.setBlockPlacement(action.block_indices))
+    if (!m_signal_chain.setBlockPlacement(action.placement))
     {
         return;
     }

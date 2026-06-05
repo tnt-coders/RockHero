@@ -64,7 +64,7 @@ void installPlacement(
             .destination_index = 0,
             .placement = std::move(placement),
         });
-    REQUIRE(layout.committedPlacement().blocks() == expected_blocks);
+    REQUIRE(layout.cachedPlacement().blocks() == expected_blocks);
 }
 
 // Applies a hover preview in tests through the same intent path used by the view.
@@ -88,10 +88,10 @@ TEST_CASE("Block layout keeps configured fixed block count", "[ui][signal-chain-
     (void)layout.applyPlugins(makePlugins({"amp", "cab"}));
 
     CHECK(layout.blockCount() == 8);
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1});
+    CHECK(layout.cachedPlacement().blocks() == std::vector<std::size_t>{0, 1});
 }
 
-// Verifies an authored placement carried on the snapshot (a project load) is adopted as gaps.
+// Verifies controller-authored placement is adopted as the cached render layout.
 TEST_CASE("Block layout adopts authored block placement", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
@@ -99,63 +99,35 @@ TEST_CASE("Block layout adopts authored block placement", "[ui][signal-chain-lay
     plugins[0].block_index = 1;
     plugins[1].block_index = 4;
 
-    CHECK(layout.applyPlugins(plugins));
+    layout.applyPlugins(plugins);
 
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 4});
+    CHECK(layout.cachedPlacement().blocks() == std::vector<std::size_t>{1, 4});
 }
 
-// Verifies metadata refreshes keep visual gaps while real reorder refreshes compact them.
-TEST_CASE("Block layout preserves gaps on metadata refresh", "[ui][signal-chain-layout]")
+// Verifies invalid controller placement falls back to a compact render layout.
+TEST_CASE("Block layout compacts invalid block placement", "[ui][signal-chain-layout]")
 {
-    const std::vector<core::PluginViewState> previous_plugins = makePlugins({"amp", "cab"});
-    std::vector<core::PluginViewState> renamed_plugins = previous_plugins;
-    renamed_plugins[0].name = "Renamed Amp";
-
     SignalChainBlockLayout layout{8};
-    (void)layout.applyPlugins(previous_plugins);
-    installPlacement(layout, {1, 4}, 8);
-    (void)layout.applyPlugins(renamed_plugins);
+    std::vector<core::PluginViewState> plugins = makePlugins({"amp", "cab"});
+    plugins[0].block_index = 3;
+    plugins[1].block_index = 3;
 
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 4});
+    layout.applyPlugins(plugins);
 
-    (void)layout.applyPlugins(makePlugins({"cab", "amp"}));
-
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1});
+    CHECK(layout.cachedPlacement().blocks() == std::vector<std::size_t>{0, 1});
 }
 
-// Verifies the selected empty block is preserved when the inserted plugin reaches state.
-TEST_CASE("Block layout maps pending inserts to empty blocks", "[ui][signal-chain-layout]")
+// Verifies empty fixed blocks map to the insertion index implied by visible placement.
+TEST_CASE("Block layout maps empty blocks to insert slots", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{8};
-    (void)layout.applyPlugins(makePlugins({"amp", "cab"}));
-    installPlacement(layout, {0, 4}, 8);
+    std::vector<core::PluginViewState> plugins = makePlugins({"amp", "cab"});
+    plugins[0].block_index = 0;
+    plugins[1].block_index = 4;
+    layout.applyPlugins(plugins);
 
-    const std::optional<std::size_t> chain_index = layout.beginInsertAtBlock(2);
-    REQUIRE(chain_index.has_value());
-    CHECK(*chain_index == 1);
-
-    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 2, 4});
-
-    CHECK_FALSE(layout.beginInsertAtBlock(4).has_value());
-}
-
-// Verifies committed previews are remapped from previous order into backend-confirmed order.
-TEST_CASE("Block layout maps committed previews to backend order", "[ui][signal-chain-layout]")
-{
-    SignalChainBlockLayout layout{8};
-    (void)layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-
-    const SignalChainBlockLayout::DropCompletion completion = layout.completeDrop(
-        0,
-        SignalChainBlockLayout::DropIntent{
-            .destination_index = 2,
-            .placement = placementOf({4, 1, 2}, 8),
-        });
-    CHECK(completion.move_destination_index == std::optional<std::size_t>{2});
-
-    (void)layout.applyPlugins(makePlugins({"drive", "cab", "amp"}));
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 2, 4});
+    CHECK(layout.insertionIndexForBlock(2) == std::optional<std::size_t>{1});
+    CHECK_FALSE(layout.insertionIndexForBlock(4).has_value());
 }
 
 // Verifies occupied-block drops use the source gap to compute final placement.
@@ -259,7 +231,7 @@ TEST_CASE("Block layout completes drops from current preview", "[ui][signal-chai
 
     CHECK_FALSE(completion.move_destination_index.has_value());
     CHECK(completion.layout_changed);
-    CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1, 5});
+    CHECK(layout.cachedPlacement().blocks() == std::vector<std::size_t>{0, 1, 5});
 }
 
 } // namespace rock_hero::editor::ui

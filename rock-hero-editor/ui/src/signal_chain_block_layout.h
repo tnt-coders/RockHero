@@ -18,9 +18,9 @@ namespace rock_hero::editor::ui
 \brief Coordinates fixed-block placement and drag-preview state for the signal-chain view.
 
 SignalChainBlockLayout is private UI-module logic, but it deliberately avoids JUCE. The view feeds
-it controller-derived plugin snapshots and drag/drop events; the layout reconciles them against the
-authoritative SignalChainBlockPlacement and any in-flight insertion or drag preview, then reports
-back what the view must render and which move intent, if any, to emit.
+it controller-derived plugin snapshots and drag/drop events; the layout caches the controller
+placement for rendering, computes transient drag previews, and reports which move intent, if any,
+the view must emit.
 */
 class SignalChainBlockLayout final
 {
@@ -52,18 +52,17 @@ public:
     explicit SignalChainBlockLayout(std::size_t minimum_block_count);
 
     /*!
-    \brief Applies a controller-provided plugin snapshot and reconciles visual placement.
+    \brief Applies a controller-provided plugin snapshot and cached visual placement.
     \param plugins Current linear plugin state from the controller.
-    \return True when the committed placement changed and should be reported to the controller.
     */
-    [[nodiscard]] bool applyPlugins(const std::vector<core::PluginViewState>& plugins);
+    void applyPlugins(const std::vector<core::PluginViewState>& plugins);
 
     /*!
-    \brief Starts a pending insertion at an empty fixed block.
+    \brief Maps an empty fixed block to the matching insertion index.
     \param block_index Empty fixed block selected by the user.
     \return Linear insertion index to send to the controller, or empty when invalid.
     */
-    [[nodiscard]] std::optional<std::size_t> beginInsertAtBlock(std::size_t block_index);
+    [[nodiscard]] std::optional<std::size_t> insertionIndexForBlock(std::size_t block_index) const;
 
     /*!
     \brief Resolves a fixed-block drop into a visual placement and controller destination.
@@ -103,15 +102,15 @@ public:
     /*! \brief Clears any active drag preview. */
     [[nodiscard]] bool clearPreview();
 
-    /*! \brief Clears only previews that have not emitted a valid drop yet. */
+    /*! \brief Clears any preview that is still transient. */
     [[nodiscard]] bool clearUncommittedPreview();
 
-    /*! \brief Returns the authoritative placement for the current plugin order. */
-    [[nodiscard]] const core::SignalChainBlockPlacement& committedPlacement() const noexcept;
+    /*! \brief Returns the cached controller placement for the current plugin order. */
+    [[nodiscard]] const core::SignalChainBlockPlacement& cachedPlacement() const noexcept;
 
     /*!
     \brief Returns the placement the view should currently render.
-    \return Drag-preview placement when active, otherwise the committed placement.
+    \return Drag-preview placement when active, otherwise the cached controller placement.
     */
     [[nodiscard]] const core::SignalChainBlockPlacement& activePlacement() const noexcept;
 
@@ -133,15 +132,6 @@ private:
         std::size_t source_index{};
         std::size_t destination_index{};
         core::SignalChainBlockPlacement placement;
-        // True once a drop emitted a move intent and is waiting for authoritative controller state.
-        bool committed{false};
-    };
-
-    // Fixed block selected for a plugin browser insertion that has not reached state yet.
-    struct PendingInsert
-    {
-        std::size_t chain_index{};
-        std::size_t block_index{};
     };
 
     // Number of visual blocks for a plugin count, honoring the configured minimum.
@@ -151,17 +141,13 @@ private:
     // active visual placement changed.
     [[nodiscard]] bool applyPlacement(core::SignalChainBlockPlacement placement);
 
-    // Promotes the active preview to committed so release and same-order refreshes keep it.
-    void commitPreview();
-
-    // Applies the current committed-or-no-op preview when release lacks a fresh target intent.
+    // Applies the current preview when release lacks a fresh target intent.
     [[nodiscard]] std::optional<DropCompletion> completeCurrentPreviewDrop(
         std::size_t source_index);
 
     std::size_t m_minimum_block_count{};
     std::vector<core::PluginViewState> m_plugins;
     core::SignalChainBlockPlacement m_placement;
-    std::optional<PendingInsert> m_pending_insert;
     std::optional<DragPreview> m_drag_preview;
 };
 

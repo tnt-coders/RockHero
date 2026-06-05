@@ -1086,7 +1086,7 @@ SignalChainView::~SignalChainView()
 // Stores the render state and updates controls whose enabledness is derived outside the view.
 void SignalChainView::setState(const core::SignalChainViewState& state)
 {
-    const bool placement_changed = m_block_layout.applyPlugins(state.plugins);
+    m_block_layout.applyPlugins(state.plugins);
     m_state = state;
     m_input_calibrate_button.setEnabled(m_state.input_calibrate_enabled);
     m_output_gain_slider.setEnabled(m_state.output_gain_controls_enabled);
@@ -1096,13 +1096,6 @@ void SignalChainView::setState(const core::SignalChainViewState& state)
     rebuildPluginTiles();
     resized();
     repaint();
-
-    // The placement is editor-authored document state, so report changes (an adopted load layout
-    // or a settled drag) to the controller, which persists them on the next capture.
-    if (placement_changed)
-    {
-        reportSignalChainPlacement();
-    }
 }
 
 // Applies the live-rig meter values without rebuilding plugin tiles or changing controls.
@@ -1283,7 +1276,7 @@ void SignalChainView::insertPluginAtBlockLocation(std::size_t block_index)
         return;
     }
 
-    std::optional<std::size_t> chain_index = m_block_layout.beginInsertAtBlock(block_index);
+    std::optional<std::size_t> chain_index = m_block_layout.insertionIndexForBlock(block_index);
     if (chain_index.has_value())
     {
         m_listener.onInsertPluginPressed(*chain_index, block_index);
@@ -1305,7 +1298,8 @@ void SignalChainView::movePluginToBlockLocation(
         return;
     }
 
-    m_listener.onMovePluginPressed(std::move(instance_id), destination_index);
+    m_listener.onMovePluginPressed(
+        std::move(instance_id), destination_index, pluginBlockAssignments());
 }
 
 // Centralizes drop finalization so every target preserves preview and no-op placement behavior.
@@ -1329,12 +1323,8 @@ void SignalChainView::completePluginDrop(
 
     if (completion.move_destination_index.has_value())
     {
-        // A reordering drop intentionally does not report here. The backend move snapshot carries
-        // default block indices, but the committed preview is realigned onto the new order by
-        // applyPlugins (placementAfterCommittedPreview) during this move's setState refresh, which
-        // then reports the authored placement. Reporting here instead would send a stale, pre-move
-        // placement, and if the move is rejected it would persist a layout inconsistent with the
-        // chain.
+        // The placement is passed with the move intent, keyed by pre-move instance IDs, so core can
+        // apply it after the backend returns the reordered chain snapshot.
         movePluginToBlockLocation(
             std::move(plugin->instance_id),
             plugin->source_index,
@@ -1348,10 +1338,34 @@ void SignalChainView::completePluginDrop(
     }
 }
 
-// Hands the committed block placement to the controller so it is written on the next capture.
+// Hands the current block placement to the controller so it is written on the next capture.
 void SignalChainView::reportSignalChainPlacement()
 {
-    m_listener.onSignalChainPlacementChanged(m_block_layout.committedPlacement().blocks());
+    m_listener.onSignalChainPlacementChanged(pluginBlockAssignments());
+}
+
+// Converts the cached placement into the instance-keyed boundary shape expected by editor core.
+std::vector<core::PluginBlockAssignment> SignalChainView::pluginBlockAssignments() const
+{
+    std::vector<core::PluginBlockAssignment> assignments;
+    const SignalChainBlockPlacement& placement = m_block_layout.cachedPlacement();
+    if (placement.pluginCount() != m_state.plugins.size())
+    {
+        return assignments;
+    }
+
+    assignments.reserve(m_state.plugins.size());
+    const std::vector<std::size_t>& blocks = placement.blocks();
+    for (std::size_t index = 0; index < m_state.plugins.size(); ++index)
+    {
+        assignments.push_back(
+            core::PluginBlockAssignment{
+                .instance_id = m_state.plugins[index].instance_id,
+                .block_index = blocks[index],
+            });
+    }
+
+    return assignments;
 }
 
 // Stores a drag-hover preview and relayouts the chain if the preview target changed.
@@ -1367,7 +1381,7 @@ void SignalChainView::previewPluginMove(
     m_chain_content->repaint();
 }
 
-// Removes any drag-hover preview and restores authoritative chain layout.
+// Removes any drag-hover preview and restores the cached controller layout.
 void SignalChainView::clearPluginMovePreview()
 {
     if (!m_block_layout.clearPreview())
@@ -1379,7 +1393,7 @@ void SignalChainView::clearPluginMovePreview()
     m_chain_content->repaint();
 }
 
-// Leaves committed previews alone so source mouse-up does not snap back a valid drop.
+// Clears any drag preview that has not already been converted into cached placement.
 void SignalChainView::clearUncommittedPluginMovePreview()
 {
     if (m_block_layout.clearUncommittedPreview())
@@ -1438,13 +1452,13 @@ void SignalChainView::rebuildPluginTiles()
     }
 
     const std::size_t block_count = m_block_layout.blockCount();
-    const SignalChainBlockPlacement& committed_placement = m_block_layout.committedPlacement();
+    const SignalChainBlockPlacement& cached_placement = m_block_layout.cachedPlacement();
     m_insert_slots.reserve(block_count);
     const bool has_free_block = m_state.plugins.size() < block_count;
     for (std::size_t index = 0; index < block_count; ++index)
     {
         auto slot = std::make_unique<InsertSlotView>(index, *this);
-        const bool is_empty = !committed_placement.pluginAtBlock(index).has_value();
+        const bool is_empty = !cached_placement.pluginAtBlock(index).has_value();
         slot->setEditingEnabled(
             is_empty,
             m_state.insert_plugin_enabled && has_free_block && is_empty,

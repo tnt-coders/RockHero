@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain_view_state.h>
 #include <string>
 #include <vector>
@@ -54,15 +55,18 @@ public:
         \brief Called when the user requests moving a plugin instance.
         \param instance_id Opaque plugin instance ID selected by the user.
         \param destination_index Final user-visible chain index for the instance.
+        \param placement Fixed visual block assignments after the move.
         */
         virtual void onMovePluginPressed(
-            std::string instance_id, std::size_t destination_index) = 0;
+            std::string instance_id, std::size_t destination_index,
+            std::vector<core::PluginBlockAssignment> placement) = 0;
 
         /*!
         \brief Called when the authored visual block placement changes and should be persisted.
-        \param block_indices Fixed visual block for each plugin in current chain order.
+        \param placement Fixed visual block assignments for current plugin instances.
         */
-        virtual void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) = 0;
+        virtual void onSignalChainPlacementChanged(
+            std::vector<core::PluginBlockAssignment> placement) = 0;
 
         /*!
         \brief Called when the user requests a plugin instance editor window.
@@ -169,8 +173,11 @@ private:
         const juce::var& drag_description,
         std::optional<SignalChainBlockLayout::DropIntent> intent);
 
-    // Reports the committed block placement so the controller can persist it with the project.
+    // Reports the current block placement so the controller can persist it with the project.
     void reportSignalChainPlacement();
+
+    // Builds instance-keyed placement assignments from the current render cache.
+    [[nodiscard]] std::vector<core::PluginBlockAssignment> pluginBlockAssignments() const;
 
     // Applies a transient drag preview and relayouts tiles into their preview positions.
     void previewPluginMove(std::size_t source_index, SignalChainBlockLayout::DropIntent intent);
