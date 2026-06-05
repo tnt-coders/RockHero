@@ -2,7 +2,7 @@
 
 #include <utility>
 
-namespace rock_hero::editor::ui
+namespace rock_hero::editor::core
 {
 
 // Stores already-validated assignments; factories are the only construction path.
@@ -28,7 +28,7 @@ SignalChainBlockPlacement SignalChainBlockPlacement::compact(
     return SignalChainBlockPlacement{std::move(blocks), effective_block_count};
 }
 
-// Rejects anything that is not a one-to-one mapping into the visual block range.
+// Rejects anything that is not a one-to-one assignment into the visual block range.
 std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::fromIndices(
     std::vector<std::size_t> blocks, std::size_t block_count)
 {
@@ -123,7 +123,7 @@ std::size_t SignalChainBlockPlacement::chainIndexForPlugin(std::size_t plugin_in
     return chain_index;
 }
 
-// Resolves one target block using the dragged plugin's source block as the guaranteed gap.
+// Resolves one target block using the moved plugin's source block as the guaranteed gap.
 std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAtBlock(
     std::size_t plugin_index, std::size_t target_block) const
 {
@@ -132,7 +132,7 @@ std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAt
         return std::nullopt;
     }
 
-    // An empty or source-owned target simply relocates the dragged plugin onto it.
+    // An empty or source-owned target simply relocates the moved plugin onto it.
     const std::optional<std::size_t> target_occupant = pluginAtBlock(target_block);
     if (!target_occupant.has_value() || *target_occupant == plugin_index)
     {
@@ -195,4 +195,4 @@ std::optional<SignalChainBlockPlacement> SignalChainBlockPlacement::withPluginAt
     return fromIndices(std::move(blocks), m_block_count);
 }
 
-} // namespace rock_hero::editor::ui
+} // namespace rock_hero::editor::core

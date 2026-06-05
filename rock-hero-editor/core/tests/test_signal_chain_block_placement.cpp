@@ -1,12 +1,11 @@
-#include "signal_chain_block_placement.h"
-
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <optional>
+#include <rock_hero/editor/core/signal_chain_block_placement.h>
 #include <utility>
 #include <vector>
 
-namespace rock_hero::editor::ui
+namespace rock_hero::editor::core
 {
 
 namespace
@@ -25,7 +24,7 @@ namespace
 } // namespace
 
 // Verifies the identity placement maps plugin i to block i across the requested range.
-TEST_CASE("Block placement compact maps plugin to matching block", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement compact maps plugin to matching block", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = SignalChainBlockPlacement::compact(3, 8);
 
@@ -40,8 +39,8 @@ TEST_CASE("Block placement compact maps plugin to matching block", "[ui][signal-
     CHECK(SignalChainBlockPlacement::compact(10, 8).blockCount() == 10);
 }
 
-// Verifies fromIndices accepts bijections and rejects gaps, duplicates, and overflow.
-TEST_CASE("Block placement validates one block per plugin", "[ui][signal-chain-layout]")
+// Verifies fromIndices accepts gaps and rejects duplicates and overflow.
+TEST_CASE("Block placement validates one block per plugin", "[core][signal-chain]")
 {
     CHECK(SignalChainBlockPlacement::fromIndices({0, 2, 4}, 8).has_value());
 
@@ -51,7 +50,7 @@ TEST_CASE("Block placement validates one block per plugin", "[ui][signal-chain-l
 }
 
 // Verifies free and occupied blocks resolve to their implied linear chain indices.
-TEST_CASE("Block placement derives linear indices from blocks", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement derives linear indices from blocks", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = placementOf({0, 2, 5}, 8);
 
@@ -62,7 +61,7 @@ TEST_CASE("Block placement derives linear indices from blocks", "[ui][signal-cha
 }
 
 // Verifies an empty target relocates the dragged plugin and keeps the visual gap.
-TEST_CASE("Block placement moves plugin onto empty block", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement moves plugin onto empty block", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = SignalChainBlockPlacement::compact(3, 8);
 
@@ -74,7 +73,7 @@ TEST_CASE("Block placement moves plugin onto empty block", "[ui][signal-chain-la
 }
 
 // Verifies adjacent occupied targets swap with the dragged plugin.
-TEST_CASE("Block placement swaps adjacent occupied blocks", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement swaps adjacent occupied blocks", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = SignalChainBlockPlacement::compact(3, 8);
 
@@ -86,7 +85,7 @@ TEST_CASE("Block placement swaps adjacent occupied blocks", "[ui][signal-chain-l
 }
 
 // Verifies longer occupied-target moves shift the run toward the dragged plugin's source gap.
-TEST_CASE("Block placement shifts occupied targets from source", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement shifts occupied targets from source", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = placementOf({0, 2, 3}, 4);
 
@@ -98,7 +97,7 @@ TEST_CASE("Block placement shifts occupied targets from source", "[ui][signal-ch
 }
 
 // Verifies dropping a plugin on its own block is a valid no-op placement.
-TEST_CASE("Block placement accepts source-owned block drops", "[ui][signal-chain-layout]")
+TEST_CASE("Block placement accepts source-owned block drops", "[core][signal-chain]")
 {
     const SignalChainBlockPlacement placement = placementOf({0, 4, 5}, 8);
 
@@ -109,4 +108,4 @@ TEST_CASE("Block placement accepts source-owned block drops", "[ui][signal-chain
     CHECK(moved->chainIndexForPlugin(1) == 1);
 }
 
-} // namespace rock_hero::editor::ui
+} // namespace rock_hero::editor::core
