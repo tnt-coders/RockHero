@@ -77,23 +77,6 @@ TEST_CASE("Block layout keeps configured fixed block count", "[ui][signal-chain-
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{0, 1});
 }
 
-// Verifies pointer side maps to the occupied-block push direction used by drag entry latching.
-TEST_CASE("Block layout maps pointer side to push direction", "[ui][signal-chain-layout]")
-{
-    CHECK(
-        SignalChainBlockLayout::pushDirectionForLocalX(0, 100) ==
-        SignalChainBlockPlacement::PushDirection::Right);
-    CHECK(
-        SignalChainBlockLayout::pushDirectionForLocalX(49, 100) ==
-        SignalChainBlockPlacement::PushDirection::Right);
-    CHECK(
-        SignalChainBlockLayout::pushDirectionForLocalX(50, 100) ==
-        SignalChainBlockPlacement::PushDirection::Left);
-    CHECK(
-        SignalChainBlockLayout::pushDirectionForLocalX(99, 100) ==
-        SignalChainBlockPlacement::PushDirection::Left);
-}
-
 // Verifies metadata refreshes keep visual gaps while real reorder refreshes compact them.
 TEST_CASE("Block layout preserves gaps on metadata refresh", "[ui][signal-chain-layout]")
 {
@@ -148,30 +131,31 @@ TEST_CASE("Block layout maps committed previews to backend order", "[ui][signal-
     CHECK(layout.committedPlacement().blocks() == std::vector<std::size_t>{1, 2, 4});
 }
 
-// Verifies occupied-block drops use the requested push direction to compute final placement.
-TEST_CASE("Block layout drops onto occupied blocks by side", "[ui][signal-chain-layout]")
+// Verifies occupied-block drops use the source gap to compute final placement.
+TEST_CASE("Block layout drops onto occupied blocks", "[ui][signal-chain-layout]")
 {
     SignalChainBlockLayout layout{4};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     installPlacement(layout, {0, 2, 3}, 4);
 
-    const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(0, 2, SignalChainBlockPlacement::PushDirection::Left);
+    const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(0, 2);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 1);
     CHECK(intent->placement.blocks() == std::vector<std::size_t>{2, 1, 3});
 }
 
-// Verifies blocked sides reject drops instead of inventing a compacted placement.
-TEST_CASE("Block layout rejects blocked occupied sides", "[ui][signal-chain-layout]")
+// Verifies adjacent occupied-block drops swap with the target occupant.
+TEST_CASE("Block layout swaps adjacent occupied blocks", "[ui][signal-chain-layout]")
 {
-    SignalChainBlockLayout layout{4};
+    SignalChainBlockLayout layout{8};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
-    installPlacement(layout, {0, 1, 3}, 4);
 
-    CHECK_FALSE(
-        layout.dropIntent(2, 1, SignalChainBlockPlacement::PushDirection::Left).has_value());
+    const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 1);
+
+    REQUIRE(intent.has_value());
+    CHECK(intent->destination_index == 1);
+    CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 2, 1});
     CHECK(layout.canReceiveDrop(2, 1));
 }
 
@@ -181,8 +165,7 @@ TEST_CASE("Block layout drops into empty fixed blocks", "[ui][signal-chain-layou
     SignalChainBlockLayout layout{8};
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
 
-    const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(2, 5, SignalChainBlockPlacement::PushDirection::Right);
+    const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 5);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 2);
@@ -196,8 +179,7 @@ TEST_CASE("Block layout accepts source block drops", "[ui][signal-chain-layout]"
     layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
     installPlacement(layout, {0, 4, 5}, 8);
 
-    const std::optional<SignalChainBlockLayout::DropIntent> intent =
-        layout.dropIntent(1, 4, SignalChainBlockPlacement::PushDirection::Left);
+    const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(1, 4);
 
     REQUIRE(intent.has_value());
     CHECK(intent->destination_index == 1);
