@@ -135,14 +135,6 @@ SignalChainBlockLayout::SignalChainBlockLayout(std::size_t minimum_block_count)
     , m_placement(SignalChainBlockPlacement::compact(0, minimum_block_count))
 {}
 
-// Uses the same half-split as the visual block affordance for before/after intent.
-SignalChainBlockPlacement::PushDirection SignalChainBlockLayout::pushDirectionForLocalX(
-    int local_x, int width) noexcept
-{
-    return local_x >= width / 2 ? SignalChainBlockPlacement::PushDirection::Left
-                                : SignalChainBlockPlacement::PushDirection::Right;
-}
-
 // Reconciles controller state with any pending insert or committed preview held by the view.
 void SignalChainBlockLayout::applyPlugins(const std::vector<core::PluginViewState>& plugins)
 {
@@ -213,11 +205,10 @@ std::optional<std::size_t> SignalChainBlockLayout::beginInsertAtBlock(std::size_
 
 // Resolves a target block against the current authoritative placement.
 std::optional<SignalChainBlockLayout::DropIntent> SignalChainBlockLayout::dropIntent(
-    std::size_t source_index, std::size_t target_block_index,
-    SignalChainBlockPlacement::PushDirection direction) const
+    std::size_t source_index, std::size_t target_block_index) const
 {
     std::optional<SignalChainBlockPlacement> moved =
-        m_placement.withPluginAtBlock(source_index, target_block_index, direction);
+        m_placement.withPluginAtBlock(source_index, target_block_index);
     if (!moved.has_value())
     {
         return std::nullopt;
@@ -229,16 +220,11 @@ std::optional<SignalChainBlockLayout::DropIntent> SignalChainBlockLayout::dropIn
     };
 }
 
-// Checks both push directions because JUCE queries interest before side latching.
+// Checks whether the target block can produce a concrete move or no-op placement.
 bool SignalChainBlockLayout::canReceiveDrop(
     std::size_t source_index, std::size_t target_block_index) const
 {
-    return dropIntent(
-               source_index, target_block_index, SignalChainBlockPlacement::PushDirection::Left)
-               .has_value() ||
-           dropIntent(
-               source_index, target_block_index, SignalChainBlockPlacement::PushDirection::Right)
-               .has_value();
+    return dropIntent(source_index, target_block_index).has_value();
 }
 
 // Stores a drag-hover preview and reports whether the visible placement changed.

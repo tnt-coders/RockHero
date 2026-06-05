@@ -585,7 +585,6 @@ public:
         m_drop_enabled = move_enabled;
         if (!m_drop_enabled)
         {
-            m_drag_entry_direction.reset();
             if (m_is_drag_hovered)
             {
                 m_is_drag_hovered = false;
@@ -618,8 +617,6 @@ public:
     // Shows the preview for dropping onto this fixed block location.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        m_drag_entry_direction = SignalChainBlockLayout::pushDirectionForLocalX(
-            drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
@@ -632,7 +629,6 @@ public:
     // Clears this cell's hover feedback when the drag leaves the fixed block location.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
     {
-        m_drag_entry_direction.reset();
         m_is_drag_hovered = false;
         repaint();
     }
@@ -645,13 +641,11 @@ public:
 
         if (!m_drop_enabled)
         {
-            m_drag_entry_direction.reset();
             m_view.clearPluginMovePreview();
             return;
         }
 
         std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
-        m_drag_entry_direction.reset();
         m_view.completePluginDrop(drag_source_details.description, std::move(intent));
     }
 
@@ -706,7 +700,7 @@ private:
             m_button.isEnabled() && isMouseOver(true) ? 1.0f : g_idle_insert_affordance_alpha);
     }
 
-    // Resolves this fixed cell plus the latched entry side into a concrete drop intent.
+    // Resolves this fixed cell into a concrete drop intent.
     [[nodiscard]] std::optional<SignalChainBlockLayout::DropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
@@ -722,10 +716,7 @@ private:
             return std::nullopt;
         }
 
-        const SignalChainBlockPlacement::PushDirection direction = m_drag_entry_direction.value_or(
-            SignalChainBlockLayout::pushDirectionForLocalX(
-                drag_source_details.localPosition.x, getWidth()));
-        return m_view.m_block_layout.dropIntent(plugin->source_index, m_block_index, direction);
+        return m_view.m_block_layout.dropIntent(plugin->source_index, m_block_index);
     }
 
     // Applies drag feedback for this fixed cell when it represents a valid move.
@@ -737,7 +728,7 @@ private:
         if (!plugin.has_value() || !intent.has_value())
         {
             m_is_drag_hovered = false;
-            // Keep the last valid preview while the pointer crosses a blocked side.
+            // Keep the last valid preview while the pointer crosses an invalid target.
             repaint();
             return;
         }
@@ -761,9 +752,6 @@ private:
 
     // True while a compatible tile drag is hovering over this placeholder.
     bool m_is_drag_hovered{false};
-
-    // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<SignalChainBlockPlacement::PushDirection> m_drag_entry_direction;
 };
 
 // Presents one compact plugin block in the horizontal chain strip and emits edit intents for its
@@ -896,7 +884,7 @@ public:
         }
     }
 
-    // Reports whether this occupied block can receive the dragged tile on the hovered side.
+    // Reports whether this occupied block can receive the dragged tile.
     [[nodiscard]] bool isInterestedInDragSource(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
@@ -906,12 +894,10 @@ public:
     // Starts a visual reorder preview as the dragged tile enters this occupied block.
     void itemDragEnter(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
-        m_drag_entry_direction = SignalChainBlockLayout::pushDirectionForLocalX(
-            drag_source_details.localPosition.x, getWidth());
         updateDropPreview(drag_source_details);
     }
 
-    // Recomputes before/after intent when the pointer crosses the tile midpoint.
+    // Keeps the preview current while JUCE reports movement over the tile.
     void itemDragMove(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
         updateDropPreview(drag_source_details);
@@ -919,15 +905,12 @@ public:
 
     // Leaves the last valid preview active while the drag crosses between block targets.
     void itemDragExit(const juce::DragAndDropTarget::SourceDetails& /*details*/) override
-    {
-        m_drag_entry_direction.reset();
-    }
+    {}
 
     // Emits a move intent using the same final-index contract as the existing controller path.
     void itemDropped(const juce::DragAndDropTarget::SourceDetails& drag_source_details) override
     {
         std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
-        m_drag_entry_direction.reset();
         m_view.completePluginDrop(drag_source_details.description, std::move(intent));
     }
 
@@ -944,7 +927,7 @@ public:
     }
 
 private:
-    // Resolves the entry side of this block to a final visual placement.
+    // Resolves this occupied block to a final visual placement.
     [[nodiscard]] std::optional<SignalChainBlockLayout::DropIntent> dropIntent(
         const juce::DragAndDropTarget::SourceDetails& drag_source_details) const
     {
@@ -967,11 +950,7 @@ private:
             return std::nullopt;
         }
 
-        const SignalChainBlockPlacement::PushDirection direction = m_drag_entry_direction.value_or(
-            SignalChainBlockLayout::pushDirectionForLocalX(
-                drag_source_details.localPosition.x, getWidth()));
-        return m_view.m_block_layout.dropIntent(
-            plugin->source_index, *target_block_index, direction);
+        return m_view.m_block_layout.dropIntent(plugin->source_index, *target_block_index);
     }
 
     // Applies transient layout so the chain previews where the dragged block would land.
@@ -987,7 +966,7 @@ private:
         std::optional<SignalChainBlockLayout::DropIntent> intent = dropIntent(drag_source_details);
         if (!intent.has_value())
         {
-            // Keep the last valid preview while the pointer crosses a blocked side.
+            // Keep the last valid preview while the pointer crosses an invalid target.
             return;
         }
 
@@ -1030,9 +1009,6 @@ private:
 
     // Prevents repeated startDragging() calls during one mouse drag sequence.
     bool m_drag_started{false};
-
-    // Direction captured on entry so crossing the midpoint does not flip the block nudge.
-    std::optional<SignalChainBlockPlacement::PushDirection> m_drag_entry_direction;
 };
 
 // Configures a vertical gain slider with the shared gain range and dB suffix.

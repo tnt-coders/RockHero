@@ -23,16 +23,6 @@ placement without repeating the range and uniqueness checks the raw index vector
 class SignalChainBlockPlacement final
 {
 public:
-    /*! \brief Side an occupied block is pushed toward to open a gap for a dropped plugin. */
-    enum class PushDirection
-    {
-        /*! \brief Push occupied blocks toward lower visual block indices. */
-        Left,
-
-        /*! \brief Push occupied blocks toward higher visual block indices. */
-        Right,
-    };
-
     /*!
     \brief Builds the default placement where plugin i occupies block i.
     \param plugin_count Number of plugins in linear chain order.
@@ -90,14 +80,18 @@ public:
     [[nodiscard]] std::size_t chainIndexForPlugin(std::size_t plugin_index) const noexcept;
 
     /*!
-    \brief Moves a plugin onto a target block, pushing occupants aside when needed.
+    \brief Moves a plugin onto an empty block or into an occupied block.
     \param plugin_index Plugin being moved.
     \param target_block Visual block receiving the plugin.
-    \param direction Side occupied blocks shift toward to open a gap.
-    \return Resulting placement, or empty when that side cannot absorb the move.
+
+    Occupied targets shift the contiguous occupied run toward the dragged plugin's source gap. An
+    adjacent occupied target therefore swaps with the dragged plugin while longer moves preserve
+    the same order as the controller's single move command.
+
+    \return Resulting placement, or empty when source or target is outside this placement.
     */
     [[nodiscard]] std::optional<SignalChainBlockPlacement> withPluginAtBlock(
-        std::size_t plugin_index, std::size_t target_block, PushDirection direction) const;
+        std::size_t plugin_index, std::size_t target_block) const;
 
     /*!
     \brief Compares placements by plugin-to-block assignment and block count.
