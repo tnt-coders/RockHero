@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain_block_placement.h>
 #include <utility>
 
@@ -54,6 +55,36 @@ namespace
     for (const PluginViewState& plugin : plugins)
     {
         block_indices.push_back(plugin.block_index);
+    }
+
+    return block_indices;
+}
+
+// Reorders instance-keyed assignments into the current plugin order. Missing assignments are stale
+// reports from an older view state and are ignored rather than compacting valid authored gaps.
+[[nodiscard]] std::optional<std::vector<std::size_t>> blockIndicesForAssignments(
+    const std::vector<PluginBlockAssignment>& assignments,
+    const std::vector<PluginViewState>& plugins)
+{
+    if (assignments.size() != plugins.size())
+    {
+        return std::nullopt;
+    }
+
+    std::vector<std::size_t> block_indices;
+    block_indices.reserve(plugins.size());
+    for (const PluginViewState& plugin : plugins)
+    {
+        const auto assignment =
+            std::ranges::find_if(assignments, [&plugin](const PluginBlockAssignment& item) {
+                return item.instance_id == plugin.instance_id;
+            });
+        if (assignment == assignments.end())
+        {
+            return std::nullopt;
+        }
+
+        block_indices.push_back(assignment->block_index);
     }
 
     return block_indices;
@@ -339,27 +370,27 @@ const std::vector<PluginViewState>& SignalChainWorkflow::plugins() const noexcep
     return m_plugins;
 }
 
-// Stores the editor-authored visual placement reported by the view. The view owns the placement
-// algebra and gaps; the workflow holds the committed result so it persists on capture. The vector
-// is aligned to the current chain order; a size mismatch is ignored as a stale report from before
-// the latest snapshot. A valid one-to-one layout is the core invariant, so an invalid report
-// (duplicate or out-of-range blocks, e.g. from a future undo/redo path) is compacted rather than
-// stored as-is.
-bool SignalChainWorkflow::setBlockPlacement(const std::vector<std::size_t>& block_indices)
+// Stores the editor-authored visual placement reported by the view. The assignments are keyed by
+// stable runtime instance IDs so a committed drag preview can be applied after the backend returns
+// the reordered chain snapshot. A valid one-to-one layout is the core invariant, so malformed block
+// numbers compact rather than being stored as-is.
+bool SignalChainWorkflow::setBlockPlacement(const std::vector<PluginBlockAssignment>& assignments)
 {
-    if (block_indices.size() != m_plugins.size())
+    std::optional<std::vector<std::size_t>> block_indices =
+        blockIndicesForAssignments(assignments, m_plugins);
+    if (!block_indices.has_value())
     {
         return false;
     }
 
-    const SignalChainBlockPlacement placement =
-        normalizedPlacement(block_indices, m_plugins.size());
-    if (placement.blocks() == blockIndices())
+    const SignalChainBlockPlacement normalized_placement =
+        normalizedPlacement(std::move(*block_indices), m_plugins.size());
+    if (normalized_placement.blocks() == blockIndices())
     {
         return false;
     }
 
-    applyPlacement(m_plugins, placement);
+    applyPlacement(m_plugins, normalized_placement);
     return true;
 }
 

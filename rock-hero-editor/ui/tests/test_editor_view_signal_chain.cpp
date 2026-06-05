@@ -37,6 +37,15 @@ constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
     };
 }
 
+// Builds one plugin tile with the visual block assigned by editor core.
+[[nodiscard]] core::PluginViewState makePluginAtBlock(
+    std::string instance_id, std::size_t chain_index, std::size_t block_index)
+{
+    core::PluginViewState plugin = makePlugin(std::move(instance_id), chain_index);
+    plugin.block_index = block_index;
+    return plugin;
+}
+
 // Builds a contiguous chain for capacity and overflow tests.
 [[nodiscard]] std::vector<core::PluginViewState> makePlugins(std::size_t count)
 {
@@ -63,16 +72,19 @@ public:
     void onRemovePluginPressed(std::string /*instance_id*/) override
     {}
 
-    void onMovePluginPressed(std::string instance_id, std::size_t destination_index) override
+    void onMovePluginPressed(
+        std::string instance_id, std::size_t destination_index,
+        std::vector<core::PluginBlockAssignment> placement) override
     {
         last_moved_instance_id = std::move(instance_id);
         last_move_destination_index = destination_index;
+        last_move_placement = std::move(placement);
         move_call_count += 1;
     }
 
-    void onSignalChainPlacementChanged(std::vector<std::size_t> block_indices) override
+    void onSignalChainPlacementChanged(std::vector<core::PluginBlockAssignment> placement) override
     {
-        last_block_indices = std::move(block_indices);
+        last_signal_chain_placement = std::move(placement);
         placement_change_count += 1;
     }
 
@@ -89,7 +101,8 @@ public:
     std::optional<std::size_t> last_insert_block{};
     std::optional<std::string> last_moved_instance_id{};
     std::optional<std::size_t> last_move_destination_index{};
-    std::vector<std::size_t> last_block_indices{};
+    std::vector<core::PluginBlockAssignment> last_move_placement{};
+    std::vector<core::PluginBlockAssignment> last_signal_chain_placement{};
     int insert_call_count{0};
     int move_call_count{0};
     int placement_change_count{0};
@@ -357,7 +370,7 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
         std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
 }
 
-// Verifies the clicked fixed block is preserved when the inserted plugin reaches state.
+// Verifies inserted plugin state from core can occupy the originally clicked fixed block.
 TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -389,9 +402,9 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
         core::SignalChainViewState{
             .insert_plugin_enabled = true,
             .plugins = {
-                makePlugin("amp", 0),
-                makePlugin("cab", 1),
-                makePlugin("lead", 2),
+                makePluginAtBlock("amp", 0, 0),
+                makePluginAtBlock("cab", 1, 1),
+                makePluginAtBlock("lead", 2, common::audio::max_signal_chain_plugins - 1),
             },
         });
 
@@ -463,6 +476,13 @@ TEST_CASE("Signal-chain drag drops move tiles to occupied blocks", "[ui][editor-
         CHECK(listener.move_call_count == 1);
         CHECK(listener.last_moved_instance_id == std::optional<std::string>{"cab"});
         CHECK(listener.last_move_destination_index == std::optional<std::size_t>{0});
+        CHECK(
+            listener.last_move_placement ==
+            std::vector<core::PluginBlockAssignment>{
+                core::PluginBlockAssignment{.instance_id = "amp", .block_index = 1},
+                core::PluginBlockAssignment{.instance_id = "drive", .block_index = 2},
+                core::PluginBlockAssignment{.instance_id = "cab", .block_index = 0},
+            });
     }
 
     {
@@ -612,17 +632,17 @@ TEST_CASE("Signal-chain drag drops move tiles to empty cells", "[ui][editor-view
     auto& stale_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
     auto& stale_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
 
+    CHECK(stale_amp.getBounds() == amp_bounds);
     CHECK(stale_drive.getBounds() == drive_bounds);
     CHECK(stale_cab.getBounds() == cab_bounds);
-    CHECK(stale_amp.getX() > cab_bounds.getRight());
 
     panel.setState(
         core::SignalChainViewState{
             .move_plugins_enabled = true,
             .plugins = {
-                makePlugin("drive", 0),
-                makePlugin("cab", 1),
-                makePlugin("amp", 2),
+                makePluginAtBlock("drive", 0, 1),
+                makePluginAtBlock("cab", 1, 2),
+                makePluginAtBlock("amp", 2, 6),
             },
         });
 
@@ -678,6 +698,14 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
     tile_cab.mouseUp(testing::makeMouseDownEvent(tile_cab, 8.0f, 8.0f));
 
     CHECK(listener.move_call_count == 0);
+    CHECK(listener.placement_change_count == 1);
+    CHECK(
+        listener.last_signal_chain_placement ==
+        std::vector<core::PluginBlockAssignment>{
+            core::PluginBlockAssignment{.instance_id = "amp", .block_index = 0},
+            core::PluginBlockAssignment{.instance_id = "drive", .block_index = 1},
+            core::PluginBlockAssignment{.instance_id = "cab", .block_index = 6},
+        });
     CHECK(componentTargetBounds(tile_amp) == amp_bounds);
     CHECK(componentTargetBounds(tile_drive) == drive_bounds);
     CHECK(componentTargetBounds(tile_cab).getX() > cab_bounds.getRight());
@@ -686,9 +714,9 @@ TEST_CASE("Signal-chain empty drops can keep gaps", "[ui][editor-view]")
         core::SignalChainViewState{
             .move_plugins_enabled = true,
             .plugins = {
-                makePlugin("amp", 0),
-                makePlugin("drive", 1),
-                makePlugin("cab", 2),
+                makePluginAtBlock("amp", 0, 0),
+                makePluginAtBlock("drive", 1, 1),
+                makePluginAtBlock("cab", 2, 6),
             },
         });
 
@@ -734,15 +762,16 @@ TEST_CASE("Signal-chain drag preview replaces gap preview", "[ui][editor-view]")
     CHECK(fourth_target->isInterestedInDragSource(fourth_details));
     fourth_target->itemDropped(fourth_details);
     CHECK(listener.move_call_count == 0);
+    CHECK(listener.placement_change_count == 1);
 
     panel.setState(
         core::SignalChainViewState{
             .insert_plugin_enabled = true,
             .move_plugins_enabled = true,
             .plugins = {
-                makePlugin("amp", 0),
-                makePlugin("drive", 1),
-                makePlugin("cab", 2),
+                makePluginAtBlock("amp", 0, 0),
+                makePluginAtBlock("drive", 1, 1),
+                makePluginAtBlock("cab", 2, 3),
             },
         });
 

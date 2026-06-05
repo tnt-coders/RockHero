@@ -1,9 +1,26 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
+
+namespace
+{
+
+// Builds an instance-keyed visual block assignment for controller intent tests.
+[[nodiscard]] PluginBlockAssignment blockAssignment(std::string instance_id, std::size_t block)
+{
+    return PluginBlockAssignment{
+        .instance_id = std::move(instance_id),
+        .block_index = block,
+    };
+}
+
+} // namespace
 
 // A loaded arrangement with a plugin host enables the add-plugin command.
 TEST_CASE("EditorController enables plugin add after load", "[core][editor-controller]")
@@ -284,7 +301,8 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     addKnownPlugin(controller);
     plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
-    controller.onSignalChainPlacementChanged({0, 4});
+    controller.onSignalChainPlacementChanged(
+        {blockAssignment("instance-a", 0), blockAssignment("instance-b", 4)});
     plugin_host.next_instance_id = "instance-c";
 
     controller.onPluginInsertSlotSelected(1, 2);
@@ -332,7 +350,8 @@ TEST_CASE("EditorController preserves failed insert target", "[core][editor-cont
     addKnownPlugin(controller);
     plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
-    controller.onSignalChainPlacementChanged({0, 4});
+    controller.onSignalChainPlacementChanged(
+        {blockAssignment("instance-a", 0), blockAssignment("instance-b", 4)});
     plugin_host.next_instance_id = "retry-instance";
     plugin_host.next_insert_error = common::audio::PluginHostError{
         common::audio::PluginHostErrorCode::PluginLoadFailed,
@@ -705,7 +724,7 @@ TEST_CASE("EditorController captures signal-chain placement", "[core][editor-con
 
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
-    controller.onSignalChainPlacementChanged({3});
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
 
     controller.onSaveRequested();
 
@@ -779,11 +798,11 @@ TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-con
     CHECK(loaded_state->signal_chain.plugins[0].block_index == 1);
 
     const int loaded_state_count = view.set_state_call_count;
-    controller.onSignalChainPlacementChanged({1});
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 1)});
 
     CHECK(view.set_state_call_count == loaded_state_count);
 
-    controller.onSignalChainPlacementChanged({3});
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
 
     const EditorViewState* edited_state = stateOrNull(view.last_state);
     REQUIRE(edited_state != nullptr);
@@ -864,7 +883,17 @@ TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
     plugin_host.next_instance_id = "instance-c";
     addKnownPlugin(controller);
 
-    controller.onMovePluginRequested("instance-a", 2);
+    controller.onSignalChainPlacementChanged(
+        {blockAssignment("instance-a", 0),
+         blockAssignment("instance-b", 3),
+         blockAssignment("instance-c", 4)});
+
+    controller.onMovePluginRequested(
+        "instance-a",
+        2,
+        {blockAssignment("instance-a", 5),
+         blockAssignment("instance-b", 1),
+         blockAssignment("instance-c", 2)});
 
     CHECK(plugin_host.move_call_count == 1);
     CHECK(plugin_host.last_moved_instance_id == std::optional<std::string>{"instance-a"});
@@ -874,10 +903,13 @@ TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
     REQUIRE(final_state->signal_chain.plugins.size() == 3);
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-b");
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
+    CHECK(final_state->signal_chain.plugins[0].block_index == 1);
     CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-c");
     CHECK(final_state->signal_chain.plugins[1].chain_index == 1);
+    CHECK(final_state->signal_chain.plugins[1].block_index == 2);
     CHECK(final_state->signal_chain.plugins[2].instance_id == "instance-a");
     CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
+    CHECK(final_state->signal_chain.plugins[2].block_index == 5);
     CHECK(view.shown_errors.empty());
 }
 
@@ -906,7 +938,7 @@ TEST_CASE("EditorController ignores same-index plugin moves", "[core][editor-con
     plugin_host.next_instance_id = "instance-b";
     addKnownPlugin(controller);
 
-    controller.onMovePluginRequested("instance-a", 0);
+    controller.onMovePluginRequested("instance-a", 0, {});
 
     CHECK(plugin_host.move_call_count == 0);
     const EditorViewState* final_state = stateOrNull(view.last_state);
@@ -939,7 +971,7 @@ TEST_CASE("EditorController ignores stale plugin moves", "[core][editor-controll
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     addKnownPlugin(controller);
 
-    controller.onMovePluginRequested("stale-instance", 0);
+    controller.onMovePluginRequested("stale-instance", 0, {});
 
     CHECK(plugin_host.move_call_count == 0);
     const EditorViewState* final_state = stateOrNull(view.last_state);
@@ -1137,14 +1169,17 @@ TEST_CASE("EditorController reports plugin move errors", "[core][editor-controll
         "backend rejected move",
     };
 
-    controller.onMovePluginRequested("instance-a", 1);
+    controller.onMovePluginRequested(
+        "instance-a", 1, {blockAssignment("instance-a", 1), blockAssignment("instance-b", 0)});
 
     CHECK(plugin_host.move_call_count == 1);
     const EditorViewState* final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     REQUIRE(final_state->signal_chain.plugins.size() == 2);
     CHECK(final_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(final_state->signal_chain.plugins[0].block_index == 0);
     CHECK(final_state->signal_chain.plugins[1].instance_id == "instance-b");
+    CHECK(final_state->signal_chain.plugins[1].block_index == 1);
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(view.shown_errors.back() == "Could not move plugin: backend rejected move");
 }
