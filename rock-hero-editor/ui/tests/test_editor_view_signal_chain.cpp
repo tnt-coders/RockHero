@@ -827,6 +827,62 @@ TEST_CASE("Signal-chain drag preview shifts occupied blocks", "[ui][editor-view]
     CHECK(listener.move_call_count == 0);
 }
 
+// Verifies the block nudge direction stays tied to the side that received the drag.
+TEST_CASE("Signal-chain drag preview keeps entry side in block", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingSignalChainViewListener listener;
+    SignalChainPanel panel{listener};
+    panel.setBounds(0, 0, 720, 220);
+    panel.setState(
+        core::SignalChainViewState{
+            .move_plugins_enabled = true,
+            .plugins = {
+                makePlugin("amp", 0),
+                makePlugin("drive", 1),
+                makePlugin("cab", 2),
+            },
+        });
+
+    auto& tile_amp = findRequiredDescendant<juce::Component>(panel, "plugin_tile_amp");
+    auto& tile_drive = findRequiredDescendant<juce::Component>(panel, "plugin_tile_drive");
+    auto& tile_cab = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
+    auto& slot_drive = findRequiredDescendant<juce::Component>(panel, "insert_slot_1");
+    const juce::Rectangle<int> amp_bounds = tile_amp.getBounds();
+    const juce::Rectangle<int> drive_bounds = tile_drive.getBounds();
+    const juce::Rectangle<int> cab_bounds = tile_cab.getBounds();
+    auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_drive);
+    REQUIRE(drop_target != nullptr);
+
+    const juce::DragAndDropTarget::SourceDetails enter_details{
+        juce::var{pluginDragPayload(0, "amp")},
+        &tile_amp,
+        juce::Point<int>{slot_drive.getWidth() - 2, 8},
+    };
+
+    CHECK(drop_target->isInterestedInDragSource(enter_details));
+    drop_target->itemDragEnter(enter_details);
+    CHECK(componentTargetBounds(tile_drive) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+
+    const juce::DragAndDropTarget::SourceDetails move_details{
+        juce::var{pluginDragPayload(0, "amp")},
+        &tile_amp,
+        juce::Point<int>{2, 8},
+    };
+
+    drop_target->itemDragMove(move_details);
+    CHECK(componentTargetBounds(tile_drive) == amp_bounds);
+    CHECK(componentTargetBounds(tile_amp) == drive_bounds);
+    CHECK(componentTargetBounds(tile_cab) == cab_bounds);
+
+    drop_target->itemDropped(move_details);
+    CHECK(listener.move_call_count == 1);
+    CHECK(listener.last_moved_instance_id == std::optional<std::string>{"amp"});
+    CHECK(listener.last_move_destination_index == std::optional<std::size_t>{1});
+}
+
 // Verifies the dragged block can return to its source slot after another preview.
 TEST_CASE("Signal-chain drag preview accepts source slot", "[ui][editor-view]")
 {
