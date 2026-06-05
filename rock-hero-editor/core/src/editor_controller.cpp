@@ -268,7 +268,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 {
     struct OpenTaskState;
     struct ImportTaskState;
-    struct AddPluginTaskState;
+    struct InsertSelectedPluginTaskState;
     struct PluginCatalogTaskState;
     struct ProjectWriteTaskState;
     struct ProjectLoadLiveRigStage;
@@ -305,10 +305,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onWaveformClicked(double normalized_x);
     void onPluginBrowserRequested();
-    void onInsertPluginRequested(std::size_t chain_index);
+    void onPluginInsertSlotSelected(std::size_t chain_index);
     void onPluginBrowserClosed();
     void onPluginCatalogScanRequested();
-    void onAddPluginRequested(std::string plugin_id);
+    void onSelectedPluginInsertRequested(std::string plugin_id);
     void onRemovePluginRequested(std::string instance_id);
     void onMovePluginRequested(std::string instance_id, std::size_t destination_index);
     void onOpenPluginRequested(std::string instance_id);
@@ -346,9 +346,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
-    void performActionImpl(EditorAction::InsertPlugin action);
+    void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
-    void performActionImpl(const EditorAction::AddPlugin& action);
+    void performActionImpl(const EditorAction::InsertSelectedPlugin& action);
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::MovePlugin& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
@@ -380,9 +380,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::expected<void, common::audio::LiveRigError> rig_result);
     [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
-    void completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state);
-    void beginAddKnownPlugin(
+    void completeSelectedPluginInsert(const std::shared_ptr<InsertSelectedPluginTaskState>& state);
+    void beginInsertKnownPlugin(
         const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index);
+    void applySignalChainMutationSnapshot(
+        common::audio::PluginChainSnapshot snapshot, bool mark_unsaved_changes);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
     void refreshKnownPluginCatalog();
     [[nodiscard]] bool closeProject();
@@ -628,9 +630,9 @@ struct EditorController::Impl::ImportTaskState
     std::expected<common::core::Song, ProjectError> result{};
 };
 
-// Per-operation state for selected browser-plugin loading. Actual chain mutation happens on
+// Per-operation state for selected browser-plugin insertion. Actual chain mutation happens on
 // the message thread after the busy overlay has painted because Tracktion requires it.
-struct EditorController::Impl::AddPluginTaskState
+struct EditorController::Impl::InsertSelectedPluginTaskState
 {
     common::audio::PluginCandidate plugin_candidate{};
     std::size_t chain_index{};
@@ -787,9 +789,9 @@ void EditorController::onPluginBrowserRequested()
     m_impl->onPluginBrowserRequested();
 }
 
-void EditorController::onInsertPluginRequested(std::size_t chain_index)
+void EditorController::onPluginInsertSlotSelected(std::size_t chain_index)
 {
-    m_impl->onInsertPluginRequested(chain_index);
+    m_impl->onPluginInsertSlotSelected(chain_index);
 }
 
 void EditorController::onPluginBrowserClosed()
@@ -802,9 +804,9 @@ void EditorController::onPluginCatalogScanRequested()
     m_impl->onPluginCatalogScanRequested();
 }
 
-void EditorController::onAddPluginRequested(std::string plugin_id)
+void EditorController::onSelectedPluginInsertRequested(std::string plugin_id)
 {
-    m_impl->onAddPluginRequested(std::move(plugin_id));
+    m_impl->onSelectedPluginInsertRequested(std::move(plugin_id));
 }
 
 void EditorController::onRemovePluginRequested(std::string instance_id)
@@ -1472,9 +1474,9 @@ void EditorController::Impl::onPluginBrowserRequested()
 }
 
 // Opens the plugin browser for a specific signal-chain insertion slot.
-void EditorController::Impl::onInsertPluginRequested(std::size_t chain_index)
+void EditorController::Impl::onPluginInsertSlotSelected(std::size_t chain_index)
 {
-    runAction(EditorAction::InsertPlugin{chain_index});
+    runAction(EditorAction::BeginPluginInsert{chain_index});
 }
 
 // Hides the browser directly because closing a presentation window should not be blocked by an
@@ -1495,10 +1497,10 @@ void EditorController::Impl::onPluginCatalogScanRequested()
     runAction(EditorAction::ScanPluginCatalog{});
 }
 
-// Adds the plugin selected by the browser window.
-void EditorController::Impl::onAddPluginRequested(std::string plugin_id)
+// Inserts the plugin selected by the browser window.
+void EditorController::Impl::onSelectedPluginInsertRequested(std::string plugin_id)
 {
-    runAction(EditorAction::AddPlugin{std::move(plugin_id)});
+    runAction(EditorAction::InsertSelectedPlugin{std::move(plugin_id)});
 }
 
 // Removes one runtime plugin instance from the current linear chain.
@@ -1781,7 +1783,7 @@ void EditorController::Impl::performActionImpl(EditorAction::ShowPluginBrowser /
 }
 
 // Makes the browser visible for a specific chain slot and refreshes the lightweight catalog.
-void EditorController::Impl::performActionImpl(EditorAction::InsertPlugin action)
+void EditorController::Impl::performActionImpl(EditorAction::BeginPluginInsert action)
 {
     if (!hasLoadedArrangement())
     {
@@ -1818,9 +1820,9 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
         });
 }
 
-// Begins loading the selected browser plugin. The catalog is the authority for display
+// Begins inserting the selected browser plugin. The catalog is the authority for display
 // metadata, while the audio boundary remains the authority for creating the runtime plugin.
-void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& action)
+void EditorController::Impl::performActionImpl(const EditorAction::InsertSelectedPlugin& action)
 {
     if (!hasLoadedArrangement())
     {
@@ -1831,7 +1833,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
         m_plugin_catalog.candidateForId(action.plugin_id);
     if (!plugin_candidate.has_value())
     {
-        reportError("Could not add plugin: selected plugin is no longer available");
+        reportError("Could not insert plugin: selected plugin is no longer available");
         updateView();
         return;
     }
@@ -1839,18 +1841,19 @@ void EditorController::Impl::performActionImpl(const EditorAction::AddPlugin& ac
     const std::optional<std::size_t> chain_index = m_signal_chain.insertionIndexForSelection();
     if (!chain_index.has_value())
     {
-        reportError("Could not add plugin: insertion position is no longer available");
+        reportError("Could not insert plugin: insertion position is no longer available");
         updateView();
         return;
     }
 
-    beginAddKnownPlugin(*plugin_candidate, *chain_index);
+    beginInsertKnownPlugin(*plugin_candidate, *chain_index);
 }
 
 // Inserts the selected browser plugin into the live chain after the loading state has painted.
-void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPluginTaskState>& state)
+void EditorController::Impl::completeSelectedPluginInsert(
+    const std::shared_ptr<InsertSelectedPluginTaskState>& state)
 {
-    assert(isBusy() && "completeAddPluginLoad called outside a busy operation");
+    assert(isBusy() && "completeSelectedPluginInsert called outside a busy operation");
 
     const common::audio::PluginCandidate& plugin_candidate = state->plugin_candidate;
     auto snapshot = m_plugin_host.insertPlugin(plugin_candidate, state->chain_index);
@@ -1858,26 +1861,22 @@ void EditorController::Impl::completeAddPluginLoad(const std::shared_ptr<AddPlug
     {
         const std::string message = snapshot.error().message;
         finishBusyOperation();
-        reportError(std::string{"Could not add plugin: "} + message);
+        reportError(std::string{"Could not insert plugin: "} + message);
         return;
     }
 
-    m_signal_chain.replaceSnapshot(std::move(*snapshot));
+    applySignalChainMutationSnapshot(std::move(*snapshot), true);
     m_signal_chain.clearPendingInsertion();
     m_plugin_catalog.hide();
-    if (hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-    }
 
     finishBusyOperation();
 }
 
 // Starts the blocking plugin-instantiation phase after pushing LoadingPlugin state first.
-void EditorController::Impl::beginAddKnownPlugin(
+void EditorController::Impl::beginInsertKnownPlugin(
     const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
-    auto state = std::make_shared<AddPluginTaskState>();
+    auto state = std::make_shared<InsertSelectedPluginTaskState>();
     state->plugin_candidate = plugin_candidate;
     state->chain_index = chain_index;
 
@@ -1887,8 +1886,19 @@ void EditorController::Impl::beginAddKnownPlugin(
         {
             return;
         }
-        completeAddPluginLoad(state);
+        completeSelectedPluginInsert(state);
     });
+}
+
+// Applies a successful structural chain mutation at the single future undo-history hook point.
+void EditorController::Impl::applySignalChainMutationSnapshot(
+    common::audio::PluginChainSnapshot snapshot, bool mark_unsaved_changes)
+{
+    m_signal_chain.replaceSnapshot(std::move(snapshot));
+    if (mark_unsaved_changes && hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
 }
 
 // Replaces the browser catalog with the latest scan result while keeping the browser open.
@@ -1937,11 +1947,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
         return;
     }
 
-    m_signal_chain.replaceSnapshot(std::move(*snapshot));
-    if (hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-    }
+    applySignalChainMutationSnapshot(std::move(*snapshot), true);
     updateView();
 }
 
@@ -1955,7 +1961,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
 
     const std::optional<std::size_t> current_index =
         m_signal_chain.chainIndexForInstance(action.instance_id);
-    if (!current_index.has_value() || action.destination_index >= m_signal_chain.appendIndex())
+    if (!current_index.has_value() || action.destination_index >= m_signal_chain.appendIndex() ||
+        *current_index == action.destination_index)
     {
         return;
     }
@@ -1968,11 +1975,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
         return;
     }
 
-    m_signal_chain.replaceSnapshot(std::move(*snapshot));
-    if (*current_index != action.destination_index && hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-    }
+    applySignalChainMutationSnapshot(std::move(*snapshot), true);
     updateView();
 }
 
@@ -2796,7 +2799,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.visible_timeline = timeline_range;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
-            isActionAvailable(EditorAction::Id::InsertPlugin, action_conditions),
+            isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),
         .move_plugins_enabled = isActionAvailable(EditorAction::Id::MovePlugin, action_conditions),
         .remove_plugins_enabled =
             isActionAvailable(EditorAction::Id::RemovePlugin, action_conditions),
@@ -2810,7 +2813,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     };
     state.plugin_browser = m_plugin_catalog.viewState(
         isActionAvailable(EditorAction::Id::ScanPluginCatalog, action_conditions),
-        isActionAvailable(EditorAction::Id::AddPlugin, action_conditions));
+        isActionAvailable(EditorAction::Id::InsertSelectedPlugin, action_conditions));
 
     if (const auto* arrangement = session().currentArrangement(); arrangement != nullptr)
     {

@@ -92,10 +92,10 @@ public:
     virtual void onPluginBrowserRequested() = 0;
 
     /*!
-    \brief Handles a request to show the scanned plugin browser for an insertion slot.
+    \brief Handles selection of a signal-chain slot where a plugin may be inserted.
     \param chain_index User-visible insertion slot while the current chain has capacity.
     */
-    virtual void onInsertPluginRequested(std::size_t chain_index) = 0;
+    virtual void onPluginInsertSlotSelected(std::size_t chain_index) = 0;
 
     /*! \brief Handles the plugin browser window closing. */
     virtual void onPluginBrowserClosed() = 0;
@@ -104,10 +104,10 @@ public:
     virtual void onPluginCatalogScanRequested() = 0;
 
     /*!
-    \brief Handles a request to add a selected plugin from the browser.
+    \brief Handles a request to insert the selected plugin from the browser.
     \param plugin_id Opaque plugin ID selected by the user.
     */
-    virtual void onAddPluginRequested(std::string plugin_id) = 0;
+    virtual void onSelectedPluginInsertRequested(std::string plugin_id) = 0;
 
     /*!
     \brief Handles a request to remove a plugin instance from the plugin chain.

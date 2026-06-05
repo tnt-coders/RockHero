@@ -119,11 +119,11 @@ public:
         plugin_browser_request_count += 1;
     }
 
-    /*! \brief Captures plugin-browser insert intents emitted by signal-chain gap controls. */
-    void onInsertPluginRequested(std::size_t chain_index) override
+    /*! \brief Captures insertion-slot selections emitted by signal-chain gap controls. */
+    void onPluginInsertSlotSelected(std::size_t chain_index) override
     {
-        last_insert_plugin_index = chain_index;
-        insert_plugin_request_count += 1;
+        last_plugin_insert_slot = chain_index;
+        plugin_insert_slot_selection_count += 1;
     }
 
     /*! \brief Counts plugin-browser close intents emitted by the browser window. */
@@ -138,11 +138,11 @@ public:
         plugin_catalog_scan_request_count += 1;
     }
 
-    /*! \brief Captures plugin IDs selected in the browser window. */
-    void onAddPluginRequested(std::string plugin_id) override
+    /*! \brief Captures selected plugin IDs requested for insertion from the browser window. */
+    void onSelectedPluginInsertRequested(std::string plugin_id) override
     {
-        last_plugin_id = std::move(plugin_id);
-        plugin_add_request_count += 1;
+        last_selected_plugin_id = std::move(plugin_id);
+        selected_plugin_insert_request_count += 1;
     }
 
     /*! \brief Captures plugin instances selected through the signal-chain panel. */
@@ -259,10 +259,10 @@ public:
     std::optional<double> last_normalized_x{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
-    std::optional<std::string> last_plugin_id{};
+    std::optional<std::string> last_selected_plugin_id{};
 
     /*! \brief Last insertion slot selected through the signal-chain panel. */
-    std::optional<std::size_t> last_insert_plugin_index{};
+    std::optional<std::size_t> last_plugin_insert_slot{};
 
     /*! \brief Last plugin instance ID selected through the signal-chain panel. */
     std::optional<std::string> last_removed_plugin_instance_id{};
@@ -325,7 +325,7 @@ public:
     int plugin_browser_request_count{0};
 
     /*! \brief Number of insert-plugin intents received. */
-    int insert_plugin_request_count{0};
+    int plugin_insert_slot_selection_count{0};
 
     /*! \brief Number of plugin-browser close intents received. */
     int plugin_browser_close_count{0};
@@ -334,7 +334,7 @@ public:
     int plugin_catalog_scan_request_count{0};
 
     /*! \brief Number of browser plugin-add intents received. */
-    int plugin_add_request_count{0};
+    int selected_plugin_insert_request_count{0};
 
     /*! \brief Number of remove-plugin intents received. */
     int remove_plugin_request_count{0};
