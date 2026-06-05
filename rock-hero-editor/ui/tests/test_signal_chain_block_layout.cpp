@@ -65,6 +65,18 @@ void installPlacement(
     REQUIRE(layout.committedPlacement().blocks() == expected_blocks);
 }
 
+// Applies a hover preview in tests through the same intent path used by the view.
+void previewDrop(
+    SignalChainBlockLayout& layout, std::size_t source_index, std::size_t target_block_index,
+    std::vector<std::size_t> expected_blocks)
+{
+    std::optional<SignalChainBlockLayout::DropIntent> intent =
+        layout.dropIntent(source_index, target_block_index);
+    REQUIRE(intent.has_value());
+    REQUIRE(layout.previewMove(source_index, std::move(*intent)));
+    CHECK(layout.activePlacement().blocks() == expected_blocks);
+}
+
 } // namespace
 
 // Verifies the configured minimum block count remains visible for shorter chains.
@@ -157,6 +169,36 @@ TEST_CASE("Block layout swaps adjacent occupied blocks", "[ui][signal-chain-layo
     CHECK(intent->destination_index == 1);
     CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 2, 1});
     CHECK(layout.canReceiveDrop(2, 1));
+}
+
+// Verifies reversing a rightward drag steps back through swaps before restoring the source slot.
+TEST_CASE("Block layout reverses rightward previews", "[ui][signal-chain-layout]")
+{
+    SignalChainBlockLayout layout{8};
+    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+
+    previewDrop(layout, 0, 1, {1, 0, 2});
+    CHECK(layout.blockForPlugin(1) == std::optional<std::size_t>{0});
+    previewDrop(layout, 0, 2, {2, 0, 1});
+    previewDrop(layout, 0, 3, {3, 1, 2});
+    previewDrop(layout, 0, 2, {2, 1, 3});
+    previewDrop(layout, 0, 1, {1, 2, 3});
+    previewDrop(layout, 0, 0, {0, 1, 2});
+}
+
+// Verifies reversing a leftward drag has the same local-swap behavior.
+TEST_CASE("Block layout reverses leftward previews", "[ui][signal-chain-layout]")
+{
+    SignalChainBlockLayout layout{8};
+    layout.applyPlugins(makePlugins({"amp", "drive", "cab"}));
+    installPlacement(layout, {2, 3, 4}, 8);
+
+    previewDrop(layout, 2, 3, {2, 4, 3});
+    previewDrop(layout, 2, 2, {3, 4, 2});
+    previewDrop(layout, 2, 1, {2, 3, 1});
+    previewDrop(layout, 2, 2, {1, 3, 2});
+    previewDrop(layout, 2, 3, {1, 2, 3});
+    previewDrop(layout, 2, 4, {2, 3, 4});
 }
 
 // Verifies empty blocks can hold a visual gap while preserving the implied linear order.
