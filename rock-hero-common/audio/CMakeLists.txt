@@ -15,6 +15,7 @@ target_sources(
             src/live_rig_gain_plugin.cpp
             src/live_input_error.cpp
             src/live_rig_error.cpp
+            src/plugin_catalog_cache.cpp
             src/plugin_host_error.cpp
             src/song_audio_error.cpp
             src/tracktion_instrument_wave_device_mapping.cpp
@@ -37,6 +38,7 @@ target_link_libraries(
             rock_hero::tracktion_core
             rock_hero::tracktion_engine
             rock_hero::tracktion_graph
+            $<$<PLATFORM_ID:Windows>:version>
             libebur128::ebur128)
 
 add_subdirectory(tests)
