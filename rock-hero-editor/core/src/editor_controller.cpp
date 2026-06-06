@@ -384,6 +384,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::expected<void, common::audio::LiveRigError> rig_result);
     [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
+    [[nodiscard]] common::audio::PluginCatalogScanProgressCallback makePluginCatalogScanProgress(
+        std::uint64_t token);
     void completeSelectedPluginInsert(const std::shared_ptr<InsertSelectedPluginTaskState>& state);
     void beginInsertKnownPlugin(
         const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index);
@@ -1275,6 +1277,31 @@ EditorController::ProjectOperationProgress EditorController::Impl::makeBusyProje
     };
 }
 
+common::audio::PluginCatalogScanProgressCallback EditorController::Impl::
+    makePluginCatalogScanProgress(std::uint64_t token)
+{
+    return [alive = std::weak_ptr<bool>{m_alive}, token, controller = this](
+               const common::audio::PluginCatalogScanProgress& progress) {
+        if (alive.expired())
+        {
+            return;
+        }
+
+        common::audio::PluginCatalogScanProgress progress_snapshot = progress;
+        if (!controller->m_busy.postToMessageThread(controller->safeCallback(
+                [controller, token, progress_snapshot = std::move(progress_snapshot)] {
+                    if (!controller->m_busy.isCurrentToken(token))
+                    {
+                        return;
+                    }
+                    controller->m_busy.updatePluginCatalogScanProgress(progress_snapshot);
+                })))
+        {
+            return;
+        }
+    };
+}
+
 // Runs the shared project-load live-rig stage. Tone-bearing arrangements switch the busy overlay
 // into determinate progress and wait for that state to paint before live-rig restore starts.
 void EditorController::Impl::runLiveRigLoadStage(ProjectLoadLiveRigStage stage_state)
@@ -1833,15 +1860,19 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
     }
 
     auto state = std::make_shared<PluginCatalogTaskState>();
-    runWorkerThreadBusyOperation(
-        BusyOperation::ScanningPlugins,
-        state,
-        [plugin_host = &m_plugin_host](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
-            task_state->scan_result = plugin_host->scanPluginCatalog();
+    const std::uint64_t token = beginBusy(BusyOperation::ScanningPlugins);
+    auto report_progress = makePluginCatalogScanProgress(token);
+    m_task_runner.submit(
+        [state, plugin_host = &m_plugin_host, report_progress = std::move(report_progress)] {
+            state->scan_result = plugin_host->scanPluginCatalog(report_progress);
         },
-        [this](const std::shared_ptr<PluginCatalogTaskState>& task_state) {
-            completePluginCatalogScan(task_state);
-        });
+        safeCallback([this, state, token] {
+            if (!m_busy.isCurrentToken(token))
+            {
+                return;
+            }
+            completePluginCatalogScan(state);
+        }));
 }
 
 // Begins inserting the selected browser plugin. The catalog is the authority for display

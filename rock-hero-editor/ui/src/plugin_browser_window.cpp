@@ -1,9 +1,13 @@
 #include "plugin_browser_window.h"
 
+#include "busy_overlay.h"
+
 #include <algorithm>
 #include <cctype>
+#include <memory>
 #include <rock_hero/common/core/juce_path.h>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -22,11 +26,13 @@ constexpr int g_bottom_row_height{30};
 constexpr int g_button_width{92};
 constexpr int g_close_button_width{72};
 constexpr int g_row_height{28};
+constexpr int g_list_header_height{24};
 const juce::Colour g_background_colour{juce::Colours::darkgrey.darker(0.28f)};
 const juce::Colour g_header_colour{juce::Colours::darkgrey.darker(0.4f)};
 const juce::Colour g_selected_row_colour{juce::Colour{0xff2f6f96}};
 const juce::Colour g_row_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_alternate_row_colour{juce::Colours::darkgrey.darker(0.1f)};
+const juce::Colour g_column_header_colour{juce::Colours::darkgrey.darker(0.34f)};
 
 // Normalizes text for the lightweight browser filter.
 [[nodiscard]] std::string lowerText(std::string text)
@@ -48,6 +54,55 @@ const juce::Colour g_alternate_row_colour{juce::Colours::darkgrey.darker(0.1f)};
 {
     return value.empty() ? juce::String{fallback} : juce::String{value};
 }
+
+// Computes the browser's painted table columns so the header and rows stay aligned.
+[[nodiscard]] std::tuple<int, int, int> pluginBrowserColumnWidths(int available_width)
+{
+    const int name_width = std::max(120, available_width * 32 / 100);
+    const int manufacturer_width = std::max(110, available_width * 24 / 100);
+    constexpr int format_width = 58;
+    return {name_width, manufacturer_width, format_width};
+}
+
+// Header component owned by the ListBox so column labels scroll and resize with the list content.
+class PluginBrowserHeader final : public juce::Component
+{
+public:
+    // Gives ListBox a stable header height while letting it resize the width.
+    PluginBrowserHeader()
+    {
+        setComponentID("plugin_browser_list_header");
+        setSize(0, g_list_header_height);
+    }
+
+    // Paints compact column labels that match paintListBoxItem().
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(g_column_header_colour);
+        auto area = getLocalBounds().reduced(8, 0);
+        const auto [name_width, manufacturer_width, format_width] =
+            pluginBrowserColumnWidths(area.getWidth());
+
+        g.setColour(juce::Colours::lightgrey);
+        g.setFont(juce::FontOptions{12.0f, juce::Font::bold});
+        drawHeaderText(g, "Name", area.removeFromLeft(std::min(name_width, area.getWidth())));
+        area.removeFromLeft(std::min(g_gap, area.getWidth()));
+        drawHeaderText(
+            g, "Manufacturer", area.removeFromLeft(std::min(manufacturer_width, area.getWidth())));
+        area.removeFromLeft(std::min(g_gap, area.getWidth()));
+        drawHeaderText(g, "Format", area.removeFromLeft(std::min(format_width, area.getWidth())));
+        area.removeFromLeft(std::min(g_gap, area.getWidth()));
+        drawHeaderText(g, "Path", area);
+    }
+
+private:
+    // Draws one clipped header cell.
+    static void drawHeaderText(
+        juce::Graphics& g, const juce::String& text, const juce::Rectangle<int>& area)
+    {
+        g.drawFittedText(text, area, juce::Justification::centredLeft, 1);
+    }
+};
 
 // Builds cached lowercase search text for one plugin row.
 [[nodiscard]] std::string pluginFilterText(const core::PluginCandidateViewState& plugin)
@@ -107,6 +162,7 @@ public:
         m_list_box.setMultipleSelectionEnabled(false);
         m_list_box.setClickingTogglesRowSelection(false);
         m_list_box.setColour(juce::ListBox::backgroundColourId, g_background_colour);
+        m_list_box.setHeaderComponent(std::make_unique<PluginBrowserHeader>());
 
         addAndMakeVisible(m_filter_editor);
         addAndMakeVisible(m_rescan_button);
@@ -114,6 +170,8 @@ public:
         addAndMakeVisible(m_list_box);
         addAndMakeVisible(m_count_label);
         addAndMakeVisible(m_add_button);
+        m_busy_overlay.setComponentID("plugin_browser_busy_overlay");
+        addChildComponent(m_busy_overlay);
         setState(core::PluginBrowserViewState{});
     }
 
@@ -127,6 +185,12 @@ public:
         selectPluginId(previous_selection);
         updateControls();
         repaint();
+    }
+
+    // Applies editor-wide busy state over the browser content.
+    void setBusyState(const std::optional<core::BusyViewState>& busy)
+    {
+        m_busy_overlay.setBusyState(busy);
     }
 
     // Draws the plain browser background.
@@ -153,6 +217,7 @@ public:
         bottom_row.removeFromRight(g_gap);
         m_count_label.setBounds(bottom_row);
         m_list_box.setBounds(area);
+        m_busy_overlay.setBounds(getLocalBounds());
     }
 
 private:
@@ -178,9 +243,8 @@ private:
         g.fillRect(0, 0, width, height);
 
         auto area = juce::Rectangle<int>{0, 0, width, height}.reduced(8, 0);
-        const int name_width = std::max(120, area.getWidth() * 32 / 100);
-        const int manufacturer_width = std::max(110, area.getWidth() * 24 / 100);
-        const int format_width = 58;
+        const auto [name_width, manufacturer_width, format_width] =
+            pluginBrowserColumnWidths(area.getWidth());
 
         g.setColour(juce::Colours::white);
         g.setFont(juce::FontOptions{14.0f});
@@ -365,6 +429,9 @@ private:
     // Button that adds the selected plugin.
     juce::TextButton m_add_button;
 
+    // Overlay that blocks plugin browser interactions while editor-wide busy work is active.
+    BusyOverlay m_busy_overlay;
+
     // Plugin indices that pass the current filter.
     std::vector<std::size_t> m_filtered_indices;
 
@@ -397,6 +464,12 @@ PluginBrowserWindow::~PluginBrowserWindow()
 void PluginBrowserWindow::setState(const core::PluginBrowserViewState& state)
 {
     m_content->setState(state);
+}
+
+// Applies editor-wide busy state to the browser content overlay.
+void PluginBrowserWindow::setBusyState(const std::optional<core::BusyViewState>& busy)
+{
+    m_content->setBusyState(busy);
 }
 
 // Forwards native close-button clicks to the controller-owned state machine.

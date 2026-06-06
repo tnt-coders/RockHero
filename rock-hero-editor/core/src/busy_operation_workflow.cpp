@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <condition_variable>
 #include <cstddef>
+#include <filesystem>
 #include <mutex>
 #include <utility>
 
@@ -34,6 +35,51 @@ namespace
         std::min(progress.active_plugin_index + 1, progress.total_plugins);
     return "Loading " + progress.active_plugin_name + " (" + std::to_string(display_index) +
            " of " + std::to_string(progress.total_plugins) + ")...";
+}
+
+[[nodiscard]] double pluginCatalogProgressFraction(
+    const common::audio::PluginCatalogScanProgress& progress) noexcept
+{
+    if (progress.total_plugins == 0)
+    {
+        return 1.0;
+    }
+
+    const auto completed =
+        static_cast<double>(std::min(progress.completed_plugins, progress.total_plugins));
+    return completed / static_cast<double>(progress.total_plugins);
+}
+
+[[nodiscard]] std::string pluginCatalogProgressPathName(const std::filesystem::path& path)
+{
+    if (path.empty())
+    {
+        return {};
+    }
+
+    const std::string filename = path.filename().string();
+    return filename.empty() ? path.string() : filename;
+}
+
+[[nodiscard]] std::string pluginCatalogProgressMessage(
+    const common::audio::PluginCatalogScanProgress& progress)
+{
+    if (progress.total_plugins == 0)
+    {
+        return busyMessage(BusyOperation::ScanningPlugins);
+    }
+
+    const std::size_t display_index =
+        std::min(progress.completed_plugins + 1, progress.total_plugins);
+    const std::string plugin_name = pluginCatalogProgressPathName(progress.active_plugin_path);
+    const std::string count_text = " (" + std::to_string(display_index) + " of " +
+                                   std::to_string(progress.total_plugins) + ")...";
+    if (plugin_name.empty())
+    {
+        return "Scanning plugins" + count_text;
+    }
+
+    return "Scanning " + plugin_name + count_text;
 }
 } // namespace
 
@@ -169,6 +215,16 @@ void BusyOperationWorkflow::updateLiveRigLoadProgress(
     const common::audio::LiveRigLoadProgress& progress)
 {
     if (setLiveRigLoadProgress(liveRigProgressMessage(progress), liveRigProgressFraction(progress)))
+    {
+        refresh();
+    }
+}
+
+void BusyOperationWorkflow::updatePluginCatalogScanProgress(
+    const common::audio::PluginCatalogScanProgress& progress)
+{
+    if (m_state.setPluginCatalogScanProgress(
+            pluginCatalogProgressMessage(progress), pluginCatalogProgressFraction(progress)))
     {
         refresh();
     }

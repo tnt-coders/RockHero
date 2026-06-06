@@ -3,6 +3,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <string>
 #include <vector>
@@ -13,6 +14,7 @@ namespace rock_hero::editor::ui
 namespace
 {
 
+using testing::findDescendant;
 using testing::findRequiredDescendant;
 
 // Records browser intents emitted by PluginBrowserWindow controls.
@@ -81,6 +83,9 @@ TEST_CASE("PluginBrowserWindow forwards selected add intent", "[ui][plugin-brows
     window.setState(makeBrowserState());
 
     auto& list_box = findRequiredDescendant<juce::ListBox>(window, "plugin_browser_list");
+    REQUIRE(list_box.getHeaderComponent() != nullptr);
+    CHECK(list_box.getHeaderComponent()->getComponentID() == "plugin_browser_list_header");
+
     auto& add_button =
         findRequiredDescendant<juce::TextButton>(window, "plugin_browser_add_button");
 
@@ -139,6 +144,34 @@ TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
     window.setState(updated_state);
 
     CHECK(count_label.getText() == "0 plugins");
+}
+
+// Verifies editor-wide busy state overlays the plugin browser content while scanning.
+TEST_CASE("PluginBrowserWindow shows busy overlay", "[ui][plugin-browser]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakePluginBrowserListener listener;
+    PluginBrowserWindow window{listener};
+    window.setState(makeBrowserState());
+
+    auto& overlay = findRequiredDescendant<juce::Component>(window, "plugin_browser_busy_overlay");
+    CHECK_FALSE(overlay.isVisible());
+    CHECK(findDescendant(window, "busy_progress_bar") == nullptr);
+
+    window.setBusyState(
+        std::optional{core::BusyViewState{
+            .operation = core::BusyOperation::ScanningPlugins,
+            .message = "Scanning Amp.vst3 (1 of 2)...",
+            .indicator = core::BusyIndicator::DeterminateProgress,
+            .progress = std::optional<double>{0.5},
+        }});
+
+    CHECK(overlay.isVisible());
+    CHECK(findRequiredDescendant<juce::Component>(window, "busy_progress_bar").isVisible());
+
+    window.setBusyState(std::nullopt);
+
+    CHECK_FALSE(overlay.isVisible());
 }
 
 } // namespace rock_hero::editor::ui
