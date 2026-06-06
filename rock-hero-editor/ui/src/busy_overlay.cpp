@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <juce_graphics/juce_graphics.h>
+#include <memory>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -27,6 +28,65 @@ constexpr int g_progress_message_gap = 12;
 
 } // namespace
 
+// Registers the owned indeterminate animation as a hidden child; determinate progress is painted
+// directly, so the bar is shown only when there is no known fraction.
+BusyOverlay::BusyProgressBar::BusyProgressBar()
+{
+    addChildComponent(m_indeterminate_bar);
+}
+
+// Selects determinate (exact fraction) or indeterminate rendering. The owned juce::ProgressBar is
+// shown only for the indeterminate case; determinate progress is painted directly.
+void BusyOverlay::BusyProgressBar::setProgress(std::optional<double> progress)
+{
+    m_value = progress.has_value() ? std::clamp(*progress, 0.0, 1.0) : -1.0;
+    m_indeterminate_bar.setVisible(!progress.has_value());
+    repaint();
+}
+
+// Paints determinate progress as the exact fraction. The indeterminate animation is drawn by the
+// owned juce::ProgressBar child, so nothing is painted here in that case.
+void BusyOverlay::BusyProgressBar::paint(juce::Graphics& g)
+{
+    if (m_value < 0.0)
+    {
+        return;
+    }
+
+    const juce::Rectangle<float> bar_bounds = getLocalBounds().toFloat();
+    if (bar_bounds.isEmpty())
+    {
+        return;
+    }
+
+    const juce::Colour background = findColour(juce::ProgressBar::backgroundColourId);
+    const juce::Colour foreground = findColour(juce::ProgressBar::foregroundColourId);
+    const float corner_radius = static_cast<float>(getHeight()) * 0.5F;
+
+    g.setColour(background);
+    g.fillRoundedRectangle(bar_bounds, corner_radius);
+
+    juce::Rectangle<float> progress_bounds = bar_bounds;
+    progress_bounds.setWidth(progress_bounds.getWidth() * static_cast<float>(m_value));
+    // Shrink the fill's corner radius for small fractions so a narrow bar renders as a thin rounded
+    // rect instead of a lens-shaped blob wider than its own width.
+    const float fill_radius = juce::jmin(corner_radius, progress_bounds.getWidth() * 0.5F);
+    g.setColour(foreground);
+    g.fillRoundedRectangle(progress_bounds, fill_radius);
+
+    juce::String text;
+    text << juce::roundToInt(m_value * 100.0) << '%';
+    g.setColour(juce::Colour::contrasting(background, foreground));
+    g.setFont(static_cast<float>(getHeight()) * 0.6F);
+    g.drawText(text, getLocalBounds(), juce::Justification::centred, false);
+}
+
+// Keeps the owned indeterminate bar filling the whole component.
+void BusyOverlay::BusyProgressBar::resized()
+{
+    m_indeterminate_bar.setBounds(getLocalBounds());
+}
+
 // Configures the overlay as a hidden, non-intercepting front-most child. Visibility flips when
 // setBusyState() receives a value.
 BusyOverlay::BusyOverlay()
@@ -34,9 +94,6 @@ BusyOverlay::BusyOverlay()
     setVisible(false);
     setInterceptsMouseClicks(true, false);
     setWantsKeyboardFocus(true);
-
-    m_progress_bar.setComponentID("busy_progress_bar");
-    addAndMakeVisible(m_progress_bar);
 
     m_message_label.setJustificationType(juce::Justification::centred);
     m_message_label.setColour(juce::Label::textColourId, juce::Colours::white);
@@ -58,13 +115,32 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
         const bool has_determinate_progress =
             busy->indicator == core::BusyIndicator::DeterminateProgress;
         const bool has_progress_bar = busy->indicator != core::BusyIndicator::MessageOnly;
-        m_progress =
-            has_determinate_progress ? std::clamp(busy->progress.value_or(0.0), 0.0, 1.0) : -1.0;
+
+        // Build the progress bar only while one is shown. Destroying it when no bar is needed keeps
+        // the owned juce::ProgressBar's animation timer from running during idle editing.
+        if (has_progress_bar && m_progress_bar == nullptr)
+        {
+            m_progress_bar = std::make_unique<BusyProgressBar>();
+            m_progress_bar->setComponentID("busy_progress_bar");
+            addAndMakeVisible(*m_progress_bar);
+        }
+        else if (!has_progress_bar)
+        {
+            m_progress_bar.reset();
+        }
+
+        if (m_progress_bar != nullptr)
+        {
+            m_progress_bar->setProgress(
+                has_determinate_progress ? std::optional<double>{busy->progress.value_or(0.0)}
+                                         : std::nullopt);
+        }
         m_message_label.setText(busy->message, juce::dontSendNotification);
-        m_progress_bar.setPercentageDisplay(has_determinate_progress);
-        m_progress_bar.setVisible(has_progress_bar);
-        m_progress_bar.repaint();
         resized();
+    }
+    else
+    {
+        m_progress_bar.reset();
     }
 
     if (should_be_visible == was_visible)
@@ -116,15 +192,11 @@ void BusyOverlay::resized()
     juce::Rectangle<int> surface = bounds.withSizeKeepingCentre(surface_width, surface_height);
     surface = surface.reduced(g_surface_padding);
 
-    if (m_progress_bar.isVisible())
+    if (m_progress_bar != nullptr)
     {
         const juce::Rectangle<int> progress_bounds = surface.removeFromTop(g_progress_bar_height);
         surface.removeFromTop(g_progress_message_gap);
-        m_progress_bar.setBounds(progress_bounds);
-    }
-    else
-    {
-        m_progress_bar.setBounds({});
+        m_progress_bar->setBounds(progress_bounds);
     }
 
     m_message_label.setBounds(surface);

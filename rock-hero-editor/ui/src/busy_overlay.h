@@ -7,6 +7,7 @@
 
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/editor/core/busy_view_state.h>
 
@@ -84,12 +85,32 @@ public:
     bool keyPressed(const juce::KeyPress& key) override;
 
 private:
-    // JUCE renders ProgressBar in indeterminate mode when the backing value is negative. A
-    // non-negative value renders determinate percentage progress.
-    double m_progress{-1.0};
+    // Progress bar that paints determinate progress as the exact fraction, and shows an owned
+    // juce::ProgressBar for the indeterminate animation. juce::ProgressBar ramps its displayed value
+    // toward the target, so coarse, stepwise progress (e.g. "plugin 2 of 5") briefly shows
+    // percentages that do not match the real load state; painting the determinate fraction directly
+    // keeps the shown percentage truthful. The indeterminate case has no such issue, so it reuses
+    // JUCE's animation rather than reimplementing it.
+    class BusyProgressBar final : public juce::Component
+    {
+    public:
+        BusyProgressBar();
+        void setProgress(std::optional<double> progress);
+        void paint(juce::Graphics& g) override;
+        void resized() override;
 
-    // Progress indicator rendered above the message when the busy state requests it.
-    juce::ProgressBar m_progress_bar{m_progress};
+    private:
+        // -1 selects the owned juce::ProgressBar's indeterminate animation; a value in [0, 1] is an
+        // exact determinate fraction painted directly. Declared before the bar that references it.
+        double m_value{-1.0};
+
+        // Drawn only while indeterminate; determinate progress is painted directly instead.
+        juce::ProgressBar m_indeterminate_bar{m_value};
+    };
+
+    // Progress indicator, built only while an operation shows one. Destroying it when no bar is
+    // needed stops the owned juce::ProgressBar's animation timer during idle editing.
+    std::unique_ptr<BusyProgressBar> m_progress_bar;
 
     // User-facing message supplied by BusyViewState::message.
     juce::Label m_message_label;
