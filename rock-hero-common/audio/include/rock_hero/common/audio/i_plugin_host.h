@@ -69,8 +69,8 @@ public:
 
     Implementations own the platform- and host-specific default locations for the plugin formats
     they support. Callers should use this for a user-initiated full catalog refresh instead of
-    resolving platform search paths themselves. Implementations may return optimistic filesystem
-    candidates and defer plugin validation until insertPlugin().
+    resolving platform search paths themselves. Implementations may cache scan results in their
+    backend-native plugin catalog.
 
     \param progress_callback Optional callback for countable metadata-scan progress.
     \return Success after the refresh, or a typed failure when scanning cannot proceed.
@@ -83,9 +83,8 @@ public:
     \brief Discovers plugin files or directories as candidates.
 
     Implementations may recurse through supplied directories and should return an empty list when
-    no compatible candidate paths are found. Returned candidates may be optimistic filesystem
-    results that are validated only if the caller later passes the selected candidate to
-    insertPlugin().
+    no compatible candidate paths are found. Implementations may cache successful discoveries in
+    their backend-native plugin catalog.
 
     \param roots Files or directories to inspect for plugin candidates.
     \param progress_callback Optional callback for countable metadata-scan progress.

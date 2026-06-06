@@ -180,7 +180,7 @@ public:
     [[nodiscard]] std::expected<void, SongAudioError> clearActiveArrangement() override;
 
     /*!
-    \brief Refreshes conventional VST3 catalog locations for filesystem-backed candidates.
+    \brief Scans conventional VST3 catalog locations through Tracktion's plugin scanner.
     \param progress_callback Optional callback for countable metadata-scan progress.
     \return Success after the refresh, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
@@ -189,7 +189,7 @@ public:
         PluginCatalogScanProgressCallback progress_callback = {}) override;
 
     /*!
-    \brief Discovers supplied plugin files or directories as filesystem-backed candidates.
+    \brief Scans supplied plugin files or directories through Tracktion's plugin scanner.
     \param roots Files or directories to inspect for plugin candidates.
     \param progress_callback Optional callback for countable metadata-scan progress.
     \return Discovered plugin candidates, or a typed failure.
@@ -200,7 +200,7 @@ public:
         PluginCatalogScanProgressCallback progress_callback = {}) override;
 
     /*!
-    \brief Returns cached filesystem candidates and candidates already known by Tracktion.
+    \brief Returns plugin candidates already known by Tracktion.
     \return Plugin candidates without running a plugin scan.
     \note This method must be called on the message thread.
     */
