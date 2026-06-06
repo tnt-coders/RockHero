@@ -13,18 +13,18 @@ namespace rock_hero::common::audio
 {
 
 /*!
-\brief Count-based progress for metadata work after plugin catalog paths are discovered.
+\brief Count-based progress for plugin catalog scanning after candidate paths are discovered.
 
-The total is known only after the catalog roots have been walked and duplicate VST3 paths have
-been removed. Callers should treat the earlier filesystem walk as indeterminate and use this
-payload for the countable metadata/cache phase.
+The total is known only after the plugin format has resolved the scan path list. Callers should
+treat that earlier filesystem walk as indeterminate and use this payload for the countable scanner
+phase.
 */
 struct [[nodiscard]] PluginCatalogScanProgress
 {
-    /*! \brief Number of plugin candidates whose metadata processing has completed. */
+    /*! \brief Number of plugin candidates whose scan step has completed. */
     std::size_t completed_plugins{};
 
-    /*! \brief Total plugin candidates discovered before metadata processing began. */
+    /*! \brief Total plugin candidates discovered before plugin scanning began. */
     std::size_t total_plugins{};
 
     /*! \brief Candidate currently being processed, or the next candidate after an update. */

@@ -1,19 +1,16 @@
 ﻿#include "engine.h"
 
 #include "live_rig_gain_plugin.h"
-#include "plugin_catalog_cache.h"
 #include "plugin_move_index.h"
 #include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
 
 #include <algorithm>
 #include <atomic>
-#include <bit>
 #include <cctype>
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
-#include <cstdlib>
 #include <exception>
 #include <expected>
 #include <filesystem>
@@ -31,7 +28,6 @@
 #include <system_error>
 #include <thread>
 #include <tracktion_engine/tracktion_engine.h>
-#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -46,34 +42,19 @@ constexpr std::string_view g_tone_state_directory_name{"state"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
-constexpr std::string_view g_vst3_file_candidate_id_prefix{"vst3-file:"};
-constexpr std::string_view g_plugin_catalog_cache_file_name{"PluginCatalogCache.json"};
-
-// Normalizes filesystem extensions for case-insensitive plugin bundle matching.
-[[nodiscard]] std::string lowerExtension(const std::filesystem::path& path)
-{
-    std::string extension = path.extension().string();
-    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return extension;
-}
-
-// VST3 plugins are usually bundle directories on Windows and macOS, but some hosts may present
-// them as ordinary files. The catalog scan treats either shape as a scan root.
-[[nodiscard]] bool isVst3PluginPath(const std::filesystem::path& path)
-{
-    return lowerExtension(path) == ".vst3";
-}
 
 // Formats filesystem paths as UTF-8 text for stable IDs and logs. path::string() can lossy-convert
 // through the active code page on Windows and drop non-ANSI characters from plugin paths.
 [[nodiscard]] std::string pathToUtf8String(const std::filesystem::path& path)
 {
     const std::u8string encoded = path.u8string();
-    std::string result(encoded.size(), '\0');
-    std::ranges::transform(
-        encoded, result.begin(), [](char8_t byte) { return std::bit_cast<char>(byte); });
+    std::string result;
+    result.reserve(encoded.size());
+    for (const char8_t byte : encoded)
+    {
+        result.push_back(static_cast<char>(byte));
+    }
+
     return result;
 }
 
@@ -88,6 +69,36 @@ constexpr std::string_view g_plugin_catalog_cache_file_name{"PluginCatalogCache.
     return key;
 }
 
+[[nodiscard]] bool hasVst3Extension(const std::filesystem::path& path)
+{
+    std::string extension = path.extension().string();
+    std::ranges::transform(extension, extension.begin(), [](const unsigned char character) {
+        return static_cast<char>(std::tolower(character));
+    });
+    return extension == ".vst3";
+}
+
+// JUCE may persist a Windows VST3 either as the bundle directory or as the architecture-specific
+// module inside Contents. Normalize both forms to the bundle for UI display and path deduping.
+[[nodiscard]] std::filesystem::path vst3DisplayPath(const std::filesystem::path& path)
+{
+#if defined(_WIN32)
+    const std::filesystem::path architecture_path = path.parent_path();
+    const std::filesystem::path contents_path = architecture_path.parent_path();
+    const std::filesystem::path bundle_path = contents_path.parent_path();
+    if (contents_path.filename() == "Contents" && hasVst3Extension(bundle_path))
+    {
+        return bundle_path;
+    }
+#endif
+    return path;
+}
+
+[[nodiscard]] std::string normalizedPluginPathKey(const std::filesystem::path& path)
+{
+    return normalizedPathKey(vst3DisplayPath(path));
+}
+
 // Converts JUCE sample-count latency to the millisecond value shown in editor status text.
 [[nodiscard]] double samplesToMilliseconds(int sample_count, double sample_rate_hz) noexcept
 {
@@ -99,137 +110,6 @@ constexpr std::string_view g_plugin_catalog_cache_file_name{"PluginCatalogCache.
     return static_cast<double>(sample_count) * 1000.0 / sample_rate_hz;
 }
 
-[[nodiscard]] std::filesystem::path windowsVst3ArchitectureDirectory()
-{
-#if defined(_M_ARM64) || defined(__aarch64__)
-    return std::filesystem::path{"arm64-win"};
-#elif JUCE_64BIT
-    return std::filesystem::path{"x86_64-win"};
-#else
-    return std::filesystem::path{"x86-win"};
-#endif
-}
-
-// JUCE persists Windows bundle-style VST3 descriptions by the architecture-specific module path.
-// Scanning the same path lets KnownPluginList skip unchanged bundles on later scans.
-[[nodiscard]] std::filesystem::path normalizedVst3ScanPath(const std::filesystem::path& path)
-{
-#if defined(_WIN32)
-    if (!isVst3PluginPath(path))
-    {
-        return path;
-    }
-
-    std::error_code error;
-    if (!std::filesystem::is_directory(path, error))
-    {
-        return path;
-    }
-
-    const std::filesystem::path architecture_directory =
-        path / "Contents" / windowsVst3ArchitectureDirectory();
-    std::filesystem::path expected_module = architecture_directory / path.filename();
-    if (std::filesystem::exists(expected_module, error))
-    {
-        return expected_module;
-    }
-
-    if (!std::filesystem::is_directory(architecture_directory, error))
-    {
-        return path;
-    }
-
-    auto iterator = std::filesystem::directory_iterator{
-        architecture_directory, std::filesystem::directory_options::skip_permission_denied, error
-    };
-    const std::filesystem::directory_iterator end;
-    while (!error && iterator != end)
-    {
-        const std::filesystem::path candidate = iterator->path();
-        if (isVst3PluginPath(candidate) && std::filesystem::is_regular_file(candidate, error))
-        {
-            return candidate;
-        }
-
-        iterator.increment(error);
-        if (error)
-        {
-            error.clear();
-        }
-    }
-#endif
-    return path;
-}
-
-// Returns the bundle path represented by a Windows VST3 module path, or the input path otherwise.
-[[nodiscard]] std::filesystem::path vst3DisplayBundlePath(const std::filesystem::path& path)
-{
-    const std::filesystem::path architecture_path = path.parent_path();
-    const std::filesystem::path contents_path = architecture_path.parent_path();
-    const std::filesystem::path bundle_path = contents_path.parent_path();
-    if (contents_path.filename() == "Contents" && isVst3PluginPath(bundle_path))
-    {
-        return bundle_path;
-    }
-
-    return path;
-}
-
-// Trims ASCII whitespace from display metadata derived from filesystem path segments.
-[[nodiscard]] std::string trimMetadataText(const std::string& text)
-{
-    const auto first = std::ranges::find_if_not(
-        text, [](const unsigned char character) { return std::isspace(character) != 0; });
-    const auto last =
-        std::ranges::find_if_not(text.rbegin(), text.rend(), [](const auto character) {
-            return std::isspace(static_cast<unsigned char>(character)) != 0;
-        }).base();
-
-    if (first >= last)
-    {
-        return {};
-    }
-
-    return std::string{first, last};
-}
-
-// Folder-derived manufacturers are weakest metadata, so reject internal or generic folders.
-[[nodiscard]] bool isUsefulManufacturerFolderName(const std::filesystem::path& folder_name)
-{
-    if (folder_name.has_extension())
-    {
-        return false;
-    }
-
-    std::string normalized = pathToUtf8String(folder_name);
-    std::ranges::transform(normalized, normalized.begin(), [](const unsigned char character) {
-        return static_cast<char>(std::tolower(character));
-    });
-    return !normalized.empty() && normalized != "." && normalized != ".." &&
-           normalized != "contents" && normalized != "resources" && normalized != "x86_64-win" &&
-           normalized != "x86-win" && normalized != "arm64-win" && normalized != "vst3" &&
-           normalized != "plugins" && normalized != "plug-ins";
-}
-
-// Uses the first folder under a scan root as a last-resort manufacturer hint.
-[[nodiscard]] std::optional<std::string> manufacturerFromScanPath(
-    const std::filesystem::path& scan_root, const std::filesystem::path& plugin_path)
-{
-    const std::filesystem::path display_path = vst3DisplayBundlePath(plugin_path);
-    const std::filesystem::path relative_path =
-        display_path.lexically_normal().lexically_relative(scan_root.lexically_normal());
-    auto segment = relative_path.begin();
-    if (segment == relative_path.end() || *segment == "." || *segment == ".." ||
-        *segment == display_path.filename() || !isUsefulManufacturerFolderName(*segment))
-    {
-        return std::nullopt;
-    }
-
-    const std::string manufacturer = trimMetadataText(pathToUtf8String(*segment));
-    return manufacturer.empty() ? std::optional<std::string>{}
-                                : std::optional<std::string>{manufacturer};
-}
-
 [[nodiscard]] std::chrono::milliseconds elapsedMilliseconds(
     const std::chrono::steady_clock::time_point started_at)
 {
@@ -237,19 +117,11 @@ constexpr std::string_view g_plugin_catalog_cache_file_name{"PluginCatalogCache.
         std::chrono::steady_clock::now() - started_at);
 }
 
-[[nodiscard]] std::string makeVst3FileCandidateId(const std::filesystem::path& plugin_path)
-{
-    return std::string{g_vst3_file_candidate_id_prefix} +
-           pathToUtf8String(plugin_path.lexically_normal());
-}
-
-void logPluginCatalogDiscoverySummary(
-    const std::size_t candidate_paths, const std::size_t duplicate_paths,
-    const std::chrono::milliseconds total_duration)
+void logPluginCatalogScanSummary(
+    const std::size_t candidate_paths, const std::chrono::milliseconds total_duration)
 {
     const std::string message =
-        "Rock Hero plugin catalog discovery: " + std::to_string(candidate_paths) +
-        " VST3 path(s), " + std::to_string(duplicate_paths) + " duplicate path(s), " +
+        "Rock Hero plugin catalog scan: " + std::to_string(candidate_paths) + " VST3 path(s), " +
         std::to_string(total_duration.count()) + " ms total";
     juce::Logger::writeToLog(juce::String::fromUTF8(message.c_str()));
 }
@@ -271,18 +143,6 @@ void reportPluginCatalogScanProgress(
         });
 }
 
-void logPluginCatalogCacheFailure(std::string_view action, const PluginCatalogCacheError& error)
-{
-    std::string message = "Rock Hero plugin catalog cache " + std::string{action} + " failed";
-    if (!error.message.empty())
-    {
-        message += ": ";
-        message += error.message;
-    }
-
-    juce::Logger::writeToLog(juce::String::fromUTF8(message.c_str()));
-}
-
 void logPluginValidationSummary(
     const std::filesystem::path& plugin_path, const std::chrono::milliseconds total_duration,
     const std::optional<std::string>& failure_message)
@@ -297,82 +157,6 @@ void logPluginValidationSummary(
     }
 
     juce::Logger::writeToLog(juce::String::fromUTF8(message.c_str()));
-}
-
-// Adds a path once so default roots can combine environment-derived and fallback locations.
-void appendUniquePath(std::vector<std::filesystem::path>& paths, std::filesystem::path path)
-{
-    if (path.empty())
-    {
-        return;
-    }
-
-    if (std::ranges::find(paths, path) == paths.end())
-    {
-        paths.push_back(std::move(path));
-    }
-}
-
-// Reads an environment variable as a filesystem path when it exists.
-[[nodiscard]] std::optional<std::filesystem::path> environmentPath(const char* environment_variable)
-{
-#if defined(_WIN32)
-    char* value{};
-    std::size_t size{};
-    if (_dupenv_s(&value, &size, environment_variable) != 0 || value == nullptr || size <= 1)
-    {
-        return std::nullopt;
-    }
-
-    const std::unique_ptr<char, decltype(&std::free)> value_owner{value, &std::free};
-    return std::filesystem::path{value_owner.get()};
-#else
-    const char* const value = std::getenv(environment_variable);
-    if (value == nullptr || *value == '\0')
-    {
-        return std::nullopt;
-    }
-
-    return std::filesystem::path{value};
-#endif
-}
-
-// Adds a subdirectory under an environment variable when the variable exists.
-void appendEnvironmentSubpath(
-    std::vector<std::filesystem::path>& paths, const char* environment_variable,
-    const std::filesystem::path& child)
-{
-    const std::optional<std::filesystem::path> value = environmentPath(environment_variable);
-    if (!value.has_value())
-    {
-        return;
-    }
-
-    appendUniquePath(paths, *value / child);
-}
-
-// First-pass catalog roots cover the conventional system VST3 locations. User-configurable plugin
-// paths can later feed scanPluginLocations() without making editor-core own platform policy.
-[[nodiscard]] std::vector<std::filesystem::path> defaultPluginCatalogRoots()
-{
-    std::vector<std::filesystem::path> roots;
-#if defined(_WIN32)
-    appendEnvironmentSubpath(roots, "CommonProgramFiles", std::filesystem::path{"VST3"});
-#if !JUCE_64BIT
-    appendEnvironmentSubpath(roots, "CommonProgramFiles(x86)", std::filesystem::path{"VST3"});
-    appendUniquePath(roots, std::filesystem::path{R"(C:\Program Files (x86)\Common Files\VST3)"});
-#else
-    appendUniquePath(roots, std::filesystem::path{R"(C:\Program Files\Common Files\VST3)"});
-#endif
-#elif defined(__APPLE__)
-    appendUniquePath(roots, std::filesystem::path{"/Library/Audio/Plug-Ins/VST3"});
-    appendEnvironmentSubpath(roots, "HOME", std::filesystem::path{"Library/Audio/Plug-Ins/VST3"});
-#else
-    appendUniquePath(roots, std::filesystem::path{"/usr/lib/vst3"});
-    appendUniquePath(roots, std::filesystem::path{"/usr/local/lib/vst3"});
-    appendEnvironmentSubpath(roots, "HOME", std::filesystem::path{".vst3"});
-#endif
-    return roots;
 }
 
 // Cancels Tracktion's custom plugin scanner if a child-process scan never replies.
@@ -470,22 +254,6 @@ struct ToneDocument
 {
     std::vector<PluginRecord> chain;
     Gain output_gain;
-};
-
-// Result of a fast filesystem catalog walk plus the replacement records to persist.
-struct PluginCatalogDiscoveryResult
-{
-    std::vector<PluginCandidate> plugin_candidates;
-    std::vector<PluginCatalogRecord> cache_records;
-};
-
-// One deduped VST3 path found during the indeterminate filesystem walk.
-struct PluginCatalogScanCandidate
-{
-    std::filesystem::path scan_root;
-    std::filesystem::path plugin_path;
-    std::filesystem::path normalized_scan_path;
-    std::string path_key;
 };
 
 // Per-call state for an in-flight async live rig load. Lives on the heap inside Engine::Impl so
@@ -603,13 +371,6 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     const std::string utf8_text{text};
     return text.empty() ? juce::String{} : juce::String::fromUTF8(utf8_text.c_str());
-}
-
-[[nodiscard]] std::filesystem::path pluginCatalogCacheFilePath(tracktion::Engine& engine)
-{
-    const juce::File cache_file = engine.getPropertyStorage().getAppCacheFolder().getChildFile(
-        toJuceString(g_plugin_catalog_cache_file_name));
-    return common::core::pathFromJuceString(cache_file.getFullPathName());
 }
 
 // Converts signed JUCE plugin IDs into the hex text used by JUCE and Tracktion state.
@@ -1136,73 +897,8 @@ void reportLiveRigLoadProgress(
         .name = description.name.toStdString(),
         .manufacturer = description.manufacturerName.toStdString(),
         .format_name = description.pluginFormatName.toStdString(),
-        .file_path = plugin_path,
+        .file_path = vst3DisplayPath(plugin_path),
     };
-}
-
-// Builds an optimistic filesystem-backed candidate. The selected plugin is validated only when
-// the user adds it to the chain, which keeps browser discovery proportional to directory walking.
-[[nodiscard]] PluginCandidate makeVst3FileCandidate(
-    const std::filesystem::path& plugin_path, std::string name, std::string manufacturer)
-{
-    return PluginCandidate{
-        .id = makeVst3FileCandidateId(plugin_path),
-        .name = name.empty() ? pathToUtf8String(plugin_path.stem()) : std::move(name),
-        .manufacturer = std::move(manufacturer),
-        .format_name = "VST3",
-        .file_path = plugin_path,
-    };
-}
-
-[[nodiscard]] PluginCandidate makeVst3FileCandidate(const std::filesystem::path& plugin_path)
-{
-    return makeVst3FileCandidate(plugin_path, {}, {});
-}
-
-[[nodiscard]] PluginCandidate makeVst3FileCandidate(const PluginCatalogRecord& record)
-{
-    return PluginCandidate{
-        .id = makeVst3FileCandidateId(record.file_path),
-        .name = record.name.empty() ? pathToUtf8String(record.file_path.stem()) : record.name,
-        .manufacturer = record.manufacturer,
-        .format_name = record.format_name.empty() ? std::string{"VST3"} : record.format_name,
-        .file_path = record.file_path,
-    };
-}
-
-[[nodiscard]] PluginCatalogRecord makePluginCatalogRecord(
-    const std::filesystem::path& plugin_path, std::string name, std::string manufacturer,
-    PluginCatalogMetadataSource metadata_source,
-    std::optional<PluginCatalogFileStamp> module_file_stamp,
-    std::optional<PluginCatalogFileStamp> moduleinfo_file_stamp)
-{
-    return PluginCatalogRecord{
-        .path_key = normalizedPathKey(plugin_path),
-        .file_path = plugin_path,
-        .format_name = "VST3",
-        .name = std::move(name),
-        .manufacturer = std::move(manufacturer),
-        .metadata_source = metadata_source,
-        .module_file_stamp = module_file_stamp,
-        .moduleinfo_file_stamp = moduleinfo_file_stamp,
-    };
-}
-
-// Returns true for current cache records that predate later cheap metadata enrichment.
-[[nodiscard]] bool cachedPluginCatalogRecordNeedsMetadataRefresh(const PluginCatalogRecord& record)
-{
-    if (record.metadata_source == PluginCatalogMetadataSource::Path)
-    {
-        return true;
-    }
-
-    if (!record.manufacturer.empty())
-    {
-        return false;
-    }
-
-    return record.metadata_source == PluginCatalogMetadataSource::Filename ||
-           record.metadata_source == PluginCatalogMetadataSource::ModuleInfo;
 }
 
 // Converts the project-owned compact channel role into the Tracktion channel identifier.
@@ -1668,17 +1364,6 @@ private:
     // Explicit gate for unprocessed calibration monitoring through the backing track.
     bool m_calibration_input_monitoring_enabled{false};
 
-    // Filesystem-discovered plugin candidates shown before Tracktion validates selected plugins.
-    std::vector<PluginCandidate> m_discovered_plugin_catalog;
-
-    // App-data cache path and records for the filesystem-discovered plugin catalog.
-    std::filesystem::path m_plugin_catalog_cache_file;
-    std::vector<PluginCatalogRecord> m_plugin_catalog_cache_records;
-    bool m_plugin_catalog_cache_can_save{false};
-
-    // Guards catalog/cache writes from worker-thread discovery and message-thread UI reads.
-    mutable std::mutex m_discovered_plugin_catalog_mutex;
-
     // Message-thread listener list for the project-owned ITransport listener surface.
     juce::ListenerList<ITransport::Listener> m_transport_listeners;
 
@@ -1895,7 +1580,7 @@ private:
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError>
     scanPluginFileForCandidates(const std::filesystem::path& plugin_path)
     {
-        const std::filesystem::path scan_path = normalizedVst3ScanPath(plugin_path);
+        const std::filesystem::path scan_path = vst3DisplayPath(plugin_path).lexically_normal();
         const juce::File plugin_file = common::core::juceFileFromPath(scan_path);
         if (scan_path.empty() || !plugin_file.exists())
         {
@@ -1974,7 +1659,8 @@ private:
             {
                 if (description != nullptr && description->pluginFormatName == vst3_format_name)
                 {
-                    plugin_candidates.push_back(makePluginCandidate(*description, scan_path));
+                    plugin_candidates.push_back(makePluginCandidate(
+                        *description, pluginPathFromIdentifier(description->fileOrIdentifier)));
                 }
             }
 
@@ -1998,280 +1684,154 @@ private:
         }
     }
 
-    // Walks user/system plugin locations and returns optimistic VST3 file candidates without
-    // loading plugin code. Selected candidates are validated lazily when they are added.
-    [[nodiscard]] std::expected<PluginCatalogDiscoveryResult, PluginHostError>
-    discoverPluginLocationCandidates(
-        const std::vector<std::filesystem::path>& roots,
-        const std::vector<PluginCatalogRecord>& cached_records,
-        const PluginCatalogScanProgressCallback& progress_callback)
+    [[nodiscard]] juce::AudioPluginFormat* vst3PluginFormat() const
     {
-        const auto discovery_started_at = std::chrono::steady_clock::now();
-        PluginCatalogDiscoveryResult result;
-        std::vector<PluginCatalogScanCandidate> scan_candidates;
-        std::unordered_map<std::string, PluginCatalogRecord> cached_records_by_path;
-        std::unordered_set<std::string> seen_scan_paths;
-        std::size_t duplicate_paths{0};
-
-        cached_records_by_path.reserve(cached_records.size());
-        for (const PluginCatalogRecord& record : cached_records)
+        constexpr auto* vst3_format_name = "VST3";
+        for (juce::AudioPluginFormat* const format :
+             m_engine->getPluginManager().pluginFormatManager.getFormats())
         {
-            cached_records_by_path.emplace(record.path_key, record);
+            if (format != nullptr && format->getName() == vst3_format_name)
+            {
+                return format;
+            }
         }
 
-        const auto add_path = [&scan_candidates, &seen_scan_paths, &duplicate_paths](
-                                  const std::filesystem::path& scan_root,
-                                  const std::filesystem::path& plugin_path) {
-            const std::filesystem::path normalized_scan_path = normalizedVst3ScanPath(plugin_path);
-            const std::string path_key = normalizedPathKey(normalized_scan_path);
-            if (!seen_scan_paths.insert(path_key).second)
-            {
-                ++duplicate_paths;
-                return;
-            }
+        return nullptr;
+    }
 
-            scan_candidates.push_back(
-                PluginCatalogScanCandidate{
-                    .scan_root = scan_root,
-                    .plugin_path = plugin_path,
-                    .normalized_scan_path = normalized_scan_path,
-                    .path_key = path_key,
-                });
-        };
+    [[nodiscard]] juce::File pluginScanDeadMansPedalFile() const
+    {
+        return m_engine->getPropertyStorage().getAppCacheFolder().getChildFile(
+            "PluginScanDeadMansPedal.txt");
+    }
 
+    [[nodiscard]] static juce::FileSearchPath pluginSearchPathFromRoots(
+        const std::vector<std::filesystem::path>& roots)
+    {
+        juce::FileSearchPath search_path;
         for (const std::filesystem::path& root : roots)
         {
-            std::error_code error;
-            if (!std::filesystem::exists(root, error))
+            if (!root.empty())
             {
-                continue;
-            }
-
-            if (isVst3PluginPath(root))
-            {
-                add_path(root, root);
-                continue;
-            }
-
-            if (!std::filesystem::is_directory(root, error))
-            {
-                continue;
-            }
-
-            auto iterator = std::filesystem::recursive_directory_iterator{
-                root, std::filesystem::directory_options::skip_permission_denied, error
-            };
-            const std::filesystem::recursive_directory_iterator end;
-            while (!error && iterator != end)
-            {
-                const std::filesystem::path plugin_path = iterator->path();
-                if (isVst3PluginPath(plugin_path))
-                {
-                    add_path(root, plugin_path);
-                    std::error_code directory_error;
-                    if (std::filesystem::is_directory(plugin_path, directory_error))
-                    {
-                        iterator.disable_recursion_pending();
-                    }
-                }
-
-                iterator.increment(error);
-                if (error)
-                {
-                    error.clear();
-                }
+                search_path.addIfNotAlreadyThere(common::core::juceFileFromPath(root));
             }
         }
 
-        result.plugin_candidates.reserve(scan_candidates.size());
-        result.cache_records.reserve(scan_candidates.size());
-        if (!scan_candidates.empty())
+        search_path.removeRedundantPaths();
+        return search_path;
+    }
+
+    [[nodiscard]] static std::filesystem::path pluginPathFromIdentifier(
+        const juce::String& file_or_identifier)
+    {
+        return common::core::pathFromJuceString(file_or_identifier);
+    }
+
+    [[nodiscard]] static std::filesystem::path activeScanPath(
+        const juce::StringArray& files_or_identifiers, std::size_t completed_plugins)
+    {
+        if (files_or_identifiers.isEmpty())
+        {
+            return {};
+        }
+
+        const std::size_t total_plugins = static_cast<std::size_t>(files_or_identifiers.size());
+        const std::size_t active_index =
+            completed_plugins < total_plugins ? total_plugins - completed_plugins - 1 : 0;
+        return pluginPathFromIdentifier(files_or_identifiers[static_cast<int>(active_index)]);
+    }
+
+    [[nodiscard]] juce::StringArray vst3ScanFiles(juce::FileSearchPath search_path) const
+    {
+        juce::AudioPluginFormat* const format = vst3PluginFormat();
+        if (format == nullptr)
+        {
+            return {};
+        }
+
+        search_path.removeRedundantPaths();
+        juce::StringArray files = format->searchPathsForPlugins(search_path, true, true);
+        files.removeEmptyStrings();
+        files.removeDuplicates(true);
+        return files;
+    }
+
+    [[nodiscard]] std::expected<juce::StringArray, PluginHostError> scanVst3SearchPath(
+        juce::FileSearchPath search_path,
+        const PluginCatalogScanProgressCallback& progress_callback)
+    {
+        juce::AudioPluginFormat* const format = vst3PluginFormat();
+        if (format == nullptr)
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginScanFailed,
+                "VST3 plugin hosting is not enabled in this build"
+            }};
+        }
+
+        const auto scan_started_at = std::chrono::steady_clock::now();
+        juce::StringArray files = vst3ScanFiles(search_path);
+        const std::size_t total_plugins = static_cast<std::size_t>(files.size());
+        if (total_plugins > 0)
         {
             reportPluginCatalogScanProgress(
-                progress_callback,
-                0,
-                scan_candidates.size(),
-                scan_candidates.front().normalized_scan_path);
+                progress_callback, 0, total_plugins, activeScanPath(files, 0));
         }
 
-        const auto report_completed_candidate =
-            [&progress_callback, &scan_candidates](const std::size_t completed_index) {
-                const std::size_t completed_plugins = completed_index + 1;
-                const std::filesystem::path& active_path =
-                    completed_plugins < scan_candidates.size()
-                        ? scan_candidates[completed_plugins].normalized_scan_path
-                        : scan_candidates[completed_index].normalized_scan_path;
-                reportPluginCatalogScanProgress(
-                    progress_callback, completed_plugins, scan_candidates.size(), active_path);
+        try
+        {
+            auto& plugin_manager = m_engine->getPluginManager();
+            juce::PluginDirectoryScanner scanner{
+                plugin_manager.knownPluginList,
+                *format,
+                juce::FileSearchPath{},
+                true,
+                pluginScanDeadMansPedalFile(),
+                true
             };
+            scanner.setFilesOrIdentifiersToScan(files);
 
-        for (std::size_t index = 0; index < scan_candidates.size(); ++index)
-        {
-            const PluginCatalogScanCandidate& candidate = scan_candidates[index];
-            const std::optional<PluginCatalogFileStamp> module_stamp =
-                pluginCatalogFileStamp(candidate.normalized_scan_path);
-            const std::optional<std::filesystem::path> moduleinfo_path =
-                findVst3ModuleInfoPath(candidate.normalized_scan_path);
-            const std::optional<PluginCatalogFileStamp> moduleinfo_stamp =
-                moduleinfo_path.has_value() ? pluginCatalogFileStamp(*moduleinfo_path)
-                                            : std::optional<PluginCatalogFileStamp>{};
-            const auto cached_record = cached_records_by_path.find(candidate.path_key);
-            if (cached_record != cached_records_by_path.end() &&
-                isPluginCatalogRecordCurrent(
-                    cached_record->second, module_stamp, moduleinfo_stamp) &&
-                !cachedPluginCatalogRecordNeedsMetadataRefresh(cached_record->second))
+            for (std::size_t completed_plugins = 0; completed_plugins < total_plugins;
+                 ++completed_plugins)
             {
-                result.cache_records.push_back(cached_record->second);
-                result.plugin_candidates.push_back(makeVst3FileCandidate(cached_record->second));
-                report_completed_candidate(index);
-                continue;
-            }
+                const juce::String file_or_identifier =
+                    files[static_cast<int>(total_plugins - completed_plugins - 1)];
+                juce::String name_of_plugin_being_scanned;
+                PluginScanTimeout scan_timeout{
+                    [&plugin_manager] { plugin_manager.abortCurrentPluginScan(); },
+                    g_plugin_scan_timeout
+                };
+                scanner.scanNextFile(true, name_of_plugin_being_scanned);
+                scan_timeout.finish();
 
-            const std::optional<PluginCatalogStaticMetadata> static_metadata =
-                readVst3StaticMetadata(candidate.normalized_scan_path);
-            const std::string name =
-                static_metadata.has_value() ? static_metadata->name : std::string{};
-            std::string manufacturer =
-                static_metadata.has_value() ? static_metadata->manufacturer : std::string{};
-            PluginCatalogMetadataSource metadata_source =
-                static_metadata.has_value() ? static_metadata->source
-                                            : PluginCatalogMetadataSource::Filename;
-            if (manufacturer.empty())
-            {
-                if (const std::optional<std::string> path_manufacturer =
-                        manufacturerFromScanPath(candidate.scan_root, candidate.plugin_path);
-                    path_manufacturer.has_value())
+                if (scan_timeout.timedOut())
                 {
-                    manufacturer = *path_manufacturer;
-                    metadata_source = PluginCatalogMetadataSource::Path;
+                    plugin_manager.knownPluginList.removeFromBlacklist(file_or_identifier);
+                    return std::unexpected{PluginHostError{
+                        PluginHostErrorCode::PluginScanFailed,
+                        "Plugin scan timed out after " +
+                            std::to_string(g_plugin_scan_timeout.count()) +
+                            " seconds: " + file_or_identifier.toStdString()
+                    }};
                 }
-            }
-            const std::optional<PluginCatalogFileStamp> static_moduleinfo_stamp =
-                static_metadata.has_value() ? static_metadata->moduleinfo_file_stamp
-                                            : moduleinfo_stamp;
 
-            PluginCatalogRecord record = makePluginCatalogRecord(
-                candidate.normalized_scan_path,
-                name,
-                manufacturer,
-                metadata_source,
-                module_stamp,
-                static_moduleinfo_stamp);
-            result.plugin_candidates.push_back(makeVst3FileCandidate(record));
-            result.cache_records.push_back(std::move(record));
-            report_completed_candidate(index);
-        }
-
-        logPluginCatalogDiscoverySummary(
-            result.plugin_candidates.size(),
-            duplicate_paths,
-            elapsedMilliseconds(discovery_started_at));
-        return result;
-    }
-
-    [[nodiscard]] std::vector<PluginCatalogRecord> pluginCatalogCacheRecords() const
-    {
-        const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-        return m_plugin_catalog_cache_records;
-    }
-
-    void setDiscoveredPluginCatalog(PluginCatalogDiscoveryResult discovery_result)
-    {
-        const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-        m_discovered_plugin_catalog = std::move(discovery_result.plugin_candidates);
-        m_plugin_catalog_cache_records = std::move(discovery_result.cache_records);
-        m_plugin_catalog_cache_can_save = true;
-    }
-
-    [[nodiscard]] std::vector<PluginCandidate> discoveredPluginCatalog() const
-    {
-        const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-        return m_discovered_plugin_catalog;
-    }
-
-    void loadPluginCatalogCacheBestEffort()
-    {
-        auto loaded_cache = loadPluginCatalogCache(m_plugin_catalog_cache_file);
-        if (!loaded_cache.has_value())
-        {
-            logPluginCatalogCacheFailure("load", loaded_cache.error());
-            return;
-        }
-
-        std::vector<PluginCandidate> plugin_candidates;
-        plugin_candidates.reserve(loaded_cache->records.size());
-        for (const PluginCatalogRecord& record : loaded_cache->records)
-        {
-            plugin_candidates.push_back(makeVst3FileCandidate(record));
-        }
-
-        const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-        m_discovered_plugin_catalog = std::move(plugin_candidates);
-        m_plugin_catalog_cache_records = std::move(loaded_cache->records);
-        m_plugin_catalog_cache_can_save = true;
-    }
-
-    void savePluginCatalogCacheBestEffort(std::string_view action) const
-    {
-        if (m_plugin_catalog_cache_file.empty())
-        {
-            return;
-        }
-
-        PluginCatalogDocument document;
-        {
-            const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-            if (!m_plugin_catalog_cache_can_save)
-            {
-                return;
-            }
-            document.records = m_plugin_catalog_cache_records;
-        }
-
-        auto save_result = savePluginCatalogCache(m_plugin_catalog_cache_file, document);
-        if (!save_result.has_value())
-        {
-            logPluginCatalogCacheFailure(action, save_result.error());
-        }
-    }
-
-    void updateDiscoveredPluginCatalogMetadata(
-        const std::filesystem::path& plugin_path, const juce::PluginDescription& description)
-    {
-        const std::filesystem::path normalized_scan_path = normalizedVst3ScanPath(plugin_path);
-        const std::string path_key = normalizedPathKey(normalized_scan_path);
-        const std::optional<PluginCatalogFileStamp> module_stamp =
-            pluginCatalogFileStamp(normalized_scan_path);
-        const std::optional<std::filesystem::path> moduleinfo_path =
-            findVst3ModuleInfoPath(normalized_scan_path);
-        const std::optional<PluginCatalogFileStamp> moduleinfo_stamp =
-            moduleinfo_path.has_value() ? pluginCatalogFileStamp(*moduleinfo_path)
-                                        : std::optional<PluginCatalogFileStamp>{};
-
-        const std::scoped_lock lock{m_discovered_plugin_catalog_mutex};
-        for (PluginCandidate& plugin_candidate : m_discovered_plugin_catalog)
-        {
-            if (normalizedPathKey(plugin_candidate.file_path) == path_key)
-            {
-                plugin_candidate.name = description.name.toStdString();
-                plugin_candidate.manufacturer = description.manufacturerName.toStdString();
-                plugin_candidate.format_name = description.pluginFormatName.toStdString();
+                reportPluginCatalogScanProgress(
+                    progress_callback,
+                    completed_plugins + 1,
+                    total_plugins,
+                    activeScanPath(files, completed_plugins + 1));
             }
         }
-
-        for (PluginCatalogRecord& record : m_plugin_catalog_cache_records)
+        catch (const std::exception& error)
         {
-            if (record.path_key == path_key)
-            {
-                record.name = description.name.toStdString();
-                record.manufacturer = description.manufacturerName.toStdString();
-                record.format_name = description.pluginFormatName.toStdString();
-                record.metadata_source = PluginCatalogMetadataSource::Validated;
-                record.module_file_stamp = module_stamp;
-                record.moduleinfo_file_stamp = moduleinfo_stamp;
-                break;
-            }
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginScanFailed,
+                std::string{"Plugin catalog scan failed: "} + error.what()
+            }};
         }
+
+        logPluginCatalogScanSummary(total_plugins, elapsedMilliseconds(scan_started_at));
+        return files;
     }
 
     // Exposes Tracktion's in-memory known-plugin list without triggering filesystem scans.
@@ -2282,15 +1842,13 @@ private:
         std::unordered_set<std::string> seen_plugin_ids;
         std::unordered_set<std::string> seen_plugin_paths;
         const auto& known_types = m_engine->getPluginManager().knownPluginList.getTypes();
-        const std::vector<PluginCandidate> discovered_plugins = discoveredPluginCatalog();
-        plugin_candidates.reserve(
-            static_cast<std::size_t>(known_types.size()) + discovered_plugins.size());
+        plugin_candidates.reserve(static_cast<std::size_t>(known_types.size()));
         seen_plugin_ids.reserve(plugin_candidates.capacity());
         seen_plugin_paths.reserve(plugin_candidates.capacity());
 
         const auto append_candidate = [&plugin_candidates, &seen_plugin_ids, &seen_plugin_paths](
                                           PluginCandidate plugin_candidate) {
-            const std::string path_key = normalizedPathKey(plugin_candidate.file_path);
+            const std::string path_key = normalizedPluginPathKey(plugin_candidate.file_path);
             if (seen_plugin_ids.contains(plugin_candidate.id) ||
                 seen_plugin_paths.contains(path_key))
             {
@@ -2309,13 +1867,31 @@ private:
                 continue;
             }
 
-            const std::filesystem::path plugin_path{description.fileOrIdentifier.toStdString()};
-            append_candidate(makePluginCandidate(description, plugin_path));
+            append_candidate(makePluginCandidate(
+                description, pluginPathFromIdentifier(description.fileOrIdentifier)));
         }
 
-        for (const PluginCandidate& plugin_candidate : discovered_plugins)
+        return plugin_candidates;
+    }
+
+    [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalogForScannedFiles(
+        const juce::StringArray& scanned_files) const
+    {
+        std::unordered_set<std::string> scanned_paths;
+        scanned_paths.reserve(static_cast<std::size_t>(scanned_files.size()));
+        for (const juce::String& file_or_identifier : scanned_files)
         {
-            append_candidate(plugin_candidate);
+            scanned_paths.insert(
+                normalizedPluginPathKey(pluginPathFromIdentifier(file_or_identifier)));
+        }
+
+        std::vector<PluginCandidate> plugin_candidates;
+        for (PluginCandidate plugin_candidate : knownPluginCatalog())
+        {
+            if (scanned_paths.contains(normalizedPluginPathKey(plugin_candidate.file_path)))
+            {
+                plugin_candidates.push_back(std::move(plugin_candidate));
+            }
         }
 
         return plugin_candidates;
@@ -3170,8 +2746,6 @@ Engine::Engine()
         std::make_unique<RockHeroUIBehaviour>(),
         std::make_unique<RockHeroEngineBehaviour>());
     m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
-    m_impl->m_plugin_catalog_cache_file = pluginCatalogCacheFilePath(*m_impl->m_engine);
-    m_impl->loadPluginCatalogCacheBestEffort();
 
     // createSingleTrackEdit already provides one AudioTrack ready for media.
     m_impl->createEdit();
@@ -3201,7 +2775,6 @@ Engine::~Engine()
 {
     m_impl->m_alive.reset();
     m_impl->m_load_op.reset();
-    m_impl->savePluginCatalogCacheBestEffort("shutdown save");
 
     if (m_impl->m_engine)
     {
@@ -3413,36 +2986,43 @@ std::expected<void, SongAudioError> Engine::clearActiveArrangement()
     return {};
 }
 
-// Discovers default VST3 roots without loading plugin binaries. Callers should read
-// knownPluginCatalog() from the message thread after this worker-thread refresh succeeds.
+// Scans JUCE's default VST3 roots through Tracktion's known-plugin list. Tracktion persists the
+// resulting descriptions, so repeated scans can reuse unchanged entries.
 std::expected<void, PluginHostError> Engine::scanPluginCatalog(
     PluginCatalogScanProgressCallback progress_callback)
 {
-    auto discovered = m_impl->discoverPluginLocationCandidates(
-        defaultPluginCatalogRoots(), m_impl->pluginCatalogCacheRecords(), progress_callback);
-    if (!discovered.has_value())
+    juce::AudioPluginFormat* const format = m_impl->vst3PluginFormat();
+    if (format == nullptr)
     {
-        return std::unexpected{std::move(discovered.error())};
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginScanFailed,
+            "VST3 plugin hosting is not enabled in this build"
+        }};
     }
 
-    m_impl->setDiscoveredPluginCatalog(std::move(*discovered));
-    m_impl->savePluginCatalogCacheBestEffort("save");
+    auto scanned_files =
+        m_impl->scanVst3SearchPath(format->getDefaultLocationsToSearch(), progress_callback);
+    if (!scanned_files.has_value())
+    {
+        return std::unexpected{std::move(scanned_files.error())};
+    }
+
     return {};
 }
 
-// Discovers user-supplied plugin locations for browser catalog candidates.
+// Scans user-supplied VST3 locations through Tracktion's known-plugin list.
 std::expected<std::vector<PluginCandidate>, PluginHostError> Engine::scanPluginLocations(
     const std::vector<std::filesystem::path>& roots,
     PluginCatalogScanProgressCallback progress_callback)
 {
-    auto discovered = m_impl->discoverPluginLocationCandidates(
-        roots, m_impl->pluginCatalogCacheRecords(), progress_callback);
-    if (!discovered.has_value())
+    auto scanned_files =
+        m_impl->scanVst3SearchPath(Impl::pluginSearchPathFromRoots(roots), progress_callback);
+    if (!scanned_files.has_value())
     {
-        return std::unexpected{std::move(discovered.error())};
+        return std::unexpected{std::move(scanned_files.error())};
     }
 
-    return std::move(discovered->plugin_candidates);
+    return m_impl->knownPluginCatalogForScannedFiles(*scanned_files);
 }
 
 // Reads Tracktion's known-plugin list without launching plugin scanners.
@@ -3526,11 +3106,6 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCa
             }};
         }
     }
-    if (!plugin_candidate.file_path.empty())
-    {
-        updateDiscoveredPluginCatalogMetadata(plugin_candidate.file_path, *description);
-    }
-
     stopTransportAndReleaseContext();
 
     const tracktion::Plugin::Ptr plugin = m_edit->getPluginCache().createNewPlugin(
