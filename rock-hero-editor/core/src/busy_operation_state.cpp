@@ -14,7 +14,7 @@ std::uint64_t BusyOperationState::begin(BusyOperation operation) noexcept
 {
     m_current_token += 1;
     m_operation = operation;
-    m_live_rig_progress.reset();
+    m_determinate_progress.reset();
     return m_current_token;
 }
 
@@ -36,14 +36,14 @@ bool BusyOperationState::transition(BusyOperation operation, std::uint64_t token
     }
 
     m_operation = operation;
-    m_live_rig_progress.reset();
+    m_determinate_progress.reset();
     return true;
 }
 
 void BusyOperationState::end() noexcept
 {
     m_operation.reset();
-    m_live_rig_progress.reset();
+    m_determinate_progress.reset();
     m_current_token += 1;
 }
 
@@ -55,7 +55,7 @@ bool BusyOperationState::beginLiveRigLoadProgress()
     }
 
     m_operation = BusyOperation::LoadingLiveRig;
-    m_live_rig_progress = LiveRigProgress{
+    m_determinate_progress = DeterminateProgress{
         .message = busyMessage(BusyOperation::LoadingLiveRig),
         .fraction = 0.0,
     };
@@ -69,7 +69,21 @@ bool BusyOperationState::setLiveRigLoadProgress(std::string message, double frac
         return false;
     }
 
-    m_live_rig_progress = LiveRigProgress{
+    m_determinate_progress = DeterminateProgress{
+        .message = std::move(message),
+        .fraction = fraction,
+    };
+    return true;
+}
+
+bool BusyOperationState::setPluginCatalogScanProgress(std::string message, double fraction)
+{
+    if (!isBusy() || *m_operation != BusyOperation::ScanningPlugins)
+    {
+        return false;
+    }
+
+    m_determinate_progress = DeterminateProgress{
         .message = std::move(message),
         .fraction = fraction,
     };
@@ -89,10 +103,11 @@ std::optional<BusyViewState> BusyOperationState::viewState() const
         .indicator = busyIndicator(*m_operation),
         .cancel_enabled = false,
     };
-    if (*m_operation == BusyOperation::LoadingLiveRig && m_live_rig_progress.has_value())
+    if (m_determinate_progress.has_value())
     {
-        busy.message = m_live_rig_progress->message;
-        busy.progress = m_live_rig_progress->fraction;
+        busy.message = m_determinate_progress->message;
+        busy.indicator = BusyIndicator::DeterminateProgress;
+        busy.progress = m_determinate_progress->fraction;
     }
 
     return busy;

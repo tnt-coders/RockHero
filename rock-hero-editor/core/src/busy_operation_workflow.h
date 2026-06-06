@@ -13,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/i_live_rig.h>
+#include <rock_hero/common/audio/plugin_catalog_scan_progress.h>
 #include <rock_hero/editor/core/i_message_thread_scheduler.h>
 #include <string>
 
@@ -56,6 +57,7 @@ public:
 
     void beginLiveRigLoadProgress();
     void updateLiveRigLoadProgress(const common::audio::LiveRigLoadProgress& progress);
+    void updatePluginCatalogScanProgress(const common::audio::PluginCatalogScanProgress& progress);
 
     [[nodiscard]] bool setLiveRigLoadProgress(std::string message, double fraction);
 

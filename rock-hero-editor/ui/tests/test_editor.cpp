@@ -141,14 +141,17 @@ public:
     void removeListener(common::audio::IAudioDeviceConfiguration::Listener&) override
     {}
 
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog() override
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog(
+        common::audio::PluginCatalogScanProgressCallback = {}) override
     {
         return {};
     }
 
     [[nodiscard]] std::expected<
         std::vector<common::audio::PluginCandidate>, common::audio::PluginHostError>
-    scanPluginLocations(const std::vector<std::filesystem::path>&) override
+    scanPluginLocations(
+        const std::vector<std::filesystem::path>&,
+        common::audio::PluginCatalogScanProgressCallback = {}) override
     {
         return std::vector<common::audio::PluginCandidate>{};
     }
