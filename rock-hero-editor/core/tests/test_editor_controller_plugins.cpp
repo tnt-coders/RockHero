@@ -1,3 +1,5 @@
+#include <algorithm>
+#include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
@@ -18,6 +20,22 @@ namespace
         .instance_id = std::move(instance_id),
         .block_index = block,
     };
+}
+
+// Extracts determinate plugin-scan busy states pushed during a catalog refresh.
+[[nodiscard]] std::vector<BusyViewState> pluginScanProgressStates(const FakeEditorView& view)
+{
+    std::vector<BusyViewState> states;
+    for (const EditorViewState& state : view.pushed_states)
+    {
+        if (state.busy.has_value() && state.busy->operation == BusyOperation::ScanningPlugins &&
+            state.busy->progress.has_value())
+        {
+            states.push_back(*state.busy);
+        }
+    }
+
+    return states;
 }
 
 } // namespace
@@ -186,6 +204,62 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     REQUIRE(final_state->plugin_browser.plugins.size() == 1);
     CHECK(final_state->plugin_browser.plugins[0].id == "catalog-plugin-id");
     CHECK_FALSE(final_state->busy.has_value());
+}
+
+// Catalog scan progress is rendered as determinate busy-overlay state while rescan runs.
+TEST_CASE("EditorController reports plugin catalog scan progress", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    plugin_host.next_catalog_scan_progress = {
+        common::audio::PluginCatalogScanProgress{
+            .completed_plugins = 0,
+            .total_plugins = 2,
+            .active_plugin_path = std::filesystem::path{"Amp.vst3"},
+        },
+        common::audio::PluginCatalogScanProgress{
+            .completed_plugins = 1,
+            .total_plugins = 2,
+            .active_plugin_path = std::filesystem::path{"Cab.vst3"},
+        },
+        common::audio::PluginCatalogScanProgress{
+            .completed_plugins = 2,
+            .total_plugins = 2,
+            .active_plugin_path = std::filesystem::path{"Cab.vst3"},
+        },
+    };
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onPluginBrowserRequested();
+
+    controller.onPluginCatalogScanRequested();
+
+    const std::vector<BusyViewState> progress_states = pluginScanProgressStates(view);
+    REQUIRE_FALSE(progress_states.empty());
+    CHECK(progress_states.front().message == "Scanning Amp.vst3 (1 of 2)...");
+    CHECK(progress_states.front().indicator == BusyIndicator::DeterminateProgress);
+    CHECK(progress_states.front().progress == std::optional<double>{0.0});
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Scanning Cab.vst3 (2 of 2)..." &&
+               state.progress == std::optional<double>{0.5};
+    }));
+    CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
+        return state.message == "Scanning Cab.vst3 (2 of 2)..." &&
+               state.progress == std::optional<double>{1.0};
+    }));
 }
 
 // Adding a browser plugin uses the current catalog metadata and appends the selected plugin.

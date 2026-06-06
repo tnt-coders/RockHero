@@ -1332,6 +1332,7 @@ void EditorView::presentPluginBrowserIfNeeded(const core::PluginBrowserViewState
 
     m_plugin_browser_window->setVisible(true);
     m_plugin_browser_window->setState(state);
+    m_plugin_browser_window->setBusyState(m_state.busy);
     m_plugin_browser_window->toFront(true);
 }
 

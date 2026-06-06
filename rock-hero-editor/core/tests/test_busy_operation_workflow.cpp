@@ -2,6 +2,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
+#include <filesystem>
 #include <functional>
 #include <optional>
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
@@ -190,6 +191,32 @@ TEST_CASE(
     workflow.transitionAfterPaintAndWaitFromWorker(BusyOperation::AnalyzingBackingAudio, token);
 
     CHECK(visibleBusyOperation(workflow) == BusyOperation::OpeningProject);
+}
+
+// Plugin catalog progress formats count-based scan updates for the busy overlay.
+TEST_CASE("BusyOperationWorkflow formats plugin scan progress", "[core][busy-workflow]")
+{
+    testing::ImmediateMessageThreadScheduler scheduler;
+    BusyOperationWorkflow workflow{scheduler, [] {}};
+
+    const std::uint64_t token = workflow.begin(BusyOperation::ScanningPlugins);
+    workflow.updatePluginCatalogScanProgress(
+        common::audio::PluginCatalogScanProgress{
+            .completed_plugins = 1,
+            .total_plugins = 4,
+            .active_plugin_path = std::filesystem::path{"Cab.vst3"},
+        });
+
+    const std::optional<BusyViewState> state = workflow.viewState();
+    REQUIRE(state.has_value());
+    if (state.has_value())
+    {
+        CHECK(workflow.isCurrentToken(token));
+        CHECK(state->operation == BusyOperation::ScanningPlugins);
+        CHECK(state->message == "Scanning Cab.vst3 (2 of 4)...");
+        CHECK(state->indicator == BusyIndicator::DeterminateProgress);
+        CHECK(state->progress == std::optional<double>{0.25});
+    }
 }
 
 // Delayed callbacks are routed through the injected scheduler so tests can resolve them inline.

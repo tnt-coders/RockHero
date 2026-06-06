@@ -114,7 +114,28 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
     }
 }
 
-// Generic transitions clear any live-rig progress payload before exposing the new phase.
+// Plugin catalog progress switches scanning from its default indeterminate state to determinate.
+TEST_CASE("BusyOperationState exposes plugin scan progress", "[core][busy-operation-state]")
+{
+    BusyOperationState state;
+    const std::uint64_t token = state.begin(BusyOperation::ScanningPlugins);
+
+    const bool updated = state.setPluginCatalogScanProgress("Scanning Amp (1 of 2)...", 0.5);
+
+    CHECK(state.isCurrentToken(token));
+    CHECK(updated);
+    const std::optional<BusyViewState> busy = state.viewState();
+    REQUIRE(busy.has_value());
+    if (busy.has_value())
+    {
+        CHECK(busy->operation == BusyOperation::ScanningPlugins);
+        CHECK(busy->message == "Scanning Amp (1 of 2)...");
+        CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
+        CHECK(busy->progress == std::optional{0.5});
+    }
+}
+
+// Generic transitions clear any determinate progress payload before exposing the new phase.
 TEST_CASE("BusyOperationState transition clears live rig progress", "[core][busy-operation-state]")
 {
     BusyOperationState state;
@@ -134,7 +155,7 @@ TEST_CASE("BusyOperationState transition clears live rig progress", "[core][busy
     }
 }
 
-// Progress updates outside the live-rig phase are ignored.
+// Progress updates outside their matching phase are ignored.
 TEST_CASE(
     "BusyOperationState ignores progress outside live rig phase", "[core][busy-operation-state]")
 {
@@ -152,6 +173,9 @@ TEST_CASE(
         CHECK(busy->operation == BusyOperation::OpeningProject);
         CHECK_FALSE(busy->progress.has_value());
     }
+
+    const bool plugin_scan_updated = state.setPluginCatalogScanProgress("Ignored", 0.5);
+    CHECK_FALSE(plugin_scan_updated);
 }
 
 } // namespace rock_hero::editor::core

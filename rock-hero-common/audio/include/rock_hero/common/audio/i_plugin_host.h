@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <rock_hero/common/audio/plugin_catalog_scan_progress.h>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin_host_error.h>
@@ -71,10 +72,12 @@ public:
     resolving platform search paths themselves. Implementations may return optimistic filesystem
     candidates and defer plugin validation until insertPlugin().
 
+    \param progress_callback Optional callback for countable metadata-scan progress.
     \return Success after the refresh, or a typed failure when scanning cannot proceed.
     \note This method may be called from a non-realtime worker thread.
     */
-    [[nodiscard]] virtual std::expected<void, PluginHostError> scanPluginCatalog() = 0;
+    [[nodiscard]] virtual std::expected<void, PluginHostError> scanPluginCatalog(
+        PluginCatalogScanProgressCallback progress_callback = {}) = 0;
 
     /*!
     \brief Discovers plugin files or directories as candidates.
@@ -85,11 +88,14 @@ public:
     insertPlugin().
 
     \param roots Files or directories to inspect for plugin candidates.
+    \param progress_callback Optional callback for countable metadata-scan progress.
     \return Discovered plugin candidates, or a typed failure when scanning itself cannot proceed.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] virtual std::expected<std::vector<PluginCandidate>, PluginHostError>
-    scanPluginLocations(const std::vector<std::filesystem::path>& roots) = 0;
+    scanPluginLocations(
+        const std::vector<std::filesystem::path>& roots,
+        PluginCatalogScanProgressCallback progress_callback = {}) = 0;
 
     /*!
     \brief Returns plugin candidates already known to the host without scanning plugin binaries.

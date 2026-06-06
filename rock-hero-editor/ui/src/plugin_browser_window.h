@@ -7,6 +7,8 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
+#include <optional>
+#include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/plugin_browser_view_state.h>
 #include <string>
 
@@ -90,6 +92,12 @@ public:
     \param state Plugin browser state to render.
     */
     void setState(const core::PluginBrowserViewState& state);
+
+    /*!
+    \brief Applies editor-wide busy state over the browser content.
+    \param busy Busy state to render, or empty when the browser should be interactive.
+    */
+    void setBusyState(const std::optional<core::BusyViewState>& busy);
 
     /*! \brief Forwards native close-button clicks as a controller intent. */
     void closeButtonPressed() override;

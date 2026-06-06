@@ -181,19 +181,23 @@ public:
 
     /*!
     \brief Refreshes conventional VST3 catalog locations for filesystem-backed candidates.
+    \param progress_callback Optional callback for countable metadata-scan progress.
     \return Success after the refresh, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
     */
-    [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog() override;
+    [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog(
+        PluginCatalogScanProgressCallback progress_callback = {}) override;
 
     /*!
     \brief Discovers supplied plugin files or directories as filesystem-backed candidates.
     \param roots Files or directories to inspect for plugin candidates.
+    \param progress_callback Optional callback for countable metadata-scan progress.
     \return Discovered plugin candidates, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
-        const std::vector<std::filesystem::path>& roots) override;
+        const std::vector<std::filesystem::path>& roots,
+        PluginCatalogScanProgressCallback progress_callback = {}) override;
 
     /*!
     \brief Returns cached filesystem candidates and candidates already known by Tracktion.

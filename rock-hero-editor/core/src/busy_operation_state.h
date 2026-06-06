@@ -72,20 +72,28 @@ public:
     [[nodiscard]] bool setLiveRigLoadProgress(std::string message, double fraction);
 
     /*!
+    \brief Updates the plugin catalog scan progress payload.
+    \param message User-facing progress message.
+    \param fraction Determinate progress fraction.
+    \return True when the progress state was applied.
+    */
+    [[nodiscard]] bool setPluginCatalogScanProgress(std::string message, double fraction);
+
+    /*!
     \brief Builds the current busy view-state snapshot.
     \return Busy view state, or empty when no operation is active.
     */
     [[nodiscard]] std::optional<BusyViewState> viewState() const;
 
 private:
-    struct LiveRigProgress
+    struct DeterminateProgress
     {
         std::string message;
         double fraction;
     };
 
     std::optional<BusyOperation> m_operation{};
-    std::optional<LiveRigProgress> m_live_rig_progress{};
+    std::optional<DeterminateProgress> m_determinate_progress{};
     std::uint64_t m_current_token{0};
 };
 

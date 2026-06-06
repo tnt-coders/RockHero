@@ -30,12 +30,21 @@ class RecordingPluginHost final : public IPluginHost
 {
 public:
     /*! \brief Records a default catalog scan and refreshes the known catalog on success. */
-    [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog() override
+    [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog(
+        PluginCatalogScanProgressCallback progress_callback = {}) override
     {
         catalog_scan_call_count += 1;
         if (next_catalog_scan_error.has_value())
         {
             return std::unexpected{*next_catalog_scan_error};
+        }
+
+        for (const PluginCatalogScanProgress& progress : next_catalog_scan_progress)
+        {
+            if (progress_callback)
+            {
+                progress_callback(progress);
+            }
         }
 
         next_known_candidates = next_catalog_candidates;
@@ -44,13 +53,22 @@ public:
 
     /*! \brief Records explicit scan roots and returns the configured catalog candidates. */
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
-        const std::vector<std::filesystem::path>& roots) override
+        const std::vector<std::filesystem::path>& roots,
+        PluginCatalogScanProgressCallback progress_callback = {}) override
     {
         last_scan_roots = roots;
         catalog_scan_call_count += 1;
         if (next_catalog_scan_error.has_value())
         {
             return std::unexpected{*next_catalog_scan_error};
+        }
+
+        for (const PluginCatalogScanProgress& progress : next_catalog_scan_progress)
+        {
+            if (progress_callback)
+            {
+                progress_callback(progress);
+            }
         }
 
         return next_catalog_candidates;
@@ -210,6 +228,9 @@ public:
 
     /*! \brief Optional catalog scan error returned instead of success. */
     std::optional<PluginHostError> next_catalog_scan_error{};
+
+    /*! \brief Progress payloads emitted by the next successful catalog scan. */
+    std::vector<PluginCatalogScanProgress> next_catalog_scan_progress{};
 
     /*! \brief Optional insertion error returned instead of a handle. */
     std::optional<PluginHostError> next_insert_error{};
