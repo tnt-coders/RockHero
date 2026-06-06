@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
 
 namespace rock_hero::editor::ui
@@ -17,8 +18,9 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 
     const juce::Component* const overlay = view.findChildWithID("busy_overlay");
     REQUIRE(overlay != nullptr);
-    auto& progress_bar = findRequiredDescendant<juce::ProgressBar>(view, "busy_progress_bar");
     CHECK_FALSE(overlay->isVisible());
+    // The bar is built on demand, so none exists until a busy state requests one.
+    CHECK(testing::findDescendant(view, "busy_progress_bar") == nullptr);
 
     core::EditorViewState busy_state;
     busy_state.visible_timeline = common::core::TimeRange{
@@ -36,7 +38,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     view.setState(busy_state);
 
     CHECK(overlay->isVisible());
-    CHECK(progress_bar.isVisible());
+    CHECK(findRequiredDescendant<juce::Component>(view, "busy_progress_bar").isVisible());
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
@@ -48,7 +50,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     view.setState(busy_state);
 
     CHECK(overlay->isVisible());
-    CHECK(progress_bar.isVisible());
+    CHECK(findRequiredDescendant<juce::Component>(view, "busy_progress_bar").isVisible());
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::LoadingPlugin,
@@ -59,7 +61,8 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     view.setState(busy_state);
 
     CHECK(overlay->isVisible());
-    CHECK_FALSE(progress_bar.isVisible());
+    // Message-only operations show no bar at all, so none is built.
+    CHECK(testing::findDescendant(view, "busy_progress_bar") == nullptr);
 
     core::EditorViewState idle_state;
     idle_state.visible_timeline = common::core::TimeRange{
@@ -71,6 +74,47 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     view.setState(idle_state);
 
     CHECK_FALSE(overlay->isVisible());
+}
+
+// Determinate progress paints the exact fraction immediately. juce::ProgressBar would ramp its
+// displayed value toward the target; this guards that the overlay shows the true fraction instead.
+TEST_CASE("BusyOverlay paints determinate progress at its exact fraction", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    BusyOverlay overlay;
+    overlay.setBounds(0, 0, 200, 100);
+
+    overlay.setBusyState(
+        core::BusyViewState{
+            .operation = core::BusyOperation::LoadingLiveRig,
+            .message = "Loading plugin 1 of 2...",
+            .indicator = core::BusyIndicator::DeterminateProgress,
+            .progress = std::optional<double>{0.5},
+            .cancel_enabled = false,
+        });
+
+    auto& progress_bar = findRequiredDescendant<juce::Component>(overlay, "busy_progress_bar");
+    REQUIRE(progress_bar.getWidth() > 0);
+
+    const juce::Image snapshot =
+        progress_bar.createComponentSnapshot(progress_bar.getLocalBounds());
+    const juce::Colour foreground = progress_bar.findColour(juce::ProgressBar::foregroundColourId);
+    const juce::Colour background = progress_bar.findColour(juce::ProgressBar::backgroundColourId);
+
+    const auto looks_filled = [&](int x, int y) {
+        const juce::Colour pixel = snapshot.getPixelAt(x, y);
+        const auto channel_distance = [](juce::Colour a, juce::Colour b) {
+            return std::abs(static_cast<int>(a.getRed()) - static_cast<int>(b.getRed())) +
+                   std::abs(static_cast<int>(a.getGreen()) - static_cast<int>(b.getGreen())) +
+                   std::abs(static_cast<int>(a.getBlue()) - static_cast<int>(b.getBlue()));
+        };
+        return channel_distance(pixel, foreground) < channel_distance(pixel, background);
+    };
+
+    const int mid_y = progress_bar.getHeight() / 2;
+    // A 0.5 fraction fills the left half exactly: filled left of centre, empty right of centre.
+    CHECK(looks_filled(progress_bar.getWidth() / 4, mid_y));
+    CHECK_FALSE(looks_filled((progress_bar.getWidth() * 3) / 4, mid_y));
 }
 
 // The busy-overlay fence waits for an actual overlay paint and then posts the callback once.
