@@ -15,7 +15,9 @@ namespace
 {
 
 // Converts a backend snapshot entry into the view model rendered by the signal-chain panel.
-[[nodiscard]] PluginViewState makePluginViewState(const common::audio::PluginChainEntry& plugin)
+[[nodiscard]] PluginViewState makePluginViewState(
+    const common::audio::PluginChainEntry& plugin,
+    const PluginDisplayTypeOverrides& display_type_overrides)
 {
     PluginDisplayClassification classification = classifyPluginDisplay(
         PluginDisplayMetadata{
@@ -24,7 +26,8 @@ namespace
             .manufacturer = plugin.manufacturer,
             .format_name = plugin.format_name,
             .category = plugin.category,
-        });
+        },
+        display_type_overrides);
     const std::optional<PluginDisplayType> display_type_override =
         pluginDisplayTypeFromToken(plugin.display_type_override);
     return PluginViewState{
@@ -45,13 +48,14 @@ namespace
 
 // Converts authoritative backend chain entries into editor view rows.
 [[nodiscard]] std::vector<PluginViewState> makePluginViewStates(
-    const std::vector<common::audio::PluginChainEntry>& plugins)
+    const std::vector<common::audio::PluginChainEntry>& plugins,
+    const PluginDisplayTypeOverrides& display_type_overrides)
 {
     std::vector<PluginViewState> states;
     states.reserve(plugins.size());
     for (const common::audio::PluginChainEntry& plugin : plugins)
     {
-        states.push_back(makePluginViewState(plugin));
+        states.push_back(makePluginViewState(plugin, display_type_overrides));
     }
     return states;
 }
@@ -299,10 +303,16 @@ void preserveDisplayTypeOverrides(
 
 } // namespace
 
+// Stores display type overrides once so every loaded chain snapshot uses the same config snapshot.
+SignalChainWorkflow::SignalChainWorkflow(PluginDisplayTypeOverrides display_type_overrides)
+    : m_display_type_overrides(std::move(display_type_overrides))
+{}
+
 // Applies the backend order exactly as returned; local reindexing would hide adapter drift.
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
-    std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
+    std::vector<PluginViewState> next_plugins =
+        makePluginViewStates(snapshot.plugins, m_display_type_overrides);
     preserveDisplayTypeOverrides(m_plugins, next_plugins);
     const SignalChainBlockPlacement placement =
         placementForSnapshot(m_plugins, next_plugins, m_pending_insert_block);

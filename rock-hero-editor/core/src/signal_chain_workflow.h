@@ -27,6 +27,12 @@ class SignalChainWorkflow final
 {
 public:
     /*!
+    \brief Creates signal-chain workflow state with optional display type overrides.
+    \param display_type_overrides Exact plugin type overrides used for chain classification.
+    */
+    explicit SignalChainWorkflow(PluginDisplayTypeOverrides display_type_overrides = {});
+
+    /*!
     \brief Replaces the current chain with an authoritative backend snapshot.
     \param snapshot Ordered plugin chain returned by common/audio.
     */
@@ -122,6 +128,7 @@ public:
     [[nodiscard]] std::vector<std::string> displayTypeOverrideTokens() const;
 
 private:
+    PluginDisplayTypeOverrides m_display_type_overrides;
     std::vector<PluginViewState> m_plugins;
     std::optional<std::size_t> m_pending_insertion_index;
     // Visual block a pending specific-slot insert should occupy; empty for an append.

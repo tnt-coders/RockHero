@@ -1,0 +1,113 @@
+{
+    "version": 1,
+    "overrides": [
+        {
+            "name": "Archetype Abasi",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Cory Wong X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Gojira X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Mateus Asato",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Misha Mansoor X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Nolly X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Petrucci X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Plini X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Rabea X",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Tim Henson",
+            "type": "amp"
+        },
+        {
+            "name": "Archetype Tom Morello",
+            "type": "amp"
+        },
+        {
+            "name": "Darkglass Ultra",
+            "type": "amp"
+        },
+        {
+            "name": "Fortin Cali Suite",
+            "type": "amp"
+        },
+        {
+            "name": "Fortin Nameless Suite X",
+            "type": "amp"
+        },
+        {
+            "name": "Fortin NTS Suite",
+            "type": "amp"
+        },
+        {
+            "name": "Gateway",
+            "type": "amp"
+        },
+        {
+            "name": "Ignite - Emissary",
+            "type": "amp"
+        },
+        {
+            "name": "Ignite - NadIR",
+            "type": "cab"
+        },
+        {
+            "name": "Mesa Boogie Mark IIC+ Suite",
+            "type": "amp"
+        },
+        {
+            "name": "Morgan Amps Suite",
+            "type": "amp"
+        },
+        {
+            "name": "Neural Amp Modeler",
+            "type": "amp"
+        },
+        {
+            "name": "NeuralAmpModeler",
+            "type": "amp"
+        },
+        {
+            "name": "OMEGA Ampworks Granophyre",
+            "type": "amp"
+        },
+        {
+            "name": "ParametricOD",
+            "type": "distortion"
+        },
+        {
+            "name": "Parallax X",
+            "type": "amp"
+        },
+        {
+            "name": "Soldano SLO-100 X",
+            "type": "amp"
+        },
+        {
+            "name": "Tone King Imperial MKII",
+            "type": "amp"
+        }
+    ]
+}
