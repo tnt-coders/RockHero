@@ -213,7 +213,7 @@ TEST_CASE("BusyOperationWorkflow formats plugin scan progress", "[core][busy-wor
     {
         CHECK(workflow.isCurrentToken(token));
         CHECK(state->operation == BusyOperation::ScanningPlugins);
-        CHECK(state->message == "Scanning Cab.vst3 (2 of 4)...");
+        CHECK(state->message == "Scanning plugin (2/4)...\nCab.vst3");
         CHECK(state->indicator == BusyIndicator::DeterminateProgress);
         CHECK(state->progress == std::optional<double>{0.25});
     }

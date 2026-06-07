@@ -249,15 +249,15 @@ TEST_CASE("EditorController reports plugin catalog scan progress", "[core][edito
 
     const std::vector<BusyViewState> progress_states = pluginScanProgressStates(view);
     REQUIRE_FALSE(progress_states.empty());
-    CHECK(progress_states.front().message == "Scanning Amp.vst3 (1 of 2)...");
+    CHECK(progress_states.front().message == "Scanning plugin (1/2)...\nAmp.vst3");
     CHECK(progress_states.front().indicator == BusyIndicator::DeterminateProgress);
     CHECK(progress_states.front().progress == std::optional<double>{0.0});
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
-        return state.message == "Scanning Cab.vst3 (2 of 2)..." &&
+        return state.message == "Scanning plugin (2/2)...\nCab.vst3" &&
                state.progress == std::optional<double>{0.5};
     }));
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
-        return state.message == "Scanning Cab.vst3 (2 of 2)..." &&
+        return state.message == "Scanning plugin (2/2)...\nCab.vst3" &&
                state.progress == std::optional<double>{1.0};
     }));
 }
@@ -655,11 +655,11 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
     CHECK(progress_states.front().progress == std::optional<double>{0.0});
     CHECK(progress_states.front().indicator == BusyIndicator::DeterminateProgress);
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
-        return state.message == "Loading Amp Sim (1 of 2)..." &&
+        return state.message == "Loading plugin (1/2)...\nAmp Sim" &&
                state.progress == std::optional<double>{0.5};
     }));
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {
-        return state.message == "Loading Cab IR (2 of 2)..." &&
+        return state.message == "Loading plugin (2/2)...\nCab IR" &&
                state.progress == std::optional<double>{1.0};
     }));
     CHECK(std::ranges::any_of(progress_states, [](const BusyViewState& state) {

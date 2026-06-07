@@ -98,7 +98,7 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
     const std::uint64_t token = state.begin(BusyOperation::OpeningProject);
 
     const bool started = state.beginLiveRigLoadProgress();
-    const bool updated = state.setLiveRigLoadProgress("Loading Amp (1 of 2)...", 0.5);
+    const bool updated = state.setLiveRigLoadProgress("Loading plugin (1/2)...\nAmp", 0.5);
 
     CHECK(state.isCurrentToken(token));
     CHECK(started);
@@ -108,7 +108,7 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
     if (busy.has_value())
     {
         CHECK(busy->operation == BusyOperation::LoadingLiveRig);
-        CHECK(busy->message == "Loading Amp (1 of 2)...");
+        CHECK(busy->message == "Loading plugin (1/2)...\nAmp");
         CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
         CHECK(busy->progress == std::optional{0.5});
     }
@@ -120,7 +120,7 @@ TEST_CASE("BusyOperationState exposes plugin scan progress", "[core][busy-operat
     BusyOperationState state;
     const std::uint64_t token = state.begin(BusyOperation::ScanningPlugins);
 
-    const bool updated = state.setPluginCatalogScanProgress("Scanning Amp (1 of 2)...", 0.5);
+    const bool updated = state.setPluginCatalogScanProgress("Scanning plugin (1/2)...\nAmp", 0.5);
 
     CHECK(state.isCurrentToken(token));
     CHECK(updated);
@@ -129,7 +129,7 @@ TEST_CASE("BusyOperationState exposes plugin scan progress", "[core][busy-operat
     if (busy.has_value())
     {
         CHECK(busy->operation == BusyOperation::ScanningPlugins);
-        CHECK(busy->message == "Scanning Amp (1 of 2)...");
+        CHECK(busy->message == "Scanning plugin (1/2)...\nAmp");
         CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
         CHECK(busy->progress == std::optional{0.5});
     }
@@ -141,7 +141,7 @@ TEST_CASE("BusyOperationState transition clears live rig progress", "[core][busy
     BusyOperationState state;
     const std::uint64_t token = state.begin(BusyOperation::OpeningProject);
     REQUIRE(state.beginLiveRigLoadProgress());
-    REQUIRE(state.setLiveRigLoadProgress("Loading Amp (1 of 2)...", 0.5));
+    REQUIRE(state.setLiveRigLoadProgress("Loading plugin (1/2)...\nAmp", 0.5));
 
     const bool transitioned = state.transition(BusyOperation::AnalyzingBackingAudio, token);
 
