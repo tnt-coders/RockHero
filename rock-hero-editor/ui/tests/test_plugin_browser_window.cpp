@@ -161,7 +161,7 @@ TEST_CASE("PluginBrowserWindow shows busy overlay", "[ui][plugin-browser]")
     window.setBusyState(
         std::optional{core::BusyViewState{
             .operation = core::BusyOperation::ScanningPlugins,
-            .message = "Scanning Amp.vst3 (1 of 2)...",
+            .message = "Scanning plugin (1/2)...\nAmp.vst3",
             .indicator = core::BusyIndicator::DeterminateProgress,
             .progress = std::optional<double>{0.5},
         }});
