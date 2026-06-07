@@ -95,6 +95,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SetSignalChainPlacement;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SetPluginDisplayTypeOverride>)
+    {
+        return EditorAction::Id::SetPluginDisplayTypeOverride;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::OpenPlugin>)
     {
         return EditorAction::Id::OpenPlugin;

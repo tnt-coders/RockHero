@@ -6,6 +6,8 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
 #include <vector>
 
@@ -29,6 +31,21 @@ struct PluginViewState
 
     /*! \brief Backend plugin format name, such as VST3. */
     std::string format_name;
+
+    /*! \brief Current display type used by signal-chain icon rendering. */
+    PluginDisplayType primary_display_type{PluginDisplayType::Uncategorized};
+
+    /*! \brief Automatic display type derived from exact overrides and scanner metadata. */
+    PluginDisplayType automatic_display_type{PluginDisplayType::Uncategorized};
+
+    /*! \brief Display types recognized directly from scanner category metadata. */
+    std::vector<PluginDisplayType> scanned_display_types{};
+
+    /*! \brief Display types accepted by browser filtering and default display classification. */
+    std::vector<PluginDisplayType> accepted_display_types{PluginDisplayType::Uncategorized};
+
+    /*! \brief Manual display type selected for this plugin instance, when authored. */
+    std::optional<PluginDisplayType> display_type_override{};
 
     /*! \brief Zero-based position in the current linear plugin chain. */
     std::size_t chain_index{};

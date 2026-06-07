@@ -10,6 +10,7 @@
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_view_state.h>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -100,10 +101,25 @@ public:
     [[nodiscard]] bool setBlockPlacement(const std::vector<PluginBlockAssignment>& placement);
 
     /*!
+    \brief Sets or clears the manual display type override for a plugin instance.
+    \param instance_id Opaque plugin instance ID to update.
+    \param display_type Manual display type, or empty to use automatic classification.
+    \return True when the stored override changed.
+    */
+    [[nodiscard]] bool setPluginDisplayTypeOverride(
+        std::string_view instance_id, std::optional<PluginDisplayType> display_type);
+
+    /*!
     \brief Returns the authored visual block of each plugin in chain order for persistence.
     \return Fixed visual block per plugin, aligned to the current chain order.
     */
     [[nodiscard]] std::vector<std::size_t> blockIndices() const;
+
+    /*!
+    \brief Returns manual display type override tokens in chain order for persistence.
+    \return Stable display override tokens per plugin, or empty entries for automatic display.
+    */
+    [[nodiscard]] std::vector<std::string> displayTypeOverrideTokens() const;
 
 private:
     std::vector<PluginViewState> m_plugins;

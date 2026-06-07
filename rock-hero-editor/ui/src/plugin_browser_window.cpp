@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cctype>
 #include <memory>
-#include <rock_hero/common/core/juce_path.h>
+#include <optional>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -25,8 +25,12 @@ constexpr int g_top_row_height{28};
 constexpr int g_bottom_row_height{30};
 constexpr int g_button_width{92};
 constexpr int g_close_button_width{72};
+constexpr int g_type_filter_width{150};
 constexpr int g_row_height{28};
 constexpr int g_list_header_height{24};
+constexpr int g_all_types_filter_id{1};
+constexpr int g_first_type_filter_id{2};
+constexpr auto* g_all_types_label = "All types";
 const juce::Colour g_background_colour{juce::Colours::darkgrey.darker(0.28f)};
 const juce::Colour g_header_colour{juce::Colours::darkgrey.darker(0.4f)};
 const juce::Colour g_selected_row_colour{juce::Colour{0xff2f6f96}};
@@ -55,11 +59,23 @@ const juce::Colour g_column_header_colour{juce::Colours::darkgrey.darker(0.34f)}
     return value.empty() ? juce::String{fallback} : juce::String{value};
 }
 
+// Appends one display type once while preserving first-seen order.
+void appendUniqueDisplayType(
+    std::vector<core::PluginDisplayType>& values, core::PluginDisplayType value)
+{
+    if (std::ranges::find(values, value) != values.end())
+    {
+        return;
+    }
+
+    values.push_back(value);
+}
+
 // Computes the browser's painted table columns so the header and rows stay aligned.
 [[nodiscard]] std::tuple<int, int, int> pluginBrowserColumnWidths(int available_width)
 {
-    const int name_width = std::max(120, available_width * 32 / 100);
-    const int manufacturer_width = std::max(110, available_width * 24 / 100);
+    const int name_width = std::max(160, available_width * 48 / 100);
+    const int manufacturer_width = std::max(120, available_width * 34 / 100);
     constexpr int format_width = 58;
     return {name_width, manufacturer_width, format_width};
 }
@@ -91,8 +107,6 @@ public:
             g, "Manufacturer", area.removeFromLeft(std::min(manufacturer_width, area.getWidth())));
         area.removeFromLeft(std::min(g_gap, area.getWidth()));
         drawHeaderText(g, "Format", area.removeFromLeft(std::min(format_width, area.getWidth())));
-        area.removeFromLeft(std::min(g_gap, area.getWidth()));
-        drawHeaderText(g, "Path", area);
     }
 
 private:
@@ -107,18 +121,13 @@ private:
 // Builds cached lowercase search text for one plugin row.
 [[nodiscard]] std::string pluginFilterText(const core::PluginCandidateViewState& plugin)
 {
-    const std::string path = common::core::juceStringFromPath(plugin.file_path).toStdString();
     std::string text;
-    text.reserve(
-        plugin.name.size() + plugin.manufacturer.size() + plugin.format_name.size() + path.size() +
-        3);
+    text.reserve(plugin.name.size() + plugin.manufacturer.size() + plugin.format_name.size() + 2);
     text.append(plugin.name);
     text.push_back(' ');
     text.append(plugin.manufacturer);
     text.push_back(' ');
     text.append(plugin.format_name);
-    text.push_back(' ');
-    text.append(path);
     return lowerText(std::move(text));
 }
 
@@ -137,7 +146,18 @@ public:
         m_filter_editor.setComponentID("plugin_browser_filter");
         m_filter_editor.setTextToShowWhenEmpty("Search plugins", juce::Colours::lightgrey);
         m_filter_editor.onTextChange = [this] {
-            rebuildFilteredIndices();
+            rebuildFilteredIndicesPreservingSelection();
+            updateControls();
+        };
+
+        m_type_filter_combo.setComponentID("plugin_browser_type_filter");
+        m_type_filter_combo.addItem(g_all_types_label, g_all_types_filter_id);
+        m_type_filter_combo.setSelectedId(g_all_types_filter_id, juce::dontSendNotification);
+        m_type_filter_combo.setTextWhenNothingSelected(g_all_types_label);
+        m_type_filter_combo.setTextWhenNoChoicesAvailable(g_all_types_label);
+        m_type_filter_combo.onChange = [this] {
+            updateSelectedTypeFilter();
+            rebuildFilteredIndicesPreservingSelection();
             updateControls();
         };
 
@@ -165,6 +185,7 @@ public:
         m_list_box.setHeaderComponent(std::make_unique<PluginBrowserHeader>());
 
         addAndMakeVisible(m_filter_editor);
+        addAndMakeVisible(m_type_filter_combo);
         addAndMakeVisible(m_rescan_button);
         addAndMakeVisible(m_close_button);
         addAndMakeVisible(m_list_box);
@@ -180,6 +201,7 @@ public:
     {
         const std::string previous_selection = selectedPluginId();
         m_state = state;
+        rebuildTypeFilterOptions();
         rebuildFilterTextCache();
         rebuildFilteredIndices();
         selectPluginId(previous_selection);
@@ -207,6 +229,8 @@ public:
         m_close_button.setBounds(top_row.removeFromRight(g_close_button_width));
         top_row.removeFromRight(g_gap);
         m_rescan_button.setBounds(top_row.removeFromRight(g_button_width));
+        top_row.removeFromRight(g_gap);
+        m_type_filter_combo.setBounds(top_row.removeFromRight(g_type_filter_width));
         top_row.removeFromRight(g_gap);
         m_filter_editor.setBounds(top_row);
 
@@ -266,14 +290,6 @@ private:
         g.drawFittedText(
             fallbackText(plugin->format_name, "Plugin"),
             area.removeFromLeft(std::min(format_width, area.getWidth())),
-            juce::Justification::centredLeft,
-            1);
-
-        area.removeFromLeft(std::min(g_gap, area.getWidth()));
-        g.setColour(juce::Colours::silver);
-        g.drawFittedText(
-            common::core::juceStringFromPath(plugin->file_path),
-            area,
             juce::Justification::centredLeft,
             1);
     }
@@ -352,14 +368,49 @@ private:
         }
     }
 
-    // Rebuilds the filtered row map from the search field.
+    // Rebuilds the type filter menu from core-derived display types while preserving selection.
+    void rebuildTypeFilterOptions()
+    {
+        const std::optional<core::PluginDisplayType> previous_filter = m_selected_type_filter;
+        m_type_filter_values.clear();
+        for (const core::PluginCandidateViewState& plugin : m_state.plugins)
+        {
+            for (const core::PluginDisplayType display_type : plugin.filter_display_types)
+            {
+                appendUniqueDisplayType(m_type_filter_values, display_type);
+            }
+        }
+
+        std::ranges::sort(
+            m_type_filter_values, [](core::PluginDisplayType lhs, core::PluginDisplayType rhs) {
+                return core::pluginDisplayTypeLabel(lhs) < core::pluginDisplayTypeLabel(rhs);
+            });
+
+        m_type_filter_combo.clear(juce::dontSendNotification);
+        m_type_filter_combo.addItem(g_all_types_label, g_all_types_filter_id);
+        for (std::size_t index = 0; index < m_type_filter_values.size(); ++index)
+        {
+            m_type_filter_combo.addItem(
+                juce::String{core::pluginDisplayTypeLabel(m_type_filter_values[index])},
+                g_first_type_filter_id + static_cast<int>(index));
+        }
+
+        const auto selected_type = previous_filter.has_value()
+                                       ? std::ranges::find(m_type_filter_values, *previous_filter)
+                                       : m_type_filter_values.end();
+        m_selected_type_filter =
+            selected_type != m_type_filter_values.end() ? previous_filter : std::nullopt;
+        m_type_filter_combo.setSelectedId(selectedTypeFilterId(), juce::dontSendNotification);
+    }
+
+    // Rebuilds the filtered row map from the search field and selected type.
     void rebuildFilteredIndices()
     {
         m_filtered_indices.clear();
         const std::string filter = lowerText(m_filter_editor.getText().toStdString());
         for (std::size_t index = 0; index < m_state.plugins.size(); ++index)
         {
-            if (pluginMatchesFilter(index, filter))
+            if (pluginMatchesTypeFilter(index) && pluginMatchesTextFilter(index, filter))
             {
                 m_filtered_indices.push_back(index);
             }
@@ -368,8 +419,70 @@ private:
         m_list_box.updateContent();
     }
 
-    // Returns whether one plugin matches the current lowercase filter.
-    [[nodiscard]] bool pluginMatchesFilter(
+    // Rebuilds the filtered row map while keeping the same plugin selected when still visible.
+    void rebuildFilteredIndicesPreservingSelection()
+    {
+        const std::string previous_selection = selectedPluginId();
+        rebuildFilteredIndices();
+        selectPluginId(previous_selection);
+    }
+
+    // Synchronizes the stored type filter with the selected combo-box item.
+    void updateSelectedTypeFilter()
+    {
+        const int selected_id = m_type_filter_combo.getSelectedId();
+        if (selected_id < g_first_type_filter_id)
+        {
+            m_selected_type_filter = std::nullopt;
+            return;
+        }
+
+        const std::size_t type_index =
+            static_cast<std::size_t>(selected_id - g_first_type_filter_id);
+        m_selected_type_filter = type_index < m_type_filter_values.size()
+                                     ? std::optional{m_type_filter_values[type_index]}
+                                     : std::nullopt;
+    }
+
+    // Returns the combo-box item ID for the stored type filter.
+    [[nodiscard]] int selectedTypeFilterId() const
+    {
+        if (!m_selected_type_filter.has_value())
+        {
+            return g_all_types_filter_id;
+        }
+
+        const auto selected_type = std::ranges::find(m_type_filter_values, *m_selected_type_filter);
+        if (selected_type == m_type_filter_values.end())
+        {
+            return g_all_types_filter_id;
+        }
+
+        const auto type_index = static_cast<int>(
+            static_cast<std::size_t>(selected_type - m_type_filter_values.begin()));
+        return g_first_type_filter_id + type_index;
+    }
+
+    // Returns whether one plugin matches the selected type filter.
+    [[nodiscard]] bool pluginMatchesTypeFilter(std::size_t plugin_index) const
+    {
+        if (!m_selected_type_filter.has_value())
+        {
+            return true;
+        }
+
+        if (plugin_index >= m_state.plugins.size())
+        {
+            return false;
+        }
+
+        return std::ranges::find(
+                   m_state.plugins[plugin_index].filter_display_types, *m_selected_type_filter) !=
+               m_state.plugins[plugin_index].filter_display_types.end();
+    }
+
+    // Returns whether one plugin matches the current lowercase text filter.
+    [[nodiscard]] bool pluginMatchesTextFilter(
         std::size_t plugin_index, const std::string& filter) const
     {
         if (filter.empty())
@@ -400,6 +513,7 @@ private:
     void updateControls()
     {
         m_rescan_button.setEnabled(m_state.scan_enabled);
+        m_type_filter_combo.setEnabled(!m_state.plugins.empty());
         m_add_button.setEnabled(m_state.add_enabled && !selectedPluginId().empty());
         m_count_label.setText(
             pluginCountText(m_filtered_indices.size()), juce::dontSendNotification);
@@ -413,6 +527,9 @@ private:
 
     // Search field used only for presentation-side filtering.
     juce::TextEditor m_filter_editor;
+
+    // Menu that filters visible plugins by core-derived display type.
+    juce::ComboBox m_type_filter_combo;
 
     // Button that requests a catalog rescan.
     juce::TextButton m_rescan_button;
@@ -437,6 +554,12 @@ private:
 
     // Lowercase search text parallel to m_state.plugins, rebuilt when state changes.
     std::vector<std::string> m_filter_texts;
+
+    // Display types currently available in the combo box, excluding the all-types item.
+    std::vector<core::PluginDisplayType> m_type_filter_values;
+
+    // Empty means the all-types item is selected.
+    std::optional<core::PluginDisplayType> m_selected_type_filter;
 };
 
 // Creates a native top-level browser window with owned content.

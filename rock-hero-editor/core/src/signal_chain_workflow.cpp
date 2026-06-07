@@ -5,6 +5,7 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain_block_placement.h>
+#include <string>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -16,12 +17,27 @@ namespace
 // Converts a backend snapshot entry into the view model rendered by the signal-chain panel.
 [[nodiscard]] PluginViewState makePluginViewState(const common::audio::PluginChainEntry& plugin)
 {
+    PluginDisplayClassification classification = classifyPluginDisplay(
+        PluginDisplayMetadata{
+            .id = plugin.plugin_id,
+            .name = plugin.name,
+            .manufacturer = plugin.manufacturer,
+            .format_name = plugin.format_name,
+            .category = plugin.category,
+        });
+    const std::optional<PluginDisplayType> display_type_override =
+        pluginDisplayTypeFromToken(plugin.display_type_override);
     return PluginViewState{
         .instance_id = plugin.instance_id,
         .plugin_id = plugin.plugin_id,
         .name = plugin.name,
         .manufacturer = plugin.manufacturer,
         .format_name = plugin.format_name,
+        .primary_display_type = display_type_override.value_or(classification.primary_type),
+        .automatic_display_type = classification.primary_type,
+        .scanned_display_types = std::move(classification.scanned_types),
+        .accepted_display_types = std::move(classification.filter_types),
+        .display_type_override = display_type_override,
         .chain_index = plugin.chain_index,
         .block_index = plugin.block_index,
     };
@@ -120,6 +136,39 @@ void applyPlacement(
     for (std::size_t index = 0; index < plugins.size(); ++index)
     {
         plugins[index].block_index = blocks[index];
+    }
+}
+
+// Applies an optional manual display override while keeping automatic classification intact.
+void applyDisplayTypeOverride(
+    PluginViewState& plugin, std::optional<PluginDisplayType> display_type)
+{
+    plugin.display_type_override = display_type;
+    plugin.primary_display_type = display_type.value_or(plugin.automatic_display_type);
+}
+
+// Preserves editor-authored display overrides across backend mutation snapshots that do not carry
+// editor metadata, while letting explicit loaded/captured snapshot tokens win when present.
+void preserveDisplayTypeOverrides(
+    const std::vector<PluginViewState>& previous_plugins,
+    std::vector<PluginViewState>& next_plugins)
+{
+    for (PluginViewState& next_plugin : next_plugins)
+    {
+        if (next_plugin.display_type_override.has_value())
+        {
+            continue;
+        }
+
+        const auto previous_plugin =
+            std::ranges::find_if(previous_plugins, [&next_plugin](const PluginViewState& item) {
+                return item.instance_id == next_plugin.instance_id;
+            });
+        if (previous_plugin != previous_plugins.end() &&
+            previous_plugin->display_type_override.has_value())
+        {
+            applyDisplayTypeOverride(next_plugin, previous_plugin->display_type_override);
+        }
     }
 }
 
@@ -254,6 +303,7 @@ void applyPlacement(
 void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
 {
     std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
+    preserveDisplayTypeOverrides(m_plugins, next_plugins);
     const SignalChainBlockPlacement placement =
         placementForSnapshot(m_plugins, next_plugins, m_pending_insert_block);
     applyPlacement(next_plugins, placement);
@@ -394,9 +444,39 @@ bool SignalChainWorkflow::setBlockPlacement(const std::vector<PluginBlockAssignm
     return true;
 }
 
+bool SignalChainWorkflow::setPluginDisplayTypeOverride(
+    std::string_view instance_id, std::optional<PluginDisplayType> display_type)
+{
+    const auto plugin = std::ranges::find_if(m_plugins, [instance_id](const PluginViewState& item) {
+        return item.instance_id == instance_id;
+    });
+    if (plugin == m_plugins.end() || plugin->display_type_override == display_type)
+    {
+        return false;
+    }
+
+    applyDisplayTypeOverride(*plugin, display_type);
+    return true;
+}
+
 std::vector<std::size_t> SignalChainWorkflow::blockIndices() const
 {
     return blockIndicesFor(m_plugins);
+}
+
+std::vector<std::string> SignalChainWorkflow::displayTypeOverrideTokens() const
+{
+    std::vector<std::string> tokens;
+    tokens.reserve(m_plugins.size());
+    for (const PluginViewState& plugin : m_plugins)
+    {
+        tokens.push_back(
+            plugin.display_type_override.has_value()
+                ? std::string{pluginDisplayTypeToken(*plugin.display_type_override)}
+                : std::string{});
+    }
+
+    return tokens;
 }
 
 } // namespace rock_hero::editor::core

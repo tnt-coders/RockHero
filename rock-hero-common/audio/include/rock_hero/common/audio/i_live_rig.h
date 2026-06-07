@@ -40,6 +40,15 @@ struct [[nodiscard]] LiveRigCaptureRequest
     position, so an empty vector persists a gapless layout.
     */
     std::vector<std::size_t> block_indices;
+
+    /*!
+    \brief Opaque editor-owned display type override tokens per user plugin, in chain order.
+
+    The audio layer writes these through to the tone document without interpreting them; the editor
+    owns their meaning and validity. Index i is the override for the i-th user plugin in the
+    captured chain. Entries beyond the supplied size default to empty, meaning no override.
+    */
+    std::vector<std::string> display_type_overrides;
 };
 
 /*! \brief Result of writing the active live rig into song tone files. */

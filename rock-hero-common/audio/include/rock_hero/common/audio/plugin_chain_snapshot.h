@@ -36,6 +36,9 @@ struct [[nodiscard]] PluginChainEntry
     /*! \brief Backend plugin format name, such as VST3. */
     std::string format_name;
 
+    /*! \brief Plugin category/type metadata reported by the scanner when available. */
+    std::string category;
+
     /*! \brief Zero-based position in the current linear user plugin chain. */
     std::size_t chain_index{};
 
@@ -47,6 +50,9 @@ struct [[nodiscard]] PluginChainEntry
     validity. Distinct from chain_index, which is the dense playback position.
     */
     std::size_t block_index{};
+
+    /*! \brief Opaque editor-owned display type override token, empty when no override exists. */
+    std::string display_type_override;
 
     /*!
     \brief Compares two plugin chain entries by their stored values.
