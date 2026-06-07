@@ -90,6 +90,24 @@ TEST_CASE("SignalChainWorkflow classifies plugin display type", "[core][signal-c
     CHECK(workflow.plugins()[0].accepted_display_types == std::vector{PluginDisplayType::Delay});
 }
 
+// Verifies loaded-chain rows use supplied exact overrides when scanner categories are generic.
+TEST_CASE("SignalChainWorkflow applies type overrides", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow{PluginDisplayTypeOverrides{
+        PluginDisplayTypeOverride{.name = "Known Cab", .display_type = PluginDisplayType::Cab},
+    }};
+    common::audio::PluginChainEntry entry = makeEntry("cab", 0, "Fx");
+    entry.name = "Known Cab";
+    entry.manufacturer = "Unexpected Maker";
+
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {entry}});
+
+    REQUIRE(workflow.plugins().size() == 1);
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Cab);
+    CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Cab);
+    CHECK(workflow.plugins()[0].accepted_display_types == std::vector{PluginDisplayType::Cab});
+}
+
 // Verifies manual display type override tokens round-trip through loaded chain state.
 TEST_CASE("SignalChainWorkflow carries plugin display type overrides", "[core][signal-chain]")
 {

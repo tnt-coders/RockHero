@@ -54,8 +54,12 @@ target_link_libraries(
             Catch2::Catch2WithMain)
 
 # Keep persisted editor-settings files inside the build tree.
-target_compile_definitions(rock_hero_editor_core_tests
-                           PRIVATE TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_definitions(
+    rock_hero_editor_core_tests
+    PRIVATE
+        TEST_SETTINGS_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+        TEST_PLUGIN_DISPLAY_TYPE_OVERRIDES_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../config/plugin-display-type-overrides.json"
+)
 
 # Register the discovered Catch2 cases with CTest and forward Catch tags as CTest labels.
 catch_discover_tests(rock_hero_editor_core_tests ADD_TAGS_AS_LABELS REPORTER JSON)

@@ -232,8 +232,7 @@ enum class PluginIconType
     return std::ranges::find(values, value) != values.end();
 }
 
-// Labels a menu type with its metadata source so overrides stay visually distinct from scanned
-// evidence.
+// Labels recognized menu types so manual-only overrides stay visually distinct.
 [[nodiscard]] juce::String displayTypeMenuLabel(
     const core::PluginViewState& plugin, core::PluginDisplayType display_type)
 {
@@ -244,7 +243,7 @@ enum class PluginIconType
     }
     else if (containsDisplayType(plugin.accepted_display_types, display_type))
     {
-        label += " (accepted)";
+        label += " (scanned)";
     }
 
     return label;
