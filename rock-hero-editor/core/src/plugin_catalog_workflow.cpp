@@ -29,12 +29,21 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
 [[nodiscard]] PluginCandidateViewState makePluginCandidateViewState(
     const common::audio::PluginCandidate& plugin_candidate)
 {
+    PluginDisplayClassification classification = classifyPluginDisplay(
+        PluginDisplayMetadata{
+            .id = plugin_candidate.id,
+            .name = plugin_candidate.name,
+            .manufacturer = plugin_candidate.manufacturer,
+            .format_name = plugin_candidate.format_name,
+            .category = plugin_candidate.category,
+        });
     return PluginCandidateViewState{
         .id = plugin_candidate.id,
         .name = plugin_candidate.name,
         .manufacturer = plugin_candidate.manufacturer,
         .format_name = plugin_candidate.format_name,
-        .file_path = plugin_candidate.file_path,
+        .primary_display_type = classification.primary_type,
+        .filter_display_types = std::move(classification.filter_types),
     };
 }
 

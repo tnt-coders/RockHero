@@ -18,7 +18,7 @@ namespace
 
 // Builds a compact chain entry with only fields needed by workflow tests.
 [[nodiscard]] common::audio::PluginChainEntry makeEntry(
-    std::string instance_id, std::size_t chain_index)
+    std::string instance_id, std::size_t chain_index, std::string category = {})
 {
     return common::audio::PluginChainEntry{
         .instance_id = std::move(instance_id),
@@ -26,6 +26,7 @@ namespace
         .name = "Plugin " + std::to_string(chain_index),
         .manufacturer = "Tests",
         .format_name = "VST3",
+        .category = std::move(category),
         .chain_index = chain_index,
     };
 }
@@ -70,6 +71,70 @@ TEST_CASE("SignalChainWorkflow projects authoritative snapshots", "[core][signal
     CHECK(workflow.plugins()[1].chain_index == 2);
     CHECK(workflow.hasPlugins());
     CHECK(workflow.appendIndex() == 2);
+}
+
+// Verifies loaded-chain rows use the same deterministic display-type classifier as the browser.
+TEST_CASE("SignalChainWorkflow classifies plugin display type", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("delay", 0, "Fx|Delay|Stereo")},
+        });
+
+    REQUIRE(workflow.plugins().size() == 1);
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Delay);
+    CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Delay);
+    CHECK(workflow.plugins()[0].scanned_display_types == std::vector{PluginDisplayType::Delay});
+    CHECK(workflow.plugins()[0].accepted_display_types == std::vector{PluginDisplayType::Delay});
+}
+
+// Verifies manual display type override tokens round-trip through loaded chain state.
+TEST_CASE("SignalChainWorkflow carries plugin display type overrides", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    common::audio::PluginChainEntry entry = makeEntry("plugin", 0, "Fx|Delay");
+    entry.display_type_override = "cab";
+
+    workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {entry}});
+
+    REQUIRE(workflow.plugins().size() == 1);
+    CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Delay);
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Cab);
+    CHECK(workflow.plugins()[0].display_type_override == std::optional{PluginDisplayType::Cab});
+    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{"cab"});
+
+    CHECK(workflow.setPluginDisplayTypeOverride("plugin", PluginDisplayType::Reverb));
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Reverb);
+    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{"reverb"});
+
+    CHECK(workflow.setPluginDisplayTypeOverride("plugin", std::nullopt));
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Delay);
+    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{""});
+}
+
+// Verifies runtime mutation snapshots preserve display overrides for surviving plugin instances.
+TEST_CASE(
+    "SignalChainWorkflow preserves display overrides across snapshots", "[core][signal-chain]")
+{
+    SignalChainWorkflow workflow;
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0, "Fx|Delay"), makeEntry("second", 1, "Fx|Reverb")},
+        });
+
+    REQUIRE(workflow.setPluginDisplayTypeOverride("second", PluginDisplayType::Amp));
+
+    workflow.replaceSnapshot(
+        common::audio::PluginChainSnapshot{
+            .plugins = {makeEntry("first", 0, "Fx|Delay"), makeEntry("second", 1, "Fx|Reverb")},
+        });
+
+    REQUIRE(workflow.plugins().size() == 2);
+    CHECK(workflow.plugins()[1].primary_display_type == PluginDisplayType::Amp);
+    CHECK(workflow.plugins()[1].display_type_override == std::optional{PluginDisplayType::Amp});
+    CHECK(workflow.displayTypeOverrideTokens() == std::vector<std::string>{"", "amp"});
 }
 
 // Verifies the authored block placement round-trips through the snapshot and the view report.

@@ -69,6 +69,14 @@ public:
             std::vector<core::PluginBlockAssignment> placement) = 0;
 
         /*!
+        \brief Called when the user sets or clears a plugin block display type override.
+        \param instance_id Opaque plugin instance ID selected by the user.
+        \param display_type Manual display type, or empty to use automatic classification.
+        */
+        virtual void onPluginDisplayTypeOverrideChanged(
+            std::string instance_id, std::optional<core::PluginDisplayType> display_type) = 0;
+
+        /*!
         \brief Called when the user requests a plugin instance editor window.
         \param instance_id Opaque plugin instance ID selected by the user.
         */

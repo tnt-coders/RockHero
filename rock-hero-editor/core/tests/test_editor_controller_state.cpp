@@ -91,7 +91,8 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                             .name = "Amp Sim",
                             .manufacturer = "Example Audio",
                             .format_name = "VST3",
-                            .file_path = std::filesystem::path{"Amp.vst3"},
+                            .primary_display_type = PluginDisplayType::Distortion,
+                            .filter_display_types = {PluginDisplayType::Distortion},
                         },
                     },
             },
@@ -153,6 +154,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPluginCatalogScanRequested();
     controller.onSelectedPluginInsertRequested("catalog-plugin-id");
     controller.onRemovePluginRequested("instance-id");
+    controller.onPluginDisplayTypeOverrideChanged("instance-id", PluginDisplayType::Cab);
     controller.onOpenPluginRequested("instance-id");
 
     CHECK(controller.open_request_count == 1);
@@ -185,6 +187,11 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.last_selected_plugin_id == std::optional<std::string>{"catalog-plugin-id"});
     CHECK(controller.remove_plugin_request_count == 1);
     CHECK(controller.last_removed_plugin_instance_id == std::optional<std::string>{"instance-id"});
+    CHECK(controller.plugin_display_type_override_change_count == 1);
+    CHECK(
+        controller.last_display_type_override_instance_id ==
+        std::optional<std::string>{"instance-id"});
+    CHECK(controller.last_display_type_override == std::optional{PluginDisplayType::Cab});
     CHECK(controller.open_plugin_request_count == 1);
     CHECK(controller.last_opened_plugin_instance_id == std::optional<std::string>{"instance-id"});
 }

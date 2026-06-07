@@ -7,9 +7,11 @@
 
 #include <cstddef>
 #include <filesystem>
+#include <optional>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
 #include <utility>
 #include <variant>
@@ -251,6 +253,24 @@ struct EditorAction
         std::vector<PluginBlockAssignment> placement;
     };
 
+    /*! \brief Set or clear a plugin instance's manual signal-chain display type override. */
+    struct SetPluginDisplayTypeOverride
+    {
+        /*!
+        \brief Creates a plugin display type override action.
+        \param instance_id_value Opaque plugin instance ID selected by the user.
+        \param display_type_value Manual display type, or empty to use automatic classification.
+        */
+        SetPluginDisplayTypeOverride(
+            std::string instance_id_value, std::optional<PluginDisplayType> display_type_value)
+            : instance_id(std::move(instance_id_value))
+            , display_type(display_type_value)
+        {}
+
+        std::string instance_id;
+        std::optional<PluginDisplayType> display_type;
+    };
+
     /*! \brief Open a plugin instance editor window. */
     struct OpenPlugin
     {
@@ -278,7 +298,8 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
         Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement, OpenPlugin>;
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 
 /*!

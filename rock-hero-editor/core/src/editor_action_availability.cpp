@@ -19,6 +19,7 @@ namespace
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::SetSignalChainPlacement:
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
         {
             return true;
@@ -104,6 +105,7 @@ namespace
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::SetSignalChainPlacement:
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
         {
             return conditions.has_loaded_arrangement && conditions.live_input_audition_available &&
@@ -144,6 +146,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::RemovePlugin:
         case EditorAction::Id::MovePlugin:
         case EditorAction::Id::SetSignalChainPlacement:
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
         {
             return false;
