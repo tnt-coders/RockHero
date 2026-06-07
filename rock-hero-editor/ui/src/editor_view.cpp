@@ -1567,6 +1567,13 @@ void EditorView::onSignalChainPlacementChanged(std::vector<core::PluginBlockAssi
     m_controller.onSignalChainPlacementChanged(std::move(placement));
 }
 
+// Forwards a display-only block type override to the controller action gate.
+void EditorView::onPluginDisplayTypeOverrideChanged(
+    std::string instance_id, std::optional<core::PluginDisplayType> display_type)
+{
+    m_controller.onPluginDisplayTypeOverrideChanged(std::move(instance_id), display_type);
+}
+
 // Forwards row-level open intent to the controller; controller-side routing handles busy gating.
 void EditorView::onOpenPluginPressed(std::string instance_id)
 {

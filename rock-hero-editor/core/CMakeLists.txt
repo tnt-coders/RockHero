@@ -27,6 +27,7 @@ target_sources(
             src/juce_message_thread_scheduler.cpp
             src/plugin_catalog_workflow.cpp
             src/plugin_catalog_workflow.h
+            src/plugin_display_type.cpp
             src/signal_chain_block_placement.cpp
             src/signal_chain_workflow.cpp
             src/signal_chain_workflow.h

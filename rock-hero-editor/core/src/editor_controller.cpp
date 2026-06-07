@@ -314,6 +314,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         std::string instance_id, std::size_t destination_index,
         std::vector<PluginBlockAssignment> placement);
     void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement);
+    void onPluginDisplayTypeOverrideChanged(
+        std::string instance_id, std::optional<PluginDisplayType> display_type);
     void onOpenPluginRequested(std::string instance_id);
     void onInputCalibrationRequested();
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
@@ -355,6 +357,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::RemovePlugin& action);
     void performActionImpl(const EditorAction::MovePlugin& action);
     void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
+    void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] ActionConditions currentActionConditions() const;
@@ -830,6 +833,12 @@ void EditorController::onMovePluginRequested(
 void EditorController::onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement)
 {
     m_impl->onSignalChainPlacementChanged(std::move(placement));
+}
+
+void EditorController::onPluginDisplayTypeOverrideChanged(
+    std::string instance_id, std::optional<PluginDisplayType> display_type)
+{
+    m_impl->onPluginDisplayTypeOverrideChanged(std::move(instance_id), display_type);
 }
 
 void EditorController::onOpenPluginRequested(std::string instance_id)
@@ -1565,6 +1574,13 @@ void EditorController::Impl::onSignalChainPlacementChanged(
     runAction(EditorAction::SetSignalChainPlacement{std::move(placement)});
 }
 
+// Records a display-only signal-chain edit through the same action gate used by placement.
+void EditorController::Impl::onPluginDisplayTypeOverrideChanged(
+    std::string instance_id, std::optional<PluginDisplayType> display_type)
+{
+    runAction(EditorAction::SetPluginDisplayTypeOverride{std::move(instance_id), display_type});
+}
+
 // Opens the hosted plugin editor window for a row-level signal-chain request.
 void EditorController::Impl::onOpenPluginRequested(std::string instance_id)
 {
@@ -2057,6 +2073,26 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChai
     updateView();
 }
 
+void EditorController::Impl::performActionImpl(
+    const EditorAction::SetPluginDisplayTypeOverride& action)
+{
+    if (!hasLoadedArrangement())
+    {
+        return;
+    }
+
+    if (!m_signal_chain.setPluginDisplayTypeOverride(action.instance_id, action.display_type))
+    {
+        return;
+    }
+
+    if (hasLiveRigPersistence())
+    {
+        m_has_unsaved_changes = true;
+    }
+    updateView();
+}
+
 void EditorController::Impl::performActionImpl(const EditorAction::OpenPlugin& action)
 {
     if (!hasLoadedArrangement())
@@ -2462,6 +2498,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
             .arrangement_id = arrangement->id,
             .existing_tone_document_ref = arrangement->tone_document_ref,
             .block_indices = m_signal_chain.blockIndices(),
+            .display_type_overrides = m_signal_chain.displayTypeOverrideTokens(),
         });
     if (!snapshot.has_value())
     {

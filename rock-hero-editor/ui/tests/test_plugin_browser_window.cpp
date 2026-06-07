@@ -1,7 +1,6 @@
 #include "plugin_browser_window.h"
 
 #include <catch2/catch_test_macros.hpp>
-#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
@@ -59,14 +58,22 @@ public:
                 .name = "Archetype Nolly X",
                 .manufacturer = "Neural DSP",
                 .format_name = "VST3",
-                .file_path = std::filesystem::path{"Nolly.vst3"},
+                .primary_display_type = core::PluginDisplayType::Amp,
+                .filter_display_types =
+                    {
+                        core::PluginDisplayType::Amp,
+                        core::PluginDisplayType::Distortion,
+                        core::PluginDisplayType::Dynamics,
+                        core::PluginDisplayType::Reverb,
+                    },
             },
             core::PluginCandidateViewState{
                 .id = "gojira-id",
-                .name = "Archetype Gojira X",
-                .manufacturer = "Neural DSP",
+                .name = "Plate Verb",
+                .manufacturer = "Example Audio",
                 .format_name = "VST3",
-                .file_path = std::filesystem::path{"Gojira.vst3"},
+                .primary_display_type = core::PluginDisplayType::Reverb,
+                .filter_display_types = {core::PluginDisplayType::Reverb},
             },
         },
     };
@@ -120,7 +127,7 @@ TEST_CASE("PluginBrowserWindow forwards scan and close", "[ui][plugin-browser]")
     CHECK(listener.close_request_count == 2);
 }
 
-// Verifies presentation-side filtering narrows the visible plugin count.
+// Verifies presentation-side text filtering ignores paths and hidden plugin types.
 TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -137,13 +144,54 @@ TEST_CASE("PluginBrowserWindow filters visible plugins", "[ui][plugin-browser]")
     REQUIRE(filter.onTextChange);
     filter.onTextChange();
 
-    CHECK(count_label.getText() == "1 plugin");
+    CHECK(count_label.getText() == "0 plugins");
 
-    auto updated_state = makeBrowserState();
-    updated_state.plugins[1].file_path = std::filesystem::path{"Different.vst3"};
-    window.setState(updated_state);
+    filter.setText("reverb", false);
+    filter.onTextChange();
 
     CHECK(count_label.getText() == "0 plugins");
+
+    filter.setText("plate", false);
+    filter.onTextChange();
+
+    CHECK(count_label.getText() == "1 plugin");
+}
+
+// Verifies the type menu exposes normalized scanner categories and filters rows.
+TEST_CASE("PluginBrowserWindow filters by scanner type", "[ui][plugin-browser]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    FakePluginBrowserListener listener;
+    PluginBrowserWindow window{listener};
+    window.setState(makeBrowserState());
+
+    auto& type_filter =
+        findRequiredDescendant<juce::ComboBox>(window, "plugin_browser_type_filter");
+    auto& count_label = findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
+
+    CHECK(type_filter.getNumItems() == 5);
+    CHECK(type_filter.getItemText(0) == "All types");
+    CHECK(type_filter.getItemText(1) == "Amp");
+    CHECK(type_filter.getItemText(2) == "Distortion");
+    CHECK(type_filter.getItemText(3) == "Dynamics");
+    CHECK(type_filter.getItemText(4) == "Reverb");
+    CHECK(count_label.getText() == "2 plugins");
+
+    type_filter.setSelectedId(4, juce::dontSendNotification);
+    REQUIRE(type_filter.onChange);
+    type_filter.onChange();
+
+    CHECK(count_label.getText() == "1 plugin");
+
+    type_filter.setSelectedId(5, juce::dontSendNotification);
+    type_filter.onChange();
+
+    CHECK(count_label.getText() == "2 plugins");
+
+    type_filter.setSelectedId(1, juce::dontSendNotification);
+    type_filter.onChange();
+
+    CHECK(count_label.getText() == "2 plugins");
 }
 
 // Verifies editor-wide busy state overlays the plugin browser content while scanning.

@@ -78,6 +78,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Set the editor-authored fixed block placement for the signal chain. */
     SetSignalChainPlacement,
 
+    /*! \brief Set or clear a plugin instance's signal-chain display type override. */
+    SetPluginDisplayTypeOverride,
+
     /*! \brief Open a plugin instance editor window. */
     OpenPlugin,
 };

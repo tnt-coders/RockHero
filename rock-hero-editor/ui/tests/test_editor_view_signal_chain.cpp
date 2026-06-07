@@ -88,6 +88,11 @@ public:
         placement_change_count += 1;
     }
 
+    void onPluginDisplayTypeOverrideChanged(
+        std::string /*instance_id*/,
+        std::optional<core::PluginDisplayType> /*display_type*/) override
+    {}
+
     void onOpenPluginPressed(std::string /*instance_id*/) override
     {}
 

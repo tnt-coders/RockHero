@@ -172,6 +172,15 @@ public:
         signal_chain_placement_change_count += 1;
     }
 
+    /*! \brief Captures manual display type overrides selected through the signal-chain panel. */
+    void onPluginDisplayTypeOverrideChanged(
+        std::string instance_id, std::optional<PluginDisplayType> display_type) override
+    {
+        last_display_type_override_instance_id = std::move(instance_id);
+        last_display_type_override = display_type;
+        plugin_display_type_override_change_count += 1;
+    }
+
     /*! \brief Captures plugin instances selected for editor-window opening. */
     void onOpenPluginRequested(std::string instance_id) override
     {
@@ -294,6 +303,12 @@ public:
     /*! \brief Last authored block placement reported for persistence. */
     std::vector<PluginBlockAssignment> last_signal_chain_placement{};
 
+    /*! \brief Last plugin instance selected for a display type override. */
+    std::optional<std::string> last_display_type_override_instance_id{};
+
+    /*! \brief Last display type override emitted through the signal-chain panel. */
+    std::optional<PluginDisplayType> last_display_type_override{};
+
     /*! \brief Last plugin instance ID selected for editor-window opening. */
     std::optional<std::string> last_opened_plugin_instance_id{};
 
@@ -365,6 +380,9 @@ public:
 
     /*! \brief Number of signal-chain placement reports received. */
     int signal_chain_placement_change_count{0};
+
+    /*! \brief Number of plugin display type override reports received. */
+    int plugin_display_type_override_change_count{0};
 
     /*! \brief Number of open-plugin intents received. */
     int open_plugin_request_count{0};

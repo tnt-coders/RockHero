@@ -247,6 +247,10 @@ struct PluginRecord
     // interprets it (no gap rules, no validation); playback ignores it entirely. The editor owns
     // its meaning and validity.
     std::size_t block_index{};
+
+    // Opaque editor-owned display type override token carried through the tone document. Empty
+    // means the editor should use its automatic display classification.
+    std::string display_type_override;
 };
 
 // V1 tone document subset currently used by the linear plugin-chain runtime.
@@ -590,6 +594,7 @@ void reportLiveRigLoadProgress(
             .name = external_plugin->desc.name.toStdString(),
             .manufacturer = external_plugin->desc.manufacturerName.toStdString(),
             .format_name = external_plugin->desc.pluginFormatName.toStdString(),
+            .category = external_plugin->desc.category.toStdString(),
             .chain_index = chain_index,
         };
     }
@@ -603,6 +608,7 @@ void reportLiveRigLoadProgress(
         .name = plugin.getName().toStdString(),
         .manufacturer = {},
         .format_name = {},
+        .category = {},
         .chain_index = chain_index,
     };
 }
@@ -631,13 +637,19 @@ void reportLiveRigLoadProgress(
     juce::var chain = core::Json::makeArray();
     for (const PluginRecord& plugin : document.chain)
     {
-        chain.append(
-            core::Json::makeObject({
-                {"id", core::Json::makeString(plugin.id)},
-                {"identity", makeIdentityJson(plugin.identity)},
-                {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
-                {"blockIndex", juce::var{static_cast<int>(plugin.block_index)}},
-            }));
+        juce::var plugin_json = core::Json::makeObject({
+            {"id", core::Json::makeString(plugin.id)},
+            {"identity", makeIdentityJson(plugin.identity)},
+            {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
+            {"blockIndex", juce::var{static_cast<int>(plugin.block_index)}},
+        });
+        if (!plugin.display_type_override.empty())
+        {
+            plugin_json.getDynamicObject()->setProperty(
+                "displayTypeOverride", core::Json::makeString(plugin.display_type_override));
+        }
+
+        chain.append(plugin_json);
     }
 
     juce::var slots = core::Json::makeArray();
@@ -825,6 +837,8 @@ void reportLiveRigLoadProgress(
                     identity_json.isObject() ? readPluginIdentity(identity_json) : PluginIdentity{},
                 .tracktion_state_ref = *tracktion_state,
                 .block_index = block_index,
+                .display_type_override =
+                    core::Json::readOptionalString(plugin_json, "displayTypeOverride"),
             });
     }
 
@@ -897,6 +911,7 @@ void reportLiveRigLoadProgress(
         .name = description.name.toStdString(),
         .manufacturer = description.manufacturerName.toStdString(),
         .format_name = description.pluginFormatName.toStdString(),
+        .category = description.category.toStdString(),
         .file_path = vst3DisplayPath(plugin_path),
     };
 }
@@ -3613,6 +3628,10 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
         const std::size_t block_index = chain_index < request.block_indices.size()
                                             ? request.block_indices[chain_index]
                                             : chain_index;
+        const std::string display_type_override =
+            chain_index < request.display_type_overrides.size()
+                ? request.display_type_overrides[chain_index]
+                : std::string{};
         external_plugin->flushPluginStateToValueTree();
         juce::ValueTree plugin_state = external_plugin->state.createCopy();
         plugin_state.removeProperty(tracktion::IDs::id, nullptr);
@@ -3643,9 +3662,11 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
                 .identity = makePluginIdentity(external_plugin->desc),
                 .tracktion_state_ref = plugin_state_ref.generic_string(),
                 .block_index = block_index,
+                .display_type_override = display_type_override,
             });
         snapshot.plugins.push_back(makePluginChainEntry(*external_plugin, chain_index));
         snapshot.plugins.back().block_index = block_index;
+        snapshot.plugins.back().display_type_override = display_type_override;
         ++captured_plugin_index;
     }
 
@@ -3901,6 +3922,8 @@ void Engine::Impl::executePluginStep()
     // The runtime chain has no gap concept, so carry the authored block placement from the parsed
     // tone document into the restored chain entry.
     m_load_op->result.plugins.back().block_index = m_load_op->chain[plugin_index].block_index;
+    m_load_op->result.plugins.back().display_type_override =
+        m_load_op->chain[plugin_index].display_type_override;
     m_load_op->next_index = plugin_index + 1;
 
     // "Loaded X" advances the bar to N+1/T so the user sees the per-plugin completion the spec

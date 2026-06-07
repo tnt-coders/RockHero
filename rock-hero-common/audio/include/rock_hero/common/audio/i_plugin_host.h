@@ -38,6 +38,9 @@ struct [[nodiscard]] PluginCandidate
     /*! \brief Backend plugin format name, currently expected to be VST3 for authored tones. */
     std::string format_name;
 
+    /*! \brief Plugin category/type metadata reported by the scanner when available. */
+    std::string category;
+
     /*! \brief File or bundle path that produced this plugin candidate. */
     std::filesystem::path file_path;
 
