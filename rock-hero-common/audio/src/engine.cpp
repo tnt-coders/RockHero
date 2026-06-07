@@ -1727,35 +1727,6 @@ private:
         return common::core::pathFromJuceString(file_or_identifier);
     }
 
-    [[nodiscard]] static std::filesystem::path activeScanPath(
-        const juce::StringArray& files_or_identifiers, std::size_t completed_plugins)
-    {
-        if (files_or_identifiers.isEmpty())
-        {
-            return {};
-        }
-
-        const std::size_t total_plugins = static_cast<std::size_t>(files_or_identifiers.size());
-        const std::size_t active_index =
-            completed_plugins < total_plugins ? total_plugins - completed_plugins - 1 : 0;
-        return pluginPathFromIdentifier(files_or_identifiers[static_cast<int>(active_index)]);
-    }
-
-    [[nodiscard]] juce::StringArray vst3ScanFiles(juce::FileSearchPath search_path) const
-    {
-        juce::AudioPluginFormat* const format = vst3PluginFormat();
-        if (format == nullptr)
-        {
-            return {};
-        }
-
-        search_path.removeRedundantPaths();
-        juce::StringArray files = format->searchPathsForPlugins(search_path, true, true);
-        files.removeEmptyStrings();
-        files.removeDuplicates(true);
-        return files;
-    }
-
     [[nodiscard]] std::expected<juce::StringArray, PluginHostError> scanVst3SearchPath(
         juce::FileSearchPath search_path,
         const PluginCatalogScanProgressCallback& progress_callback)
@@ -1770,13 +1741,11 @@ private:
         }
 
         const auto scan_started_at = std::chrono::steady_clock::now();
-        juce::StringArray files = vst3ScanFiles(search_path);
+        search_path.removeRedundantPaths();
+        juce::StringArray files = format->searchPathsForPlugins(search_path, true, true);
+        files.removeEmptyStrings();
+        files.removeDuplicates(true);
         const std::size_t total_plugins = static_cast<std::size_t>(files.size());
-        if (total_plugins > 0)
-        {
-            reportPluginCatalogScanProgress(
-                progress_callback, 0, total_plugins, activeScanPath(files, 0));
-        }
 
         try
         {
@@ -1791,11 +1760,21 @@ private:
             };
             scanner.setFilesOrIdentifiersToScan(files);
 
+            // Progress is reported before scanning so the active path names the file about to be
+            // validated. Asking the scanner for the next file keeps the path and any timeout
+            // message aligned with its own dead-man-pedal reordering. For VST3 the returned
+            // identifier is the file path.
             for (std::size_t completed_plugins = 0; completed_plugins < total_plugins;
                  ++completed_plugins)
             {
                 const juce::String file_or_identifier =
-                    files[static_cast<int>(total_plugins - completed_plugins - 1)];
+                    scanner.getNextPluginFileThatWillBeScanned();
+                reportPluginCatalogScanProgress(
+                    progress_callback,
+                    completed_plugins,
+                    total_plugins,
+                    pluginPathFromIdentifier(file_or_identifier));
+
                 juce::String name_of_plugin_being_scanned;
                 PluginScanTimeout scan_timeout{
                     [&plugin_manager] { plugin_manager.abortCurrentPluginScan(); },
@@ -1814,13 +1793,9 @@ private:
                             " seconds: " + file_or_identifier.toStdString()
                     }};
                 }
-
-                reportPluginCatalogScanProgress(
-                    progress_callback,
-                    completed_plugins + 1,
-                    total_plugins,
-                    activeScanPath(files, completed_plugins + 1));
             }
+
+            reportPluginCatalogScanProgress(progress_callback, total_plugins, total_plugins, {});
         }
         catch (const std::exception& error)
         {
