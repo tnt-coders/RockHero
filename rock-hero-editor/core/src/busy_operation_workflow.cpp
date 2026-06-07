@@ -26,15 +26,21 @@ namespace
 
 [[nodiscard]] std::string liveRigProgressMessage(const common::audio::LiveRigLoadProgress& progress)
 {
-    if (progress.total_plugins == 0 || progress.active_plugin_name.empty())
+    if (progress.total_plugins == 0)
     {
         return busyMessage(BusyOperation::LoadingLiveRig);
     }
 
     const std::size_t display_index =
         std::min(progress.active_plugin_index + 1, progress.total_plugins);
-    return "Loading " + progress.active_plugin_name + " (" + std::to_string(display_index) +
-           " of " + std::to_string(progress.total_plugins) + ")...";
+    std::string message = "Loading plugin (" + std::to_string(display_index) + "/" +
+                          std::to_string(progress.total_plugins) + ")...";
+    if (!progress.active_plugin_name.empty())
+    {
+        message += "\n" + progress.active_plugin_name;
+    }
+
+    return message;
 }
 
 [[nodiscard]] double pluginCatalogProgressFraction(
@@ -72,14 +78,15 @@ namespace
     const std::size_t display_index =
         std::min(progress.completed_plugins + 1, progress.total_plugins);
     const std::string plugin_name = pluginCatalogProgressPathName(progress.active_plugin_path);
-    const std::string count_text = " (" + std::to_string(display_index) + " of " +
-                                   std::to_string(progress.total_plugins) + ")...";
+    std::string message = "Scanning plugin (" + std::to_string(display_index) + "/" +
+                          std::to_string(progress.total_plugins) + ")...";
     if (plugin_name.empty())
     {
-        return "Scanning plugins" + count_text;
+        return message;
     }
 
-    return "Scanning " + plugin_name + count_text;
+    message += "\n" + plugin_name;
+    return message;
 }
 } // namespace
 

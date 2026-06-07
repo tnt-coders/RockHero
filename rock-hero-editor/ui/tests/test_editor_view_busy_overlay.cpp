@@ -42,7 +42,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
-        .message = "Loading plugin 1 of 4: Amp Sim",
+        .message = "Loading plugin (1/4)...\nAmp Sim",
         .indicator = core::BusyIndicator::DeterminateProgress,
         .progress = std::optional<double>{0.25},
         .cancel_enabled = false,
@@ -87,7 +87,7 @@ TEST_CASE("BusyOverlay paints determinate progress at its exact fraction", "[ui]
     overlay.setBusyState(
         core::BusyViewState{
             .operation = core::BusyOperation::LoadingLiveRig,
-            .message = "Loading plugin 1 of 2...",
+            .message = "Loading plugin (1/2)...\nAmp Sim",
             .indicator = core::BusyIndicator::DeterminateProgress,
             .progress = std::optional<double>{0.5},
             .cancel_enabled = false,
