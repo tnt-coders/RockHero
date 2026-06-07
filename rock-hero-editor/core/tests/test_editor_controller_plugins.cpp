@@ -172,6 +172,7 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
             .name = "Known Amp",
             .manufacturer = "Example Audio",
             .format_name = "VST3",
+            .category = "Fx|Distortion",
             .file_path = std::filesystem::path{"known-amp.vst3"},
         },
     };
@@ -193,6 +194,12 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     REQUIRE(browser_state != nullptr);
     REQUIRE(browser_state->plugin_browser.plugins.size() == 1);
     CHECK(browser_state->plugin_browser.plugins[0].id == "known-plugin-id");
+    CHECK(
+        browser_state->plugin_browser.plugins[0].primary_display_type ==
+        PluginDisplayType::Distortion);
+    CHECK(
+        browser_state->plugin_browser.plugins[0].filter_display_types ==
+        std::vector{PluginDisplayType::Distortion});
 
     controller.onPluginCatalogScanRequested();
 
@@ -305,6 +312,11 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[0].name == "Catalog Amp");
     CHECK(final_state->signal_chain.plugins[0].manufacturer == "Example Audio");
     CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
+    CHECK(
+        final_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Distortion);
+    CHECK(
+        final_state->signal_chain.plugins[0].accepted_display_types ==
+        std::vector{PluginDisplayType::Distortion});
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(view.shown_errors.empty());
 }
@@ -804,6 +816,49 @@ TEST_CASE("EditorController captures signal-chain placement", "[core][editor-con
 
     REQUIRE(live_rig.last_capture_request.has_value());
     CHECK(live_rig.last_capture_request->block_indices == std::vector<std::size_t>{3});
+}
+
+// Saving after a display override captures the authored display type token.
+TEST_CASE(
+    "EditorController captures signal-chain display type override", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().category = "Fx|Delay";
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    controller.onPluginDisplayTypeOverrideChanged("loaded-instance", PluginDisplayType::Cab);
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    REQUIRE(edited_state->signal_chain.plugins.size() == 1);
+    CHECK(edited_state->signal_chain.plugins[0].automatic_display_type == PluginDisplayType::Delay);
+    CHECK(edited_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Cab);
+    CHECK(
+        edited_state->signal_chain.plugins[0].display_type_override ==
+        std::optional{PluginDisplayType::Cab});
+
+    controller.onSaveRequested();
+
+    REQUIRE(live_rig.last_capture_request.has_value());
+    CHECK(live_rig.last_capture_request->display_type_overrides == std::vector<std::string>{"cab"});
 }
 
 // Once tone persistence is available, plugin mutations become unsaved project changes.

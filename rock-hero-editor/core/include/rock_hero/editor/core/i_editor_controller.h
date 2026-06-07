@@ -9,9 +9,11 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
+#include <optional>
 #include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
 #include <vector>
 
@@ -138,6 +140,14 @@ public:
     \param placement Fixed visual block assignments for current plugin instances.
     */
     virtual void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement) = 0;
+
+    /*!
+    \brief Handles a manual display type override for a plugin instance.
+    \param instance_id Opaque plugin instance ID selected by the user.
+    \param display_type Manual display type, or empty to use automatic classification.
+    */
+    virtual void onPluginDisplayTypeOverrideChanged(
+        std::string instance_id, std::optional<PluginDisplayType> display_type) = 0;
 
     /*!
     \brief Handles a request to open a plugin instance editor window.

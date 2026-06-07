@@ -6,8 +6,9 @@ browser.
 
 #pragma once
 
-#include <filesystem>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
+#include <vector>
 
 namespace rock_hero::editor::core
 {
@@ -36,8 +37,11 @@ struct PluginCandidateViewState
     /*! \brief Backend plugin format name, such as VST3. */
     std::string format_name;
 
-    /*! \brief File or bundle path that produced this plugin candidate. */
-    std::filesystem::path file_path;
+    /*! \brief Primary type used when the browser needs a single display classification. */
+    PluginDisplayType primary_display_type{PluginDisplayType::Uncategorized};
+
+    /*! \brief Canonical types matched by the browser type filter. */
+    std::vector<PluginDisplayType> filter_display_types{PluginDisplayType::Uncategorized};
 
     /*!
     \brief Compares two plugin candidate view states by their stored values.

@@ -14,13 +14,15 @@ namespace
 {
 
 [[nodiscard]] common::audio::PluginCandidate makeCandidate(
-    std::string id, std::string name, std::string manufacturer)
+    std::string id, std::string name, std::string manufacturer,
+    std::string category = "Fx|Distortion")
 {
     return common::audio::PluginCandidate{
         .id = std::move(id),
         .name = std::move(name),
         .manufacturer = std::move(manufacturer),
         .format_name = "VST3",
+        .category = std::move(category),
         .file_path = std::filesystem::path{"plugin.vst3"},
     };
 }
@@ -46,6 +48,8 @@ TEST_CASE("PluginCatalogWorkflow opens sorted catalog", "[core][plugin-catalog]"
     CHECK(state.plugins[0].id == "a");
     CHECK(state.plugins[1].id == "b");
     CHECK(state.plugins[2].id == "z");
+    CHECK(state.plugins[0].primary_display_type == PluginDisplayType::Distortion);
+    CHECK(state.plugins[0].filter_display_types == std::vector{PluginDisplayType::Distortion});
     CHECK(workflow.hasCandidates());
 }
 

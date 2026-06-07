@@ -112,6 +112,7 @@ public:
             .name = plugin_candidate.name,
             .manufacturer = plugin_candidate.manufacturer,
             .format_name = plugin_candidate.format_name,
+            .category = plugin_candidate.category,
             .chain_index = chain_index,
         };
         chain.insert(chain.begin() + static_cast<std::ptrdiff_t>(chain_index), std::move(entry));
@@ -205,6 +206,7 @@ public:
             .name = "Catalog Amp",
             .manufacturer = "Example Audio",
             .format_name = "VST3",
+            .category = "Fx|Distortion",
             .file_path = std::filesystem::path{"catalog-amp.vst3"},
         },
     };
@@ -216,6 +218,7 @@ public:
             .name = "Catalog Amp",
             .manufacturer = "Example Audio",
             .format_name = "VST3",
+            .category = "Fx|Distortion",
             .file_path = std::filesystem::path{"catalog-amp.vst3"},
         },
     };

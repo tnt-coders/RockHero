@@ -272,6 +272,10 @@ private:
     void onSignalChainPlacementChanged(std::vector<core::PluginBlockAssignment> placement) override;
 
     // SignalChainView::Listener implementation.
+    void onPluginDisplayTypeOverrideChanged(
+        std::string instance_id, std::optional<core::PluginDisplayType> display_type) override;
+
+    // SignalChainView::Listener implementation.
     void onOpenPluginPressed(std::string instance_id) override;
 
     // SignalChainView::Listener implementation.

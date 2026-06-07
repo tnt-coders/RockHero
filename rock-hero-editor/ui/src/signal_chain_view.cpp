@@ -1,9 +1,11 @@
 #include "signal_chain_view.h"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
 #include <utility>
 
@@ -68,6 +70,23 @@ const juce::Colour g_insert_slot_drop_line{juce::Colours::lightskyblue};
 constexpr const char* g_plugin_drag_prefix{"rockhero.signal-chain.plugin:"};
 constexpr int g_plugin_drag_prefix_length{static_cast<int>(
     std::char_traits<char>::length(g_plugin_drag_prefix))};
+constexpr int g_use_default_display_type_id{1};
+constexpr int g_first_display_type_id{2};
+constexpr std::array<core::PluginDisplayType, 13> g_display_type_menu_values{
+    core::PluginDisplayType::Amp,
+    core::PluginDisplayType::Cab,
+    core::PluginDisplayType::Distortion,
+    core::PluginDisplayType::Delay,
+    core::PluginDisplayType::Reverb,
+    core::PluginDisplayType::Modulation,
+    core::PluginDisplayType::Dynamics,
+    core::PluginDisplayType::Eq,
+    core::PluginDisplayType::Gate,
+    core::PluginDisplayType::Pitch,
+    core::PluginDisplayType::Filter,
+    core::PluginDisplayType::Instrument,
+    core::PluginDisplayType::Uncategorized,
+};
 
 struct DraggedPlugin
 {
@@ -147,69 +166,88 @@ enum class PluginIconType
     };
 }
 
-// Builds a lower-case metadata string used only for visual plugin-type hints.
-[[nodiscard]] juce::String pluginSearchText(const core::PluginViewState& plugin)
+// Converts the core-owned display type into this view's painted icon vocabulary.
+[[nodiscard]] PluginIconType pluginIconTypeFor(core::PluginDisplayType display_type)
 {
-    juce::String text{plugin.name};
-    text += " ";
-    text += juce::String{plugin.manufacturer};
-    text += " ";
-    text += juce::String{plugin.format_name};
-    return text.toLowerCase();
+    switch (display_type)
+    {
+        case core::PluginDisplayType::Amp:
+        {
+            return PluginIconType::Amp;
+        }
+        case core::PluginDisplayType::Cab:
+        {
+            return PluginIconType::Cab;
+        }
+        case core::PluginDisplayType::Distortion:
+        {
+            return PluginIconType::Drive;
+        }
+        case core::PluginDisplayType::Delay:
+        {
+            return PluginIconType::Delay;
+        }
+        case core::PluginDisplayType::Reverb:
+        {
+            return PluginIconType::Reverb;
+        }
+        case core::PluginDisplayType::Modulation:
+        {
+            return PluginIconType::Modulation;
+        }
+        case core::PluginDisplayType::Dynamics:
+        {
+            return PluginIconType::Dynamics;
+        }
+        case core::PluginDisplayType::Eq:
+        {
+            return PluginIconType::Eq;
+        }
+        case core::PluginDisplayType::Gate:
+        {
+            return PluginIconType::Gate;
+        }
+        case core::PluginDisplayType::Pitch:
+        {
+            return PluginIconType::Pitch;
+        }
+        case core::PluginDisplayType::Filter:
+        {
+            return PluginIconType::Wah;
+        }
+        case core::PluginDisplayType::Instrument:
+        case core::PluginDisplayType::Uncategorized:
+        {
+            return PluginIconType::Generic;
+        }
+    }
+
+    return PluginIconType::Generic;
 }
 
-// Infers a display icon from common guitar-plugin naming conventions.
-[[nodiscard]] PluginIconType inferPluginIconType(const core::PluginViewState& plugin)
+// Reports whether a display type appears in a core-owned display type set.
+[[nodiscard]] bool containsDisplayType(
+    const std::vector<core::PluginDisplayType>& values, core::PluginDisplayType value)
 {
-    const juce::String text = pluginSearchText(plugin);
-    if (text.contains("cab") || text.contains("impulse") || text.contains("loader"))
+    return std::ranges::find(values, value) != values.end();
+}
+
+// Labels a menu type with its metadata source so overrides stay visually distinct from scanned
+// evidence.
+[[nodiscard]] juce::String displayTypeMenuLabel(
+    const core::PluginViewState& plugin, core::PluginDisplayType display_type)
+{
+    juce::String label{core::pluginDisplayTypeLabel(display_type)};
+    if (containsDisplayType(plugin.scanned_display_types, display_type))
     {
-        return PluginIconType::Cab;
+        label += " (scanned)";
     }
-    if (text.contains("amp") || text.contains("amplifier") || text.contains("neural"))
+    else if (containsDisplayType(plugin.accepted_display_types, display_type))
     {
-        return PluginIconType::Amp;
+        label += " (accepted)";
     }
-    if (text.contains("drive") || text.contains("dist") || text.contains("fuzz") ||
-        text.contains("boost") || text.contains("overdrive"))
-    {
-        return PluginIconType::Drive;
-    }
-    if (text.contains("delay") || text.contains("echo"))
-    {
-        return PluginIconType::Delay;
-    }
-    if (text.contains("reverb") || text.contains("room") || text.contains("hall") ||
-        text.contains("plate"))
-    {
-        return PluginIconType::Reverb;
-    }
-    if (text.contains("chorus") || text.contains("flanger") || text.contains("phaser") ||
-        text.contains("tremolo") || text.contains("vibrato"))
-    {
-        return PluginIconType::Modulation;
-    }
-    if (text.contains("comp") || text.contains("limiter"))
-    {
-        return PluginIconType::Dynamics;
-    }
-    if (text.contains("eq") || text.contains("equalizer"))
-    {
-        return PluginIconType::Eq;
-    }
-    if (text.contains("gate") || text.contains("noise"))
-    {
-        return PluginIconType::Gate;
-    }
-    if (text.contains("pitch") || text.contains("octave") || text.contains("harmon"))
-    {
-        return PluginIconType::Pitch;
-    }
-    if (text.contains("wah") || text.contains("filter"))
-    {
-        return PluginIconType::Wah;
-    }
-    return PluginIconType::Generic;
+
+    return label;
 }
 
 // Assigns a restrained accent so unknown plugins still fit the path while known types differ.
@@ -312,7 +350,7 @@ enum class PluginIconType
     return plugin.format_name.empty() ? juce::String{} : juce::String{plugin.format_name};
 }
 
-// Draws a compact category hint inside a tile without requiring plugin-host-specific artwork.
+// Draws a compact type hint inside a tile without requiring plugin-host-specific artwork.
 void drawPluginIcon(
     juce::Graphics& g, juce::Rectangle<int> icon_area, PluginIconType icon_type,
     juce::Colour accent)
@@ -766,7 +804,7 @@ public:
         : m_view(view)
         , m_listener(listener)
         , m_plugin(std::move(plugin))
-        , m_icon_type(inferPluginIconType(m_plugin))
+        , m_icon_type(pluginIconTypeFor(m_plugin.primary_display_type))
         , m_accent(iconAccentColour(m_icon_type))
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
@@ -880,10 +918,18 @@ public:
     {
         m_drag_started = false;
         m_view.clearPluginMovePreviewAsync();
-        if (event.mouseWasClicked())
+        if (!event.mouseWasClicked())
         {
-            m_listener.onOpenPluginPressed(m_plugin.instance_id);
+            return;
         }
+
+        if (event.mods.isPopupMenu())
+        {
+            showDisplayTypeMenu();
+            return;
+        }
+
+        m_listener.onOpenPluginPressed(m_plugin.instance_id);
     }
 
     // Reports whether this occupied block can receive the dragged tile.
@@ -975,6 +1021,60 @@ private:
         m_view.previewPluginMove(plugin->source_index, std::move(*intent));
     }
 
+    // Opens the display type override menu for this plugin tile.
+    void showDisplayTypeMenu()
+    {
+        juce::PopupMenu menu;
+        const juce::String default_label =
+            juce::String{"Use default ("} +
+            juce::String{core::pluginDisplayTypeLabel(m_plugin.automatic_display_type)} + ")";
+        menu.addItem(
+            g_use_default_display_type_id,
+            default_label,
+            true,
+            !m_plugin.display_type_override.has_value());
+        menu.addSeparator();
+
+        for (std::size_t index = 0; index < g_display_type_menu_values.size(); ++index)
+        {
+            const core::PluginDisplayType display_type = g_display_type_menu_values[index];
+            menu.addItem(
+                g_first_display_type_id + static_cast<int>(index),
+                displayTypeMenuLabel(m_plugin, display_type),
+                true,
+                m_plugin.display_type_override == std::optional{display_type});
+        }
+
+        juce::Component::SafePointer<PluginTileView> safe_this{this};
+        menu.showMenuAsync(
+            juce::PopupMenu::Options{}.withTargetComponent(this), [safe_this](int selected_id) {
+                if (safe_this != nullptr)
+                {
+                    safe_this->handleDisplayTypeMenuSelection(selected_id);
+                }
+            });
+    }
+
+    // Applies one selected popup menu item to the listener contract.
+    void handleDisplayTypeMenuSelection(int selected_id)
+    {
+        if (selected_id == g_use_default_display_type_id)
+        {
+            m_listener.onPluginDisplayTypeOverrideChanged(m_plugin.instance_id, std::nullopt);
+            return;
+        }
+
+        const int type_index = selected_id - g_first_display_type_id;
+        if (type_index < 0 ||
+            static_cast<std::size_t>(type_index) >= g_display_type_menu_values.size())
+        {
+            return;
+        }
+
+        m_listener.onPluginDisplayTypeOverrideChanged(
+            m_plugin.instance_id, g_display_type_menu_values[static_cast<std::size_t>(type_index)]);
+    }
+
     // Keeps the block highlight and remove affordance alive while either the tile or the child
     // remove button has the pointer.
     void updateHoverAffordance()
@@ -994,10 +1094,10 @@ private:
     // Stable plugin snapshot represented by this tile.
     core::PluginViewState m_plugin;
 
-    // Inferred display-only category used to draw the tile icon.
+    // Core-derived display type used to draw the tile icon.
     PluginIconType m_icon_type{PluginIconType::Generic};
 
-    // Accent color paired with the inferred display category.
+    // Accent color paired with the core-derived display type.
     juce::Colour m_accent{};
 
     // Button that emits a remove intent for this tile's plugin instance.
