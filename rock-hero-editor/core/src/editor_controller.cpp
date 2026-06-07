@@ -934,6 +934,8 @@ EditorController::Impl::Impl(
     , m_exit_function(
           exit_function ? std::move(exit_function) : EditorController::ExitFunction{defaultExit})
     , m_settings(services.settings)
+    , m_signal_chain(services.plugin_display_type_overrides)
+    , m_plugin_catalog(std::move(services.plugin_display_type_overrides))
     , m_busy(services.message_thread_scheduler, [this] { updateView(); })
     , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)

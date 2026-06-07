@@ -2,9 +2,13 @@
 
 #include <algorithm>
 #include <cctype>
+#include <fstream>
+#include <iterator>
 #include <optional>
+#include <rock_hero/common/core/json.h>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::editor::core
@@ -13,53 +17,10 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Exact overrides cover plugins whose scanner categories describe bundled effects instead of the
-// product's most useful top-level role.
-struct PluginDisplayTypeOverride
-{
-    std::string_view name;
-    std::string_view manufacturer;
-    PluginDisplayType primary_type;
-};
-
-constexpr PluginDisplayTypeOverride g_display_type_overrides[] = {
-    {"Archetype Abasi", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Cory Wong X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Gojira X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Mateus Asato", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Misha Mansoor X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Nolly X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Petrucci X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Plini X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Rabea X", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Tim Henson", "Neural DSP", PluginDisplayType::Amp},
-    {"Archetype Tom Morello", "Neural DSP", PluginDisplayType::Amp},
-    {"Darkglass Ultra", "Neural DSP", PluginDisplayType::Amp},
-    {"Emissary", "Ignite", PluginDisplayType::Amp},
-    {"Emissary", "Ignite Amps", PluginDisplayType::Amp},
-    {"Fortin Cali Suite", "Neural DSP", PluginDisplayType::Amp},
-    {"Fortin Nameless Suite X", "Neural DSP", PluginDisplayType::Amp},
-    {"Fortin NTS Suite", "Neural DSP", PluginDisplayType::Amp},
-    {"Gateway", "Atkinson Advanced Modeling", PluginDisplayType::Amp},
-    {"Gateway", "Atkinson Advanced Modeling, LLC", PluginDisplayType::Amp},
-    {"Ignite - Emissary", "", PluginDisplayType::Amp},
-    {"Ignite - Emissary", "Ignite", PluginDisplayType::Amp},
-    {"Ignite - Emissary", "Ignite Amps", PluginDisplayType::Amp},
-    {"Ignite - NadIR", "", PluginDisplayType::Cab},
-    {"Ignite - NadIR", "Ignite", PluginDisplayType::Cab},
-    {"Ignite - NadIR", "Ignite Amps", PluginDisplayType::Cab},
-    {"Mesa Boogie Mark IIC+ Suite", "Neural DSP", PluginDisplayType::Amp},
-    {"Morgan Amps Suite", "Neural DSP", PluginDisplayType::Amp},
-    {"NadIR", "Ignite", PluginDisplayType::Cab},
-    {"NadIR", "Ignite Amps", PluginDisplayType::Cab},
-    {"Neural Amp Modeler", "Steven Atkinson", PluginDisplayType::Amp},
-    {"NeuralAmpModeler", "Steven Atkinson", PluginDisplayType::Amp},
-    {"OMEGA Ampworks Granophyre", "Neural DSP", PluginDisplayType::Amp},
-    {"ParametricOD", "Steven Atkinson", PluginDisplayType::Distortion},
-    {"Parallax X", "Neural DSP", PluginDisplayType::Amp},
-    {"Soldano SLO-100 X", "Neural DSP", PluginDisplayType::Amp},
-    {"Tone King Imperial MKII", "Neural DSP", PluginDisplayType::Amp},
-};
+constexpr std::string_view g_config_version_property{"version"};
+constexpr std::string_view g_config_overrides_property{"overrides"};
+constexpr std::string_view g_config_name_property{"name"};
+constexpr std::string_view g_config_type_property{"type"};
 
 // Normalizes scanner text for category lookup and exact override comparison.
 [[nodiscard]] std::string normalizedToken(std::string_view text, bool strip_punctuation = false)
@@ -192,6 +153,12 @@ void appendCategoryToken(std::vector<std::string>& tokens, std::string_view toke
     return std::nullopt;
 }
 
+// Formats a zero-based override index for user-facing config diagnostics.
+[[nodiscard]] std::string overrideIndexText(std::size_t index)
+{
+    return "override " + std::to_string(index + 1);
+}
+
 // Appends one display type once while preserving first-seen order.
 void appendUniqueDisplayType(
     std::vector<PluginDisplayType>& display_types, PluginDisplayType display_type)
@@ -204,25 +171,184 @@ void appendUniqueDisplayType(
 
 // Finds an exact plugin override for known plugins with ambiguous or overly broad categories.
 [[nodiscard]] std::optional<PluginDisplayType> displayTypeOverrideFor(
-    const PluginDisplayMetadata& metadata)
+    const PluginDisplayMetadata& metadata, const PluginDisplayTypeOverrides& overrides)
 {
-    for (const PluginDisplayTypeOverride& override_entry : g_display_type_overrides)
+    for (const PluginDisplayTypeOverride& override_entry : overrides)
     {
-        const bool manufacturer_matches =
-            override_entry.manufacturer.empty() ||
-            normalizedEquals(metadata.manufacturer, override_entry.manufacturer);
-        if (normalizedEquals(metadata.name, override_entry.name) && manufacturer_matches)
+        if (normalizedEquals(metadata.name, override_entry.name))
         {
-            return override_entry.primary_type;
+            return override_entry.display_type;
         }
     }
 
     return std::nullopt;
 }
 
+// Reads one override entry and rejects malformed config before it can affect classification.
+[[nodiscard]] std::expected<PluginDisplayTypeOverride, PluginDisplayTypeConfigError>
+readPluginDisplayTypeOverrideJson(const juce::var& value, std::size_t index)
+{
+    if (!value.isObject())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type " + overrideIndexText(index) + " is not an object.",
+        }};
+    }
+
+    const std::optional<std::string> name =
+        common::core::Json::tryReadString(value, g_config_name_property);
+    if (!name.has_value() || name->empty())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type " + overrideIndexText(index) + " is missing a name.",
+        }};
+    }
+
+    const std::optional<std::string> type_token =
+        common::core::Json::tryReadString(value, g_config_type_property);
+    if (!type_token.has_value() || type_token->empty())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type " + overrideIndexText(index) + " is missing a type.",
+        }};
+    }
+
+    const std::optional<PluginDisplayType> display_type = pluginDisplayTypeFromToken(*type_token);
+    if (!display_type.has_value() || *display_type == PluginDisplayType::Uncategorized)
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::UnknownType,
+            "Plugin display type " + overrideIndexText(index) +
+                " uses unknown type token: " + *type_token,
+        }};
+    }
+
+    return PluginDisplayTypeOverride{
+        .name = *name,
+        .display_type = *display_type,
+    };
+}
+
 } // namespace
 
-PluginDisplayClassification classifyPluginDisplay(const PluginDisplayMetadata& metadata)
+// Supplies a generic config diagnostic when a caller only needs the stable code.
+PluginDisplayTypeConfigError::PluginDisplayTypeConfigError(
+    PluginDisplayTypeConfigErrorCode error_code)
+    : PluginDisplayTypeConfigError(error_code, "Could not read plugin display type config")
+{}
+
+// Stores parser or file detail without making message text part of the branchable contract.
+PluginDisplayTypeConfigError::PluginDisplayTypeConfigError(
+    PluginDisplayTypeConfigErrorCode error_code, std::string message_text)
+    : code(error_code)
+    , message(std::move(message_text))
+{}
+
+// Parses the shipped JSON config into an ordered override table.
+std::expected<PluginDisplayTypeOverrides, PluginDisplayTypeConfigError>
+readPluginDisplayTypeOverrides(std::string_view json_text)
+{
+    std::expected<juce::var, common::core::Json::Error> parsed =
+        common::core::Json::parseUtf8Document(json_text);
+    if (!parsed.has_value())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidJson,
+            "Could not parse plugin display type config: " + parsed.error().message,
+        }};
+    }
+
+    if (!parsed->isObject())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type config root must be an object.",
+        }};
+    }
+
+    if (common::core::Json::readOptionalInt(*parsed, g_config_version_property, 0) != 1)
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type config must declare version 1.",
+        }};
+    }
+
+    const juce::var& overrides_value =
+        common::core::Json::value(*parsed, g_config_overrides_property);
+    const juce::Array<juce::var>* const overrides_array = overrides_value.getArray();
+    if (overrides_array == nullptr)
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::InvalidSchema,
+            "Plugin display type config must contain an overrides array.",
+        }};
+    }
+
+    PluginDisplayTypeOverrides overrides;
+    overrides.reserve(static_cast<std::size_t>(overrides_array->size()));
+    std::vector<std::string> override_names;
+    override_names.reserve(static_cast<std::size_t>(overrides_array->size()));
+    for (int index = 0; index < overrides_array->size(); ++index)
+    {
+        auto override_entry = readPluginDisplayTypeOverrideJson(
+            (*overrides_array)[index], static_cast<std::size_t>(index));
+        if (!override_entry.has_value())
+        {
+            return std::unexpected{std::move(override_entry.error())};
+        }
+
+        const std::string override_name = normalizedToken(override_entry->name, true);
+        if (std::ranges::find(override_names, override_name) != override_names.end())
+        {
+            return std::unexpected{PluginDisplayTypeConfigError{
+                PluginDisplayTypeConfigErrorCode::InvalidSchema,
+                "Plugin display type " + overrideIndexText(static_cast<std::size_t>(index)) +
+                    " duplicates an earlier name: " + override_entry->name,
+            }};
+        }
+
+        override_names.push_back(override_name);
+        overrides.push_back(std::move(*override_entry));
+    }
+
+    return overrides;
+}
+
+// Reads the shipped config file as UTF-8-ish text before applying schema validation.
+std::expected<PluginDisplayTypeOverrides, PluginDisplayTypeConfigError>
+readPluginDisplayTypeOverridesFile(const std::filesystem::path& file)
+{
+    std::ifstream stream{file, std::ios::binary};
+    if (!stream.is_open())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::CouldNotReadFile,
+            "Could not open plugin display type config: " + file.string(),
+        }};
+    }
+
+    std::string contents{
+        std::istreambuf_iterator<char>{stream},
+        std::istreambuf_iterator<char>{},
+    };
+    if (!stream.good() && !stream.eof())
+    {
+        return std::unexpected{PluginDisplayTypeConfigError{
+            PluginDisplayTypeConfigErrorCode::CouldNotReadFile,
+            "Could not read plugin display type config: " + file.string(),
+        }};
+    }
+
+    return readPluginDisplayTypeOverrides(contents);
+}
+
+// Classifies plugin metadata using caller-supplied exact override rows before category tokens.
+PluginDisplayClassification classifyPluginDisplay(
+    const PluginDisplayMetadata& metadata, const PluginDisplayTypeOverrides& overrides)
 {
     PluginDisplayClassification classification{
         .primary_type = PluginDisplayType::Uncategorized,
@@ -230,7 +356,8 @@ PluginDisplayClassification classifyPluginDisplay(const PluginDisplayMetadata& m
         .filter_types = {},
     };
 
-    const std::optional<PluginDisplayType> type_override = displayTypeOverrideFor(metadata);
+    const std::optional<PluginDisplayType> type_override =
+        displayTypeOverrideFor(metadata, overrides);
     if (type_override.has_value())
     {
         classification.primary_type = *type_override;
@@ -264,6 +391,12 @@ PluginDisplayClassification classifyPluginDisplay(const PluginDisplayMetadata& m
     }
 
     return classification;
+}
+
+// Keeps category-only classification available for tests and missing-config fallback behavior.
+PluginDisplayClassification classifyPluginDisplay(const PluginDisplayMetadata& metadata)
+{
+    return classifyPluginDisplay(metadata, PluginDisplayTypeOverrides{});
 }
 
 std::string_view pluginDisplayTypeToken(PluginDisplayType display_type) noexcept

@@ -1,18 +1,25 @@
 #include <JuceHeader.h>
+#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/juce_message_thread_scheduler.h>
+#include <rock_hero/editor/core/plugin_display_type.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
+#include <utility>
 
 namespace rock_hero::editor::app
 {
 
 namespace
 {
+
+constexpr auto* g_editor_config_directory_name = "config";
+constexpr auto* g_plugin_display_type_overrides_filename = "plugin-display-type-overrides.json";
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This
 // stays in app composition because only the composition root knows one object backs every port.
@@ -29,6 +36,34 @@ namespace
         .live_input = engine,
         .meter_source = engine,
     };
+}
+
+// Finds the installed default config that is copied beside the editor executable.
+[[nodiscard]] std::filesystem::path defaultPluginDisplayTypeOverridesFile()
+{
+    const juce::File executable_file =
+        juce::File::getSpecialLocation(juce::File::currentExecutableFile);
+    const juce::File config_file = executable_file.getParentDirectory()
+                                       .getChildFile(g_editor_config_directory_name)
+                                       .getChildFile(g_plugin_display_type_overrides_filename);
+    return rock_hero::common::core::pathFromJuceString(config_file.getFullPathName());
+}
+
+// Loads default plugin display overrides best-effort so a missing config cannot block startup.
+[[nodiscard]] rock_hero::editor::core::PluginDisplayTypeOverrides
+loadDefaultPluginDisplayTypeOverrides()
+{
+    const std::filesystem::path config_file = defaultPluginDisplayTypeOverridesFile();
+    auto overrides = rock_hero::editor::core::readPluginDisplayTypeOverridesFile(config_file);
+    if (overrides.has_value())
+    {
+        return std::move(*overrides);
+    }
+
+    juce::Logger::writeToLog(
+        juce::String{"Rock Hero plugin display type config: "} +
+        juce::String::fromUTF8(overrides.error().message.c_str()));
+    return {};
 }
 
 } // namespace
@@ -78,6 +113,7 @@ public:
                 .settings = *m_editor_settings,
                 .task_runner = *m_editor_task_runner,
                 .message_thread_scheduler = *m_message_thread_scheduler,
+                .plugin_display_type_overrides = loadDefaultPluginDisplayTypeOverrides(),
             },
             &juce::JUCEApplicationBase::quit);
 

@@ -137,6 +137,9 @@ public:
 
         /*! \brief Message-thread scheduler used for busy-presentation ordering. */
         IMessageThreadScheduler& message_thread_scheduler;
+
+        /*! \brief Default plugin display type overrides loaded by app composition. */
+        PluginDisplayTypeOverrides plugin_display_type_overrides{};
     };
 
     /*!

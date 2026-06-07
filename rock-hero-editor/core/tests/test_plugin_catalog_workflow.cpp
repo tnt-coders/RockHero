@@ -53,6 +53,21 @@ TEST_CASE("PluginCatalogWorkflow opens sorted catalog", "[core][plugin-catalog]"
     CHECK(workflow.hasCandidates());
 }
 
+// Browser projection applies supplied exact type overrides when scanner categories are generic.
+TEST_CASE("PluginCatalogWorkflow applies type overrides", "[core][plugin-catalog]")
+{
+    PluginCatalogWorkflow workflow{PluginDisplayTypeOverrides{
+        PluginDisplayTypeOverride{.name = "Known Amp", .display_type = PluginDisplayType::Amp},
+    }};
+
+    workflow.open({makeCandidate("amp", "Known Amp", "Unexpected Maker", "Fx")});
+
+    const PluginBrowserViewState state = workflow.viewState(true, true);
+    REQUIRE(state.plugins.size() == 1);
+    CHECK(state.plugins[0].primary_display_type == PluginDisplayType::Amp);
+    CHECK(state.plugins[0].filter_display_types == std::vector{PluginDisplayType::Amp});
+}
+
 // Closing the browser hides only presentation state and preserves the catalog.
 TEST_CASE("PluginCatalogWorkflow closes without clearing catalog", "[core][plugin-catalog]")
 {
