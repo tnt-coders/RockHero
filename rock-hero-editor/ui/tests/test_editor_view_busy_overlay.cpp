@@ -53,10 +53,11 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 
     CHECK(overlay->isVisible());
     CHECK(findRequiredDescendant<juce::Component>(view, "busy_progress_bar").isVisible());
-    // Even for a cancellable operation, the editor-wide overlay shows no Cancel button because no
-    // cancel handler is wired to it; cancel lives on the plugin browser overlay instead.
-    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
-    CHECK(controller.busy_cancel_request_count == 0);
+    auto& cancel_button = findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button");
+    CHECK(cancel_button.isVisible());
+    REQUIRE(cancel_button.onClick);
+    cancel_button.onClick();
+    CHECK(controller.busy_cancel_request_count == 1);
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::LoadingPlugin,
