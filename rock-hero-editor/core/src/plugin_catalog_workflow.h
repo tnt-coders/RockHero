@@ -25,11 +25,8 @@ sorted browser catalog, browser visibility, candidate lookup, and view-state pro
 class PluginCatalogWorkflow final
 {
 public:
-    /*!
-    \brief Creates plugin catalog workflow state with optional display type overrides.
-    \param display_type_overrides Exact plugin type overrides used for browser classification.
-    */
-    explicit PluginCatalogWorkflow(PluginDisplayTypeOverrides display_type_overrides = {});
+    /*! \brief Creates empty plugin catalog workflow state. */
+    PluginCatalogWorkflow() = default;
 
     /*!
     \brief Opens the browser over a fresh known-catalog snapshot.
@@ -72,7 +69,6 @@ public:
     [[nodiscard]] PluginBrowserViewState viewState(bool scan_enabled, bool add_enabled) const;
 
 private:
-    PluginDisplayTypeOverrides m_display_type_overrides;
     std::vector<common::audio::PluginCandidate> m_candidates;
     bool m_visible{false};
 };

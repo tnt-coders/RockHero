@@ -49,7 +49,6 @@ Editor::Editor(
               .settings = services.settings,
               .task_runner = services.task_runner,
               .message_thread_scheduler = services.message_thread_scheduler,
-              .plugin_display_type_overrides = std::move(services.plugin_display_type_overrides),
           },
           std::move(exit_function), controllerProjectOperationsFrom(std::move(project_operations)))
     , m_view(

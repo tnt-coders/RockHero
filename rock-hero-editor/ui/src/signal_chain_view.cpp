@@ -232,16 +232,12 @@ enum class PluginIconType
     return std::ranges::find(values, value) != values.end();
 }
 
-// Labels recognized menu types so manual-only overrides stay visually distinct.
+// Labels scanner-recognized menu types so manual-only overrides stay visually distinct.
 [[nodiscard]] juce::String displayTypeMenuLabel(
     const core::PluginViewState& plugin, core::PluginDisplayType display_type)
 {
     juce::String label{core::pluginDisplayTypeLabel(display_type)};
     if (containsDisplayType(plugin.scanned_display_types, display_type))
-    {
-        label += " (scanned)";
-    }
-    else if (containsDisplayType(plugin.accepted_display_types, display_type))
     {
         label += " (scanned)";
     }
@@ -1422,8 +1418,8 @@ void SignalChainView::completePluginDrop(
 
     if (completion.move_destination_index.has_value())
     {
-        // The placement is passed with the move intent, keyed by pre-move instance IDs, so core can
-        // apply it after the backend returns the reordered chain snapshot.
+        // The placement is passed with the move intent, keyed by pre-move instance IDs, so core
+        // can apply it after the backend returns the reordered chain snapshot.
         movePluginToBlockLocation(
             std::move(plugin->instance_id),
             plugin->source_index,
