@@ -92,7 +92,6 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
                             .manufacturer = "Example Audio",
                             .format_name = "VST3",
                             .primary_display_type = PluginDisplayType::Distortion,
-                            .filter_display_types = {PluginDisplayType::Distortion},
                         },
                     },
             },

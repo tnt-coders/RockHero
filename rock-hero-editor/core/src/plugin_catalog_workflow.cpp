@@ -27,47 +27,34 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
 }
 
 [[nodiscard]] PluginCandidateViewState makePluginCandidateViewState(
-    const common::audio::PluginCandidate& plugin_candidate,
-    const PluginDisplayTypeOverrides& display_type_overrides)
+    const common::audio::PluginCandidate& plugin_candidate)
 {
     PluginDisplayClassification classification = classifyPluginDisplay(
         PluginDisplayMetadata{
-            .id = plugin_candidate.id,
-            .name = plugin_candidate.name,
-            .manufacturer = plugin_candidate.manufacturer,
-            .format_name = plugin_candidate.format_name,
             .category = plugin_candidate.category,
-        },
-        display_type_overrides);
+        });
     return PluginCandidateViewState{
         .id = plugin_candidate.id,
         .name = plugin_candidate.name,
         .manufacturer = plugin_candidate.manufacturer,
         .format_name = plugin_candidate.format_name,
         .primary_display_type = classification.primary_type,
-        .filter_display_types = std::move(classification.filter_types),
     };
 }
 
 [[nodiscard]] std::vector<PluginCandidateViewState> makePluginCandidateViewStates(
-    const std::vector<common::audio::PluginCandidate>& plugin_candidates,
-    const PluginDisplayTypeOverrides& display_type_overrides)
+    const std::vector<common::audio::PluginCandidate>& plugin_candidates)
 {
     std::vector<PluginCandidateViewState> states;
     states.reserve(plugin_candidates.size());
     for (const common::audio::PluginCandidate& plugin_candidate : plugin_candidates)
     {
-        states.push_back(makePluginCandidateViewState(plugin_candidate, display_type_overrides));
+        states.push_back(makePluginCandidateViewState(plugin_candidate));
     }
     return states;
 }
 
 } // namespace
-
-// Stores display type overrides once so every browser projection uses the same config snapshot.
-PluginCatalogWorkflow::PluginCatalogWorkflow(PluginDisplayTypeOverrides display_type_overrides)
-    : m_display_type_overrides(std::move(display_type_overrides))
-{}
 
 void PluginCatalogWorkflow::open(std::vector<common::audio::PluginCandidate> candidates)
 {
@@ -123,7 +110,7 @@ PluginBrowserViewState PluginCatalogWorkflow::viewState(bool scan_enabled, bool 
         .visible = m_visible,
         .scan_enabled = scan_enabled,
         .add_enabled = add_enabled,
-        .plugins = makePluginCandidateViewStates(m_candidates, m_display_type_overrides),
+        .plugins = makePluginCandidateViewStates(m_candidates),
     };
 }
 

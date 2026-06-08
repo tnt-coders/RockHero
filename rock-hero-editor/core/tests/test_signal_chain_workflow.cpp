@@ -87,25 +87,22 @@ TEST_CASE("SignalChainWorkflow classifies plugin display type", "[core][signal-c
     CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Delay);
     CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Delay);
     CHECK(workflow.plugins()[0].scanned_display_types == std::vector{PluginDisplayType::Delay});
-    CHECK(workflow.plugins()[0].accepted_display_types == std::vector{PluginDisplayType::Delay});
 }
 
-// Verifies loaded-chain rows use supplied exact overrides when scanner categories are generic.
-TEST_CASE("SignalChainWorkflow applies type overrides", "[core][signal-chain]")
+// Verifies ambiguous scanner matches remain available as manual display suggestions.
+TEST_CASE("SignalChainWorkflow keeps ambiguous scanned suggestions", "[core][signal-chain]")
 {
-    SignalChainWorkflow workflow{PluginDisplayTypeOverrides{
-        PluginDisplayTypeOverride{.name = "Known Cab", .display_type = PluginDisplayType::Cab},
-    }};
-    common::audio::PluginChainEntry entry = makeEntry("cab", 0, "Fx");
-    entry.name = "Known Cab";
-    entry.manufacturer = "Unexpected Maker";
+    SignalChainWorkflow workflow;
+    const common::audio::PluginChainEntry entry = makeEntry("multi", 0, "Fx|Delay|Reverb");
 
     workflow.replaceSnapshot(common::audio::PluginChainSnapshot{.plugins = {entry}});
 
     REQUIRE(workflow.plugins().size() == 1);
-    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Cab);
-    CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Cab);
-    CHECK(workflow.plugins()[0].accepted_display_types == std::vector{PluginDisplayType::Cab});
+    CHECK(workflow.plugins()[0].primary_display_type == PluginDisplayType::Uncategorized);
+    CHECK(workflow.plugins()[0].automatic_display_type == PluginDisplayType::Uncategorized);
+    CHECK(
+        workflow.plugins()[0].scanned_display_types ==
+        std::vector{PluginDisplayType::Delay, PluginDisplayType::Reverb});
 }
 
 // Verifies manual display type override tokens round-trip through loaded chain state.
