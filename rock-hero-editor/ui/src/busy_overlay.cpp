@@ -155,12 +155,8 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
                 has_determinate_progress ? std::optional<double>{busy->progress.value_or(0.0)}
                                          : std::nullopt);
         }
-        // Only show Cancel on the overlay whose owner actually wired a cancel handler. This keeps a
-        // cancellable operation from rendering a duplicate, inert Cancel button on the editor-wide
-        // overlay when a window-owned overlay (such as the plugin browser) already offers cancel.
-        const bool show_cancel = busy->cancel_enabled && static_cast<bool>(m_cancel_callback);
-        m_cancel_button.setVisible(show_cancel);
-        m_cancel_button.setEnabled(show_cancel);
+        m_cancel_button.setVisible(busy->cancel_enabled);
+        m_cancel_button.setEnabled(busy->cancel_enabled);
         m_message_label.setText(busy->message, juce::dontSendNotification);
         resized();
     }

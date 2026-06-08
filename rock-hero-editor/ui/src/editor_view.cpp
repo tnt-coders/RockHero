@@ -723,9 +723,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_arrangement_view.setComponentID("arrangement_view");
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
-    // The editor-wide overlay deliberately has no cancel handler: the only cancellable operation
-    // (plugin scan) is owned by the plugin browser window, whose own overlay offers Cancel. Wiring
-    // it here too would render a duplicate, redundant Cancel button behind the browser.
+    m_busy_overlay.setCancelCallback([this] { m_controller.onBusyCancelRequested(); });
 
     m_arrangement_view.setThumbnailFactory(audio_ports.thumbnail_factory);
 
@@ -755,6 +753,7 @@ EditorView::~EditorView()
     m_audio_device_settings_window.reset();
     m_audio_device_settings_window_reset_pending = false;
     m_busy_overlay.setPaintCallback({});
+    m_busy_overlay.setCancelCallback({});
     m_menu_bar.setLookAndFeel(nullptr);
     m_menu_bar.setModel(nullptr);
 }
