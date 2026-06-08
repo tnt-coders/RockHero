@@ -71,6 +71,41 @@ void appendUniqueDisplayType(
     values.push_back(value);
 }
 
+// Appends every display type that should include this plugin in the browser type filter.
+void appendBrowserFilterTypesFor(
+    std::vector<core::PluginDisplayType>& values, const core::PluginCandidateViewState& plugin)
+{
+    for (const core::PluginDisplayType display_type : plugin.scanned_display_types)
+    {
+        appendUniqueDisplayType(values, display_type);
+    }
+
+    if (plugin.primary_display_type != core::PluginDisplayType::Uncategorized ||
+        plugin.scanned_display_types.empty())
+    {
+        appendUniqueDisplayType(values, plugin.primary_display_type);
+    }
+}
+
+// Reports whether one plugin belongs in the selected browser filter bucket.
+[[nodiscard]] bool pluginMatchesBrowserTypeFilter(
+    const core::PluginCandidateViewState& plugin, core::PluginDisplayType display_type)
+{
+    if (std::ranges::find(plugin.scanned_display_types, display_type) !=
+        plugin.scanned_display_types.end())
+    {
+        return true;
+    }
+
+    if (plugin.primary_display_type != core::PluginDisplayType::Uncategorized)
+    {
+        return plugin.primary_display_type == display_type;
+    }
+
+    return plugin.scanned_display_types.empty() &&
+           display_type == core::PluginDisplayType::Uncategorized;
+}
+
 // Computes the browser's painted table columns so the header and rows stay aligned.
 [[nodiscard]] std::tuple<int, int, int> pluginBrowserColumnWidths(int available_width)
 {
@@ -375,7 +410,7 @@ private:
         m_type_filter_values.clear();
         for (const core::PluginCandidateViewState& plugin : m_state.plugins)
         {
-            appendUniqueDisplayType(m_type_filter_values, plugin.primary_display_type);
+            appendBrowserFilterTypesFor(m_type_filter_values, plugin);
         }
 
         std::ranges::sort(
@@ -473,7 +508,8 @@ private:
             return false;
         }
 
-        return m_state.plugins[plugin_index].primary_display_type == *m_selected_type_filter;
+        return pluginMatchesBrowserTypeFilter(
+            m_state.plugins[plugin_index], *m_selected_type_filter);
     }
 
     // Returns whether one plugin matches the current lowercase text filter.
