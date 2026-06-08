@@ -182,11 +182,13 @@ public:
     /*!
     \brief Scans conventional VST3 catalog locations through Tracktion's plugin scanner.
     \param progress_callback Optional callback for countable metadata-scan progress.
+    \param cancel Cooperative cancellation handle that stops the scan at the next candidate.
     \return Success after the refresh, or a typed failure.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog(
-        PluginCatalogScanProgressCallback progress_callback = {}) override;
+        PluginCatalogScanProgressCallback progress_callback = {},
+        const common::core::CancellationToken& cancel = {}) override;
 
     /*!
     \brief Scans supplied plugin files or directories through Tracktion's plugin scanner.

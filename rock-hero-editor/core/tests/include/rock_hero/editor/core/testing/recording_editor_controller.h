@@ -69,6 +69,12 @@ public:
         save_as_cancel_count += 1;
     }
 
+    /*! \brief Counts busy-operation cancellation notifications. */
+    void onBusyCancelRequested() override
+    {
+        busy_cancel_request_count += 1;
+    }
+
     /*! \brief Counts Close command dispatches. */
     void onCloseRequested() override
     {
@@ -335,6 +341,9 @@ public:
 
     /*! \brief Number of Save As cancellation intents received. */
     int save_as_cancel_count{0};
+
+    /*! \brief Number of busy-operation cancellation intents received. */
+    int busy_cancel_request_count{0};
 
     /*! \brief Number of close intents received. */
     int close_request_count{0};

@@ -69,6 +69,12 @@ public:
     void setPaintCallback(std::function<void()> callback);
 
     /*!
+    \brief Installs a callback fired when the visible Cancel button is pressed.
+    \param callback Callback notified from the button's onClick handler.
+    */
+    void setCancelCallback(std::function<void()> callback);
+
+    /*!
     \brief Paints the dim layer and centered progress surface.
     \param g Graphics context used for drawing.
     */
@@ -115,8 +121,15 @@ private:
     // User-facing message supplied by BusyViewState::message.
     juce::Label m_message_label;
 
+    // Optional button shown only while BusyViewState::cancel_enabled is true.
+    juce::TextButton m_cancel_button;
+
     // Optional owner callback used by EditorView to implement its busy-overlay paint fence.
     std::function<void()> m_paint_callback;
+
+    // Optional owner callback used to emit cancel intent without giving the overlay workflow
+    // policy.
+    std::function<void()> m_cancel_callback;
 };
 
 } // namespace rock_hero::editor::ui

@@ -293,6 +293,9 @@ private:
     // PluginBrowserWindow::Listener implementation.
     void onPluginBrowserClosed() override;
 
+    // PluginBrowserWindow::Listener implementation.
+    void onPluginBrowserBusyCancelRequested() override;
+
     // Controller that owns editor workflow policy.
     core::IEditorController& m_controller;
 

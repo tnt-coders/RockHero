@@ -12,6 +12,7 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin_host_error.h>
+#include <rock_hero/common/core/cancellation_token.h>
 #include <string>
 #include <vector>
 
@@ -76,11 +77,14 @@ public:
     backend-native plugin catalog.
 
     \param progress_callback Optional callback for countable metadata-scan progress.
+    \param cancel Cooperative cancellation handle; the scan stops at the next candidate boundary
+    when cancellation is requested, keeping candidates already discovered.
     \return Success after the refresh, or a typed failure when scanning cannot proceed.
     \note This method may be called from a non-realtime worker thread.
     */
     [[nodiscard]] virtual std::expected<void, PluginHostError> scanPluginCatalog(
-        PluginCatalogScanProgressCallback progress_callback = {}) = 0;
+        PluginCatalogScanProgressCallback progress_callback = {},
+        const common::core::CancellationToken& cancel = {}) = 0;
 
     /*!
     \brief Discovers plugin files or directories as candidates.

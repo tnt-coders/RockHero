@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <functional>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
@@ -12,6 +13,48 @@ namespace rock_hero::editor::core
 
 namespace
 {
+
+// Task runner that defers both the worker body and its completion so a test can inject an action
+// (here, cancellation) between submission and execution. The shared DeferredEditorTaskRunner runs
+// work immediately, which cannot exercise a worker observing cancellation mid-run.
+class DeferredWorkTaskRunner final : public IEditorTaskRunner
+{
+public:
+    void submit(std::function<void()> work, std::function<void()> completion) override
+    {
+        m_work.push_back(std::move(work));
+        m_completion.push_back(std::move(completion));
+    }
+
+    // Runs every deferred worker body in submission order.
+    void runWork()
+    {
+        drain(m_work);
+    }
+
+    // Runs every deferred completion in submission order.
+    void runCompletions()
+    {
+        drain(m_completion);
+    }
+
+private:
+    static void drain(std::vector<std::function<void()>>& queue)
+    {
+        std::vector<std::function<void()>> to_run;
+        to_run.swap(queue);
+        for (auto& fn : to_run)
+        {
+            if (fn)
+            {
+                fn();
+            }
+        }
+    }
+
+    std::vector<std::function<void()>> m_work;
+    std::vector<std::function<void()>> m_completion;
+};
 
 // Builds an instance-keyed visual block assignment for controller intent tests.
 [[nodiscard]] PluginBlockAssignment blockAssignment(std::string instance_id, std::size_t block)
@@ -264,6 +307,167 @@ TEST_CASE("EditorController reports plugin catalog scan progress", "[core][edito
         return state.message == "Scanning plugin (2/2)...\nCab.vst3" &&
                state.progress == std::optional<double>{1.0};
     }));
+}
+
+// Cancelling a plugin scan keeps the host catalog accumulated so far and drops the completion.
+TEST_CASE("EditorController cancel scan keeps known plugins", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    DeferredEditorTaskRunner runner;
+    plugin_host.next_known_candidates = {
+        common::audio::PluginCandidate{
+            .id = "known-plugin-id",
+            .name = "Known Amp",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = "Fx|Distortion",
+            .file_path = std::filesystem::path{"known-amp.vst3"},
+        },
+    };
+    plugin_host.next_catalog_candidates = {
+        common::audio::PluginCandidate{
+            .id = "scanned-plugin-id",
+            .name = "Scanned Delay",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = "Fx|Delay",
+            .file_path = std::filesystem::path{"scanned-delay.vst3"},
+        },
+    };
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runPendingCompletions();
+    controller.onInputCalibrationRequested();
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
+    controller.onInputCalibrationDismissed();
+    controller.onPluginBrowserRequested();
+
+    controller.onPluginCatalogScanRequested();
+    const EditorViewState* scanning_state = stateOrNull(view.last_state);
+    REQUIRE(scanning_state != nullptr);
+    REQUIRE(scanning_state->busy.has_value());
+    CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
+    CHECK(scanning_state->busy->cancel_enabled);
+
+    controller.onBusyCancelRequested();
+
+    const EditorViewState* canceled_state = stateOrNull(view.last_state);
+    REQUIRE(canceled_state != nullptr);
+    CHECK_FALSE(canceled_state->busy.has_value());
+    REQUIRE(canceled_state->plugin_browser.plugins.size() == 1);
+    CHECK(canceled_state->plugin_browser.plugins[0].id == "scanned-plugin-id");
+    const int known_reads_after_cancel = plugin_host.known_candidates_call_count;
+
+    runner.runPendingCompletions();
+
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    REQUIRE(final_state->plugin_browser.plugins.size() == 1);
+    CHECK(final_state->plugin_browser.plugins[0].id == "scanned-plugin-id");
+    CHECK(plugin_host.known_candidates_call_count == known_reads_after_cancel);
+    CHECK(view.shown_errors.empty());
+}
+
+// Cancelling a scan trips the worker's cancellation token, so the scan worker observes it and stops
+// at the next candidate instead of running to completion and publishing the scanned catalog.
+TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    DeferredWorkTaskRunner runner;
+    plugin_host.next_known_candidates = {
+        common::audio::PluginCandidate{
+            .id = "known-plugin-id",
+            .name = "Known Amp",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = "Fx|Distortion",
+            .file_path = std::filesystem::path{"known-amp.vst3"},
+        },
+    };
+    plugin_host.next_catalog_candidates = {
+        common::audio::PluginCandidate{
+            .id = "scanned-plugin-id",
+            .name = "Scanned Delay",
+            .manufacturer = "Example Audio",
+            .format_name = "VST3",
+            .category = "Fx|Delay",
+            .file_path = std::filesystem::path{"scanned-delay.vst3"},
+        },
+    };
+    // At least one progress step so the worker reaches a cancellation checkpoint before it would
+    // otherwise publish the scanned catalog.
+    plugin_host.next_catalog_scan_progress = {
+        common::audio::PluginCatalogScanProgress{
+            .completed_plugins = 0,
+            .total_plugins = 1,
+            .active_plugin_path = std::filesystem::path{"scanned-delay.vst3"},
+        },
+    };
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        controllerServices(runner),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    audio_devices.current_input_identity = makeInputDeviceIdentity();
+    project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
+    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    runner.runWork();
+    runner.runCompletions();
+    controller.onInputCalibrationRequested();
+    const auto calibrated = controller.onInputCalibrationManuallySet(0.0);
+    REQUIRE(calibrated.has_value());
+    controller.onInputCalibrationDismissed();
+    controller.onPluginBrowserRequested();
+
+    controller.onPluginCatalogScanRequested();
+    const EditorViewState* scanning_state = stateOrNull(view.last_state);
+    REQUIRE(scanning_state != nullptr);
+    REQUIRE(scanning_state->busy.has_value());
+    CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
+
+    // Cancel before the deferred worker body runs, then let it run: it must observe cancellation and
+    // stop without publishing the scanned catalog.
+    controller.onBusyCancelRequested();
+    runner.runWork();
+
+    CHECK(plugin_host.catalog_scan_canceled);
+
+    runner.runCompletions();
+
+    const EditorViewState* final_state = stateOrNull(view.last_state);
+    REQUIRE(final_state != nullptr);
+    CHECK_FALSE(final_state->busy.has_value());
+    REQUIRE(final_state->plugin_browser.plugins.size() == 1);
+    CHECK(final_state->plugin_browser.plugins[0].id == "known-plugin-id");
+    CHECK(view.shown_errors.empty());
 }
 
 // Adding a browser plugin uses the current catalog metadata and appends the selected plugin.

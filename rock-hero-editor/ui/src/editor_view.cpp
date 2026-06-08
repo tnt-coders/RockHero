@@ -723,6 +723,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_arrangement_view.setComponentID("arrangement_view");
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
+    // The editor-wide overlay deliberately has no cancel handler: the only cancellable operation
+    // (plugin scan) is owned by the plugin browser window, whose own overlay offers Cancel. Wiring
+    // it here too would render a duplicate, redundant Cancel button behind the browser.
 
     m_arrangement_view.setThumbnailFactory(audio_ports.thumbnail_factory);
 
@@ -1616,6 +1619,13 @@ void EditorView::onPluginBrowserAddRequested(std::string plugin_id)
 void EditorView::onPluginBrowserClosed()
 {
     m_controller.onPluginBrowserClosed();
+}
+
+// Forwards browser busy-overlay cancellation through the same controller path as the editor-wide
+// overlay.
+void EditorView::onPluginBrowserBusyCancelRequested()
+{
+    m_controller.onBusyCancelRequested();
 }
 
 } // namespace rock_hero::editor::ui

@@ -55,6 +55,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::CancelSaveAsPrompt;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::CancelBusyOperation>)
+    {
+        return EditorAction::Id::CancelBusyOperation;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::PlayPause>)
     {
         return EditorAction::Id::PlayPause;

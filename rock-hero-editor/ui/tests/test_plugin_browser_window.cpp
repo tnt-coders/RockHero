@@ -39,10 +39,17 @@ public:
         close_request_count += 1;
     }
 
+    // Counts busy-operation cancellation requests.
+    void onPluginBrowserBusyCancelRequested() override
+    {
+        busy_cancel_request_count += 1;
+    }
+
     std::string last_added_plugin_id{};
     int scan_request_count{0};
     int add_request_count{0};
     int close_request_count{0};
+    int busy_cancel_request_count{0};
 };
 
 // Builds a browser state with two recognizable plugins.
@@ -212,10 +219,16 @@ TEST_CASE("PluginBrowserWindow shows busy overlay", "[ui][plugin-browser]")
             .message = "Scanning plugin (1/2)...\nAmp.vst3",
             .indicator = core::BusyIndicator::DeterminateProgress,
             .progress = std::optional<double>{0.5},
+            .cancel_enabled = true,
         }});
 
     CHECK(overlay.isVisible());
     CHECK(findRequiredDescendant<juce::Component>(window, "busy_progress_bar").isVisible());
+    auto& cancel_button = findRequiredDescendant<juce::TextButton>(window, "busy_cancel_button");
+    CHECK(cancel_button.isVisible());
+    REQUIRE(cancel_button.onClick);
+    cancel_button.onClick();
+    CHECK(listener.busy_cancel_request_count == 1);
 
     window.setBusyState(std::nullopt);
 

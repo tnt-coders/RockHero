@@ -19,12 +19,22 @@ constexpr float g_dim_alpha = 0.55F;
 // the smaller dimension when EditorView is narrow.
 constexpr int g_surface_width = 280;
 constexpr int g_surface_height = 120;
+constexpr int g_surface_height_with_cancel = 164;
 constexpr int g_surface_padding = 16;
 constexpr int g_surface_corner_radius = 8;
 
 // Distance between the progress bar and message text inside the surface.
 constexpr int g_progress_bar_height = 22;
 constexpr int g_progress_message_gap = 12;
+constexpr int g_cancel_button_height = 28;
+constexpr int g_cancel_button_width = 96;
+constexpr int g_cancel_message_gap = 14;
+
+// Chooses the centered surface height needed by the current child set.
+[[nodiscard]] int busySurfaceHeight(bool shows_cancel) noexcept
+{
+    return shows_cancel ? g_surface_height_with_cancel : g_surface_height;
+}
 
 } // namespace
 
@@ -92,13 +102,23 @@ void BusyOverlay::BusyProgressBar::resized()
 BusyOverlay::BusyOverlay()
 {
     setVisible(false);
-    setInterceptsMouseClicks(true, false);
+    setInterceptsMouseClicks(true, true);
     setWantsKeyboardFocus(true);
 
     m_message_label.setJustificationType(juce::Justification::centred);
     m_message_label.setColour(juce::Label::textColourId, juce::Colours::white);
     m_message_label.setInterceptsMouseClicks(false, false);
     addAndMakeVisible(m_message_label);
+
+    m_cancel_button.setComponentID("busy_cancel_button");
+    m_cancel_button.setButtonText("Cancel");
+    m_cancel_button.onClick = [this] {
+        if (m_cancel_button.isEnabled() && m_cancel_callback)
+        {
+            m_cancel_callback();
+        }
+    };
+    addChildComponent(m_cancel_button);
 }
 
 // Drives visibility, message text, and keyboard focus from the controller-supplied busy state.
@@ -135,12 +155,20 @@ void BusyOverlay::setBusyState(const std::optional<core::BusyViewState>& busy)
                 has_determinate_progress ? std::optional<double>{busy->progress.value_or(0.0)}
                                          : std::nullopt);
         }
+        // Only show Cancel on the overlay whose owner actually wired a cancel handler. This keeps a
+        // cancellable operation from rendering a duplicate, inert Cancel button on the editor-wide
+        // overlay when a window-owned overlay (such as the plugin browser) already offers cancel.
+        const bool show_cancel = busy->cancel_enabled && static_cast<bool>(m_cancel_callback);
+        m_cancel_button.setVisible(show_cancel);
+        m_cancel_button.setEnabled(show_cancel);
         m_message_label.setText(busy->message, juce::dontSendNotification);
         resized();
     }
     else
     {
         m_progress_bar.reset();
+        m_cancel_button.setVisible(false);
+        m_cancel_button.setEnabled(false);
     }
 
     if (should_be_visible == was_visible)
@@ -162,6 +190,12 @@ void BusyOverlay::setPaintCallback(std::function<void()> callback)
     m_paint_callback = std::move(callback);
 }
 
+// Stores the owner callback used to emit cancellation from the optional button.
+void BusyOverlay::setCancelCallback(std::function<void()> callback)
+{
+    m_cancel_callback = std::move(callback);
+}
+
 // Paints the dim layer behind the editor content and the rounded progress surface centered on
 // top. Child widgets paint themselves above this background.
 void BusyOverlay::paint(juce::Graphics& g)
@@ -170,7 +204,8 @@ void BusyOverlay::paint(juce::Graphics& g)
 
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int surface_width = juce::jmin(g_surface_width, bounds.getWidth() - g_surface_padding);
-    const int surface_height = juce::jmin(g_surface_height, bounds.getHeight() - g_surface_padding);
+    const int surface_height = juce::jmin(
+        busySurfaceHeight(m_cancel_button.isVisible()), bounds.getHeight() - g_surface_padding);
     const juce::Rectangle<int> surface =
         bounds.withSizeKeepingCentre(surface_width, surface_height);
 
@@ -188,9 +223,20 @@ void BusyOverlay::resized()
 {
     const juce::Rectangle<int> bounds = getLocalBounds();
     const int surface_width = juce::jmin(g_surface_width, bounds.getWidth() - g_surface_padding);
-    const int surface_height = juce::jmin(g_surface_height, bounds.getHeight() - g_surface_padding);
+    const int surface_height = juce::jmin(
+        busySurfaceHeight(m_cancel_button.isVisible()), bounds.getHeight() - g_surface_padding);
     juce::Rectangle<int> surface = bounds.withSizeKeepingCentre(surface_width, surface_height);
     surface = surface.reduced(g_surface_padding);
+
+    if (m_cancel_button.isVisible())
+    {
+        const juce::Rectangle<int> cancel_bounds =
+            surface.removeFromBottom(g_cancel_button_height)
+                .withSizeKeepingCentre(
+                    juce::jmin(g_cancel_button_width, surface.getWidth()), g_cancel_button_height);
+        surface.removeFromBottom(g_cancel_message_gap);
+        m_cancel_button.setBounds(cancel_bounds);
+    }
 
     if (m_progress_bar != nullptr)
     {

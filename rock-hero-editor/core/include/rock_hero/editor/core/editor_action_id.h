@@ -48,6 +48,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Cancel a controller-requested Save As prompt. */
     CancelSaveAsPrompt,
 
+    /*! \brief Cancel the active cancellable busy operation. */
+    CancelBusyOperation,
+
     /*! \brief Toggle transport playback. */
     PlayPause,
 

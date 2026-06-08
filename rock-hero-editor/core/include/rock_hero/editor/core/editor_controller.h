@@ -285,6 +285,9 @@ public:
     /*! \brief Handles cancellation of a controller-requested Save As chooser. */
     void onSaveAsCancelled() override;
 
+    /*! \brief Handles a request to cancel the active cancellable busy operation. */
+    void onBusyCancelRequested() override;
+
     /*! \brief Handles a request to close the current project. */
     void onCloseRequested() override;
 

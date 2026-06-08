@@ -62,6 +62,9 @@ public:
     /*! \brief Handles cancellation of a controller-requested Save As destination chooser. */
     virtual void onSaveAsCancelled() = 0;
 
+    /*! \brief Handles a request to cancel the active cancellable busy operation. */
+    virtual void onBusyCancelRequested() = 0;
+
     /*! \brief Handles a request to close the current project without exiting the app. */
     virtual void onCloseRequested() = 0;
 

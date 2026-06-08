@@ -4,6 +4,38 @@
 
 namespace rock_hero::editor::core
 {
+namespace
+{
+
+// Only the plugin catalog scan can be cancelled: it runs on a worker without touching the live
+// session, so the user can hard-stop it and keep the plugins already discovered. Project
+// open/import replace the active session as they load, so they run to completion.
+[[nodiscard]] bool isCancellableBusyOperation(BusyOperation operation) noexcept
+{
+    switch (operation)
+    {
+        case BusyOperation::ScanningPlugins:
+        {
+            return true;
+        }
+        case BusyOperation::OpeningProject:
+        case BusyOperation::ImportingProject:
+        case BusyOperation::LoadingLiveRig:
+        case BusyOperation::AnalyzingBackingAudio:
+        case BusyOperation::SavingProject:
+        case BusyOperation::SavingProjectAs:
+        case BusyOperation::PublishingProject:
+        case BusyOperation::OpeningAudioDevice:
+        case BusyOperation::LoadingPlugin:
+        {
+            return false;
+        }
+    }
+
+    return false;
+}
+
+} // namespace
 
 bool BusyOperationState::isBusy() const noexcept
 {
@@ -101,7 +133,7 @@ std::optional<BusyViewState> BusyOperationState::viewState() const
         .operation = *m_operation,
         .message = busyMessage(*m_operation),
         .indicator = busyIndicator(*m_operation),
-        .cancel_enabled = false,
+        .cancel_enabled = isCancellableBusyOperation(*m_operation),
     };
     if (m_determinate_progress.has_value())
     {
