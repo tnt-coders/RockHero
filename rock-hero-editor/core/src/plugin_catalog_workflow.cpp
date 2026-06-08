@@ -39,6 +39,7 @@ void sortPluginCatalog(std::vector<common::audio::PluginCandidate>& plugin_candi
         .manufacturer = plugin_candidate.manufacturer,
         .format_name = plugin_candidate.format_name,
         .primary_display_type = classification.primary_type,
+        .scanned_display_types = std::move(classification.scanned_types),
     };
 }
 

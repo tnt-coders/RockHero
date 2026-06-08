@@ -49,11 +49,12 @@ TEST_CASE("PluginCatalogWorkflow opens sorted catalog", "[core][plugin-catalog]"
     CHECK(state.plugins[1].id == "b");
     CHECK(state.plugins[2].id == "z");
     CHECK(state.plugins[0].primary_display_type == PluginDisplayType::Distortion);
+    CHECK(state.plugins[0].scanned_display_types == std::vector{PluginDisplayType::Distortion});
     CHECK(workflow.hasCandidates());
 }
 
-// Browser projection keeps ambiguous scanner categories in the Uncategorized filter bucket.
-TEST_CASE("PluginCatalogWorkflow leaves ambiguous types uncategorized", "[core][plugin-catalog]")
+// Browser projection preserves ambiguous scanner categories for type filtering.
+TEST_CASE("PluginCatalogWorkflow keeps ambiguous types filterable", "[core][plugin-catalog]")
 {
     PluginCatalogWorkflow workflow;
 
@@ -62,6 +63,9 @@ TEST_CASE("PluginCatalogWorkflow leaves ambiguous types uncategorized", "[core][
     const PluginBrowserViewState state = workflow.viewState(true, true);
     REQUIRE(state.plugins.size() == 1);
     CHECK(state.plugins[0].primary_display_type == PluginDisplayType::Uncategorized);
+    CHECK(
+        state.plugins[0].scanned_display_types ==
+        std::vector{PluginDisplayType::Delay, PluginDisplayType::Reverb});
 }
 
 // Closing the browser hides only presentation state and preserves the catalog.

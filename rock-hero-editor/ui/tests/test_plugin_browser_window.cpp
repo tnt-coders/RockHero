@@ -59,6 +59,13 @@ public:
                 .manufacturer = "Neural DSP",
                 .format_name = "VST3",
                 .primary_display_type = core::PluginDisplayType::Amp,
+                .scanned_display_types =
+                    {
+                        core::PluginDisplayType::Amp,
+                        core::PluginDisplayType::Distortion,
+                        core::PluginDisplayType::Dynamics,
+                        core::PluginDisplayType::Reverb,
+                    },
             },
             core::PluginCandidateViewState{
                 .id = "gojira-id",
@@ -66,6 +73,7 @@ public:
                 .manufacturer = "Example Audio",
                 .format_name = "VST3",
                 .primary_display_type = core::PluginDisplayType::Reverb,
+                .scanned_display_types = {core::PluginDisplayType::Reverb},
             },
         },
     };
@@ -161,22 +169,24 @@ TEST_CASE("PluginBrowserWindow filters by scanner type", "[ui][plugin-browser]")
         findRequiredDescendant<juce::ComboBox>(window, "plugin_browser_type_filter");
     auto& count_label = findRequiredDescendant<juce::Label>(window, "plugin_browser_count_label");
 
-    CHECK(type_filter.getNumItems() == 3);
+    CHECK(type_filter.getNumItems() == 5);
     CHECK(type_filter.getItemText(0) == "All types");
     CHECK(type_filter.getItemText(1) == "Amp");
-    CHECK(type_filter.getItemText(2) == "Reverb");
+    CHECK(type_filter.getItemText(2) == "Distortion");
+    CHECK(type_filter.getItemText(3) == "Dynamics");
+    CHECK(type_filter.getItemText(4) == "Reverb");
     CHECK(count_label.getText() == "2 plugins");
 
-    type_filter.setSelectedId(2, juce::dontSendNotification);
+    type_filter.setSelectedId(4, juce::dontSendNotification);
     REQUIRE(type_filter.onChange);
     type_filter.onChange();
 
     CHECK(count_label.getText() == "1 plugin");
 
-    type_filter.setSelectedId(3, juce::dontSendNotification);
+    type_filter.setSelectedId(5, juce::dontSendNotification);
     type_filter.onChange();
 
-    CHECK(count_label.getText() == "1 plugin");
+    CHECK(count_label.getText() == "2 plugins");
 
     type_filter.setSelectedId(1, juce::dontSendNotification);
     type_filter.onChange();
