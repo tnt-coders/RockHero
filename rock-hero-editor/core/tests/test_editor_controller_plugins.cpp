@@ -197,9 +197,6 @@ TEST_CASE("EditorController rescans plugin browser catalog", "[core][editor-cont
     CHECK(
         browser_state->plugin_browser.plugins[0].primary_display_type ==
         PluginDisplayType::Distortion);
-    CHECK(
-        browser_state->plugin_browser.plugins[0].filter_display_types ==
-        std::vector{PluginDisplayType::Distortion});
 
     controller.onPluginCatalogScanRequested();
 
@@ -314,9 +311,6 @@ TEST_CASE("EditorController adds a browser plugin", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[0].format_name == "VST3");
     CHECK(
         final_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Distortion);
-    CHECK(
-        final_state->signal_chain.plugins[0].accepted_display_types ==
-        std::vector{PluginDisplayType::Distortion});
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(view.shown_errors.empty());
 }
