@@ -118,8 +118,7 @@ public:
     /*!
     \brief Required services used by the editor controller.
 
-    Services are long-lived non-audio collaborators supplied by app composition or tests. Optional
-    workflow overrides belong in ProjectOperations, not in this bundle.
+    Services are long-lived non-audio collaborators supplied by app composition or tests.
     */
     struct Services final
     {
@@ -137,9 +136,6 @@ public:
 
         /*! \brief Message-thread scheduler used for busy-presentation ordering. */
         IMessageThreadScheduler& message_thread_scheduler;
-
-        /*! \brief Default plugin display type overrides loaded by app composition. */
-        PluginDisplayTypeOverrides plugin_display_type_overrides{};
     };
 
     /*!

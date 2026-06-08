@@ -375,10 +375,7 @@ private:
         m_type_filter_values.clear();
         for (const core::PluginCandidateViewState& plugin : m_state.plugins)
         {
-            for (const core::PluginDisplayType display_type : plugin.filter_display_types)
-            {
-                appendUniqueDisplayType(m_type_filter_values, display_type);
-            }
+            appendUniqueDisplayType(m_type_filter_values, plugin.primary_display_type);
         }
 
         std::ranges::sort(
@@ -476,9 +473,7 @@ private:
             return false;
         }
 
-        return std::ranges::find(
-                   m_state.plugins[plugin_index].filter_display_types, *m_selected_type_filter) !=
-               m_state.plugins[plugin_index].filter_display_types.end();
+        return m_state.plugins[plugin_index].primary_display_type == *m_selected_type_filter;
     }
 
     // Returns whether one plugin matches the current lowercase text filter.

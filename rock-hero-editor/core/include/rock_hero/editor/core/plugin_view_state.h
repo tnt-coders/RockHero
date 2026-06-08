@@ -35,14 +35,11 @@ struct PluginViewState
     /*! \brief Current display type used by signal-chain icon rendering. */
     PluginDisplayType primary_display_type{PluginDisplayType::Uncategorized};
 
-    /*! \brief Automatic display type derived from exact overrides and scanner metadata. */
+    /*! \brief Automatic display type derived from scanner metadata. */
     PluginDisplayType automatic_display_type{PluginDisplayType::Uncategorized};
 
     /*! \brief Display types recognized directly from scanner category metadata. */
     std::vector<PluginDisplayType> scanned_display_types{};
-
-    /*! \brief Display types accepted by browser filtering and default display classification. */
-    std::vector<PluginDisplayType> accepted_display_types{PluginDisplayType::Uncategorized};
 
     /*! \brief Manual display type selected for this plugin instance, when authored. */
     std::optional<PluginDisplayType> display_type_override{};
@@ -53,8 +50,8 @@ struct PluginViewState
     /*!
     \brief Fixed visual block this plugin occupies, allowing gaps in the editor layout.
 
-    Distinct from chain_index: the chain index is the dense playback position, while the block index
-    is the authored editor slot, which may leave empty blocks between plugins.
+    Distinct from chain_index: the chain index is the dense playback position, while the block
+    index is the authored editor slot, which may leave empty blocks between plugins.
     */
     std::size_t block_index{};
 
