@@ -141,6 +141,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onSaveAsRequested(save_as_file);
     controller.onPublishRequested(publish_file);
     controller.onSaveAsCancelled();
+    controller.onBusyCancelRequested();
     controller.onCloseRequested();
     controller.onExitRequested();
     controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
@@ -166,6 +167,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.publish_request_count == 1);
     CHECK(controller.last_publish_file == std::optional{publish_file});
     CHECK(controller.save_as_cancel_count == 1);
+    CHECK(controller.busy_cancel_request_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
     CHECK(controller.unsaved_changes_decision_count == 1);

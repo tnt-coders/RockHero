@@ -98,7 +98,7 @@ struct BusyViewState
     */
     std::optional<double> progress{};
 
-    /*! \brief Reserved for future cancellable operations; always false in the first pass. */
+    /*! \brief True when the active operation may be cancelled by the user. */
     bool cancel_enabled{false};
 
     /*!

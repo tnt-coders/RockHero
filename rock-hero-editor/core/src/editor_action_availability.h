@@ -22,6 +22,9 @@ struct ActionConditions
     /*! \brief True when a busy operation is active. */
     bool busy{false};
 
+    /*! \brief True when the active busy operation supports user cancellation. */
+    bool busy_cancel_available{false};
+
     /*! \brief True when the input calibration prompt is visible. */
     bool input_calibration_prompt_visible{false};
 

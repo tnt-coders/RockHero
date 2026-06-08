@@ -31,7 +31,8 @@ class RecordingPluginHost final : public IPluginHost
 public:
     /*! \brief Records a default catalog scan and refreshes the known catalog on success. */
     [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog(
-        PluginCatalogScanProgressCallback progress_callback = {}) override
+        PluginCatalogScanProgressCallback progress_callback = {},
+        const common::core::CancellationToken& cancel = {}) override
     {
         catalog_scan_call_count += 1;
         if (next_catalog_scan_error.has_value())
@@ -41,6 +42,14 @@ public:
 
         for (const PluginCatalogScanProgress& progress : next_catalog_scan_progress)
         {
+            // Mirror the production per-candidate cancellation check so tests can assert the scan
+            // stops early and leaves the previously known catalog untouched.
+            if (cancel.isCancelled())
+            {
+                catalog_scan_canceled = true;
+                return {};
+            }
+
             if (progress_callback)
             {
                 progress_callback(progress);
@@ -270,6 +279,9 @@ public:
 
     /*! \brief Number of catalog scan calls received. */
     int catalog_scan_call_count{0};
+
+    /*! \brief True when a catalog scan observed cooperative cancellation and stopped early. */
+    bool catalog_scan_canceled{false};
 
     /*! \brief Number of known-catalog reads received. */
     mutable int known_candidates_call_count{0};

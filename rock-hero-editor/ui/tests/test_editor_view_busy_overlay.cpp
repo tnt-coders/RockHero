@@ -21,6 +21,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     CHECK_FALSE(overlay->isVisible());
     // The bar is built on demand, so none exists until a busy state requests one.
     CHECK(testing::findDescendant(view, "busy_progress_bar") == nullptr);
+    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
 
     core::EditorViewState busy_state;
     busy_state.visible_timeline = common::core::TimeRange{
@@ -39,18 +40,23 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
 
     CHECK(overlay->isVisible());
     CHECK(findRequiredDescendant<juce::Component>(view, "busy_progress_bar").isVisible());
+    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::OpeningProject,
         .message = "Loading plugin (1/4)...\nAmp Sim",
         .indicator = core::BusyIndicator::DeterminateProgress,
         .progress = std::optional<double>{0.25},
-        .cancel_enabled = false,
+        .cancel_enabled = true,
     };
     view.setState(busy_state);
 
     CHECK(overlay->isVisible());
     CHECK(findRequiredDescendant<juce::Component>(view, "busy_progress_bar").isVisible());
+    // Even for a cancellable operation, the editor-wide overlay shows no Cancel button because no
+    // cancel handler is wired to it; cancel lives on the plugin browser overlay instead.
+    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
+    CHECK(controller.busy_cancel_request_count == 0);
 
     busy_state.busy = core::BusyViewState{
         .operation = core::BusyOperation::LoadingPlugin,
@@ -63,6 +69,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     CHECK(overlay->isVisible());
     // Message-only operations show no bar at all, so none is built.
     CHECK(testing::findDescendant(view, "busy_progress_bar") == nullptr);
+    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
 
     core::EditorViewState idle_state;
     idle_state.visible_timeline = common::core::TimeRange{
@@ -74,6 +81,7 @@ TEST_CASE("EditorView shows the busy overlay while state.busy is set", "[ui][edi
     view.setState(idle_state);
 
     CHECK_FALSE(overlay->isVisible());
+    CHECK_FALSE(findRequiredDescendant<juce::TextButton>(view, "busy_cancel_button").isVisible());
 }
 
 // Determinate progress paints the exact fraction immediately. juce::ProgressBar would ramp its
