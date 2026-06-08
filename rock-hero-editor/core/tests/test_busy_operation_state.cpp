@@ -35,7 +35,7 @@ TEST_CASE("BusyOperationState begins operation", "[core][busy-operation-state]")
         CHECK(busy->message == "Opening project...");
         CHECK(busy->indicator == BusyIndicator::IndeterminateProgress);
         CHECK_FALSE(busy->progress.has_value());
-        CHECK(busy->cancel_enabled == false);
+        CHECK_FALSE(busy->cancel_enabled);
     }
 }
 
@@ -55,6 +55,7 @@ TEST_CASE("BusyOperationState transitions current token", "[core][busy-operation
     {
         CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
         CHECK(busy->message == "Analyzing audio...");
+        CHECK_FALSE(busy->cancel_enabled);
     }
 }
 
@@ -111,6 +112,7 @@ TEST_CASE("BusyOperationState exposes live rig progress", "[core][busy-operation
         CHECK(busy->message == "Loading plugin (1/2)...\nAmp");
         CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
         CHECK(busy->progress == std::optional{0.5});
+        CHECK_FALSE(busy->cancel_enabled);
     }
 }
 
@@ -132,6 +134,7 @@ TEST_CASE("BusyOperationState exposes plugin scan progress", "[core][busy-operat
         CHECK(busy->message == "Scanning plugin (1/2)...\nAmp");
         CHECK(busy->indicator == BusyIndicator::DeterminateProgress);
         CHECK(busy->progress == std::optional{0.5});
+        CHECK(busy->cancel_enabled);
     }
 }
 

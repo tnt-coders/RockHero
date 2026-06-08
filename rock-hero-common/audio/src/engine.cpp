@@ -1744,7 +1744,8 @@ private:
 
     [[nodiscard]] std::expected<juce::StringArray, PluginHostError> scanVst3SearchPath(
         juce::FileSearchPath search_path,
-        const PluginCatalogScanProgressCallback& progress_callback)
+        const PluginCatalogScanProgressCallback& progress_callback,
+        const common::core::CancellationToken& cancel = {})
     {
         juce::AudioPluginFormat* const format = vst3PluginFormat();
         if (format == nullptr)
@@ -1782,6 +1783,13 @@ private:
             for (std::size_t completed_plugins = 0; completed_plugins < total_plugins;
                  ++completed_plugins)
             {
+                // Stop at the next candidate boundary on cancellation. Candidates already validated
+                // stay in the known-plugin list, so a cancelled scan still keeps partial progress.
+                if (cancel.isCancelled())
+                {
+                    break;
+                }
+
                 const juce::String file_or_identifier =
                     scanner.getNextPluginFileThatWillBeScanned();
                 reportPluginCatalogScanProgress(
@@ -2979,7 +2987,8 @@ std::expected<void, SongAudioError> Engine::clearActiveArrangement()
 // Scans JUCE's default VST3 roots through Tracktion's known-plugin list. Tracktion persists the
 // resulting descriptions, so repeated scans can reuse unchanged entries.
 std::expected<void, PluginHostError> Engine::scanPluginCatalog(
-    PluginCatalogScanProgressCallback progress_callback)
+    PluginCatalogScanProgressCallback progress_callback,
+    const common::core::CancellationToken& cancel)
 {
     juce::AudioPluginFormat* const format = m_impl->vst3PluginFormat();
     if (format == nullptr)
@@ -2990,8 +2999,8 @@ std::expected<void, PluginHostError> Engine::scanPluginCatalog(
         }};
     }
 
-    auto scanned_files =
-        m_impl->scanVst3SearchPath(format->getDefaultLocationsToSearch(), progress_callback);
+    auto scanned_files = m_impl->scanVst3SearchPath(
+        format->getDefaultLocationsToSearch(), progress_callback, cancel);
     if (!scanned_files.has_value())
     {
         return std::unexpected{std::move(scanned_files.error())};

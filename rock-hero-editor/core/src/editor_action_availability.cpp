@@ -34,6 +34,7 @@ namespace
         case EditorAction::Id::ExitApplication:
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::CancelBusyOperation:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
         {
@@ -77,6 +78,10 @@ namespace
         case EditorAction::Id::CancelSaveAsPrompt:
         {
             return conditions.has_save_as_prompt;
+        }
+        case EditorAction::Id::CancelBusyOperation:
+        {
+            return false;
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekWaveform:
@@ -136,6 +141,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::PublishProject:
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         case EditorAction::Id::CancelSaveAsPrompt:
+        case EditorAction::Id::CancelBusyOperation:
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:
@@ -161,6 +167,11 @@ bool isActionAvailable(EditorAction::Id action, const ActionConditions& conditio
 {
     if (conditions.busy)
     {
+        if (action == EditorAction::Id::CancelBusyOperation)
+        {
+            return conditions.busy_cancel_available;
+        }
+
         return actionSupersedesBusy(action);
     }
 

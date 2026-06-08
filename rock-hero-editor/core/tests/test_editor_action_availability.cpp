@@ -12,11 +12,12 @@ using ActionId = EditorAction::Id;
 
 }
 
-// Verifies that busy work blocks every action except explicit lifecycle takeovers.
-TEST_CASE("Busy actions are limited to close and exit", "[core][editor-action]")
+// Verifies that busy work blocks every action except explicit lifecycle takeovers and cancel.
+TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-action]")
 {
     const ActionConditions conditions{
         .busy = true,
+        .busy_cancel_available = true,
         .live_input_audition_available = true,
         .has_project = true,
         .has_unsaved_changes_prompt = true,
@@ -30,14 +31,20 @@ TEST_CASE("Busy actions are limited to close and exit", "[core][editor-action]")
 
     CHECK(actionSupersedesBusy(ActionId::CloseProject));
     CHECK(actionSupersedesBusy(ActionId::ExitApplication));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::CancelBusyOperation));
     CHECK_FALSE(actionSupersedesBusy(ActionId::SaveProject));
     CHECK_FALSE(actionSupersedesBusy(ActionId::SetSignalChainPlacement));
 
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
     CHECK(isActionAvailable(ActionId::ExitApplication, conditions));
+    CHECK(isActionAvailable(ActionId::CancelBusyOperation, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
+
+    ActionConditions non_cancellable_busy = conditions;
+    non_cancellable_busy.busy_cancel_available = false;
+    CHECK_FALSE(isActionAvailable(ActionId::CancelBusyOperation, non_cancellable_busy));
 }
 
 // Verifies that project write and close actions are disabled without a loaded project.

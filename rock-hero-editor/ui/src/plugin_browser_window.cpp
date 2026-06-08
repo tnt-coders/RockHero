@@ -227,6 +227,8 @@ public:
         addAndMakeVisible(m_count_label);
         addAndMakeVisible(m_add_button);
         m_busy_overlay.setComponentID("plugin_browser_busy_overlay");
+        m_busy_overlay.setCancelCallback(
+            [this] { m_listener.onPluginBrowserBusyCancelRequested(); });
         addChildComponent(m_busy_overlay);
         setState(core::PluginBrowserViewState{});
     }

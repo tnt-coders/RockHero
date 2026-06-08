@@ -137,6 +137,11 @@ struct EditorAction
     {
     };
 
+    /*! \brief Cancel the active cancellable busy operation. */
+    struct CancelBusyOperation
+    {
+    };
+
     /*! \brief Toggle transport playback. */
     struct PlayPause
     {
@@ -296,9 +301,9 @@ struct EditorAction
     /*! \brief Variant carrying any controller action and its payload. */
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
-        CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt, PlayPause,
-        Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
-        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
+        CancelBusyOperation, PlayPause, Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert,
+        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
         SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 

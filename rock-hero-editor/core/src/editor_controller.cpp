@@ -31,6 +31,7 @@
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/scoped_listener.h>
+#include <rock_hero/common/core/cancellation_token.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
@@ -297,6 +298,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onSaveAsRequested(std::filesystem::path file);
     void onPublishRequested(std::filesystem::path file);
     void onSaveAsCancelled();
+    void onBusyCancelRequested();
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
@@ -347,6 +349,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::ExitApplication action);
     void performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action);
     void performActionImpl(EditorAction::CancelSaveAsPrompt action);
+    void performActionImpl(EditorAction::CancelBusyOperation action);
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
@@ -385,6 +388,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void finishImportSongSourceAfterLiveRigLoad(
         const std::shared_ptr<ImportTaskState>& state,
         std::expected<void, common::audio::LiveRigError> rig_result);
+    void cancelBusyOperation();
+    void cancelPluginCatalogScan();
+    void cancelActiveScanToken();
     [[nodiscard]] EditorController::ProjectOperationProgress makeBusyProjectOperationProgress(
         std::uint64_t token);
     [[nodiscard]] common::audio::PluginCatalogScanProgressCallback makePluginCatalogScanProgress(
@@ -602,6 +608,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // the overlay presentation has had a chance to paint.
     BusyOperationWorkflow m_busy;
 
+    // Cancellation token for the active plugin catalog scan. Engaged only while a cancellable scan
+    // is in flight so the worker can stop at its next safe checkpoint.
+    std::optional<common::core::CancellationToken> m_plugin_scan_cancel{};
+
     // Reset during destruction so queued completions can detect that the controller is gone.
     std::shared_ptr<bool> m_alive{std::make_shared<bool>(true)};
 
@@ -756,6 +766,11 @@ void EditorController::onPublishRequested(std::filesystem::path file)
 void EditorController::onSaveAsCancelled()
 {
     m_impl->onSaveAsCancelled();
+}
+
+void EditorController::onBusyCancelRequested()
+{
+    m_impl->onBusyCancelRequested();
 }
 
 void EditorController::onCloseRequested()
@@ -954,6 +969,9 @@ EditorController::Impl::Impl(
 // concern is between this destructor returning and the MessageManager itself being torn down.
 EditorController::Impl::~Impl()
 {
+    // Stop any in-flight scan worker before teardown so the task runner's join does not block on a
+    // scan that no observer will ever consume.
+    cancelActiveScanToken();
     detachView();
     m_alive.reset();
 }
@@ -1262,6 +1280,44 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     finishBusyOperation();
 }
 
+// Cancels the active cancellable busy operation. Only the plugin catalog scan is cancellable;
+// project open/import run to completion because they replace the live session as they load.
+void EditorController::Impl::cancelBusyOperation()
+{
+    const std::optional<BusyViewState> busy = m_busy.viewState();
+    if (!busy.has_value() || !busy->cancel_enabled)
+    {
+        return;
+    }
+
+    if (busy->operation == BusyOperation::ScanningPlugins)
+    {
+        cancelPluginCatalogScan();
+    }
+}
+
+// Requests cooperative worker cancellation, then keeps whatever the host already published as known
+// and invalidates the pending scan completion.
+void EditorController::Impl::cancelPluginCatalogScan()
+{
+    cancelActiveScanToken();
+    m_busy.supersede();
+    refreshKnownPluginCatalog();
+    updateView();
+}
+
+// Trips the in-flight plugin scan's cancellation token so the scan worker stops at the next
+// candidate. Used for explicit cancellation and whenever a scan is abandoned by a takeover (close,
+// exit) or controller teardown, so a long scan never keeps running unobserved.
+void EditorController::Impl::cancelActiveScanToken()
+{
+    if (m_plugin_scan_cancel.has_value())
+    {
+        m_plugin_scan_cancel->cancel();
+        m_plugin_scan_cancel.reset();
+    }
+}
+
 // Bridges project-operation progress from worker operations into the controller's busy workflow.
 // The audio-analysis phase waits briefly after posting the transition so users see the analyzing
 // overlay before expensive normalization work starts.
@@ -1432,6 +1488,12 @@ void EditorController::Impl::onPublishRequested(std::filesystem::path file)
 void EditorController::Impl::onSaveAsCancelled()
 {
     runAction(EditorAction::CancelSaveAsPrompt{});
+}
+
+// Cancels only operations that published a cancellable busy state to the view.
+void EditorController::Impl::onBusyCancelRequested()
+{
+    runAction(EditorAction::CancelBusyOperation{});
 }
 
 // Closes the current project after prompting for unsaved changes when needed.
@@ -1667,6 +1729,9 @@ bool EditorController::Impl::prepareAction(EditorAction::Id action)
 
     if (isBusy() && actionSupersedesBusy(action))
     {
+        // A close/exit takeover abandons any in-flight scan, so stop its worker rather than
+        // leaving it running until it finishes on its own (which would also block exit-time join).
+        cancelActiveScanToken();
         m_busy.supersede();
     }
 
@@ -1792,6 +1857,11 @@ void EditorController::Impl::performActionImpl(EditorAction::CancelSaveAsPrompt 
     updateView();
 }
 
+void EditorController::Impl::performActionImpl(EditorAction::CancelBusyOperation /*action*/)
+{
+    cancelBusyOperation();
+}
+
 void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)
 {
     if (!hasLoadedArrangement())
@@ -1877,11 +1947,14 @@ void EditorController::Impl::performActionImpl(EditorAction::ScanPluginCatalog /
 
     auto state = std::make_shared<PluginCatalogTaskState>();
     const std::uint64_t token = beginBusy(BusyOperation::ScanningPlugins);
+    const common::core::CancellationToken cancel;
+    m_plugin_scan_cancel = cancel;
     auto report_progress = makePluginCatalogScanProgress(token);
     m_task_runner.submit(
-        [state, plugin_host = &m_plugin_host, report_progress = std::move(report_progress)] {
-            state->scan_result = plugin_host->scanPluginCatalog(report_progress);
-        },
+        [state,
+         plugin_host = &m_plugin_host,
+         report_progress = std::move(report_progress),
+         cancel] { state->scan_result = plugin_host->scanPluginCatalog(report_progress, cancel); },
         safeCallback([this, state, token] {
             if (!m_busy.isCurrentToken(token))
             {
@@ -1977,6 +2050,8 @@ void EditorController::Impl::completePluginCatalogScan(
     const std::shared_ptr<PluginCatalogTaskState>& state)
 {
     assert(isBusy() && "completePluginCatalogScan called outside a busy operation");
+
+    m_plugin_scan_cancel.reset();
 
     if (!state->scan_result.has_value())
     {
@@ -2263,8 +2338,10 @@ ActionConditions EditorController::Impl::currentActionConditions(
     const InputCalibrationWorkflow::Snapshot& input_calibration,
     const common::audio::TransportState& transport_state) const
 {
+    const std::optional<BusyViewState> busy = m_busy.viewState();
     return ActionConditions{
         .busy = isBusy(),
+        .busy_cancel_available = busy.has_value() && busy->cancel_enabled,
         .input_calibration_prompt_visible = input_calibration.prompt.has_value(),
         .live_input_audition_available = input_calibration.live_input_audition_available,
         .has_project = m_project.has_value(),

@@ -142,7 +142,8 @@ public:
     {}
 
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> scanPluginCatalog(
-        common::audio::PluginCatalogScanProgressCallback = {}) override
+        common::audio::PluginCatalogScanProgressCallback = {},
+        const common::core::CancellationToken& = {}) override
     {
         return {};
     }
