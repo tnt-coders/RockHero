@@ -32,7 +32,7 @@ TEST_CASE("EditorController open begins busy with default message", "[core][edit
     CHECK(busy->message == "Opening project...");
     CHECK(busy->indicator == BusyIndicator::IndeterminateProgress);
     CHECK_FALSE(busy->progress.has_value());
-    CHECK(busy->cancel_enabled == false);
+    CHECK_FALSE(busy->cancel_enabled);
 }
 
 // Open-time normalization validation reports the distinct audio-analysis busy phase.
@@ -62,6 +62,7 @@ TEST_CASE("EditorController open reports audio analysis state", "[core][editor-c
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
     CHECK(busy->message == "Analyzing audio...");
+    CHECK_FALSE(busy->cancel_enabled);
     CHECK(analysis_progress_call_count == 1);
 }
 
@@ -92,6 +93,7 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::ImportingProject);
     CHECK(busy->message == "Importing project...");
+    CHECK_FALSE(busy->cancel_enabled);
 }
 
 // Import-time normalization validation reports the distinct audio-analysis busy phase.
@@ -121,6 +123,7 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
     REQUIRE(busy != nullptr);
     CHECK(busy->operation == BusyOperation::AnalyzingBackingAudio);
     CHECK(busy->message == "Analyzing audio...");
+    CHECK_FALSE(busy->cancel_enabled);
     CHECK(analysis_progress_call_count == 1);
 }
 
