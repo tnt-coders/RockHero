@@ -32,6 +32,7 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/cancellation_token.h>
+#include <rock_hero/common/core/logger.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
@@ -56,9 +57,11 @@ namespace
 // workflow result being handled by the caller.
 void logEditorControllerBestEffortFailure(std::string_view context, const std::string& message)
 {
-    const std::string log_message =
-        "Rock Hero editor best-effort failure (" + std::string{context} + "): " + message;
-    juce::Logger::writeToLog(juce::String::fromUTF8(log_message.c_str()));
+    RH_LOG_WARNING(
+        "editor.controller",
+        "Best-effort cleanup or persistence failed context={} detail={}",
+        context,
+        message);
 }
 
 // Reports a boundary result that violated the product cap before it reaches view state.
