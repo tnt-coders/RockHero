@@ -269,7 +269,8 @@ void Logger::prepareRealtimeThread()
     RealtimeFrontend::preallocate();
 }
 
-// Creates the named normal logger on first request and returns the backend-cached handle thereafter.
+// Creates the named normal logger on first request and returns the backend-cached handle
+// thereafter.
 Logger::Handle Logger::get(Category category)
 {
     return quill::Frontend::create_or_get_logger(

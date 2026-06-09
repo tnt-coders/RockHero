@@ -42,19 +42,34 @@ public:
     /*! \brief Uses default destruction; no backend listener is owned by the view. */
     ~AudioDeviceSettingsView() override;
 
-    /*! \brief Returns the default window width for the current control set. */
+    /*!
+    \brief Returns the default window width for the current control set.
+    \return Preferred window width in pixels.
+    */
     [[nodiscard]] static int preferredWidth() noexcept;
 
-    /*! \brief Returns the preferred window height for the currently visible controls. */
+    /*!
+    \brief Returns the preferred window height for the currently visible controls.
+    \return Preferred content height in pixels.
+    */
     [[nodiscard]] int preferredContentHeight() const noexcept;
 
-    /*! \brief Returns the minimum usable window width. */
+    /*!
+    \brief Returns the minimum usable window width.
+    \return Minimum window width in pixels.
+    */
     [[nodiscard]] static int minimumWidth() noexcept;
 
-    /*! \brief Returns the maximum useful window width. */
+    /*!
+    \brief Returns the maximum useful window width.
+    \return Maximum window width in pixels.
+    */
     [[nodiscard]] static int maximumWidth() noexcept;
 
-    /*! \brief Returns the maximum useful window height. */
+    /*!
+    \brief Returns the maximum useful window height.
+    \return Maximum window height in pixels.
+    */
     [[nodiscard]] static int maximumHeight() noexcept;
 
     /*!

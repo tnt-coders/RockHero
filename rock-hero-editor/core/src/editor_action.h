@@ -43,6 +43,7 @@ struct EditorAction
             : file(std::move(file_value))
         {}
 
+        /*! \brief Project package path selected by the user. */
         std::filesystem::path file;
     };
 
@@ -57,6 +58,7 @@ struct EditorAction
             : file(std::move(file_value))
         {}
 
+        /*! \brief Persisted project package path to restore at startup. */
         std::filesystem::path file;
     };
 
@@ -71,6 +73,7 @@ struct EditorAction
             : file(std::move(file_value))
         {}
 
+        /*! \brief Song source path selected by the user. */
         std::filesystem::path file;
     };
 
@@ -90,6 +93,7 @@ struct EditorAction
             : file(std::move(file_value))
         {}
 
+        /*! \brief Project package destination path. */
         std::filesystem::path file;
     };
 
@@ -104,6 +108,7 @@ struct EditorAction
             : file(std::move(file_value))
         {}
 
+        /*! \brief Native song package destination path. */
         std::filesystem::path file;
     };
 
@@ -129,6 +134,7 @@ struct EditorAction
             : decision(decision_value)
         {}
 
+        /*! \brief User-selected unsaved-changes decision. */
         UnsavedChangesDecision decision;
     };
 
@@ -163,6 +169,7 @@ struct EditorAction
             : normalized_x(normalized_x_value)
         {}
 
+        /*! \brief Waveform x coordinate normalized to the interval [0, 1]. */
         double normalized_x;
     };
 
@@ -185,7 +192,10 @@ struct EditorAction
             , block_index(block_index_value)
         {}
 
+        /*! \brief User-visible insertion slot while the current chain has capacity. */
         std::size_t chain_index{};
+
+        /*! \brief Fixed visual block the inserted plugin should occupy. */
         std::size_t block_index{};
     };
 
@@ -205,6 +215,7 @@ struct EditorAction
             : plugin_id(std::move(plugin_id_value))
         {}
 
+        /*! \brief Opaque plugin ID selected by the user. */
         std::string plugin_id;
     };
 
@@ -219,6 +230,7 @@ struct EditorAction
             : instance_id(std::move(instance_id_value))
         {}
 
+        /*! \brief Opaque plugin instance ID selected by the user. */
         std::string instance_id;
     };
 
@@ -239,8 +251,13 @@ struct EditorAction
             , placement(std::move(placement_value))
         {}
 
+        /*! \brief Opaque plugin instance ID selected by the user. */
         std::string instance_id;
+
+        /*! \brief Final user-visible chain index for the instance. */
         std::size_t destination_index{};
+
+        /*! \brief Fixed visual block assignments after the move. */
         std::vector<PluginBlockAssignment> placement;
     };
 
@@ -255,6 +272,7 @@ struct EditorAction
             : placement(std::move(placement_value))
         {}
 
+        /*! \brief Fixed visual block assignments for current plugin instances. */
         std::vector<PluginBlockAssignment> placement;
     };
 
@@ -272,7 +290,10 @@ struct EditorAction
             , display_type(display_type_value)
         {}
 
+        /*! \brief Opaque plugin instance ID selected by the user. */
         std::string instance_id;
+
+        /*! \brief Manual display type, or empty to use automatic classification. */
         std::optional<PluginDisplayType> display_type;
     };
 
@@ -287,6 +308,7 @@ struct EditorAction
             : instance_id(std::move(instance_id_value))
         {}
 
+        /*! \brief Opaque plugin instance ID selected by the user. */
         std::string instance_id;
     };
 

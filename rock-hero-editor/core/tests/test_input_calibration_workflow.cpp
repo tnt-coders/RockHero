@@ -12,6 +12,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
+// Builds a physical input identity with defaults that represent one stable ASIO route.
 [[nodiscard]] common::audio::InputDeviceIdentity makeIdentity(
     std::string backend_name = "ASIO", std::string input_device_name = "Interface A",
     int input_channel_index = 0, std::string input_channel_name = "Input 1")
@@ -24,6 +25,7 @@ namespace
     };
 }
 
+// Builds controller context where arrangement audio is loaded and live input may be calibrated.
 [[nodiscard]] InputCalibrationWorkflow::Context readyContext(
     std::optional<common::audio::InputDeviceIdentity> identity)
 {
@@ -34,6 +36,7 @@ namespace
     };
 }
 
+// Builds a saved calibration state for route-matching workflow tests.
 [[nodiscard]] common::audio::InputCalibrationState calibrationFor(
     const common::audio::InputDeviceIdentity& identity, double gain_db = 4.0)
 {
@@ -43,6 +46,7 @@ namespace
     };
 }
 
+// Checks whether a transition requested a specific live-input side effect.
 [[nodiscard]] bool hasEffect(
     const InputCalibrationWorkflow::Effects& effects, InputCalibrationWorkflow::Effect expected)
 {
@@ -51,6 +55,7 @@ namespace
 
 } // namespace
 
+// Invalid persisted calibration should not attach to a newly detected input route.
 TEST_CASE("Input calibration workflow ignores invalid saved identity", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -67,6 +72,7 @@ TEST_CASE("Input calibration workflow ignores invalid saved identity", "[core][w
     CHECK_FALSE(workflow.activeCalibrationState().has_value());
 }
 
+// Startup restore should make a matching saved calibration immediately available.
 TEST_CASE("Input calibration workflow preserves matching startup calibration", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -82,6 +88,7 @@ TEST_CASE("Input calibration workflow preserves matching startup calibration", "
     CHECK(snapshot.live_input_audition_available);
 }
 
+// Physical channels may be renamed by the OS while still representing the same input route.
 TEST_CASE("Input calibration workflow accepts renamed physical channel", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -108,6 +115,7 @@ TEST_CASE("Input calibration workflow accepts renamed physical channel", "[core]
     }
 }
 
+// Switching to a different unsaved route clears prompt and measurement state together.
 TEST_CASE(
     "Input calibration workflow clears active state on unsaved route change", "[core][workflow]")
 {
@@ -137,6 +145,7 @@ TEST_CASE(
         InputCalibrationStatus::MissingCalibration);
 }
 
+// Switching routes should adopt the saved calibration supplied for the new route.
 TEST_CASE("Input calibration workflow selects saved state on route change", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -162,6 +171,7 @@ TEST_CASE("Input calibration workflow selects saved state on route change", "[co
     CHECK(workflow.calibrationMatches(next_identity));
 }
 
+// Returning to a route should restore its matching saved calibration.
 TEST_CASE(
     "Input calibration workflow restores saved state when returning to route", "[core][workflow]")
 {
@@ -192,6 +202,7 @@ TEST_CASE(
     CHECK(workflow.calibrationMatches(initial_identity));
 }
 
+// Settings dialogs may briefly report no route; that should not erase current calibration.
 TEST_CASE("Input calibration workflow ignores transient null route in settings", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -214,6 +225,7 @@ TEST_CASE("Input calibration workflow ignores transient null route in settings",
     CHECK_FALSE(snapshot.audio_device_settings_enabled);
 }
 
+// Temporary route loss should stop prompt/measurement state but preserve saved calibration.
 TEST_CASE("Input calibration workflow preserves calibration through route loss", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -254,6 +266,7 @@ TEST_CASE("Input calibration workflow preserves calibration through route loss",
     CHECK(restored_snapshot.live_input_audition_available);
 }
 
+// Backend failure should hide the prompt while preserving the last usable calibration value.
 TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[core][workflow]")
 {
     InputCalibrationWorkflow workflow;
@@ -276,6 +289,7 @@ TEST_CASE("Input calibration workflow closes prompt on backend unavailable", "[c
     }
 }
 
+// Measurement start is rejected when no calibration state has been selected for the route.
 TEST_CASE("Input calibration workflow rejects stale measurement start", "[core][workflow]")
 {
     const InputCalibrationWorkflow workflow;
@@ -287,6 +301,7 @@ TEST_CASE("Input calibration workflow rejects stale measurement start", "[core][
     CHECK(measurement.error().code == common::audio::LiveInputErrorCode::InputRouteUnavailable);
 }
 
+// Commit failure should restore the prior calibration and mark live audition unavailable.
 TEST_CASE(
     "Input calibration workflow preserves previous calibration on commit failure",
     "[core][workflow]")

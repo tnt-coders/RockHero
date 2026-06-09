@@ -36,9 +36,16 @@ namespace rock_hero::editor::ui
 using testing::findDescendant;
 using testing::findRequiredDescendant;
 using testing::makeMouseDownEvent;
+
+/*! \brief Short alias for the shared recording thumbnail factory fake. */
 using RecordingThumbnailFactory = common::audio::testing::RecordingThumbnailFactory;
 
-// Returns NaN for empty optionals so Approx checks fail without unchecked optional access.
+/*!
+\brief Returns NaN for empty optionals so Approx checks fail without unchecked optional access.
+\tparam Value Numeric value type accepted by Catch2 Approx.
+\param value Optional value read from view state.
+\return Contained value, or quiet NaN when the optional is empty.
+*/
 template <typename Value>
 [[nodiscard]] inline Value optionalValueForApprox(const std::optional<Value>& value)
 {
@@ -161,6 +168,10 @@ public:
     common::audio::AudioMeterLevel raw_input_meter_level{};
 };
 
+/*!
+\brief Supplies a default audio-device port for editor-view tests.
+\return Process-lifetime configurable audio-device fake.
+*/
 [[nodiscard]] inline common::audio::testing::ConfigurableAudioDeviceConfiguration&
 defaultAudioDevices() noexcept
 {
@@ -168,18 +179,32 @@ defaultAudioDevices() noexcept
     return audio_devices;
 }
 
+/*!
+\brief Supplies a default audio-meter source for editor-view tests.
+\return Process-lifetime fake audio-meter source.
+*/
 [[nodiscard]] inline FakeAudioMeterSource& defaultAudioMeterSource() noexcept
 {
     static FakeAudioMeterSource meter_source;
     return meter_source;
 }
 
+/*!
+\brief Supplies a default live-input port for editor-view tests.
+\return Process-lifetime fake live-input port.
+*/
 [[nodiscard]] inline FakeLiveInput& defaultLiveInput() noexcept
 {
     static FakeLiveInput live_input;
     return live_input;
 }
 
+/*!
+\brief Builds the editor view audio-port bundle used by most tests.
+\param transport Transport fake used by the view under test.
+\param thumbnail_factory Thumbnail factory fake used by the view under test.
+\return EditorView audio-port bundle.
+*/
 [[nodiscard]] inline EditorView::AudioPorts viewAudioPorts(
     const FakeTransport& transport, RecordingThumbnailFactory& thumbnail_factory) noexcept
 {
@@ -192,6 +217,13 @@ defaultAudioDevices() noexcept
     };
 }
 
+/*!
+\brief Builds the editor view audio-port bundle with a custom meter source.
+\param transport Transport fake used by the view under test.
+\param thumbnail_factory Thumbnail factory fake used by the view under test.
+\param meter_source Meter-source fake used by the view under test.
+\return EditorView audio-port bundle.
+*/
 [[nodiscard]] inline EditorView::AudioPorts viewAudioPorts(
     const FakeTransport& transport, RecordingThumbnailFactory& thumbnail_factory,
     const FakeAudioMeterSource& meter_source) noexcept
@@ -205,7 +237,13 @@ defaultAudioDevices() noexcept
     };
 }
 
-// Returns a required desktop-level component by id and type for popups outside the view tree.
+/*!
+\brief Returns a required desktop-level component by id and type for popups outside the view tree.
+\tparam ComponentType Expected top-level JUCE component type.
+\param id Component ID to find.
+\return Matching top-level component.
+\throws std::runtime_error when the component is missing or has the wrong type.
+*/
 template <class ComponentType>
 [[nodiscard]] inline ComponentType& findRequiredTopLevelComponent(const juce::String& id)
 {
@@ -228,7 +266,12 @@ template <class ComponentType>
     throw std::runtime_error{"Missing top-level component: " + id.toStdString()};
 }
 
-// Returns the play/pause button from the transport-controls child.
+/*!
+\brief Returns the play/pause button from the transport-controls child.
+\param controls Transport controls to inspect.
+\return Play/pause button child.
+\throws std::runtime_error when the child is missing.
+*/
 [[nodiscard]] inline juce::DrawableButton& getPlayPauseButton(TransportControls& controls)
 {
     auto* button =
@@ -240,7 +283,12 @@ template <class ComponentType>
     return *button;
 }
 
-// Returns the stop button from the transport-controls child.
+/*!
+\brief Returns the stop button from the transport-controls child.
+\param controls Transport controls to inspect.
+\return Stop button child.
+\throws std::runtime_error when the child is missing.
+*/
 [[nodiscard]] inline juce::DrawableButton& getStopButton(TransportControls& controls)
 {
     auto* button = dynamic_cast<juce::DrawableButton*>(controls.findChildWithID("stop_button"));
@@ -251,7 +299,12 @@ template <class ComponentType>
     return *button;
 }
 
-// Builds arrangement view state for editor-view tests that need thumbnail source propagation.
+/*!
+\brief Builds arrangement view state for editor-view tests that need thumbnail source propagation.
+\param path Backing audio path assigned to the arrangement state.
+\param duration_seconds Audio duration assigned to the arrangement state.
+\return Arrangement view-state fixture.
+*/
 [[nodiscard]] inline core::ArrangementViewState makeArrangementState(
     std::filesystem::path path, double duration_seconds = 4.0)
 {
@@ -262,7 +315,11 @@ template <class ComponentType>
     };
 }
 
-// Builds a loaded editor state with a full-source timeline for viewport layout tests.
+/*!
+\brief Builds a loaded editor state with a full-source timeline for viewport layout tests.
+\param duration_seconds Audio duration and visible timeline end.
+\return Loaded editor view-state fixture.
+*/
 [[nodiscard]] inline core::EditorViewState makeLoadedEditorState(double duration_seconds)
 {
     return core::EditorViewState{
@@ -303,19 +360,33 @@ template <class ComponentType>
     };
 }
 
-// Returns the default timeline-canvas height after reserving the horizontal scrollbar.
+/*!
+\brief Returns the default timeline-canvas height after reserving the horizontal scrollbar.
+\param viewport Viewport whose scrollbar thickness should be reserved.
+\return Default usable track viewport height in pixels.
+*/
 [[nodiscard]] inline int defaultUsableTrackViewportHeight(const juce::Viewport& viewport)
 {
     return 720 - viewport.getScrollBarThickness();
 }
 
-// Returns the fixed track row height that allows three tracks at the default size.
+/*!
+\brief Returns the fixed track row height that allows three tracks at the default size.
+\param viewport Viewport whose usable height should be divided into track rows.
+\return Default track row height in pixels.
+*/
 [[nodiscard]] inline int defaultTrackHeight(const juce::Viewport& viewport)
 {
     return defaultUsableTrackViewportHeight(viewport) / 3;
 }
 
-// Returns a plain menu item by id; these are not JUCE command-manager-backed items.
+/*!
+\brief Returns a plain menu item by id; these are not JUCE command-manager-backed items.
+\param menu Popup menu to inspect.
+\param item_id JUCE menu item ID to find.
+\return Matching popup menu item.
+\throws std::runtime_error when the item is missing.
+*/
 [[nodiscard]] inline juce::PopupMenu::Item requiredMenuItem(
     const juce::PopupMenu& menu, int item_id)
 {

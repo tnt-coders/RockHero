@@ -41,7 +41,7 @@ public:
 
     /*!
     \brief Sets the displayed label.
-    \param text New label text shown in the menu strip.
+    \param label_text New label text shown in the menu strip.
     */
     void setText(const juce::String& label_text);
 
