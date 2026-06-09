@@ -65,6 +65,14 @@ public:
         BusyOperation operation, std::function<void()> work,
         std::function<void()> after_cleared = {});
 
+    /*!
+    \brief Runs a callback on the message thread once the busy overlay has painted.
+
+    The callback is not offloaded to a worker thread; it runs synchronously on the message thread
+    after the busy overlay is visible. This lets a blocking message-thread operation, such as plugin
+    instantiation, start only after the "busy" overlay has actually appeared, so the user sees it
+    before that operation freezes the thread.
+    */
     void runAfterBusyPresentationReady(std::function<void()> callback);
 
     [[nodiscard]] bool postToMessageThread(std::function<void()> callback);

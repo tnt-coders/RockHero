@@ -22,6 +22,7 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/logger.h>
 #include <rock_hero/common/core/package_id.h>
 #include <string>
 #include <string_view>
@@ -120,10 +121,11 @@ constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 void logPluginCatalogScanSummary(
     const std::size_t candidate_paths, const std::chrono::milliseconds total_duration)
 {
-    const std::string message =
-        "Rock Hero plugin catalog scan: " + std::to_string(candidate_paths) + " VST3 path(s), " +
-        std::to_string(total_duration.count()) + " ms total";
-    juce::Logger::writeToLog(juce::String::fromUTF8(message.c_str()));
+    RH_LOG_INFO(
+        "audio.plugin_catalog_scan",
+        "Plugin catalog scan completed candidate_paths={} duration_ms={}",
+        candidate_paths,
+        total_duration.count());
 }
 
 void reportPluginCatalogScanProgress(
@@ -147,16 +149,25 @@ void logPluginValidationSummary(
     const std::filesystem::path& plugin_path, const std::chrono::milliseconds total_duration,
     const std::optional<std::string>& failure_message)
 {
-    std::string message = "Rock Hero plugin validation: " + pathToUtf8String(plugin_path) + " " +
-                          (failure_message.has_value() ? "failed" : "succeeded") + " in " +
-                          std::to_string(total_duration.count()) + " ms";
+    const std::string plugin_path_text = pathToUtf8String(plugin_path);
+
     if (failure_message.has_value() && !failure_message->empty())
     {
-        message += ": ";
-        message += *failure_message;
+        RH_LOG_WARNING(
+            "audio.plugin_validation",
+            "Plugin validation failed plugin_path={} duration_ms={} error={}",
+            plugin_path_text,
+            total_duration.count(),
+            *failure_message);
     }
-
-    juce::Logger::writeToLog(juce::String::fromUTF8(message.c_str()));
+    else
+    {
+        RH_LOG_INFO(
+            "audio.plugin_validation",
+            "Plugin validation succeeded plugin_path={} duration_ms={}",
+            plugin_path_text,
+            total_duration.count());
+    }
 }
 
 // Cancels Tracktion's custom plugin scanner if a child-process scan never replies.
@@ -291,7 +302,10 @@ struct LiveRigLoadOperation
 // error.
 void logInstrumentMonitoringFailure(const juce::String& message)
 {
-    juce::Logger::writeToLog("Rock Hero instrument monitoring: " + message);
+    RH_LOG_WARNING(
+        "audio.instrument_monitoring",
+        "Instrument monitoring route failed detail={}",
+        message.toStdString());
 }
 
 // Converts a route-bind failure into the live-input error surface used by calibration setup.

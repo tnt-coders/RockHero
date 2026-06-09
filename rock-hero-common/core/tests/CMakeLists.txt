@@ -11,6 +11,7 @@ add_executable(
     test_difficulty.cpp
     test_timeline.cpp
     test_juce_path.cpp
+    test_logger.cpp
     test_rock_song_package.cpp)
 
 # These tests stay focused on shared domain behavior and native song package rules.
