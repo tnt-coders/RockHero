@@ -87,22 +87,22 @@ public:
         }
 
         const std::filesystem::path log_file = editorLogFile();
-        const Logger::InitResult logging_result = Logger::init(
-            Logger::Config{
-                .log_file = log_file,
-                .max_file_size_bytes = max_log_file_size_bytes,
-            });
-        m_logging_started = logging_result.backend_started;
-        if (logging_result.file_sink_active)
+        const std::expected<void, rock_hero::common::core::LoggerError> logging_result =
+            Logger::init(
+                Logger::Config{
+                    .log_file = log_file,
+                    .max_file_size_bytes = max_log_file_size_bytes,
+                });
+        m_logging_started = logging_result.has_value();
+        if (logging_result.has_value())
         {
             RH_LOG_INFO("editor.app", "Rock Hero Editor started log_file={}", log_file.string());
         }
-        else if (!logging_result.failure_message.empty())
+        else
         {
             juce::Logger::writeToLog(
-                "Rock Hero Editor file logger could not be opened; continuing without file "
-                "logging: " +
-                juce::String::fromUTF8(logging_result.failure_message.c_str()));
+                "Rock Hero Editor logging could not be started; continuing without logging: " +
+                juce::String::fromUTF8(logging_result.error().message.c_str()));
         }
 
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
