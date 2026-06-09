@@ -78,7 +78,10 @@ public:
     /*! \brief Copy assignment is disabled because workspace ownership is unique. */
     Project& operator=(const Project&) = delete;
 
-    /*! \brief Transfers project package state and workspace ownership from another project. */
+    /*!
+    \brief Transfers project package state and workspace ownership from another project.
+    \param other Project to move from.
+    */
     Project(Project&& other) noexcept;
 
     /*!

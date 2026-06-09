@@ -44,10 +44,17 @@ struct [[nodiscard]] AudioDeviceSettingsError
     /*! \brief User-facing or diagnostic error message. */
     std::string message;
 
-    /*! \brief Creates an error with the default message for its code. */
+    /*!
+    \brief Creates an error with the default message for its code.
+    \param error_code Stable error code used by callers for branching.
+    */
     explicit AudioDeviceSettingsError(AudioDeviceSettingsErrorCode error_code);
 
-    /*! \brief Creates an error with operation-specific detail. */
+    /*!
+    \brief Creates an error with operation-specific detail.
+    \param error_code Stable error code used by callers for branching.
+    \param message_text User-facing or diagnostic error message.
+    */
     AudioDeviceSettingsError(AudioDeviceSettingsErrorCode error_code, std::string message_text);
 };
 
@@ -173,28 +180,52 @@ public:
     */
     [[nodiscard]] virtual AudioDeviceSettingsState state() const = 0;
 
-    /*! \brief Selects an audio system by one-based choice ID. */
+    /*!
+    \brief Selects an audio system by one-based choice ID.
+    \param choice_id One-based audio-system choice ID, or zero to clear selection.
+    */
     virtual void selectAudioSystem(int choice_id) = 0;
 
-    /*! \brief Selects a combined input/output device by one-based choice ID. */
+    /*!
+    \brief Selects a combined input/output device by one-based choice ID.
+    \param choice_id One-based combined-device choice ID, or zero to clear selection.
+    */
     virtual void selectDevice(int choice_id) = 0;
 
-    /*! \brief Selects an input device by one-based choice ID. */
+    /*!
+    \brief Selects an input device by one-based choice ID.
+    \param choice_id One-based input-device choice ID, or zero to clear selection.
+    */
     virtual void selectInputDevice(int choice_id) = 0;
 
-    /*! \brief Selects an output device by one-based choice ID. */
+    /*!
+    \brief Selects an output device by one-based choice ID.
+    \param choice_id One-based output-device choice ID, or zero to clear selection.
+    */
     virtual void selectOutputDevice(int choice_id) = 0;
 
-    /*! \brief Selects a mono input channel by one-based choice ID. */
+    /*!
+    \brief Selects a mono input channel by one-based choice ID.
+    \param choice_id One-based input-channel choice ID, or zero to clear selection.
+    */
     virtual void selectInputChannel(int choice_id) = 0;
 
-    /*! \brief Selects a stereo output pair by one-based choice ID. */
+    /*!
+    \brief Selects a stereo output pair by one-based choice ID.
+    \param choice_id One-based stereo-output-pair choice ID, or zero to clear selection.
+    */
     virtual void selectStereoOutputPair(int choice_id) = 0;
 
-    /*! \brief Selects a sample rate by one-based choice ID. */
+    /*!
+    \brief Selects a sample rate by one-based choice ID.
+    \param choice_id One-based sample-rate choice ID, or zero to clear selection.
+    */
     virtual void selectSampleRate(int choice_id) = 0;
 
-    /*! \brief Selects a buffer size by one-based choice ID. */
+    /*!
+    \brief Selects a buffer size by one-based choice ID.
+    \param choice_id One-based buffer-size choice ID, or zero to clear selection.
+    */
     virtual void selectBufferSize(int choice_id) = 0;
 
     /*!
@@ -289,19 +320,88 @@ public:
     /*! \brief Move assignment is disabled because listener identity must remain stable. */
     AudioDeviceSettings& operator=(AudioDeviceSettings&&) = delete;
 
+    /*!
+    \brief Returns the current staged settings snapshot.
+    \return Current staged settings state.
+    */
     [[nodiscard]] AudioDeviceSettingsState state() const override;
+
+    /*!
+    \brief Selects an audio system by one-based choice ID.
+    \param choice_id One-based audio-system choice ID, or zero to clear selection.
+    */
     void selectAudioSystem(int choice_id) override;
+
+    /*!
+    \brief Selects a combined input/output device by one-based choice ID.
+    \param choice_id One-based combined-device choice ID, or zero to clear selection.
+    */
     void selectDevice(int choice_id) override;
+
+    /*!
+    \brief Selects an input device by one-based choice ID.
+    \param choice_id One-based input-device choice ID, or zero to clear selection.
+    */
     void selectInputDevice(int choice_id) override;
+
+    /*!
+    \brief Selects an output device by one-based choice ID.
+    \param choice_id One-based output-device choice ID, or zero to clear selection.
+    */
     void selectOutputDevice(int choice_id) override;
+
+    /*!
+    \brief Selects a mono input channel by one-based choice ID.
+    \param choice_id One-based input-channel choice ID, or zero to clear selection.
+    */
     void selectInputChannel(int choice_id) override;
+
+    /*!
+    \brief Selects a stereo output pair by one-based choice ID.
+    \param choice_id One-based stereo-output-pair choice ID, or zero to clear selection.
+    */
     void selectStereoOutputPair(int choice_id) override;
+
+    /*!
+    \brief Selects a sample rate by one-based choice ID.
+    \param choice_id One-based sample-rate choice ID, or zero to clear selection.
+    */
     void selectSampleRate(int choice_id) override;
+
+    /*!
+    \brief Selects a buffer size by one-based choice ID.
+    \param choice_id One-based buffer-size choice ID, or zero to clear selection.
+    */
     void selectBufferSize(int choice_id) override;
+
+    /*!
+    \brief Applies the staged route to the active audio backend.
+    \return Empty success, or a typed settings failure.
+    */
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> apply() override;
+
+    /*!
+    \brief Restores the captured route when this settings edit is canceled.
+    \return Empty success, or a typed settings failure.
+    */
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> cancel() override;
+
+    /*!
+    \brief Opens the backend control panel for the staged route.
+    \return Empty success, or a typed settings failure.
+    */
     [[nodiscard]] std::expected<void, AudioDeviceSettingsError> openControlPanel() override;
+
+    /*!
+    \brief Registers a listener notified after external settings changes.
+    \param listener Listener that should be notified until it is removed.
+    */
     void addListener(Listener& listener) override;
+
+    /*!
+    \brief Removes a previously registered listener.
+    \param listener Listener previously registered with addListener().
+    */
     void removeListener(Listener& listener) override;
 
 private:

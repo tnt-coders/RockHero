@@ -3,7 +3,7 @@
 Input calibration sets the pre-effects guitar input gain used by Rock Hero. The calibration target
 is **-12 dBFS average** with peaks no higher than **-6 dBFS**.
 
-## Recommended Method
+# Recommended Method
 
 Use manual calibration when the exact specifications for the device are known. Set the input gain
 so the specified device level maps to the target level in Rock Hero.
@@ -11,7 +11,7 @@ so the specified device level maps to the target level in Rock Hero.
 Use automatic calibration when the device does not provide reliable gain specifications or when
 using a Windows audio device such as a Real Tone cable.
 
-## Known Unity-Gain Device Settings
+# Known Unity-Gain Device Settings
 
 These settings are starting points for manual calibration when the hardware input gain is at
 minimum or `0.0 dB`, the guitar is connected to the instrument or Hi-Z input, and any pad, boost,

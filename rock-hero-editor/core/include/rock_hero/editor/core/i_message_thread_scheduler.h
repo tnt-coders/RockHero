@@ -10,16 +10,26 @@
 
 namespace rock_hero::editor::core
 {
-/// Schedules work onto the UI message thread.
+/*! \brief Schedules work onto the UI message thread. */
 class IMessageThreadScheduler
 {
 public:
+    /*! \brief Destroys the scheduler interface. */
     virtual ~IMessageThreadScheduler() = default;
 
-    /// Posts work for asynchronous execution on the message thread.
+    /*!
+    \brief Posts work for asynchronous execution on the message thread.
+    \param work Callback to invoke on the message thread.
+    \return True when the callback was accepted for delivery.
+    */
     [[nodiscard]] virtual bool postToMessageThread(std::function<void()> work) = 0;
 
-    /// Posts work for delayed execution on the message thread.
+    /*!
+    \brief Posts work for delayed execution on the message thread.
+    \param delay Minimum delay before the callback should run.
+    \param work Callback to invoke on the message thread.
+    \return True when the delayed callback was accepted for delivery.
+    */
     [[nodiscard]] virtual bool callAfterDelay(
         std::chrono::milliseconds delay, std::function<void()> work) = 0;
 };

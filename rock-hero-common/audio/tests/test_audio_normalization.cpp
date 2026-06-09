@@ -135,7 +135,8 @@ TEST_CASE(
     CHECK(result.error().code == AudioNormalizationErrorCode::InputFileMissing);
 }
 
-// Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense gain.
+// Verifies silent inputs fail with SilentInputCannotBeNormalized instead of producing nonsense
+// gain.
 TEST_CASE(
     "analyzeAudioForGainNormalization rejects silent input", "[common-audio][audio-normalization]")
 {

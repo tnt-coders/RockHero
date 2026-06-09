@@ -1,9 +1,44 @@
 # Documentation Conventions Audit Plan
 
-Status: in-progress planning note. The project has a canonical
-`docs/design/documentation-conventions.md`, but the codebase has never had a full sweep to confirm
-every project-owned file actually follows it. This plan scopes that audit and the remediation it
-produces. It is a compliance pass against an existing standard, not a change to the standard.
+Status: implemented audit record. The project has a canonical
+`docs/design/documentation-conventions.md`, but the codebase had not had a full sweep to confirm
+every project-owned file actually follows it. This document records the audit scope, remediation,
+and follow-up gate decision. It is a compliance pass against an existing standard, not a change to
+the standard.
+
+## Implementation Result
+
+Implemented on 2026-06-09.
+
+- Cleared all Doxygen warnings emitted by the configured `docs` target for project-owned inputs,
+  including missing `\param`, `\tparam`, `\return`, undocumented enum values, undocumented macros,
+  and broken explicit-link requests.
+- Converted remaining `///` Doxygen comments in project-owned headers touched by the audit to the
+  canonical `/*! ... */` block style.
+- Confirmed no Doxygen comment markers remain in project-owned `.cpp` files.
+- Confirmed no at-sign Doxygen commands remain in project-owned code or Doxygen Markdown inputs.
+- Added regular comments immediately above every `TEST_CASE` found by the audit scan.
+- Wrapped project-owned source and CMake comment lines found over 100 columns.
+- Added intent comments for product umbrella CMake targets and placeholder module targets that had
+  no target-purpose comments.
+
+Verification commands used:
+
+```powershell
+& 'C:\Program Files\doxygen\bin\doxygen.exe' -q build/debug/Doxyfile
+cmd.exe /d /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 && ninja -C build/debug docs'
+```
+
+Gate decision:
+
+- Keep the existing Doxygen `docs` target as the repeatable machine check for header documentation
+  completeness. It already has `WARN_NO_PARAMDOC = YES` and `WARN_IF_UNDOC_ENUM_VAL = YES`.
+- Do not add a new maintained triage script in this pass. The useful checks were simple one-off
+  scans for Doxygen markers in `.cpp`, at-sign commands, overlong comment lines, and missing
+  `TEST_CASE` comments; keeping those as a script would add maintenance surface before there is a
+  demonstrated need.
+- Do not change CI/pre-commit gating in this pass. Making Doxygen warnings fatal in CI is deferred
+  until the project intentionally changes its build policy for documentation warnings.
 
 ## Goal
 

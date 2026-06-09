@@ -29,7 +29,12 @@ success and error channels.
 class RecordingPluginHost final : public IPluginHost
 {
 public:
-    /*! \brief Records a default catalog scan and refreshes the known catalog on success. */
+    /*!
+    \brief Records a default catalog scan and refreshes the known catalog on success.
+    \param progress_callback Optional callback receiving configured scan progress.
+    \param cancel Cancellation token observed before each configured progress payload.
+    \return Empty success or the next configured catalog-scan error.
+    */
     [[nodiscard]] std::expected<void, PluginHostError> scanPluginCatalog(
         PluginCatalogScanProgressCallback progress_callback = {},
         const common::core::CancellationToken& cancel = {}) override
@@ -60,7 +65,12 @@ public:
         return {};
     }
 
-    /*! \brief Records explicit scan roots and returns the configured catalog candidates. */
+    /*!
+    \brief Records explicit scan roots and returns the configured catalog candidates.
+    \param roots Plugin files or directories requested by the object under test.
+    \param progress_callback Optional callback receiving configured scan progress.
+    \return Configured catalog candidates or the next configured catalog-scan error.
+    */
     [[nodiscard]] std::expected<std::vector<PluginCandidate>, PluginHostError> scanPluginLocations(
         const std::vector<std::filesystem::path>& roots,
         PluginCatalogScanProgressCallback progress_callback = {}) override
@@ -83,14 +93,22 @@ public:
         return next_catalog_candidates;
     }
 
-    /*! \brief Returns the configured known catalog without simulating an expensive scan. */
+    /*!
+    \brief Returns the configured known catalog without simulating an expensive scan.
+    \return Configured known plugin catalog.
+    */
     [[nodiscard]] std::vector<PluginCandidate> knownPluginCatalog() const override
     {
         known_candidates_call_count += 1;
         return next_known_candidates;
     }
 
-    /*! \brief Records a plugin insertion request and mutates the in-memory chain. */
+    /*!
+    \brief Records a plugin insertion request and mutates the in-memory chain.
+    \param plugin_candidate Candidate requested for insertion.
+    \param chain_index User-visible insertion index.
+    \return Updated chain snapshot, or a configured/validation failure.
+    */
     [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(
         const PluginCandidate& plugin_candidate, std::size_t chain_index) override
     {
@@ -129,7 +147,12 @@ public:
         return snapshot();
     }
 
-    /*! \brief Records a plugin move request and mutates the in-memory chain. */
+    /*!
+    \brief Records a plugin move request and mutates the in-memory chain.
+    \param instance_id Runtime plugin instance requested for movement.
+    \param destination_index Destination user-visible chain index.
+    \return Updated chain snapshot, or a configured/validation failure.
+    */
     [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> movePlugin(
         const std::string& instance_id, std::size_t destination_index) override
     {
@@ -169,7 +192,11 @@ public:
         return snapshot();
     }
 
-    /*! \brief Records a plugin removal request and mutates the in-memory chain. */
+    /*!
+    \brief Records a plugin removal request and mutates the in-memory chain.
+    \param instance_id Runtime plugin instance requested for removal.
+    \return Updated chain snapshot, or a configured/validation failure.
+    */
     [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> removePlugin(
         const std::string& instance_id) override
     {
@@ -194,7 +221,11 @@ public:
         return snapshot();
     }
 
-    /*! \brief Records a plugin editor-window request and returns the configured outcome. */
+    /*!
+    \brief Records a plugin editor-window request and returns the configured outcome.
+    \param instance_id Runtime plugin instance whose editor was requested.
+    \return Empty success or the next configured open-window error.
+    */
     [[nodiscard]] std::expected<void, PluginHostError> openPluginWindow(
         const std::string& instance_id) override
     {

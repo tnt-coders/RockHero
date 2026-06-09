@@ -374,7 +374,8 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
     CHECK(read_song.error().message.find("tone document") != std::string::npos);
 }
 
-// Verifies songs whose backing audio carries normalization metadata round-trip every persisted field.
+// Verifies songs whose backing audio carries normalization metadata round-trip every persisted
+// field.
 TEST_CASE("Rock song package round-trips normalization metadata", "[core][rock-song-package]")
 {
     const TemporaryRockSongPackageDirectory temporary_directory;

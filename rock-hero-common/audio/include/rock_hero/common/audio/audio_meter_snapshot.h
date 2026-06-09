@@ -11,13 +11,19 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Lowest decibel value shown by Rock Hero peak meters. */
+/*!
+\brief Returns the lowest decibel value shown by Rock Hero peak meters.
+\return Minimum display meter value in decibels full scale.
+*/
 [[nodiscard]] constexpr double minimumAudioMeterDb() noexcept
 {
     return -60.0;
 }
 
-/*! \brief Decibel value treated as clipping for Rock Hero peak meters. */
+/*!
+\brief Returns the decibel value treated as clipping for Rock Hero peak meters.
+\return Clipping threshold in decibels full scale.
+*/
 [[nodiscard]] constexpr double clippingAudioMeterDb() noexcept
 {
     return 0.0;
