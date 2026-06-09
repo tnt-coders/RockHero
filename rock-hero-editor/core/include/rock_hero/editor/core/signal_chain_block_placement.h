@@ -42,13 +42,22 @@ public:
     [[nodiscard]] static std::optional<SignalChainBlockPlacement> fromIndices(
         std::vector<std::size_t> blocks, std::size_t block_count);
 
-    /*! \brief Returns the number of plugins assigned to blocks. */
+    /*!
+    \brief Returns the number of plugins assigned to blocks.
+    \return Number of plugin assignments.
+    */
     [[nodiscard]] std::size_t pluginCount() const noexcept;
 
-    /*! \brief Returns the number of fixed visual blocks the placement spans. */
+    /*!
+    \brief Returns the number of fixed visual blocks the placement spans.
+    \return Fixed visual block count.
+    */
     [[nodiscard]] std::size_t blockCount() const noexcept;
 
-    /*! \brief Returns the visual block owned by each plugin in chain order. */
+    /*!
+    \brief Returns the visual block owned by each plugin in chain order.
+    \return Block index per plugin in chain order.
+    */
     [[nodiscard]] const std::vector<std::size_t>& blocks() const noexcept;
 
     /*!
@@ -102,7 +111,8 @@ public:
     [[nodiscard]] bool operator==(const SignalChainBlockPlacement& other) const = default;
 
 private:
-    // Private so every placement originates from a factory that guarantees the uniqueness invariant.
+    // Private so every placement originates from a factory that guarantees the uniqueness
+    // invariant.
     SignalChainBlockPlacement(std::vector<std::size_t> blocks, std::size_t block_count);
 
     // Visual block owned by each plugin in chain order; entries are distinct and stay below

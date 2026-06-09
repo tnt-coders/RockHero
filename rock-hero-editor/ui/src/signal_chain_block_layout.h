@@ -99,10 +99,16 @@ public:
     [[nodiscard]] DropCompletion completeDrop(
         std::size_t source_index, std::optional<DropIntent> intent);
 
-    /*! \brief Clears any active drag preview. */
+    /*!
+    \brief Clears any active drag preview.
+    \return True when clearing the preview changed the active placement.
+    */
     [[nodiscard]] bool clearPreview();
 
-    /*! \brief Returns the cached controller placement for the current plugin order. */
+    /*!
+    \brief Returns the cached controller placement for the current plugin order.
+    \return Placement last committed from controller state.
+    */
     [[nodiscard]] const core::SignalChainBlockPlacement& cachedPlacement() const noexcept;
 
     /*!
@@ -111,7 +117,10 @@ public:
     */
     [[nodiscard]] const core::SignalChainBlockPlacement& activePlacement() const noexcept;
 
-    /*! \brief Returns the number of visual blocks for the current plugin state. */
+    /*!
+    \brief Returns the number of visual blocks for the current plugin state.
+    \return Fixed visual block count.
+    */
     [[nodiscard]] std::size_t blockCount() const noexcept;
 
     /*!

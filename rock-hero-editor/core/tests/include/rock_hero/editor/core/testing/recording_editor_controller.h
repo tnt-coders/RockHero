@@ -29,14 +29,20 @@ so tests can assert only the behavior they care about.
 class RecordingEditorController final : public IEditorController
 {
 public:
-    /*! \brief Captures the file selected by the Open command. */
+    /*!
+    \brief Captures the file selected by the Open command.
+    \param file Project file selected by the view.
+    */
     void onOpenRequested(std::filesystem::path file) override
     {
         last_open_file = std::move(file);
         open_request_count += 1;
     }
 
-    /*! \brief Captures the file selected by the Import command. */
+    /*!
+    \brief Captures the file selected by the Import command.
+    \param file Song source selected by the view.
+    */
     void onImportRequested(std::filesystem::path file) override
     {
         last_import_file = std::move(file);
@@ -49,14 +55,20 @@ public:
         save_request_count += 1;
     }
 
-    /*! \brief Captures the destination selected by the Save As command. */
+    /*!
+    \brief Captures the destination selected by the Save As command.
+    \param file Project destination selected by the view.
+    */
     void onSaveAsRequested(std::filesystem::path file) override
     {
         last_save_as_file = std::move(file);
         save_as_request_count += 1;
     }
 
-    /*! \brief Captures the destination selected by the Publish command. */
+    /*!
+    \brief Captures the destination selected by the Publish command.
+    \param file Native song package destination selected by the view.
+    */
     void onPublishRequested(std::filesystem::path file) override
     {
         last_publish_file = std::move(file);
@@ -87,14 +99,20 @@ public:
         exit_request_count += 1;
     }
 
-    /*! \brief Captures prompt decisions selected through the unsaved-changes dialog. */
+    /*!
+    \brief Captures prompt decisions selected through the unsaved-changes dialog.
+    \param decision User-selected unsaved-changes decision.
+    */
     void onUnsavedChangesDecision(UnsavedChangesDecision decision) override
     {
         last_unsaved_changes_decision = decision;
         unsaved_changes_decision_count += 1;
     }
 
-    /*! \brief Captures interrupted-restore prompt decisions emitted by a view. */
+    /*!
+    \brief Captures interrupted-restore prompt decisions emitted by a view.
+    \param decision User-selected interrupted-restore decision.
+    */
     void onRestoreInterruptedDecision(RestoreInterruptedDecision decision) override
     {
         last_restore_interrupted_decision = decision;
@@ -113,7 +131,10 @@ public:
         stop_press_count += 1;
     }
 
-    /*! \brief Captures the normalized timeline click emitted by waveform hit testing. */
+    /*!
+    \brief Captures the normalized timeline click emitted by waveform hit testing.
+    \param normalized_x Click x coordinate normalized to the interval [0, 1].
+    */
     void onWaveformClicked(double normalized_x) override
     {
         last_normalized_x = normalized_x;
@@ -126,7 +147,11 @@ public:
         plugin_browser_request_count += 1;
     }
 
-    /*! \brief Captures insertion-slot selections emitted by signal-chain gap controls. */
+    /*!
+    \brief Captures insertion-slot selections emitted by signal-chain gap controls.
+    \param chain_index User-visible insertion slot.
+    \param block_index Fixed visual block selected for the insertion.
+    */
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index) override
     {
         last_plugin_insert_slot = chain_index;
@@ -146,21 +171,32 @@ public:
         plugin_catalog_scan_request_count += 1;
     }
 
-    /*! \brief Captures selected plugin IDs requested for insertion from the browser window. */
+    /*!
+    \brief Captures selected plugin IDs requested for insertion from the browser window.
+    \param plugin_id Opaque plugin candidate ID selected by the view.
+    */
     void onSelectedPluginInsertRequested(std::string plugin_id) override
     {
         last_selected_plugin_id = std::move(plugin_id);
         selected_plugin_insert_request_count += 1;
     }
 
-    /*! \brief Captures plugin instances selected through the signal-chain panel. */
+    /*!
+    \brief Captures plugin instances selected through the signal-chain panel.
+    \param instance_id Opaque plugin instance ID selected by the view.
+    */
     void onRemovePluginRequested(std::string instance_id) override
     {
         last_removed_plugin_instance_id = std::move(instance_id);
         remove_plugin_request_count += 1;
     }
 
-    /*! \brief Captures plugin moves selected through the signal-chain panel. */
+    /*!
+    \brief Captures plugin moves selected through the signal-chain panel.
+    \param instance_id Opaque plugin instance ID selected by the view.
+    \param destination_index Final user-visible chain index selected by the view.
+    \param placement Fixed visual block assignments after the move.
+    */
     void onMovePluginRequested(
         std::string instance_id, std::size_t destination_index,
         std::vector<PluginBlockAssignment> placement) override
@@ -171,14 +207,21 @@ public:
         move_plugin_request_count += 1;
     }
 
-    /*! \brief Captures the authored visual block placement reported for persistence. */
+    /*!
+    \brief Captures the authored visual block placement reported for persistence.
+    \param placement Fixed visual block assignments reported by the view.
+    */
     void onSignalChainPlacementChanged(std::vector<PluginBlockAssignment> placement) override
     {
         last_signal_chain_placement = std::move(placement);
         signal_chain_placement_change_count += 1;
     }
 
-    /*! \brief Captures manual display type overrides selected through the signal-chain panel. */
+    /*!
+    \brief Captures manual display type overrides selected through the signal-chain panel.
+    \param instance_id Opaque plugin instance ID selected by the view.
+    \param display_type Manual display type, or empty to clear an override.
+    */
     void onPluginDisplayTypeOverrideChanged(
         std::string instance_id, std::optional<PluginDisplayType> display_type) override
     {
@@ -187,7 +230,10 @@ public:
         plugin_display_type_override_change_count += 1;
     }
 
-    /*! \brief Captures plugin instances selected for editor-window opening. */
+    /*!
+    \brief Captures plugin instances selected for editor-window opening.
+    \param instance_id Opaque plugin instance ID selected by the view.
+    */
     void onOpenPluginRequested(std::string instance_id) override
     {
         last_opened_plugin_instance_id = std::move(instance_id);
@@ -200,7 +246,10 @@ public:
         input_calibration_request_count += 1;
     }
 
-    /*! \brief Records calibration measurement setup through the controller contract. */
+    /*!
+    \brief Records calibration measurement setup through the controller contract.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, common::audio::LiveInputError>
     onInputCalibrationMeasurementStarted() override
     {
@@ -214,7 +263,11 @@ public:
         input_calibration_measurement_cancel_count += 1;
     }
 
-    /*! \brief Records automatic calibration completion through the controller contract. */
+    /*!
+    \brief Records automatic calibration completion through the controller contract.
+    \param gain_db Calibration gain selected by automatic measurement.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationSucceeded(
         double gain_db) override
     {
@@ -223,7 +276,11 @@ public:
         return {};
     }
 
-    /*! \brief Records manual calibration completion through the controller contract. */
+    /*!
+    \brief Records manual calibration completion through the controller contract.
+    \param gain_db Calibration gain selected by the user.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
         double gain_db) override
     {
@@ -238,7 +295,10 @@ public:
         input_calibration_dismiss_count += 1;
     }
 
-    /*! \brief Records output gain change intents emitted by the signal-chain panel. */
+    /*!
+    \brief Records output gain change intents emitted by the signal-chain panel.
+    \param gain_db Output gain selected by the view.
+    */
     void onOutputGainChanged(double gain_db) override
     {
         last_output_gain_db = gain_db;
@@ -247,6 +307,8 @@ public:
 
     /*!
     \brief Records audio-device change scheduling and stores the supplied completion callback.
+    \param change_audio_device Callback that performs the audio-device mutation.
+    \param after_busy_cleared Callback to invoke after the busy overlay clears.
     */
     void onAudioDeviceChangeRequested(
         std::function<void()> change_audio_device,
@@ -257,7 +319,10 @@ public:
         audio_device_change_request_count += 1;
     }
 
-    /*! \brief Counts accepted audio-device settings open requests. */
+    /*!
+    \brief Counts accepted audio-device settings open requests.
+    \return Always true to accept the open request.
+    */
     bool onAudioDeviceSettingsOpenRequested() override
     {
         audio_device_settings_open_count += 1;

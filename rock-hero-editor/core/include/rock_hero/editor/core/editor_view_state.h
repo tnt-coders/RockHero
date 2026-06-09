@@ -24,15 +24,23 @@ namespace rock_hero::editor::core
 /*! \brief User choice returned from the unsaved-changes confirmation prompt. */
 enum class UnsavedChangesDecision : std::uint8_t
 {
+    /*! \brief Save the current project before continuing the deferred action. */
     Save,
+
+    /*! \brief Discard current project changes and continue the deferred action. */
     Discard,
+
+    /*! \brief Cancel the deferred action and keep the current project unchanged. */
     Cancel,
 };
 
 /*! \brief User choice returned from the interrupted-restore recovery prompt. */
 enum class RestoreInterruptedDecision : std::uint8_t
 {
+    /*! \brief Retry opening the project that was interrupted on the previous run. */
     Retry,
+
+    /*! \brief Skip restoring the interrupted project and clear the recovery marker. */
     Cancel,
 };
 

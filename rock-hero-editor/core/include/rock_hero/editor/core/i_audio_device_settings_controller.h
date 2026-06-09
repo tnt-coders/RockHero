@@ -15,28 +15,52 @@ public:
     /*! \brief Destroys the controller contract. */
     virtual ~IAudioDeviceSettingsController() = default;
 
-    /*! \brief Handles an audio-system choice selection. */
+    /*!
+    \brief Handles an audio-system choice selection.
+    \param choice_id One-based audio-system choice ID, or zero to clear selection.
+    */
     virtual void onAudioSystemSelected(int choice_id) = 0;
 
-    /*! \brief Handles a combined device choice selection. */
+    /*!
+    \brief Handles a combined device choice selection.
+    \param choice_id One-based combined-device choice ID, or zero to clear selection.
+    */
     virtual void onDeviceSelected(int choice_id) = 0;
 
-    /*! \brief Handles an input device choice selection. */
+    /*!
+    \brief Handles an input device choice selection.
+    \param choice_id One-based input-device choice ID, or zero to clear selection.
+    */
     virtual void onInputDeviceSelected(int choice_id) = 0;
 
-    /*! \brief Handles an output device choice selection. */
+    /*!
+    \brief Handles an output device choice selection.
+    \param choice_id One-based output-device choice ID, or zero to clear selection.
+    */
     virtual void onOutputDeviceSelected(int choice_id) = 0;
 
-    /*! \brief Handles an input channel choice selection. */
+    /*!
+    \brief Handles an input channel choice selection.
+    \param choice_id One-based input-channel choice ID, or zero to clear selection.
+    */
     virtual void onInputChannelSelected(int choice_id) = 0;
 
-    /*! \brief Handles a stereo output-pair choice selection. */
+    /*!
+    \brief Handles a stereo output-pair choice selection.
+    \param choice_id One-based stereo-output-pair choice ID, or zero to clear selection.
+    */
     virtual void onStereoOutputPairSelected(int choice_id) = 0;
 
-    /*! \brief Handles a sample-rate choice selection. */
+    /*!
+    \brief Handles a sample-rate choice selection.
+    \param choice_id One-based sample-rate choice ID, or zero to clear selection.
+    */
     virtual void onSampleRateSelected(int choice_id) = 0;
 
-    /*! \brief Handles a buffer-size choice selection. */
+    /*!
+    \brief Handles a buffer-size choice selection.
+    \param choice_id One-based buffer-size choice ID, or zero to clear selection.
+    */
     virtual void onBufferSizeSelected(int choice_id) = 0;
 
     /*! \brief Handles a backend control-panel button press. */

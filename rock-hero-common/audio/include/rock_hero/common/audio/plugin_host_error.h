@@ -71,7 +71,10 @@ struct [[nodiscard]] PluginHostError
     /*! \brief Human-readable diagnostic suitable for UI display or logs. */
     std::string message;
 
-    /*! \brief Creates an error with the default message for its code. */
+    /*!
+    \brief Creates an error with the default message for its code.
+    \param error_code Stable error code used by callers for branching.
+    */
     explicit PluginHostError(PluginHostErrorCode error_code);
 
     /*!

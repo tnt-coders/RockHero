@@ -453,8 +453,8 @@ TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-c
     REQUIRE(scanning_state->busy.has_value());
     CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
 
-    // Cancel before the deferred worker body runs, then let it run: it must observe cancellation and
-    // stop without publishing the scanned catalog.
+    // Cancel before the deferred worker body runs, then let it run. The worker must observe
+    // cancellation and stop without publishing the scanned catalog.
     controller.onBusyCancelRequested();
     runner.runWork();
 

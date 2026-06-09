@@ -25,7 +25,10 @@ public:
     /*! \brief Destroys the live input interface. */
     virtual ~ILiveInput() = default;
 
-    /*! \brief Reads the current input gain applied before the signal chain. */
+    /*!
+    \brief Reads the current input gain applied before the signal chain.
+    \return Current calibrated input gain.
+    */
     [[nodiscard]] virtual Gain inputGain() const = 0;
 
     /*!
@@ -35,10 +38,16 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, LiveInputError> setInputGain(Gain gain) = 0;
 
-    /*! \brief Returns the raw input peak meter used by calibration. */
+    /*!
+    \brief Returns the raw input peak meter used by calibration.
+    \return Latest raw input meter level.
+    */
     [[nodiscard]] virtual AudioMeterLevel rawInputMeterLevel() const = 0;
 
-    /*! \brief Reports whether processed live guitar monitoring is currently enabled. */
+    /*!
+    \brief Reports whether processed live guitar monitoring is currently enabled.
+    \return True when live guitar is routed through the calibrated signal chain.
+    */
     [[nodiscard]] virtual bool liveInputMonitoringEnabled() const = 0;
 
     /*!
@@ -49,7 +58,10 @@ public:
     [[nodiscard]] virtual std::expected<void, LiveInputError> setLiveInputMonitoringEnabled(
         bool enabled) = 0;
 
-    /*! \brief Reports whether unprocessed calibration monitoring is currently enabled. */
+    /*!
+    \brief Reports whether unprocessed calibration monitoring is currently enabled.
+    \return True when live guitar is routed directly to output for calibration.
+    */
     [[nodiscard]] virtual bool calibrationInputMonitoringEnabled() const = 0;
 
     /*!

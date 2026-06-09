@@ -23,7 +23,11 @@ so tests can configure only the behavior they need and assert recorded calls dir
 class ConfigurableSongAudio final : public ISongAudio
 {
 public:
-    /*! \brief Records preparation and fills arrangement durations on success. */
+    /*!
+    \brief Records preparation and fills arrangement durations on success.
+    \param song Candidate song prepared by the object under test.
+    \return Empty success, the next configured typed error, or a configured preparation failure.
+    */
     [[nodiscard]] std::expected<void, SongAudioError> prepareSong(common::core::Song& song) override
     {
         prepare_song_call_count += 1;
@@ -62,7 +66,11 @@ public:
         return {};
     }
 
-    /*! \brief Records the active arrangement and returns the configured activation outcome. */
+    /*!
+    \brief Records the active arrangement and returns the configured activation outcome.
+    \param arrangement Arrangement selected by the object under test.
+    \return Empty success, the next configured typed error, or a configured activation failure.
+    */
     [[nodiscard]] std::expected<void, SongAudioError> setActiveArrangement(
         const common::core::Arrangement& arrangement) override
     {
@@ -91,7 +99,10 @@ public:
         return {};
     }
 
-    /*! \brief Records that the current active arrangement should be cleared. */
+    /*!
+    \brief Records that the current active arrangement should be cleared.
+    \return Empty success or the next configured typed error.
+    */
     [[nodiscard]] std::expected<void, SongAudioError> clearActiveArrangement() override
     {
         last_active_audio_asset.reset();

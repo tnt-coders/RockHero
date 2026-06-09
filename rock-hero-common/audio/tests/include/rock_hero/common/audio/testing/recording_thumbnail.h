@@ -24,7 +24,10 @@ requests without constructing the concrete Tracktion-backed thumbnail adapter.
 class RecordingThumbnail final : public IThumbnail
 {
 public:
-    /*! \brief Records the source asset and marks the thumbnail as drawable. */
+    /*!
+    \brief Records the source asset and marks the thumbnail as drawable.
+    \param audio_asset Audio asset assigned by the component under test.
+    */
     void setSource(const common::core::AudioAsset& audio_asset) override
     {
         last_source = audio_asset;
@@ -32,25 +35,40 @@ public:
         set_source_call_count += 1;
     }
 
-    /*! \brief Reports whether setSource() has supplied drawable source data. */
+    /*!
+    \brief Reports whether setSource() has supplied drawable source data.
+    \return True after a source asset has been assigned.
+    */
     [[nodiscard]] bool hasSource() const override
     {
         return has_source;
     }
 
-    /*! \brief Reports the configured proxy-generation state. */
+    /*!
+    \brief Reports the configured proxy-generation state.
+    \return Configured proxy-generation state.
+    */
     [[nodiscard]] bool isGeneratingProxy() const override
     {
         return generating_proxy;
     }
 
-    /*! \brief Reports the configured proxy-generation progress. */
+    /*!
+    \brief Reports the configured proxy-generation progress.
+    \return Configured proxy progress fraction.
+    */
     [[nodiscard]] float getProxyProgress() const override
     {
         return proxy_progress;
     }
 
-    /*! \brief Records draw parameters and returns the configured draw outcome. */
+    /*!
+    \brief Records draw parameters and returns the configured draw outcome.
+    \param bounds Target drawing bounds requested by the component under test.
+    \param visible_range Timeline range requested for rendering.
+    \param vertical_zoom Vertical waveform scale requested for rendering.
+    \return Configured draw result.
+    */
     [[nodiscard]] bool drawChannels(
         juce::Graphics& /*g*/, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
         float vertical_zoom) override
@@ -98,7 +116,11 @@ thumbnail after ownership has moved into the component under test.
 class RecordingThumbnailFactory final : public IThumbnailFactory
 {
 public:
-    /*! \brief Creates a recording thumbnail and records the requesting owner component. */
+    /*!
+    \brief Creates a recording thumbnail and records the requesting owner component.
+    \param owner Component that will own or display the returned thumbnail.
+    \return Newly created recording thumbnail through the thumbnail interface.
+    */
     [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override
     {
         last_owner = &owner;

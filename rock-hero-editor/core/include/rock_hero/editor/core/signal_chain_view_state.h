@@ -15,9 +15,16 @@ namespace rock_hero::editor::core
 /*! \brief Live input calibration state shown by the signal-chain view. */
 enum class InputCalibrationStatus
 {
+    /*! \brief No usable mono input route is active. */
     NoActiveInputDevice,
+
+    /*! \brief The active input route has no saved calibration. */
     MissingCalibration,
+
+    /*! \brief The active input route has a saved calibration available. */
     Calibrated,
+
+    /*! \brief A saved calibration exists but cannot currently be applied by the backend. */
     Unavailable,
 };
 

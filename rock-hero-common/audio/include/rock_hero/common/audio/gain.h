@@ -34,19 +34,28 @@ struct Gain
     friend constexpr bool operator==(Gain lhs, Gain rhs) noexcept = default;
 };
 
-/*! \brief Returns the lowest gain the system accepts. */
+/*!
+\brief Returns the lowest gain the system accepts.
+\return Minimum accepted gain in decibels.
+*/
 [[nodiscard]] constexpr double minimumGainDb() noexcept
 {
     return -24.0;
 }
 
-/*! \brief Returns the highest gain the system accepts. */
+/*!
+\brief Returns the highest gain the system accepts.
+\return Maximum accepted gain in decibels.
+*/
 [[nodiscard]] constexpr double maximumGainDb() noexcept
 {
     return 24.0;
 }
 
-/*! \brief Returns the default gain used for new tones and missing tone document fields. */
+/*!
+\brief Returns the default gain used for new tones and missing tone document fields.
+\return Default gain in decibels.
+*/
 [[nodiscard]] constexpr double defaultGainDb() noexcept
 {
     return 0.0;

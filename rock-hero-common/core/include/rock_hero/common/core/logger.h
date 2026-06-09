@@ -12,6 +12,7 @@
 #include <string_view>
 
 #ifndef QUILL_DISABLE_NON_PREFIXED_MACROS
+/*! \brief Keeps Quill's global unprefixed logging macros out of project call sites. */
 #define QUILL_DISABLE_NON_PREFIXED_MACROS 1
 #endif
 
@@ -86,7 +87,10 @@ struct Logger
             }
         }
 
-        /*! \brief Returns the validated category text. */
+        /*!
+        \brief Returns the validated category text.
+        \return Dotted category name.
+        */
         [[nodiscard]] constexpr std::string_view name() const noexcept
         {
             return m_name;
@@ -164,9 +168,10 @@ struct Logger
 
     This function creates log-file parent directories, degrades to a null sink if the file sink
     cannot be opened, and leaves JUCE's default debug logger in place when no visible sink is
-    available. Call once from the application composition root before other services can log. Quill's
-    backend is process-lifetime infrastructure; repeated init while running returns the original
-    result, and init after shutdown reports failure rather than pretending the backend can restart.
+    available. Call once from the application composition root before other services can log.
+    Quill's backend is process-lifetime infrastructure; repeated init while running returns the
+    original result, and init after shutdown reports failure rather than pretending the backend can
+    restart.
 
     \param config Sink and file configuration.
     \return Backend and file-sink startup status.
@@ -181,10 +186,11 @@ struct Logger
     static void shutdown();
 
     /*!
-    \brief Returns true while the backend worker is accepting project log records.
+    \brief Reports whether the backend worker is accepting project log records.
 
     The logging macros use this as a cheap lifetime guard so log calls after startup failure or
     during shutdown do not enqueue records into a stopped backend.
+    \return True when project log calls may enqueue records.
     */
     [[nodiscard]] static bool isStarted() noexcept;
 
@@ -222,6 +228,7 @@ struct Logger
 
 } // namespace rock_hero::common::core
 
+/*! \brief Internal helper used by normal project logging macros. */
 #define RH_DETAIL_LOG(log_macro, category_literal, fmt, ...)                                       \
     do                                                                                             \
     {                                                                                              \
@@ -234,6 +241,7 @@ struct Logger
         }                                                                                          \
     } while (false)
 
+/*! \brief Internal helper used by realtime project logging macros. */
 #define RH_DETAIL_RT_LOG(log_macro, realtime_logger, fmt, ...)                                     \
     do                                                                                             \
     {                                                                                              \
@@ -248,56 +256,74 @@ struct Logger
     } while (false)
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_TRACE_L1
+/*! \brief Logs a trace-level record to the named category when trace logging is compiled in. */
 #define RH_LOG_TRACE(category_literal, fmt, ...)                                                   \
     RH_DETAIL_LOG(QUILL_LOG_TRACE_L1, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards trace-level records when trace logging is compiled out. */
 #define RH_LOG_TRACE(category_literal, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_DEBUG
+/*! \brief Logs a debug-level record to the named category when debug logging is compiled in. */
 #define RH_LOG_DEBUG(category_literal, fmt, ...)                                                   \
     RH_DETAIL_LOG(QUILL_LOG_DEBUG, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards debug-level records when debug logging is compiled out. */
 #define RH_LOG_DEBUG(category_literal, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_INFO
+/*! \brief Logs an info-level record to the named category when info logging is compiled in. */
 #define RH_LOG_INFO(category_literal, fmt, ...)                                                    \
     RH_DETAIL_LOG(QUILL_LOG_INFO, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards info-level records when info logging is compiled out. */
 #define RH_LOG_INFO(category_literal, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_WARNING
+/*! \brief Logs a warning-level record to the named category when warning logging is compiled in. */
 #define RH_LOG_WARNING(category_literal, fmt, ...)                                                 \
     RH_DETAIL_LOG(QUILL_LOG_WARNING, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards warning-level records when warning logging is compiled out. */
 #define RH_LOG_WARNING(category_literal, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_ERROR
+/*! \brief Logs an error-level record to the named category when error logging is compiled in. */
 #define RH_LOG_ERROR(category_literal, fmt, ...)                                                   \
     RH_DETAIL_LOG(QUILL_LOG_ERROR, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards error-level records when error logging is compiled out. */
 #define RH_LOG_ERROR(category_literal, fmt, ...) (void)0
 #endif
 
 #if QUILL_COMPILE_ACTIVE_LOG_LEVEL <= QUILL_COMPILE_ACTIVE_LOG_LEVEL_CRITICAL
+/*! \brief Logs a critical-level record when critical logging is compiled in. */
 #define RH_LOG_CRITICAL(category_literal, fmt, ...)                                                \
     RH_DETAIL_LOG(QUILL_LOG_CRITICAL, category_literal, fmt, ##__VA_ARGS__)
 #else
+/*! \brief Discards critical-level records when critical logging is compiled out. */
 #define RH_LOG_CRITICAL(category_literal, fmt, ...) (void)0
 #endif
 
+/*! \brief Logs a trace-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_TRACE(logger, fmt, ...)                                                          \
     RH_DETAIL_RT_LOG(QUILL_LOG_TRACE_L1, logger, fmt, ##__VA_ARGS__)
+/*! \brief Logs a debug-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_DEBUG(logger, fmt, ...)                                                          \
     RH_DETAIL_RT_LOG(QUILL_LOG_DEBUG, logger, fmt, ##__VA_ARGS__)
+/*! \brief Logs an info-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_INFO(logger, fmt, ...)                                                           \
     RH_DETAIL_RT_LOG(QUILL_LOG_INFO, logger, fmt, ##__VA_ARGS__)
+/*! \brief Logs a warning-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_WARNING(logger, fmt, ...)                                                        \
     RH_DETAIL_RT_LOG(QUILL_LOG_WARNING, logger, fmt, ##__VA_ARGS__)
+/*! \brief Logs an error-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_ERROR(logger, fmt, ...)                                                          \
     RH_DETAIL_RT_LOG(QUILL_LOG_ERROR, logger, fmt, ##__VA_ARGS__)
+/*! \brief Logs a critical-level record through a pre-created realtime logger handle. */
 #define RH_RT_LOG_CRITICAL(logger, fmt, ...)                                                       \
     RH_DETAIL_RT_LOG(QUILL_LOG_CRITICAL, logger, fmt, ##__VA_ARGS__)

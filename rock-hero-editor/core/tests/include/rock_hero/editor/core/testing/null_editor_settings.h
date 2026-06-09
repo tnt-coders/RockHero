@@ -24,46 +24,67 @@ recording fake instead.
 class NullEditorSettings final : public IEditorSettings
 {
 public:
-    /*! \brief Reports that no last-open project is stored. */
+    /*!
+    \brief Reports that no last-open project is stored.
+    \return Always empty.
+    */
     [[nodiscard]] std::optional<std::filesystem::path> lastOpenProject() const override
     {
         return std::nullopt;
     }
 
-    /*! \brief Ignores last-open project writes. */
+    /*!
+    \brief Ignores last-open project writes.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, EditorSettingsError> setLastOpenProject(
         std::optional<std::filesystem::path>) override
     {
         return {};
     }
 
-    /*! \brief Reports that no interrupted restore project is stored. */
+    /*!
+    \brief Reports that no interrupted restore project is stored.
+    \return Always empty.
+    */
     [[nodiscard]] std::optional<std::filesystem::path> interruptedRestoreProject() const override
     {
         return std::nullopt;
     }
 
-    /*! \brief Ignores interrupted restore project writes. */
+    /*!
+    \brief Ignores interrupted restore project writes.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, EditorSettingsError> setInterruptedRestoreProject(
         std::optional<std::filesystem::path>) override
     {
         return {};
     }
 
-    /*! \brief Reports that no serialized audio-device state is stored. */
+    /*!
+    \brief Reports that no serialized audio-device state is stored.
+    \return Always empty.
+    */
     [[nodiscard]] std::optional<std::string> audioDeviceState() const override
     {
         return std::nullopt;
     }
 
-    /*! \brief Ignores serialized audio-device state writes. */
+    /*!
+    \brief Ignores serialized audio-device state writes.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, EditorSettingsError> setAudioDeviceState(
         std::optional<std::string>) override
     {
         return {};
     }
 
-    /*! \brief Reports that no calibration is stored for the supplied input route. */
+    /*!
+    \brief Reports that no calibration is stored for the supplied input route.
+    \return Always empty optional success.
+    */
     [[nodiscard]] std::expected<
         std::optional<common::audio::InputCalibrationState>, EditorSettingsError>
     inputCalibrationFor(const common::audio::InputDeviceIdentity&) const override
@@ -71,14 +92,20 @@ public:
         return std::nullopt;
     }
 
-    /*! \brief Ignores input calibration writes. */
+    /*!
+    \brief Ignores input calibration writes.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveInputCalibration(
         common::audio::InputCalibrationState) override
     {
         return {};
     }
 
-    /*! \brief Ignores input calibration removal requests. */
+    /*!
+    \brief Ignores input calibration removal requests.
+    \return Always empty success.
+    */
     [[nodiscard]] std::expected<void, EditorSettingsError> removeInputCalibration(
         const common::audio::InputDeviceIdentity&) override
     {

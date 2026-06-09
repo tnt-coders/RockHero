@@ -20,7 +20,11 @@ Use this for single-threaded tests that need busy-presentation callbacks to reso
 class ImmediateMessageThreadScheduler final : public IMessageThreadScheduler
 {
 public:
-    /*! \brief Runs posted work on the calling thread. */
+    /*!
+    \brief Runs posted work on the calling thread.
+    \param work Callback to invoke immediately.
+    \return True when a callback was supplied and invoked.
+    */
     [[nodiscard]] bool postToMessageThread(std::function<void()> work) override
     {
         if (!work)
@@ -32,10 +36,16 @@ public:
         return true;
     }
 
-    /*! \brief Runs delayed work on the calling thread without sleeping. */
+    /*!
+    \brief Runs delayed work on the calling thread without sleeping.
+    \param delay Ignored delay value retained to match the production scheduler contract.
+    \param work Callback to invoke immediately.
+    \return True when a callback was supplied and invoked.
+    */
     [[nodiscard]] bool callAfterDelay(
-        std::chrono::milliseconds /*delay*/, std::function<void()> work) override
+        std::chrono::milliseconds delay, std::function<void()> work) override
     {
+        static_cast<void>(delay);
         if (!work)
         {
             return false;

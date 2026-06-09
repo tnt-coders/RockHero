@@ -92,8 +92,8 @@ public:
 
 private:
     // Progress bar that paints determinate progress as the exact fraction, and shows an owned
-    // juce::ProgressBar for the indeterminate animation. juce::ProgressBar ramps its displayed value
-    // toward the target, so coarse, stepwise progress (e.g. "plugin 2 of 5") briefly shows
+    // juce::ProgressBar for the indeterminate animation. juce::ProgressBar ramps its displayed
+    // value toward the target, so coarse, stepwise progress (e.g. "plugin 2 of 5") briefly shows
     // percentages that do not match the real load state; painting the determinate fraction directly
     // keeps the shown percentage truthful. The indeterminate case has no such issue, so it reuses
     // JUCE's animation rather than reimplementing it.

@@ -44,19 +44,30 @@
 #include <vector>
 
 #ifndef TEST_SETTINGS_DIR
+/*! \brief Build-local directory used by settings-backed controller tests. */
 #define TEST_SETTINGS_DIR "."
 #endif
 
 namespace rock_hero::editor::core
 {
 
+/*! \brief Stable Lead arrangement ID used by controller test fixtures. */
 constexpr const char* g_lead_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
+
+/*! \brief Stable Bass arrangement ID used by controller test fixtures. */
 constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a2c9";
+
+/*! \brief Stable tone document reference used by controller test fixtures. */
 constexpr const char* g_tone_document_ref = "tones/9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d/tone.json";
 
+/*! \brief Short alias for the shared configurable audio-device fake. */
 using ConfigurableAudioDeviceConfiguration =
     common::audio::testing::ConfigurableAudioDeviceConfiguration;
+
+/*! \brief Short alias for the shared configurable song-audio fake. */
 using ConfigurableSongAudio = common::audio::testing::ConfigurableSongAudio;
+
+/*! \brief Short alias for the shared recording plugin-host fake. */
 using RecordingPluginHost = common::audio::testing::RecordingPluginHost;
 
 // Captures editor view state and transient effects pushed through the view contract.
@@ -120,21 +131,30 @@ public:
     int busy_overlay_removed_callback_count{0};
 };
 
-// Returns the shared no-op settings for tests that do not observe persistence.
+/*!
+\brief Returns the shared no-op settings for tests that do not observe persistence.
+\return Process-lifetime null settings fake.
+*/
 [[nodiscard]] inline testing::NullEditorSettings& nullEditorSettings() noexcept
 {
     static testing::NullEditorSettings settings;
     return settings;
 }
 
-// Returns the shared synchronous runner for tests that do not need deferred completions.
+/*!
+\brief Returns the shared synchronous runner for tests that do not need deferred completions.
+\return Process-lifetime immediate task runner fake.
+*/
 [[nodiscard]] inline testing::ImmediateEditorTaskRunner& immediateTaskRunner() noexcept
 {
     static testing::ImmediateEditorTaskRunner task_runner;
     return task_runner;
 }
 
-// Returns the shared synchronous message-thread scheduler for controller tests.
+/*!
+\brief Returns the shared synchronous message-thread scheduler for controller tests.
+\return Process-lifetime immediate message-thread scheduler fake.
+*/
 [[nodiscard]] inline testing::ImmediateMessageThreadScheduler&
 immediateMessageThreadScheduler() noexcept
 {
@@ -142,7 +162,13 @@ immediateMessageThreadScheduler() noexcept
     return scheduler;
 }
 
-// Builds the required service bundle from test-owned or shared fake services.
+/*!
+\brief Builds the required service bundle from test-owned or shared fake services.
+\param settings Settings port used by the controller under test.
+\param task_runner Task runner used by the controller under test.
+\param message_thread_scheduler Message-thread scheduler used by the controller under test.
+\return Controller service bundle.
+*/
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner,
     IMessageThreadScheduler& message_thread_scheduler) noexcept
@@ -154,53 +180,84 @@ immediateMessageThreadScheduler() noexcept
     };
 }
 
-// Builds the required service bundle with the default synchronous message-thread scheduler.
+/*!
+\brief Builds the required service bundle with the default synchronous message-thread scheduler.
+\param settings Settings port used by the controller under test.
+\param task_runner Task runner used by the controller under test.
+\return Controller service bundle.
+*/
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings, IEditorTaskRunner& task_runner) noexcept
 {
     return controllerServices(settings, task_runner, immediateMessageThreadScheduler());
 }
 
-// Builds the default no-op service bundle for tests that only exercise controller state policy.
+/*!
+\brief Builds the default no-op service bundle for tests that only exercise controller state policy.
+\return Controller service bundle using shared no-op/synchronous fakes.
+*/
 [[nodiscard]] inline EditorController::Services defaultControllerServices() noexcept
 {
     return controllerServices(nullEditorSettings(), immediateTaskRunner());
 }
 
-// Uses specific settings while keeping project work synchronous.
+/*!
+\brief Uses specific settings while keeping project work synchronous.
+\param settings Settings port used by the controller under test.
+\return Controller service bundle.
+*/
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorSettings& settings) noexcept
 {
     return controllerServices(settings, immediateTaskRunner());
 }
 
-// Uses a specific task runner while ignoring settings persistence.
+/*!
+\brief Uses a specific task runner while ignoring settings persistence.
+\param task_runner Task runner used by the controller under test.
+\return Controller service bundle.
+*/
 [[nodiscard]] inline EditorController::Services controllerServices(
     IEditorTaskRunner& task_runner) noexcept
 {
     return controllerServices(nullEditorSettings(), task_runner);
 }
 
-// Returns the no-op host-exit callback used by tests that do not assert exit behavior.
+/*!
+\brief Returns the no-op host-exit callback used by tests that do not assert exit behavior.
+\return Exit callback that does nothing.
+*/
 [[nodiscard]] inline EditorController::ExitFunction noopExitFunction()
 {
     return [] {};
 }
 
-// Returns a nullable pointer so tests can satisfy optional-access lint after a REQUIRE.
+/*!
+\brief Returns a nullable pointer so tests can satisfy optional-access lint after a REQUIRE.
+\param state Optional editor state to inspect.
+\return Pointer to contained state, or nullptr.
+*/
 [[nodiscard]] inline const EditorViewState* stateOrNull(
     const std::optional<EditorViewState>& state) noexcept
 {
     return state.has_value() ? &*state : nullptr;
 }
 
-// Returns a nullable pointer for the nested busy state after the owning state is known present.
+/*!
+\brief Returns a nullable pointer for the nested busy state after the owning state is known present.
+\param state Editor state that may or may not carry busy state.
+\return Pointer to contained busy state, or nullptr.
+*/
 [[nodiscard]] inline const BusyViewState* busyOrNull(const EditorViewState& state) noexcept
 {
     return state.busy.has_value() ? &*state.busy : nullptr;
 }
 
-// Extracts live-rig busy states so tests can assert the progress sequence directly.
+/*!
+\brief Extracts live-rig busy states so tests can assert the progress sequence directly.
+\param view Fake view containing pushed state history.
+\return Busy states whose operation is LoadingLiveRig.
+*/
 [[nodiscard]] inline std::vector<BusyViewState> liveRigBusyStates(const FakeEditorView& view)
 {
     std::vector<BusyViewState> states;
@@ -582,21 +639,30 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     std::optional<PendingLoad> pending_load{};
 };
 
-// Supplies a default audio-device port for tests that do not care about hardware state.
+/*!
+\brief Supplies a default audio-device port for tests that do not care about hardware state.
+\return Process-lifetime configurable audio-device fake.
+*/
 [[nodiscard]] inline ConfigurableAudioDeviceConfiguration& defaultAudioDevices() noexcept
 {
     static ConfigurableAudioDeviceConfiguration audio_devices;
     return audio_devices;
 }
 
-// Supplies a default plugin-host port for tests that do not care about plugin behavior.
+/*!
+\brief Supplies a default plugin-host port for tests that do not care about plugin behavior.
+\return Process-lifetime recording plugin-host fake.
+*/
 [[nodiscard]] inline RecordingPluginHost& defaultPluginHost() noexcept
 {
     static RecordingPluginHost plugin_host;
     return plugin_host;
 }
 
-// Supplies a default live-rig port for tests that do not care about tone persistence behavior.
+/*!
+\brief Supplies a default live-rig port for tests that do not care about tone persistence behavior.
+\return Process-lifetime fake live rig.
+*/
 [[nodiscard]] inline FakeLiveRig& defaultLiveRig() noexcept
 {
     static FakeLiveRig live_rig = [] {
@@ -607,8 +673,16 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     return live_rig;
 }
 
-// Builds the controller audio-port bundle used by most tests. FakeTransport also implements the
-// live-input port, which preserves the old test composition while keeping construction explicit.
+/*!
+\brief Builds the controller audio-port bundle used by most tests.
+
+FakeTransport also implements the live-input port, which preserves the old test composition while
+keeping construction explicit.
+
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio) noexcept
 {
@@ -622,7 +696,13 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     };
 }
 
-// Replaces the default audio-device port in the common test controller bundle.
+/*!
+\brief Replaces the default audio-device port in the common test controller bundle.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param audio_devices Audio-device fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
     ConfigurableAudioDeviceConfiguration& audio_devices) noexcept
@@ -637,7 +717,13 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     };
 }
 
-// Replaces the default plugin-host port in the common test controller bundle.
+/*!
+\brief Replaces the default plugin-host port in the common test controller bundle.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
     RecordingPluginHost& plugin_host) noexcept
@@ -652,7 +738,14 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     };
 }
 
-// Replaces the default plugin-host and live-rig ports in the common test controller bundle.
+/*!
+\brief Replaces the default plugin-host and live-rig ports in the common test controller bundle.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\param live_rig Live-rig fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host,
     FakeLiveRig& live_rig) noexcept
@@ -667,7 +760,14 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     };
 }
 
-// Replaces the default audio-device and plugin-host ports in the common test controller bundle.
+/*!
+\brief Replaces the default audio-device and plugin-host ports in the common test controller bundle.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param audio_devices Audio-device fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
     ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host) noexcept
@@ -682,7 +782,15 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     };
 }
 
-// Replaces every default controller audio port represented in controller tests.
+/*!
+\brief Replaces every default controller audio port represented in controller tests.
+\param transport Transport and live-input fake used by the controller under test.
+\param song_audio Song-audio fake used by the controller under test.
+\param audio_devices Audio-device fake used by the controller under test.
+\param plugin_host Plugin-host fake used by the controller under test.
+\param live_rig Live-rig fake used by the controller under test.
+\return Controller audio-port bundle.
+*/
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
     ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host,
@@ -1012,7 +1120,11 @@ private:
     std::filesystem::path m_project_file;
 };
 
-// Provides a standard loaded-content range for controller tests.
+/*!
+\brief Provides a standard loaded-content range for controller tests.
+\param end_seconds End time for the loaded range.
+\return Timeline range starting at zero and ending at end_seconds.
+*/
 [[nodiscard]] inline common::core::TimeRange loadedTimelineRange(double end_seconds = 4.0) noexcept
 {
     return common::core::TimeRange{
@@ -1021,7 +1133,13 @@ private:
     };
 }
 
-// Builds a stable route identity for calibration-gate tests.
+/*!
+\brief Builds a stable route identity for calibration-gate tests.
+\param input_device_name Physical input device name.
+\param channel_index Zero-based input channel index.
+\param input_channel_name Optional physical input channel name.
+\return Input route identity using the test ASIO backend name.
+*/
 [[nodiscard]] inline common::audio::InputDeviceIdentity makeInputDeviceIdentity(
     std::string input_device_name = "Interface A", int channel_index = 0,
     std::string input_channel_name = {})
@@ -1039,7 +1157,13 @@ private:
     };
 }
 
-// Builds song data with one arrangement.
+/*!
+\brief Builds song data with one arrangement.
+\param path Backing audio path assigned to the Lead arrangement.
+\param timeline_range Timeline range whose duration becomes the arrangement audio duration.
+\param tone_document_ref Optional tone document reference assigned to the arrangement.
+\return Song fixture with one Lead arrangement.
+*/
 [[nodiscard]] inline common::core::Song makeSong(
     std::filesystem::path path, common::core::TimeRange timeline_range = loadedTimelineRange(),
     std::string tone_document_ref = {})
@@ -1060,7 +1184,10 @@ private:
     return song;
 }
 
-// Builds a normalization record representing an already-analyzed asset whose gain is current.
+/*!
+\brief Builds a normalization record representing an already-analyzed asset whose gain is current.
+\return Current normalization fixture.
+*/
 [[nodiscard]] inline common::core::AudioNormalization makeCurrentNormalization()
 {
     return common::core::AudioNormalization{
@@ -1069,7 +1196,12 @@ private:
     };
 }
 
-// Builds an open seam that reports the analysis phase before returning loaded song data.
+/*!
+\brief Builds an open seam that reports the analysis phase before returning loaded song data.
+\param audio_path Backing audio path assigned to the returned song.
+\param analysis_progress_call_count Counter incremented when analysis progress is reported.
+\return Open callback for EditorController tests.
+*/
 [[nodiscard]] inline EditorController::OpenFunction makeAnalyzingOpenFunction(
     std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
@@ -1089,7 +1221,12 @@ private:
     };
 }
 
-// Builds an import seam that reports the analysis phase before returning imported song data.
+/*!
+\brief Builds an import seam that reports the analysis phase before returning imported song data.
+\param audio_path Backing audio path assigned to the returned song.
+\param analysis_progress_call_count Counter incremented when analysis progress is reported.
+\return Import callback for EditorController tests.
+*/
 [[nodiscard]] inline EditorController::ImportFunction makeAnalyzingImportFunction(
     std::filesystem::path audio_path, int& analysis_progress_call_count)
 {
@@ -1109,7 +1246,12 @@ private:
     };
 }
 
-// Builds song data with two arrangements so controller selection policy can be tested.
+/*!
+\brief Builds song data with two arrangements so controller selection policy can be tested.
+\param lead_path Backing audio path assigned to the Lead arrangement.
+\param bass_path Backing audio path assigned to the Bass arrangement.
+\return Song fixture with Lead and Bass arrangements.
+*/
 [[nodiscard]] inline common::core::Song makeTwoArrangementSong(
     std::filesystem::path lead_path, std::filesystem::path bass_path)
 {
@@ -1144,7 +1286,15 @@ private:
     return song;
 }
 
-// Loads arrangement audio through the controller so tests keep backend/session coupling.
+/*!
+\brief Loads arrangement audio through the controller so tests keep backend/session coupling.
+\param controller Controller under test.
+\param project_services Project services fake used by the controller.
+\param audio Song-audio fake used by the controller.
+\param path Backing audio path assigned to the loaded song fixture.
+\param timeline_range Timeline range assigned to the loaded arrangement.
+\return True when the controller loaded an active arrangement.
+*/
 [[nodiscard]] inline bool loadArrangement(
     EditorController& controller, FakeProjectServices& project_services,
     ConfigurableSongAudio& audio, std::filesystem::path path,
@@ -1157,7 +1307,16 @@ private:
     return controller.session().currentArrangement() != nullptr;
 }
 
-// Loads arrangement audio and applies a neutral calibration for plugin-chain tests.
+/*!
+\brief Loads arrangement audio and applies a neutral calibration for plugin-chain tests.
+\param controller Controller under test.
+\param project_services Project services fake used by the controller.
+\param audio Song-audio fake used by the controller.
+\param audio_devices Audio-device fake that receives the active input identity.
+\param path Backing audio path assigned to the loaded song fixture.
+\param timeline_range Timeline range assigned to the loaded arrangement.
+\return True when arrangement load and manual calibration both succeeded.
+*/
 [[nodiscard]] inline bool loadCalibratedArrangement(
     EditorController& controller, FakeProjectServices& project_services,
     ConfigurableSongAudio& audio, ConfigurableAudioDeviceConfiguration& audio_devices,
@@ -1180,7 +1339,11 @@ private:
     return true;
 }
 
-// Adds the default known plugin through the same browser route used by production UI.
+/*!
+\brief Adds the default known plugin through the same browser route used by production UI.
+\param controller Controller under test.
+\param plugin_id Opaque plugin candidate ID selected through the browser.
+*/
 inline void addKnownPlugin(
     EditorController& controller, std::string plugin_id = "catalog-plugin-id")
 {
@@ -1188,7 +1351,11 @@ inline void addKnownPlugin(
     controller.onSelectedPluginInsertRequested(std::move(plugin_id));
 }
 
-// Exposes stop enabledness as an optional value so tests can assert presence and value together.
+/*!
+\brief Exposes stop enabledness as an optional value for combined presence/value assertions.
+\param view Fake view containing the last pushed editor state.
+\return Stop enabledness, or empty before any state has been pushed.
+*/
 [[nodiscard]] inline std::optional<bool> lastStopEnabled(const FakeEditorView& view)
 {
     const EditorViewState* state = stateOrNull(view.last_state);

@@ -50,7 +50,10 @@ public:
     */
     using Resolution = std::variant<Refresh, SaveThenReplay, DiscardAndReplay>;
 
-    /*! \brief Reports whether a project action is waiting behind a prompt. */
+    /*!
+    \brief Reports whether a project action is waiting behind a prompt.
+    \return True when a deferred action is stored.
+    */
     [[nodiscard]] bool hasDeferredAction() const noexcept;
 
     /*!

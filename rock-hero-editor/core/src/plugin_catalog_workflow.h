@@ -49,7 +49,10 @@ public:
     /*! \brief Hides the browser without reporting whether visibility changed. */
     void hide() noexcept;
 
-    /*! \brief Reports whether any catalog candidates are available for selection. */
+    /*!
+    \brief Reports whether any catalog candidates are available for selection.
+    \return True when the current catalog contains at least one candidate.
+    */
     [[nodiscard]] bool hasCandidates() const noexcept;
 
     /*!

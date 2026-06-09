@@ -68,7 +68,11 @@ public:
     */
     [[nodiscard]] std::optional<std::size_t> insertionIndexForSelection() const noexcept;
 
-    /*! \brief Reports whether the chain contains a plugin instance. */
+    /*!
+    \brief Reports whether the chain contains a plugin instance.
+    \param instance_id Opaque plugin instance ID to find.
+    \return True when the current chain contains the instance.
+    */
     [[nodiscard]] bool containsInstance(std::string_view instance_id) const noexcept;
 
     /*!
@@ -79,16 +83,28 @@ public:
     [[nodiscard]] std::optional<std::size_t> chainIndexForInstance(
         std::string_view instance_id) const noexcept;
 
-    /*! \brief Reports whether the current chain contains any loaded plugins. */
+    /*!
+    \brief Reports whether the current chain contains any loaded plugins.
+    \return True when the chain is non-empty.
+    */
     [[nodiscard]] bool hasPlugins() const noexcept;
 
-    /*! \brief Reports whether the chain can accept another user plugin. */
+    /*!
+    \brief Reports whether the chain can accept another user plugin.
+    \return True when the current chain is below the user-plugin limit.
+    */
     [[nodiscard]] bool hasInsertCapacity() const noexcept;
 
-    /*! \brief Returns the slot that appends after the current chain. */
+    /*!
+    \brief Returns the slot that appends after the current chain.
+    \return User-visible append insertion index.
+    */
     [[nodiscard]] std::size_t appendIndex() const noexcept;
 
-    /*! \brief Returns view-ready plugin rows in authoritative backend order. */
+    /*!
+    \brief Returns view-ready plugin rows in authoritative backend order.
+    \return Current plugin rows.
+    */
     [[nodiscard]] const std::vector<PluginViewState>& plugins() const noexcept;
 
     /*!

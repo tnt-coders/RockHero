@@ -24,13 +24,20 @@ input identity, and trigger listener notifications explicitly.
 class ConfigurableAudioDeviceConfiguration final : public IAudioDeviceConfiguration
 {
 public:
-    /*! \brief Returns the fake-owned device manager for settings UI and policy tests. */
+    /*!
+    \brief Returns the fake-owned device manager for settings UI and policy tests.
+    \return JUCE device manager owned by the fake.
+    */
     [[nodiscard]] juce::AudioDeviceManager& deviceManager() noexcept override
     {
         return device_manager;
     }
 
-    /*! \brief Records a serialized state restore request and returns the configured result. */
+    /*!
+    \brief Records a serialized state restore request and returns the configured result.
+    \param serialized_state Serialized audio-device state passed by the object under test.
+    \return Empty success, the next configured typed error, or a generic restore failure.
+    */
     [[nodiscard]] std::expected<void, AudioDeviceConfigurationError> restoreSerializedDeviceState(
         const std::string& serialized_state) override
     {
@@ -55,33 +62,48 @@ public:
         return {};
     }
 
-    /*! \brief Returns the configured serialized state capture result. */
+    /*!
+    \brief Returns the configured serialized state capture result.
+    \return Configured serialized state, or empty.
+    */
     [[nodiscard]] std::optional<std::string> serializedDeviceState() const override
     {
         serialized_device_state_call_count += 1;
         return serialized_device_state;
     }
 
-    /*! \brief Returns the configured current device status snapshot. */
+    /*!
+    \brief Returns the configured current device status snapshot.
+    \return Current fake device status.
+    */
     [[nodiscard]] AudioDeviceStatus currentDeviceStatus() const override
     {
         status_call_count += 1;
         return current_status;
     }
 
-    /*! \brief Returns the configured active mono input identity. */
+    /*!
+    \brief Returns the configured active mono input identity.
+    \return Current fake input identity, or empty.
+    */
     [[nodiscard]] std::optional<InputDeviceIdentity> currentInputDeviceIdentity() const override
     {
         return current_input_identity;
     }
 
-    /*! \brief Stores a non-owning listener pointer for explicit test notifications. */
+    /*!
+    \brief Stores a non-owning listener pointer for explicit test notifications.
+    \param listener Listener registered by the object under test.
+    */
     void addListener(IAudioDeviceConfiguration::Listener& listener) override
     {
         listeners.push_back(&listener);
     }
 
-    /*! \brief Removes a listener pointer previously registered with addListener(). */
+    /*!
+    \brief Removes a listener pointer previously registered with addListener().
+    \param listener Listener previously registered by the object under test.
+    */
     void removeListener(IAudioDeviceConfiguration::Listener& listener) override
     {
         std::erase(listeners, &listener);
