@@ -3,7 +3,7 @@ cmake-package-builder/1.2.0  #recipe: https://github.com/tnt-coders/cmake-packag
 open-psarc/0.0.3             #recipe: https://github.com/tnt-coders/open-psarc.git
 catch2/3.13.0
 libebur128/1.2.6
-quill/11.1.0                 #low-latency async logging backend (rock_hero::common::core logger facade)
+quill/11.1.0
 
 [generators]
 CMakeDeps
