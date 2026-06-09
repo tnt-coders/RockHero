@@ -232,6 +232,12 @@ CheckOptions:
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
 
+  # Logging is the sanctioned exception to "no function-like macros": the RH_LOG_* and RH_RT_LOG_*
+  # facades must be macros to preserve source location, skip disabled-level argument evaluation,
+  # and allow compile-time stripping. Allow those prefixes alongside the default DEBUG_ allowance.
+  - key: cppcoreguidelines-macro-usage.AllowedRegexp
+    value: '^(DEBUG_|RH(_RT)?_LOG_)'
+
   # --------------------------------------------------------------------------
   # Ignore Qt-generated files and common Qt patterns
   # --------------------------------------------------------------------------
