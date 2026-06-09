@@ -7,7 +7,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
 #include <filesystem>
+#include <rock_hero/common/core/logger_error.h>
 #include <string>
 #include <string_view>
 
@@ -150,33 +152,25 @@ struct Logger
         bool log_to_console = false;
     };
 
-    /*! \brief Result of attempting to start the process logging backend. */
-    struct [[nodiscard]] InitResult
-    {
-        /*! \brief True when the backend worker is running and project log macros are usable. */
-        bool backend_started = false;
-
-        /*! \brief True when the configured rotating file sink was opened successfully. */
-        bool file_sink_active = false;
-
-        /*! \brief Diagnostic text when file setup or backend setup failed. */
-        std::string failure_message;
-    };
-
     /*!
     \brief Starts the Quill backend and installs configured sinks.
 
-    This function creates log-file parent directories, degrades to a null sink if the file sink
-    cannot be opened, and leaves JUCE's default debug logger in place when no visible sink is
-    available. Call once from the application composition root before other services can log.
-    Quill's backend is process-lifetime infrastructure; repeated init while running returns the
-    original result, and init after shutdown reports failure rather than pretending the backend can
-    restart.
+    Sinks are opened before the backend starts, so a configured sink that cannot be opened fails the
+    call with nothing started: a missing log file reports \ref LoggerErrorCode::FileSinkOpenFailed
+    and leaves the backend startable. A failed call has no side effects and may be retried, so a
+    caller that wants console fallback can re-invoke init with a console-only \ref Config. When no
+    visible sink is configured, a null sink is installed and the call succeeds. Log-file parent
+    directories are created as needed.
+
+    Call once from the application composition root before other services can log. Quill's backend
+    is process-lifetime infrastructure: calling init again while running succeeds without restarting
+    it, and calling init after shutdown fails with \ref LoggerErrorCode::AlreadyShutDown rather than
+    pretending the backend can restart.
 
     \param config Sink and file configuration.
-    \return Backend and file-sink startup status.
+    \return Nothing on success, or a \ref LoggerError describing why startup failed.
     */
-    [[nodiscard]] static InitResult init(const Config& config);
+    [[nodiscard]] static std::expected<void, LoggerError> init(const Config& config);
 
     /*!
     \brief Flushes and stops the logging backend and removes the JUCE bridge.

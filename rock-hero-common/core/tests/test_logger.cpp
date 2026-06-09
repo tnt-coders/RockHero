@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <expected>
 #include <rock_hero/common/core/logger.h>
 
 namespace rock_hero::common::core
@@ -26,8 +27,8 @@ TEST_CASE("Log category preserves its validated name", "[core][logging]")
 // evaluate arguments after shutdown.
 TEST_CASE("Log macros preserve caller scope and backend lifetime", "[core][logging]")
 {
-    const Logger::InitResult init_result = Logger::init(Logger::Config{});
-    REQUIRE(init_result.backend_started);
+    const std::expected<void, LoggerError> init_result = Logger::init(Logger::Config{});
+    REQUIRE(init_result.has_value());
 
     const int logger = 7;
     int observed = 0;

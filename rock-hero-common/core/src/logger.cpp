@@ -14,6 +14,7 @@
 #include <quill/sinks/ConsoleSink.h>
 #include <quill/sinks/NullSink.h>
 #include <quill/sinks/RotatingFileSink.h>
+#include <rock_hero/common/core/logger_error.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -50,6 +51,16 @@ private:
     ::rock_hero::common::core::Logger::Handle m_logger;
 };
 
+// Process lifecycle of the Quill backend. Quill starts its backend once per process and never
+// restarts it after a stop, so these three states are genuinely distinct and a single value
+// captures all of them without a second flag to keep in sync.
+enum class BackendPhase : std::uint8_t
+{
+    NotStarted,
+    Running,
+    Stopped,
+};
+
 // Process-wide logging state. Held behind a function-local static accessor rather than namespace
 // globals so it stays out of cppcoreguidelines-avoid-non-const-global-variables while still living
 // for the process lifetime.
@@ -64,14 +75,9 @@ struct LoggingState
     // Owns the installed JUCE bridge for the lifetime of visible logging sinks.
     std::unique_ptr<JuceQuillBridge> juce_bridge;
 
-    // Quill's backend can be started once per process; a stopped backend is not restarted.
-    bool backend_started_once = false;
-
-    // Tracks backend lifetime for log macros without taking a lock on the caller thread.
-    std::atomic_bool backend_started = false;
-
-    // Last startup result, returned unchanged if init is called again while logging is active.
-    Logger::InitResult last_init_result;
+    // Single backend lifecycle source of truth. Atomic so the log macros can read liveness on the
+    // caller thread without taking the sink lock.
+    std::atomic<BackendPhase> phase = BackendPhase::NotStarted;
 };
 
 [[nodiscard]] LoggingState& loggingState()
@@ -105,11 +111,6 @@ struct LoggingState
     return exception.what();
 }
 
-[[nodiscard]] std::string exceptionText(...)
-{
-    return "unknown logging backend error";
-}
-
 [[nodiscard]] std::vector<std::shared_ptr<quill::Sink>> currentSinks()
 {
     LoggingState& state = loggingState();
@@ -124,7 +125,7 @@ void installSinks(std::vector<std::shared_ptr<quill::Sink>> sinks)
     state.sinks = std::move(sinks);
 }
 
-[[nodiscard]] std::expected<std::shared_ptr<quill::Sink>, std::string> createFileSink(
+[[nodiscard]] std::expected<std::shared_ptr<quill::Sink>, LoggerError> createFileSink(
     const Logger::Config& config)
 {
     const std::filesystem::path parent_directory = config.log_file.parent_path();
@@ -134,7 +135,10 @@ void installSinks(std::vector<std::shared_ptr<quill::Sink>> sinks)
         std::filesystem::create_directories(parent_directory, error);
         if (error)
         {
-            return std::unexpected{"could not create log directory: " + error.message()};
+            return std::unexpected{LoggerError{
+                LoggerErrorCode::FileSinkOpenFailed,
+                "could not create log directory: " + error.message(),
+            }};
         }
     }
 
@@ -149,50 +153,44 @@ void installSinks(std::vector<std::shared_ptr<quill::Sink>> sinks)
     }
     catch (const std::exception& exception)
     {
-        return std::unexpected{exceptionText(exception)};
+        return std::unexpected{LoggerError{
+            LoggerErrorCode::FileSinkOpenFailed,
+            exceptionText(exception),
+        }};
     }
     catch (...)
     {
-        return std::unexpected{exceptionText()};
+        return std::unexpected{LoggerError{
+            LoggerErrorCode::FileSinkOpenFailed,
+            "unknown error opening log file",
+        }};
     }
 }
 
 } // namespace
 
-// Starts the async backend, installs shared sinks, and bridges JUCE output when there is somewhere
-// visible to write it.
-Logger::InitResult Logger::init(const Config& config)
+// Opens the configured sinks, starts the async backend, and bridges JUCE output when there is
+// somewhere visible to write it. Sinks open before the backend starts so a sink that cannot be
+// opened returns an error with nothing started; a failed call has no side effects and may be
+// retried, for example with a console-only config as a fallback.
+std::expected<void, LoggerError> Logger::init(const Config& config)
 {
     LoggingState& state = loggingState();
-    if (state.backend_started.load(std::memory_order_acquire))
+    switch (state.phase.load(std::memory_order_acquire))
     {
-        return state.last_init_result;
-    }
-
-    if (state.backend_started_once)
-    {
-        return InitResult{
-            .failure_message = "logging backend cannot be restarted after shutdown",
-        };
-    }
-
-    InitResult result;
-
-    try
-    {
-        quill::Backend::start();
-        state.backend_started_once = true;
-        result.backend_started = true;
-    }
-    catch (const std::exception& exception)
-    {
-        result.failure_message = exceptionText(exception);
-        return result;
-    }
-    catch (...)
-    {
-        result.failure_message = exceptionText();
-        return result;
+        case BackendPhase::Running:
+        {
+            // Already initialized; init is idempotent while the backend runs.
+            return {};
+        }
+        case BackendPhase::Stopped:
+        {
+            return std::unexpected{LoggerError{LoggerErrorCode::AlreadyShutDown}};
+        }
+        case BackendPhase::NotStarted:
+        {
+            break;
+        }
     }
 
     std::vector<std::shared_ptr<quill::Sink>> sinks;
@@ -201,19 +199,12 @@ Logger::InitResult Logger::init(const Config& config)
     if (!config.log_file.empty())
     {
         auto file_sink = createFileSink(config);
-        if (file_sink.has_value())
+        if (!file_sink.has_value())
         {
-            sinks.push_back(std::move(*file_sink));
-            result.file_sink_active = true;
-            has_visible_sink = true;
+            return std::unexpected{std::move(file_sink.error())};
         }
-        else
-        {
-            result.failure_message = file_sink.error();
-            juce::Logger::writeToLog(
-                "Rock Hero logging file sink could not be opened: " +
-                juce::String::fromUTF8(result.failure_message.c_str()));
-        }
+        sinks.push_back(std::move(*file_sink));
+        has_visible_sink = true;
     }
 
     if (config.log_to_console)
@@ -227,9 +218,24 @@ Logger::InitResult Logger::init(const Config& config)
         sinks.push_back(quill::Frontend::create_or_get_sink<quill::NullSink>("rock-hero-null"));
     }
 
+    try
+    {
+        quill::Backend::start();
+    }
+    catch (const std::exception& exception)
+    {
+        return std::unexpected{LoggerError{
+            LoggerErrorCode::BackendStartFailed,
+            exceptionText(exception),
+        }};
+    }
+    catch (...)
+    {
+        return std::unexpected{LoggerError{LoggerErrorCode::BackendStartFailed}};
+    }
+
     installSinks(std::move(sinks));
-    state.last_init_result = result;
-    state.backend_started.store(true, std::memory_order_release);
+    state.phase.store(BackendPhase::Running, std::memory_order_release);
 
     if (has_visible_sink)
     {
@@ -237,14 +243,17 @@ Logger::InitResult Logger::init(const Config& config)
         juce::Logger::setCurrentLogger(state.juce_bridge.get());
     }
 
-    return result;
+    return {};
 }
 
-// Removes the JUCE bridge, then flushes and stops the backend so no record is lost at shutdown.
+// Removes the JUCE bridge, then flushes and stops the backend so no record is lost at shutdown. The
+// backend moves to its terminal stopped state and is never restarted in this process.
 void Logger::shutdown()
 {
     LoggingState& state = loggingState();
-    if (!state.backend_started.exchange(false, std::memory_order_acq_rel))
+    BackendPhase running = BackendPhase::Running;
+    if (!state.phase.compare_exchange_strong(
+            running, BackendPhase::Stopped, std::memory_order_acq_rel))
     {
         return;
     }
@@ -260,7 +269,7 @@ void Logger::shutdown()
 
 bool Logger::isStarted() noexcept
 {
-    return loggingState().backend_started.load(std::memory_order_acquire);
+    return loggingState().phase.load(std::memory_order_acquire) == BackendPhase::Running;
 }
 
 // Pre-allocates the bounded realtime frontend queue for the current thread.

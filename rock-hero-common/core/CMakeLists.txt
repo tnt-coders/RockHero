@@ -8,6 +8,7 @@ target_sources(
             src/json.cpp
             src/juce_path.cpp
             src/logger.cpp
+            src/logger_error.cpp
             src/session.cpp
             src/song.cpp
             src/package_id.cpp
