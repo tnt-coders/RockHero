@@ -15,6 +15,7 @@ namespace rock_hero::common::core
 \brief Generates a fresh stable Rock Hero package object ID.
 
 The returned value is a canonical lowercase dashed RFC 4122 version 4 UUID string.
+\return Fresh canonical package ID.
 */
 [[nodiscard]] std::string generatePackageId();
 

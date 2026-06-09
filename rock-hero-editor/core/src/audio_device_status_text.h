@@ -24,7 +24,7 @@ inline constexpr std::string_view g_closed_audio_device_text{"[audio device clos
 
 The bracketed format mirrors REAPER's status idiom so users coming from REAPER recognize the
 fields at a glance; per-rule comments inside the implementation explain only the deviations.
-Closed device states render as #g_closed_audio_device_text. Open devices render their sample
+Closed device states render as `g_closed_audio_device_text`. Open devices render their sample
 rate, bit depth, active channels, buffer size, latency, and backend type.
 
 \param status Audio-device status snapshot to display.

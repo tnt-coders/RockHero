@@ -72,37 +72,55 @@ struct [[nodiscard]] InputCalibrationResult
     double measured_rms_db{minimumAudioMeterDb()};
 };
 
-/*! \brief Returns the lowest peak accepted as a usable calibration signal. */
+/*!
+\brief Returns the lowest peak accepted as a usable calibration signal.
+\return Minimum usable raw input peak in decibels full scale.
+*/
 [[nodiscard]] constexpr double minimumInputCalibrationSignalDb() noexcept
 {
     return -40.0;
 }
 
-/*! \brief Returns the minimum active meter windows required for a useful calibration. */
+/*!
+\brief Returns the minimum active meter windows required for a useful calibration.
+\return Minimum active meter-window count.
+*/
 [[nodiscard]] constexpr std::size_t minimumInputCalibrationActiveSampleCount() noexcept
 {
     return 12;
 }
 
-/*! \brief Returns the high active peak percentile used as the calibration reference. */
+/*!
+\brief Returns the high active peak percentile used as the calibration reference.
+\return Percentile in [0, 1] used for the robust peak reference.
+*/
 [[nodiscard]] constexpr double inputCalibrationReferencePeakPercentile() noexcept
 {
     return 0.90;
 }
 
-/*! \brief Returns the low active peak percentile used for consistency checks. */
+/*!
+\brief Returns the low active peak percentile used for consistency checks.
+\return Percentile in [0, 1] used as the low consistency bound.
+*/
 [[nodiscard]] constexpr double inputCalibrationConsistencyLowPercentile() noexcept
 {
     return 0.10;
 }
 
-/*! \brief Returns the maximum accepted spread between active peak percentiles. */
+/*!
+\brief Returns the maximum accepted spread between active peak percentiles.
+\return Maximum accepted spread in decibels.
+*/
 [[nodiscard]] constexpr double maximumInputCalibrationActivePeakSpreadDb() noexcept
 {
     return 14.0;
 }
 
-/*! \brief Returns the gain increment used to make repeated calibration output stable. */
+/*!
+\brief Returns the gain increment used to make repeated calibration output stable.
+\return Quantization step in decibels.
+*/
 [[nodiscard]] constexpr double inputCalibrationGainStepDb() noexcept
 {
     return 0.5;
@@ -241,19 +259,29 @@ private:
     InputCalibrationCapturePhase m_phase{InputCalibrationCapturePhase::Idle};
 };
 
-/*! \brief Returns the desired hard-strum peak after calibration. */
+/*!
+\brief Returns the desired hard-strum peak after calibration.
+\return Target peak in decibels full scale.
+*/
 [[nodiscard]] constexpr double inputCalibrationTargetPeakDb() noexcept
 {
     return -6.0;
 }
 
-/*! \brief Returns the desired active-window RMS after calibration. */
+/*!
+\brief Returns the desired active-window RMS after calibration.
+\return Target RMS in decibels full scale.
+*/
 [[nodiscard]] constexpr double inputCalibrationTargetRmsDb() noexcept
 {
     return -12.0;
 }
 
-/*! \brief Rounds a calibration gain to a stable display and storage increment. */
+/*!
+\brief Rounds a calibration gain to a stable display and storage increment.
+\param gain_db Raw calibration gain in decibels.
+\return Gain rounded to the nearest inputCalibrationGainStepDb() increment.
+*/
 [[nodiscard]] inline double quantizeInputCalibrationGainDb(double gain_db) noexcept
 {
     return std::round(gain_db / inputCalibrationGainStepDb()) * inputCalibrationGainStepDb();

@@ -23,7 +23,10 @@ callbacks, call view APIs, or own any editor ports.
 class BusyOperationState final
 {
 public:
-    /*! \brief Reports whether an operation is currently active. */
+    /*!
+    \brief Reports whether an operation is currently active.
+    \return True when a busy operation is active.
+    */
     [[nodiscard]] bool isBusy() const noexcept;
 
     /*!
