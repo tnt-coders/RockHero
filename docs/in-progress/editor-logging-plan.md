@@ -1,9 +1,10 @@
 # Editor Logging Implementation Plan
 
-Status: in-progress planning note. Scoped down to one essential: install a durable, file-backed
-logger for the editor app. The structured diagnostics surface, action/undo-event logging, and the
+Status: in-progress planning note. Scoped down to essentials: install a durable, file-backed logger
+for the editor app and establish the shared timestamp/severity log-line formatter that both the
+editor and game can use. The structured diagnostics surface, action/undo-event logging, and the
 rollback-contract diagnostic are no longer part of this plan; they are built incrementally inside
-`editor-undo-plan-v9.md`, each alongside the undo stage that uses it.
+`editor-undo-plan.md`, each alongside the undo stage that uses it.
 
 ## Current State
 
@@ -23,13 +24,14 @@ implement it here.
 
 ## Goal
 
-Make editor logging durable, and nothing more:
+Make editor logging durable and establish the shared log-line shape:
 
 - normal editor logs are written to a predictable per-user file;
-- existing `juce::Logger::writeToLog` calls become file-backed once the logger is installed.
+- existing project-owned `juce::Logger::writeToLog` calls move through a shared timestamp/severity
+  helper and become file-backed once the logger is installed.
 
 The `IEditorDiagnostics` surface, action/undo-event logging, and the rollback-contract diagnostic
-all live in `editor-undo-plan-v9.md` and are built stage by stage with the undo work. They are
+all live in `editor-undo-plan.md` and are built stage by stage with the undo work. They are
 intentionally not part of this plan; the durable file logger here is what makes all of that output
 persistent.
 
@@ -39,7 +41,6 @@ persistent.
 - Do not implement the broader `core-domain-logging-targets` split.
 - Do not add real-time audio-thread logging.
 - Do not thread logger dependencies through pure domain objects.
-- Do not rewrite existing diagnostic calls; they become durable for free once the logger is installed.
 - Do not build the diagnostics surface or rollback-contract handling here.
 
 ## Log Location
@@ -71,6 +72,24 @@ Use a bounded initial file size (for example 1-2 MiB) so a stale log cannot grow
 next startup trims it. If logger creation fails, continue running on JUCE's default debug output; do
 not fail app startup because normal logging could not be opened.
 
+## Shared Log Format
+
+Keep `juce::FileLogger` as the process file sink, but route project-owned log records through
+`rock-hero-common/core` so the editor and game share formatting:
+
+- severity enum: `Debug`, `Info`, `Warning`, `Error`, and `Fatal`;
+- category string, such as `editor.app`, `editor.controller`, or `audio.plugin_validation`;
+- human-readable message;
+- optional structured fields rendered as escaped key-value pairs.
+
+Each record is one physical line:
+
+```text
+2026-06-08T15:24:10.123-04:00 [INFO] editor.app: Rock Hero Editor started log_file="..."
+```
+
+`Fatal` is only a severity label. The caller owns any faulting, shutdown, or abort policy.
+
 ## Privacy And Size Rules
 
 Logs are local developer/user diagnostics. Logging project and plugin paths is acceptable; those are
@@ -85,23 +104,25 @@ Prefer focused helper tests over launching the full JUCE application:
 
 - file-logger setup chooses the expected `"Rock Hero"` subdirectory and log filename;
 - shutdown clears `juce::Logger::getCurrentLogger()` before destroying the logger;
-- existing `juce::Logger::writeToLog` calls are file-backed after startup setup.
+- shared log formatting includes timestamp, severity, category, message, and escaped fields;
+- existing project-owned diagnostic calls are file-backed after startup setup.
 
 ## Implementation Stages
 
 1. Add editor log-path helpers and install `juce::FileLogger` from the editor app composition root,
    with the bounded size and creation-failure fallback above.
-2. Verify existing editor and audio-engine `juce::Logger::writeToLog` calls become file-backed; leave
-   those call sites in place.
+2. Add shared common-core log formatting and dispatch helpers.
+3. Convert existing project-owned raw JUCE logger calls to the shared helper.
 
 That is the whole plan. The diagnostics surface, action/undo-event logging, and the rollback-contract
-diagnostic are added in `editor-undo-plan-v9.md` as their stages arrive.
+diagnostic are added in `editor-undo-plan.md` as their stages arrive.
 
 ## Acceptance Criteria
 
 - Starting the editor installs a file-backed logger before the audio engine and editor window are
   constructed.
-- Existing JUCE logger calls write to the normal editor log once the logger is installed.
+- Existing project-owned logger calls write timestamped, severity-tagged records to the normal
+  editor log once the logger is installed.
 - No diagnostics surface, rollback-contract handling, target split, or third-party backend is
   introduced here.
 

@@ -1,7 +1,9 @@
 #include <JuceHeader.h>
+#include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/core/logger.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/juce_message_thread_scheduler.h>
@@ -12,10 +14,25 @@
 namespace rock_hero::editor::app
 {
 
+// Pull in the logging facade so the composition root can install and use the logger without
+// importing the whole rock_hero::common::core namespace.
+using rock_hero::common::core::Logger;
+
 namespace
 {
 
-constexpr int max_initial_log_file_size_bytes = 2 * 1024 * 1024;
+constexpr std::size_t max_log_file_size_bytes = 8U * 1024U * 1024U;
+
+// Resolves the rolling editor log file under the same "Rock Hero" app-data folder as editor
+// settings, matching the location users and developers already look in.
+[[nodiscard]] std::filesystem::path editorLogFile()
+{
+    const juce::File log_file =
+        juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+            .getChildFile("Rock Hero")
+            .getChildFile("Rock Hero Editor.log");
+    return std::filesystem::path{log_file.getFullPathName().toStdString()};
+}
 
 // Maps the concrete Tracktion-backed engine into the editor's narrow audio-port bundle. This
 // stays in app composition because only the composition root knows one object backs every port.
@@ -69,7 +86,24 @@ public:
             return;
         }
 
-        installFileLogger();
+        const std::filesystem::path log_file = editorLogFile();
+        const Logger::InitResult logging_result = Logger::init(
+            Logger::Config{
+                .log_file = log_file,
+                .max_file_size_bytes = max_log_file_size_bytes,
+            });
+        m_logging_started = logging_result.backend_started;
+        if (logging_result.file_sink_active)
+        {
+            RH_LOG_INFO("editor.app", "Rock Hero Editor started log_file={}", log_file.string());
+        }
+        else if (!logging_result.failure_message.empty())
+        {
+            juce::Logger::writeToLog(
+                "Rock Hero Editor file logger could not be opened; continuing without file "
+                "logging: " +
+                juce::String::fromUTF8(logging_result.failure_message.c_str()));
+        }
 
         m_audio_engine = std::make_unique<rock_hero::common::audio::Engine>();
         m_editor_settings = std::make_unique<rock_hero::editor::core::EditorSettings>();
@@ -101,9 +135,14 @@ public:
         m_editor_task_runner.reset();
         m_editor_settings.reset();
         m_audio_engine.reset();
-        juce::Logger::writeToLog("Rock Hero Editor shutdown complete");
-        juce::Logger::setCurrentLogger(nullptr);
-        m_file_logger.reset();
+
+        // Plugin-scan child processes return from initialise before installing logging, so only
+        // tear it down when this instance actually started it.
+        if (m_logging_started)
+        {
+            RH_LOG_INFO("editor.app", "Rock Hero Editor shutdown complete");
+            Logger::shutdown();
+        }
     }
 
     // Handles platform quit requests through JUCE's normal quit path.
@@ -119,33 +158,9 @@ public:
     }
 
 private:
-    // Installs the app-wide JUCE logger before any editor services can emit diagnostics.
-    void installFileLogger()
-    {
-        // JUCE's logger factory returns an owning raw pointer; store it immediately.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-        m_file_logger.reset(
-            juce::FileLogger::createDefaultAppLogger(
-                "Rock Hero",
-                "Rock Hero Editor.log",
-                "Rock Hero Editor",
-                max_initial_log_file_size_bytes));
-
-        if (m_file_logger == nullptr)
-        {
-            juce::Logger::writeToLog(
-                "Rock Hero Editor file logger could not be opened; "
-                "continuing without file logging");
-            return;
-        }
-
-        juce::Logger::setCurrentLogger(m_file_logger.get());
-        juce::Logger::writeToLog(
-            "Rock Hero Editor started. Log file: " + m_file_logger->getLogFile().getFullPathName());
-    }
-
-    // Owns the app-wide file logger after JUCE startup and clears it during shutdown.
-    std::unique_ptr<juce::FileLogger> m_file_logger;
+    // Tracks whether this instance installed the logging backend, so shutdown only tears it down
+    // for the real editor process and not for early-returning plugin-scan child processes.
+    bool m_logging_started = false;
 
     // Owns Tracktion-backed playback for the lifetime of the editor window.
     std::unique_ptr<rock_hero::common::audio::Engine> m_audio_engine;
