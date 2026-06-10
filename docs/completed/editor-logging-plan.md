@@ -1,10 +1,52 @@
 # Editor Logging Implementation Plan
 
-Status: in-progress planning note. Scoped down to essentials: install a durable, file-backed logger
-for the editor app and establish the shared timestamp/severity log-line formatter that both the
-editor and game can use. The structured diagnostics surface, action/undo-event logging, and the
-rollback-contract diagnostic are no longer part of this plan; they are built incrementally inside
-`editor-undo-plan.md`, each alongside the undo stage that uses it.
+Status: completed (superseded approach), retired from `docs/in-progress/` in Phase 0 of
+`editor-engine-undo-master-plan-v2.md`. The durable, file-backed editor logging this plan called for
+is implemented, but by a different mechanism than the plan specified. Retained as a historical
+record; see Implementation Result below for what actually shipped.
+
+## Implementation Result
+
+The plan's intent — durable, file-backed editor logging installed before the audio engine and
+window, with a shared timestamp/severity/category log-line shape usable by both editor and game, and
+existing `juce::Logger::writeToLog` calls becoming file-backed — is satisfied by the Quill-backed
+`Logger` facade in `rock-hero-common/core`, not by the `juce::FileLogger` mechanism this plan
+described.
+
+What shipped:
+
+- `rock_hero::common::core::Logger`, a Quill-backed facade with a durable `RotatingFileSink`,
+  category loggers, and `RH_LOG_*` macros, installed via `Logger::init(...)` from the editor app
+  composition root (`rock-hero-editor/app/main.cpp`) before the audio engine and editor window.
+- `JuceQuillBridge` (a `juce::Logger`) routes framework `juce::Logger::writeToLog` output into the
+  same Quill pipeline, so existing project-owned and JUCE/Tracktion diagnostics land in the durable
+  log under a shared `time [level] category: message` pattern.
+- The facade lives in `common/core`, so the editor and game share one formatter and log vocabulary.
+
+Deliberate departures from this plan:
+
+- **Third-party backend adopted.** This plan's "Do not add a third-party logging backend" non-goal
+  was superseded; Quill is now the project logging backend, chosen for structured, category-based,
+  realtime-aware logging after this plan was written.
+- **Mechanism changed** from `juce::FileLogger` plus a hand-written common-core formatter to Quill's
+  `RotatingFileSink` and `PatternFormatterOptions`.
+
+Still deferred (tracked elsewhere, not regressions of this plan):
+
+- Game-app logging install parity (see the deferred list in `editor-engine-undo-master-plan-v2.md`).
+- The `docs/todo/core-domain-logging-targets-plan.md` target split remains out of scope.
+- Undo-specific action/event logging is built with the undo stages in `editor-undo-plan.md` via
+  `RH_LOG_*` directly; no separate diagnostics interface is introduced.
+
+---
+
+The original plan is retained verbatim below as a historical record.
+
+Original scope: install a durable, file-backed logger for the editor app and establish the shared
+timestamp/severity log-line formatter that both the editor and game can use. The structured
+diagnostics surface, action/undo-event logging, and the rollback-contract diagnostic are no longer
+part of this plan; they are built incrementally inside `editor-undo-plan.md`, each alongside the undo
+stage that uses it.
 
 ## Current State
 

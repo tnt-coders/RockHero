@@ -3,10 +3,10 @@
 Status: in-progress master plan. Supersedes `editor-engine-undo-master-plan.md` (v1), which has
 been removed. This document coordinates the active implementation order across
 `remaining-god-object-decomposition-plan.md`, `editor-undo-plan.md`,
-`test-fixture-opportunities-plan.md`, and `editor-logging-plan.md`. It does not replace those
-documents; it defines the preferred sequence so the project does structural risk reduction and
-feasibility validation before undo/redo adds rollback, replay, dirty-state, and history behavior to
-the same seams.
+`test-fixture-opportunities-plan.md`, and the completed `editor-logging-plan.md`. It does not
+replace those documents; it defines the preferred sequence so the project does structural risk
+reduction and feasibility validation before undo/redo adds rollback, replay, dirty-state, and
+history behavior to the same seams.
 
 ## What Changed From v1
 
@@ -17,8 +17,8 @@ the same seams.
   be finalized without its findings.
 - **Tightened Phase 0 logging reconciliation.** The durable file-backed logger that
   `editor-undo-plan.md` names as its only startup prerequisite already exists (the Quill-backed
-  `Logger` facade plus `JuceQuillBridge`). So `editor-logging-plan.md` should move to completed with
-  a result note, not merely be "revised", and the undo prerequisite is treated as already satisfied.
+  `Logger` facade plus `JuceQuillBridge`). `editor-logging-plan.md` was moved to completed with a
+  result note, not merely "revised", and the undo prerequisite is treated as already satisfied.
 - **Recorded the Part B (ISP) reconciliation.** `remaining-god-object-decomposition-plan.md` left
   the `IEditorController` segmentation as "modest, maybe not worth finishing". This plan supplies the
   decisive reason to do the minimal version: undo introduces `onUndoRequested`/`onRedoRequested` and
@@ -56,8 +56,9 @@ adapter.
 - `docs/in-progress/editor-undo-plan.md` owns undo/redo semantics, the Tracktion spike, failure
   policy, rollback proof, dirty state, UI wiring, and tests.
 - `docs/in-progress/test-fixture-opportunities-plan.md` owns optional test-harness cleanup.
-- `docs/in-progress/editor-logging-plan.md` records the durable logging direction. The current code
-  already implements its intent through the Quill-backed `Logger` facade; Phase 0 retires it.
+- `docs/completed/editor-logging-plan.md` (retired in Phase 0) recorded the durable logging
+  direction; its intent is implemented by the Quill-backed `Logger` facade, with the actual outcome
+  noted at the top of that document.
 
 ## Ordering Principles
 
@@ -108,9 +109,9 @@ Deliverables:
 - **Retire `editor-logging-plan.md`.** Its intent — a durable file-backed editor logger installed by
   the app composition root before the audio engine and window — is already implemented by the
   Quill-backed `Logger` facade and the `JuceQuillBridge`, which routes `juce::Logger::writeToLog`
-  into the same durable log. Move the plan to `docs/completed/` with a short result note stating that
-  the current Quill facade is its effective outcome, so undo stages can cite "the durable logger
-  exists" rather than an open plan.
+  into the same durable log. **Done:** the plan was moved to `docs/completed/editor-logging-plan.md`
+  with an Implementation Result note recording that the Quill facade is its effective outcome, so
+  undo stages can cite "the durable logger exists" rather than an open plan.
 - Confirm the undo logging prerequisite is satisfied and that no diagnostics port is introduced: the
   undo plan logs through the existing Quill `Logger` facade (`RH_LOG_*`) directly, the way
   `editor_controller.cpp` already does. There is no `IEditorDiagnostics` interface; the durable,
@@ -504,10 +505,12 @@ Do not include these in the main path unless they become blockers:
 
 ## Preferred Next Concrete Step
 
-1. Phase 0: retire `editor-logging-plan.md` to completed and confirm the docs no longer disagree.
-2. Phase 1: establish the test baseline on `rock_hero_common_audio_tests` and
+Phase 0 is complete: `editor-logging-plan.md` is retired to completed and the active docs no longer
+disagree about the logging prerequisite. The next implementation sequence is:
+
+1. Phase 1: establish the test baseline on `rock_hero_common_audio_tests` and
    `rock_hero_editor_core_tests`.
-3. Start **Phase 2 (the Tracktion spike)** as the next real work — it is the cheapest,
+2. Start **Phase 2 (the Tracktion spike)** as the next real work — it is the cheapest,
    highest-information action and gates the whole feature. The **Phase 3A `Engine::Impl` extraction**
    can proceed in parallel, since it is behavior-preserving and independent of the spike.
 
