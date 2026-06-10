@@ -505,12 +505,17 @@ Do not include these in the main path unless they become blockers:
 
 ## Preferred Next Concrete Step
 
-Phase 0 is complete: `editor-logging-plan.md` is retired to completed and the active docs no longer
-disagree about the logging prerequisite. The next implementation sequence is:
+Phases 0 and 1 are complete:
 
-1. Phase 1: establish the test baseline on `rock_hero_common_audio_tests` and
-   `rock_hero_editor_core_tests`.
-2. Start **Phase 2 (the Tracktion spike)** as the next real work — it is the cheapest,
+- Phase 0: `editor-logging-plan.md` is retired to completed and the active docs no longer disagree
+  about the logging prerequisite.
+- Phase 1: the test baseline is green — `rock_hero_common_audio_tests`,
+  `rock_hero_editor_core_tests`, and `rock_hero_editor_ui_tests` all build and pass, with no
+  pre-existing unrelated failures to document.
+
+The next implementation sequence is:
+
+1. Start **Phase 2 (the Tracktion spike)** as the next real work — it is the cheapest,
    highest-information action and gates the whole feature. The **Phase 3A `Engine::Impl` extraction**
    can proceed in parallel, since it is behavior-preserving and independent of the spike.
 
