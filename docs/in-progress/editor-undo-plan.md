@@ -9,11 +9,14 @@ backend.
 
 ## Consolidated Review Updates
 
-- Kept `EditorUndoHistory` free of `IEditorDiagnostics`; history returns transition results and
-  events, and `EditorController` logs those events at the action boundary.
-- Clarified that the only pre-undo logging prerequisite is the durable file-backed logger from
-  `editor-logging-plan.md`. The diagnostics surface, action logs, undo logs, and rollback diagnostic
-  are added incrementally with the undo stages that use them.
+- Kept `EditorUndoHistory` free of any logging dependency; history returns transition results and
+  events, and `EditorController` logs those events at the action boundary through the Quill `Logger`
+  facade (`RH_LOG_*`).
+- Clarified that the only pre-undo logging prerequisite is the durable file-backed logger, which
+  already exists as the Quill-backed `Logger` facade (plus `JuceQuillBridge`). Action logs, undo
+  logs, and the rollback diagnostic are added incrementally with the undo stages that use them, via
+  `RH_LOG_*` directly. There is no separate `IEditorDiagnostics` interface; Quill already provides
+  durable, category-based, structured logging.
 - Tightened faulted-session persistence: normal Save and Save As are blocked while faulted because
   the live backend is untrusted. A future safe-copy command may be added only if it serializes a
   known-good editor project model and never reads refreshed backend state as persistence input.
@@ -53,8 +56,8 @@ success nor rollback. It is a **critical internal error that should be impossibl
 port truly preflights or rolls back; the live rig is now in a state the editor cannot trust. When it
 happens, the controller does not terminate the app; it faults the session:
 
-- log an `Error` diagnostic through `IEditorDiagnostics` (persisted to the editor log file) with
-  enough context to debug the broken operation;
+- log an `Error` record through the Quill `Logger` facade (`RH_LOG_ERROR`, persisted to the editor
+  log file) with enough context to debug the broken operation;
 - enter a `faulted` session state that blocks all content editing, Undo/Redo, Save, and Save As, so
   the user cannot build on or persist the untrusted state. This is centralized in the existing
   action-availability check (the same place the busy state already blocks editing), so it is one flag
@@ -112,41 +115,34 @@ Out of scope:
 
 ## Logging
 
-The only app-startup logging prerequisite is a durable file-backed logger, installed by the editor
-app composition root before the audio engine and editor window (see `editor-logging-plan.md`). That
-makes existing `juce::Logger::writeToLog` calls durable and is enough to debug undo development.
+The only app-startup logging prerequisite is a durable file-backed logger. It already exists: the
+Quill-backed `Logger` facade in `rock-hero-common/core`, installed by the editor app composition
+root before the audio engine and editor window, with `JuceQuillBridge` routing
+`juce::Logger::writeToLog` into the same durable log. That is enough to debug undo development.
 Everything structured below is built incrementally inside the undo implementation stages, each stage
-adding the diagnostics for the behavior it introduces. Do not create a separate diagnostics
-prerequisite stage before the undo work needs it. Keep it narrow: do not implement the deferred
+adding the logging for the behavior it introduces. Do not create a separate logging prerequisite
+stage before the undo work needs it. Keep it narrow: do not implement the deferred
 `docs/todo/core-domain-logging-targets-plan.md` target split here.
 
-### Editor Diagnostics Surface
+### Logging Surface
 
-Add a small project-owned diagnostics interface in `rock-hero-editor/core` so controller behavior can
-be tested without JUCE globals:
+Log through the project's existing Quill `Logger` facade directly, the same way
+`editor_controller.cpp` already does (`RH_LOG_WARNING("editor.controller", ...)`). Do **not** add a
+separate `IEditorDiagnostics` port: Quill already provides durable, category-based, structured
+(fmt-style) logging, so wrapping it would be an abstraction over an abstraction and a second logging
+vocabulary, and it would contradict the direct-logging practice already in editor-core.
 
-```cpp
-enum class EditorDiagnosticSeverity { Debug, Info, Warning, Error };
-
-struct EditorDiagnosticField { std::string name; std::string value; };
-
-class IEditorDiagnostics
-{
-public:
-    virtual ~IEditorDiagnostics() = default;
-    virtual void write(
-        EditorDiagnosticSeverity severity,
-        std::string_view category,
-        std::string_view message,
-        std::span<const EditorDiagnosticField> fields = {}) = 0;
-};
-```
-
-Production provides a JUCE-backed implementation that formats one line and forwards to
-`juce::Logger::writeToLog`; tests use a recording fake. Keep field formatting human-readable, but do
-not make exact log text a behavioral contract except in focused diagnostics tests.
-`EditorUndoHistory` must not depend on this interface. Log at the controller action boundary, not
-inside low-level domain objects.
+- Use the `editor.controller` category (and finer `editor.controller.*` subcategories if useful) at
+  the controller action boundary. Log at the boundary, not inside low-level domain objects.
+- `EditorUndoHistory` stays pure: it depends on no logger and returns transition results/events that
+  the controller logs via `RH_LOG_*`.
+- Use `RH_LOG_INFO` for normal lifecycle, `RH_LOG_WARNING` for unusual recoverable paths, and
+  `RH_LOG_ERROR` for recoverable failures and rollback-contract violations.
+- Keep message text human-readable but do not make exact log text a behavioral contract. The tested
+  behaviors are state transitions (faulted session, availability, dirty state), not log lines.
+- The one place emission itself is load-bearing is the rollback-contract diagnostic (the bug-report
+  payload). If its emission must be proven, assert the faulted-state behavior and, only if needed,
+  capture the record with a focused Quill test sink rather than introducing a standing port.
 
 ### Action And Undo Events
 
@@ -161,14 +157,14 @@ history type:
   batch started/completed/flushed/dropped; rollback attempt started/completed; runtime id remapped;
   clean revision marked or made unreachable by eviction.
 
-Use `Info` for normal lifecycle, `Warning` for unusual recoverable paths, and `Error` for recoverable
-failures and rollback-contract violations.
+Use `RH_LOG_INFO` for normal lifecycle, `RH_LOG_WARNING` for unusual recoverable paths, and
+`RH_LOG_ERROR` for recoverable failures and rollback-contract violations.
 
 ### Rollback-Contract Diagnostic
 
 A rollback-contract violation is a critical error handled by faulting the session (see Failure
 Philosophy), not by aborting, so it needs no special synchronous-write-before-termination path. It is
-a single structured `Error` diagnostic on the normal surface, written before the session is faulted —
+a single structured `RH_LOG_ERROR` record on the normal log, written before the session is faulted —
 this is the diagnostic the user is asked to send to the developer — including: operation
 name; undo/redo direction and entry type; target plugin/candidate ids, chain index, parameter ids,
 and output-gain values as relevant; busy operation and token; message-thread check result; typed
@@ -824,9 +820,10 @@ Controller:
 - undo availability is true while a net-changed parameter batch is pending;
 - undo/redo availability appears in view state;
 - undo/redo are disabled while busy and while calibration blocks signal-chain edits;
-- a rollback-contract violation logs the expected `Error` diagnostic and enters the faulted state
-  (all editing, Undo/Redo, Save, and Save As blocked; Open/Import/Restore/Close/Exit allowed),
-  without terminating;
+- a rollback-contract violation enters the faulted state (all editing, Undo/Redo, Save, and Save As
+  blocked; Open/Import/Restore/Close/Exit allowed) without terminating; its developer-facing
+  `RH_LOG_ERROR` record may be asserted with a focused Quill test sink only if proving emission is
+  required;
 - Save marks clean after flushing pending parameters;
 - undoing back to saved state clears dirtiness;
 - dirty tracking is history-based before Undo/Redo are enabled;
@@ -866,9 +863,10 @@ UI:
 
 ## Implementation Stages
 
-Prerequisite: install the durable file-backed editor logger from `editor-logging-plan.md` so logs
-persist. The diagnostics surface, action/undo-event logging, and the rollback-contract diagnostic are
-built in the stages below, not up front.
+Prerequisite: the durable file-backed editor logger already exists (the Quill-backed `Logger` facade
+plus `JuceQuillBridge`), so logs persist. Action/undo-event logging and the rollback-contract
+diagnostic are built in the stages below via `RH_LOG_*`, not up front, and need no new logging
+interface.
 
 0. Tracktion/JUCE behavior spike: internal undo stack mutation, safe quarantine mechanism, rollback
    feasibility for undo-wired Tracktion mutations, real plugin parameter callback patterns,
@@ -876,7 +874,7 @@ built in the stages below, not up front.
    cache initialization.
 1. `EditorUndoHistory` and direct tests: two-phase commit, unchanged-on-error failures,
    rollback-contract non-commit results, clean-marker eviction, and `remapInstanceId`. Keep the type
-   pure: no `IEditorDiagnostics`, no JUCE logger, and no controller dependency. Return compact
+   pure: no logger dependency and no controller dependency. Return compact
    transition results/events for push, undo, redo, clean-revision mark, clean-revision eviction, id
    remap, and non-commit failures so the controller can log them later and fault the session when
    required.
@@ -885,10 +883,11 @@ built in the stages below, not up front.
    fakes. Write the rollback proof and exact-pre-state tests for each mutating port before the
    controller records that port in user-visible history.
 3. Undo/Redo action ids, intents, availability in all switches, view-state fields, Edit menu, and
-   `Ctrl+Z` / `Ctrl+Y` routing. Keep user-facing commands disabled until coverage is complete. Wire
-   `IEditorDiagnostics` into `EditorController` and log action lifecycle at the action gate for all
-   actions (request, availability rejection, start, completion, recoverable failure, cancel, stale
-   completion). Log the history transition results/events returned by `EditorUndoHistory` here.
+   `Ctrl+Z` / `Ctrl+Y` routing. Keep user-facing commands disabled until coverage is complete. Log
+   action lifecycle at the action gate for all actions (request, availability rejection, start,
+   completion, recoverable failure, cancel, stale completion) via `RH_LOG_*` on the
+   `editor.controller` category. Log the history transition results/events returned by
+   `EditorUndoHistory` here.
 4. Lightweight inverse tier with no audio change: block placement and display-type override. Log
    their undo-entry push and undo/redo apply.
 5. Move as a compound inverse with placement restore. Log move entries.
