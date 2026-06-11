@@ -50,6 +50,15 @@ public:
            observation.undo_description + "'";
 }
 
+// Formats an undo-manager observation while highlighting how many stored units changed.
+[[nodiscard]] std::string describeUndoDelta(
+    const std::string& label, const Engine::SpikeUndoObservation& before,
+    const Engine::SpikeUndoObservation& after)
+{
+    return describeUndo(label, after) +
+           " deltaUnits=" + std::to_string(after.stored_unit_count - before.stored_unit_count);
+}
+
 // Reads the optional reference-plugin path the spike uses for the plugin-dependent observations.
 [[nodiscard]] std::optional<std::filesystem::path> spikePluginPathFromEnv()
 {
@@ -118,20 +127,39 @@ public:
     return "user:" + instance_id;
 }
 
-// Joins instance ids into one bracketed string for a spike report line.
-[[nodiscard]] std::string joinInstanceIds(const std::vector<std::string>& instance_ids)
+// Joins string values into one bracketed string for a spike report line.
+[[nodiscard]] std::string joinStrings(const std::vector<std::string>& values)
 {
     std::string joined = "[";
-    for (std::size_t index = 0; index < instance_ids.size(); ++index)
+    for (std::size_t index = 0; index < values.size(); ++index)
     {
-        joined += instance_ids[index];
-        if (index + 1 < instance_ids.size())
+        joined += values[index];
+        if (index + 1 < values.size())
         {
             joined += ", ";
         }
     }
     joined += "]";
     return joined;
+}
+
+// Joins instance ids into one bracketed string for a spike report line.
+[[nodiscard]] std::string joinInstanceIds(const std::vector<std::string>& instance_ids)
+{
+    return joinStrings(instance_ids);
+}
+
+// Reports whether a manual route repair succeeded and whether it touched the undo manager.
+void warnManualRouteRepair(const std::string& label, Engine& engine)
+{
+    const Engine::SpikeUndoObservation before = engine.spikeObserveUndo();
+    const std::string route_error = engine.spikeRebuildInstrumentMonitoringGraph();
+    const Engine::SpikeUndoObservation after = engine.spikeObserveUndo();
+
+    WARN(
+        label + ": manual route repair " +
+        (route_error.empty() ? std::string{"succeeded"} : "failed: " + route_error));
+    WARN(describeUndoDelta(label + ": undo after manual route repair", before, after));
 }
 
 } // namespace
@@ -330,6 +358,181 @@ TEST_CASE(
             " restored=" + kept_round_trip.restored_instance_id + " capturedHadId=" +
             (kept_round_trip.captured_state_had_id_property ? "true" : "false"));
         WARN(describeUndo("  after reinsert", kept_round_trip.undo_after_reinsert));
+    }
+}
+
+// Re-runs the structural-operation Tracktion undo probes on the B1/B2-lite cleaned base, isolating
+// each RockHero operation inside one labeled Tracktion transaction.
+TEST_CASE(
+    "Spike: cleaned base Tracktion undo transaction cleanliness",
+    "[audio][engine][spike][integration]")
+{
+    const std::optional<std::filesystem::path> plugin_path = spikePluginPathFromEnv();
+    if (!plugin_path.has_value())
+    {
+        SKIP("Set ROCKHERO_SPIKE_PLUGIN to a .vst3 file path to run the B3 spike.");
+    }
+    if (!std::filesystem::exists(*plugin_path))
+    {
+        SKIP("ROCKHERO_SPIKE_PLUGIN does not exist: " + plugin_path->string());
+    }
+
+    SpikeEngineHarness harness;
+    Engine& engine = harness.engine;
+    IPluginHost& plugin_host = engine;
+    ILiveRig& live_rig = engine;
+
+    const std::optional<PluginCandidate> reference_candidate =
+        resolveReferenceCandidate(plugin_host, *plugin_path);
+    REQUIRE(reference_candidate.has_value());
+
+    SECTION("insert is one undoable transaction")
+    {
+        engine.spikeClearUndoHistory();
+        const Engine::SpikeUndoObservation before = engine.spikeObserveUndo();
+        engine.spikeBeginUndoTransaction("b3-insert");
+
+        const auto insert = plugin_host.insertPlugin(*reference_candidate, 0);
+        REQUIRE(insert.has_value());
+        REQUIRE(insert->plugins.size() == 1);
+        const std::string inserted_id = insert->plugins.front().instance_id;
+        const Engine::SpikeUndoObservation after_insert = engine.spikeObserveUndo();
+        WARN(describeUndoDelta("B3 insert: after wrapped insert", before, after_insert));
+        WARN(
+            "B3 insert: raw roles after insert " +
+            joinStrings(engine.spikeRawLiveRigPluginRoles()));
+
+        const bool undo_performed = engine.spikeTracktionUndo();
+        const std::vector<std::string> ids_after_undo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 insert: undo=" + std::string{undo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_undo) +
+            " roles=" + joinStrings(engine.spikeRawLiveRigPluginRoles()));
+        CHECK(undo_performed);
+        CHECK(ids_after_undo.empty());
+        warnManualRouteRepair("B3 insert undo", engine);
+
+        const bool redo_performed = engine.spikeTracktionRedo();
+        const std::vector<std::string> ids_after_redo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 insert: redo=" + std::string{redo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_redo));
+        CHECK(redo_performed);
+        CHECK(ids_after_redo == std::vector<std::string>{inserted_id});
+        warnManualRouteRepair("B3 insert redo", engine);
+    }
+
+    SECTION("move is one undoable transaction")
+    {
+        const auto first_insert = plugin_host.insertPlugin(*reference_candidate, 0);
+        REQUIRE(first_insert.has_value());
+        REQUIRE(first_insert->plugins.size() == 1);
+        const std::string first_id = first_insert->plugins.front().instance_id;
+
+        const auto second_insert = plugin_host.insertPlugin(*reference_candidate, 1);
+        REQUIRE(second_insert.has_value());
+        REQUIRE(second_insert->plugins.size() == 2);
+        const std::string second_id = second_insert->plugins.back().instance_id;
+
+        engine.spikeClearUndoHistory();
+        const Engine::SpikeUndoObservation before = engine.spikeObserveUndo();
+        engine.spikeBeginUndoTransaction("b3-move");
+
+        const auto moved = plugin_host.movePlugin(first_id, 1);
+        REQUIRE(moved.has_value());
+        const std::vector<std::string> ids_after_move = engine.spikeUserPluginInstanceIds();
+        const Engine::SpikeUndoObservation after_move = engine.spikeObserveUndo();
+        WARN(describeUndoDelta("B3 move: after wrapped move", before, after_move));
+        WARN("B3 move: ids after move " + joinInstanceIds(ids_after_move));
+        CHECK(ids_after_move == std::vector<std::string>{second_id, first_id});
+
+        const bool undo_performed = engine.spikeTracktionUndo();
+        const std::vector<std::string> ids_after_undo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 move: undo=" + std::string{undo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_undo));
+        CHECK(undo_performed);
+        CHECK(ids_after_undo == std::vector<std::string>{first_id, second_id});
+        warnManualRouteRepair("B3 move undo", engine);
+
+        const bool redo_performed = engine.spikeTracktionRedo();
+        const std::vector<std::string> ids_after_redo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 move: redo=" + std::string{redo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_redo));
+        CHECK(redo_performed);
+        CHECK(ids_after_redo == std::vector<std::string>{second_id, first_id});
+        warnManualRouteRepair("B3 move redo", engine);
+    }
+
+    SECTION("remove is one undoable transaction")
+    {
+        const auto insert = plugin_host.insertPlugin(*reference_candidate, 0);
+        REQUIRE(insert.has_value());
+        REQUIRE(insert->plugins.size() == 1);
+        const std::string removed_id = insert->plugins.front().instance_id;
+
+        engine.spikeClearUndoHistory();
+        const Engine::SpikeUndoObservation before = engine.spikeObserveUndo();
+        engine.spikeBeginUndoTransaction("b3-remove");
+
+        const auto removed = plugin_host.removePlugin(removed_id);
+        REQUIRE(removed.has_value());
+        const Engine::SpikeUndoObservation after_remove = engine.spikeObserveUndo();
+        WARN(describeUndoDelta("B3 remove: after wrapped remove", before, after_remove));
+        CHECK(engine.spikeUserPluginInstanceIds().empty());
+
+        const bool undo_performed = engine.spikeTracktionUndo();
+        const std::vector<std::string> ids_after_undo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 remove: undo=" + std::string{undo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_undo));
+        CHECK(undo_performed);
+        CHECK(ids_after_undo == std::vector<std::string>{removed_id});
+        warnManualRouteRepair("B3 remove undo", engine);
+
+        const bool redo_performed = engine.spikeTracktionRedo();
+        const std::vector<std::string> ids_after_redo = engine.spikeUserPluginInstanceIds();
+        WARN(
+            "B3 remove: redo=" + std::string{redo_performed ? "true" : "false"} +
+            " ids=" + joinInstanceIds(ids_after_redo));
+        CHECK(redo_performed);
+        CHECK(ids_after_redo.empty());
+        warnManualRouteRepair("B3 remove redo", engine);
+    }
+
+    SECTION("output gain is one undoable transaction")
+    {
+        engine.spikeClearUndoHistory();
+        const double gain_before_db = live_rig.outputGain().db;
+        const Engine::SpikeUndoObservation before = engine.spikeObserveUndo();
+        engine.spikeBeginUndoTransaction("b3-output-gain");
+
+        const auto gain_changed = live_rig.setOutputGain(Gain{gain_before_db - 4.0});
+        REQUIRE(gain_changed.has_value());
+        const double gain_after_change_db = live_rig.outputGain().db;
+        const Engine::SpikeUndoObservation after_gain = engine.spikeObserveUndo();
+        WARN(describeUndoDelta("B3 gain: after wrapped gain", before, after_gain));
+
+        const bool undo_performed = engine.spikeTracktionUndo();
+        const double gain_after_undo_db = live_rig.outputGain().db;
+        WARN(
+            "B3 gain: undo=" + std::string{undo_performed ? "true" : "false"} +
+            " before=" + std::to_string(gain_before_db) +
+            " afterChange=" + std::to_string(gain_after_change_db) +
+            " afterUndo=" + std::to_string(gain_after_undo_db));
+        CHECK(undo_performed);
+        WARN(
+            "B3 gain: undo restored requested value=" +
+            std::string{gain_after_undo_db == gain_before_db ? "true" : "false"});
+
+        const bool redo_performed = engine.spikeTracktionRedo();
+        const double gain_after_redo_db = live_rig.outputGain().db;
+        WARN(
+            "B3 gain: redo=" + std::string{redo_performed ? "true" : "false"} +
+            " afterRedo=" + std::to_string(gain_after_redo_db));
+        CHECK(redo_performed);
+        CHECK(gain_after_redo_db == gain_after_change_db);
     }
 }
 
