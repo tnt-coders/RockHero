@@ -43,8 +43,9 @@ Open (decided at the Phase M gate, after baseline + evaluation):
 
 ## Ordering principles
 
-- Baseline cleanups (Phase B) must be **behavior-preserving** and justified **independently of undo**.
-  If a cleanup is not a net improvement on its own merits, it does not belong in Phase B.
+- Baseline cleanups (Phase B) must preserve project/tone behavior unless the user explicitly accepts
+  a boundary correction, and they must be justified **independently of undo**. If a cleanup is not a
+  net improvement on its own merits, it does not belong in Phase B.
 - Decide the undo mechanism on the cleaned base with measured evidence, not on current-code accidents.
 - Each evaluation gate produces a short **written finding** before the next implementation step.
 - Keep every step independently buildable and reviewable. Tests are gates, not cleanup.
@@ -58,8 +59,8 @@ Open (decided at the Phase M gate, after baseline + evaluation):
 Phase 0   Planning / logging reconciliation                  [done]
 Phase 1   Focused baseline tests                              [done]
 Phase B   BASELINE ENGINE CLEANUP (pre-undo, value on its own merits)
-   B0  Evaluation: scope eager structural init + routing centralization; record findings
-   B1  Eager structural plugins at construction               (behavior-preserving)
+   B0  Evaluation: scope eager structural init + routing centralization [done]
+   B1  Eager structural plugins at construction               (project-safe + input policy fix)
    B2  Routing centralization: B2-lite (sync, default) OR B2-full (reactive, only if delegation)
    B3  Re-measure transaction cleanliness on the cleaned base (evaluation/spike)
 Phase 2   Tracktion behavior spike                            [mechanical done; param step folds into M]
@@ -79,6 +80,9 @@ adds undo behavior.
 
 ### B0 - Evaluation (no code): scope the cleanup and record findings
 
+Result: completed in `editor-engine-undo-b0-findings.md`. B1 is confirmed, B2-lite is the selected
+baseline route cleanup, and the expected Phase M mechanism lean remains local mementos.
+
 Produce a short findings note (append to `undo-ownership-analysis.md` or a sibling) answering:
 
 - **Eager structural plugins:** confirm lazy creation is incidental, not load-bearing. `createEdit()`
@@ -91,10 +95,11 @@ Produce a short findings note (append to `undo-ownership-analysis.md` or a sibli
   creation is eager. **Also enumerate the chain-clearing paths that reset the structural ids**
   (`clearLiveRig` `:3372-3377`, `loadLiveRig` setup `:3779-3783`, load abort `~:4002`) **and the
   observable resets they currently produce by destruction** (notably `outputGain()` → default). B1
-  keeps the anchors (clear only user plugins, stable ids) and must reproduce those resets explicitly.
+  keeps the anchors (clear only user plugins, stable ids), preserves input gain as device-scoped user
+  calibration, and must reproduce project-owned resets explicitly.
 - **Routing centralization (B2-lite vs B2-full):** enumerate the ~15
   `rebuildInstrumentMonitoringGraph()` call sites (`engine.cpp:3155, 3258, 3302, 3378, 3468, 3512,
-  3557, 4047, 2768`, plus the best-effort rollback calls) and the inputs routing depends on —
+  3557, 3709, 3843, 4047, 2768`, plus the best-effort rollback calls) and the inputs routing depends on —
   instrument-vs-backing target by monitoring mode (`engine.cpp:2574-2575`), current audio device, and
   the monitoring-enabled flags. Note `setOutputGain` (`:3557`) drops out of this set after B1 (it is a
   property write, not a chain-structure mutation; see B2-lite). Decide between:
@@ -112,7 +117,12 @@ Produce a short findings note (append to `undo-ownership-analysis.md` or a sibli
   whether routing work is B2-lite (default if mementos are favored) or B2-full (only if delegation is
   favored).
 
-Exit: written findings; B1 and the B2-lite/B2-full choice confirmed.
+Exit: written findings; B1 and the B2-lite/B2-full choice confirmed. **Done - see
+`editor-engine-undo-b0-findings.md`:** B1 is feasible and behavior-preserving for the user-visible
+chain (lazy structural init is incidental); B2-lite is the selected baseline route cleanup. B1 keeps
+structural anchors stable across clear/load/abort and applies the resolved reset semantics: reset
+output gain to default as project tone state, preserve input gain as device-scoped user calibration,
+and explicitly clear retained meter state.
 
 ### B1 - Eager structural plugins at construction
 
@@ -131,25 +141,28 @@ would force invalidation of every cached structural id — avoid it.)
 
 But keeping the instances means their **state no longer resets implicitly.** Today clearing the list
 destroys the gain plugin, so `outputGain()` falls back to default afterward (`engine.cpp:3395` →
-null plugin → `Gain{}`). B1 must therefore **explicitly reset the structural state** that the old
-destroy-and-recreate produced — at minimum output gain back to default on clear and load-abort — or
-stale project gain survives a clear. Enumerate every observable structural default the old wipe
-produced and reset it explicitly. B1 is incomplete until these three paths preserve the anchors **and**
-reproduce the old observable reset behavior.
+null plugin → `Gain{}`). B1 must therefore **explicitly reset project-owned structural state** that
+the old destroy-and-recreate produced: output gain returns to default on clear and load-abort, and
+retained input/output meter measurers are cleared. Input gain is excluded from project reset because
+it is device-scoped user calibration: clear/load/abort preserve it; known audio input devices reload
+their stored calibration when opened; previously unknown input devices start at default. B1 is
+incomplete until these three paths preserve the anchors and apply those semantics.
 
 Rules / expected payoff:
 
 - Structural plugin `EditItemID`s are stable for the engine's lifetime, **including across clear and
   load** (because clear/load keep the instances rather than recreating them).
-- Clear/load/abort reset structural state (e.g. output gain → default) **explicitly**, preserving the
-  current observable behavior now that destruction no longer does it for free.
+- Clear/load/abort reset project structural state (output gain and retained meter state)
+  **explicitly**, while preserving device-scoped input gain across project operations.
 - Insert/move/remove operate against fixed anchors; index math simplifies.
 - A RockHero command no longer bundles structural creation into its first transaction.
-- Behavior at the public ports is unchanged.
+- Public plugin-chain/capture behavior is unchanged; input-gain lifetime is intentionally corrected
+  to follow device-scoped calibration instead of project clear/load lifetime.
 
 Verification: `rock_hero_common_audio_tests` builds and passes; structural plugins are excluded from
-capture/snapshot exactly as before; clear and load keep the structural anchors present **and** leave
-`outputGain()` at default exactly as the old wipe did; no public-contract change.
+capture/snapshot exactly as before; clear and load keep the structural anchors present; clear/empty
+load leave `outputGain()` at default; project clear/load preserve `inputGain()`; retained live-rig
+meter state is cleared.
 
 ### B2 - Routing centralization
 
@@ -319,6 +332,6 @@ mechanism — the product stack stays the single front door.
 
 ## Preferred next concrete step
 
-Phase B0 (evaluation): scope eager structural init and routing centralization, confirming B1 now and
-choosing B2-lite (default) vs B2-full, and record findings. Then B1, then the chosen B2, then B3's
-measurement, then the Phase M decision.
+Phase B1: eagerly create the structural live-rig plugins at edit construction, preserve anchors
+across clear/load/abort, reset output gain and meter state, and preserve device-scoped input gain
+across project operations. Then B2-lite, then B3's measurement, then the Phase M decision.
