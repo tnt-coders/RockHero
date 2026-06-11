@@ -32,7 +32,9 @@ add_executable(
     test_engine.cpp
     test_plugin_move_index.cpp
     test_tracktion_instrument_wave_device_mapping.cpp
-    test_plugin_host.cpp)
+    test_plugin_host.cpp
+    # SPIKE (temporary): Phase 2 Tracktion/JUCE undo behavior spike. Remove with the spike.
+    test_undo_spike.cpp)
 
 # Let focused adapter tests include private implementation helpers without making them public API.
 target_include_directories(rock_hero_common_audio_tests
