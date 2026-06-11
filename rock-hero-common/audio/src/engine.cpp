@@ -1451,8 +1451,8 @@ private:
             logInstrumentMonitoringFailure("backing track was not created");
         }
 
-        // Structural live-rig plugins are managed explicitly by ensureStructuralLiveRigPlugins()
-        // rather than relying on Tracktion's default plugin insertion.
+        // Structural live-rig plugins are managed explicitly rather than relying on Tracktion's
+        // default plugin insertion.
         constexpr bool add_default_plugins = false;
         const tracktion::AudioTrack::Ptr instrument_track = m_edit->insertNewAudioTrack(
             tracktion::TrackInsertPoint::getEndOfTracks(*m_edit), nullptr, add_default_plugins);
@@ -1461,6 +1461,11 @@ private:
         {
             instrument_track->setName("Instrument");
             m_instrument_track_id = instrument_track->itemID;
+            if (auto structural_created = createStructuralLiveRigPlugins();
+                !structural_created.has_value())
+            {
+                logInstrumentMonitoringFailure(toJuceString(structural_created.error().message));
+            }
         }
         else
         {
@@ -1994,7 +1999,14 @@ private:
             findStructuralGainPlugin(m_output_gain_plugin_id);
         const int output_gain_index =
             output_gain != nullptr ? instrument_track->pluginList.indexOf(output_gain) : -1;
-        return output_gain_index >= 0 ? output_gain_index : -1;
+        if (output_gain_index < 0)
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginInsertionFailed,
+                "Structural live rig output gain plugin is missing",
+            }};
+        }
+        return output_gain_index;
     }
 
     // Finds one plugin's current user-visible index, excluding structural live-rig plugins.
@@ -2265,13 +2277,13 @@ private:
         return level_meter;
     }
 
-    // Reports whether the hidden live-rig plugins are missing or displaced from fixed slots.
-    [[nodiscard]] bool structuralLiveRigPluginsNeedUpdate() const
+    // Validates that the hidden live-rig plugins exist at their fixed measurement points.
+    [[nodiscard]] std::expected<void, LiveRigError> validateStructuralLiveRigPlugins() const
     {
         const tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
         {
-            return true;
+            return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
         }
 
         const auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
@@ -2281,27 +2293,83 @@ private:
         if (input_plugin == nullptr || input_meter == nullptr || output_plugin == nullptr ||
             output_meter == nullptr)
         {
-            return true;
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig plugins are missing",
+            }};
         }
 
         const auto& plugin_list = instrument_track->pluginList.getPlugins();
         if (plugin_list.size() < 4 || plugin_list[0] == nullptr || plugin_list[1] == nullptr)
         {
-            return true;
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig plugins are not in fixed slots",
+            }};
         }
         if (plugin_list.getLast() == nullptr || plugin_list[plugin_list.size() - 2] == nullptr)
         {
-            return true;
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig plugins are not in fixed slots",
+            }};
         }
 
-        return plugin_list[0]->itemID != m_input_gain_plugin_id ||
-               plugin_list[1]->itemID != m_input_meter_plugin_id ||
-               plugin_list[plugin_list.size() - 2]->itemID != m_output_gain_plugin_id ||
-               plugin_list.getLast()->itemID != m_output_meter_plugin_id;
+        if (plugin_list[0]->itemID != m_input_gain_plugin_id ||
+            plugin_list[1]->itemID != m_input_meter_plugin_id ||
+            plugin_list[plugin_list.size() - 2]->itemID != m_output_gain_plugin_id ||
+            plugin_list.getLast()->itemID != m_output_meter_plugin_id)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig plugins are not in fixed slots",
+            }};
+        }
+
+        return {};
     }
 
-    // Ensures the hidden gain and meter plugins exist at the live-rig measurement points.
-    [[nodiscard]] std::expected<bool, LiveRigError> ensureStructuralLiveRigPlugins()
+    // Creates the fixed hidden gain and meter plugins around the user-visible live-rig chain.
+    [[nodiscard]] std::expected<void, LiveRigError> createStructuralLiveRigPlugins()
+    {
+        if (instrumentTrack() == nullptr)
+        {
+            return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+        }
+
+        auto created_input_plugin = createLiveRigGainPlugin(0);
+        if (!created_input_plugin.has_value())
+        {
+            return std::unexpected{std::move(created_input_plugin.error())};
+        }
+        m_input_gain_plugin_id = (*created_input_plugin)->itemID;
+
+        auto created_input_meter = createLevelMeterPlugin(1);
+        if (!created_input_meter.has_value())
+        {
+            return std::unexpected{std::move(created_input_meter.error())};
+        }
+        m_input_meter_plugin_id = (*created_input_meter)->itemID;
+
+        auto created_output_plugin = createLiveRigGainPlugin(-1);
+        if (!created_output_plugin.has_value())
+        {
+            return std::unexpected{std::move(created_output_plugin.error())};
+        }
+        m_output_gain_plugin_id = (*created_output_plugin)->itemID;
+
+        auto created_output_meter = createLevelMeterPlugin(-1);
+        if (!created_output_meter.has_value())
+        {
+            return std::unexpected{std::move(created_output_meter.error())};
+        }
+        m_output_meter_plugin_id = (*created_output_meter)->itemID;
+
+        return validateStructuralLiveRigPlugins();
+    }
+
+    // Removes only user-visible plugins, preserving fixed structural gain and meter anchors.
+    [[nodiscard]] std::expected<void, LiveRigError> clearUserLiveRigPlugins()
     {
         tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
@@ -2309,98 +2377,48 @@ private:
             return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
         }
 
-        bool changed = false;
-
-        // Create any missing structural plugins before ordering so existing plugins move together.
-        if (auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
-            input_plugin == nullptr)
+        const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
+        for (tracktion::Plugin* const plugin : plugins)
         {
-            auto created_input_plugin = createLiveRigGainPlugin(0);
-            if (!created_input_plugin.has_value())
+            if (plugin != nullptr && !isStructuralLiveRigPlugin(plugin))
             {
-                return std::unexpected{std::move(created_input_plugin.error())};
+                plugin->removeFromParent();
             }
-            m_input_gain_plugin_id = (*created_input_plugin)->itemID;
-            changed = true;
         }
+
+        return validateStructuralLiveRigPlugins();
+    }
+
+    // Clears live-rig meter windows retained by structural meter plugins across project changes.
+    void clearRetainedLiveRigMeterState()
+    {
+        m_input_meter_reader.detach();
+        m_output_meter_reader.detach();
 
         if (auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
-            input_meter == nullptr)
+            input_meter != nullptr)
         {
-            auto created_input_meter = createLevelMeterPlugin(1);
-            if (!created_input_meter.has_value())
-            {
-                return std::unexpected{std::move(created_input_meter.error())};
-            }
-            m_input_meter_plugin_id = (*created_input_meter)->itemID;
-            changed = true;
-        }
-
-        if (auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
-            output_plugin == nullptr)
-        {
-            auto created_output_plugin = createLiveRigGainPlugin(-1);
-            if (!created_output_plugin.has_value())
-            {
-                return std::unexpected{std::move(created_output_plugin.error())};
-            }
-            m_output_gain_plugin_id = (*created_output_plugin)->itemID;
-            changed = true;
+            input_meter->measurer.clear();
         }
 
         if (auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
-            output_meter == nullptr)
+            output_meter != nullptr)
         {
-            auto created_output_meter = createLevelMeterPlugin(-1);
-            if (!created_output_meter.has_value())
-            {
-                return std::unexpected{std::move(created_output_meter.error())};
-            }
-            m_output_meter_plugin_id = (*created_output_meter)->itemID;
-            changed = true;
+            output_meter->measurer.clear();
+        }
+    }
+
+    // Resets project-owned live-rig structural state while preserving device input calibration.
+    [[nodiscard]] std::expected<void, LiveRigError> resetLiveRigProjectState()
+    {
+        auto output_reset = applyGainToPlugin(m_output_gain_plugin_id, Gain{defaultGainDb()});
+        if (!output_reset.has_value())
+        {
+            return std::unexpected{std::move(output_reset.error())};
         }
 
-        // Final order: input gain, input meter, user plugins, output gain, output meter.
-        auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
-        auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
-        auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
-        auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
-        if (input_plugin == nullptr || input_meter == nullptr || output_plugin == nullptr ||
-            output_meter == nullptr)
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Structural live rig plugin was not restored",
-            }};
-        }
-
-        if (instrument_track->pluginList.indexOf(input_plugin) != 0)
-        {
-            // Moving an existing plugin through insertPlugin() reorders its ValueTree child.
-            instrument_track->pluginList.insertPlugin(input_plugin, 0, nullptr);
-            changed = true;
-        }
-        if (instrument_track->pluginList.indexOf(input_meter) != 1)
-        {
-            instrument_track->pluginList.insertPlugin(input_meter, 1, nullptr);
-            changed = true;
-        }
-        if (instrument_track->pluginList.indexOf(output_meter) !=
-            instrument_track->pluginList.size() - 1)
-        {
-            instrument_track->pluginList.insertPlugin(output_meter, -1, nullptr);
-            changed = true;
-        }
-        if (instrument_track->pluginList.indexOf(output_plugin) !=
-            instrument_track->pluginList.size() - 2)
-        {
-            // Keep output gain after every audible plugin and immediately before the output meter.
-            instrument_track->pluginList.insertPlugin(
-                output_plugin, instrument_track->pluginList.size() - 1, nullptr);
-            changed = true;
-        }
-
-        return changed;
+        clearRetainedLiveRigMeterState();
+        return {};
     }
 
     // Reads the dB value from a structural live-rig gain plugin, returning default if absent.
@@ -3363,18 +3381,24 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     // continuations could rebuild the chain after the editor has closed the project.
     m_impl->m_load_op.reset();
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
-    if (instrument_track == nullptr)
+    if (m_impl->instrumentTrack() == nullptr)
     {
         return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
     }
 
     m_impl->stopTransportAndReleaseContext();
-    instrument_track->pluginList.clear();
-    m_impl->m_input_gain_plugin_id = {};
-    m_impl->m_input_meter_plugin_id = {};
-    m_impl->m_output_gain_plugin_id = {};
-    m_impl->m_output_meter_plugin_id = {};
+    auto cleared = m_impl->clearUserLiveRigPlugins();
+    if (!cleared.has_value())
+    {
+        return std::unexpected{std::move(cleared.error())};
+    }
+
+    auto reset = m_impl->resetLiveRigProjectState();
+    if (!reset.has_value())
+    {
+        return std::unexpected{std::move(reset.error())};
+    }
+
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
@@ -3404,31 +3428,12 @@ std::expected<void, LiveInputError> Engine::setInputGain(Gain gain)
     }
 
     gain = clampGain(gain);
-    if (m_impl->structuralLiveRigPluginsNeedUpdate())
-    {
-        m_impl->stopTransportAndReleaseContext();
-    }
-
-    auto ensured = m_impl->ensureStructuralLiveRigPlugins();
-    if (!ensured.has_value())
-    {
-        return std::unexpected{liveInputErrorFromLiveRigError(ensured.error())};
-    }
-
     auto applied = m_impl->applyGainToPlugin(m_impl->m_input_gain_plugin_id, gain);
     if (!applied.has_value())
     {
         return std::unexpected{liveInputErrorFromLiveRigError(applied.error())};
     }
 
-    if (*ensured)
-    {
-        auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-        if (!route_result.has_value())
-        {
-            return std::unexpected{std::move(route_result.error())};
-        }
-    }
     return {};
 }
 
@@ -3535,31 +3540,12 @@ std::expected<void, LiveRigError> Engine::setOutputGain(Gain gain)
     }
 
     gain = clampGain(gain);
-    if (m_impl->structuralLiveRigPluginsNeedUpdate())
-    {
-        m_impl->stopTransportAndReleaseContext();
-    }
-
-    auto ensured = m_impl->ensureStructuralLiveRigPlugins();
-    if (!ensured.has_value())
-    {
-        return std::unexpected{std::move(ensured.error())};
-    }
-
     auto applied = m_impl->applyGainToPlugin(m_impl->m_output_gain_plugin_id, gain);
     if (!applied.has_value())
     {
         return std::unexpected{std::move(applied.error())};
     }
 
-    if (*ensured)
-    {
-        auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-        if (!route_result.has_value())
-        {
-            return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
-        }
-    }
     return {};
 }
 
@@ -3768,19 +3754,26 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
-    if (instrument_track == nullptr)
+    if (m_impl->instrumentTrack() == nullptr)
     {
         on_result(std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}});
         return;
     }
 
     m_impl->stopTransportAndReleaseContext();
-    instrument_track->pluginList.clear();
-    m_impl->m_input_gain_plugin_id = {};
-    m_impl->m_input_meter_plugin_id = {};
-    m_impl->m_output_gain_plugin_id = {};
-    m_impl->m_output_meter_plugin_id = {};
+    auto cleared = m_impl->clearUserLiveRigPlugins();
+    if (!cleared.has_value())
+    {
+        on_result(std::unexpected{std::move(cleared.error())});
+        return;
+    }
+
+    auto reset = m_impl->resetLiveRigProjectState();
+    if (!reset.has_value())
+    {
+        on_result(std::unexpected{std::move(reset.error())});
+        return;
+    }
 
     auto operation = std::make_unique<LiveRigLoadOperation>();
     operation->request = std::move(request);
@@ -3824,11 +3817,10 @@ void Engine::Impl::beginNextPluginStep()
     const std::size_t total_plugins = m_load_op->chain.size();
     if (m_load_op->next_index >= total_plugins)
     {
-        // Create structural gain/meter plugins and apply the restored authored output gain.
-        auto ensured = ensureStructuralLiveRigPlugins();
-        if (!ensured.has_value())
+        auto structural_valid = validateStructuralLiveRigPlugins();
+        if (!structural_valid.has_value())
         {
-            abortLiveRigLoad(std::move(ensured.error()));
+            abortLiveRigLoad(std::move(structural_valid.error()));
             return;
         }
 
@@ -3918,8 +3910,21 @@ void Engine::Impl::executePluginStep()
         return;
     }
 
+    const tracktion::Plugin* const output_gain = findStructuralGainPlugin(m_output_gain_plugin_id);
+    const int insert_index =
+        output_gain != nullptr ? instrument_track->pluginList.indexOf(output_gain) : -1;
+    if (insert_index < 0)
+    {
+        abortLiveRigLoad(
+            LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Structural live rig output gain plugin is missing",
+            });
+        return;
+    }
+
     const tracktion::Plugin::Ptr inserted_plugin =
-        instrument_track->pluginList.insertPlugin(*plugin_state, -1);
+        instrument_track->pluginList.insertPlugin(*plugin_state, insert_index);
     auto* const external_plugin =
         inserted_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
                                    : nullptr;
@@ -3996,15 +4001,19 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
     }
 
     auto operation = std::move(m_load_op);
-    if (tracktion::AudioTrack* const instrument_track = instrumentTrack();
-        instrument_track != nullptr)
+    if (instrumentTrack() != nullptr)
     {
-        instrument_track->pluginList.clear();
+        auto cleared = clearUserLiveRigPlugins();
+        if (!cleared.has_value())
+        {
+            logInstrumentMonitoringFailure(toJuceString(cleared.error().message));
+        }
+        auto reset = resetLiveRigProjectState();
+        if (!reset.has_value())
+        {
+            logInstrumentMonitoringFailure(toJuceString(reset.error().message));
+        }
     }
-    m_input_gain_plugin_id = {};
-    m_input_meter_plugin_id = {};
-    m_output_gain_plugin_id = {};
-    m_output_meter_plugin_id = {};
     rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
     operation->on_result(std::unexpected{std::move(error)});
 }
