@@ -4252,8 +4252,9 @@ std::unique_ptr<IThumbnail> Engine::createThumbnail(juce::Component& owner)
 // --- SPIKE: Phase 2 Tracktion/JUCE undo behavior probes (temporary) ---
 //
 // These exist only to characterize Tracktion undo-manager and plugin-state behavior for the editor
-// undo/redo design (docs/in-progress/editor-engine-undo-master-plan-v2.md Phase 2). Remove the whole
-// block, along with the matching declarations in engine.h, when the spike closes.
+// undo/redo design. Remove the whole block, along with the matching declarations in engine.h, using
+// the cleanup ledger in docs/in-progress/editor-engine-undo-master-plan-v3.md when the Phase 2 /
+// Phase M spikes close.
 
 // SPIKE: reports the edit's internal undo-manager state as plain, Tracktion-free values.
 Engine::SpikeUndoObservation Engine::spikeObserveUndo() const

@@ -33,7 +33,8 @@ add_executable(
     test_plugin_move_index.cpp
     test_tracktion_instrument_wave_device_mapping.cpp
     test_plugin_host.cpp
-    # SPIKE (temporary): Phase 2 Tracktion/JUCE undo behavior spike. Remove with the spike.
+    # SPIKE (temporary): Phase 2/Phase M Tracktion/JUCE undo behavior spike. Remove using
+    # docs/in-progress/editor-engine-undo-master-plan-v3.md's cleanup ledger.
     test_undo_spike.cpp)
 
 # Let focused adapter tests include private implementation helpers without making them public API.

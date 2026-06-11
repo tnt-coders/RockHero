@@ -960,9 +960,12 @@ The Stage 0 / Phase 2 spike runs in two halves. The mechanical half is built; th
 parameter half is not yet.
 
 **Vehicle (mechanical half):** `rock-hero-common/audio/tests/test_undo_spike.cpp`, backed by
-temporary `Engine` probes (`spikeObserveUndo`, `spikeClearUndoHistory`, `spikeStateRoundTrip`) that
-expose the internal `tracktion::Edit` undo manager and a capture/remove/reinsert round trip as
-plain values. All of this is fenced as `// SPIKE` and must be removed when the spike closes.
+temporary `Engine` probes that expose internal Tracktion behavior as plain values:
+`spikeObserveUndo`, `spikeClearUndoHistory`, `spikeStateRoundTrip`,
+`spikeBeginUndoTransaction`, `spikeTracktionUndo`, `spikeTracktionRedo`,
+`spikeUserPluginInstanceIds`, and `spikeRawLiveRigPluginRoles`. All of this is fenced with
+uppercase `SPIKE` markers and must be removed when the spike closes. The authoritative cleanup
+ledger is in `editor-engine-undo-master-plan-v3.md` under "Temporary Spike Code Ledger".
 
 **How to run:**
 
@@ -1024,6 +1027,10 @@ the probes as written. Both `[spike]` cases passed.
 - **Headless real-plugin instantiation works.** `Archetype Nolly X` instantiated, inserted, moved,
   and round-tripped inside the Catch2 harness with no audio device, so this test vehicle is also
   viable for future adapter coverage.
+- **Eager-anchor ordering holds with a real VST3.** The B1 follow-up spike inserted `Archetype
+  Nolly X` into a fresh eager chain, appended a second instance, moved one instance, and removed one
+  instance while asserting the raw Tracktion plugin-list roles remained
+  `[input gain, input meter, user plugins..., output gain, output meter]`.
 
 **Option B confirming spike (the "why not lean on Tracktion's undo?" challenge), ran 2026-06-10:**
 

@@ -68,6 +68,43 @@ Phase M   UNDO MECHANISM DECISION GATE                        (evaluation -> dec
 Phase 3+  Undo implementation per the chosen mechanism        (revise editor-undo-plan.md to match)
 ```
 
+## Temporary Spike Code Ledger
+
+Temporary spike code must be obvious to find and remove. The cleanup rule is:
+
+- Every temporary probe, test, and build entry uses uppercase `SPIKE` in a nearby file header,
+  block comment, CMake comment, or declaration comment.
+- Future spike-only code should land in its own commit and be added to this ledger.
+- Production undo implementation must not depend on any `Engine::spike...` method.
+- When Phase 2 / Phase M spike work closes and the findings have been recorded, remove all source
+  hits from `rg -n "SPIKE|test_undo_spike|spike[A-Z]" rock-hero-common/audio`.
+
+Current temporary spike-code commits:
+
+- `253fcd1a Add temporary undo spike probes`
+  - Added temporary `Engine` probes in `engine.h` / `engine.cpp`.
+  - Added `rock-hero-common/audio/tests/test_undo_spike.cpp`.
+  - Added the `test_undo_spike.cpp` CMake entry.
+- `3cd499a6 Add spike anchor order check`
+  - Added `spikeRawLiveRigPluginRoles()`.
+  - Added the real-VST3 eager-anchor ordering spike case.
+
+Do not revert permanent baseline commits as part of spike cleanup:
+
+- `4706a27c Create live rig structural anchors eagerly`
+- `717b18cb Centralize plugin mutation rerouting`
+
+Expected source cleanup at spike close:
+
+- Delete `rock-hero-common/audio/tests/test_undo_spike.cpp`.
+- Remove its CMake entry from `rock-hero-common/audio/tests/CMakeLists.txt`.
+- Remove the temporary `Engine` SPIKE declaration block from
+  `rock-hero-common/audio/include/rock_hero/common/audio/engine.h`.
+- Remove the matching temporary `Engine` SPIKE implementation block from
+  `rock-hero-common/audio/src/engine.cpp`.
+- Re-run `rg -n "SPIKE|test_undo_spike|spike[A-Z]" rock-hero-common/audio`; source hits should be
+  gone unless a newer explicitly-ledgered spike still exists.
+
 The remaining god-object work (`remaining-god-object-decomposition-plan.md`, the `Engine::Impl`
 seam split) is independent and may proceed in parallel; Phase B will touch the same file, so coordinate
 ordering to avoid churn.
