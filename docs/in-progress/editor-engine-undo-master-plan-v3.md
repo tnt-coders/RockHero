@@ -60,8 +60,8 @@ Phase 0   Planning / logging reconciliation                  [done]
 Phase 1   Focused baseline tests                              [done]
 Phase B   BASELINE ENGINE CLEANUP (pre-undo, value on its own merits)
    B0  Evaluation: scope eager structural init + routing centralization [done]
-   B1  Eager structural plugins at construction               (project-safe + input policy fix)
-   B2  Routing centralization: B2-lite (sync, default) OR B2-full (reactive, only if delegation)
+   B1  Eager structural plugins at construction               [done]
+   B2  Routing centralization: B2-lite implemented            [done]
    B3  Re-measure transaction cleanliness on the cleaned base (evaluation/spike)
 Phase 2   Tracktion behavior spike                            [mechanical done; param step folds into M]
 Phase M   UNDO MECHANISM DECISION GATE                        (evaluation -> decision + rationale)
@@ -81,7 +81,8 @@ adds undo behavior.
 ### B0 - Evaluation (no code): scope the cleanup and record findings
 
 Result: completed in `editor-engine-undo-b0-findings.md`. B1 is confirmed, B2-lite is the selected
-baseline route cleanup, and the expected Phase M mechanism lean remains local mementos.
+baseline route cleanup, B2-lite is now implemented, and the expected Phase M mechanism lean remains
+local mementos.
 
 Produce a short findings note (append to `undo-ownership-analysis.md` or a sibling) answering:
 
@@ -177,10 +178,9 @@ caller-facing contract and the existing tests are unchanged.
 
 **Output gain is deliberately excluded.** It is not a chain-structure mutation — after B1 it is just a
 property write on the always-present structural gain plugin, with no context teardown and no reordering.
-Today `setOutputGain` only re-routes when lazy structural creation happened (`engine.cpp:3555`, the
-`if (*ensured)` branch), and after B1 that branch never fires, so gain needs no re-route at all. Forcing
-a stop/release/re-route on every gain change would add avoidable graph churn and audible/editor timing
-side effects. Keep `setOutputGain` as a plain structural property write outside the helper.
+After B1, `setOutputGain` no longer re-routes at all. Forcing a stop/release/re-route on every gain
+change would add avoidable graph churn and audible/editor timing side effects. Keep `setOutputGain`
+as a plain structural property write outside the helper.
 
 What this buys: most of the maintainability win (deduplicates the insert/move/remove route calls and
 their rollback branches) at low risk. What it does **not** do: it does not make mutations "pure tree
@@ -198,6 +198,15 @@ Rules:
 Verification: `rock_hero_common_audio_tests` builds and passes unchanged; insert/move/remove/gain,
 live-input/calibration monitoring, device-change rebinding, and route-failure reporting all behave
 exactly as before.
+
+Result: completed with `Engine::Impl::mutateAndReroutePluginChain()` centralizing the synchronous
+stop/release -> mutate -> re-route path for `insertPlugin`, `movePlugin`, and `removePlugin`.
+Mutation failures now trigger a best-effort monitoring re-route from the helper, and route failures
+still roll back before the best-effort re-route. This intentionally fixes the pre-existing
+`removePlugin` mutation-failure path that could return after context teardown without a re-route.
+`setOutputGain` remains outside the helper as a direct structural property write. B2-full remains
+below as the deferred alternative to revisit only if Phase M chooses Tracktion undo delegation.
+Verification: `rock_hero_common_audio_tests` built and passed via the Codex build workflow.
 
 #### B2-full - Reactive routing (only if undo delegation is favored)
 
