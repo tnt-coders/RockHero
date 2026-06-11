@@ -505,6 +505,17 @@ public:
     */
     [[nodiscard]] std::vector<std::string> spikeUserPluginInstanceIds() const;
 
+    /*!
+    \brief SPIKE: reads the raw live-rig plugin-list roles, including hidden structural anchors.
+
+    Returns strings such as "input-gain", "input-meter", "user:<instance-id>", "output-gain",
+    and "output-meter" so spike tests can assert raw Tracktion ordering without exposing Tracktion
+    objects.
+
+    \return Raw plugin-list roles in Tracktion plugin-list order.
+    */
+    [[nodiscard]] std::vector<std::string> spikeRawLiveRigPluginRoles() const;
+
 private:
     // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;
