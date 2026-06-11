@@ -403,10 +403,10 @@ public:
     // --- SPIKE: Phase 2 Tracktion/JUCE undo behavior probe (temporary) ---
     //
     // These members exist only to characterize Tracktion undo-manager and plugin-state behavior
-    // for the editor undo/redo design (docs/in-progress/editor-engine-undo-master-plan-v2.md
-    // Phase 2). They expose internal behavior as plain values so a headless test can observe it
-    // without leaking Tracktion types through this header. Remove this whole block when the Phase 2
-    // spike closes; production undo code must not be built on this surface.
+    // for the editor undo/redo design. They expose internal behavior as plain values so a headless
+    // test can observe it without leaking Tracktion types through this header. Remove this whole
+    // block using the cleanup ledger in docs/in-progress/editor-engine-undo-master-plan-v3.md when
+    // the Phase 2 / Phase M spikes close; production undo code must not be built on this surface.
 
     /*! \brief SPIKE: plain snapshot of the Tracktion edit's internal undo-manager state. */
     struct SpikeUndoObservation

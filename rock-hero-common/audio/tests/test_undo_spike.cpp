@@ -2,12 +2,13 @@
 //
 // This file characterizes real Tracktion undo-manager and plugin-state behavior so the editor
 // undo/redo design can choose a quarantine mechanism and confirm rollback feasibility
-// (docs/in-progress/editor-engine-undo-master-plan-v2.md Phase 2, and editor-undo-plan.md Stage 0).
+// (docs/in-progress/editor-engine-undo-master-plan-v3.md Phase 2 / Phase M, and
+// editor-undo-plan.md Stage 0).
 //
 // It is investigative, not a regression gate: most observations are emitted with WARN so they show
 // up in the Catch2 report regardless of pass/fail. The plugin-dependent case needs a real VST3 and
 // is skipped unless ROCKHERO_SPIKE_PLUGIN is set to a .vst3 file path. Remove this file, the
-// matching Engine spike probes, and its CMake entry when the spike closes.
+// matching Engine spike probes, and its CMake entry using the cleanup ledger in the v3 master plan.
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
