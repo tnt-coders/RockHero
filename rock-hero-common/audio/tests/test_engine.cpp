@@ -513,25 +513,35 @@ TEST_CASE("Engine plugin host rejects unknown plugin windows", "[audio][engine][
     CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
 }
 
-// Verifies clearing an empty live rig uses the same message-thread adapter path.
-TEST_CASE("Engine live rig clears empty chain", "[audio][engine][integration]")
+// Verifies project clear resets authored gain without clearing input calibration.
+TEST_CASE("Engine live rig clear preserves input gain", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
+    ILiveInput& live_input = harness.engine;
+
+    REQUIRE(live_input.setInputGain(Gain{12.0}).has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-12.0}).has_value());
 
     const auto result = live_rig.clearLiveRig();
 
     CHECK(result.has_value());
+    CHECK(live_input.inputGain().db == Catch::Approx(12.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(defaultGainDb()));
 }
 
-// Verifies an empty tone document reference is treated as a request to clear the chain.
+// Verifies empty tone loads clear project tone state without clearing input calibration.
 TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     ILiveRig& live_rig = harness.engine;
+    ILiveInput& live_input = harness.engine;
 
     std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
         result;
+    REQUIRE(live_input.setInputGain(Gain{18.0}).has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{-18.0}).has_value());
+
     live_rig.loadLiveRig(
         common::audio::LiveRigLoadRequest{}, [&result](auto value) { result = std::move(value); });
 
@@ -543,7 +553,48 @@ TEST_CASE("Engine live rig loads empty tone", "[audio][engine][integration]")
         CHECK(load_result->plugins.empty());
         CHECK(load_result->output_gain.db == 0.0);
         CHECK(live_rig.outputGain().db == 0.0);
+        CHECK(live_input.inputGain().db == Catch::Approx(18.0));
     }
+}
+
+// Verifies tone document load restores authored output while preserving input calibration.
+TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    ILiveRig& live_rig = harness.engine;
+    ILiveInput& live_input = harness.engine;
+
+    REQUIRE(live_rig.setOutputGain(Gain{-9.0}).has_value());
+    const auto snapshot = live_rig.captureActiveRig(
+        LiveRigCaptureRequest{
+            .song_directory = song_directory.path(),
+            .arrangement_id = g_arrangement_id,
+            .existing_tone_document_ref = {},
+        });
+
+    REQUIRE(snapshot.has_value());
+    REQUIRE(live_input.setInputGain(Gain{9.0}).has_value());
+    REQUIRE(live_rig.setOutputGain(Gain{3.0}).has_value());
+
+    std::optional<std::expected<common::audio::LiveRigLoadResult, common::audio::LiveRigError>>
+        result;
+    live_rig.loadLiveRig(
+        LiveRigLoadRequest{
+            .song_directory = song_directory.path(),
+            .tone_document_ref = snapshot->tone_document_ref,
+            .progress_callback = {},
+            .yield_callback = [](auto next) { next(); },
+        },
+        [&result](auto value) { result = std::move(value); });
+
+    REQUIRE(result.has_value());
+    const auto& load_result = result.value();
+    REQUIRE(load_result.has_value());
+    CHECK(load_result->plugins.empty());
+    CHECK(load_result->output_gain.db == Catch::Approx(-9.0));
+    CHECK(live_rig.outputGain().db == Catch::Approx(-9.0));
+    CHECK(live_input.inputGain().db == Catch::Approx(9.0));
 }
 
 // Verifies output gain persists through captured tone-chain metadata while input gain remains
