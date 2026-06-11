@@ -4371,4 +4371,49 @@ std::vector<std::string> Engine::spikeUserPluginInstanceIds() const
     return instance_ids;
 }
 
+// SPIKE: reads the raw Tracktion plugin-list order as structural/user role strings.
+std::vector<std::string> Engine::spikeRawLiveRigPluginRoles() const
+{
+    std::vector<std::string> roles;
+    const tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return roles;
+    }
+
+    const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
+    roles.reserve(static_cast<std::size_t>(plugins.size()));
+    for (const tracktion::Plugin* const plugin : plugins)
+    {
+        if (plugin == nullptr)
+        {
+            roles.emplace_back("null");
+            continue;
+        }
+
+        if (plugin->itemID == m_impl->m_input_gain_plugin_id)
+        {
+            roles.emplace_back("input-gain");
+        }
+        else if (plugin->itemID == m_impl->m_input_meter_plugin_id)
+        {
+            roles.emplace_back("input-meter");
+        }
+        else if (plugin->itemID == m_impl->m_output_gain_plugin_id)
+        {
+            roles.emplace_back("output-gain");
+        }
+        else if (plugin->itemID == m_impl->m_output_meter_plugin_id)
+        {
+            roles.emplace_back("output-meter");
+        }
+        else
+        {
+            roles.push_back("user:" + plugin->itemID.toString().toStdString());
+        }
+    }
+
+    return roles;
+}
+
 } // namespace rock_hero::common::audio
