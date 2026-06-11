@@ -111,6 +111,12 @@ public:
     return findRequestedSpikePlugin(plugin_host.knownPluginCatalog(), plugin_path);
 }
 
+// Formats a raw-role probe entry for one user plugin instance id.
+[[nodiscard]] std::string userRole(const std::string& instance_id)
+{
+    return "user:" + instance_id;
+}
+
 // Joins instance ids into one bracketed string for a spike report line.
 [[nodiscard]] std::string joinInstanceIds(const std::vector<std::string>& instance_ids)
 {
@@ -154,6 +160,77 @@ TEST_CASE(
     CHECK(gain_set_after_clear.has_value());
     CHECK(live_rig.outputGain().db < 0.0);
     WARN(describeUndo("undo after post-clear edit", engine.spikeObserveUndo()));
+}
+
+// Verifies real plugin-chain edits keep user plugins between the fixed eager structural anchors.
+TEST_CASE(
+    "Spike: real VST3 stays between structural anchors", "[audio][engine][spike][integration]")
+{
+    const std::optional<std::filesystem::path> plugin_path = spikePluginPathFromEnv();
+    if (!plugin_path.has_value())
+    {
+        SKIP("Set ROCKHERO_SPIKE_PLUGIN to a .vst3 file path to run the anchor-order spike.");
+    }
+    if (!std::filesystem::exists(*plugin_path))
+    {
+        SKIP("ROCKHERO_SPIKE_PLUGIN does not exist: " + plugin_path->string());
+    }
+
+    SpikeEngineHarness harness;
+    Engine& engine = harness.engine;
+    IPluginHost& plugin_host = engine;
+
+    const std::optional<PluginCandidate> reference_candidate =
+        resolveReferenceCandidate(plugin_host, *plugin_path);
+    REQUIRE(reference_candidate.has_value());
+
+    CHECK(
+        engine.spikeRawLiveRigPluginRoles() ==
+        std::vector<std::string>{"input-gain", "input-meter", "output-gain", "output-meter"});
+
+    const auto first_insert = plugin_host.insertPlugin(*reference_candidate, 0);
+    REQUIRE(first_insert.has_value());
+    REQUIRE(first_insert->plugins.size() == 1);
+    const std::string first_id = first_insert->plugins[0].instance_id;
+    CHECK(
+        engine.spikeRawLiveRigPluginRoles() ==
+        std::vector<std::string>{
+            "input-gain", "input-meter", userRole(first_id), "output-gain", "output-meter"
+        });
+
+    const auto second_insert = plugin_host.insertPlugin(*reference_candidate, 1);
+    REQUIRE(second_insert.has_value());
+    REQUIRE(second_insert->plugins.size() == 2);
+    const std::string second_id = second_insert->plugins[1].instance_id;
+    CHECK(
+        engine.spikeRawLiveRigPluginRoles() == std::vector<std::string>{
+                                                   "input-gain",
+                                                   "input-meter",
+                                                   userRole(first_id),
+                                                   userRole(second_id),
+                                                   "output-gain",
+                                                   "output-meter"
+                                               });
+
+    const auto moved = plugin_host.movePlugin(first_id, 1);
+    REQUIRE(moved.has_value());
+    CHECK(
+        engine.spikeRawLiveRigPluginRoles() == std::vector<std::string>{
+                                                   "input-gain",
+                                                   "input-meter",
+                                                   userRole(second_id),
+                                                   userRole(first_id),
+                                                   "output-gain",
+                                                   "output-meter"
+                                               });
+
+    const auto removed = plugin_host.removePlugin(second_id);
+    REQUIRE(removed.has_value());
+    CHECK(
+        engine.spikeRawLiveRigPluginRoles() ==
+        std::vector<std::string>{
+            "input-gain", "input-meter", userRole(first_id), "output-gain", "output-meter"
+        });
 }
 
 // Probes undo-manager mutation across the real plugin operations undo will wrap, plus whether
