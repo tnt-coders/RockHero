@@ -4174,4 +4174,126 @@ std::unique_ptr<IThumbnail> Engine::createThumbnail(juce::Component& owner)
     return std::make_unique<TracktionThumbnail>(*m_impl->m_engine, owner);
 }
 
+// --- SPIKE: Phase 2 Tracktion/JUCE undo behavior probes (temporary) ---
+//
+// These exist only to characterize Tracktion undo-manager and plugin-state behavior for the editor
+// undo/redo design (docs/in-progress/editor-engine-undo-master-plan-v2.md Phase 2). Remove the whole
+// block, along with the matching declarations in engine.h, when the spike closes.
+
+// SPIKE: reports the edit's internal undo-manager state as plain, Tracktion-free values.
+Engine::SpikeUndoObservation Engine::spikeObserveUndo() const
+{
+    juce::UndoManager& undo_manager = m_impl->m_edit->getUndoManager();
+    return SpikeUndoObservation{
+        .can_undo = undo_manager.canUndo(),
+        .can_redo = undo_manager.canRedo(),
+        .stored_unit_count = undo_manager.getNumberOfUnitsTakenUpByStoredCommands(),
+        .undo_description = undo_manager.getUndoDescription().toStdString(),
+    };
+}
+
+// SPIKE: clears the internal Tracktion undo history to probe quarantine-by-clearing side effects.
+void Engine::spikeClearUndoHistory()
+{
+    m_impl->m_edit->getUndoManager().clearUndoHistory();
+}
+
+// SPIKE: exercises the capture/remove/restore round trip undo will rely on for plugin mementos.
+Engine::SpikeStateRoundTrip Engine::spikeStateRoundTrip(
+    const std::string& instance_id, bool keep_state_id)
+{
+    SpikeStateRoundTrip round_trip;
+    round_trip.original_instance_id = instance_id;
+
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        round_trip.error = "spikeStateRoundTrip must run on the message thread";
+        return round_trip;
+    }
+
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    auto* const external_plugin =
+        plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(plugin) : nullptr;
+    if (external_plugin == nullptr)
+    {
+        round_trip.error = "No external plugin found for instance id: " + instance_id;
+        return round_trip;
+    }
+
+    // Capture the state the same way captureActiveRig() does, but keep a detached copy so removing
+    // the live plugin below cannot invalidate it.
+    external_plugin->flushPluginStateToValueTree();
+    juce::ValueTree captured_state = external_plugin->state.createCopy();
+    round_trip.captured_state_had_id_property = captured_state.hasProperty(tracktion::IDs::id);
+    if (!keep_state_id)
+    {
+        captured_state.removeProperty(tracktion::IDs::id, nullptr);
+    }
+    round_trip.captured_state_size_bytes =
+        static_cast<int>(captured_state.toXmlString().getNumBytesAsUTF8());
+    round_trip.undo_after_capture = spikeObserveUndo();
+
+    const auto removed = removePlugin(instance_id);
+    if (!removed.has_value())
+    {
+        round_trip.error = "removePlugin failed: " + removed.error().message;
+        return round_trip;
+    }
+    round_trip.undo_after_remove = spikeObserveUndo();
+
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        round_trip.error = "Instrument track missing during reinsert";
+        return round_trip;
+    }
+
+    // Mirrors the live-rig restore path: reinsert a fresh plugin from the captured state tree.
+    const tracktion::Plugin::Ptr inserted_plugin =
+        instrument_track->pluginList.insertPlugin(captured_state, -1);
+    auto* const reinserted_external =
+        inserted_plugin != nullptr ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
+                                   : nullptr;
+    if (reinserted_external == nullptr)
+    {
+        round_trip.error = "Could not reinsert plugin from captured state";
+        return round_trip;
+    }
+    m_impl->rebuildInstrumentMonitoringGraphBestEffort("spike state round trip reinsert");
+    round_trip.restored_instance_id = reinserted_external->itemID.toString().toStdString();
+    round_trip.undo_after_reinsert = spikeObserveUndo();
+    return round_trip;
+}
+
+// SPIKE: opens a named transaction on the internal Tracktion undo manager (Option B probe).
+void Engine::spikeBeginUndoTransaction(const std::string& label)
+{
+    m_impl->m_edit->getUndoManager().beginNewTransaction(juce::String{label.c_str()});
+}
+
+// SPIKE: pops the internal Tracktion undo manager to see what an Edit-level undo reverts.
+bool Engine::spikeTracktionUndo()
+{
+    return m_impl->m_edit->getUndoManager().undo();
+}
+
+// SPIKE: re-applies the internal Tracktion undo manager.
+bool Engine::spikeTracktionRedo()
+{
+    return m_impl->m_edit->getUndoManager().redo();
+}
+
+// SPIKE: reads the current user-visible plugin chain as plain instance ids for post-undo checks.
+std::vector<std::string> Engine::spikeUserPluginInstanceIds() const
+{
+    std::vector<std::string> instance_ids;
+    const PluginChainSnapshot snapshot = m_impl->pluginChainSnapshot();
+    instance_ids.reserve(snapshot.plugins.size());
+    for (const PluginChainEntry& entry : snapshot.plugins)
+    {
+        instance_ids.push_back(entry.instance_id);
+    }
+    return instance_ids;
+}
+
 } // namespace rock_hero::common::audio

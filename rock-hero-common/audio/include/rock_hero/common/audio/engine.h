@@ -400,6 +400,111 @@ public:
     */
     [[nodiscard]] std::unique_ptr<IThumbnail> createThumbnail(juce::Component& owner) override;
 
+    // --- SPIKE: Phase 2 Tracktion/JUCE undo behavior probe (temporary) ---
+    //
+    // These members exist only to characterize Tracktion undo-manager and plugin-state behavior
+    // for the editor undo/redo design (docs/in-progress/editor-engine-undo-master-plan-v2.md
+    // Phase 2). They expose internal behavior as plain values so a headless test can observe it
+    // without leaking Tracktion types through this header. Remove this whole block when the Phase 2
+    // spike closes; production undo code must not be built on this surface.
+
+    /*! \brief SPIKE: plain snapshot of the Tracktion edit's internal undo-manager state. */
+    struct SpikeUndoObservation
+    {
+        /*! \brief Whether the internal Tracktion undo manager currently has something to undo. */
+        bool can_undo{};
+
+        /*! \brief Whether the internal Tracktion undo manager currently has something to redo. */
+        bool can_redo{};
+
+        /*! \brief Storage units the internal undo manager reports for stored commands. */
+        int stored_unit_count{};
+
+        /*! \brief Description of the next undo step, empty when there is nothing to undo. */
+        std::string undo_description;
+    };
+
+    /*!
+    \brief SPIKE: reads the internal Tracktion undo-manager state as plain values.
+    \return Current observation of the edit's internal undo manager.
+    */
+    [[nodiscard]] SpikeUndoObservation spikeObserveUndo() const;
+
+    /*! \brief SPIKE: clears the internal Tracktion undo history to probe quarantine side effects. */
+    void spikeClearUndoHistory();
+
+    /*! \brief SPIKE: result of a capture -> remove -> reinsert-from-state plugin round trip. */
+    struct SpikeStateRoundTrip
+    {
+        /*! \brief Instance id of the plugin before the round trip. */
+        std::string original_instance_id;
+
+        /*! \brief Instance id of the plugin recreated from captured state, empty on failure. */
+        std::string restored_instance_id;
+
+        /*! \brief Whether the captured state tree still carried a Tracktion item id. */
+        bool captured_state_had_id_property{};
+
+        /*! \brief Rough serialized size of the captured plugin state, in UTF-8 bytes. */
+        int captured_state_size_bytes{};
+
+        /*! \brief Undo-manager observation taken right after capturing the plugin state. */
+        SpikeUndoObservation undo_after_capture;
+
+        /*! \brief Undo-manager observation taken right after removing the plugin. */
+        SpikeUndoObservation undo_after_remove;
+
+        /*! \brief Undo-manager observation taken right after reinserting from captured state. */
+        SpikeUndoObservation undo_after_reinsert;
+
+        /*! \brief Non-empty when a round-trip step failed, describing the failure. */
+        std::string error;
+    };
+
+    /*!
+    \brief SPIKE: captures a user plugin's Tracktion state, removes it, then reinserts a fresh
+    plugin from that captured state.
+
+    Characterizes whether restore preserves the runtime item id and how each step affects the
+    internal undo manager. When keep_state_id is false the captured state drops tracktion::IDs::id
+    the way captureActiveRig() already does; when true it keeps the id to test id preservation.
+
+    \param instance_id Opaque instance id of a user plugin currently in the chain.
+    \param keep_state_id Whether to keep tracktion::IDs::id in the captured state before reinsert.
+    \return Round-trip observations, with a non-empty error string when a step failed.
+    */
+    [[nodiscard]] SpikeStateRoundTrip spikeStateRoundTrip(
+        const std::string& instance_id, bool keep_state_id);
+
+    /*!
+    \brief SPIKE: opens a named transaction on the internal Tracktion undo manager.
+
+    Used to test the "Option B" alternative of leaning on Tracktion's undo as a per-command inverse.
+    \param label Transaction label passed to juce::UndoManager::beginNewTransaction.
+    */
+    void spikeBeginUndoTransaction(const std::string& label);
+
+    /*!
+    \brief SPIKE: pops the internal Tracktion undo manager (Edit-level undo).
+    \return True when Tracktion reported it performed an undo.
+    */
+    [[nodiscard]] bool spikeTracktionUndo();
+
+    /*!
+    \brief SPIKE: re-applies the internal Tracktion undo manager (Edit-level redo).
+    \return True when Tracktion reported it performed a redo.
+    */
+    [[nodiscard]] bool spikeTracktionRedo();
+
+    /*!
+    \brief SPIKE: reads the current user-visible plugin chain as plain instance ids.
+
+    Lets a test observe chain membership after a raw Edit-level undo/redo that bypasses the normal
+    snapshot-returning mutators.
+    \return Instance ids of the user-visible plugins, in chain order.
+    */
+    [[nodiscard]] std::vector<std::string> spikeUserPluginInstanceIds() const;
+
 private:
     // Opaque Tracktion/JUCE implementation keeps third-party headers out of this public header.
     struct Impl;
