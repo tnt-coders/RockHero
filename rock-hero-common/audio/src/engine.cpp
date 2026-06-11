@@ -298,6 +298,12 @@ struct LiveRigLoadOperation
     Gain output_gain;
 };
 
+struct PluginChainMutationFailure
+{
+    PluginHostError error;
+    std::string_view reroute_context;
+};
+
 // Records recoverable instrument-route failures without turning an internal bind into a public
 // error.
 void logInstrumentMonitoringFailure(const juce::String& message)
@@ -2170,6 +2176,32 @@ private:
         plugin.deselect();
     }
 
+    // Keeps plugin-list mutation, monitoring teardown, re-route, and failure routing in one path.
+    template <typename Mutate, typename Rollback>
+    [[nodiscard]] std::expected<void, PluginHostError> mutateAndReroutePluginChain(
+        Mutate mutate, Rollback rollback, std::string_view route_rollback_context)
+    {
+        stopTransportAndReleaseContext();
+
+        auto mutation_result = mutate();
+        if (!mutation_result.has_value())
+        {
+            PluginChainMutationFailure failure = std::move(mutation_result.error());
+            rebuildInstrumentMonitoringGraphBestEffort(failure.reroute_context);
+            return std::unexpected{std::move(failure.error)};
+        }
+
+        auto route_result = rebuildInstrumentMonitoringGraph();
+        if (route_result.has_value())
+        {
+            return {};
+        }
+
+        rollback();
+        rebuildInstrumentMonitoringGraphBestEffort(route_rollback_context);
+        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+    }
+
     // Finds a structural live-rig gain plugin by its stored EditItemID, or null if absent.
     [[nodiscard]] LiveRigGainPlugin* findStructuralGainPlugin(tracktion::EditItemID plugin_id) const
     {
@@ -3137,45 +3169,61 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCa
             }};
         }
     }
-    stopTransportAndReleaseContext();
+    tracktion::Plugin::Ptr plugin;
+    auto mutation_result = mutateAndReroutePluginChain(
+        [this, &description, &instrument_track, &insert_position, &plugin]
+        -> std::expected<void, PluginChainMutationFailure> {
+            plugin = m_edit->getPluginCache().createNewPlugin(
+                tracktion::ExternalPlugin::xmlTypeName, *description);
+            if (plugin == nullptr)
+            {
+                return std::unexpected{PluginChainMutationFailure{
+                    PluginHostError{
+                        PluginHostErrorCode::PluginCreationFailed,
+                        "Could not create plugin: " + description->name.toStdString(),
+                    },
+                    "plugin creation rollback failed",
+                }};
+            }
 
-    const tracktion::Plugin::Ptr plugin = m_edit->getPluginCache().createNewPlugin(
-        tracktion::ExternalPlugin::xmlTypeName, *description);
-    if (plugin == nullptr)
-    {
-        rebuildInstrumentMonitoringGraphBestEffort("plugin creation rollback failed");
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginCreationFailed,
-            "Could not create plugin: " + description->name.toStdString()
-        }};
-    }
+            if (auto* const external_plugin =
+                    dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
+                external_plugin != nullptr)
+            {
+                const juce::String load_error = external_plugin->getLoadError();
+                if (load_error.isNotEmpty())
+                {
+                    return std::unexpected{PluginChainMutationFailure{
+                        PluginHostError{
+                            PluginHostErrorCode::PluginLoadFailed,
+                            load_error.toStdString(),
+                        },
+                        "plugin load rollback failed",
+                    }};
+                }
+            }
 
-    if (auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin.get());
-        external_plugin != nullptr)
-    {
-        const juce::String load_error = external_plugin->getLoadError();
-        if (load_error.isNotEmpty())
-        {
-            rebuildInstrumentMonitoringGraphBestEffort("plugin load rollback failed");
-            return std::unexpected{
-                PluginHostError{PluginHostErrorCode::PluginLoadFailed, load_error.toStdString()}
-            };
-        }
-    }
+            instrument_track->pluginList.insertPlugin(plugin, *insert_position, nullptr);
+            if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
+            {
+                return std::unexpected{PluginChainMutationFailure{
+                    PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
+                    "plugin insertion rollback failed",
+                }};
+            }
 
-    instrument_track->pluginList.insertPlugin(plugin, *insert_position, nullptr);
-    if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
+            return {};
+        },
+        [&plugin] {
+            if (plugin != nullptr)
+            {
+                plugin->deleteFromParent();
+            }
+        },
+        "plugin insertion route rollback failed");
+    if (!mutation_result.has_value())
     {
-        rebuildInstrumentMonitoringGraphBestEffort("plugin insertion rollback failed");
-        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
-    }
-
-    auto route_result = rebuildInstrumentMonitoringGraph();
-    if (!route_result.has_value())
-    {
-        plugin->deleteFromParent();
-        rebuildInstrumentMonitoringGraphBestEffort("plugin insertion route rollback failed");
-        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+        return std::unexpected{std::move(mutation_result.error())};
     }
 
     auto snapshot = pluginChainSnapshot();
@@ -3249,7 +3297,6 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
         return std::unexpected{std::move(destination_tracktion_index.error())};
     }
 
-    m_impl->stopTransportAndReleaseContext();
     const tracktion::Plugin::Ptr moved_plugin{plugin};
     const auto rollback_move =
         [this, &instrument_track, &moved_plugin, current_index, original_tracktion_index] {
@@ -3264,21 +3311,33 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
 
     const int move_insert_index = tracktionInsertionIndexForExistingPluginMove(
         original_tracktion_index, *destination_tracktion_index);
-    instrument_track->pluginList.insertPlugin(moved_plugin, move_insert_index, nullptr);
-    if (instrument_track->pluginList.indexOf(plugin) < 0 ||
-        m_impl->userVisiblePluginIndexOf(plugin) != std::optional<std::size_t>{destination_index})
-    {
-        rollback_move();
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin move rollback failed");
-        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginMoveFailed}};
-    }
+    auto mutation_result = m_impl->mutateAndReroutePluginChain(
+        [&instrument_track,
+         moved_plugin,
+         move_insert_index,
+         plugin,
+         destination_index,
+         &rollback_move,
+         this] -> std::expected<void, PluginChainMutationFailure> {
+            instrument_track->pluginList.insertPlugin(moved_plugin, move_insert_index, nullptr);
+            if (instrument_track->pluginList.indexOf(plugin) < 0 ||
+                m_impl->userVisiblePluginIndexOf(plugin) !=
+                    std::optional<std::size_t>{destination_index})
+            {
+                rollback_move();
+                return std::unexpected{PluginChainMutationFailure{
+                    PluginHostError{PluginHostErrorCode::PluginMoveFailed},
+                    "plugin move rollback failed",
+                }};
+            }
 
-    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-    if (!route_result.has_value())
+            return {};
+        },
+        rollback_move,
+        "plugin move route rollback failed");
+    if (!mutation_result.has_value())
     {
-        rollback_move();
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin move route rollback failed");
-        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+        return std::unexpected{std::move(mutation_result.error())};
     }
 
     return m_impl->pluginChainSnapshot();
@@ -3308,22 +3367,29 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
         }};
     }
 
-    m_impl->stopTransportAndReleaseContext();
     const int original_tracktion_index = instrument_track->pluginList.indexOf(plugin);
     const tracktion::Plugin::Ptr removed_plugin{plugin};
-    plugin->removeFromParent();
-    if (instrument_track->pluginList.indexOf(plugin) >= 0)
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginRemovalFailed}};
-    }
+    auto mutation_result = m_impl->mutateAndReroutePluginChain(
+        [&instrument_track, plugin] -> std::expected<void, PluginChainMutationFailure> {
+            plugin->removeFromParent();
+            if (instrument_track->pluginList.indexOf(plugin) >= 0)
+            {
+                return std::unexpected{PluginChainMutationFailure{
+                    PluginHostError{PluginHostErrorCode::PluginRemovalFailed},
+                    "plugin removal rollback failed",
+                }};
+            }
 
-    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-    if (!route_result.has_value())
+            return {};
+        },
+        [&instrument_track, removed_plugin, original_tracktion_index] {
+            instrument_track->pluginList.insertPlugin(
+                removed_plugin, original_tracktion_index, nullptr);
+        },
+        "plugin removal route rollback failed");
+    if (!mutation_result.has_value())
     {
-        instrument_track->pluginList.insertPlugin(
-            removed_plugin, original_tracktion_index, nullptr);
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort("plugin removal route rollback failed");
-        return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
+        return std::unexpected{std::move(mutation_result.error())};
     }
     m_impl->commitPluginRemoval(*removed_plugin);
     return m_impl->pluginChainSnapshot();
