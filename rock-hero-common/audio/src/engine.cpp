@@ -4359,6 +4359,18 @@ bool Engine::spikeTracktionRedo()
     return m_impl->m_edit->getUndoManager().redo();
 }
 
+// SPIKE: manually reapplies monitoring routing after raw Tracktion undo/redo.
+std::string Engine::spikeRebuildInstrumentMonitoringGraph()
+{
+    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
+    if (route_result.has_value())
+    {
+        return {};
+    }
+
+    return route_result.error().message;
+}
+
 // SPIKE: reads the current user-visible plugin chain as plain instance ids for post-undo checks.
 std::vector<std::string> Engine::spikeUserPluginInstanceIds() const
 {
