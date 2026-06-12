@@ -1,7 +1,7 @@
 # Editor Logging Implementation Plan
 
-Status: completed (superseded approach), retired from `docs/in-progress/` in Phase 0 of
-`editor-engine-undo-master-plan-v2.md`. The durable, file-backed editor logging this plan called for
+Status: completed (superseded approach), retired from `docs/in-progress/` in Phase 0 of the editor undo
+master plan (`../in-progress/editor-undo/editor-engine-undo-master-plan-v3.md`). The durable, file-backed editor logging this plan called for
 is implemented, but by a different mechanism than the plan specified. Retained as a historical
 record; see Implementation Result below for what actually shipped.
 
@@ -33,7 +33,7 @@ Deliberate departures from this plan:
 
 Still deferred (tracked elsewhere, not regressions of this plan):
 
-- Game-app logging install parity (see the deferred list in `editor-engine-undo-master-plan-v2.md`).
+- Game-app logging install parity (deferred; tracked with the editor undo work).
 - The `docs/todo/core-domain-logging-targets-plan.md` target split remains out of scope.
 - Undo-specific action/event logging is built with the undo stages in `editor-undo-plan.md` via
   `RH_LOG_*` directly; no separate diagnostics interface is introduced.

@@ -7,16 +7,28 @@ testable, clarifies that undo-specific diagnostics are introduced with the undo 
 them, and tightens faulted-session persistence so the app does not save from an untrusted live
 backend.
 
-> **Provisional relative to master plan v3 (2026-06-10).** This document predates
-> `editor-engine-undo-master-plan-v3.md` and `undo-ownership-analysis.md`. Per v3, the undo **inverse
-> mechanism** (delegate audio inverses to Tracktion `Edit::undo()` vs. RockHero local mementos vs. a
-> hybrid) is **open until the Phase M decision gate**, taken after the Phase B baseline cleanup. The
-> sections below describing memento capture/replay and Tracktion-undo *quarantine* therefore describe
-> **one candidate mechanism**, not a locked choice. For the corrected Tracktion mechanics (transaction
-> grouping, parameter flush, what actually records to the undo manager), `undo-ownership-analysis.md`
-> is authoritative; where this document conflicts with it, that document wins until this one is
-> rewritten to match the Phase M decision. What *is* settled regardless of mechanism: RockHero owns the
-> stack/ordering/labels/dirty/failure policy.
+> **Phase M decided (2026-06-11): RockHero mementos; Tracktion is a backend.** The inverse-mechanism
+> question is now settled in favor of the memento design this document already describes, so the memento
+> capture/restore and Tracktion-undo *quarantine* sections are the chosen mechanism, not "one
+> candidate". RockHero owns one project undo stack; tone entries restore absolute captured state through
+> audio-adapter primitives; Tracktion's undo manager is never consumed as product history; adapter-local
+> rollback uses `UndoManager::undoCurrentTransactionOnly()`, never raw `Edit::undo()`. Editor metadata
+> stays in editor-core; stay on B2-lite. Rationale: `editor-engine-undo-master-plan-v3.md` (Phase M
+> Decision) and `undo-ownership-analysis.md` (Decision + the tree-vs-runtime and automation-curve
+> proofs). The parameter sections have been rewritten to the full-chunk capture/restore payload
+> (`PluginParameterEdit` carries before/after `PluginInstanceState`; replay via `setPluginState`).
+> For corrected Tracktion mechanics, `undo-ownership-analysis.md` remains authoritative.
+
+> **Non-negotiable constraint — plugin-state reproduction fidelity (2026-06-11).** Undo/redo of a
+> plugin edit must restore the plugin's exact prior state. Plugin-parameter undo therefore uses
+> **coherent full-state restore** (the plugin's own chunk via `get/setStateInformation`), the same
+> primitive as remove-undo — the parameter sections below now reflect this. The gesture/debounce/
+> self-animating *observation* detects *when* a settled user edit occurred; what is captured and
+> replayed is the **full plugin chunk** (before/after), not a parameter vector. Granular value replay
+> is rejected because it cannot reproduce non-parameter internal state (IRs, presets, oversampling,
+> hidden DSP), dependent/stepped parameters, or controller/processor sync. See
+> `undo-ownership-analysis.md` ("Verified: VST3 parameter undo is whole-chunk" and "Fidelity is
+> non-negotiable").
 
 ## Consolidated Review Updates
 
@@ -165,7 +177,7 @@ history type:
   busy/open-state context; completed; recoverable failure with typed code/message; canceled; stale
   async completion ignored;
 - undo-specific: undo/redo requested; entry pushed with type and affected ids; pending parameter
-  batch started/completed/flushed/dropped; rollback attempt started/completed; runtime id remapped;
+  edit started/completed/flushed/dropped; rollback attempt started/completed; runtime id remapped;
   clean revision marked or made unreachable by eviction.
 
 Use `RH_LOG_INFO` for normal lifecycle, `RH_LOG_WARNING` for unusual recoverable paths, and
@@ -247,8 +259,10 @@ availability from `Edit::getUndoManager()`.
 
 ## Tracktion Undo Quarantine
 
-> *Provisional — applies if the **memento** mechanism is chosen at Phase M. If audio inverses are
-> delegated to `Edit::undo()` instead, this section is replaced by a delegation design.*
+> *Live as of the 2026-06-11 Phase M decision (mementos chosen). Tracktion's undo manager is internal
+> adapter state, never product history. Note (Tracktion specialist correction): for adapter-local
+> rollback prefer `UndoManager::undoCurrentTransactionOnly()` over raw `Edit::undo()`, which can pop the
+> previous transaction if the scoped operation produced no undoable action or the bracketing is wrong.*
 
 RockHero does not ignore Tracktion's undo manager; it quarantines it as internal adapter state and
 owns the product undo history itself. The adapter still uses Tracktion for plugin instantiation,
@@ -359,49 +373,76 @@ to maintain and no double-record to prevent:
 
 ### External Plugin Parameter Rules
 
-The audio adapter emits completed parameter edit batches to editor-core. Editor-core stores them
-opaquely and replays them through `IPluginHost::setPluginParameterValues`.
+The adapter observes a user-inserted plugin's `AutomatableParameter` callbacks **only to detect when a
+settled, discrete user parameter edit has occurred.** The undoable payload is **not** a set of
+parameter values — it is the plugin's **full opaque state chunk** captured before and after the settled
+edit (`PluginInstanceState`, the same representation and `get/setStateInformation` primitive as
+remove-undo). Editor-core stores the before/after states opaquely and replays them through
+`IPluginHost::setPluginState`. This is required by the non-negotiable fidelity rule: granular value
+replay cannot reproduce non-parameter internal state (IRs, presets, oversampling, hidden DSP),
+dependent/stepped parameters, or controller/processor sync; the full chunk can. See
+`undo-ownership-analysis.md` ("Fidelity is non-negotiable").
 
-The adapter maintains a last-known normalized value cache for every observed plugin parameter:
+Because the payload is the whole chunk, **one settled edit captures every parameter that moved in that
+gesture/window at once.** There is no per-parameter batch, no before/after value vector, and no
+parameter-id bookkeeping in the restore path; parameter identity remains an adapter-internal detail
+used only to track gesture/debounce state during detection.
 
-- initialize the cache when a user plugin enters the chain, after project load/restore, after
+The detection layer does, however, know which parameter(s) settled, so the emitted edit carries a
+**display-only `label_hint`** (the changed parameter name(s), e.g. "Gain") for the history label and
+undo confirmation. This is visibility metadata only — never read for restore, identity, or remapping
+(see *Undo Visibility → Plugin-parameter edits*). When several parameters moved in one gesture, the
+hint may name the primary one or summarize ("Amp Sim — 3 parameters").
+
+The adapter maintains a **last-settled state baseline** (one captured `PluginInstanceState`) for every
+observed plugin, used as the `before` source for the conservative non-gesture path and refreshed so
+dropped/automation motion never becomes a later spurious `before`:
+
+- initialize the baseline when a user plugin enters the chain, after project load/restore, after
   `insertPluginState`, after candidate insert, and after any full plugin-state refresh;
-- update the cache after every observed user parameter change;
-- update the cache after dropped or uncertain non-gesture changes using the accepted current value
-  or readback before clearing their pending state;
-- update the cache after host-driven `setPluginParameterValues` while recording is suppressed;
-- discard cached values when a plugin leaves the chain.
+- set the baseline to the freshly captured `after` state on each emitted edit;
+- refresh the baseline to the current captured state on a dropped/uncertain settle, before clearing
+  pending state;
+- set the baseline to the applied state after a host-driven `setPluginState` while recording is
+  suppressed (undo/redo apply);
+- discard the baseline when a plugin leaves the chain.
+
+Detection uses the parameter callbacks (this logic is unchanged from the prior design; only the
+captured/replayed payload is the chunk):
 
 Gesture path (the reliable source):
 
-- On `parameterChangeGestureBegin`, capture `before` from the last-known cache, falling back to a
-  direct current-value read if the cache is missing.
-- On `parameterChanged`, update the in-progress `after` value.
-- On `parameterChangeGestureEnd`, emit one batch if the value net-changed, then update the cache.
+- On `parameterChangeGestureBegin`, capture the current chunk as `before` (a fresh pre-edit snapshot,
+  preferred over the baseline for accuracy).
+- On `parameterChangeGestureEnd`, capture the current chunk as `after`; if it differs from `before`,
+  emit one edit `{instance_id, before, after}` and set the baseline to `after`.
 
 Non-gesture fallback (best effort, must stay conservative):
 
-- If `parameterChanged` arrives with no open gesture and recording is not suppressed, read `before`
-  from the last-known cache, not from the already-updated Tracktion parameter.
-- Start or update a short debounce window for that plugin instance, capturing each touched
-  parameter's first cached value as `before` and latest callback value as `after`.
-- Emit a batch only when motion settles: the debounce fires after no further change for that plugin
-  arrives within the window.
-- Explicit flush is a classification point, not a bypass around the self-animating guard. It emits
-  only pending parameters that the adapter can classify as settled/discrete user edits. It drops
-  continuous, high-rate, meter-like, or uncertain parameters, advances their last-known cache to the
-  accepted current value or readback, and clears their pending state without history.
-- **Guard against self-animating parameters.** Plugins can move their own visible parameters (LFOs,
-  envelopes, MIDI-learn sweeps, meter-like values). That motion must not become history:
-  - a parameter that changes continuously never settles, so it is never recorded;
-  - additionally drop parameters that change at a high sustained rate, or that the adapter can
-    identify as non-user-writable / meter-like;
-  - prefer dropping an uncertain non-gesture change over recording a spurious one. The gesture path
+- A `parameterChanged` with no open gesture (and recording not suppressed) starts or extends a short
+  debounce window for that plugin instance. The pre-edit chunk cannot be reconstructed after the first
+  callback, so the non-gesture `before` is the **baseline** (one parameter-step of slop at the very
+  first change is the accepted best-effort limit, identical to the prior design's cache fallback).
+- The window fires only when motion settles (no further change for that plugin within the window); on
+  settle, capture the current chunk as `after` and emit one edit if it differs from the baseline.
+- Explicit flush is a classification point, not a bypass around the self-animating guard: it emits a
+  chunk edit only for plugins it can classify as a settled/discrete user edit, and drops
+  continuous/high-rate/meter-like/uncertain motion — refreshing that plugin's baseline to the current
+  state and clearing pending state without history.
+- **Guard against self-animating parameters.** Plugins move their own parameters (LFOs, envelopes,
+  MIDI-learn sweeps, meters). That motion must not become history:
+  - a plugin whose parameters change continuously never settles, so no chunk is ever captured for it;
+  - additionally drop plugins changing at a high sustained rate, or whose moving parameters the adapter
+    can identify as non-user-writable / meter-like;
+  - prefer dropping an uncertain non-gesture settle over recording a spurious one. The gesture path
     remains the trustworthy source; the non-gesture path exists only so discrete randomize/preset
     actions are not silently lost.
 
-Replay note: undo/redo through `setPluginParameterValues` must drive the value through Tracktion so
-an open plugin editor window reflects it. Verify against real VST3 plugins in the stage-0 spike.
+Replay: undo/redo restore the captured chunk via `IPluginHost::setPluginState`, which drives the live
+processor through `setStateInformation` (the setter) rather than by reverting a ValueTree property, so
+the audio follows by construction. Whether an already-open plugin editor window visibly refreshes on
+`setStateInformation` is plugin-dependent and is verified in the Step 2 spike (see Undo Visibility for
+the policy on revealing the affected plugin).
 
 Suppression:
 
@@ -410,13 +451,6 @@ Suppression:
 - Ignore automation-originated callbacks if Tracktion exposes enough context to distinguish them.
 - If automation origin cannot be distinguished reliably, prefer suppressing only during known
   RockHero applies and record user-origin plugin editor changes.
-
-Parameter identity:
-
-- Store stable plugin-provided parameter ids when available.
-- If Tracktion/JUCE falls back to a numeric/index id, treat it as session-local. It is valid for
-  undo entries inside the current open project, but it should not become a durable project-file
-  contract.
 
 ### Output Gain Rules
 
@@ -443,7 +477,7 @@ reversing it reconstructs a destroyed plugin instance.
 | Move | `movePlugin(id, from)` + placement | `movePlugin(id, to)` + placement | before/after index + placement | sync |
 | Block placement | restore before vector | restore after vector | before/after placement vectors | sync |
 | Display-type override | restore before | restore after | id + before/after override | sync |
-| Plugin parameter batch | set values to before | set values to after | instance id + parameter values | sync |
+| Plugin parameter edit | restore captured prior plugin state (full chunk) | restore captured post-edit plugin state (full chunk) | instance id + before/after full plugin state | sync |
 | Output gain | `setOutputGain(before)` | `setOutputGain(after)` | before/after gain | sync |
 
 Notes:
@@ -485,23 +519,13 @@ struct PluginInstanceRestoreResult
     std::string restored_instance_id;
 };
 
-struct PluginParameterValueChange
-{
-    std::string param_id;
-    float before{};
-    float after{};
-};
-
-struct PluginParameterTargetValue
-{
-    std::string param_id;
-    float value{};
-};
-
 struct PluginParameterEdit
 {
     std::string instance_id;
-    std::vector<PluginParameterValueChange> values;
+    PluginInstanceState before;  // full chunk before the settled edit
+    PluginInstanceState after;   // full chunk after the settled edit
+    std::string label_hint;      // display-only: changed parameter name(s) from observation,
+                                 // e.g. "Gain". Never used for restore, identity, or remapping.
 };
 
 struct PluginParameterEditObserver
@@ -525,9 +549,11 @@ capturePluginState(const std::string& instance_id) = 0;
 [[nodiscard]] virtual std::expected<PluginInstanceRestoreResult, PluginHostError>
 insertPluginState(const PluginInstanceState& state, std::size_t chain_index) = 0;
 
-[[nodiscard]] virtual std::expected<void, PluginHostError> setPluginParameterValues(
-    const std::string& instance_id,
-    std::span<const PluginParameterTargetValue> values) = 0;
+// Restores a full opaque state chunk to an EXISTING instance, driving the live processor via
+// setStateInformation (the setter). Used by plugin-parameter undo/redo. Distinct from
+// insertPluginState, which recreates a removed plugin.
+[[nodiscard]] virtual std::expected<void, PluginHostError> setPluginState(
+    const std::string& instance_id, const PluginInstanceState& state) = 0;
 
 virtual void flushPendingPluginParameterEdits() = 0;
 [[nodiscard]] virtual bool hasPendingPluginParameterEdits() const = 0;
@@ -546,16 +572,25 @@ The implementation can choose a different spelling, but the semantics are requir
 - `insertPlugin` returns `inserted_instance_id`; callers do not infer it from snapshot position.
 - `insertPluginState` may preserve the original runtime id, but callers must treat the returned
   mapping as authoritative.
-- The parameter-edit observer is attached only to user-inserted plugins' automatable parameters.
-  Structural live-rig plugins are not attached (the gain plugin has no automatable parameter, and
-  meters/input gain are not user tone edits).
-- Capture, restore, parameter apply, and pending-parameter flush are message-thread operations.
+- The parameter-edit observer is attached only to user-inserted plugins' automatable parameters,
+  which it uses solely to detect a settled user edit; the emitted payload is the before/after full
+  state chunk, not parameter values. Structural live-rig plugins are not attached (the gain plugin has
+  no automatable parameter, and meters/input gain are not user tone edits).
+- `setPluginState` restores an opaque chunk to an existing instance through the live setter
+  (`setStateInformation`), so the running processor follows; it must not be implemented as a raw
+  ValueTree property revert (which would not reload the processor) and must not enter Tracktion's undo
+  manager.
+- Capture, state restore (`insertPluginState` / `setPluginState`), and pending-parameter flush are
+  message-thread operations.
 - The parameter-edit observer is the single notification surface for this stream. It reports
-  pending-state changes and completed edit batches so editor-core can keep command availability in
-  sync with gesture/debounce state.
-- `flushPendingPluginParameterEdits` synchronously emits settled/discrete pending edits, drops
-  continuous or uncertain pending edits, updates last-known caches, clears pending state, and sends
-  a pending-state notification when the aggregate pending state changes.
+  pending-state changes and completed before/after-chunk edits so editor-core can keep command
+  availability in sync with gesture/debounce state. Each completed edit also carries a display-only
+  `label_hint` (the changed parameter name(s) from observation) for the history label/confirmation;
+  it is never used for restore, identity, or remapping.
+- `flushPendingPluginParameterEdits` synchronously emits settled/discrete pending edits (each a
+  before/after chunk), drops continuous or uncertain pending edits, refreshes the per-plugin state
+  baseline, clears pending state, and sends a pending-state notification when the aggregate pending
+  state changes.
 - The controller fences the two instantiating directions behind `BusyOperation::LoadingPlugin`; the
   audio layer does not own editor busy state.
 - The boundary stays on `IPluginHost`, not `ILiveRig`, because it reverses per-plugin host
@@ -599,10 +634,10 @@ Initial per-port proof shape:
   pre-chain state before restore begins. If state restore, insertion, metadata refresh, or graph
   rebuild fails, remove any partial plugin and restore the pre-chain snapshot before returning an
   ordinary error.
-- `setPluginParameterValues`: preflight the target instance and every parameter id before setting
-  anything. Capture every before-value. Apply values as one logical batch. If any set or required
-  readback fails, restore all captured before-values and verify them before returning an ordinary
-  error.
+- `setPluginState`: preflight the target instance exists before applying. Capture the instance's
+  current chunk as the pre-state. Apply the requested chunk via `setStateInformation`. If the apply or
+  a required readback fails, restore the captured pre-state chunk and verify before returning an
+  ordinary error.
 - `ILiveRig::setOutputGain`: keep the command undoable only while the implementation is
   unchanged-on-error. If output gain later gains a recoverable failure path, it must follow the same
   preflight/capture/apply/rollback/readback shape before remaining in the undo scope.
@@ -648,7 +683,8 @@ Payloads include:
 - the insert entry's stored block placement and remove-on-undo target id;
 - plugin visual state;
 - display-type override ids;
-- plugin parameter batch ids;
+- the plugin-parameter entry's `instance_id` (the before/after chunks are opaque and carry no
+  editor-visible id to remap);
 - ids nested inside placement vectors.
 
 `old_id == new_id` is a no-op. Tests must cover changed-id restore for both remove-undo and
@@ -668,11 +704,11 @@ Pending plugin parameter edits are flushed at a single chokepoint: the controlle
 boundary (`prepareAction` / `runAction`), and before save, close, project load/restore, undo, and
 redo. Individual edit handlers do not each flush. The chokepoint guarantees that a plugin-editor
 tweak made immediately before any command is ordered correctly in history and that a new handler
-cannot forget to flush. The flush applies the same classification rules as the debounce path:
-settled/discrete pending values may become a history batch; continuous or uncertain values are
-dropped, their last-known cache is advanced, and their pending state is cleared without history. If
-a flush emits a batch, that batch becomes the newest history entry, and the command (including an
-undo/redo request) then proceeds against it.
+cannot forget to flush. The flush applies the same classification rules as the debounce path: a
+settled/discrete pending edit may become a history entry (its before/after chunk); continuous or
+uncertain motion is dropped, its plugin's state baseline is refreshed, and its pending state is
+cleared without history. If a flush emits an entry, that entry becomes the newest history entry, and
+the command (including an undo/redo request) then proceeds against it.
 
 Low-level apply paths do not record RockHero history. However, some low-level Tracktion operations
 may still record into Tracktion's internal undo manager; quarantine covers that separately.
@@ -729,9 +765,10 @@ Private editor-core types near the existing workflow classes:
   `canRedo()`, labels, pending two-phase transitions, failure/invalidation handling, and
   `remapInstanceId`.
 - `EditorUndoEntry`: a variant of insert, remove, move, placement, display-type,
-  plugin-parameter batch, and output-gain payloads.
+  plugin-parameter state, and output-gain payloads.
 - Payload structs for insert state, remove recreate state, plugin visual state, move state,
-  placement state, display-type state, parameter batch state, and output-gain state.
+  placement state, display-type state, plugin-parameter state (instance id + before/after full plugin
+  chunk), and output-gain state.
 
 The history type must be directly testable without `EditorController` and without diagnostics
 dependencies. It returns transition results/events that the controller can log, but it does not know
@@ -788,6 +825,65 @@ Rollback-contract handling (see Failure Philosophy and Logging):
   log file to attach), leaving reopen/close as the recovery. No abort, no termination hook, no
   synchronous-write-before-exit path.
 
+## Undo Visibility (no silent off-screen undo)
+
+Because there is one unified `Ctrl+Z` across tone, future chart/tablature, and editor-metadata edits,
+undo must never silently revert something in a panel or window the user cannot see. Three layers, all
+required, address this; each is easier *because* entries are RockHero-owned (the history knows what an
+entry is and where it lives — a raw `Edit::undo()` would not):
+
+- **Scope discipline (foundation).** Only user-intent edits are recorded (see Recording Boundary), so
+  `Ctrl+Z` can only ever revert something the user deliberately did. No automatic/engine activity is on
+  the stack.
+- **Labels + transient confirmation.** Every entry carries a human-readable label ("Move Plugin",
+  "Amp Sim — Gain"). The Edit menu shows "Undo <label>"/"Redo <label>", and on apply the controller
+  surfaces a brief non-modal confirmation ("Undone: <label>"). For plugin-parameter edits the label
+  names the actual parameter(s) that moved — see *Plugin-parameter edits* below for how the observation
+  layer supplies this. Exact text is not a behavioral contract.
+- **Reveal-on-undo (the key one).** Applying undo/redo emits a navigation/selection intent alongside
+  the state change (per `architectural-principles.md` "separate state from side effects"): switch to
+  the affected domain's panel, select and flash the affected signal-chain block, scroll the timeline to
+  the reverted automation point. The undo drives focus to its own target. `EditorUndoEntry` therefore
+  carries enough identity (domain + affected object id) to produce that reveal intent; `EditorView`
+  honors it without owning undo policy.
+
+### Plugin-parameter edits (the closed-window case)
+
+A parameter changed inside a plugin's own floating VST3 editor window, then undone with that window
+closed, is the case most at risk of feeling "hidden". The decision: **do not force the plugin's own
+GUI open on undo.** Force-opening overrides the user's deliberate close, scales horribly (an undo
+chain across several plugins would pop several heavyweight third-party windows), is not how DAWs
+behave, and is not what "no hidden undo" requires. "No hidden undo" means the user always knows an
+edit was reverted and what it was — not that every third-party plugin GUI must auto-open.
+
+That guarantee is delivered through four channels we control, which together make the closed-window
+case non-hidden:
+
+- **Audible.** This is a real-time guitar rig; undoing a tone parameter is heard immediately, not
+  buried in a hidden document field.
+- **The label names the exact parameter.** The restore payload is the full chunk (for fidelity), but
+  the *observation* layer already knows which `AutomatableParameter`(s) fired the settled gesture. The
+  parameter-edit observer therefore emits a **display-only label hint** (the changed parameter
+  name(s), e.g. "Amp Sim — Gain") alongside the before/after chunks. This is display metadata only — it
+  is never used for restore, identity, or remapping — so it does not reintroduce per-parameter
+  bookkeeping into the restore path.
+- **Reveal-on-undo flashes the affected block** in the signal chain, so the user's eye goes to the
+  right plugin.
+- **If the window is open, it updates live.** `setPluginState` drives `setStateInformation`, so an
+  open editor reflects the restore (plugin-dependent; verified in the Step 2 spike).
+
+Residual (accepted): with the window closed and no RockHero-owned view of that parameter, the user
+hears the change and reads "Amp Sim — Gain" but does not *watch* the specific knob rotate unless they
+reopen the plugin. This matches every DAW and is closed further by the named label.
+
+Future direction (not required for the first pass): if RockHero grows its **own** selected-block
+parameter view (knobs RockHero renders, not the plugin's GUI), reveal-on-undo can show the restored
+values there — fully in UI we control, no plugin window needed. That is the ideal end state; record it
+as the direction, do not build it before the view exists.
+
+`RecordingEditorController` and UI tests assert the reveal/label intents (including the parameter
+label hint) alongside the Undo/Redo requests.
+
 ## UI Integration
 
 `EditorViewState` gains:
@@ -827,8 +923,8 @@ covered:
 - move;
 - placement;
 - display type;
-- plugin parameter batches (user plugins only), including gesture and non-gesture paths, with the
-  self-animating-parameter guard;
+- plugin parameter edits (user plugins only), captured/restored as before/after full chunks, including
+  gesture and non-gesture paths, with the self-animating-parameter guard;
 - pending parameter flush before other commands;
 - output gain;
 - dirty tracking.
@@ -846,7 +942,8 @@ covered:
 - clean marker tracks push, undo, redo, and mark-clean;
 - clean-marker eviction marks clean unreachable;
 - reset clears stacks and clean state;
-- `remapInstanceId` updates every payload, including nested placement ids and parameter batches.
+- `remapInstanceId` updates every payload, including nested placement ids and the plugin-parameter
+  entry's `instance_id`.
 
 Controller:
 
@@ -860,10 +957,12 @@ Controller:
 - remove undo recreates, applies visual state, and remaps ids;
 - move undo/redo restores order and placement;
 - placement/display-type undo/redo restore prior value and dirty state;
-- plugin gesture emits one parameter batch and undo/redo set values;
-- non-gesture parameter changes use cached prior values and coalesce into a batch;
+- a plugin gesture emits one before/after-chunk parameter entry and undo/redo restore the chunks via
+  `setPluginState`;
+- non-gesture parameter changes settle into one before/after-chunk entry using the state baseline as
+  `before`;
 - observation is attached only to user plugins: an output-gain change records exactly one
-  output-gain entry and no parameter batch, and input-gain changes record nothing;
+  output-gain entry and no parameter entry, and input-gain changes record nothing;
 - self-animating / continuous non-gesture parameter motion does not create history entries;
 - explicit flush drops continuous/uncertain pending parameter motion instead of recording it;
 - pending parameter changes flush once at the action-dispatch chokepoint before undo, redo, save,
@@ -872,7 +971,7 @@ Controller:
   or is dropped;
 - output-gain drag pushes one entry;
 - parameter-edit ingestion is suppressed during edit/undo/redo;
-- undo availability is true while a net-changed parameter batch is pending;
+- undo availability is true while a net-changed parameter edit is pending;
 - undo/redo availability appears in view state;
 - undo/redo are disabled while busy and while calibration blocks signal-chain edits;
 - a rollback-contract violation enters the faulted state (all editing, Undo/Redo, Save, and Save As
@@ -889,21 +988,21 @@ Common audio:
 - fake `IPluginHost` round-trips `PluginInstanceState`;
 - fake candidate insert returns `inserted_instance_id`;
 - fake restore can keep or change the id;
-- fake attaches parameter observation only to user plugins and emits no batches for structural
-  plugins;
-- fake maintains last-known parameter values for non-gesture edits;
+- fake attaches parameter observation only to user plugins and emits no edits for structural plugins;
+- fake maintains a per-plugin state baseline and uses it as `before` for non-gesture edits;
 - fake drops continuous/self-animating non-gesture motion;
-- fake advances last-known cache when dropping continuous or uncertain pending values;
+- fake refreshes the state baseline when dropping continuous or uncertain pending motion;
 - fake flushes pending plugin parameter edits synchronously;
 - fake emits pending-state notifications when pending parameter edits start, complete, or are
   dropped;
-- fake applies parameter values for undo and redo;
+- fake `setPluginState` round-trips a chunk to an existing instance for undo and redo;
+- fake emits a display-only `label_hint` naming the changed parameter(s) on a completed parameter edit;
 - fakes cover every undo-wired mutating port's rollback proof: preflight failures, failures repaired
   to exact pre-state, and rollback-contract violations that include diagnostic context;
-- fake verifies that expected recoverable failures leave the plugin chain, parameter values, and
+- fake verifies that expected recoverable failures leave the plugin chain, plugin state, and
   adapter-owned metadata unchanged;
 - Tracktion-backed spike verifies callback patterns, observation scoped to user plugins, open-editor
-  refresh on parameter restore, and undo quarantine behavior before final wiring.
+  refresh on chunk restore, and undo quarantine behavior before final wiring.
 
 UI:
 
@@ -934,9 +1033,9 @@ interface.
    remap, and non-commit failures so the controller can log them later and fault the session when
    required.
 2. Update `IPluginHost` contracts: unchanged-on-error mutating methods, explicit insert result id,
-   complete `PluginInstanceState`, parameter target values, pending-parameter observer/status, and
-   fakes. Write the rollback proof and exact-pre-state tests for each mutating port before the
-   controller records that port in user-visible history.
+   complete `PluginInstanceState`, `setPluginState` (in-place chunk restore), before/after-chunk
+   parameter-edit observer/status, and fakes. Write the rollback proof and exact-pre-state tests for
+   each mutating port before the controller records that port in user-visible history.
 3. Undo/Redo action ids, intents, availability in all switches, view-state fields, Edit menu, and
    `Ctrl+Z` / `Ctrl+Y` routing. Keep user-facing commands disabled until coverage is complete. Log
    action lifecycle at the action gate for all actions (request, availability rejection, start,
@@ -946,10 +1045,11 @@ interface.
 4. Lightweight inverse tier with no audio change: block placement and display-type override. Log
    their undo-entry push and undo/redo apply.
 5. Move as a compound inverse with placement restore. Log move entries.
-6. Parameter boundary: last-known cache, observation scoped to user plugins, gesture grouping,
-   non-gesture debounce grouping with the self-animating guard, explicit flushing with drop/cache
-   semantics at the dispatch chokepoint, pending-state notifications, fake tests, and ingestion
-   suppression. Log parameter batch started/completed/flushed/dropped and pending-state changes.
+6. Parameter boundary: per-plugin state baseline, observation scoped to user plugins, gesture-bounded
+   before/after-chunk capture, non-gesture debounce settle with the self-animating guard, explicit
+   flushing with drop/baseline-refresh semantics at the dispatch chokepoint, pending-state
+   notifications, `setPluginState` replay, fake tests, and ingestion suppression. Log parameter edit
+   started/completed/flushed/dropped and pending-state changes.
 7. Output-gain gesture boundaries and output-gain undo entries. Log output-gain entries.
 8. Remove memento boundary: capture/restore, restore result/id mapping, editor visual-state
    capture/apply, insert/remove wiring, and id remapping. Add rollback-contract handling here (the
@@ -1080,9 +1180,10 @@ the probes as written. Both `[spike]` cases passed.
 
 **Still open — interactive half (Step 2), not yet built:** real VST3 parameter-callback
 characterization (gesture begin/end vs. raw `parameterChanged`, self-animating/continuous params)
-and whether undo through `setPluginParameterValues` refreshes an open plugin window (Q4). This needs
-temporary `AutomatableParameter`-listener instrumentation driven by hand in the running editor and
-is the true long pole; it gates Phase 8 parameter work. Phase 2 is not complete until Step 2 runs.
+and whether a full-chunk restore through `setPluginState` (`setStateInformation`) refreshes an open
+plugin window (Q4). This needs temporary `AutomatableParameter`-listener instrumentation driven by
+hand in the running editor and is the true long pole; it gates Phase 8 parameter work. Phase 2 is not
+complete until Step 2 runs.
 
 - **Validated (Step 1), not chosen:** clearing Tracktion undo history after owned mutations is
   mechanically safe and is the candidate quarantine for the **memento path** — deferred to Phase M, and
@@ -1092,8 +1193,8 @@ is the true long pole; it gates Phase 8 parameter work. Phase 2 is not complete 
   own parameters (LFOs, envelopes, meters) on the non-gesture path? The conservative default is to
   drop continuous/uncertain motion; Step 2 should characterize real VST3 behavior.
 - Do real VST3 plugins commonly emit gesture begin/end, raw changes only, or both? (Step 2)
-- Does undo of a parameter through `setPluginParameterValues` update an open plugin editor window
-  across the VST3 plugins we target? (Step 2)
+- Does a full-chunk restore through `setPluginState` (`setStateInformation`) update an open plugin
+  editor window across the VST3 plugins we target? (Step 2)
 - What debounce window gives acceptable grouping for non-gesture plugin changes without delaying
   undo availability noticeably? (Step 2)
 - **Resolved (Step 1):** `insertPluginState` can preserve Tracktion item/runtime ids only when the
