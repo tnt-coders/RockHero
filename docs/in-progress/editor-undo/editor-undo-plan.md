@@ -222,40 +222,31 @@ The split is:
   parameter observation, message-thread enforcement, and adapter-local cleanup for Tracktion's
   internal undo history.
 
-### Inverse mechanism: open until Phase M (see undo-ownership-analysis.md)
+### Inverse mechanism: RockHero mementos (Phase M decision)
 
-An earlier version of this section argued against Tracktion delegation using mechanics that were later
-**disproved** — "every ValueTree write creates a transaction" and "Tracktion records all
-`AutomatableParameter` motion indistinguishably" are both **false** (transaction boundaries are
-controllable via the idle timer + `UndoTransactionInhibitor`; live parameter values are atomics and
-reach the undoable tree only via an explicit chunk flush). That reasoning has been removed.
+Phase M is settled: RockHero owns one product undo stack, and tone entries restore absolute captured
+state through RockHero-owned mementos. Tracktion remains the backend for plugin instantiation, opaque
+state capture/restore, plugin-list mutation, parameter access, and graph rebuilds, but Tracktion's
+undo manager is not consumed as product history.
 
-The accurate, source-grounded treatment now lives in `undo-ownership-analysis.md`, and the decision is
-deferred to the **Phase M gate** in `editor-engine-undo-master-plan-v3.md`, taken after the Phase B
-baseline cleanup. In brief, what is established:
+The cleaned-base Tracktion measurements still matter because they corrected earlier assumptions:
 
 - For a single isolated command wrapped in one `beginNewTransaction`, `Edit::undo()` is clean and
   id-preserving (spike: insert undone to empty chain, redone with the same id 1011).
-- The real cost of delegation is not "pollution everywhere": it is the standing 1:1 command↔transaction
-  discipline (e.g. the capture/save flush at `engine.cpp:3658` writes undoable chunk actions) and that
-  it couples editor-core undo correctness to Tracktion's undo *behavior* across the `Engine::Impl`
-  boundary (which hides types, not behavior).
-- Parameter undo is achievable either way — Tracktion-side via a gesture-settle chunk flush, or
-  RockHero-side via capture/replay; this is part of the Phase M comparison.
+- Transaction boundaries are controllable; the earlier claim that every ValueTree write necessarily
+  creates an ungroupable user transaction was wrong.
+- Third-party VST3 parameter undo is whole-chunk either way. The chosen RockHero memento path stores
+  before/after full plugin chunks for fidelity, not a granular parameter vector.
 
-Settled regardless of the choice: RockHero owns the user-visible stack (ordering, labels, clean
-revision, failure policy, cross-domain ordering). The memento capture/replay and quarantine details in
-the following sections are the **memento-mechanism candidate**, retained for when that option is chosen
-at Phase M.
+Those facts made Tracktion delegation viable for tone-only structural edits, but Phase M chose
+mementos because product undo is wider than Tracktion's `Edit`: editor metadata and future
+tablature/chart edits must share the same visible `Ctrl+Z` order. Delegating tone entries to
+`Edit::undo()/redo()` would keep two ordered histories synchronized by convention. Mementos keep one
+source of truth: each entry restores its own captured state through project-owned contracts.
 
-Phase M should also evaluate the now-cleaner heterogeneous-stack shape: one RockHero undo history per
-open project, with tone entries optionally backed by Tracktion transactions behind a common/audio
-port, and future tablature/chart entries backed by editor-core inverses. B2-full is not required for
-that shape, but it is the cleaner Tracktion-backed tone variant because reactive routing keeps
-runtime repair inside the audio adapter instead of requiring explicit post-undo repair per entry.
-Tracktion-backed tone undo is acceptable only if Tracktion's undo behavior remains adapter-local:
-editor-core must not call raw `Edit::undo()/redo()`, store Tracktion cursor state, or derive
-availability from `Edit::getUndoManager()`.
+B2-full is therefore not part of the undo path. It remains a possible future routing refactor only if
+the project later chooses a Tracktion-owned tone-edit architecture; the memento implementation uses
+the current synchronous B2-lite/B2-lite+ adapter paths.
 
 ## Tracktion Undo Quarantine
 
@@ -280,24 +271,22 @@ Rules:
 
 Preferred implementation shape:
 
-- Keep quarantine adapter-local if possible. The editor should not need a Tracktion-shaped
-  `clearUndoManager` port.
-- If the Tracktion adapter can safely call `Edit::getUndoManager().clearUndoHistory()` after
-  RockHero-owned mutations, do that inside the adapter after the mutation has completed and state
-  has been refreshed.
-- If clearing has side effects, do not clear periodically as a fallback. Periodic clearing has the
-  same safety burden as immediate clearing, but with worse observability. Instead, prefer one of
-  these proven-safe options:
-  - inhibit Tracktion transaction creation for RockHero-owned adapter mutations if Tracktion exposes
-    a scoped mechanism for that;
-  - bound Tracktion `UndoManager` storage to the smallest practical internal history depth if that
-    cap has no user-visible side effects;
-  - leave the internal stack inaccessible and document why its memory growth is bounded by the
-    adapter's operation shape.
+- Keep quarantine adapter-local. The editor should not need a Tracktion-shaped `clearUndoManager`
+  port.
+- Prefer adapter operations that avoid recording Tracktion undo actions in the first place, such as
+  using `nullptr` undo managers for memento restores where Tracktion APIs allow it.
+- Leave Tracktion's internal stack inaccessible by default. Tracktion already bounds stored undo units;
+  because RockHero never consumes that stack, accumulated internal history is not user-visible state.
+- Use Tracktion undo only for bounded adapter-local rollback when that is the safest way to reverse a
+  just-opened internal transaction. In that case prefer `undoCurrentTransactionOnly()` or an
+  equivalent current-transaction rollback primitive, never raw `Edit::undo()`.
+- Clearing Tracktion undo history is allowed only as adapter-local maintenance after a mutation has
+  completed and state has been refreshed, and only if the adapter has a concrete memory or correctness
+  reason to do so. It is not the product undo mechanism and should not become an editor-core port.
 
 The key invariant is that RockHero never consumes Tracktion's internal stack as user history.
 
-Required spike before broad implementation:
+Spike status for quarantine and parameter observation:
 
 1. Log whether `edit.getUndoManager().canUndo()` changes after insert, move, remove, output gain,
    plugin parameter changes, plugin-state capture, and plugin-state restore.
@@ -306,12 +295,11 @@ Required spike before broad implementation:
 3. Verify one real VST3 plugin's knob-change callback pattern: gesture begin/end, raw
    `parameterChanged`, or both.
 
-Spike outcome (see Stage 0 Spike Status): items 1-2 ran on 2026-06-10 and **validated that clearing
-Tracktion undo history after owned mutations is safe** (it reset the manager cleanly and left the
-engine usable). This is a candidate quarantine mechanism for the **memento path only** — it is **not
-chosen** until the Phase M gate, and would be actively wrong under delegation (clearing would destroy
-the very Tracktion stack delegation relies on). Item 3 (real knob-change callback pattern) is the
-pending Step 2.
+Spike outcome (see Stage 0 Spike Status): items 1-2 ran on 2026-06-10 and validated that clearing
+Tracktion undo history after owned mutations is mechanically safe in the tested cases. Phase M still
+does not require active clearing; the selected mechanism is memento restore through RockHero ports
+with Tracktion undo kept private and unconsumed. Item 3, the real VST3 knob-change callback pattern,
+is the pending Step 2 and gates the parameter-observation/audio-adapter stages.
 
 ## History Failure Policy
 
@@ -1114,15 +1102,16 @@ the probes as written. Both `[spike]` cases passed.
   **can** be labeled via `beginNewTransaction(name)` (the Option B spike's wrapped insert reported
   `undoDesc='rh-insert'`). An earlier note here said transactions are "unlabeled"; corrected. RockHero
   still supplies its own command labels regardless of mechanism.
-- **Clearing after owned mutations is validated as safe (memento/quarantine path only; Q2).**
+- **Clearing after owned mutations is validated as safe for quarantine maintenance (Q2).**
   `clearUndoHistory()` reset the manager cleanly (`storedUnits=0`, `canUndo=false`) and the engine
   remained fully usable afterward: a post-clear output-gain edit succeeded and re-grew the stack (to
   72). No crash, no graph breakage, no failure. This makes clear-after-owned-mutation a viable
-  quarantine mechanism **if mementos are chosen at Phase M** — it must not be used under delegation,
-  which relies on the Tracktion stack surviving. *Caveat:* the headless test has no open audio device
-  and does not play, so live-playback-time side effects (graph rebuilds mid-transport, plugin-state
-  flush, dirty/change timers) are not fully exercised; watch for them during implementation, but no
-  blocker was found.
+  adapter-local maintenance tool for the chosen memento/quarantine design, but it is optional:
+  Tracktion already bounds the stack and RockHero never consumes it. It must not be used if the
+  project later pivots to delegation, which relies on the Tracktion stack surviving. *Caveat:* the
+  headless test has no open audio device and does not play, so live-playback-time side effects (graph
+  rebuilds mid-transport, plugin-state flush, dirty/change timers) are not fully exercised; watch for
+  them during implementation, but no blocker was found.
 - **Restore changes the runtime id when the id is stripped; preserves it when kept (Q5).** With the
   id stripped (current `captureActiveRig()` behavior, `engine.cpp:3660`), capture/remove/reinsert
   yielded a new id (1011 -> 1017). Keeping `tracktion::IDs::id` in the state tree preserved the id
@@ -1170,13 +1159,13 @@ the probes as written. Both `[spike]` cases passed.
   transaction" and that delegation "fails on unfilterable parameter motion" — was **wrong and has been
   retracted**: transaction boundaries are controllable, and parameter motion is atomic/flush-driven
   (see `undo-ownership-analysis.md`, authoritative for the mechanics). The genuine delegation
-  considerations are the 1:1 command↔transaction discipline (e.g. the capture flush at
-  `engine.cpp:3658`) and the behavioral coupling across the `Engine::Impl` boundary. **What is settled
-  is only that RockHero owns the stack; the inverse mechanism is *not* decided here — it is deferred
-  to the Phase M gate** in `editor-engine-undo-master-plan-v3.md`.
+  considerations are the 1:1 command-to-transaction discipline (e.g. the capture flush at
+  `engine.cpp:3658`) and the behavioral coupling across the `Engine::Impl` boundary. Phase M later
+  chose RockHero mementos: the product stack owns tone undo entries, and Tracktion undo stays
+  adapter-local.
 - **Useful byproduct:** Tracktion preserves item ids across its own undo/redo of an isolated
-  transaction. Whether we rely on it depends on the Phase M mechanism choice; either way it confirms
-  id stability is a Tracktion capability, not an accident.
+  transaction. The chosen memento path does not rely on that; it supports changed-id restore
+  unconditionally. The finding remains useful evidence about Tracktion behavior.
 
 **Still open — interactive half (Step 2), not yet built:** real VST3 parameter-callback
 characterization (gesture begin/end vs. raw `parameterChanged`, self-animating/continuous params)
@@ -1185,13 +1174,12 @@ plugin window (Q4). This needs temporary `AutomatableParameter`-listener instrum
 hand in the running editor and is the true long pole; it gates Phase 8 parameter work. Phase 2 is not
 complete until Step 2 runs.
 
-- **Validated (Step 1), not chosen:** clearing Tracktion undo history after owned mutations is
-  mechanically safe and is the candidate quarantine for the **memento path** — deferred to Phase M, and
-  wrong under delegation. (Tracktion already bounds the stack via `maxNumberOfStoredUnits`; clearing
-  just resets it.)
-- How reliably can the adapter distinguish user-driven parameter edits from a plugin animating its
-  own parameters (LFOs, envelopes, meters) on the non-gesture path? The conservative default is to
-  drop continuous/uncertain motion; Step 2 should characterize real VST3 behavior.
+- **Validated (Step 1):** clearing Tracktion undo history after owned mutations is mechanically safe
+  in the tested cases, but active clearing is not required by the chosen memento mechanism. Tracktion
+  already bounds the stack via `maxNumberOfStoredUnits`; RockHero never consumes it as product history.
+- How reliably can the adapter distinguish user-driven parameter edits from a plugin animating its own
+  parameters (LFOs, envelopes, meters) on the non-gesture path? The conservative default is to drop
+  continuous/uncertain motion; Step 2 should characterize real VST3 behavior.
 - Do real VST3 plugins commonly emit gesture begin/end, raw changes only, or both? (Step 2)
 - Does a full-chunk restore through `setPluginState` (`setStateInformation`) update an open plugin
   editor window across the VST3 plugins we target? (Step 2)
