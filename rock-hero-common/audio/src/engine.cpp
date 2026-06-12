@@ -1,6 +1,7 @@
 ﻿#include "engine.h"
 
 #include "live_rig_gain_plugin.h"
+#include "monitoring_mode_transition.h"
 #include "plugin_move_index.h"
 #include "tracktion_instrument_wave_device_mapping.h"
 #include "tracktion_thumbnail.h"
@@ -2723,6 +2724,53 @@ private:
         }
     }
 
+    // Centralizes the shared "adopt the requested monitoring flags, reroute, and roll back to off
+    // on route failure" path for the two monitoring toggles, which were otherwise identical apart
+    // from the channel and the rollback context. The mutual-exclusion and no-input-device policy
+    // lives in the pure, device-free monitoringFlagsForRequest(); this method owns only the side
+    // effects. Keeps the existing synchronous LiveInputError contract; callers supply device
+    // availability because that check lives on Engine, not Impl.
+    [[nodiscard]] std::expected<void, LiveInputError> setMonitoringChannelEnabled(
+        MonitorChannel channel, bool enabled, bool input_device_available,
+        std::string_view rollback_context)
+    {
+        const std::optional<MonitoringFlags> requested = monitoringFlagsForRequest(
+            MonitoringFlags{
+                .live_input = m_live_input_monitoring_enabled,
+                .calibration = m_calibration_input_monitoring_enabled
+            },
+            channel,
+            enabled,
+            input_device_available);
+
+        if (!requested.has_value())
+        {
+            // No input device to route from: force both modes off and report the route failure.
+            m_live_input_monitoring_enabled = false;
+            m_calibration_input_monitoring_enabled = false;
+            rebuildInstrumentMonitoringGraphBestEffort(rollback_context);
+            return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
+        }
+
+        m_live_input_monitoring_enabled = requested->live_input;
+        m_calibration_input_monitoring_enabled = requested->calibration;
+
+        auto route_result = rebuildInstrumentMonitoringGraph();
+        if (!route_result.has_value())
+        {
+            LiveInputError route_error = std::move(route_result.error());
+            if (enabled)
+            {
+                m_live_input_monitoring_enabled = false;
+                m_calibration_input_monitoring_enabled = false;
+                rebuildInstrumentMonitoringGraphBestEffort(rollback_context);
+            }
+            return std::unexpected{std::move(route_error)};
+        }
+
+        return {};
+    }
+
     // Connects meter readers to the current Tracktion measurers and returns one display snapshot.
     [[nodiscard]] AudioMeterSnapshot audioMeterSnapshot() const
     {
@@ -3523,33 +3571,11 @@ std::expected<void, LiveInputError> Engine::setLiveInputMonitoringEnabled(bool e
         return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
     }
 
-    if (enabled && !currentInputDeviceIdentity().has_value())
-    {
-        m_impl->m_live_input_monitoring_enabled = false;
-        m_impl->m_calibration_input_monitoring_enabled = false;
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort("live input enable rollback failed");
-        return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
-    }
-
-    m_impl->m_live_input_monitoring_enabled = enabled;
-    if (enabled)
-    {
-        m_impl->m_calibration_input_monitoring_enabled = false;
-    }
-    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-    if (!route_result.has_value())
-    {
-        LiveInputError route_error = std::move(route_result.error());
-        if (enabled)
-        {
-            m_impl->m_live_input_monitoring_enabled = false;
-            m_impl->m_calibration_input_monitoring_enabled = false;
-            m_impl->rebuildInstrumentMonitoringGraphBestEffort("live input enable rollback failed");
-        }
-        return std::unexpected{std::move(route_error)};
-    }
-
-    return {};
+    return m_impl->setMonitoringChannelEnabled(
+        MonitorChannel::LiveInput,
+        enabled,
+        currentInputDeviceIdentity().has_value(),
+        "live input enable rollback failed");
 }
 
 // Reports whether unprocessed calibration input is currently routed directly to output.
@@ -3566,35 +3592,11 @@ std::expected<void, LiveInputError> Engine::setCalibrationInputMonitoringEnabled
         return std::unexpected{LiveInputError{LiveInputErrorCode::MessageThreadRequired}};
     }
 
-    if (enabled && !currentInputDeviceIdentity().has_value())
-    {
-        m_impl->m_live_input_monitoring_enabled = false;
-        m_impl->m_calibration_input_monitoring_enabled = false;
-        m_impl->rebuildInstrumentMonitoringGraphBestEffort(
-            "calibration monitoring enable rollback failed");
-        return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
-    }
-
-    m_impl->m_calibration_input_monitoring_enabled = enabled;
-    if (enabled)
-    {
-        m_impl->m_live_input_monitoring_enabled = false;
-    }
-    auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
-    if (!route_result.has_value())
-    {
-        LiveInputError route_error = std::move(route_result.error());
-        if (enabled)
-        {
-            m_impl->m_live_input_monitoring_enabled = false;
-            m_impl->m_calibration_input_monitoring_enabled = false;
-            m_impl->rebuildInstrumentMonitoringGraphBestEffort(
-                "calibration monitoring enable rollback failed");
-        }
-        return std::unexpected{std::move(route_error)};
-    }
-
-    return {};
+    return m_impl->setMonitoringChannelEnabled(
+        MonitorChannel::Calibration,
+        enabled,
+        currentInputDeviceIdentity().has_value(),
+        "calibration monitoring enable rollback failed");
 }
 
 // Sets the output gain on the structural live-rig gain plugin after the signal chain.

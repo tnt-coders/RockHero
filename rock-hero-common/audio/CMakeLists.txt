@@ -15,6 +15,7 @@ target_sources(
             src/live_rig_gain_plugin.cpp
             src/live_input_error.cpp
             src/live_rig_error.cpp
+            src/monitoring_mode_transition.cpp
             src/plugin_host_error.cpp
             src/song_audio_error.cpp
             src/tracktion_instrument_wave_device_mapping.cpp

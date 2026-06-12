@@ -20,8 +20,9 @@ undo) and `../../todo/test-fixture-opportunities-plan.md` (deferred).
 
 ## Implementation sequence (the direct path)
 
-Done: Phase 0, Phase 1, Phase B (B0–B3), Phase 2 (mechanical), Phase M decision. Remaining, in order —
-parallel tracks marked, per-stage detail in `editor-undo-plan.md`:
+Done: Phase 0, Phase 1, Phase B (B0–B3), B2-lite+ monitoring-mode centralization (2026-06-12),
+Phase 2 (mechanical), Phase M decision. Remaining, in order — parallel tracks marked, per-stage detail
+in `editor-undo-plan.md`:
 
 1. **Now, in parallel:**
    - **Spike** (finish Phase 2 Step 2 / `editor-undo-plan.md` Stage 0): real-VST3 gesture callbacks,
@@ -307,9 +308,28 @@ stop/release -> mutate -> re-route path for `insertPlugin`, `movePlugin`, and `r
 Mutation failures now trigger a best-effort monitoring re-route from the helper, and route failures
 still roll back before the best-effort re-route. This intentionally fixes the pre-existing
 `removePlugin` mutation-failure path that could return after context teardown without a re-route.
-`setOutputGain` remains outside the helper as a direct structural property write. B2-full remains
-below as the deferred alternative to revisit only if Phase M chooses Tracktion undo delegation.
+`setOutputGain` remains outside the helper as a direct structural property write.
 Verification: `rock_hero_common_audio_tests` built and passed via the Codex build workflow.
+
+**B2-lite+ (2026-06-12, done before undo implementation — a cleaner base to build on):** extended the
+same synchronous centralization from chain mutations to the **monitoring-mode toggles**. The two
+public setters `setLiveInputMonitoringEnabled` / `setCalibrationInputMonitoringEnabled` were ~90%
+duplicated (identical preflight / mutual-exclusion / reroute / rollback-to-off, differing only in
+channel and rollback-context string); they now delegate to one `Engine::Impl::setMonitoringChannelEnabled(channel, enabled, input_device_available, context)`
+helper and keep only the message-thread check. Line-by-line behavior-preserving; synchronous
+`LiveInputError` contract unchanged; guarded by the existing monitoring enable/disable + rollback
+tests. The *pure route-decision extraction* floated under "B2-lite+" was assessed and **skipped** as
+not worth it: the route decision is two trivial lines and the meaningful pure piece (channel
+descriptions) is already its own testable free function. No reactive listener, no async — see the
+B2-full note below for why the reactive/async version is moot under the memento decision.
+
+**B2-full is not being implemented.** Its reactive plugin-list listener existed to catch out-of-band
+`Edit::undo()` tree mutations under *delegation*; the Phase M memento decision removes any out-of-band
+mutation (undo/redo restore through RockHero's rerouting methods), so the reactive mechanism — and its
+async route-status surface and timing risk — has no remaining job. Routing already reacts
+asynchronously only where warranted (external device changes, via the JUCE device-manager callback)
+and stays synchronous for RockHero-driven inputs (chain via the B2-lite helper, mode via the new
+B2-lite+ helper). That split is the intended end state.
 
 #### B2-full - Reactive routing (only if undo delegation is favored)
 
