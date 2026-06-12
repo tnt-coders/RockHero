@@ -138,6 +138,8 @@ private:
     [[nodiscard]] float targetLinearGain() const noexcept;
     void setTargetGainDb(float gain_db) noexcept;
     void setSmoothedGainTarget(float linear_gain) noexcept;
+    void valueTreePropertyChanged(
+        juce::ValueTree& changed_tree, const juce::Identifier& changed_property) override;
 
     juce::CachedValue<float> m_gain_db;
     std::atomic<float> m_target_gain_db{static_cast<float>(defaultGainDb())};

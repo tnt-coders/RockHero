@@ -81,6 +81,28 @@ TEST_CASE("LiveRigGainPlugin clamps gain", "[audio][live-rig-gain-plugin]")
     CHECK(gain_plugin->gain().db == Catch::Approx(minimumGainDb()));
 }
 
+// Verifies Tracktion undo/redo refresh both CachedValue state and the realtime atomic target.
+TEST_CASE("LiveRigGainPlugin tracks undo-restored gain", "[audio][live-rig-gain-plugin]")
+{
+    const LiveRigGainPluginHarness harness;
+    const tracktion::Plugin::Ptr plugin = createTestPlugin(*harness.edit);
+    auto* const gain_plugin = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
+    REQUIRE(gain_plugin != nullptr);
+
+    juce::UndoManager& undo_manager = harness.edit->getUndoManager();
+    undo_manager.clearUndoHistory();
+    undo_manager.beginNewTransaction("live-rig-gain");
+
+    gain_plugin->setGain(Gain{-4.0});
+    REQUIRE(gain_plugin->gain().db == Catch::Approx(-4.0));
+
+    CHECK(undo_manager.undo());
+    CHECK(gain_plugin->gain().db == Catch::Approx(defaultGainDb()));
+
+    CHECK(undo_manager.redo());
+    CHECK(gain_plugin->gain().db == Catch::Approx(-4.0));
+}
+
 // Verifies +24 dB processing applies the expected linear multiplier to every channel.
 TEST_CASE("LiveRigGainPlugin processes plus twenty four dB", "[audio][live-rig-gain-plugin]")
 {

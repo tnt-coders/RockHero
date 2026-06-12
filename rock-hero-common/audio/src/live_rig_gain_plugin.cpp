@@ -205,4 +205,19 @@ void LiveRigGainPlugin::setSmoothedGainTarget(float linear_gain) noexcept
     m_last_target_linear_gain = linear_gain;
 }
 
+// Keeps realtime state synchronized when Tracktion undo mutates the backing ValueTree directly.
+void LiveRigGainPlugin::valueTreePropertyChanged(
+    juce::ValueTree& changed_tree, const juce::Identifier& changed_property)
+{
+    if (changed_tree == state && changed_property == gainDbProperty())
+    {
+        m_gain_db.forceUpdateOfCachedValue();
+        const Gain changed_gain = clampGain(Gain{static_cast<double>(m_gain_db.get())});
+        setTargetGainDb(static_cast<float>(changed_gain.db));
+        setSmoothedGainTarget(targetLinearGain());
+    }
+
+    tracktion::Plugin::valueTreePropertyChanged(changed_tree, changed_property);
+}
+
 } // namespace rock_hero::common::audio

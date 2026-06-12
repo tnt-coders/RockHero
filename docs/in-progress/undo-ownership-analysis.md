@@ -103,6 +103,30 @@ rebuilds). An `Edit::undo()` of that "gain change" would also delete the structu
 This is controllable in principle (eager structural init, strict bracketing) but shows the discipline
 delegation would require.
 
+### B3 cleaned-base rerun
+
+After B1 eager structural anchors and B2-lite route centralization, the Phase B3 rerun on
+2026-06-11 measured the cleaned base directly (`editor-engine-undo-b3-findings.md`):
+
+- insert: one labeled transaction, +208 units, raw undo removed the user plugin, raw redo restored
+  the same id;
+- move: one labeled transaction, +64 units, raw undo/redo restored user-plugin order and ids;
+- remove: one labeled transaction, +32 units, raw undo/redo restored/removed the same id;
+- output gain: one labeled transaction, +72 units, raw undo/redo restored the project-facing
+  `outputGain()` value after a RockHero adapter fix.
+
+Manual route repair after raw undo/redo of insert, move, and remove succeeded in the headless
+default-route harness and did not add undo units. That reduces the routing concern from "undo
+stack pollution" to "explicit post-undo runtime repair still required under B2-lite." It does not
+prove live-device playback-graph correctness while monitoring is enabled.
+
+The output-gain failure was not a Tracktion undo failure. Tracktion restored the `gainDb` ValueTree
+property, but `LiveRigGainPlugin::gain()` reads a separate realtime atomic target. A
+`LiveRigGainPlugin::valueTreePropertyChanged()` override now synchronizes direct ValueTree undo
+back into that target. This changes the delegation picture: structural list edits are clean at the
+tree/id level, output gain is clean at the value level, and B2-lite still requires an explicit
+route/playback repair step outside the Tracktion undo tree for structural list edits.
+
 ## The decision space (three separable layers)
 
 The original framing ("RockHero stack vs Tracktion stack") conflated three layers that should be
@@ -120,6 +144,12 @@ decided separately:
    rebuild. Not reinvented under any option.
 
 ## Options for layer 2 (inverse mechanism)
+
+Before choosing an inverse mechanism, keep the product shape separate from the tone mechanism:
+RockHero should normally expose one user-visible undo history per open project. Tone edits,
+tablature/chart edits, and editor metadata are all edits to the same saved project unless a future
+feature becomes a truly separate document. A Tracktion-backed tone inverse can live underneath that
+single RockHero stack without making Tracktion responsible for the whole program's undo policy.
 
 ### Option A — Full delegation to `Edit::undo()/redo()`
 
@@ -141,6 +171,13 @@ Each tree-edit command wraps its mutation in `beginNewTransaction(label)`; undo/
   the 350 ms auto-transaction timer and any future subsystem touching the Edit can break the mapping
   with no compile-time signal.
 
+Under B2-lite, Option A still needs explicit post-undo route/playback repair inside the audio
+adapter. B2-full would deliberately move that cost behind reactive plugin-list/tree observation,
+including child-order changes that Tracktion's own edit watcher ignores, and would make delegated
+structural tone undo substantially cleaner. B2-full does not solve transaction discipline,
+capture/save flushes, parameter granularity, or metadata ownership; it only makes the runtime
+repair part of delegation cleaner.
+
 ### Option B — Local RockHero mementos (current `editor-undo-plan.md` design)
 
 Each undo entry captures/restores exactly its own state via the `IPluginHost` memento surface.
@@ -161,6 +198,11 @@ Option A) — which then **cannot provide fine-grained parameter granularity wit
 (parameter undo via Tracktion is possible but only as a coarse whole-chunk flush per gesture-settle,
 not per-parameter), and still cannot reverse the non-tree editor metadata.
 
+This rejection is specific to mixing mechanisms that both mutate Tracktion's tree. It does not
+reject a heterogeneous RockHero product stack where tone entries use Tracktion-backed inverses and
+future tablature/chart entries use RockHero-owned editor-core inverses, because those chart entries
+do not advance Tracktion's undo pointer.
+
 ### Option D — Mementos for the product stack, scoped Tracktion undo for per-operation rollback
 
 Option B for user-visible history, **plus** a bounded `beginNewTransaction` + `Edit::undo()` *inside a
@@ -177,6 +219,13 @@ contents, interposing flushes) — a behavioral contract that crosses the layer 
 `tracktion::` type does. Mementos keep the coupling fully contained: editor-core handles opaque
 `PluginInstanceState` bytes with a trivial "capture then restore" contract; all Tracktion behavior
 stays inside `get/setStateInformation`.
+
+B2-full can contain, but not erase, that behavioral coupling. A cleaner delegated design would keep
+Tracktion-backed tone undo behind an audio-domain port/token: editor-core records a tone entry and
+asks common/audio to undo or redo that entry, receiving a typed result. Editor-core must not call
+raw `Edit::undo()/redo()`, derive availability from `Edit::getUndoManager()`, or store Tracktion
+cursor state. If those details remain inside common/audio, the coupling is adapter-local; if they
+reach editor-core, it has leaked into the product undo policy.
 
 The 1:1 command↔transaction invariant delegation needs is **real but narrower** than earlier framing:
 
@@ -212,12 +261,27 @@ from delegation:
   Tracktion is still used for the genuinely hard primitives (instantiation, state capture/restore,
   graph rebuild) and optionally for bounded rollback.
 
+Post-B3, this assessment is closer than the original recommendation implied. Output gain is no
+longer a delegation blocker, structural list edits are clean at the tree/id level, and B2-full
+would address the remaining route/playback repair issue for tone structure. The remaining
+delegation risks are transaction discipline, capture/save flushes, parameter granularity, metadata
+storage, and keeping Tracktion's undo behavior behind the audio boundary.
+
 ## Tentative recommendation
 
-Own the product stack with **local mementos (Option B)**, and adopt **Option D**'s scoped Tracktion
-undo as the per-operation rollback primitive. We are not reinventing the hard parts — Tracktion's
-state capture/restore *is* our memento, and its node-graph rebuild is reused — we own only the ordering
-pointer and policy, which must be ours regardless of mechanism.
+Own the product stack either way: user-visible ordering, labels, clean state, failure policy, and
+future tablature/chart ordering remain RockHero responsibilities. The open Phase M choice is now
+between two cleaner candidates:
+
+- **Tracktion-backed tone undo plus B2-full:** idiomatic for Tracktion tone state if all
+  Tracktion undo behavior stays behind a common/audio tone-undo port, tone metadata lives in the
+  chosen authoritative store, and parameter/save-flush discipline is resolved.
+- **RockHero mementos plus optional scoped Tracktion rollback:** more explicit at the product
+  boundary and uniform across tone/chart/metadata, at the cost of more adapter code and id
+  remapping.
+
+The earlier local-memento recommendation remains a strong candidate, but it should be re-weighed
+at Phase M against the now-cleaner Tracktion-backed tone path.
 
 This is a recommendation, not a settled decision. It would change if: (a) we decide to eagerly create
 all structural plugins at construction *and* move all imperative routing behind tree-driven listeners,
@@ -235,9 +299,7 @@ this document, keeping whatever conclusion is chosen.
 
 ## Open items a further spike could close (if desired)
 
-- Confirm directly that `Edit::undo()` of a wrapped insert leaves the input monitoring route / cached
-  structural ids inconsistent (predicted from source; not yet measured end to end).
-- Measure whether forcing `applyInstrumentMonitoringRoute()` after `Edit::undo()/redo()` fully restores
-  runtime state, which is the viability test for Option A.
-- Confirm the exact composition of the +776 (predicted: four structural plugin creations) by counting
-  units with structural plugins pre-created.
+- With a real audio device open and monitoring enabled, measure whether forcing
+  `applyInstrumentMonitoringRoute()` after `Edit::undo()/redo()` fully restores live runtime state.
+- Finish the interactive parameter spike: real VST3 gesture callbacks, self-animating parameter
+  behavior, and open-editor refresh after parameter restore.
