@@ -60,7 +60,7 @@ pre-committing to RockHero mementos (as v2 + `editor-undo-plan.md` implicitly di
 
 ## What is settled vs. open
 
-Settled (does not depend on the mechanism choice):
+Settled before Phase M (did not depend on the mechanism choice):
 
 - RockHero owns the user-visible undo *stack*: ordering, command labels, clean-revision dirty
   tracking, typed failure / faulted-session policy, `Ctrl+Z`/`Ctrl+Y`, and any future cross-domain
@@ -124,9 +124,9 @@ Phase B   BASELINE ENGINE CLEANUP (pre-undo, value on its own merits)
    B1  Eager structural plugins at construction               [done]
    B2  Routing centralization: B2-lite implemented            [done]
    B3  Re-measure transaction cleanliness on the cleaned base  [done]
-Phase 2   Tracktion behavior spike                            [mechanical done; param step folds into M]
+Phase 2   Tracktion behavior spike                            [mechanical done; interactive parameter spike pending]
 Phase M   UNDO MECHANISM DECISION GATE                        [DECIDED 2026-06-11: RockHero mementos / Tracktion-as-backend]
-Phase 3+  Undo implementation (RockHero mementos)             (revise editor-undo-plan.md to the memento mechanism)
+Phase 3+  Undo implementation (RockHero mementos)             [follow revised editor-undo-plan.md]
 ```
 
 ## Temporary Spike Code Ledger
@@ -216,11 +216,10 @@ Produce a short findings note (append to `undo-ownership-analysis.md` or a sibli
     single reactive unit (listeners on plugin-list / device / mode change). This requires a new
     **route-status surface** because routing failure can no longer be returned synchronously from a
     chain mutation, and it shifts routing timing from synchronous to async (sequenced after Tracktion's
-    `restartPlayback`). Higher risk; only justified if undo delegation is chosen (Phase M), which needs
-    mutations to be clean single transactions.
-- **Decision:** confirm B1 is worth doing now; record the **expected mechanism lean** and therefore
-  whether routing work is B2-lite (default if mementos are favored) or B2-full (only if delegation is
-  favored).
+    `restartPlayback`). Higher risk; it would only have been justified under a Phase M delegation
+    decision, which would have needed mutations to be clean single transactions.
+- **Decision recorded:** B1 and B2-lite were chosen and completed; B2-full remains the rejected
+  delegation-dependent branch.
 
 Exit: written findings; B1 and the B2-lite/B2-full choice confirmed. **Done - see
 `editor-engine-undo-phase-b-findings.md`:** B1 is feasible and behavior-preserving for the user-visible
@@ -434,8 +433,8 @@ is headless and may proceed in parallel.
 
 ### Original evaluation framing (retained for context)
 
-Purpose: choose the inverse mechanism on the cleaned base, with evidence. Produce a written decision
-with rationale, then revise `editor-undo-plan.md` to match.
+Purpose was to choose the inverse mechanism on the cleaned base, with evidence; this has been
+completed. The framing below is retained as context for why the decision was made.
 
 Evaluate:
 
@@ -459,17 +458,17 @@ Evaluate:
    absorbs the old "Phase 2 Step 2" parameter spike.
 3. **Editor metadata:** store block placement / display-type on the plugin tree node (undoable via
    Tracktion, travels with the plugin, accepts the layering coupling) vs editor-core memento.
-4. **Cross-domain deferral:** confirm that whichever mechanism is chosen for tone-only undo now leaves
-   a clean path to add chart-undo ordering later without a rewrite (charts do not exist yet).
+4. **Cross-domain deferral:** confirm that the selected tone-undo mechanism leaves a clean path to
+   add chart-undo ordering later without a rewrite (charts do not exist yet).
 
 Additional Phase M question: prefer one user-visible RockHero undo stack per open project unless a
 future feature is truly a separate document. Tablature/chart edits, tone edits, and editor metadata
 are all edits to the same project/timeline, so `Ctrl+Z` should normally undo the last project edit
 regardless of which editor panel currently has focus.
 
-### The ownership question (primary axis for this decision)
+### Ownership question resolved by the decision
 
-The mechanism choice should be made around one question, not around undo mechanics or performance:
+The mechanism choice was made around one question, not around undo mechanics or performance:
 **is the Tracktion `Edit` the authoritative tone model, or an implementation backend behind
 RockHero's tone model?** The mixed ownership of a single conceptual tone edit is the real source of
 discomfort with either mechanism — plugin chain/order/state live in Tracktion; output gain is a
@@ -511,13 +510,13 @@ The two coherent end-states:
   keep aligned, no B2-full, framework-isolated per `architectural-principles.md`. Cost:
   `remapInstanceId` plus a few hundred well-contained, headless-testable lines.
 
-The decisive trade is correctness coupling: delegation's correctness rests on a global,
+The decisive trade was correctness coupling: delegation's correctness rests on a global,
 silently-violable invariant (RockHero's history pointer staying aligned with Tracktion's undo
 pointer across cross-domain interleaving, the 350 ms auto-transaction timer, the capture/save flush,
 and any future code that writes the Edit between a command and its undo). Mementos have no such
-invariant — each entry restores an absolute captured state. With fidelity now non-negotiable and the
-parameter-efficiency argument neutralized, the open question reduces to whether the project commits
-to "Tracktion owns the tone subsystem" (and pays B2-full + the permanent alignment discipline +
+invariant — each entry restores an absolute captured state. With fidelity non-negotiable and the
+parameter-efficiency argument neutralized, the gate reduced to whether the project commits to
+"Tracktion owns the tone subsystem" (and pays B2-full + the permanent alignment discipline +
 metadata-on-tree coupling) or keeps undo as a thin RockHero-owned layer over Tracktion primitives.
 
 ### The core tradeoff (must be weighed explicitly)
@@ -554,8 +553,8 @@ stated** (verified 2026-06-10):
 - **Copy flush is N/A** (we do not use Tracktion's clipboard). Plugin-window-close writes and future
   automation-curve edits are unverified/standing-discipline risks.
 
-Tracktion-backed tone undo does **not** require Tracktion to own undo for the whole program. The
-intended delegated shape, if chosen, is a heterogeneous RockHero stack:
+Tracktion-backed tone undo did **not** require Tracktion to own undo for the whole program. The
+evaluated delegated shape was a heterogeneous RockHero stack:
 
 - tone entries call a narrow audio-domain inverse backed by Tracktion transactions;
 - tablature/chart entries use RockHero-owned editor-core inverses or diffs;
@@ -584,9 +583,9 @@ genuinely-new part (id remapping) being well-contained, headless-testable logic*
 keeping the coupling local. Delegation's savings are partly offset by transaction-discipline code and
 buy a behavioral dependency the Pimpl cannot hide.
 
-Decision criteria:
+Decision criteria applied:
 
-- **Fidelity of plugin-state reproduction is a hard gate, not a criterion to trade off.** Any chosen
+- **Fidelity of plugin-state reproduction is a hard gate, not a criterion to trade off.** The chosen
   mechanism must restore exact prior plugin state via coherent full-state restore. This eliminates
   granular per-parameter value replay outright and is not subject to balancing against code cost,
   performance, or convenience.
@@ -594,9 +593,9 @@ Decision criteria:
   maintainable behavior. Given the cost comparison above, the clean split (mementos) buys containment
   for a modest, well-contained code delta; delegation's reuse savings are smaller than they appear and
   come with cross-boundary behavioral coupling and the capture-flush discipline.
-- Treat B2-full as a decision-dependent cleanup, not an automatic next step. It is justified if the
-  Phase M decision chooses Tracktion-backed tone undo; it is probably unnecessary if the decision
-  chooses RockHero mementos for tone.
+- Treat B2-full as a decision-dependent cleanup, not an automatic next step. It would have been
+  justified if Phase M chose Tracktion-backed tone undo; it is unnecessary under the selected
+  RockHero memento mechanism.
 - The "cleanest" answer is not simply the one with less code. It is the one whose ownership
   boundaries remain obvious when tablature/chart editing, tone metadata, parameters, save/capture,
   and failure recovery are all present.
@@ -607,18 +606,18 @@ Decision criteria:
   Tracktion transactions in the same tone-undo scheme, or be isolated so they cannot advance
   Tracktion's pointer behind RockHero's back.
 
-Exit: a recorded decision (delegation / memento / hybrid) with rationale; `editor-undo-plan.md`
-Ownership Decision / Quarantine / Stage 0 sections rewritten to the corrected mechanics and the chosen
-mechanism; the now-falsified claims removed.
+Exit: complete. The recorded decision is RockHero mementos with Tracktion as a backend, and
+`editor-undo-plan.md` Ownership Decision / Quarantine / Stage 0 sections now reflect the corrected
+mechanics and selected mechanism.
 
 ## Phase 3+ - Undo implementation
 
 Follow `editor-undo-plan.md` as revised by Phase M. The headless `EditorUndoHistory` ordering/policy
-layer (clean revision, labels, two-phase commit, failure handling) is needed under **either**
-mechanism; what changes is whether its entries' inverses call `Edit::undo()/redo()` or apply mementos.
-Keep user-visible Undo/Redo disabled until the full selected scope is covered (the v2 shipping rule
-still holds). Do not expose Tracktion's `Edit::undo()` directly as RockHero undo regardless of
-mechanism — the product stack stays the single front door.
+layer (clean revision, labels, two-phase commit, failure handling) is the first implementation layer;
+tone entries then apply RockHero-owned mementos through the audio adapter. Keep user-visible
+Undo/Redo disabled until the full selected scope is covered (the v2 shipping rule still holds). Do
+not expose Tracktion's `Edit::undo()` directly as RockHero undo; the product stack stays the single
+front door.
 
 ## Preferred next concrete step
 
@@ -626,6 +625,4 @@ The full ordered path is in **Implementation sequence** at the top of this docum
 the **spike** (Phase 2 Step 2) and the headless **Stage 1 `EditorUndoHistory`** in parallel now, keep
 building the headless stages (2 contracts/fakes, 3 action plumbing disabled, 4 placement/display, 5
 move) while the spike runs, then do the spike-gated audio-adapter stages (2 adapter half, 6 parameters,
-7 output gain, 8 remove memento), and finish with Stage 9 dirty migration and Stage 10 enable. One
-outstanding doc task: rewrite `editor-undo-plan.md`'s Ownership/Quarantine sections from the
-provisional "candidate mechanism" framing to the settled memento mechanism.
+7 output gain, 8 remove memento), and finish with Stage 9 dirty migration and Stage 10 enable.
