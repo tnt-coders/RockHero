@@ -406,11 +406,11 @@ single-source-of-truth (memento) vs two-synchronized-stacks (delegation) distinc
 (performance, fidelity, code cost) is secondary or neutral. The text below is retained as the analysis
 of record.
 
-## Prior tentative recommendation (now settled above)
+## Prior alternatives considered (historical context)
 
 Own the product stack either way: user-visible ordering, labels, clean state, failure policy, and
 future tablature/chart ordering remain RockHero responsibilities. The Phase M choice was between two
-candidates:
+candidate architectures:
 
 - **Tracktion-backed tone undo plus B2-full:** idiomatic for Tracktion tone state if all
   Tracktion undo behavior stays behind a common/audio tone-undo port, tone metadata lives in the
@@ -419,31 +419,16 @@ candidates:
   boundary and uniform across tone/chart/metadata, at the cost of more adapter code and id
   remapping.
 
-The earlier local-memento recommendation remains a strong candidate, but it should be re-weighed
-at Phase M against the now-cleaner Tracktion-backed tone path.
+The non-negotiable fidelity requirement and the verified VST3 whole-chunk mechanism did not decide
+this axis by themselves: both candidates restore plugin state coherently via the chunk. They did,
+however, withdraw the granular parameter-efficiency point that previously favored mementos and
+confirmed that runtime performance is not a tiebreaker. The choice reduced to the ownership question:
+"Tracktion owns the tone subsystem" (delegation, done fully with B2-full, metadata on the tree) vs.
+"Tracktion is a backend" (mementos with full-chunk plugin-state capture/restore).
 
-**2026-06-11 update.** The non-negotiable fidelity requirement and the verified VST3 whole-chunk
-mechanism do not move this axis — both candidates restore plugin state coherently via the chunk — but
-they withdraw the granular parameter-efficiency point that previously favored mementos, and they
-confirm runtime performance is not a tiebreaker. The choice remains the **ownership question**:
-"Tracktion owns the tone subsystem" (delegation, done fully with B2-full, metadata on the tree) vs
-"Tracktion is a backend" (mementos with full-chunk plugin-state capture/restore). The persistence
-decision (tone state stored in Tracktion-managed files) is independent of the restore mechanism and
-adds no cost to either, but it does add coherence weight to the delegation end-state.
-
-This is a recommendation, not a settled decision. It would change if: (a) we decide to eagerly create
-all structural plugins at construction *and* move all imperative routing behind tree-driven listeners,
-making every RockHero command a provably clean single transaction — at which point Option A's invariant
-becomes enforceable and its code savings real; or (b) a further spike shows `Edit::undo()` plus a
-forced `applyInstrumentMonitoringRoute()` reliably restores full runtime state across the mixed command
-set.
-
-## Doc corrections owed once settled
-
-`editor-undo-plan.md` currently contains the now-falsified reasoning (parameter pollution,
-every-write-a-transaction) added during the earlier round. Once direction is settled, its Ownership
-Decision / Quarantine / Stage 0 Spike Status sections must be rewritten to the corrected mechanics in
-this document, keeping whatever conclusion is chosen.
+Phase M chose the second model. Tracktion-backed tone undo should be revisited only if the project
+intentionally pivots to a Tracktion-owned tone document, including reactive runtime repair,
+metadata-on-tree coupling, and a provable single transaction stream for the entire tone subsystem.
 
 ## Open items a further spike could close (if desired)
 
