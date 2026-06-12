@@ -497,6 +497,12 @@ public:
     [[nodiscard]] bool spikeTracktionRedo();
 
     /*!
+    \brief SPIKE: reapplies the instrument monitoring route after raw Tracktion undo/redo.
+    \return Empty on success, or the route failure message.
+    */
+    [[nodiscard]] std::string spikeRebuildInstrumentMonitoringGraph();
+
+    /*!
     \brief SPIKE: reads the current user-visible plugin chain as plain instance ids.
 
     Lets a test observe chain membership after a raw Edit-level undo/redo that bypasses the normal

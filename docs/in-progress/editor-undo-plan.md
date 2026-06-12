@@ -236,6 +236,15 @@ revision, failure policy, cross-domain ordering). The memento capture/replay and
 the following sections are the **memento-mechanism candidate**, retained for when that option is chosen
 at Phase M.
 
+Phase M should also evaluate the now-cleaner heterogeneous-stack shape: one RockHero undo history per
+open project, with tone entries optionally backed by Tracktion transactions behind a common/audio
+port, and future tablature/chart entries backed by editor-core inverses. B2-full is not required for
+that shape, but it is the cleaner Tracktion-backed tone variant because reactive routing keeps
+runtime repair inside the audio adapter instead of requiring explicit post-undo repair per entry.
+Tracktion-backed tone undo is acceptable only if Tracktion's undo behavior remains adapter-local:
+editor-core must not call raw `Edit::undo()/redo()`, store Tracktion cursor state, or derive
+availability from `Edit::getUndoManager()`.
+
 ## Tracktion Undo Quarantine
 
 > *Provisional — applies if the **memento** mechanism is chosen at Phase M. If audio inverses are
@@ -988,7 +997,8 @@ the probes as written. Both `[spike]` cases passed.
   construction and structural-plugin setup populate the internal manager. RockHero must derive its
   own `canUndo()`/`canRedo()` from `EditorUndoHistory`, never from `Edit::getUndoManager()`. This
   hardens the existing quarantine rule from "preferred" to "required by observation".
-- **Every undo-wired operation grows the internal manager (Q1).** `storedUnits` rose monotonically:
+- **Every undo-wired operation grows the internal manager (Q1).** In the pre-B cleanup run,
+  `storedUnits` rose monotonically:
   insert +208 each, move +64, capture +144, remove +32, reinsert +32, and **output gain +776 per
   change** (same +776 delta with or without plugins loaded). The internal stack grows with each
   operation and is never empty after RockHero operations. (It is **not** truly unbounded: Tracktion
@@ -996,6 +1006,10 @@ the probes as written. Both `[spike]` cases passed.
   `tracktion_Edit.cpp:643`. An earlier note here said "unbounded"; corrected.) Output gain is
   surprisingly heavy in Tracktion's manager — though note the +776 is largely the lazy structural-plugin
   creation bundled into the first gain command (see master plan v3 Phase B), not the gain value itself.
+  The B3 cleaned-base rerun after eager anchors measured output gain at +72 units instead of +776,
+  confirming that the lazy-anchor churn was removed. A follow-up fix synchronized
+  `LiveRigGainPlugin`'s realtime target after Tracktion-restored `gainDb` ValueTree changes, so
+  raw `Edit::undo()` / `Edit::redo()` now restore the project-facing output-gain value.
 - **The spike's *unwrapped* operations produced empty `undoDesc`** — but Tracktion transactions
   **can** be labeled via `beginNewTransaction(name)` (the Option B spike's wrapped insert reported
   `undoDesc='rh-insert'`). An earlier note here said transactions are "unlabeled"; corrected. RockHero
@@ -1031,6 +1045,13 @@ the probes as written. Both `[spike]` cases passed.
   Nolly X` into a fresh eager chain, appended a second instance, moved one instance, and removed one
   instance while asserting the raw Tracktion plugin-list roles remained
   `[input gain, input meter, user plugins..., output gain, output meter]`.
+- **B3 cleaned-base transaction rerun is complete for structural list operations and output gain.**
+  Wrapped insert (+208), move (+64), and remove (+32) each behaved as one labeled Tracktion
+  transaction at the tree/id level: raw `Edit::undo()` and `Edit::redo()` restored the expected
+  user-plugin chain and ids. A manual route repair after raw undo/redo succeeded in the headless
+  default-route harness and did not add undo units. Output gain is a +72 labeled value transaction;
+  after the `LiveRigGainPlugin` runtime-target synchronization fix, raw undo/redo restores the
+  project-facing output-gain value.
 
 **Option B confirming spike (the "why not lean on Tracktion's undo?" challenge), ran 2026-06-10:**
 
@@ -1038,9 +1059,12 @@ the probes as written. Both `[spike]` cases passed.
   by a single `Edit::undo()` — chain emptied — and `Edit::redo()` restored it **with the same id
   (1011)**. So Tracktion undo is atomic per transaction and id-preserving for an isolated command;
   its best case genuinely works. This contradicted the initial prediction of a partial-state undo.
-- **wrong-target:** with a gain change layered after the insert (separate transaction), one
-  `Edit::undo()` reverted the gain (0 -> -5 -> 0) and **left the plugin in place** — confirming
-  `Edit::undo()` is a positional LIFO pop, not addressable to a chosen command.
+- **wrong-target:** the original pre-B run used a gain change layered after an insert to show that
+  `Edit::undo()` is a positional LIFO pop, not addressable to an arbitrary chosen command. The B3
+  cleaned-base rerun corrected the gain-specific interpretation: after the
+  `LiveRigGainPlugin` runtime-target synchronization fix, output-gain undo restores the
+  project-facing gain value. The old result is evidence only for positional pop behavior, not for
+  an output-gain undo failure.
 - **Interpretation:** positional-pop alone is not disqualifying (any undo stack pops the most recent
   action). The earlier sweeping reading of this result — that "every ValueTree write makes a
   transaction" and that delegation "fails on unfilterable parameter motion" — was **wrong and has been
