@@ -318,7 +318,7 @@ TEST_CASE("EditorUndoHistory remaps plugin instance ids", "[core][editor-undo-hi
             .payload = PluginRemoveEdit{
                 .instance_id = old_id,
                 .chain_index = 0,
-                .plugin_state = PluginStateMemento{.bytes = {std::byte{1}}},
+                .plugin_state = common::audio::PluginInstanceState{.opaque_data = {std::byte{1}}},
                 .visual_state = visual_state,
                 .placement = before_placement,
             },
@@ -360,8 +360,8 @@ TEST_CASE("EditorUndoHistory remaps plugin instance ids", "[core][editor-undo-hi
             .label = "Parameter",
             .payload = PluginParameterEdit{
                 .instance_id = old_id,
-                .before_state = PluginStateMemento{.bytes = {std::byte{2}}},
-                .after_state = PluginStateMemento{.bytes = {std::byte{3}}},
+                .before_state = common::audio::PluginInstanceState{.opaque_data = {std::byte{2}}},
+                .after_state = common::audio::PluginInstanceState{.opaque_data = {std::byte{3}}},
                 .label_hint = "Gain",
             },
         });

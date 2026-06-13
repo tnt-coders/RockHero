@@ -8,10 +8,12 @@
 #include <cstddef>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <rock_hero/common/audio/plugin_catalog_scan_progress.h>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin_host_error.h>
+#include <rock_hero/common/audio/plugin_instance_state.h>
 #include <rock_hero/common/core/cancellation_token.h>
 #include <string>
 #include <vector>
@@ -54,6 +56,81 @@ struct [[nodiscard]] PluginCandidate
     friend bool operator==(const PluginCandidate& lhs, const PluginCandidate& rhs) = default;
 };
 
+/*! \brief Result returned after inserting a plugin candidate into the hosted chain. */
+struct [[nodiscard]] PluginInsertResult
+{
+    /*! \brief Authoritative chain snapshot after the insertion succeeded. */
+    PluginChainSnapshot snapshot;
+
+    /*! \brief Runtime instance ID assigned to the inserted plugin. */
+    std::string inserted_instance_id;
+
+    /*!
+    \brief Compares two insert results by their stored values.
+    \param lhs Left-hand insert result.
+    \param rhs Right-hand insert result.
+    \return True when both results store equal values.
+    */
+    friend bool operator==(const PluginInsertResult& lhs, const PluginInsertResult& rhs) = default;
+};
+
+/*! \brief Result returned after restoring a captured plugin as a chain instance. */
+struct [[nodiscard]] PluginInstanceRestoreResult
+{
+    /*! \brief Authoritative chain snapshot after the restore succeeded. */
+    PluginChainSnapshot snapshot;
+
+    /*! \brief Runtime instance ID encoded in the restored state. */
+    std::string original_instance_id;
+
+    /*! \brief Runtime instance ID assigned to the restored live plugin. */
+    std::string restored_instance_id;
+
+    /*!
+    \brief Compares two restore results by their stored values.
+    \param lhs Left-hand restore result.
+    \param rhs Right-hand restore result.
+    \return True when both results store equal values.
+    */
+    friend bool operator==(
+        const PluginInstanceRestoreResult& lhs, const PluginInstanceRestoreResult& rhs) = default;
+};
+
+/*! \brief Full before/after state for one settled user plugin-parameter edit. */
+struct [[nodiscard]] PluginParameterEdit
+{
+    /*! \brief Runtime plugin instance whose state changed. */
+    std::string instance_id;
+
+    /*! \brief Full opaque chunk captured before the settled edit. */
+    PluginInstanceState before;
+
+    /*! \brief Full opaque chunk captured after the settled edit. */
+    PluginInstanceState after;
+
+    /*! \brief Display-only changed parameter name hint; never used for restore identity. */
+    std::string label_hint;
+
+    /*!
+    \brief Compares two parameter edits by their stored values.
+    \param lhs Left-hand parameter edit.
+    \param rhs Right-hand parameter edit.
+    \return True when both edits store equal values.
+    */
+    friend bool operator==(const PluginParameterEdit& lhs, const PluginParameterEdit& rhs) =
+        default;
+};
+
+/*! \brief Observer callbacks for pending and completed user plugin-parameter edits. */
+struct PluginParameterEditObserver
+{
+    /*! \brief Called when aggregate pending plugin-parameter edit state changes. */
+    std::function<void(bool)> pending_changed;
+
+    /*! \brief Called when a settled edit yields a full before/after memento pair. */
+    std::function<void(PluginParameterEdit)> edit_completed;
+};
+
 /*!
 \brief Project-owned facade for plugin discovery and chain mutation.
 
@@ -61,6 +138,10 @@ Plugin catalog discovery may run on a non-realtime worker thread because it can 
 plugin folders. Chain mutation and plugin-window methods are message-thread operations because
 implementations may mutate or inspect backend playback/UI graph state. Callers must never invoke
 this interface from the real-time audio callback.
+
+Mutating methods have an unchanged-on-error contract for ordinary PluginHostError failures. If a
+method returns std::unexpected, the implementation either performed no side effects or repaired
+all side effects back to the exact pre-call state before returning.
 */
 class IPluginHost
 {
@@ -124,9 +205,9 @@ public:
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
     \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
-    \return Authoritative post-mutation chain snapshot, or a typed failure.
+    \return Authoritative post-mutation chain snapshot plus the inserted runtime ID, or failure.
     */
-    [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(
+    [[nodiscard]] virtual std::expected<PluginInsertResult, PluginHostError> insertPlugin(
         const PluginCandidate& plugin_candidate, std::size_t chain_index) = 0;
 
     /*!
@@ -153,6 +234,72 @@ public:
     */
     [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError> removePlugin(
         const std::string& instance_id) = 0;
+
+    /*!
+    \brief Captures a full opaque state chunk for a loaded plugin instance.
+
+    The returned bytes are owned by the backend contract. Editor-core may store and replay them,
+    but must not inspect them or depend on their format.
+
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \return Captured plugin state, or a typed failure.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::expected<PluginInstanceState, PluginHostError> capturePluginState(
+        const std::string& instance_id) = 0;
+
+    /*!
+    \brief Restores a captured plugin state as a new hosted chain instance.
+
+    The chain index is in the user-visible chain, excluding hidden structural gain and meter
+    plugins. Callers must treat the returned original/restored ID mapping as authoritative because
+    backends may assign a new runtime ID during recreation.
+
+    \param state Opaque plugin state previously captured from this boundary.
+    \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
+    \return Authoritative post-restore snapshot plus original/restored runtime IDs, or failure.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::expected<PluginInstanceRestoreResult, PluginHostError>
+    insertPluginState(const PluginInstanceState& state, std::size_t chain_index) = 0;
+
+    /*!
+    \brief Restores a full opaque state chunk onto an existing plugin instance.
+
+    This is the parameter-undo path. Implementations must drive the live processor state setter,
+    not merely mutate a serialized tree that would leave the running plugin unchanged.
+
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param state Opaque plugin state previously captured from this boundary.
+    \return Empty success, or a typed failure.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::expected<void, PluginHostError> setPluginState(
+        const std::string& instance_id, const PluginInstanceState& state) = 0;
+
+    /*!
+    \brief Flushes pending user plugin-parameter edits into completed before/after chunks.
+
+    Implementations synchronously settle eligible discrete edits, drop uncertain continuous edits,
+    refresh their internal baseline, and notify the observer if aggregate pending state changes.
+
+    \note This method must be called on the message thread.
+    */
+    virtual void flushPendingPluginParameterEdits() = 0;
+
+    /*!
+    \brief Reports whether any user plugin-parameter edit is waiting to settle or flush.
+    \return True while a plugin-parameter edit is pending.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual bool hasPendingPluginParameterEdits() const = 0;
+
+    /*!
+    \brief Installs callbacks for pending and completed user plugin-parameter edit notifications.
+    \param observer Callback set replacing any previous observer.
+    \note This method must be called on the message thread.
+    */
+    virtual void setPluginParameterEditObserver(PluginParameterEditObserver observer) = 0;
 
     /*!
     \brief Opens the hosted editor window for a loaded plugin instance.

@@ -1045,7 +1045,11 @@ interface.
    before/after-chunk capture, non-gesture debounce settle with the self-animating guard, explicit
    flushing with drop/baseline-refresh semantics at the dispatch chokepoint, pending-state
    notifications, `setPluginState` replay, fake tests, and ingestion suppression. Log parameter edit
-   started/completed/flushed/dropped and pending-state changes.
+   started/completed/flushed/dropped and pending-state changes. While wiring the observer into undo
+   history, review the near-identical `common::audio::PluginParameterEdit` event payload and
+   `editor::core::PluginParameterEdit` undo payload names/shapes; keep them separate if the
+   audio-event vs. undo-entry ownership boundary remains clearer, or rename/consolidate only if the
+   conversion code shows the distinction is accidental.
 7. Output-gain gesture boundaries and output-gain undo entries. Log output-gain entries.
 8. Remove memento boundary: capture/restore, restore result/id mapping, editor visual-state
    capture/apply, insert/remove wiring, and id remapping. Add rollback-contract handling here (the
