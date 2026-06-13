@@ -20,6 +20,8 @@ target_sources(
             src/editor_action_availability.cpp
             src/editor_action_availability.h
             src/editor_controller.cpp
+            src/editor_undo_history.cpp
+            src/editor_undo_history.h
             src/input_calibration_controller.cpp
             src/input_calibration_workflow.cpp
             src/input_calibration_workflow.h
