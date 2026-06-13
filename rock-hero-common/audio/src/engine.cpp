@@ -21,6 +21,7 @@
 #include <mutex>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
+#include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/logger.h>
@@ -2851,8 +2852,9 @@ bool Engine::isPluginScanChildProcessCommandLine(std::string_view command_line)
 Engine::Engine()
     : m_impl(std::make_unique<Impl>())
 {
+    // Tracktion uses the engine application name as its property-storage folder.
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
-        "RockHero",
+        toJuceString(core::applicationDataFolderName()),
         std::make_unique<RockHeroUIBehaviour>(),
         std::make_unique<RockHeroEngineBehaviour>());
     m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
