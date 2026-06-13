@@ -40,6 +40,12 @@ struct ActionConditions
     /*! \brief True when a Save As destination prompt is active. */
     bool has_save_as_prompt{false};
 
+    /*! \brief True when the editor undo history currently has an undoable change. */
+    bool undo_available{false};
+
+    /*! \brief True when the editor undo history currently has a redoable change. */
+    bool redo_available{false};
+
     /*! \brief True when the session has a loaded arrangement. */
     bool has_loaded_arrangement{false};
 

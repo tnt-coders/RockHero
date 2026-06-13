@@ -77,16 +77,31 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     constexpr int close_command{5};
     constexpr int exit_command{6};
     constexpr int publish_command{7};
+    constexpr int undo_command{101};
+    constexpr int redo_command{102};
+    const juce::KeyPress undo_key{'z', juce::ModifierKeys::commandModifier, 0};
+    const juce::KeyPress redo_key{'y', juce::ModifierKeys::commandModifier, 0};
 
     view.setState(core::EditorViewState{});
 
     CHECK(menu_bar.isVisible());
     const juce::StringArray menu_names = view.getMenuBarNames();
-    REQUIRE(menu_names.size() == 1);
+    REQUIRE(menu_names.size() == 2);
     CHECK(menu_names[0] == "File");
+    CHECK(menu_names[1] == "Edit");
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
+    CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command).isEnabled);
+    CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command).isEnabled);
     view.menuItemSelected(save_command, 0);
+    view.menuItemSelected(undo_command, 1);
+    view.menuItemSelected(redo_command, 1);
     CHECK(controller.save_request_count == 0);
+    CHECK(controller.undo_request_count == 0);
+    CHECK(controller.redo_request_count == 0);
+    CHECK_FALSE(view.keyPressed(undo_key));
+    CHECK_FALSE(view.keyPressed(redo_key));
+    CHECK(controller.undo_request_count == 0);
+    CHECK(controller.redo_request_count == 0);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
     CHECK(track_viewport.isVisible());
@@ -105,6 +120,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
             .save_enabled = true,
             .save_as_enabled = true,
             .publish_enabled = true,
+            .undo_enabled = true,
+            .undo_label = std::string{"Move Plugin"},
+            .redo_enabled = true,
+            .redo_label = std::string{"Restore Plugin"},
             .suggested_publish_file = std::filesystem::path{"song.rock"},
             .close_enabled = true,
             .project_loaded = true,
@@ -147,12 +166,26 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(publish_item.isEnabled);
     CHECK(publish_item.text == "Publish...");
     CHECK(requiredMenuItem(view.getMenuForIndex(0, "File"), close_command).isEnabled);
+    const auto undo_item = requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command);
+    CHECK(undo_item.isEnabled);
+    CHECK(undo_item.text == "Undo Move Plugin");
+    const auto redo_item = requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command);
+    CHECK(redo_item.isEnabled);
+    CHECK(redo_item.text == "Redo Restore Plugin");
     view.menuItemSelected(save_command, 0);
     view.menuItemSelected(close_command, 0);
     view.menuItemSelected(exit_command, 0);
+    view.menuItemSelected(undo_command, 1);
+    view.menuItemSelected(redo_command, 1);
     CHECK(controller.save_request_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
+    CHECK(controller.undo_request_count == 1);
+    CHECK(controller.redo_request_count == 1);
+    CHECK(view.keyPressed(undo_key));
+    CHECK(view.keyPressed(redo_key));
+    CHECK(controller.undo_request_count == 2);
+    CHECK(controller.redo_request_count == 2);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(
