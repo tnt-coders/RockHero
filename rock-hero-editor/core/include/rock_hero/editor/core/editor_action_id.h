@@ -51,6 +51,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Cancel the active cancellable busy operation. */
     CancelBusyOperation,
 
+    /*! \brief Undo the most recent editor history entry. */
+    Undo,
+
+    /*! \brief Redo the next editor history entry. */
+    Redo,
+
     /*! \brief Toggle transport playback. */
     PlayPause,
 

@@ -26,6 +26,8 @@ constexpr int g_save_as_command{4};
 constexpr int g_close_command{5};
 constexpr int g_exit_command{6};
 constexpr int g_publish_command{7};
+constexpr int g_undo_command{101};
+constexpr int g_redo_command{102};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
@@ -103,6 +105,44 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
     return common::core::juceFileFromPath(suggested_file);
 }
 
+[[nodiscard]] juce::String editCommandText(
+    const char* command_name, const std::optional<std::string>& label)
+{
+    if (!label.has_value() || label->empty())
+    {
+        return command_name;
+    }
+
+    return juce::String{command_name} + " " + juce::String{label->c_str()};
+}
+
+[[nodiscard]] int normalizedAsciiKeyCode(int key_code) noexcept
+{
+    if (key_code >= 'A' && key_code <= 'Z')
+    {
+        return key_code - 'A' + 'a';
+    }
+    return key_code;
+}
+
+[[nodiscard]] bool hasCommandShortcutModifier(const juce::KeyPress& key) noexcept
+{
+    const juce::ModifierKeys modifiers = key.getModifiers();
+    return modifiers.isCommandDown() && !modifiers.isAltDown();
+}
+
+[[nodiscard]] bool isUndoShortcut(const juce::KeyPress& key) noexcept
+{
+    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
+           normalizedAsciiKeyCode(key.getKeyCode()) == 'z';
+}
+
+[[nodiscard]] bool isRedoShortcut(const juce::KeyPress& key) noexcept
+{
+    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
+           normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
+}
+
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
 // deferrable subset reaches this switch; the post-switch return is a defensive fallback for ids the
 // controller cannot legitimately stash in a deferred slot.
@@ -135,6 +175,9 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::PublishProject:
         case core::EditorActionId::ResolveUnsavedChangesPrompt:
         case core::EditorActionId::CancelSaveAsPrompt:
+        case core::EditorActionId::CancelBusyOperation:
+        case core::EditorActionId::Undo:
+        case core::EditorActionId::Redo:
         case core::EditorActionId::PlayPause:
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekWaveform:
@@ -145,6 +188,7 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
         case core::EditorActionId::RemovePlugin:
         case core::EditorActionId::MovePlugin:
         case core::EditorActionId::SetSignalChainPlacement:
+        case core::EditorActionId::SetPluginDisplayTypeOverride:
         case core::EditorActionId::OpenPlugin:
         {
             return "Save changes before continuing?";
@@ -924,6 +968,28 @@ void EditorView::parentHierarchyChanged()
 // Routes editor-level keyboard shortcuts through the same controller intents as child widgets.
 bool EditorView::keyPressed(const juce::KeyPress& key)
 {
+    if (isUndoShortcut(key))
+    {
+        if (!m_state.undo_enabled)
+        {
+            return false;
+        }
+
+        m_controller.onUndoRequested();
+        return true;
+    }
+
+    if (isRedoShortcut(key))
+    {
+        if (!m_state.redo_enabled)
+        {
+            return false;
+        }
+
+        m_controller.onRedoRequested();
+        return true;
+    }
+
     if (key == juce::KeyPress{juce::KeyPress::spaceKey})
     {
         m_controller.onPlayPausePressed();
@@ -933,38 +999,64 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
     return false;
 }
 
-// Returns the single File menu displayed by the editor.
+// Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File"};
+    return {"File", "Edit"};
 }
 
-// Builds the File menu using only controller-derived state.
+// Builds menus using only controller-derived state.
 juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce::String& menu_name)
 {
-    if (top_level_menu_index != 0 || menu_name != "File")
+    if (top_level_menu_index == 0 && menu_name == "File")
     {
-        return {};
+        juce::PopupMenu menu;
+        menu.addItem(g_open_command, "Open...", m_state.open_enabled);
+        menu.addItem(g_import_command, "Import...", m_state.import_enabled);
+        menu.addSeparator();
+        menu.addItem(g_save_command, "Save", m_state.save_enabled);
+        menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
+        menu.addItem(g_publish_command, "Publish...", m_state.publish_enabled);
+        menu.addSeparator();
+        menu.addItem(g_close_command, "Close", m_state.close_enabled);
+        menu.addItem(g_exit_command, "Exit");
+        return menu;
     }
 
-    juce::PopupMenu menu;
-    menu.addItem(g_open_command, "Open...", m_state.open_enabled);
-    menu.addItem(g_import_command, "Import...", m_state.import_enabled);
-    menu.addSeparator();
-    menu.addItem(g_save_command, "Save", m_state.save_enabled);
-    menu.addItem(g_save_as_command, "Save As...", m_state.save_as_enabled);
-    menu.addItem(g_publish_command, "Publish...", m_state.publish_enabled);
-    menu.addSeparator();
-    menu.addItem(g_close_command, "Close", m_state.close_enabled);
-    menu.addItem(g_exit_command, "Exit");
-    return menu;
+    if (top_level_menu_index == 1 && menu_name == "Edit")
+    {
+        juce::PopupMenu menu;
+        menu.addItem(
+            g_undo_command, editCommandText("Undo", m_state.undo_label), m_state.undo_enabled);
+        menu.addItem(
+            g_redo_command, editCommandText("Redo", m_state.redo_label), m_state.redo_enabled);
+        return menu;
+    }
+
+    return {};
 }
 
-// Routes File menu selections to either a chooser or a direct controller intent.
+// Routes menu selections to either a chooser or a direct controller intent.
 void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
 {
     switch (menu_item_id)
     {
+        case g_undo_command:
+        {
+            if (m_state.undo_enabled)
+            {
+                m_controller.onUndoRequested();
+            }
+            break;
+        }
+        case g_redo_command:
+        {
+            if (m_state.redo_enabled)
+            {
+                m_controller.onRedoRequested();
+            }
+            break;
+        }
         case g_open_command:
         {
             if (m_state.open_enabled)

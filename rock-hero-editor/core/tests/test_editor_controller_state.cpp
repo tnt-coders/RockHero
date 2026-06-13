@@ -13,6 +13,10 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.save_enabled == false);
     CHECK(empty_state.save_as_enabled == false);
     CHECK(empty_state.publish_enabled == false);
+    CHECK(empty_state.undo_enabled == false);
+    CHECK_FALSE(empty_state.undo_label.has_value());
+    CHECK(empty_state.redo_enabled == false);
+    CHECK_FALSE(empty_state.redo_label.has_value());
     CHECK(empty_state.suggested_publish_file.empty());
     CHECK(empty_state.close_enabled == false);
     CHECK(empty_state.project_loaded == false);
@@ -44,6 +48,10 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
         .save_enabled = true,
         .save_as_enabled = true,
         .publish_enabled = true,
+        .undo_enabled = true,
+        .undo_label = std::string{"Move Plugin"},
+        .redo_enabled = true,
+        .redo_label = std::string{"Restore Plugin"},
         .suggested_publish_file = std::filesystem::path{"saved.rock"},
         .close_enabled = true,
         .project_loaded = true,
@@ -106,6 +114,10 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(loaded_state.arrangement.audio_asset == std::optional{audio_asset});
     CHECK(loaded_state.audio_device_status_text == "[48kHz 24bit: 8/8ch 128spls ~5.1/8.5ms ASIO]");
     CHECK(loaded_state.audio_devices_available);
+    CHECK(loaded_state.undo_enabled);
+    CHECK(loaded_state.undo_label == std::optional<std::string>{"Move Plugin"});
+    CHECK(loaded_state.redo_enabled);
+    CHECK(loaded_state.redo_label == std::optional<std::string>{"Restore Plugin"});
     CHECK(loaded_state.arrangement.audioTimelineRange() == loadedTimelineRange(180.0));
     CHECK(loaded_state.arrangement.hasAudio());
     CHECK(loaded_state.signal_chain.insert_plugin_enabled);
@@ -142,6 +154,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onPublishRequested(publish_file);
     controller.onSaveAsCancelled();
     controller.onBusyCancelRequested();
+    controller.onUndoRequested();
+    controller.onRedoRequested();
     controller.onCloseRequested();
     controller.onExitRequested();
     controller.onUnsavedChangesDecision(UnsavedChangesDecision::Discard);
@@ -168,6 +182,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     CHECK(controller.last_publish_file == std::optional{publish_file});
     CHECK(controller.save_as_cancel_count == 1);
     CHECK(controller.busy_cancel_request_count == 1);
+    CHECK(controller.undo_request_count == 1);
+    CHECK(controller.redo_request_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
     CHECK(controller.unsaved_changes_decision_count == 1);
@@ -289,6 +305,10 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK(state.save_enabled == false);
         CHECK(state.save_as_enabled == false);
         CHECK(state.publish_enabled == false);
+        CHECK(state.undo_enabled == false);
+        CHECK_FALSE(state.undo_label.has_value());
+        CHECK(state.redo_enabled == false);
+        CHECK_FALSE(state.redo_label.has_value());
         CHECK(state.close_enabled == false);
         CHECK(state.project_loaded == false);
         CHECK(state.transport.play_pause_enabled == false);
@@ -304,6 +324,12 @@ TEST_CASE("EditorController pushes derived state on view attachment", "[core][ed
         CHECK_FALSE(state.save_as_prompt.has_value());
         CHECK_FALSE(state.restore_interrupted_prompt.has_value());
     }
+
+    const int baseline_pushes = view.set_state_call_count;
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+
+    CHECK(view.set_state_call_count == baseline_pushes);
     CHECK(audio.set_active_arrangement_call_count == 0);
 }
 

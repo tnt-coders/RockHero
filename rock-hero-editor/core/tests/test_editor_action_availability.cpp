@@ -22,6 +22,8 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
         .has_project = true,
         .has_unsaved_changes_prompt = true,
         .has_save_as_prompt = true,
+        .undo_available = true,
+        .redo_available = true,
         .has_loaded_arrangement = true,
         .can_stop_transport = true,
         .has_plugin_candidates = true,
@@ -34,6 +36,8 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
     CHECK_FALSE(actionSupersedesBusy(ActionId::CancelBusyOperation));
     CHECK_FALSE(actionSupersedesBusy(ActionId::SaveProject));
     CHECK_FALSE(actionSupersedesBusy(ActionId::SetSignalChainPlacement));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::Undo));
+    CHECK_FALSE(actionSupersedesBusy(ActionId::Redo));
 
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
     CHECK(isActionAvailable(ActionId::ExitApplication, conditions));
@@ -41,6 +45,8 @@ TEST_CASE("Busy actions are limited to takeover and cancel", "[core][editor-acti
     CHECK_FALSE(isActionAvailable(ActionId::OpenProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
 
     ActionConditions non_cancellable_busy = conditions;
     non_cancellable_busy.busy_cancel_available = false;
@@ -63,6 +69,26 @@ TEST_CASE("Project actions require an open project", "[core][editor-action]")
     CHECK(isActionAvailable(ActionId::SaveProjectAs, conditions));
     CHECK(isActionAvailable(ActionId::PublishProject, conditions));
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
+}
+
+// Verifies Undo and Redo require both a project and available history direction.
+TEST_CASE("Undo and redo actions follow history availability", "[core][editor-action]")
+{
+    ActionConditions conditions;
+
+    CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
+
+    conditions.undo_available = true;
+    conditions.redo_available = true;
+
+    CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
+
+    conditions.has_project = true;
+
+    CHECK(isActionAvailable(ActionId::Undo, conditions));
+    CHECK(isActionAvailable(ActionId::Redo, conditions));
 }
 
 // Verifies that prompt-resolution actions are available only while their prompt is active.
@@ -156,6 +182,8 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
         .input_calibration_prompt_visible = true,
         .live_input_audition_available = true,
         .has_project = true,
+        .undo_available = true,
+        .redo_available = true,
         .has_loaded_arrangement = true,
         .can_stop_transport = true,
         .has_plugin_candidates = true,
@@ -172,6 +200,8 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
     CHECK_FALSE(isActionAvailable(ActionId::MovePlugin, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::SetSignalChainPlacement, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::OpenPlugin, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
 
     CHECK(isActionAvailable(ActionId::SeekWaveform, conditions));
     CHECK(isActionAvailable(ActionId::Stop, conditions));
