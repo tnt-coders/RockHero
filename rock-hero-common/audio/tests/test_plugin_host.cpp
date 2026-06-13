@@ -6,10 +6,42 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace rock_hero::common::audio
 {
+
+namespace
+{
+
+// Builds a compact candidate fixture for plugin-host boundary tests.
+[[nodiscard]] PluginCandidate makeCandidate(std::string id, std::string name)
+{
+    return PluginCandidate{
+        .id = std::move(id),
+        .name = std::move(name),
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .file_path = std::filesystem::path{"Plugin.vst3"},
+    };
+}
+
+// Builds a compact chain-entry fixture with a matching runtime and plugin identity.
+[[nodiscard]] PluginChainEntry makeChainEntry(
+    std::string instance_id, std::string plugin_id, std::size_t chain_index)
+{
+    return PluginChainEntry{
+        .instance_id = std::move(instance_id),
+        .plugin_id = std::move(plugin_id),
+        .name = "Plugin " + std::to_string(chain_index),
+        .manufacturer = "Rock Hero Tests",
+        .format_name = "VST3",
+        .chain_index = chain_index,
+    };
+}
+
+} // namespace
 
 // Verifies default catalog scans refresh the host-owned known catalog.
 TEST_CASE("IPluginHost refreshes default plugin catalog", "[audio][plugin-host]")
@@ -82,23 +114,26 @@ TEST_CASE("IPluginHost inserts plugins at visible chain positions", "[audio][plu
     };
 
     plugin_host.next_instance_id = "amp-instance";
-    const auto first_snapshot = plugin_host.insertPlugin(amp_candidate, 0);
+    const auto first_result = plugin_host.insertPlugin(amp_candidate, 0);
     plugin_host.next_instance_id = "cab-instance";
-    const auto append_snapshot = plugin_host.insertPlugin(cab_candidate, 1);
+    const auto append_result = plugin_host.insertPlugin(cab_candidate, 1);
     plugin_host.next_instance_id = "drive-instance";
-    const auto middle_snapshot = plugin_host.insertPlugin(drive_candidate, 1);
+    const auto middle_result = plugin_host.insertPlugin(drive_candidate, 1);
 
-    REQUIRE(first_snapshot.has_value());
-    REQUIRE(append_snapshot.has_value());
-    REQUIRE(middle_snapshot.has_value());
-    REQUIRE(middle_snapshot->plugins.size() == 3);
-    CHECK(middle_snapshot->plugins[0].instance_id == "amp-instance");
-    CHECK(middle_snapshot->plugins[0].chain_index == 0);
-    CHECK(middle_snapshot->plugins[1].instance_id == "drive-instance");
-    CHECK(middle_snapshot->plugins[1].plugin_id == "vst3:drive");
-    CHECK(middle_snapshot->plugins[1].chain_index == 1);
-    CHECK(middle_snapshot->plugins[2].instance_id == "cab-instance");
-    CHECK(middle_snapshot->plugins[2].chain_index == 2);
+    REQUIRE(first_result.has_value());
+    REQUIRE(append_result.has_value());
+    REQUIRE(middle_result.has_value());
+    REQUIRE(middle_result->snapshot.plugins.size() == 3);
+    CHECK(first_result->inserted_instance_id == "amp-instance");
+    CHECK(append_result->inserted_instance_id == "cab-instance");
+    CHECK(middle_result->inserted_instance_id == "drive-instance");
+    CHECK(middle_result->snapshot.plugins[0].instance_id == "amp-instance");
+    CHECK(middle_result->snapshot.plugins[0].chain_index == 0);
+    CHECK(middle_result->snapshot.plugins[1].instance_id == "drive-instance");
+    CHECK(middle_result->snapshot.plugins[1].plugin_id == "vst3:drive");
+    CHECK(middle_result->snapshot.plugins[1].chain_index == 1);
+    CHECK(middle_result->snapshot.plugins[2].instance_id == "cab-instance");
+    CHECK(middle_result->snapshot.plugins[2].chain_index == 2);
     CHECK(plugin_host.last_inserted_plugin_candidate == std::optional{drive_candidate});
     CHECK(plugin_host.last_insert_index == std::optional<std::size_t>{1});
     CHECK(plugin_host.insert_call_count == 3);
@@ -268,6 +303,215 @@ TEST_CASE("IPluginHost removes a plugin instance", "[audio][plugin-host]")
     CHECK(result->plugins[0].chain_index == 0);
     CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-1"});
     CHECK(plugin_host.remove_call_count == 1);
+}
+
+// Verifies insert failures after side effects repair the fake back to the exact pre-call chain.
+TEST_CASE("IPluginHost rolls back insert failures after mutation", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+    };
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    plugin_host.next_instance_id = "drive-instance";
+    plugin_host.next_insert_after_mutation_error =
+        PluginHostError{PluginHostErrorCode::PluginInsertionFailed};
+
+    const auto result = plugin_host.insertPlugin(makeCandidate("drive", "Drive"), 1);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginInsertionFailed);
+    CHECK(plugin_host.chain == original_chain);
+}
+
+// Verifies move failures after side effects repair the fake back to the exact pre-call chain.
+TEST_CASE("IPluginHost rolls back move failures after mutation", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+        makeChainEntry("drive-instance", "drive", 1),
+        makeChainEntry("cab-instance", "cab", 2),
+    };
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    plugin_host.next_move_after_mutation_error =
+        PluginHostError{PluginHostErrorCode::PluginMoveFailed};
+
+    const auto result = plugin_host.movePlugin("amp-instance", 2);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginMoveFailed);
+    CHECK(plugin_host.chain == original_chain);
+}
+
+// Verifies remove failures after side effects repair the fake back to the exact pre-call chain.
+TEST_CASE("IPluginHost rolls back remove failures after mutation", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+        makeChainEntry("drive-instance", "drive", 1),
+    };
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    plugin_host.next_remove_after_mutation_error =
+        PluginHostError{PluginHostErrorCode::PluginRemovalFailed};
+
+    const auto result = plugin_host.removePlugin("drive-instance");
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginRemovalFailed);
+    CHECK(plugin_host.chain == original_chain);
+}
+
+// Verifies the fake host's opaque plugin-state mementos recreate equivalent plugins.
+TEST_CASE("IPluginHost round-trips plugin instance state", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        PluginChainEntry{
+            .instance_id = "amp-instance",
+            .plugin_id = "amp",
+            .name = "Amp",
+            .manufacturer = "Rock Hero Tests",
+            .format_name = "VST3",
+            .category = "Fx|Distortion",
+            .chain_index = 0,
+            .block_index = 4,
+            .display_type_override = "compact",
+        },
+    };
+    const auto captured = plugin_host.capturePluginState("amp-instance");
+    REQUIRE(captured.has_value());
+    REQUIRE(plugin_host.removePlugin("amp-instance").has_value());
+    plugin_host.next_restored_instance_id = "amp-restored";
+
+    const auto restored = plugin_host.insertPluginState(*captured, 0);
+
+    REQUIRE(restored.has_value());
+    REQUIRE(restored->snapshot.plugins.size() == 1);
+    CHECK(restored->original_instance_id == "amp-instance");
+    CHECK(restored->restored_instance_id == "amp-restored");
+    CHECK(restored->snapshot.plugins[0].instance_id == "amp-restored");
+    CHECK(restored->snapshot.plugins[0].plugin_id == "amp");
+    CHECK(restored->snapshot.plugins[0].block_index == 4);
+    CHECK(restored->snapshot.plugins[0].display_type_override == "compact");
+}
+
+// Verifies invalid opaque state bytes are rejected before mutating the fake chain.
+TEST_CASE("IPluginHost rejects bad plugin state without mutation", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+    };
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    const PluginInstanceState invalid_state{
+        .opaque_data = {std::byte{0x01}, std::byte{0x02}},
+    };
+
+    const auto insert_result = plugin_host.insertPluginState(invalid_state, 1);
+    const auto set_result = plugin_host.setPluginState("amp-instance", invalid_state);
+
+    REQUIRE_FALSE(insert_result.has_value());
+    CHECK(insert_result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    REQUIRE_FALSE(set_result.has_value());
+    CHECK(set_result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    CHECK(plugin_host.chain == original_chain);
+}
+
+// Verifies state-insert failures after side effects repair the fake's chain and state map.
+TEST_CASE("IPluginHost rolls back state insert failures", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+    };
+    const auto captured = plugin_host.capturePluginState("amp-instance");
+    REQUIRE(captured.has_value());
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    const PluginInstanceState original_state = *captured;
+    plugin_host.next_restored_instance_id = "amp-restored";
+    plugin_host.next_insert_state_after_mutation_error =
+        PluginHostError{PluginHostErrorCode::PluginStateRestoreFailed};
+
+    const auto result = plugin_host.insertPluginState(*captured, 1);
+    const auto after_failure = plugin_host.capturePluginState("amp-instance");
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    CHECK(plugin_host.chain == original_chain);
+    REQUIRE(after_failure.has_value());
+    CHECK(*after_failure == original_state);
+}
+
+// Verifies in-place state failures after side effects restore the exact previous state.
+TEST_CASE("IPluginHost rolls back in-place state failures", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+        makeChainEntry("drive-instance", "drive", 1),
+    };
+    const auto original_state = plugin_host.capturePluginState("amp-instance");
+    const auto replacement_state = plugin_host.capturePluginState("drive-instance");
+    REQUIRE(original_state.has_value());
+    REQUIRE(replacement_state.has_value());
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+    plugin_host.next_set_state_after_mutation_error =
+        PluginHostError{PluginHostErrorCode::PluginStateRestoreFailed};
+
+    const auto result = plugin_host.setPluginState("amp-instance", *replacement_state);
+    const auto after_failure = plugin_host.capturePluginState("amp-instance");
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    CHECK(plugin_host.chain == original_chain);
+    REQUIRE(after_failure.has_value());
+    CHECK(*after_failure == *original_state);
+}
+
+// Verifies parameter-edit flush emits pending and completed edit notifications.
+TEST_CASE("IPluginHost flushes pending parameter edits", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+        makeChainEntry("drive-instance", "drive", 1),
+    };
+    const auto before_state = plugin_host.capturePluginState("amp-instance");
+    const auto after_state = plugin_host.capturePluginState("drive-instance");
+    REQUIRE(before_state.has_value());
+    REQUIRE(after_state.has_value());
+
+    std::vector<bool> pending_notifications;
+    std::vector<PluginParameterEdit> completed_edits;
+    plugin_host.setPluginParameterEditObserver(
+        PluginParameterEditObserver{
+            .pending_changed = [&pending_notifications](
+                                   bool pending) { pending_notifications.push_back(pending); },
+            .edit_completed =
+                [&completed_edits](PluginParameterEdit edit) {
+                    completed_edits.push_back(std::move(edit));
+                },
+        });
+
+    plugin_host.queuePendingPluginParameterEdit(
+        PluginParameterEdit{
+            .instance_id = "amp-instance",
+            .before = *before_state,
+            .after = *after_state,
+            .label_hint = "Gain",
+        });
+    plugin_host.flushPendingPluginParameterEdits();
+
+    CHECK_FALSE(plugin_host.hasPendingPluginParameterEdits());
+    CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
+    CHECK(pending_notifications == std::vector<bool>{true, false});
+    REQUIRE(completed_edits.size() == 1);
+    CHECK(completed_edits[0].instance_id == "amp-instance");
+    CHECK(completed_edits[0].before == *before_state);
+    CHECK(completed_edits[0].after == *after_state);
+    CHECK(completed_edits[0].label_hint == "Gain");
 }
 
 // Verifies loaded plugin instances expose a message-thread window operation through the port.

@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
+#include <rock_hero/common/audio/plugin_instance_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
@@ -17,16 +18,6 @@
 
 namespace rock_hero::editor::core
 {
-
-/*! \brief Opaque plugin state bytes captured for a Rock Hero undo memento. */
-struct [[nodiscard]] PluginStateMemento
-{
-    /*! \brief Backend-owned plugin state chunk. */
-    std::vector<std::byte> bytes;
-
-    /*! \brief Compares two plugin state mementos by their stored bytes. */
-    friend bool operator==(const PluginStateMemento& lhs, const PluginStateMemento& rhs) = default;
-};
 
 /*! \brief Editor-owned visual metadata for a plugin instance. */
 struct [[nodiscard]] PluginVisualEditState
@@ -74,7 +65,7 @@ struct [[nodiscard]] PluginRemoveEdit
     std::size_t chain_index{};
 
     /*! \brief Captured plugin state used to recreate the removed instance. */
-    PluginStateMemento plugin_state;
+    common::audio::PluginInstanceState plugin_state;
 
     /*! \brief Editor visual metadata to restore after recreation. */
     PluginVisualEditState visual_state;
@@ -146,10 +137,10 @@ struct [[nodiscard]] PluginParameterEdit
     std::string instance_id;
 
     /*! \brief Full plugin state before the edit settled. */
-    PluginStateMemento before_state;
+    common::audio::PluginInstanceState before_state;
 
     /*! \brief Full plugin state after the edit settled. */
-    PluginStateMemento after_state;
+    common::audio::PluginInstanceState after_state;
 
     /*! \brief Display-only label hint for the parameter or gesture group. */
     std::string label_hint;
@@ -394,10 +385,11 @@ public:
     /*!
     \brief Reports whether the current history position differs from the clean marker.
 
-    Returns false when no clean marker is set: cleanliness is defined relative to a marker the caller
-    establishes (for example markClean() after a project loads), so a history that holds edits but has
-    no baseline is not reported as unsaved here. Callers that must treat edits as unsaved before any
-    baseline exists track that separately (for example a save-requires-destination flag).
+    Returns false when no clean marker is set: cleanliness is defined relative to a marker the
+    caller establishes (for example markClean() after a project loads), so a history that holds
+    edits but has no baseline is not reported as unsaved here. Callers that must treat edits as
+    unsaved before any baseline exists track that separately (for example a
+    save-requires-destination flag).
     */
     [[nodiscard]] bool hasUnsavedEdits() const noexcept;
 

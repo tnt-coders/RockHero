@@ -60,6 +60,12 @@ enum class PluginHostErrorCode
 
     /*! \brief The plugin editor window could not be created or shown. */
     PluginWindowUnavailable,
+
+    /*! \brief The backend could not capture a full opaque state chunk for a plugin instance. */
+    PluginStateCaptureFailed,
+
+    /*! \brief The backend could not restore a full opaque state chunk to a plugin instance. */
+    PluginStateRestoreFailed,
 };
 
 /*! \brief Recoverable plugin-host failure with a stable code and displayable detail. */

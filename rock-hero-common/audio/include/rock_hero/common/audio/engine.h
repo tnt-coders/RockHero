@@ -217,9 +217,9 @@ public:
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
     \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
-    \return Authoritative post-mutation chain snapshot, or a typed failure.
+    \return Authoritative post-mutation chain snapshot plus inserted runtime ID, or a failure.
     */
-    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPlugin(
+    [[nodiscard]] std::expected<PluginInsertResult, PluginHostError> insertPlugin(
         const PluginCandidate& plugin_candidate, std::size_t chain_index) override;
 
     /*!
@@ -242,6 +242,47 @@ public:
     */
     [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> removePlugin(
         const std::string& instance_id) override;
+
+    /*!
+    \brief Captures a full opaque state chunk for a hosted plugin instance.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \return Captured plugin state, or a typed failure.
+    */
+    [[nodiscard]] std::expected<PluginInstanceState, PluginHostError> capturePluginState(
+        const std::string& instance_id) override;
+
+    /*!
+    \brief Restores a captured plugin state as a new hosted chain instance.
+    \param state Opaque plugin state previously captured from this boundary.
+    \param chain_index User-visible insertion index.
+    \return Authoritative post-restore snapshot plus runtime ID mapping, or a typed failure.
+    */
+    [[nodiscard]] std::expected<PluginInstanceRestoreResult, PluginHostError> insertPluginState(
+        const PluginInstanceState& state, std::size_t chain_index) override;
+
+    /*!
+    \brief Restores a full opaque state chunk onto an existing plugin instance.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param state Opaque plugin state previously captured from this boundary.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> setPluginState(
+        const std::string& instance_id, const PluginInstanceState& state) override;
+
+    /*! \brief Flushes pending user plugin-parameter edits into completed before/after chunks. */
+    void flushPendingPluginParameterEdits() override;
+
+    /*!
+    \brief Reports whether any user plugin-parameter edit is waiting to settle or flush.
+    \return True while a plugin-parameter edit is pending.
+    */
+    [[nodiscard]] bool hasPendingPluginParameterEdits() const override;
+
+    /*!
+    \brief Installs callbacks for pending and completed user plugin-parameter edit notifications.
+    \param observer Callback set replacing any previous observer.
+    */
+    void setPluginParameterEditObserver(PluginParameterEditObserver observer) override;
 
     /*!
     \brief Opens a hosted plugin editor window for the requested runtime instance.
