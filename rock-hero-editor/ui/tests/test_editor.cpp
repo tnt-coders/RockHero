@@ -162,10 +162,10 @@ public:
         return {};
     }
 
-    [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
+    [[nodiscard]] std::expected<common::audio::PluginInsertResult, common::audio::PluginHostError>
     insertPlugin(const common::audio::PluginCandidate&, std::size_t) override
     {
-        return common::audio::PluginChainSnapshot{};
+        return common::audio::PluginInsertResult{};
     }
 
     [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
@@ -179,6 +179,36 @@ public:
     {
         return common::audio::PluginChainSnapshot{};
     }
+
+    [[nodiscard]] std::expected<common::audio::PluginInstanceState, common::audio::PluginHostError>
+    capturePluginState(const std::string&) override
+    {
+        return common::audio::PluginInstanceState{};
+    }
+
+    [[nodiscard]] std::expected<
+        common::audio::PluginInstanceRestoreResult, common::audio::PluginHostError>
+    insertPluginState(const common::audio::PluginInstanceState&, std::size_t) override
+    {
+        return common::audio::PluginInstanceRestoreResult{};
+    }
+
+    [[nodiscard]] std::expected<void, common::audio::PluginHostError> setPluginState(
+        const std::string&, const common::audio::PluginInstanceState&) override
+    {
+        return {};
+    }
+
+    void flushPendingPluginParameterEdits() override
+    {}
+
+    [[nodiscard]] bool hasPendingPluginParameterEdits() const override
+    {
+        return false;
+    }
+
+    void setPluginParameterEditObserver(common::audio::PluginParameterEditObserver) override
+    {}
 
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
         const std::string&) override

@@ -77,6 +77,14 @@ namespace
         {
             return "Could not open plugin editor window";
         }
+        case PluginHostErrorCode::PluginStateCaptureFailed:
+        {
+            return "Could not capture plugin state";
+        }
+        case PluginHostErrorCode::PluginStateRestoreFailed:
+        {
+            return "Could not restore plugin state";
+        }
     }
 
     return "Plugin-host operation failed";

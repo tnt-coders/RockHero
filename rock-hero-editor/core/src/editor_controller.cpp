@@ -2003,16 +2003,16 @@ void EditorController::Impl::completeSelectedPluginInsert(
     assert(isBusy() && "completeSelectedPluginInsert called outside a busy operation");
 
     const common::audio::PluginCandidate& plugin_candidate = state->plugin_candidate;
-    auto snapshot = m_plugin_host.insertPlugin(plugin_candidate, state->chain_index);
-    if (!snapshot.has_value())
+    auto insert_result = m_plugin_host.insertPlugin(plugin_candidate, state->chain_index);
+    if (!insert_result.has_value())
     {
-        const std::string message = snapshot.error().message;
+        const std::string message = insert_result.error().message;
         finishBusyOperation();
         reportError(std::string{"Could not insert plugin: "} + message);
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot), true);
+    applySignalChainMutationSnapshot(std::move(insert_result->snapshot), true);
     m_signal_chain.clearPendingInsertion();
     m_plugin_catalog.hide();
 
