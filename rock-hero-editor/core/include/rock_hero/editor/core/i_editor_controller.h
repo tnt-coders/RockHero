@@ -65,6 +65,12 @@ public:
     /*! \brief Handles a request to cancel the active cancellable busy operation. */
     virtual void onBusyCancelRequested() = 0;
 
+    /*! \brief Handles a request to undo the most recent editor history entry. */
+    virtual void onUndoRequested() = 0;
+
+    /*! \brief Handles a request to redo the next editor history entry. */
+    virtual void onRedoRequested() = 0;
+
     /*! \brief Handles a request to close the current project without exiting the app. */
     virtual void onCloseRequested() = 0;
 

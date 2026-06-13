@@ -64,6 +64,248 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
         message);
 }
 
+[[nodiscard]] std::string_view actionIdText(EditorAction::Id action) noexcept
+{
+    switch (action)
+    {
+        case EditorAction::Id::OpenProject:
+        {
+            return "OpenProject";
+        }
+        case EditorAction::Id::RestoreProject:
+        {
+            return "RestoreProject";
+        }
+        case EditorAction::Id::ImportSong:
+        {
+            return "ImportSong";
+        }
+        case EditorAction::Id::SaveProject:
+        {
+            return "SaveProject";
+        }
+        case EditorAction::Id::SaveProjectAs:
+        {
+            return "SaveProjectAs";
+        }
+        case EditorAction::Id::PublishProject:
+        {
+            return "PublishProject";
+        }
+        case EditorAction::Id::CloseProject:
+        {
+            return "CloseProject";
+        }
+        case EditorAction::Id::ExitApplication:
+        {
+            return "ExitApplication";
+        }
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        {
+            return "ResolveUnsavedChangesPrompt";
+        }
+        case EditorAction::Id::CancelSaveAsPrompt:
+        {
+            return "CancelSaveAsPrompt";
+        }
+        case EditorAction::Id::CancelBusyOperation:
+        {
+            return "CancelBusyOperation";
+        }
+        case EditorAction::Id::Undo:
+        {
+            return "Undo";
+        }
+        case EditorAction::Id::Redo:
+        {
+            return "Redo";
+        }
+        case EditorAction::Id::PlayPause:
+        {
+            return "PlayPause";
+        }
+        case EditorAction::Id::Stop:
+        {
+            return "Stop";
+        }
+        case EditorAction::Id::SeekWaveform:
+        {
+            return "SeekWaveform";
+        }
+        case EditorAction::Id::ShowPluginBrowser:
+        {
+            return "ShowPluginBrowser";
+        }
+        case EditorAction::Id::BeginPluginInsert:
+        {
+            return "BeginPluginInsert";
+        }
+        case EditorAction::Id::ScanPluginCatalog:
+        {
+            return "ScanPluginCatalog";
+        }
+        case EditorAction::Id::InsertSelectedPlugin:
+        {
+            return "InsertSelectedPlugin";
+        }
+        case EditorAction::Id::RemovePlugin:
+        {
+            return "RemovePlugin";
+        }
+        case EditorAction::Id::MovePlugin:
+        {
+            return "MovePlugin";
+        }
+        case EditorAction::Id::SetSignalChainPlacement:
+        {
+            return "SetSignalChainPlacement";
+        }
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
+        {
+            return "SetPluginDisplayTypeOverride";
+        }
+        case EditorAction::Id::OpenPlugin:
+        {
+            return "OpenPlugin";
+        }
+    }
+
+    return "Unknown";
+}
+
+[[nodiscard]] std::string_view actionUnavailableReason(
+    EditorAction::Id action, const ActionConditions& conditions) noexcept
+{
+    if (conditions.busy)
+    {
+        if (action == EditorAction::Id::CancelBusyOperation)
+        {
+            return "busy-cancel-unavailable";
+        }
+        return "busy";
+    }
+
+    if (conditions.input_calibration_prompt_visible)
+    {
+        switch (action)
+        {
+            case EditorAction::Id::Undo:
+            case EditorAction::Id::Redo:
+            case EditorAction::Id::PlayPause:
+            case EditorAction::Id::ShowPluginBrowser:
+            case EditorAction::Id::BeginPluginInsert:
+            case EditorAction::Id::ScanPluginCatalog:
+            case EditorAction::Id::InsertSelectedPlugin:
+            case EditorAction::Id::RemovePlugin:
+            case EditorAction::Id::MovePlugin:
+            case EditorAction::Id::SetSignalChainPlacement:
+            case EditorAction::Id::SetPluginDisplayTypeOverride:
+            case EditorAction::Id::OpenPlugin:
+            {
+                return "input-calibration-prompt";
+            }
+            case EditorAction::Id::OpenProject:
+            case EditorAction::Id::RestoreProject:
+            case EditorAction::Id::ImportSong:
+            case EditorAction::Id::SaveProject:
+            case EditorAction::Id::SaveProjectAs:
+            case EditorAction::Id::PublishProject:
+            case EditorAction::Id::CloseProject:
+            case EditorAction::Id::ExitApplication:
+            case EditorAction::Id::ResolveUnsavedChangesPrompt:
+            case EditorAction::Id::CancelSaveAsPrompt:
+            case EditorAction::Id::CancelBusyOperation:
+            case EditorAction::Id::Stop:
+            case EditorAction::Id::SeekWaveform:
+            {
+                break;
+            }
+        }
+    }
+
+    switch (action)
+    {
+        case EditorAction::Id::SaveProject:
+        case EditorAction::Id::SaveProjectAs:
+        case EditorAction::Id::PublishProject:
+        case EditorAction::Id::CloseProject:
+        case EditorAction::Id::Undo:
+        case EditorAction::Id::Redo:
+        {
+            return conditions.has_project ? "history-unavailable" : "no-project";
+        }
+        case EditorAction::Id::ResolveUnsavedChangesPrompt:
+        {
+            return "no-unsaved-changes-prompt";
+        }
+        case EditorAction::Id::CancelSaveAsPrompt:
+        {
+            return "no-save-as-prompt";
+        }
+        case EditorAction::Id::CancelBusyOperation:
+        {
+            return "not-busy";
+        }
+        case EditorAction::Id::PlayPause:
+        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::ScanPluginCatalog:
+        {
+            return "no-loaded-arrangement";
+        }
+        case EditorAction::Id::Stop:
+        {
+            return "transport-reset";
+        }
+        case EditorAction::Id::ShowPluginBrowser:
+        case EditorAction::Id::BeginPluginInsert:
+        case EditorAction::Id::InsertSelectedPlugin:
+        {
+            return "plugin-insert-unavailable";
+        }
+        case EditorAction::Id::RemovePlugin:
+        case EditorAction::Id::MovePlugin:
+        case EditorAction::Id::SetSignalChainPlacement:
+        case EditorAction::Id::SetPluginDisplayTypeOverride:
+        case EditorAction::Id::OpenPlugin:
+        {
+            return "plugin-chain-unavailable";
+        }
+        case EditorAction::Id::OpenProject:
+        case EditorAction::Id::RestoreProject:
+        case EditorAction::Id::ImportSong:
+        case EditorAction::Id::ExitApplication:
+        {
+            return "available-action-rejected";
+        }
+    }
+
+    return "state";
+}
+
+void logEditorActionRequested(EditorAction::Id action)
+{
+    RH_LOG_INFO("editor.controller", "Action requested action={}", actionIdText(action));
+}
+
+void logEditorActionAvailabilityRejected(EditorAction::Id action, std::string_view reason)
+{
+    RH_LOG_INFO(
+        "editor.controller",
+        "Action availability rejected action={} reason={}",
+        actionIdText(action),
+        reason);
+}
+
+void logEditorActionStarted(EditorAction::Id action)
+{
+    RH_LOG_INFO("editor.controller", "Action started action={}", actionIdText(action));
+}
+
+void logEditorActionDispatchCompleted(EditorAction::Id action)
+{
+    RH_LOG_INFO("editor.controller", "Action dispatch completed action={}", actionIdText(action));
+}
+
 // Reports a boundary result that violated the product cap before it reaches view state.
 [[nodiscard]] common::audio::LiveRigError signalChainLimitError(std::size_t plugin_count)
 {
@@ -302,6 +544,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPublishRequested(std::filesystem::path file);
     void onSaveAsCancelled();
     void onBusyCancelRequested();
+    void onUndoRequested();
+    void onRedoRequested();
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
@@ -353,6 +597,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::ResolveUnsavedChangesPrompt action);
     void performActionImpl(EditorAction::CancelSaveAsPrompt action);
     void performActionImpl(EditorAction::CancelBusyOperation action);
+    void performActionImpl(EditorAction::Undo action);
+    void performActionImpl(EditorAction::Redo action);
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekWaveform action);
@@ -365,7 +611,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
     void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
-    [[nodiscard]] bool canRunAction(EditorAction::Id action) const;
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
         const InputCalibrationWorkflow::Snapshot& input_calibration,
@@ -774,6 +1019,16 @@ void EditorController::onSaveAsCancelled()
 void EditorController::onBusyCancelRequested()
 {
     m_impl->onBusyCancelRequested();
+}
+
+void EditorController::onUndoRequested()
+{
+    m_impl->onUndoRequested();
+}
+
+void EditorController::onRedoRequested()
+{
+    m_impl->onRedoRequested();
 }
 
 void EditorController::onCloseRequested()
@@ -1499,6 +1754,18 @@ void EditorController::Impl::onBusyCancelRequested()
     runAction(EditorAction::CancelBusyOperation{});
 }
 
+// Routes Undo through the central action gate while the command remains user-disabled.
+void EditorController::Impl::onUndoRequested()
+{
+    runAction(EditorAction::Undo{});
+}
+
+// Routes Redo through the central action gate while the command remains user-disabled.
+void EditorController::Impl::onRedoRequested()
+{
+    runAction(EditorAction::Redo{});
+}
+
 // Closes the current project after prompting for unsaved changes when needed.
 void EditorController::Impl::onCloseRequested()
 {
@@ -1714,23 +1981,30 @@ void EditorController::Impl::onAudioDeviceSettingsClosed()
 // Applies the central action gate and routes the accepted action.
 void EditorController::Impl::runAction(EditorAction::Action action)
 {
-    if (!prepareAction(idOf(action)))
+    const EditorAction::Id action_id = idOf(action);
+    logEditorActionRequested(action_id);
+
+    if (!prepareAction(action_id))
     {
         return;
     }
 
+    logEditorActionStarted(action_id);
     performAction(std::move(action));
+    logEditorActionDispatchCompleted(action_id);
 }
 
 // Applies availability and busy policy before an action mutates state or schedules work.
 bool EditorController::Impl::prepareAction(EditorAction::Id action)
 {
-    if (!canRunAction(action))
+    const ActionConditions conditions = currentActionConditions();
+    if (!isActionAvailable(action, conditions))
     {
+        logEditorActionAvailabilityRejected(action, actionUnavailableReason(action, conditions));
         return false;
     }
 
-    if (isBusy() && actionSupersedesBusy(action))
+    if (conditions.busy && actionSupersedesBusy(action))
     {
         // A close/exit takeover abandons any in-flight scan, so stop its worker rather than
         // leaving it running until it finishes on its own (which would also block exit-time join).
@@ -1864,6 +2138,12 @@ void EditorController::Impl::performActionImpl(EditorAction::CancelBusyOperation
 {
     cancelBusyOperation();
 }
+
+void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
+{}
+
+void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
+{}
 
 void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)
 {
@@ -2351,18 +2631,14 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
+        .undo_available = false,
+        .redo_available = false,
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
         .has_plugin_insert_capacity = m_signal_chain.hasInsertCapacity(),
         .has_loaded_plugins = m_signal_chain.hasPlugins(),
     };
-}
-
-// Evaluates a single action using one captured set of controller conditions.
-bool EditorController::Impl::canRunAction(EditorAction::Id action) const
-{
-    return isActionAvailable(action, currentActionConditions());
 }
 
 // Coarse-only transport callback. During an in-flight session load, defer the push so the final
@@ -2977,6 +3253,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
     state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
     state.publish_enabled = isActionAvailable(EditorAction::Id::PublishProject, action_conditions);
+    state.undo_enabled = isActionAvailable(EditorAction::Id::Undo, action_conditions);
+    state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
     if (!m_project_file.empty())
     {
         state.suggested_publish_file = m_project_file;

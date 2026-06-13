@@ -87,6 +87,18 @@ public:
         busy_cancel_request_count += 1;
     }
 
+    /*! \brief Counts Undo command dispatches. */
+    void onUndoRequested() override
+    {
+        undo_request_count += 1;
+    }
+
+    /*! \brief Counts Redo command dispatches. */
+    void onRedoRequested() override
+    {
+        redo_request_count += 1;
+    }
+
     /*! \brief Counts Close command dispatches. */
     void onCloseRequested() override
     {
@@ -409,6 +421,12 @@ public:
 
     /*! \brief Number of busy-operation cancellation intents received. */
     int busy_cancel_request_count{0};
+
+    /*! \brief Number of undo intents received. */
+    int undo_request_count{0};
+
+    /*! \brief Number of redo intents received. */
+    int redo_request_count{0};
 
     /*! \brief Number of close intents received. */
     int close_request_count{0};
