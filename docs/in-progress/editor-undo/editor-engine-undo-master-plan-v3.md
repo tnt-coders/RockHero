@@ -21,20 +21,19 @@ undo) and `../../todo/test-fixture-opportunities-plan.md` (deferred).
 ## Implementation sequence (the direct path)
 
 Done: Phase 0, Phase 1, Phase B (B0–B3), B2-lite+ monitoring-mode centralization (2026-06-12),
-Phase 2 (mechanical), Phase M decision. Remaining, in order — parallel tracks marked, per-stage detail
-in `editor-undo-plan.md`:
+Phase 2 / Stage 0 spike work needed for the current undo gate, and the Phase M decision. Some
+feature-specific verification remains deferred until suitable plugins or automation editing exist;
+those follow-ups are recorded in `editor-undo-plan.md` and block no stage of the sequence below:
+automation verification is out of the MVP undo scope, and the fallback-path check relates to Stage 6
+but its conservative design proceeds without it. Remaining, in order:
 
-1. **Now, in parallel:**
-   - **Spike** (finish Phase 2 Step 2 / `editor-undo-plan.md` Stage 0): real-VST3 gesture callbacks,
-     open-editor refresh on `setPluginState`, automation subtree-swap audibility, live-device route
-     repair. Reuse `test_undo_spike.cpp`. Gates the audio-adapter stages only.
-   - **Stage 1 — `EditorUndoHistory`**: pure, headless, fakeable; no Tracktion dependency.
-2. **Headless, no spike dependency (build while the spike runs):** Stage 2 contracts + fakes +
-   rollback-proof tests · Stage 3 action ids/intents/availability/menu/shortcuts (kept disabled) +
-   reveal-on-undo intents · Stage 4 placement + display-type · Stage 5 move.
-3. **After the spike confirms fidelity — audio-adapter stages:** Stage 2 adapter half
-   (`setPluginState`, observer, capture/restore) · Stage 6 parameters · Stage 7 output gain ·
-   Stage 8 remove memento + rollback-contract/faulted-session handling.
+1. **Stage 1 — `EditorUndoHistory`:** pure, headless, fakeable; no Tracktion dependency.
+2. **Headless sequence:** Stage 2 contracts + fakes + rollback-proof tests · Stage 3 action
+   ids/intents/availability/menu/shortcuts (kept disabled) + reveal-on-undo intents · Stage 4
+   placement + display-type · Stage 5 move.
+3. **Audio-adapter stages:** Stage 2 adapter half (`setPluginState`, observer, capture/restore) ·
+   Stage 6 parameters · Stage 7 output gain · Stage 8 remove memento +
+   rollback-contract/faulted-session handling.
 4. **Finalize:** Stage 9 dirty-state migration · Stage 10 enable the Edit menu/shortcuts (the ship gate).
 
 Only after undo: `../remaining-god-object-decomposition-plan.md` (separate initiative; undo first so it
@@ -124,12 +123,20 @@ Phase B   BASELINE ENGINE CLEANUP (pre-undo, value on its own merits)
    B1  Eager structural plugins at construction               [done]
    B2  Routing centralization: B2-lite implemented            [done]
    B3  Re-measure transaction cleanliness on the cleaned base  [done]
-Phase 2   Tracktion behavior spike                            [mechanical done; interactive parameter spike pending]
+Phase 2   Tracktion behavior spike                            [done for current undo gate; targeted follow-ups deferred]
 Phase M   UNDO MECHANISM DECISION GATE                        [DECIDED 2026-06-11: RockHero mementos / Tracktion-as-backend]
 Phase 3+  Undo implementation (RockHero mementos)             [follow revised editor-undo-plan.md]
 ```
 
 ## Temporary Spike Code Ledger
+
+**RESOLVED 2026-06-12: all spike code removed.** Phase 2 / Step 2 is complete (T1, T2, T4 confirmed;
+T3 source-proven + deferred). `test_undo_spike.cpp` and its CMake entry, the `engine.h` SPIKE probe
+block, and all `engine.cpp` spike additions (the `SpikeParameterLogger` / `SpikeWindowRefreshProbe`
+classes, the member vectors + `spikeRefreshParameterLogging()`, the probe-method implementations, and
+the in-place clear/refresh hooks) were removed and the in-place reverts restored. The sweep
+`rg -n "SPIKE|spike[A-Z]" rock-hero-common/audio` is clean. The ledger below is retained as a historical
+record of what existed.
 
 Temporary spike code must be obvious to find and remove. The cleanup rule is:
 
@@ -153,6 +160,14 @@ Current temporary spike-code commits:
   - Added temporary `spikeRebuildInstrumentMonitoringGraph()`.
   - Added the cleaned-base transaction cleanliness spike case for insert, move, remove, and output
     gain.
+- Phase 2 Step 2 spike — parameter logging (T1) + window-refresh probe (T2) (uncommitted; 2026-06-12)
+  - Added the `SpikeParameterLogger` (T1) and `SpikeWindowRefreshProbe` (T2) classes just before
+    `Engine::Impl` in `engine.cpp`.
+  - Added `Engine::Impl::m_spike_param_loggers` and `m_spike_window_refresh_probes`,
+    `spikeRefreshParameterLogging()` (builds both), a clear of both vectors at the start of
+    `mutateAndReroutePluginChain` + `spikeRefreshParameterLogging()` on its success path (detach
+    before any insert/move/remove, re-attach after), and a clear of both vectors at the top of
+    `clearUserLiveRigPlugins` (all in `engine.cpp`). No header, editor, or CMake changes.
 
 Do not revert permanent baseline commits as part of spike cleanup:
 
@@ -167,6 +182,10 @@ Expected source cleanup at spike close:
   `rock-hero-common/audio/include/rock_hero/common/audio/engine.h`.
 - Remove the matching temporary `Engine` SPIKE implementation block from
   `rock-hero-common/audio/src/engine.cpp`.
+- Remove the `SpikeParameterLogger` and `SpikeWindowRefreshProbe` classes, the
+  `m_spike_param_loggers` and `m_spike_window_refresh_probes` members, `spikeRefreshParameterLogging()`,
+  the two-vector clear + `spikeRefreshParameterLogging()` call in `mutateAndReroutePluginChain`, and
+  the two-vector clear in `clearUserLiveRigPlugins` (all in `engine.cpp`).
 - Do not trust this ledger as exhaustive. After the targeted removals, scan the source with
   `rg -n "SPIKE|test_undo_spike|spike[A-Z]" rock-hero-common/audio`; source hits should be gone
   unless a newer explicitly-ledgered spike still exists.
@@ -425,11 +444,11 @@ way. See `undo-ownership-analysis.md` for the full source-grounded analysis and 
 correctness proof, and `editor-undo-phase-m-decision-review.md` for the challenge review and the
 eight review answers.
 
-Implementation follows `editor-undo-plan.md` (rewritten to the memento mechanism). A scoped runtime
-spike (finishing Phase 2 Step 2) de-risks the fidelity-critical adapter operations before the audio
-stages: real-VST3 gesture callbacks, open-editor refresh on chunk restore, automation-curve restore
-audibility, and live-device route repair after a memento restore. The pure `EditorUndoHistory` layer
-is headless and may proceed in parallel.
+Implementation follows `editor-undo-plan.md` (rewritten to the memento mechanism). The scoped runtime
+spike needed for this undo gate is complete: real-VST3 gesture callbacks, open-editor refresh on chunk
+restore, and live-device route repair were characterized. Automation-curve restore audibility and
+no-gesture/self-animating plugin behavior remain targeted follow-up spikes for when those cases are
+actually available. The pure `EditorUndoHistory` layer is the next step.
 
 ### Original evaluation framing (retained for context)
 
@@ -622,7 +641,7 @@ front door.
 ## Preferred next concrete step
 
 The full ordered path is in **Implementation sequence** at the top of this document. In short: start
-the **spike** (Phase 2 Step 2) and the headless **Stage 1 `EditorUndoHistory`** in parallel now, keep
-building the headless stages (2 contracts/fakes, 3 action plumbing disabled, 4 placement/display, 5
-move) while the spike runs, then do the spike-gated audio-adapter stages (2 adapter half, 6 parameters,
-7 output gain, 8 remove memento), and finish with Stage 9 dirty migration and Stage 10 enable.
+the headless **Stage 1 `EditorUndoHistory`** now, then build the remaining headless stages
+(2 contracts/fakes, 3 action plumbing disabled, 4 placement/display, 5 move), then the audio-adapter
+stages (2 adapter half, 6 parameters, 7 output gain, 8 remove memento), and finish with Stage 9 dirty
+migration and Stage 10 enable.
