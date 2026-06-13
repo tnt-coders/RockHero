@@ -1923,7 +1923,7 @@ private:
     }
 
     // Inserts a selected plugin candidate into the instrument track's user-visible chain.
-    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError> insertPluginCandidateToTrack(
+    [[nodiscard]] std::expected<PluginInsertResult, PluginHostError> insertPluginCandidateToTrack(
         const PluginCandidate& plugin_candidate, std::size_t chain_index);
 
     // Builds the authoritative user-visible plugin chain snapshot from Tracktion state.
@@ -3145,7 +3145,7 @@ std::vector<PluginCandidate> Engine::knownPluginCatalog() const
 }
 
 // Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
-std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCandidateToTrack(
+std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCandidateToTrack(
     const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -3286,11 +3286,14 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::Impl::insertPluginCa
         }
     }
 
-    return snapshot;
+    return PluginInsertResult{
+        .snapshot = std::move(snapshot),
+        .inserted_instance_id = plugin->itemID.toString().toStdString(),
+    };
 }
 
 // Inserts a selected VST3 candidate into the instrument track's user-visible plugin chain.
-std::expected<PluginChainSnapshot, PluginHostError> Engine::insertPlugin(
+std::expected<PluginInsertResult, PluginHostError> Engine::insertPlugin(
     const PluginCandidate& plugin_candidate, std::size_t chain_index)
 {
     return m_impl->insertPluginCandidateToTrack(plugin_candidate, chain_index);
@@ -3445,6 +3448,128 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
     m_impl->commitPluginRemoval(*removed_plugin);
     return m_impl->pluginChainSnapshot();
 }
+
+// Preflights plugin-state capture until Stage 2B wires the real Tracktion-backed capture path.
+std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
+    const std::string& instance_id)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    if (m_impl->instrumentTrack() == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id,
+        }};
+    }
+
+    return std::unexpected{PluginHostError{
+        PluginHostErrorCode::PluginStateCaptureFailed,
+        "Tracktion-backed plugin-state capture is not implemented yet",
+    }};
+}
+
+// Preflights plugin-state insertion until Stage 2B wires the real Tracktion restore path.
+std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPluginState(
+    const PluginInstanceState& state, std::size_t chain_index)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    if (state.opaque_data.empty())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin state is empty",
+        }};
+    }
+
+    if (m_impl->instrumentTrack() == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const std::size_t plugin_count = m_impl->userVisiblePluginCount();
+    if (chain_index > plugin_count)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
+    }
+
+    if (plugin_count >= max_signal_chain_plugins)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginChainLimitExceeded,
+            pluginChainLimitExceededMessage(plugin_count),
+        }};
+    }
+
+    return std::unexpected{PluginHostError{
+        PluginHostErrorCode::PluginStateRestoreFailed,
+        "Tracktion-backed plugin-state insertion is not implemented yet",
+    }};
+}
+
+// Preflights plugin-state restore until Stage 2B wires the real Tracktion setter path.
+std::expected<void, PluginHostError> Engine::setPluginState(
+    const std::string& instance_id, const PluginInstanceState& state)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
+    }
+
+    if (state.opaque_data.empty())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin state is empty",
+        }};
+    }
+
+    if (m_impl->instrumentTrack() == nullptr)
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    const tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginInstanceNotFound,
+            "Plugin instance was not found: " + instance_id,
+        }};
+    }
+
+    return std::unexpected{PluginHostError{
+        PluginHostErrorCode::PluginStateRestoreFailed,
+        "Tracktion-backed plugin-state restore is not implemented yet",
+    }};
+}
+
+// Parameter-edit observation is introduced at the port first and wired to Tracktion in Stage 2B.
+void Engine::flushPendingPluginParameterEdits()
+{}
+
+// The adapter reports no pending parameter edits until Stage 2B attaches real observers.
+bool Engine::hasPendingPluginParameterEdits() const
+{
+    return false;
+}
+
+// The observer is accepted by the port now; Stage 2B will store and drive it from Tracktion.
+void Engine::setPluginParameterEditObserver(PluginParameterEditObserver)
+{}
 
 // Opens a plugin editor window through Tracktion's plugin window state.
 std::expected<void, PluginHostError> Engine::openPluginWindow(const std::string& instance_id)
