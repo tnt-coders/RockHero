@@ -176,7 +176,7 @@ public:
         int top_level_menu_index, const juce::String& menu_name) override;
 
     /*!
-    \brief Handles a selected File-menu item.
+    \brief Handles a selected editor menu item.
     \param menu_item_id Selected menu item identifier.
     \param top_level_menu_index Index of the top-level menu that produced the selection.
     */

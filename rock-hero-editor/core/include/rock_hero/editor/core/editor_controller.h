@@ -288,6 +288,12 @@ public:
     /*! \brief Handles a request to cancel the active cancellable busy operation. */
     void onBusyCancelRequested() override;
 
+    /*! \brief Handles a request to undo the most recent editor history entry. */
+    void onUndoRequested() override;
+
+    /*! \brief Handles a request to redo the next editor history entry. */
+    void onRedoRequested() override;
+
     /*! \brief Handles a request to close the current project. */
     void onCloseRequested() override;
 

@@ -59,6 +59,14 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::CancelBusyOperation;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::Undo>)
+    {
+        return EditorAction::Id::Undo;
+    }
+    else if constexpr (std::is_same_v<A, EditorAction::Redo>)
+    {
+        return EditorAction::Id::Redo;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::PlayPause>)
     {
         return EditorAction::Id::PlayPause;
@@ -130,6 +138,7 @@ static_assert(!std::is_default_constructible_v<EditorAction::Action>);
 static_assert(!std::is_default_constructible_v<EditorAction::ProjectAction>);
 static_assert(!std::is_default_constructible_v<EditorAction::ProjectWriteAction>);
 static_assert(!std::is_constructible_v<EditorAction::ProjectAction, EditorAction::PlayPause>);
+static_assert(!std::is_constructible_v<EditorAction::ProjectAction, EditorAction::Undo>);
 static_assert(
     !std::is_constructible_v<EditorAction::ProjectWriteAction, EditorAction::OpenProject>);
 static_assert(!std::is_default_constructible_v<UnsavedChangesPrompt>);

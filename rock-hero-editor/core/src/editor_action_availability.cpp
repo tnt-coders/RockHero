@@ -21,6 +21,8 @@ namespace
         case EditorAction::Id::SetSignalChainPlacement:
         case EditorAction::Id::SetPluginDisplayTypeOverride:
         case EditorAction::Id::OpenPlugin:
+        case EditorAction::Id::Undo:
+        case EditorAction::Id::Redo:
         {
             return true;
         }
@@ -83,6 +85,14 @@ namespace
         {
             return false;
         }
+        case EditorAction::Id::Undo:
+        {
+            return conditions.has_project && conditions.undo_available;
+        }
+        case EditorAction::Id::Redo:
+        {
+            return conditions.has_project && conditions.redo_available;
+        }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekWaveform:
         {
@@ -142,6 +152,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::ResolveUnsavedChangesPrompt:
         case EditorAction::Id::CancelSaveAsPrompt:
         case EditorAction::Id::CancelBusyOperation:
+        case EditorAction::Id::Undo:
+        case EditorAction::Id::Redo:
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekWaveform:

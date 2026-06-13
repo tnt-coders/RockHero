@@ -173,6 +173,18 @@ struct EditorViewState
     /*! \brief Enables or disables the File > Publish command. */
     bool publish_enabled{false};
 
+    /*! \brief Enables or disables the Edit > Undo command. */
+    bool undo_enabled{false};
+
+    /*! \brief Label for the undoable edit, if a command-specific label is available. */
+    std::optional<std::string> undo_label{};
+
+    /*! \brief Enables or disables the Edit > Redo command. */
+    bool redo_enabled{false};
+
+    /*! \brief Label for the redoable edit, if a command-specific label is available. */
+    std::optional<std::string> redo_label{};
+
     /*! \brief Suggested .rock destination used to pre-fill the publish chooser. */
     std::filesystem::path suggested_publish_file{};
 

@@ -148,6 +148,16 @@ struct EditorAction
     {
     };
 
+    /*! \brief Undo the most recent editor history entry. */
+    struct Undo
+    {
+    };
+
+    /*! \brief Redo the next editor history entry. */
+    struct Redo
+    {
+    };
+
     /*! \brief Toggle transport playback. */
     struct PlayPause
     {
@@ -324,9 +334,9 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
-        CancelBusyOperation, PlayPause, Stop, SeekWaveform, ShowPluginBrowser, BeginPluginInsert,
-        ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
-        SetPluginDisplayTypeOverride, OpenPlugin>;
+        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekWaveform, ShowPluginBrowser,
+        BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin,
+        SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 
 /*!
