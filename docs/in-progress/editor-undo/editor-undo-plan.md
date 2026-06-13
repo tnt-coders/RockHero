@@ -298,8 +298,9 @@ Spike status for quarantine and parameter observation:
 Spike outcome (see Stage 0 Spike Status): items 1-2 ran on 2026-06-10 and validated that clearing
 Tracktion undo history after owned mutations is mechanically safe in the tested cases. Phase M still
 does not require active clearing; the selected mechanism is memento restore through RockHero ports
-with Tracktion undo kept private and unconsumed. Item 3, the real VST3 knob-change callback pattern,
-is the pending Step 2 and gates the parameter-observation/audio-adapter stages.
+with Tracktion undo kept private and unconsumed. Item 3 ran on 2026-06-12 against one well-behaved
+real VST3 and confirmed the gesture path; no-gesture/self-animating plugin behavior remains a
+targeted follow-up probe for when a suitable plugin is available.
 
 ## History Failure Policy
 
@@ -403,12 +404,18 @@ Gesture path (the reliable source):
 - On `parameterChangeGestureBegin`, capture the current chunk as `before` (a fresh pre-edit snapshot,
   preferred over the baseline for accuracy).
 - On `parameterChangeGestureEnd`, capture the current chunk as `after`; if it differs from `before`,
-  emit one edit `{instance_id, before, after}` and set the baseline to `after`.
+  emit one edit `{instance_id, before, after}` and set the baseline to `after`. (Spike-confirmed:
+  the whole drag — including a multi-second mid-drag pause — is one open gesture, so `gestureEnd` is
+  the correct settle boundary; a time-based debounce would wrongly split a paused drag.)
 
 Non-gesture fallback (best effort, must stay conservative):
 
 - A `parameterChanged` with no open gesture (and recording not suppressed) starts or extends a short
-  debounce window for that plugin instance. The pre-edit chunk cannot be reconstructed after the first
+  debounce window for that plugin instance. **Suppress this path while a gesture is open for the
+  parameter and for a brief window after its `gestureEnd`:** spikes show a lone post-gesture
+  `parameterChanged` (same value, no `currentValueChanged` pair) can arrive just after `gestureEnd` as
+  a value-confirmation, and it must not be treated as a fresh edit (the net-change-vs-baseline guard
+  also drops it). The pre-edit chunk cannot be reconstructed after the first
   callback, so the non-gesture `before` is the **baseline** (one parameter-step of slop at the very
   first change is the accepted best-effort limit, identical to the prior design's cache fallback).
 - The window fires only when motion settles (no further change for that plugin within the window); on
@@ -428,9 +435,9 @@ Non-gesture fallback (best effort, must stay conservative):
 
 Replay: undo/redo restore the captured chunk via `IPluginHost::setPluginState`, which drives the live
 processor through `setStateInformation` (the setter) rather than by reverting a ValueTree property, so
-the audio follows by construction. Whether an already-open plugin editor window visibly refreshes on
-`setStateInformation` is plugin-dependent and is verified in the Step 2 spike (see Undo Visibility for
-the policy on revealing the affected plugin).
+the audio follows by construction. An already-open plugin editor window **does** visibly refresh on
+`setStateInformation` (Step 2 spike, confirmed 2026-06-12), so the on-screen control snaps to the
+restored value automatically (see Undo Visibility for the policy on revealing the affected plugin).
 
 Suppression:
 
@@ -858,7 +865,8 @@ case non-hidden:
 - **Reveal-on-undo flashes the affected block** in the signal chain, so the user's eye goes to the
   right plugin.
 - **If the window is open, it updates live.** `setPluginState` drives `setStateInformation`, so an
-  open editor reflects the restore (plugin-dependent; verified in the Step 2 spike).
+  open editor reflects the restore — **spike-confirmed (2026-06-12):** the on-screen control snapped
+  back to the restored value.
 
 Residual (accepted): with the window closed and no RockHero-owned view of that parameter, the user
 hears the change and reads "Amp Sim — Gain" but does not *watch* the specific knob rotate unless they
@@ -1051,20 +1059,23 @@ interface.
 
 ## Open Questions / Spikes
 
-### Stage 0 Spike Status (in progress)
+### Stage 0 Spike Status (closed for current undo gate)
 
-The Stage 0 / Phase 2 spike runs in two halves. The mechanical half is built; the interactive
-parameter half is not yet.
+The Stage 0 / Phase 2 spike ran in two halves. The mechanical half used temporary headless probes;
+the interactive half used the full editor with a real VST3 and live input. It is closed for the
+current undo gate: T1, T2, and T4 were confirmed; T3 is source-proven and deferred until automation
+editing exists; no-gesture/self-animating plugin behavior is deferred until a suitable plugin is
+available.
 
-**Vehicle (mechanical half):** `rock-hero-common/audio/tests/test_undo_spike.cpp`, backed by
-temporary `Engine` probes that expose internal Tracktion behavior as plain values:
+**Historical vehicle (mechanical half, removed):** `rock-hero-common/audio/tests/test_undo_spike.cpp`,
+backed by temporary `Engine` probes that exposed internal Tracktion behavior as plain values:
 `spikeObserveUndo`, `spikeClearUndoHistory`, `spikeStateRoundTrip`,
 `spikeBeginUndoTransaction`, `spikeTracktionUndo`, `spikeTracktionRedo`,
-`spikeUserPluginInstanceIds`, and `spikeRawLiveRigPluginRoles`. All of this is fenced with
-uppercase `SPIKE` markers and must be removed when the spike closes. The authoritative cleanup
-ledger is in `editor-engine-undo-master-plan-v3.md` under "Temporary Spike Code Ledger".
+`spikeUserPluginInstanceIds`, and `spikeRawLiveRigPluginRoles`. All of this was fenced with
+uppercase `SPIKE` markers and has been removed. The authoritative cleanup ledger is in
+`editor-engine-undo-master-plan-v3.md` under "Temporary Spike Code Ledger".
 
-**How to run:**
+**Historical mechanical run procedure:**
 
 - Build `rock_hero_common_audio_tests`.
 - Set `ROCKHERO_SPIKE_PLUGIN` to a real `.vst3` file path (the reference plugin). Without it, the
@@ -1167,24 +1178,77 @@ the probes as written. Both `[spike]` cases passed.
   transaction. The chosen memento path does not rely on that; it supports changed-id restore
   unconditionally. The finding remains useful evidence about Tracktion behavior.
 
-**Still open — interactive half (Step 2), not yet built:** real VST3 parameter-callback
-characterization (gesture begin/end vs. raw `parameterChanged`, self-animating/continuous params)
-and whether a full-chunk restore through `setPluginState` (`setStateInformation`) refreshes an open
-plugin window (Q4). This needs temporary `AutomatableParameter`-listener instrumentation driven by
-hand in the running editor and is the true long pole; it gates Phase 8 parameter work. Phase 2 is not
-complete until Step 2 runs.
+**Step 2 — gesture-callback characterization (T1), ran 2026-06-12 in the full editor with a real VST3
+(Archetype Nolly X), one plugin:**
+
+- A single user knob drag emits exactly `parameterChangeGestureBegin` → repeated `parameterChanged`
+  (each paired with a `currentValueChanged` carrying the same value) → `parameterChangeGestureEnd`.
+  Both slow and fast drags follow this pattern.
+- **A paused drag keeps the gesture open:** a ~1.45 s hold mid-drag produced no `gestureEnd` until the
+  actual release. **Design consequence:** for gesture-capable plugins, use `gestureEnd` as the settle
+  boundary, **not** a time-based debounce (a debounce would wrongly split a paused drag into multiple
+  undo entries). Capture the chunk at `gestureBegin` (before) and `gestureEnd` (after) → one undo
+  entry per drag, as the Stage 6 design assumed.
+- **A trailing lone `parameterChanged` (same value, no `currentValueChanged` pair) can arrive right
+  after `gestureEnd`** — a post-gesture value-confirmation, not a new edit. Harmless for the chunk
+  design (we capture chunks only at `gestureBegin`/`gestureEnd`; the state at `gestureEnd` already
+  equals the settled value). **Design rule:** suppress the non-gesture fallback path for a parameter
+  while its gesture is open and for a brief window after `gestureEnd`, so this tail is not mis-read as
+  a fresh non-gesture edit (the net-change-vs-baseline guard is a second safety net).
+- **No self-animation:** the plugin emits no parameter callbacks when idle. The self-animating guard
+  is still kept defensively for LFO/meter-param plugins, but this plugin does not exercise it.
+- Caveat: one (well-behaved) plugin characterized; no LFO/no-gesture plugins available to test. The
+  *no-gesture* and *self-animating* fallback paths remain empirically uncharacterized; the design
+  handles both conservatively regardless. **T1 is otherwise conclusive: rely on `gestureEnd` as the
+  settle boundary and capture before/after chunks at the gesture edges.**
+
+**Step 2 — open-window refresh (T2), confirmed 2026-06-12 (Archetype Nolly X):** a full-chunk restore
+through `setStateInformation` (the `setPluginState` path) **does refresh an open plugin editor window** —
+the on-screen control visibly snapped back to the restored value. So reveal-on-undo's strong
+open-window feedback happens for free on a chunk restore; no extra nudge is needed for the open-window
+case.
+
+**Step 2 — automation restore (T3), decision 2026-06-12: no headless probe built.** The claim that
+matters (live audio follows an automation-curve restore) needs playback to exercise the audio-thread
+`AutomationIterator`, and cannot be exercised in the editor either because automation editing does not
+exist yet (no UI to author a curve). A headless probe could only confirm near-tautologies (a
+`nullptr`-undo-manager curve edit does not record undo — true by definition; the curve *model* follows
+a tree mutation — trivial), so it would add blind-API risk for no real assurance. Status: the
+mechanism is **source-proven** (`undo-ownership-analysis.md`: parameter `valueTreeChild` listeners →
+`triggerAsyncIteratorUpdate`), the design reuses Tracktion's own curve API + reactive rebuild, and
+**empirical verification is deferred to when automation editing is built** (well after the first undo
+scope). Automation is out of the MVP undo scope regardless.
+
+**Step 2 — live-device route repair (T4), confirmed 2026-06-12 with a real device + guitar:**
+live-input monitoring survived **insert, move, remove, and an audio-device switch** with no routing
+failure — on par with REAPER. The only audible gap is the brief cutout while a heavy plugin
+*instantiates* on insert (plugin load latency, not a route failure; expected, and present in every
+host). This aligns with the design: the plugin-instantiating undo directions (insert-redo,
+remove-undo) are already fenced behind `BusyOperation::LoadingPlugin`. This confirms the B2-lite
+synchronous reroute — which memento undo restore re-uses through the same insert/move/remove paths —
+holds up live.
+
+**Step 2 is complete (T1, T2, T4 confirmed; T3 source-proven + deferred). The spike code is removed
+per the cleanup ledger.**
 
 - **Validated (Step 1):** clearing Tracktion undo history after owned mutations is mechanically safe
   in the tested cases, but active clearing is not required by the chosen memento mechanism. Tracktion
   already bounds the stack via `maxNumberOfStoredUnits`; RockHero never consumes it as product history.
-- How reliably can the adapter distinguish user-driven parameter edits from a plugin animating its own
-  parameters (LFOs, envelopes, meters) on the non-gesture path? The conservative default is to drop
-  continuous/uncertain motion; Step 2 should characterize real VST3 behavior.
-- Do real VST3 plugins commonly emit gesture begin/end, raw changes only, or both? (Step 2)
-- Does a full-chunk restore through `setPluginState` (`setStateInformation`) update an open plugin
-  editor window across the VST3 plugins we target? (Step 2)
-- What debounce window gives acceptable grouping for non-gesture plugin changes without delaying
-  undo availability noticeably? (Step 2)
+- **Deferred targeted plugin-behavior follow-up:** when a suitable plugin is available, characterize
+  no-gesture and self-animating/continuous parameter behavior (LFOs, envelopes, meters). The current
+  implementation should keep the conservative rule: drop continuous/uncertain non-gesture motion
+  rather than recording spurious history entries.
+- **Deferred parameter-diversity follow-up:** as more target VST3 plugins become available, sample
+  whether they emit gesture begin/end, raw changes only, or both. This is no longer a Stage 0 blocker;
+  the design already has a gesture path and a conservative non-gesture fallback.
+- **Deferred open-window diversity follow-up:** `setPluginState` refreshed Archetype Nolly X's open
+  editor window. Recheck with other target plugins opportunistically, but the undo policy does not
+  depend on a guaranteed visual refresh across every vendor editor.
+- **Deferred debounce tuning:** tune the non-gesture debounce window when a real no-gesture plugin is
+  available. Until then, keep the fallback conservative and prefer dropping uncertain motion.
+- **Deferred automation follow-up:** empirically verify automation-curve restore audibility once
+  automation editing exists in the application. Automation is outside the current undo scope, and the
+  current mechanism is source-proven through Tracktion's curve/listener path.
 - **Resolved (Step 1):** `insertPluginState` can preserve Tracktion item/runtime ids only when the
   id is left in the state tree and the original is gone; current capture strips it, so restore gets
   a new id. Support changed-id restore unconditionally.
