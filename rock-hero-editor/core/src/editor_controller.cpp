@@ -5,6 +5,7 @@
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
+#include "editor_undo_history.h"
 #include "input_calibration_workflow.h"
 #include "plugin_catalog_workflow.h"
 #include "project_io.h"
@@ -306,6 +307,180 @@ void logEditorActionDispatchCompleted(EditorAction::Id action)
     RH_LOG_INFO("editor.controller", "Action dispatch completed action={}", actionIdText(action));
 }
 
+[[nodiscard]] std::string_view undoDirectionText(EditorUndoDirection direction) noexcept
+{
+    switch (direction)
+    {
+        case EditorUndoDirection::Undo:
+        {
+            return "undo";
+        }
+        case EditorUndoDirection::Redo:
+        {
+            return "redo";
+        }
+    }
+
+    return "unknown";
+}
+
+[[nodiscard]] std::string_view undoTransitionStatusText(EditorUndoTransitionStatus status) noexcept
+{
+    switch (status)
+    {
+        case EditorUndoTransitionStatus::Applied:
+        {
+            return "applied";
+        }
+        case EditorUndoTransitionStatus::Pending:
+        {
+            return "pending";
+        }
+        case EditorUndoTransitionStatus::NonCommitFailure:
+        {
+            return "non_commit_failure";
+        }
+    }
+
+    return "unknown";
+}
+
+[[nodiscard]] std::string_view undoFailureCodeText(EditorUndoFailureCode failure_code) noexcept
+{
+    switch (failure_code)
+    {
+        case EditorUndoFailureCode::None:
+        {
+            return "none";
+        }
+        case EditorUndoFailureCode::NothingToUndo:
+        {
+            return "nothing_to_undo";
+        }
+        case EditorUndoFailureCode::NothingToRedo:
+        {
+            return "nothing_to_redo";
+        }
+        case EditorUndoFailureCode::TransitionAlreadyPending:
+        {
+            return "transition_already_pending";
+        }
+        case EditorUndoFailureCode::NoPendingTransition:
+        {
+            return "no_pending_transition";
+        }
+        case EditorUndoFailureCode::PendingTokenMismatch:
+        {
+            return "pending_token_mismatch";
+        }
+        case EditorUndoFailureCode::PreflightRejected:
+        {
+            return "preflight_rejected";
+        }
+        case EditorUndoFailureCode::NoNetMutation:
+        {
+            return "no_net_mutation";
+        }
+        case EditorUndoFailureCode::RepairedFailure:
+        {
+            return "repaired_failure";
+        }
+        case EditorUndoFailureCode::RollbackContractViolation:
+        {
+            return "rollback_contract_violation";
+        }
+    }
+
+    return "unknown";
+}
+
+[[nodiscard]] std::string_view undoEventTypeText(EditorUndoEventType type) noexcept
+{
+    switch (type)
+    {
+        case EditorUndoEventType::EntryPushed:
+        {
+            return "entry_pushed";
+        }
+        case EditorUndoEventType::RedoEntriesDiscarded:
+        {
+            return "redo_entries_discarded";
+        }
+        case EditorUndoEventType::UndoBegan:
+        {
+            return "undo_began";
+        }
+        case EditorUndoEventType::RedoBegan:
+        {
+            return "redo_began";
+        }
+        case EditorUndoEventType::UndoCommitted:
+        {
+            return "undo_committed";
+        }
+        case EditorUndoEventType::RedoCommitted:
+        {
+            return "redo_committed";
+        }
+        case EditorUndoEventType::TransitionAborted:
+        {
+            return "transition_aborted";
+        }
+        case EditorUndoEventType::TransitionRejected:
+        {
+            return "transition_rejected";
+        }
+        case EditorUndoEventType::CleanMarked:
+        {
+            return "clean_marked";
+        }
+        case EditorUndoEventType::CleanMarkerMadeUnreachable:
+        {
+            return "clean_marker_made_unreachable";
+        }
+        case EditorUndoEventType::HistoryReset:
+        {
+            return "history_reset";
+        }
+        case EditorUndoEventType::InstanceIdRemapped:
+        {
+            return "instance_id_remapped";
+        }
+    }
+
+    return "unknown";
+}
+
+void logEditorUndoTransitionResult(
+    std::string_view context, const EditorUndoTransitionResult& result)
+{
+    RH_LOG_INFO(
+        "editor.controller",
+        "Undo transition result context={} status={} failure={} requires_fault={}",
+        context,
+        undoTransitionStatusText(result.status),
+        undoFailureCodeText(result.failure_code),
+        result.requires_fault);
+
+    for (const EditorUndoEvent& event : result.events)
+    {
+        const std::string_view direction =
+            event.direction.has_value() ? undoDirectionText(*event.direction) : "none";
+        RH_LOG_INFO(
+            "editor.controller",
+            "Undo transition event context={} type={} label={} direction={} failure={} "
+            "requires_fault={} old_instance_id={} new_instance_id={}",
+            context,
+            undoEventTypeText(event.type),
+            event.label,
+            direction,
+            undoFailureCodeText(event.failure_code),
+            event.requires_fault,
+            event.old_instance_id,
+            event.new_instance_id);
+    }
+}
+
 // Reports a boundary result that violated the product cap before it reaches view state.
 [[nodiscard]] common::audio::LiveRigError signalChainLimitError(std::size_t plugin_count)
 {
@@ -506,6 +681,39 @@ void defaultExit()
         action);
 }
 
+// Captures editor-owned signal-chain block placement with instance IDs for undo payloads.
+[[nodiscard]] std::vector<PluginBlockAssignment> pluginBlockAssignmentsFor(
+    const std::vector<PluginViewState>& plugins)
+{
+    std::vector<PluginBlockAssignment> assignments;
+    assignments.reserve(plugins.size());
+    for (const PluginViewState& plugin : plugins)
+    {
+        assignments.push_back(
+            PluginBlockAssignment{
+                .instance_id = plugin.instance_id,
+                .block_index = plugin.block_index,
+            });
+    }
+
+    return assignments;
+}
+
+// Reads the current display override for one plugin row.
+[[nodiscard]] std::optional<PluginDisplayType> displayTypeOverrideFor(
+    const std::vector<PluginViewState>& plugins, std::string_view instance_id)
+{
+    const auto plugin = std::ranges::find_if(plugins, [instance_id](const PluginViewState& item) {
+        return item.instance_id == instance_id;
+    });
+    if (plugin == plugins.end())
+    {
+        return std::nullopt;
+    }
+
+    return plugin->display_type_override;
+}
+
 } // namespace
 
 // Owns every implementation detail that does not need to be part of the public controller type.
@@ -611,6 +819,16 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
     void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
+    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoEntry(
+        const EditorUndoEntry& entry, EditorUndoDirection direction);
+    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+        const PluginPlacementEdit& edit, EditorUndoDirection direction);
+    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+        const PluginDisplayTypeEdit& edit, EditorUndoDirection direction);
+    void pushUndoEntry(EditorUndoEntry entry);
+    void resetUndoHistory(std::string_view context);
+    void markUndoHistoryClean(std::string_view context);
+    void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
         const InputCalibrationWorkflow::Snapshot& input_calibration,
@@ -807,6 +1025,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Headless signal-chain workflow refreshed only from authoritative backend snapshots.
     SignalChainWorkflow m_signal_chain;
+
+    // Product-level undo history; only editor-owned metadata entries are wired before Stage 5.
+    EditorUndoHistory m_undo_history;
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
@@ -1396,6 +1617,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         }
         clearInterruptedRestoreMarker();
         m_pending_restore_project_file.reset();
+        resetUndoHistory("undo.reset.open_live_rig_failed");
         finishBusyOperation();
         reportError(
             std::string{"Could not load live rig from: "} + state->file.string() + ": " +
@@ -1416,6 +1638,8 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_has_unsaved_changes = next_has_unsaved_changes;
     clearDeferredProjectAction();
     m_project_audio_ready = true;
+    resetUndoHistory("undo.reset.open_project");
+    markUndoHistoryClean("undo.mark_clean.open_project");
 
     m_transport.seek(next_cursor_position);
     if (state->clear_last_open_project_on_failure)
@@ -1517,6 +1741,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
+        resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
             std::string{"Could not load imported live rig from: "} + state->file.string() + ": " +
@@ -1531,6 +1756,8 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_has_unsaved_changes = true;
     clearDeferredProjectAction();
     m_project_audio_ready = true;
+    resetUndoHistory("undo.reset.import_project");
+    markUndoHistoryClean("undo.mark_clean.import_project");
     applyLiveInputGate();
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
@@ -2139,11 +2366,142 @@ void EditorController::Impl::performActionImpl(EditorAction::CancelBusyOperation
     cancelBusyOperation();
 }
 
+// Applies the next metadata undo entry through the two-phase history protocol.
 void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
-{}
+{
+    EditorUndoBeginResult begin = m_undo_history.beginUndo();
+    logEditorUndoTransitionResult("undo.begin", begin.result);
+    if (!begin.pending.has_value())
+    {
+        updateView();
+        return;
+    }
 
+    const EditorUndoPendingTransition pending = *begin.pending;
+    if (const std::optional<EditorUndoFailureCode> failure =
+            applyUndoEntry(pending.entry, EditorUndoDirection::Undo);
+        failure.has_value())
+    {
+        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, *failure);
+        logEditorUndoTransitionResult("undo.abort", abort);
+        updateView();
+        return;
+    }
+
+    const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
+    logEditorUndoTransitionResult("undo.commit", commit);
+    updateView();
+}
+
+// Applies the next metadata redo entry through the two-phase history protocol.
 void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
-{}
+{
+    EditorUndoBeginResult begin = m_undo_history.beginRedo();
+    logEditorUndoTransitionResult("redo.begin", begin.result);
+    if (!begin.pending.has_value())
+    {
+        updateView();
+        return;
+    }
+
+    const EditorUndoPendingTransition pending = *begin.pending;
+    if (const std::optional<EditorUndoFailureCode> failure =
+            applyUndoEntry(pending.entry, EditorUndoDirection::Redo);
+        failure.has_value())
+    {
+        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, *failure);
+        logEditorUndoTransitionResult("redo.abort", abort);
+        updateView();
+        return;
+    }
+
+    const EditorUndoTransitionResult commit = m_undo_history.commit(pending);
+    logEditorUndoTransitionResult("redo.commit", commit);
+    updateView();
+}
+
+// Dispatches one stored undo entry to the currently wired payload implementation.
+std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoEntry(
+    const EditorUndoEntry& entry, EditorUndoDirection direction)
+{
+    return std::visit(
+        [this, direction](const auto& edit) -> std::optional<EditorUndoFailureCode> {
+            using Edit = std::decay_t<decltype(edit)>;
+            if constexpr (
+                std::is_same_v<Edit, PluginPlacementEdit> ||
+                std::is_same_v<Edit, PluginDisplayTypeEdit>
+            )
+            {
+                return applyUndoPayload(edit, direction);
+            }
+            else
+            {
+                return EditorUndoFailureCode::PreflightRejected;
+            }
+        },
+        entry.payload);
+}
+
+// Restores editor-authored block placement without touching the audio backend.
+std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+    const PluginPlacementEdit& edit, EditorUndoDirection direction)
+{
+    const std::vector<PluginBlockAssignment>& placement =
+        direction == EditorUndoDirection::Undo ? edit.before_placement : edit.after_placement;
+    if (!m_signal_chain.setBlockPlacement(placement))
+    {
+        return EditorUndoFailureCode::NoNetMutation;
+    }
+
+    return std::nullopt;
+}
+
+// Restores one editor-authored display type override without touching the audio backend.
+std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+    const PluginDisplayTypeEdit& edit, EditorUndoDirection direction)
+{
+    const std::optional<PluginDisplayType> display_type =
+        direction == EditorUndoDirection::Undo ? edit.before_type : edit.after_type;
+    if (!m_signal_chain.setPluginDisplayTypeOverride(edit.instance_id, display_type))
+    {
+        return EditorUndoFailureCode::NoNetMutation;
+    }
+
+    return std::nullopt;
+}
+
+// Pushes one already-applied user edit into the product-level history stack.
+void EditorController::Impl::pushUndoEntry(EditorUndoEntry entry)
+{
+    const EditorUndoTransitionResult result = m_undo_history.push(std::move(entry));
+    logEditorUndoTransitionResult("undo.push", result);
+}
+
+// Clears the current undo stack at a project or partial-coverage invalidation boundary.
+void EditorController::Impl::resetUndoHistory(std::string_view context)
+{
+    const EditorUndoTransitionResult result = m_undo_history.reset();
+    logEditorUndoTransitionResult(context, result);
+}
+
+// Marks the current undo position as matching the saved project state.
+void EditorController::Impl::markUndoHistoryClean(std::string_view context)
+{
+    const EditorUndoTransitionResult result = m_undo_history.markClean();
+    logEditorUndoTransitionResult(context, result);
+}
+
+// Discards metadata-only history once a newer untracked edit would make it partial.
+void EditorController::Impl::clearUndoHistoryAfterUntrackedEdit(std::string_view context)
+{
+    if (!m_undo_history.canUndo() && !m_undo_history.canRedo() &&
+        !m_undo_history.hasPendingTransition())
+    {
+        return;
+    }
+
+    resetUndoHistory(context);
+}
 
 void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)
 {
@@ -2325,6 +2683,7 @@ void EditorController::Impl::applySignalChainMutationSnapshot(
     if (mark_unsaved_changes && hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
+        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_signal_chain_edit");
     }
 }
 
@@ -2419,15 +2778,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::SetSignalChai
         return;
     }
 
+    const std::vector<PluginBlockAssignment> before_placement =
+        pluginBlockAssignmentsFor(m_signal_chain.plugins());
     if (!m_signal_chain.setBlockPlacement(action.placement))
     {
         return;
     }
 
-    if (hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-    }
+    pushUndoEntry(
+        EditorUndoEntry{
+            .label = "Move Plugin Block",
+            .payload = PluginPlacementEdit{
+                .before_placement = before_placement,
+                .after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins()),
+            },
+        });
     updateView();
 }
 
@@ -2439,15 +2804,22 @@ void EditorController::Impl::performActionImpl(
         return;
     }
 
+    const std::optional<PluginDisplayType> before_type =
+        displayTypeOverrideFor(m_signal_chain.plugins(), action.instance_id);
     if (!m_signal_chain.setPluginDisplayTypeOverride(action.instance_id, action.display_type))
     {
         return;
     }
 
-    if (hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-    }
+    pushUndoEntry(
+        EditorUndoEntry{
+            .label = "Set Plugin Display Type",
+            .payload = PluginDisplayTypeEdit{
+                .instance_id = action.instance_id,
+                .before_type = before_type,
+                .after_type = action.display_type,
+            },
+        });
     updateView();
 }
 
@@ -2603,6 +2975,7 @@ void EditorController::Impl::onOutputGainChanged(double gain_db)
     if (hasLiveRigPersistence())
     {
         m_has_unsaved_changes = true;
+        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_output_gain_edit");
     }
     updateView();
 }
@@ -2631,8 +3004,8 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
-        .undo_available = false,
-        .redo_available = false,
+        .undo_available = m_undo_history.canUndo(),
+        .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
         .has_plugin_candidates = m_plugin_catalog.hasCandidates(),
@@ -2766,6 +3139,7 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         m_plugin_catalog.hide();
+        resetUndoHistory("undo.reset.close_empty_project");
         return true;
     }
 
@@ -2786,6 +3160,7 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_unsaved_changes = false;
         m_plugin_catalog.hide();
+        resetUndoHistory("undo.reset.close_project_failed");
         updateView();
         return false;
     }
@@ -2796,6 +3171,7 @@ bool EditorController::Impl::closeProject()
     m_save_requires_destination = false;
     m_has_unsaved_changes = false;
     m_plugin_catalog.hide();
+    resetUndoHistory("undo.reset.close_project");
     return true;
 }
 
@@ -3043,6 +3419,7 @@ void EditorController::Impl::completeProjectWriteAction(
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProject& /*action*/)
 {
     m_has_unsaved_changes = false;
+    markUndoHistoryClean("undo.mark_clean.save_project");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
@@ -3051,6 +3428,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_project_file = action.file;
     m_displaced_project_file.clear();
     m_has_unsaved_changes = false;
+    markUndoHistoryClean("undo.mark_clean.save_project_as");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
@@ -3253,8 +3631,12 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
     state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
     state.publish_enabled = isActionAvailable(EditorAction::Id::PublishProject, action_conditions);
-    state.undo_enabled = isActionAvailable(EditorAction::Id::Undo, action_conditions);
-    state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
+    // Stage 4 records and applies metadata undo entries, but the user-facing commands stay
+    // disabled until every scoped edit category and dirty tracking are covered in Stage 10.
+    state.undo_enabled = false;
+    state.undo_label = m_undo_history.undoLabel();
+    state.redo_enabled = false;
+    state.redo_label = m_undo_history.redoLabel();
     if (!m_project_file.empty())
     {
         state.suggested_publish_file = m_project_file;
@@ -3815,7 +4197,8 @@ void EditorController::Impl::detachView()
 // Treat imported unsaved projects and future session edits as requiring confirmation.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
-    return m_project.has_value() && (m_has_unsaved_changes || m_save_requires_destination);
+    return m_project.has_value() && (m_has_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
+                                     m_save_requires_destination);
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
