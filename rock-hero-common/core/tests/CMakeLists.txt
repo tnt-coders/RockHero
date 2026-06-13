@@ -8,6 +8,7 @@ add_executable(
     test_session.cpp
     test_song.cpp
     test_arrangement.cpp
+    test_application_identity.cpp
     test_difficulty.cpp
     test_timeline.cpp
     test_juce_path.cpp

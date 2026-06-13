@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
+#include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/logger.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/juce_editor_task_runner.h>
@@ -29,7 +30,7 @@ constexpr std::size_t max_log_file_size_bytes = 8U * 1024U * 1024U;
 {
     const juce::File log_file =
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile("Rock Hero")
+            .getChildFile(juce::String{common::core::applicationDataFolderName().data()})
             .getChildFile("Rock Hero Editor.log");
     return std::filesystem::path{log_file.getFullPathName().toStdString()};
 }

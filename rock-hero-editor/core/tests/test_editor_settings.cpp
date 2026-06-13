@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
+#include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <string>
@@ -74,9 +75,9 @@ private:
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()
 {
     juce::PropertiesFile::Options options;
-    options.applicationName = "Rock Hero Editor";
+    options.applicationName = juce::String{common::core::editorApplicationName().data()};
     options.filenameSuffix = ".settings";
-    options.folderName = "Rock Hero";
+    options.folderName = juce::String{common::core::applicationDataFolderName().data()};
     options.osxLibrarySubFolder = "Application Support";
     options.commonToAllUsers = false;
     options.ignoreCaseOfKeyNames = false;

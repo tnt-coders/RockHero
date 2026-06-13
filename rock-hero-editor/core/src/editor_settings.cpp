@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <limits>
+#include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <utility>
@@ -45,9 +46,9 @@ struct InputCalibrationHistory
 [[nodiscard]] juce::PropertiesFile::Options editorSettingsOptions()
 {
     juce::PropertiesFile::Options options;
-    options.applicationName = "Rock Hero Editor";
+    options.applicationName = juce::String{common::core::editorApplicationName().data()};
     options.filenameSuffix = ".settings";
-    options.folderName = "Rock Hero";
+    options.folderName = juce::String{common::core::applicationDataFolderName().data()};
     options.osxLibrarySubFolder = "Application Support";
     options.commonToAllUsers = false;
     options.ignoreCaseOfKeyNames = false;
