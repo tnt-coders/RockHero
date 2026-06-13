@@ -1144,6 +1144,155 @@ TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-con
     CHECK(prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
 }
 
+// Placement-only undo and redo restore editor metadata without exposing user-facing commands yet.
+TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    REQUIRE(edited_state->signal_chain.plugins.size() == 1);
+    CHECK(edited_state->signal_chain.plugins[0].block_index == 3);
+    CHECK_FALSE(edited_state->undo_enabled);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Move Plugin Block"});
+
+    controller.onUndoRequested();
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
+    CHECK_FALSE(undone_state->redo_enabled);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin Block"});
+
+    controller.onRedoRequested();
+
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 1);
+    CHECK(redone_state->signal_chain.plugins[0].block_index == 3);
+
+    controller.onUndoRequested();
+    controller.onCloseRequested();
+
+    const EditorViewState* closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->unsaved_changes_prompt.has_value());
+}
+
+// Display-type undo and redo restore editor-owned classification metadata only.
+TEST_CASE("EditorController undoes display type override", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().category = "Fx|Delay";
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    controller.onPluginDisplayTypeOverrideChanged("loaded-instance", PluginDisplayType::Cab);
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    REQUIRE(edited_state->signal_chain.plugins.size() == 1);
+    CHECK(edited_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Cab);
+    CHECK(
+        edited_state->signal_chain.plugins[0].display_type_override ==
+        std::optional{PluginDisplayType::Cab});
+    CHECK_FALSE(edited_state->undo_enabled);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Set Plugin Display Type"});
+
+    controller.onUndoRequested();
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Delay);
+    CHECK_FALSE(undone_state->signal_chain.plugins[0].display_type_override.has_value());
+
+    controller.onRedoRequested();
+
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 1);
+    CHECK(redone_state->signal_chain.plugins[0].primary_display_type == PluginDisplayType::Cab);
+    CHECK(
+        redone_state->signal_chain.plugins[0].display_type_override ==
+        std::optional{PluginDisplayType::Cab});
+}
+
+// Untracked edit categories clear metadata history so partial undo cannot skip a newer change.
+TEST_CASE("EditorController clears metadata undo after output gain", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Move Plugin Block"});
+
+    controller.onOutputGainChanged(-6.0);
+
+    const EditorViewState* gain_state = stateOrNull(view.last_state);
+    REQUIRE(gain_state != nullptr);
+    CHECK_FALSE(gain_state->undo_label.has_value());
+    CHECK_FALSE(gain_state->redo_label.has_value());
+}
+
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.
 TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
 {
