@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <concepts>
+#include <cstddef>
 #include <expected>
 #include <filesystem>
 #include <juce_audio_devices/juce_audio_devices.h>
@@ -17,7 +18,9 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/package_id.h>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::common::audio
 {
@@ -228,6 +231,28 @@ private:
 [[nodiscard]] std::string toneIdFromRef(const std::string& tone_document_ref)
 {
     return std::filesystem::path{tone_document_ref}.parent_path().filename().generic_string();
+}
+
+// Encodes a small Tracktion plugin-state XML fixture into the port's opaque memento shape.
+[[nodiscard]] PluginInstanceState pluginStateFromXml(std::string_view xml)
+{
+    std::vector<std::byte> bytes;
+    bytes.reserve(xml.size());
+    for (const char character : xml)
+    {
+        bytes.push_back(static_cast<std::byte>(static_cast<unsigned char>(character)));
+    }
+
+    return PluginInstanceState{.opaque_data = std::move(bytes)};
+}
+
+// Builds syntactically valid external-plugin state that points at a plugin no test machine has.
+[[nodiscard]] PluginInstanceState missingExternalPluginState()
+{
+    return pluginStateFromXml(
+        R"(<PLUGIN type="vst" uniqueId="0" uid="0" )"
+        R"(filename="Z:/missing/RockHeroMissing.vst3" name="Missing Plugin" )"
+        R"(manufacturer="Rock Hero Tests"/>)");
 }
 
 } // namespace
@@ -499,6 +524,63 @@ TEST_CASE("Engine plugin host rejects unknown plugin instances", "[audio][engine
     CHECK(result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
     CHECK(transport.state() == TransportState{});
     CHECK(transport.position() == common::core::TimePosition{});
+}
+
+// Verifies malformed plugin mementos are rejected before the concrete adapter mutates state.
+TEST_CASE("Engine plugin host rejects invalid plugin state", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+    const PluginInstanceState invalid_state{
+        .opaque_data = {std::byte{0x01}, std::byte{0x02}},
+    };
+
+    const auto insert_result = plugin_host.insertPluginState(invalid_state, 0);
+    const auto set_result = plugin_host.setPluginState("missing-instance-id", invalid_state);
+
+    REQUIRE_FALSE(insert_result.has_value());
+    CHECK(insert_result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    REQUIRE_FALSE(set_result.has_value());
+    CHECK(set_result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+}
+
+// Verifies plugin-state operations report missing existing targets through the stable port error.
+TEST_CASE("Engine plugin host rejects unknown state targets", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    IPluginHost& plugin_host = harness.engine;
+    const PluginInstanceState valid_state = missingExternalPluginState();
+
+    const auto capture_result = plugin_host.capturePluginState("missing-instance-id");
+    const auto set_result = plugin_host.setPluginState("missing-instance-id", valid_state);
+
+    REQUIRE_FALSE(capture_result.has_value());
+    CHECK(capture_result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
+    REQUIRE_FALSE(set_result.has_value());
+    CHECK(set_result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
+}
+
+// Verifies state-insert load failure removes any partial Tracktion plugin before returning.
+TEST_CASE("Engine plugin host rejects missing restored plugin", "[audio][engine][integration]")
+{
+    EngineTestHarness harness;
+    const TemporarySongDirectory song_directory;
+    IPluginHost& plugin_host = harness.engine;
+    ILiveRig& live_rig = harness.engine;
+
+    const auto result = plugin_host.insertPluginState(missingExternalPluginState(), 0);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+
+    const auto snapshot = live_rig.captureActiveRig(
+        LiveRigCaptureRequest{
+            .song_directory = song_directory.path(),
+            .arrangement_id = g_arrangement_id,
+            .existing_tone_document_ref = {},
+        });
+    REQUIRE(snapshot.has_value());
+    CHECK(snapshot->plugins.empty());
 }
 
 // Verifies plugin window requests reject unknown instance IDs before asking Tracktion for a UI.
