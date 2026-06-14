@@ -65,6 +65,22 @@ private:
     };
 }
 
+// Builds a plugin snapshot entry shared by the fake live rig and fake plugin host.
+[[nodiscard]] common::audio::PluginChainEntry pluginEntry(
+    std::string instance_id, std::size_t chain_index, std::size_t block_index)
+{
+    const std::string plugin_id = instance_id + "-plugin";
+    return common::audio::PluginChainEntry{
+        .instance_id = std::move(instance_id),
+        .plugin_id = plugin_id,
+        .name = plugin_id,
+        .manufacturer = "Example Audio",
+        .format_name = "VST3",
+        .chain_index = chain_index,
+        .block_index = block_index,
+    };
+}
+
 // Extracts determinate plugin-scan busy states pushed during a catalog refresh.
 [[nodiscard]] std::vector<BusyViewState> pluginScanProgressStates(const FakeEditorView& view)
 {
@@ -1387,6 +1403,90 @@ TEST_CASE("EditorController moves plugins", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[2].chain_index == 2);
     CHECK(final_state->signal_chain.plugins[2].block_index == 5);
     CHECK(view.shown_errors.empty());
+}
+
+// Move undo and redo restore backend order and editor-owned placement as one history entry.
+TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    const std::vector<common::audio::PluginChainEntry> loaded_plugins{
+        pluginEntry("instance-a", 0, 0),
+        pluginEntry("instance-b", 1, 3),
+        pluginEntry("instance-c", 2, 4),
+    };
+    plugin_host.chain = loaded_plugins;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins = loaded_plugins;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    controller.onMovePluginRequested(
+        "instance-a",
+        2,
+        {blockAssignment("instance-a", 5),
+         blockAssignment("instance-b", 1),
+         blockAssignment("instance-c", 2)});
+
+    const EditorViewState* moved_state = stateOrNull(view.last_state);
+    REQUIRE(moved_state != nullptr);
+    REQUIRE(moved_state->signal_chain.plugins.size() == 3);
+    CHECK(moved_state->signal_chain.plugins[0].instance_id == "instance-b");
+    CHECK(moved_state->signal_chain.plugins[0].block_index == 1);
+    CHECK(moved_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(moved_state->signal_chain.plugins[1].block_index == 2);
+    CHECK(moved_state->signal_chain.plugins[2].instance_id == "instance-a");
+    CHECK(moved_state->signal_chain.plugins[2].block_index == 5);
+    CHECK_FALSE(moved_state->undo_enabled);
+    CHECK(moved_state->undo_label == std::optional<std::string>{"Move Plugin"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.last_move_destination_index == std::optional<std::size_t>{0});
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 3);
+    CHECK(undone_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 0);
+    CHECK(undone_state->signal_chain.plugins[1].instance_id == "instance-b");
+    CHECK(undone_state->signal_chain.plugins[1].block_index == 3);
+    CHECK(undone_state->signal_chain.plugins[2].instance_id == "instance-c");
+    CHECK(undone_state->signal_chain.plugins[2].block_index == 4);
+    CHECK_FALSE(undone_state->redo_enabled);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin"});
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.last_move_destination_index == std::optional<std::size_t>{2});
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 3);
+    CHECK(redone_state->signal_chain.plugins[0].instance_id == "instance-b");
+    CHECK(redone_state->signal_chain.plugins[0].block_index == 1);
+    CHECK(redone_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(redone_state->signal_chain.plugins[1].block_index == 2);
+    CHECK(redone_state->signal_chain.plugins[2].instance_id == "instance-a");
+    CHECK(redone_state->signal_chain.plugins[2].block_index == 5);
+
+    controller.onUndoRequested();
+    controller.onCloseRequested();
+
+    const EditorViewState* closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->unsaved_changes_prompt.has_value());
 }
 
 // A same-index move request is ignored before the backend can create a no-op mutation.

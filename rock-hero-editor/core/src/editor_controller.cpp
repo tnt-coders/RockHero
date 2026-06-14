@@ -699,6 +699,23 @@ void defaultExit()
     return assignments;
 }
 
+// Validates that a stored placement snapshot addresses the current plugin set before side effects.
+[[nodiscard]] bool placementTargetsPlugins(
+    const std::vector<PluginBlockAssignment>& placement,
+    const std::vector<PluginViewState>& plugins)
+{
+    if (placement.size() != plugins.size())
+    {
+        return false;
+    }
+
+    return std::ranges::all_of(plugins, [&placement](const PluginViewState& plugin) {
+        return std::ranges::any_of(placement, [&plugin](const PluginBlockAssignment& assignment) {
+            return assignment.instance_id == plugin.instance_id;
+        });
+    });
+}
+
 // Reads the current display override for one plugin row.
 [[nodiscard]] std::optional<PluginDisplayType> displayTypeOverrideFor(
     const std::vector<PluginViewState>& plugins, std::string_view instance_id)
@@ -821,6 +838,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoEntry(
         const EditorUndoEntry& entry, EditorUndoDirection direction);
+    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+        const PluginMoveEdit& edit, EditorUndoDirection direction);
     [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
         const PluginPlacementEdit& edit, EditorUndoDirection direction);
     [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
@@ -2428,7 +2447,7 @@ std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoEntry(
         [this, direction](const auto& edit) -> std::optional<EditorUndoFailureCode> {
             using Edit = std::decay_t<decltype(edit)>;
             if constexpr (
-                std::is_same_v<Edit, PluginPlacementEdit> ||
+                std::is_same_v<Edit, PluginMoveEdit> || std::is_same_v<Edit, PluginPlacementEdit> ||
                 std::is_same_v<Edit, PluginDisplayTypeEdit>
             )
             {
@@ -2440,6 +2459,48 @@ std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoEntry(
             }
         },
         entry.payload);
+}
+
+// Restores a backend plugin move together with the editor-owned visual placement snapshot.
+std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+    const PluginMoveEdit& edit, EditorUndoDirection direction)
+{
+    const std::size_t target_index =
+        direction == EditorUndoDirection::Undo ? edit.before_index : edit.after_index;
+    const std::vector<PluginBlockAssignment>& placement =
+        direction == EditorUndoDirection::Undo ? edit.before_placement : edit.after_placement;
+    const std::vector<PluginViewState>& plugins = m_signal_chain.plugins();
+    if (!placementTargetsPlugins(placement, plugins))
+    {
+        return EditorUndoFailureCode::PreflightRejected;
+    }
+
+    const std::optional<std::size_t> current_index =
+        m_signal_chain.chainIndexForInstance(edit.instance_id);
+    if (!current_index.has_value() || target_index >= m_signal_chain.appendIndex())
+    {
+        return EditorUndoFailureCode::PreflightRejected;
+    }
+
+    if (*current_index == target_index)
+    {
+        if (m_signal_chain.setBlockPlacement(placement))
+        {
+            return std::nullopt;
+        }
+
+        return EditorUndoFailureCode::NoNetMutation;
+    }
+
+    auto snapshot = m_plugin_host.movePlugin(edit.instance_id, target_index);
+    if (!snapshot.has_value())
+    {
+        return EditorUndoFailureCode::RepairedFailure;
+    }
+
+    applySignalChainMutationSnapshot(std::move(*snapshot), false);
+    (void)m_signal_chain.setBlockPlacement(placement);
+    return std::nullopt;
 }
 
 // Restores editor-authored block placement without touching the audio backend.
@@ -2755,6 +2816,8 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
         return;
     }
 
+    const std::vector<PluginBlockAssignment> before_placement =
+        pluginBlockAssignmentsFor(m_signal_chain.plugins());
     auto snapshot = m_plugin_host.movePlugin(action.instance_id, action.destination_index);
     if (!snapshot.has_value())
     {
@@ -2763,10 +2826,21 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot), true);
+    applySignalChainMutationSnapshot(std::move(*snapshot), false);
     // The reorder already changed chain state, so the view must refresh whether or not the
     // instance-keyed placement differed; the [[nodiscard]] result is intentionally ignored.
     (void)m_signal_chain.setBlockPlacement(action.placement);
+    pushUndoEntry(
+        EditorUndoEntry{
+            .label = "Move Plugin",
+            .payload = PluginMoveEdit{
+                .instance_id = action.instance_id,
+                .before_index = *current_index,
+                .after_index = action.destination_index,
+                .before_placement = before_placement,
+                .after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins()),
+            },
+        });
     updateView();
 }
 
