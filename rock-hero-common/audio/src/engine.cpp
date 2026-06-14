@@ -12,11 +12,13 @@
 #include <chrono>
 #include <cmath>
 #include <condition_variable>
+#include <cstddef>
 #include <exception>
 #include <expected>
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -924,6 +926,132 @@ void reportLiveRigLoadProgress(
     return xml->toString().toStdString();
 }
 
+// Converts text to the opaque byte shape carried by PluginInstanceState.
+[[nodiscard]] std::vector<std::byte> bytesFromString(std::string_view text)
+{
+    std::vector<std::byte> bytes;
+    bytes.reserve(text.size());
+    for (const char character : text)
+    {
+        bytes.push_back(static_cast<std::byte>(static_cast<unsigned char>(character)));
+    }
+
+    return bytes;
+}
+
+// Converts an opaque memento payload back into text for Tracktion XML parsing.
+[[nodiscard]] std::string stringFromBytes(const std::vector<std::byte>& bytes)
+{
+    std::string text;
+    text.reserve(bytes.size());
+    for (const std::byte byte : bytes)
+    {
+        text.push_back(static_cast<char>(std::to_integer<unsigned char>(byte)));
+    }
+
+    return text;
+}
+
+// Serializes a live plugin ValueTree into the in-memory memento form used by editor undo.
+[[nodiscard]] std::expected<PluginInstanceState, PluginHostError> makePluginInstanceState(
+    const juce::ValueTree& plugin_state)
+{
+    const std::unique_ptr<juce::XmlElement> xml = plugin_state.createXml();
+    if (xml == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateCaptureFailed,
+            "Could not serialize plugin state",
+        }};
+    }
+
+    return PluginInstanceState{.opaque_data = bytesFromString(xml->toString().toStdString())};
+}
+
+// Parses a memento payload into Tracktion's plugin-state tree and rejects non-external states.
+[[nodiscard]] std::expected<juce::ValueTree, PluginHostError> pluginStateTreeFromMemento(
+    const PluginInstanceState& state)
+{
+    if (state.opaque_data.empty())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin state is empty",
+        }};
+    }
+
+    if (state.opaque_data.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin state is too large to parse",
+        }};
+    }
+
+    const std::string xml_text = stringFromBytes(state.opaque_data);
+    const juce::String xml_string =
+        juce::String::fromUTF8(xml_text.data(), static_cast<int>(xml_text.size()));
+    const std::unique_ptr<juce::XmlElement> xml = juce::parseXML(xml_string);
+    if (xml == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Could not parse plugin state",
+        }};
+    }
+
+    juce::ValueTree plugin_state = juce::ValueTree::fromXml(*xml);
+    if (!plugin_state.isValid() || !plugin_state.hasType(tracktion::IDs::PLUGIN) ||
+        plugin_state[tracktion::IDs::type].toString() != tracktion::ExternalPlugin::xmlTypeName)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin state is not an external plugin ValueTree",
+        }};
+    }
+
+    return plugin_state;
+}
+
+// Reads the runtime instance id encoded in a captured Tracktion plugin tree, when one exists.
+[[nodiscard]] std::string pluginInstanceIdFromState(const juce::ValueTree& plugin_state)
+{
+    const tracktion::EditItemID item_id = tracktion::EditItemID::fromID(plugin_state);
+    return item_id.isValid() ? item_id.toString().toStdString() : std::string{};
+}
+
+// Copies serialized plugin state to an existing live plugin without changing its runtime id.
+void copyPluginStatePreservingInstanceId(
+    tracktion::Plugin& target_plugin, const juce::ValueTree& source_state)
+{
+    juce::ValueTree target_state = target_plugin.state;
+    for (int index = target_state.getNumProperties(); --index >= 0;)
+    {
+        const juce::Identifier property_name = target_state.getPropertyName(index);
+        if (property_name != tracktion::IDs::id)
+        {
+            target_state.removeProperty(property_name, nullptr);
+        }
+    }
+
+    for (int index = 0; index < source_state.getNumProperties(); ++index)
+    {
+        const juce::Identifier property_name = source_state.getPropertyName(index);
+        if (property_name != tracktion::IDs::id)
+        {
+            target_state.setProperty(
+                property_name, source_state.getProperty(property_name), nullptr);
+        }
+    }
+
+    target_state.removeAllChildren(nullptr);
+    for (int index = 0; index < source_state.getNumChildren(); ++index)
+    {
+        target_state.addChild(source_state.getChild(index).createCopy(), index, nullptr);
+    }
+    target_plugin.itemID.writeID(target_state, nullptr);
+}
+
 // Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
 [[nodiscard]] PluginCandidate makePluginCandidate(
     const juce::PluginDescription& description, const std::filesystem::path& plugin_path)
@@ -1406,6 +1534,10 @@ private:
 
     // Message-thread listener list for audio-device configuration changes.
     juce::ListenerList<IAudioDeviceConfiguration::Listener> m_audio_device_listeners;
+
+    // Observer installed by editor-core for completed plugin-parameter mementos. Stage 6 wires the
+    // actual Tracktion parameter listeners that drive it.
+    PluginParameterEditObserver m_plugin_parameter_edit_observer;
 
     // Coalesces JUCE audio-device callbacks so Tracktion route repair runs after callback unwinds.
     bool m_audio_device_configuration_refresh_pending{false};
@@ -3449,7 +3581,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
     return m_impl->pluginChainSnapshot();
 }
 
-// Preflights plugin-state capture until Stage 2B wires the real Tracktion-backed capture path.
+// Captures a user plugin's Tracktion state into an opaque editor-core memento.
 std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
     const std::string& instance_id)
 {
@@ -3463,7 +3595,7 @@ std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
         return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
     }
 
-    const tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
     if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
     {
         return std::unexpected{PluginHostError{
@@ -3472,13 +3604,20 @@ std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
         }};
     }
 
-    return std::unexpected{PluginHostError{
-        PluginHostErrorCode::PluginStateCaptureFailed,
-        "Tracktion-backed plugin-state capture is not implemented yet",
-    }};
+    auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
+    if (external_plugin == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateCaptureFailed,
+            "Only external plugins can be captured right now: " + plugin->getName().toStdString(),
+        }};
+    }
+
+    external_plugin->flushPluginStateToValueTree();
+    return makePluginInstanceState(external_plugin->state.createCopy());
 }
 
-// Preflights plugin-state insertion until Stage 2B wires the real Tracktion restore path.
+// Restores a captured external-plugin memento as a new user-visible chain plugin.
 std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPluginState(
     const PluginInstanceState& state, std::size_t chain_index)
 {
@@ -3487,17 +3626,21 @@ std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPlugin
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    if (state.opaque_data.empty())
+    auto plugin_state = pluginStateTreeFromMemento(state);
+    if (!plugin_state.has_value())
     {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginStateRestoreFailed,
-            "Plugin state is empty",
-        }};
+        return std::unexpected{std::move(plugin_state.error())};
     }
 
-    if (m_impl->instrumentTrack() == nullptr)
+    tracktion::AudioTrack* const instrument_track = m_impl->instrumentTrack();
+    if (instrument_track == nullptr)
     {
         return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
+    }
+
+    if (!instrument_track->pluginList.canInsertPlugin())
+    {
+        return std::unexpected{PluginHostError{PluginHostErrorCode::PluginInsertionFailed}};
     }
 
     const std::size_t plugin_count = m_impl->userVisiblePluginCount();
@@ -3514,13 +3657,92 @@ std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPlugin
         }};
     }
 
-    return std::unexpected{PluginHostError{
-        PluginHostErrorCode::PluginStateRestoreFailed,
-        "Tracktion-backed plugin-state insertion is not implemented yet",
-    }};
+    auto insert_position = m_impl->tracktionIndexForUserPluginSlot(chain_index);
+    if (!insert_position.has_value())
+    {
+        return std::unexpected{std::move(insert_position.error())};
+    }
+
+    const std::string original_instance_id = pluginInstanceIdFromState(*plugin_state);
+    juce::ValueTree insertion_state = plugin_state->createCopy();
+    insertion_state.removeProperty(tracktion::IDs::id, nullptr);
+
+    tracktion::Plugin::Ptr inserted_plugin;
+    auto mutation_result = m_impl->mutateAndReroutePluginChain(
+        [&instrument_track, &insertion_state, &insert_position, &inserted_plugin]
+        -> std::expected<void, PluginChainMutationFailure> {
+            auto remove_partial_insert = [&inserted_plugin] {
+                if (inserted_plugin != nullptr)
+                {
+                    inserted_plugin->deleteFromParent();
+                    inserted_plugin = nullptr;
+                }
+            };
+
+            inserted_plugin =
+                instrument_track->pluginList.insertPlugin(insertion_state, *insert_position);
+            auto* const external_plugin =
+                inserted_plugin != nullptr
+                    ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
+                    : nullptr;
+            if (external_plugin == nullptr)
+            {
+                remove_partial_insert();
+                return std::unexpected{PluginChainMutationFailure{
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginStateRestoreFailed,
+                            "Could not insert captured plugin state",
+                        },
+                    .reroute_context = "plugin-state insertion rollback failed",
+                }};
+            }
+
+            const juce::String load_error = external_plugin->getLoadError();
+            if (load_error.isNotEmpty())
+            {
+                remove_partial_insert();
+                return std::unexpected{PluginChainMutationFailure{
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginStateRestoreFailed,
+                            load_error.toStdString(),
+                        },
+                    .reroute_context = "plugin-state load rollback failed",
+                }};
+            }
+
+            if (instrument_track->pluginList.indexOf(inserted_plugin.get()) < 0)
+            {
+                remove_partial_insert();
+                return std::unexpected{PluginChainMutationFailure{
+                    .error = PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
+                    .reroute_context = "plugin-state insertion rollback failed",
+                }};
+            }
+
+            return {};
+        },
+        [&inserted_plugin] {
+            if (inserted_plugin != nullptr)
+            {
+                inserted_plugin->deleteFromParent();
+            }
+        },
+        "plugin-state insertion route rollback failed");
+    if (!mutation_result.has_value())
+    {
+        return std::unexpected{std::move(mutation_result.error())};
+    }
+
+    return PluginInstanceRestoreResult{
+        .snapshot = m_impl->pluginChainSnapshot(),
+        .original_instance_id = original_instance_id,
+        .restored_instance_id = inserted_plugin->itemID.toString().toStdString(),
+    };
 }
 
-// Preflights plugin-state restore until Stage 2B wires the real Tracktion setter path.
+// Restores a captured state chunk into an existing external plugin's live processor.
 std::expected<void, PluginHostError> Engine::setPluginState(
     const std::string& instance_id, const PluginInstanceState& state)
 {
@@ -3529,12 +3751,10 @@ std::expected<void, PluginHostError> Engine::setPluginState(
         return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
     }
 
-    if (state.opaque_data.empty())
+    auto plugin_state = pluginStateTreeFromMemento(state);
+    if (!plugin_state.has_value())
     {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginStateRestoreFailed,
-            "Plugin state is empty",
-        }};
+        return std::unexpected{std::move(plugin_state.error())};
     }
 
     if (m_impl->instrumentTrack() == nullptr)
@@ -3542,7 +3762,7 @@ std::expected<void, PluginHostError> Engine::setPluginState(
         return std::unexpected{PluginHostError{PluginHostErrorCode::TrackMissing}};
     }
 
-    const tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
+    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
     if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
     {
         return std::unexpected{PluginHostError{
@@ -3551,25 +3771,42 @@ std::expected<void, PluginHostError> Engine::setPluginState(
         }};
     }
 
-    return std::unexpected{PluginHostError{
-        PluginHostErrorCode::PluginStateRestoreFailed,
-        "Tracktion-backed plugin-state restore is not implemented yet",
-    }};
+    auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
+    if (external_plugin == nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Only external plugin states can be restored right now: " +
+                plugin->getName().toStdString(),
+        }};
+    }
+
+    external_plugin->restorePluginStateFromValueTree(*plugin_state);
+    copyPluginStatePreservingInstanceId(*external_plugin, *plugin_state);
+
+    return {};
 }
 
-// Parameter-edit observation is introduced at the port first and wired to Tracktion in Stage 2B.
+// Stage 6 wires Tracktion parameter listeners; until then there is no pending adapter state.
 void Engine::flushPendingPluginParameterEdits()
 {}
 
-// The adapter reports no pending parameter edits until Stage 2B attaches real observers.
+// The adapter reports no pending parameter edits until Stage 6 attaches real observers.
 bool Engine::hasPendingPluginParameterEdits() const
 {
     return false;
 }
 
-// The observer is accepted by the port now; Stage 2B will store and drive it from Tracktion.
-void Engine::setPluginParameterEditObserver(PluginParameterEditObserver)
-{}
+// Stores the observer endpoint that Stage 6 will drive from Tracktion parameter callbacks.
+void Engine::setPluginParameterEditObserver(PluginParameterEditObserver observer)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return;
+    }
+
+    m_impl->m_plugin_parameter_edit_observer = std::move(observer);
+}
 
 // Opens a plugin editor window through Tracktion's plugin window state.
 std::expected<void, PluginHostError> Engine::openPluginWindow(const std::string& instance_id)
