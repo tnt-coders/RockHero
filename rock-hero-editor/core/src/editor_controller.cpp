@@ -72,6 +72,21 @@ enum class OutputGainChangeIntent
     Commit,
 };
 
+// Outcome of trying to undo a just-completed insert whose undo entry could not be prepared.
+enum class InsertUndoPreparationRollbackStatus
+{
+    RolledBack,
+    Failed,
+    RollbackContractViolation,
+};
+
+// Carries the rollback outcome and detail text for final user-facing/reporting decisions.
+struct InsertUndoPreparationRollbackResult
+{
+    InsertUndoPreparationRollbackStatus status{InsertUndoPreparationRollbackStatus::RolledBack};
+    std::string detail;
+};
+
 [[nodiscard]] std::string_view actionIdText(EditorAction::Id action) noexcept
 {
     switch (action)
@@ -705,6 +720,15 @@ void defaultExit()
     return assignments;
 }
 
+// Checks whether a plugin-host mutation snapshot still contains a supposedly removed instance.
+[[nodiscard]] bool pluginSnapshotContainsInstance(
+    const common::audio::PluginChainSnapshot& snapshot, const std::string& instance_id)
+{
+    return std::ranges::any_of(snapshot.plugins, [&instance_id](const auto& plugin) {
+        return plugin.instance_id == instance_id;
+    });
+}
+
 // Reads the current display override for one plugin row.
 [[nodiscard]] std::optional<PluginDisplayType> displayTypeOverrideFor(
     const std::vector<PluginViewState>& plugins, std::string_view instance_id)
@@ -848,8 +872,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] EditorEditContext editContext() noexcept;
     void pushUndoEntry(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
+    void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(
         std::string_view context, const EditorUndoPendingTransition& pending);
+    void faultSessionAfterRollbackContractViolation(
+        std::string_view context, std::string_view detail);
     void dispatchUndoTransition(const EditorUndoBeginResult& begin);
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPendingEdit(
         const EditorUndoPendingTransition& pending);
@@ -862,6 +889,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void applyOutputGainChange(double gain_db, OutputGainChangeIntent intent);
     void resetUndoHistory(std::string_view context);
     void markUndoHistoryClean(std::string_view context);
+    void markUntrackedUnsavedChanges() noexcept;
+    void markUntrackedUnsavedEdit(std::string_view context);
     void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
     void flushPendingPluginParameterEdits(std::string_view context);
     void onPluginParameterPendingChanged(bool pending);
@@ -899,10 +928,13 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] common::audio::PluginCatalogScanProgressCallback makePluginCatalogScanProgress(
         std::uint64_t token);
     void completeSelectedPluginInsert(const std::shared_ptr<InsertSelectedPluginTaskState>& state);
+    [[nodiscard]] InsertUndoPreparationRollbackResult
+    rollbackInsertedPluginAfterUndoPreparationFailure(
+        const std::string& inserted_instance_id,
+        const std::vector<PluginBlockAssignment>& before_placement);
     void beginInsertKnownPlugin(
         const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index);
-    void applySignalChainMutationSnapshot(
-        common::audio::PluginChainSnapshot snapshot, bool mark_unsaved_changes);
+    void applySignalChainMutationSnapshot(common::audio::PluginChainSnapshot snapshot);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
     void refreshKnownPluginCatalog();
     [[nodiscard]] bool closeProject();
@@ -1013,7 +1045,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     }
     [[nodiscard]] bool hasLoadedArrangement() const;
     [[nodiscard]] bool shouldShowLiveRigLoadProgress() const;
-    [[nodiscard]] bool hasLiveRigPersistence() const noexcept;
     [[nodiscard]] bool hasUnsavedChanges() const noexcept;
     [[nodiscard]] bool canStopTransport(const common::audio::TransportState& transport_state) const;
 
@@ -1107,8 +1138,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Cleared on successful save, explicit open, or close of a saved project.
     std::filesystem::path m_displaced_project_file{};
 
-    // True once current session changes need to be saved or discarded before replacement.
-    bool m_has_unsaved_changes{false};
+    // True for dirty state that cannot be tracked by EditorUndoHistory, such as load-time
+    // normalization rewrites, undo-recording failures after a mutation, and faulted sessions.
+    bool m_has_untracked_unsaved_changes{false};
 
     // True after an undo/redo rollback-contract violation makes the live backend untrusted.
     bool m_session_faulted{false};
@@ -1704,7 +1736,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     m_pending_restore_project_file.reset();
     m_displaced_project_file.clear();
     m_save_requires_destination = false;
-    m_has_unsaved_changes = next_has_unsaved_changes;
+    m_has_untracked_unsaved_changes = next_has_unsaved_changes;
     m_session_faulted = false;
     clearDeferredProjectAction();
     m_project_audio_ready = true;
@@ -1823,7 +1855,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project = std::move(state->project);
     m_project_file.clear();
     m_save_requires_destination = true;
-    m_has_unsaved_changes = true;
+    m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
     m_project_audio_ready = true;
@@ -2413,7 +2445,7 @@ void EditorController::Impl::replayDiscardedProjectAction(EditorAction::ProjectA
     {
         displaced_by_import = !m_project_file.empty() ? m_project_file : m_displaced_project_file;
     }
-    m_has_unsaved_changes = false;
+    m_has_untracked_unsaved_changes = false;
     m_save_requires_destination = false;
     // CloseProject and ExitApplication both close the current project as part of their own action
     // handler, and ExitApplication additionally needs m_project_file alive when it captures the
@@ -2571,8 +2603,13 @@ EditorEditContext EditorController::Impl::editContext() noexcept
 // Pushes one already-applied user edit into the product-level history stack.
 void EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
+    const bool had_edit = edit != nullptr;
     const EditorUndoTransitionResult result = m_undo_history.push(std::move(edit));
     logEditorUndoTransitionResult("undo.push", result);
+    if (had_edit && result.status != EditorUndoTransitionStatus::Applied)
+    {
+        markUntrackedUnsavedEdit("undo.reset.failed_push");
+    }
 }
 
 // Pushes a net-changed output-gain command into product-level history.
@@ -2595,6 +2632,17 @@ void EditorController::Impl::pushOutputGainUndoEntry(
     pushUndoEntry(std::move(edit));
 }
 
+// Marks the live backend untrusted and routes the user toward reopening or closing the project.
+void EditorController::Impl::enterFaultedSession()
+{
+    m_session_faulted = true;
+    markUntrackedUnsavedChanges();
+    updateView();
+    reportError(
+        "An unexpected internal error left the live editor state untrusted. Please report this "
+        "bug and attach the editor log file, then reopen or close the project before continuing.");
+}
+
 // Enters the recovery-only state after an undo/redo port reports a broken rollback contract.
 void EditorController::Impl::faultSessionAfterRollbackContractViolation(
     std::string_view context, const EditorUndoPendingTransition& pending)
@@ -2607,13 +2655,16 @@ void EditorController::Impl::faultSessionAfterRollbackContractViolation(
         context,
         direction,
         label);
+    enterFaultedSession();
+}
 
-    m_session_faulted = true;
-    m_has_unsaved_changes = true;
-    updateView();
-    reportError(
-        "An unexpected internal error left the live editor state untrusted. Please report this "
-        "bug and attach the editor log file, then reopen or close the project before continuing.");
+// Enters the recovery-only state after a non-undo rollback contract violation.
+void EditorController::Impl::faultSessionAfterRollbackContractViolation(
+    std::string_view context, std::string_view detail)
+{
+    RH_LOG_ERROR(
+        "editor.controller", "Rollback contract violation context={} detail={}", context, detail);
+    enterFaultedSession();
 }
 
 // Applies output gain previews immediately, but records only committed values in undo history.
@@ -2647,10 +2698,7 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
     {
         if (is_commit && m_output_gain_preview_before.has_value())
         {
-            if (hasLiveRigPersistence())
-            {
-                pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
-            }
+            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
             m_output_gain_preview_before.reset();
             updateView();
         }
@@ -2661,7 +2709,7 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
     if (!result.has_value())
     {
         reportError(std::string{"Could not set output gain: "} + result.error().message);
-        if (is_commit && m_output_gain_preview_before.has_value() && hasLiveRigPersistence())
+        if (is_commit && m_output_gain_preview_before.has_value())
         {
             pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
         }
@@ -2673,10 +2721,7 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
     m_output_gain_db = gain.db;
     if (is_commit)
     {
-        if (hasLiveRigPersistence())
-        {
-            pushOutputGainUndoEntry(before_gain, gain);
-        }
+        pushOutputGainUndoEntry(before_gain, gain);
         m_output_gain_preview_before.reset();
     }
     updateView();
@@ -2695,6 +2740,19 @@ void EditorController::Impl::markUndoHistoryClean(std::string_view context)
 {
     const EditorUndoTransitionResult result = m_undo_history.markClean();
     logEditorUndoTransitionResult(context, result);
+}
+
+// Records dirty state that cannot be tracked by a reachable undo-history clean marker.
+void EditorController::Impl::markUntrackedUnsavedChanges() noexcept
+{
+    m_has_untracked_unsaved_changes = true;
+}
+
+// Records a successful mutation outside reliable undo coverage and invalidates existing history.
+void EditorController::Impl::markUntrackedUnsavedEdit(std::string_view context)
+{
+    markUntrackedUnsavedChanges();
+    clearUndoHistoryAfterUntrackedEdit(context);
 }
 
 // Discards history once a newer untracked edit would make the undo stack partial.
@@ -2913,46 +2971,105 @@ void EditorController::Impl::completeSelectedPluginInsert(
     }
 
     const std::string inserted_instance_id = insert_result->inserted_instance_id;
-    applySignalChainMutationSnapshot(std::move(insert_result->snapshot), false);
-    if (hasLiveRigPersistence())
+    applySignalChainMutationSnapshot(std::move(insert_result->snapshot));
+    auto inserted_state = m_plugin_host.capturePluginState(inserted_instance_id);
+    const std::optional<PluginVisualEditState> visual_state =
+        pluginVisualStateFor(m_signal_chain.plugins(), inserted_instance_id);
+    if (!inserted_state.has_value() || !visual_state.has_value())
     {
-        auto inserted_state = m_plugin_host.capturePluginState(inserted_instance_id);
-        const std::optional<PluginVisualEditState> visual_state =
-            pluginVisualStateFor(m_signal_chain.plugins(), inserted_instance_id);
-        if (!inserted_state.has_value() || !visual_state.has_value())
+        m_signal_chain.clearPendingInsertion();
+        m_plugin_catalog.hide();
+        const std::string undo_preparation_error = inserted_state.has_value()
+                                                       ? "inserted plugin view state is missing"
+                                                       : inserted_state.error().message;
+        const InsertUndoPreparationRollbackResult rollback =
+            rollbackInsertedPluginAfterUndoPreparationFailure(
+                inserted_instance_id, before_placement);
+        if (rollback.status == InsertUndoPreparationRollbackStatus::Failed)
         {
-            m_has_unsaved_changes = true;
-            clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_signal_chain_insert");
-            m_signal_chain.clearPendingInsertion();
-            m_plugin_catalog.hide();
-            finishBusyOperation();
-            reportError(
-                inserted_state.has_value()
-                    ? "Could not prepare plugin insert undo: inserted plugin view state is missing"
-                    : std::string{"Could not prepare plugin insert undo: "} +
-                          inserted_state.error().message);
-            return;
+            markUntrackedUnsavedEdit("undo.reset.untracked_signal_chain_insert");
+        }
+        finishBusyOperation();
+
+        switch (rollback.status)
+        {
+            case InsertUndoPreparationRollbackStatus::RolledBack:
+            {
+                reportError(
+                    std::string{"Could not insert plugin: undo state could not be prepared; insert "
+                                "was rolled back: "} +
+                    undo_preparation_error);
+                return;
+            }
+            case InsertUndoPreparationRollbackStatus::Failed:
+            {
+                reportError(
+                    std::string{"Could not prepare plugin insert undo: "} + undo_preparation_error +
+                    ". The inserted plugin remains loaded because rollback failed: " +
+                    rollback.detail);
+                return;
+            }
+            case InsertUndoPreparationRollbackStatus::RollbackContractViolation:
+            {
+                faultSessionAfterRollbackContractViolation(
+                    "insert.undo_preparation_rollback", rollback.detail);
+                return;
+            }
         }
 
-        auto undo_edit = std::make_unique<PluginInsertEdit>();
-        undo_edit->instance_id = inserted_instance_id;
-        undo_edit->chain_index = state->chain_index;
-        undo_edit->plugin_state = std::move(*inserted_state);
-        undo_edit->before_placement = before_placement;
-        undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
-        undo_edit->visual_state = *visual_state;
-        pushUndoEntry(std::move(undo_edit));
+        return;
     }
-    else
-    {
-        m_has_unsaved_changes = true;
-        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_signal_chain_insert");
-    }
+
+    auto undo_edit = std::make_unique<PluginInsertEdit>();
+    undo_edit->instance_id = inserted_instance_id;
+    undo_edit->chain_index = state->chain_index;
+    undo_edit->plugin_state = std::move(*inserted_state);
+    undo_edit->before_placement = before_placement;
+    undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
+    undo_edit->visual_state = *visual_state;
+    pushUndoEntry(std::move(undo_edit));
 
     m_signal_chain.clearPendingInsertion();
     m_plugin_catalog.hide();
 
     finishBusyOperation();
+}
+
+// Removes a just-inserted plugin when undo-entry preparation fails, preserving existing history.
+auto EditorController::Impl::rollbackInsertedPluginAfterUndoPreparationFailure(
+    const std::string& inserted_instance_id,
+    const std::vector<PluginBlockAssignment>& before_placement)
+    -> InsertUndoPreparationRollbackResult
+{
+    auto rollback_snapshot = m_plugin_host.removePlugin(inserted_instance_id);
+    if (!rollback_snapshot.has_value())
+    {
+        if (rollback_snapshot.error().code ==
+            common::audio::PluginHostErrorCode::RollbackContractViolation)
+        {
+            return InsertUndoPreparationRollbackResult{
+                .status = InsertUndoPreparationRollbackStatus::RollbackContractViolation,
+                .detail = rollback_snapshot.error().message,
+            };
+        }
+
+        return InsertUndoPreparationRollbackResult{
+            .status = InsertUndoPreparationRollbackStatus::Failed,
+            .detail = rollback_snapshot.error().message,
+        };
+    }
+
+    if (pluginSnapshotContainsInstance(*rollback_snapshot, inserted_instance_id))
+    {
+        return InsertUndoPreparationRollbackResult{
+            .status = InsertUndoPreparationRollbackStatus::RollbackContractViolation,
+            .detail = "inserted plugin was still present after rollback removal",
+        };
+    }
+
+    applySignalChainMutationSnapshot(std::move(*rollback_snapshot));
+    (void)m_signal_chain.setBlockPlacement(before_placement);
+    return {};
 }
 
 // Starts the blocking plugin-instantiation phase after pushing LoadingPlugin state first.
@@ -2973,16 +3090,11 @@ void EditorController::Impl::beginInsertKnownPlugin(
     });
 }
 
-// Applies a successful structural chain mutation and optionally clears history for untracked edits.
+// Applies a successful structural chain mutation from the audio boundary.
 void EditorController::Impl::applySignalChainMutationSnapshot(
-    common::audio::PluginChainSnapshot snapshot, bool mark_unsaved_changes)
+    common::audio::PluginChainSnapshot snapshot)
 {
     m_signal_chain.replaceSnapshot(std::move(snapshot));
-    if (mark_unsaved_changes && hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_signal_chain_edit");
-    }
 }
 
 // Replaces the browser catalog with the latest scan result while keeping the browser open.
@@ -3052,23 +3164,15 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot), false);
-    if (hasLiveRigPersistence())
-    {
-        auto undo_edit = std::make_unique<PluginRemoveEdit>();
-        undo_edit->instance_id = action.instance_id;
-        undo_edit->chain_index = *chain_index;
-        undo_edit->plugin_state = std::move(*plugin_state);
-        undo_edit->before_placement = before_placement;
-        undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
-        undo_edit->visual_state = *visual_state;
-        pushUndoEntry(std::move(undo_edit));
-    }
-    else
-    {
-        m_has_unsaved_changes = true;
-        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_signal_chain_remove");
-    }
+    applySignalChainMutationSnapshot(std::move(*snapshot));
+    auto undo_edit = std::make_unique<PluginRemoveEdit>();
+    undo_edit->instance_id = action.instance_id;
+    undo_edit->chain_index = *chain_index;
+    undo_edit->plugin_state = std::move(*plugin_state);
+    undo_edit->before_placement = before_placement;
+    undo_edit->after_placement = pluginBlockAssignmentsFor(m_signal_chain.plugins());
+    undo_edit->visual_state = *visual_state;
+    pushUndoEntry(std::move(undo_edit));
     updateView();
 }
 
@@ -3098,7 +3202,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot), false);
+    applySignalChainMutationSnapshot(std::move(*snapshot));
     // The reorder already changed chain state, so the view must refresh whether or not the
     // instance-keyed placement differed; the [[nodiscard]] result is intentionally ignored.
     (void)m_signal_chain.setBlockPlacement(action.placement);
@@ -3453,7 +3557,7 @@ bool EditorController::Impl::closeProject()
         m_project_file.clear();
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
-        m_has_unsaved_changes = false;
+        m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_empty_project");
@@ -3475,7 +3579,7 @@ bool EditorController::Impl::closeProject()
         m_project_file.clear();
         m_displaced_project_file.clear();
         m_save_requires_destination = false;
-        m_has_unsaved_changes = false;
+        m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
@@ -3487,7 +3591,7 @@ bool EditorController::Impl::closeProject()
     m_project_file.clear();
     m_displaced_project_file.clear();
     m_save_requires_destination = false;
-    m_has_unsaved_changes = false;
+    m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
@@ -3738,7 +3842,7 @@ void EditorController::Impl::completeProjectWriteAction(
 
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProject& /*action*/)
 {
-    m_has_unsaved_changes = false;
+    m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project");
 }
 
@@ -3747,7 +3851,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_save_requires_destination = false;
     m_project_file = action.file;
     m_displaced_project_file.clear();
-    m_has_unsaved_changes = false;
+    m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project_as");
 }
 
@@ -4471,19 +4575,8 @@ bool EditorController::Impl::hasLoadedArrangement() const
 // Reports whether the active arrangement has persisted plugin state worth showing as progress.
 bool EditorController::Impl::shouldShowLiveRigLoadProgress() const
 {
-    if (!hasLiveRigPersistence())
-    {
-        return false;
-    }
-
     const common::core::Arrangement* const arrangement = session().currentArrangement();
     return arrangement != nullptr && !arrangement->tone_document_ref.empty();
-}
-
-// Reports whether plugin mutations can be captured into project saves.
-bool EditorController::Impl::hasLiveRigPersistence() const noexcept
-{
-    return true;
 }
 
 // Reports whether a busy operation is currently active.
@@ -4515,11 +4608,13 @@ void EditorController::Impl::detachView()
     m_view = nullptr;
 }
 
-// Treat imported unsaved projects and future session edits as requiring confirmation.
+// Dirty state comes from imported unsaved projects, undo-history clean markers, and narrow
+// untracked cases such as load-time normalization rewrites or faulted sessions.
 bool EditorController::Impl::hasUnsavedChanges() const noexcept
 {
-    return m_project.has_value() && (m_has_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
-                                     m_save_requires_destination);
+    return m_project.has_value() &&
+           (m_has_untracked_unsaved_changes || m_undo_history.hasUnsavedEdits() ||
+            m_save_requires_destination);
 }
 
 // Stop is useful while playback is running or when a paused/stopped cursor can still be reset to
