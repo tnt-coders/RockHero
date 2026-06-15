@@ -97,6 +97,21 @@ private:
     return states;
 }
 
+// Reports whether a LoadingPlugin busy state was pushed after a known state index.
+[[nodiscard]] bool loadingPluginPushedSince(const FakeEditorView& view, const std::size_t start)
+{
+    for (std::size_t index = start; index < view.pushed_states.size(); ++index)
+    {
+        const std::optional<BusyViewState>& busy = view.pushed_states[index].busy;
+        if (busy.has_value() && busy->operation == BusyOperation::LoadingPlugin)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 } // namespace
 
 // A loaded arrangement with a plugin host enables the add-plugin command.
@@ -624,6 +639,204 @@ TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-con
     CHECK(final_state->signal_chain.plugins[2].block_index == 4);
     CHECK_FALSE(final_state->plugin_browser.visible);
     CHECK(view.shown_errors.empty());
+}
+
+// Insert undo removes the plugin, and redo recreates it with the same runtime id and block.
+TEST_CASE("EditorController undoes plugin inserts", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    controller.onSignalChainPlacementChanged(
+        {blockAssignment("instance-a", 0), blockAssignment("instance-b", 4)});
+    plugin_host.next_instance_id = "instance-c";
+
+    controller.onPluginInsertSlotSelected(1, 2);
+    controller.onSelectedPluginInsertRequested("catalog-plugin-id");
+
+    const EditorViewState* inserted_state = stateOrNull(view.last_state);
+    REQUIRE(inserted_state != nullptr);
+    REQUIRE(inserted_state->signal_chain.plugins.size() == 3);
+    CHECK(inserted_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(inserted_state->signal_chain.plugins[1].block_index == 2);
+    CHECK(inserted_state->undo_label == std::optional<std::string>{"Insert Plugin"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-c"});
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 2);
+    CHECK(undone_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 0);
+    CHECK(undone_state->signal_chain.plugins[1].instance_id == "instance-b");
+    CHECK(undone_state->signal_chain.plugins[1].block_index == 4);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Insert Plugin"});
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 1);
+    CHECK(plugin_host.last_recreate_state_index == std::optional<std::size_t>{1});
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 3);
+    CHECK(redone_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(redone_state->signal_chain.plugins[0].block_index == 0);
+    CHECK(redone_state->signal_chain.plugins[1].instance_id == "instance-c");
+    CHECK(redone_state->signal_chain.plugins[1].block_index == 2);
+    CHECK(redone_state->signal_chain.plugins[2].instance_id == "instance-b");
+    CHECK(redone_state->signal_chain.plugins[2].block_index == 4);
+    CHECK(view.shown_errors.empty());
+}
+
+// Plugin-recreating directions (remove undo, insert redo) run behind the LoadingPlugin busy fence so
+// a slow instantiation cannot block the message thread without feedback; remove redo stays sync.
+TEST_CASE("EditorController fences plugin recreate behind loading", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    view.defer_busy_overlay_paint_callbacks = true;
+
+    controller.onRemovePluginRequested("instance-a");
+    REQUIRE(stateOrNull(view.last_state) != nullptr);
+
+    const std::size_t before_undo = view.pushed_states.size();
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 0);
+    CHECK(loadingPluginPushedSince(view, before_undo));
+    REQUIRE(view.hasBusyOverlayPaintCallback());
+    const EditorViewState* loading_state = stateOrNull(view.last_state);
+    REQUIRE(loading_state != nullptr);
+    REQUIRE(loading_state->busy.has_value());
+    CHECK(loading_state->busy->operation == BusyOperation::LoadingPlugin);
+
+    view.runNextBusyOverlayPaintCallback();
+
+    CHECK(plugin_host.recreate_state_call_count == 1);
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK_FALSE(undone_state->busy.has_value());
+    CHECK(undone_state->signal_chain.plugins.size() == 1);
+
+    const std::size_t before_redo = view.pushed_states.size();
+    controller.onRedoRequested();
+
+    CHECK_FALSE(loadingPluginPushedSince(view, before_redo));
+    CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-a"});
+
+    view.defer_busy_overlay_paint_callbacks = false;
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    controller.onUndoRequested();
+
+    view.defer_busy_overlay_paint_callbacks = true;
+    const int before_insert_redo_recreate = plugin_host.recreate_state_call_count;
+    const std::size_t before_insert_redo = view.pushed_states.size();
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == before_insert_redo_recreate);
+    CHECK(loadingPluginPushedSince(view, before_insert_redo));
+    REQUIRE(view.hasBusyOverlayPaintCallback());
+
+    view.runNextBusyOverlayPaintCallback();
+
+    CHECK(plugin_host.recreate_state_call_count == before_insert_redo_recreate + 1);
+}
+
+// A close/exit takeover can supersede a plugin-recreate busy token before the undo side effect
+// starts. Releasing that stale paint callback must abort the pending history transition.
+TEST_CASE("EditorController aborts stale plugin recreate before close", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    view.defer_busy_overlay_paint_callbacks = true;
+
+    controller.onRemovePluginRequested("instance-a");
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 0);
+    REQUIRE(view.hasBusyOverlayPaintCallback());
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    REQUIRE(prompt_state->unsaved_changes_prompt.has_value());
+    CHECK(prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    CHECK_FALSE(prompt_state->busy.has_value());
+
+    controller.onUnsavedChangesDecision(UnsavedChangesDecision::Cancel);
+    view.runNextBusyOverlayPaintCallback();
+
+    const EditorViewState* restored_state = stateOrNull(view.last_state);
+    REQUIRE(restored_state != nullptr);
+    CHECK_FALSE(restored_state->unsaved_changes_prompt.has_value());
+    CHECK(restored_state->undo_label == std::optional<std::string>{"Remove Plugin"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 0);
+    REQUIRE(view.hasBusyOverlayPaintCallback());
+    view.runNextBusyOverlayPaintCallback();
+
+    CHECK(plugin_host.recreate_state_call_count == 1);
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].instance_id == "instance-a");
 }
 
 // Add failures preserve the selected gap so a retry inserts at the same position.
@@ -1461,6 +1674,122 @@ TEST_CASE("EditorController removes a plugin", "[core][editor-controller]")
     CHECK(final_state->signal_chain.plugins[0].chain_index == 0);
     CHECK(final_state->signal_chain.remove_plugins_enabled);
     CHECK(view.shown_errors.empty());
+}
+
+// Remove undo recreates the plugin with its original id, visual block, and display override.
+TEST_CASE("EditorController undoes plugin removals", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    controller.onSignalChainPlacementChanged(
+        {blockAssignment("instance-a", 0), blockAssignment("instance-b", 4)});
+    controller.onPluginDisplayTypeOverrideChanged("instance-a", PluginDisplayType::Cab);
+
+    controller.onRemovePluginRequested("instance-a");
+
+    const EditorViewState* removed_state = stateOrNull(view.last_state);
+    REQUIRE(removed_state != nullptr);
+    REQUIRE(removed_state->signal_chain.plugins.size() == 1);
+    CHECK(removed_state->signal_chain.plugins[0].instance_id == "instance-b");
+    CHECK(removed_state->signal_chain.plugins[0].block_index == 4);
+    CHECK(removed_state->undo_label == std::optional<std::string>{"Remove Plugin"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 1);
+    CHECK(plugin_host.last_recreate_state_index == std::optional<std::size_t>{0});
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 2);
+    CHECK(undone_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 0);
+    CHECK(
+        undone_state->signal_chain.plugins[0].display_type_override ==
+        std::optional{PluginDisplayType::Cab});
+    CHECK(undone_state->signal_chain.plugins[1].instance_id == "instance-b");
+    CHECK(undone_state->signal_chain.plugins[1].block_index == 4);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Remove Plugin"});
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-a"});
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 1);
+    CHECK(redone_state->signal_chain.plugins[0].instance_id == "instance-b");
+    CHECK(redone_state->signal_chain.plugins[0].block_index == 4);
+    CHECK(view.shown_errors.empty());
+}
+
+// A rollback-contract violation faults the session and leaves only recovery actions available.
+TEST_CASE("EditorController faults after rollback violation", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+    controller.onRemovePluginRequested("instance-a");
+    plugin_host.next_recreate_state_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::RollbackContractViolation,
+        "fake rollback contract violation",
+    };
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.recreate_state_call_count == 1);
+    const EditorViewState* faulted_state = stateOrNull(view.last_state);
+    REQUIRE(faulted_state != nullptr);
+    CHECK(faulted_state->open_enabled);
+    CHECK(faulted_state->import_enabled);
+    CHECK(faulted_state->close_enabled);
+    CHECK_FALSE(faulted_state->save_enabled);
+    CHECK_FALSE(faulted_state->save_as_enabled);
+    CHECK_FALSE(faulted_state->publish_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.output_gain_controls_enabled);
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(
+        view.shown_errors.back() ==
+        "An unexpected internal error left the live editor state untrusted. Please report this "
+        "bug and attach the editor log file, then reopen or close the project before continuing.");
 }
 
 // Moving a plugin applies the backend's authoritative reordered chain snapshot.

@@ -186,11 +186,10 @@ public:
         return common::audio::PluginInstanceState{};
     }
 
-    [[nodiscard]] std::expected<
-        common::audio::PluginInstanceRestoreResult, common::audio::PluginHostError>
-    insertPluginState(const common::audio::PluginInstanceState&, std::size_t) override
+    [[nodiscard]] std::expected<common::audio::PluginChainSnapshot, common::audio::PluginHostError>
+    recreatePluginStatePreservingId(const common::audio::PluginInstanceState&, std::size_t) override
     {
-        return common::audio::PluginInstanceRestoreResult{};
+        return common::audio::PluginChainSnapshot{};
     }
 
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> setPluginState(

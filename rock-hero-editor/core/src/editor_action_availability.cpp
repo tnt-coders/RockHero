@@ -51,6 +51,52 @@ namespace
 [[nodiscard]] bool actionAvailableWhenIdle(
     EditorAction::Id action, const ActionConditions& conditions) noexcept
 {
+    if (conditions.session_faulted)
+    {
+        switch (action)
+        {
+            case EditorAction::Id::OpenProject:
+            case EditorAction::Id::RestoreProject:
+            case EditorAction::Id::ImportSong:
+            case EditorAction::Id::CloseProject:
+            case EditorAction::Id::ExitApplication:
+            {
+                return true;
+            }
+            case EditorAction::Id::ResolveUnsavedChangesPrompt:
+            {
+                return conditions.has_unsaved_changes_prompt;
+            }
+            case EditorAction::Id::CancelSaveAsPrompt:
+            {
+                return conditions.has_save_as_prompt;
+            }
+            case EditorAction::Id::SaveProject:
+            case EditorAction::Id::SaveProjectAs:
+            case EditorAction::Id::PublishProject:
+            case EditorAction::Id::CancelBusyOperation:
+            case EditorAction::Id::Undo:
+            case EditorAction::Id::Redo:
+            case EditorAction::Id::PlayPause:
+            case EditorAction::Id::Stop:
+            case EditorAction::Id::SeekWaveform:
+            case EditorAction::Id::ShowPluginBrowser:
+            case EditorAction::Id::BeginPluginInsert:
+            case EditorAction::Id::ScanPluginCatalog:
+            case EditorAction::Id::InsertSelectedPlugin:
+            case EditorAction::Id::RemovePlugin:
+            case EditorAction::Id::MovePlugin:
+            case EditorAction::Id::SetSignalChainPlacement:
+            case EditorAction::Id::SetPluginDisplayTypeOverride:
+            case EditorAction::Id::OpenPlugin:
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     if (conditions.input_calibration_prompt_visible &&
         actionBlockedByInputCalibrationPrompt(action))
     {
