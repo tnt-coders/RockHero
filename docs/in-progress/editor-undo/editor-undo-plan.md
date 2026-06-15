@@ -30,6 +30,38 @@ backend.
 > `undo-ownership-analysis.md` ("Verified: VST3 parameter undo is whole-chunk" and "Fidelity is
 > non-negotiable").
 
+> **Representation decided (2026-06-14): undo entries are `IEdit` objects, and instance ids are
+> preserved on recreate (no remap).** The undo stack stores polymorphic editor-core `IEdit` entries
+> (`undo(EditorEditContext&)` / `redo(EditorEditContext&)` / `label()`), not a `std::variant` of
+> passive payloads. Each edit co-locates its data with its own forward/inverse logic; memento-style
+> edits (remove, plugin-parameter) hold their before/after chunks as members. This supersedes the
+> variant/payload framing in "Core Model" below. Rationale: per-operation cohesion, isolated
+> unit-testability (an edit plus a fake context, no full controller), and alignment with the
+> `common::audio::IEdit` reservation in `architecture.md` — though the concrete interface is
+> **editor-core**, not the `common::audio` placeholder, because edits restore editor-only visual
+> state (block placement, display-type) that `common/audio` must not depend on. `EditorEditContext`
+> injects the signal-chain model, `IPluginHost`, `ILiveRig`, and an output-gain setter at apply
+> time, so edits stay pure value objects with no controller back-pointers. The id-preserving
+> recreate outcome is reported by the edit's own `undo`/`redo` result, so a failed id check is a
+> normal non-commit failure rather than a history-wide rewrite trigger.
+>
+> **Instance-id remapping is removed.** Recreate (remove-undo, insert-redo) preserves the original
+> `instance_id` instead of accepting a new one, so no stored entry is ever rewritten. A focused
+> spike (2026-06-14) confirmed Tracktion's `EditItemID::readOrCreateNewID` returns any `id` present
+> in the inserted state verbatim and allocates a fresh id only when none is present; re-inserting a
+> captured plugin state with its `id` intact restores the original `itemID` after the prior instance
+> was removed and released. The engine's deliberate `removeProperty(IDs::id)` in the general
+> `insertPluginState` path is what forced new ids. This collapses
+> `EditorUndoHistory::remapInstanceId`, the "Instance-Id Remapping" section (now
+> "Instance-Id Preservation"), and the old
+> `original_instance_id`/`restored_instance_id` rewrite contract for the undo path.
+>
+> **Documented fallback (not taken):** had id preservation proved unsafe, remap would live on an
+> `IPluginEdit` capability sub-interface implemented only by plugin-id-bearing edits (the history
+> sweeps `dynamic_cast<IPluginEdit*>` entries) — not on the base `IEdit`, since non-plugin edits
+> (output gain, future chart/tempo edits) carry no id. The spike passed, so this is recorded only as
+> the contingency.
+
 ## Consolidated Review Updates
 
 - Kept `EditorUndoHistory` free of any logging dependency; history returns transition results and
@@ -177,8 +209,8 @@ history type:
   busy/open-state context; completed; recoverable failure with typed code/message; canceled; stale
   async completion ignored;
 - undo-specific: undo/redo requested; entry pushed with type and affected ids; pending parameter
-  edit started/completed/flushed/dropped; rollback attempt started/completed; runtime id remapped;
-  clean revision marked or made unreachable by eviction.
+  edit started/completed/flushed/dropped; rollback attempt started/completed; plugin recreated with
+  preserved id; clean revision marked or made unreachable by eviction.
 
 Use `RH_LOG_INFO` for normal lifecycle, `RH_LOG_WARNING` for unusual recoverable paths, and
 `RH_LOG_ERROR` for recoverable failures and rollback-contract violations.
@@ -326,7 +358,8 @@ Use an explicit two-phase model:
 2. Peek the next undo/redo entry.
 3. Preflight all cheap invariants before mutation.
 4. Execute against editor state and project-owned ports.
-5. Mutate the pending entry payload if capture or id remapping changed it.
+5. Update the pending entry if capture changed it (recreate preserves the id, so there is no id
+   remap to apply).
 6. Commit the stack transition only after success.
 7. If an adapter reports a rollback-contract violation, log the Error diagnostic, enter the faulted
    state (block all editing and saving), refresh a diagnostic backend view only, and route the user
@@ -388,7 +421,8 @@ observed plugin, used as the `before` source for the conservative non-gesture pa
 dropped/automation motion never becomes a later spurious `before`:
 
 - initialize the baseline when a user plugin enters the chain, after project load/restore, after
-  `insertPluginState`, after candidate insert, and after any full plugin-state refresh;
+  `recreatePluginStatePreservingId`, after candidate insert, and after any full plugin-state
+  refresh;
 - set the baseline to the freshly captured `after` state on each emitted edit;
 - refresh the baseline to the current captured state on a dropped/uncertain settle, before clearing
   pending state;
@@ -485,8 +519,8 @@ Notes:
 - Insert is also a compound inverse, but only on the editor-visual side. The insert flow assigns a
   visual block, so the insert entry must store block placement and insert-redo must restore it after
   applying the snapshot.
-- Candidate insert returns the inserted runtime id explicitly. Insert-redo remaps from the insert
-  entry's stored id to the returned `inserted_instance_id`.
+- Candidate insert returns the inserted runtime id explicitly, which the insert edit stores.
+  Insert-redo recreates the plugin under that same id (preserved, not remapped).
 - Only insert-redo and remove-undo instantiate a plugin. Those directions run on the message thread
   behind `BusyOperation::LoadingPlugin` via `runAfterBusyPresentationReady`, matching plugin insert.
 
@@ -505,13 +539,6 @@ struct PluginInsertResult
 struct PluginInstanceState
 {
     std::vector<std::byte> opaque_data;
-};
-
-struct PluginInstanceRestoreResult
-{
-    PluginChainSnapshot snapshot;
-    std::string original_instance_id;
-    std::string restored_instance_id;
 };
 
 struct PluginParameterEdit
@@ -541,12 +568,13 @@ struct PluginParameterEditObserver
 [[nodiscard]] virtual std::expected<PluginInstanceState, PluginHostError>
 capturePluginState(const std::string& instance_id) = 0;
 
-[[nodiscard]] virtual std::expected<PluginInstanceRestoreResult, PluginHostError>
-insertPluginState(const PluginInstanceState& state, std::size_t chain_index) = 0;
+[[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError>
+recreatePluginStatePreservingId(
+    const PluginInstanceState& state, std::size_t chain_index) = 0;
 
 // Restores a full opaque state chunk to an EXISTING instance, driving the live processor via
 // setStateInformation (the setter). Used by plugin-parameter undo/redo. Distinct from
-// insertPluginState, which recreates a removed plugin.
+// recreatePluginStatePreservingId, which recreates a removed plugin under its prior id.
 [[nodiscard]] virtual std::expected<void, PluginHostError> setPluginState(
     const std::string& instance_id, const PluginInstanceState& state) = 0;
 
@@ -565,8 +593,13 @@ The implementation can choose a different spelling, but the semantics are requir
   should be reported through a separate invariant path with diagnostic context, not as an ordinary
   recoverable `PluginHostError`.
 - `insertPlugin` returns `inserted_instance_id`; callers do not infer it from snapshot position.
-- `insertPluginState` may preserve the original runtime id, but callers must treat the returned
-  mapping as authoritative.
+- `recreatePluginStatePreservingId` is the undo-only recreate path. It succeeds only when the
+  restored live plugin keeps the runtime id encoded in the captured state; a changed id is a restore
+  failure after rollback, not a remap. It returns the updated `PluginChainSnapshot` like
+  `movePlugin`/`removePlugin`; the preserved id is guaranteed by the contract, so it is not echoed
+  back in the result.
+- The general new-instance state-insert path must remain separate from undo. If retained for future
+  duplication, name and contract it so callers know it strips or allocates runtime ids.
 - The parameter-edit observer is attached only to user-inserted plugins' automatable parameters,
   which it uses solely to detect a settled user edit; the emitted payload is the before/after full
   state chunk, not parameter values. Structural live-rig plugins are not attached (the gain plugin has
@@ -575,7 +608,7 @@ The implementation can choose a different spelling, but the semantics are requir
   (`setStateInformation`), so the running processor follows; it must not be implemented as a raw
   ValueTree property revert (which would not reload the processor) and must not enter Tracktion's undo
   manager.
-- Capture, state restore (`insertPluginState` / `setPluginState`), and pending-parameter flush are
+- Capture, id-preserving recreate, state restore (`setPluginState`), and pending-parameter flush are
   message-thread operations.
 - The parameter-edit observer is the single notification surface for this stream. It reports
   pending-state changes and completed before/after-chunk edits so editor-core can keep command
@@ -625,10 +658,10 @@ Initial per-port proof shape:
   removal. If removal, metadata refresh, or graph rebuild fails after mutation, reinsert/restore the
   captured plugin, restore the pre-chain order/state, refresh, and return an ordinary error only
   after the original state is proven restored.
-- `insertPluginState`: preflight memento validity, destination index, and plugin cap. Capture the
-  pre-chain state before restore begins. If state restore, insertion, metadata refresh, or graph
-  rebuild fails, remove any partial plugin and restore the pre-chain snapshot before returning an
-  ordinary error.
+- `recreatePluginStatePreservingId`: preflight memento validity, destination index, plugin cap, and
+  expected runtime id. Capture the pre-chain state before restore begins. If state restore,
+  insertion, id verification, metadata refresh, or graph rebuild fails, remove any partial plugin
+  and restore the pre-chain snapshot before returning an ordinary error.
 - `setPluginState`: preflight the target instance exists before applying. Capture the instance's
   current chunk as the pre-state. Apply the requested chunk via `setStateInformation`. If the apply or
   a required readback fails, restore the captured pre-state chunk and verify before returning an
@@ -657,33 +690,43 @@ struct PluginVisualEditState
 Rules:
 
 - Capture the target plugin's `PluginVisualEditState` before removing it.
-- After successful recreate, remap `instance_id` to `restored_instance_id`.
+- After successful recreate, the restored plugin keeps its original `instance_id` (preserved, not
+  remapped), so the captured `PluginVisualEditState` keys still match.
 - Apply the restored chain snapshot first, because backend order/metadata are authoritative.
-- Apply block placement and display override after the snapshot refresh using the restored id.
+- Apply block placement and display override after the snapshot refresh using the preserved id.
 
-## Instance-Id Remapping
+## Instance-Id Preservation
 
-A recreate may yield a new runtime id, and editor state keys on runtime `instance_id`.
-`EditorUndoHistory` therefore needs a tested `remapInstanceId(old_id, new_id)` that updates every
-payload storing an instance id across both stacks and the active pending entry.
+Recreate preserves the plugin's original runtime `instance_id`, so no entry is ever rewritten and
+editor state that keys on `instance_id` stays valid across undo/redo.
 
-Both instantiating directions trigger a remap:
+A spike (2026-06-14) confirmed Tracktion's `EditItemID::readOrCreateNewID` returns any `id` present
+in the inserted state verbatim and allocates a fresh id only when none is present. Re-inserting a
+captured plugin state with its `id` intact restores the original `itemID` after the prior instance
+was removed and released (the plugin cache does not merge a stale instance). The general
+`Engine::insertPluginState` strips the id on purpose — it must support inserting a captured state as
+a new instance for non-undo callers (e.g. future duplication) — so undo uses a dedicated
+id-preserving recreate path, valid because the removed id is provably free at recreate time.
 
-- remove-undo uses `insertPluginState`'s `original_instance_id` -> `restored_instance_id` mapping;
-- insert-redo uses `insertPlugin`'s `inserted_instance_id`.
+Both instantiating directions therefore restore the original id:
 
-Payloads include:
+- remove-undo recreates the captured plugin with its original `instance_id`;
+- insert-redo recreates the inserted plugin with the id the insert edit stored.
 
-- insert/remove/move ids;
-- the insert entry's stored block placement and remove-on-undo target id;
-- plugin visual state;
-- display-type override ids;
-- the plugin-parameter entry's `instance_id` (the before/after chunks are opaque and carry no
-  editor-visible id to remap);
-- ids nested inside placement vectors.
+The undo path no longer has an `original_instance_id`/`restored_instance_id` mapping. Tests must
+cover an id-preserving recreate for both remove-undo and insert-redo against a fake `IPluginHost`,
+asserting the restored id equals the original and that later undo/redo of sibling edits referencing
+that id still resolve. When `recreatePluginStatePreservingId` lands in the concrete `Engine`
+adapter, add an adapter-level test that captures, removes, and recreates through the project-owned
+port; the raw Tracktion regression test only pins the vendor primitive. Because the design now
+depends on this Tracktion behavior, keep that lower-level regression test so a future engine upgrade
+cannot silently reintroduce the remap problem.
 
-`old_id == new_id` is a no-op. Tests must cover changed-id restore for both remove-undo and
-insert-redo with a fake `IPluginHost`.
+**Fallback (not taken):** if id preservation were unsafe, remapping would return — but on an
+`IPluginEdit` capability sub-interface implemented only by plugin-id-bearing edits (the history
+sweeps `dynamic_cast<IPluginEdit*>` after a recreate), never on the base `IEdit`, because non-plugin
+edits (output gain, future chart/tempo edits) carry no instance id. The spike passed, so this stays a
+contingency.
 
 ## Recording Boundary
 
@@ -757,13 +800,18 @@ shortcuts must not ship while dirty state still comes from the old flag.
 Private editor-core types near the existing workflow classes:
 
 - `EditorUndoHistory`: undo stack, redo stack, clean-revision marker, bounded depth, `canUndo()`,
-  `canRedo()`, labels, pending two-phase transitions, failure/invalidation handling, and
-  `remapInstanceId`.
-- `EditorUndoEntry`: a variant of insert, remove, move, placement, display-type,
-  plugin-parameter state, and output-gain payloads.
-- Payload structs for insert state, remove recreate state, plugin visual state, move state,
-  placement state, display-type state, plugin-parameter state (instance id + before/after full plugin
-  chunk), and output-gain state.
+  `canRedo()`, labels, pending two-phase transitions, and failure/invalidation handling. It stores
+  `std::unique_ptr<IEdit>` entries and never inspects their concrete type. (No `remapInstanceId`:
+  recreate preserves instance ids — see the representation callout and "Instance-Id Preservation".)
+- `IEdit`: the editor-core polymorphic edit interface — `undo(EditorEditContext&)`,
+  `redo(EditorEditContext&)`, and `label()`, each apply method returning a typed success/failure
+  (including restored id verification for recreate operations). Concrete edits exist for insert,
+  remove, move, placement, display-type, plugin-parameter, and output-gain. Each co-locates its data
+  with its own forward/inverse logic; remove and plugin-parameter edits hold their before/after full
+  plugin chunks as members.
+- `EditorEditContext`: the apply-time seam handed to every `undo`/`redo` — references to the
+  signal-chain model, `IPluginHost`, `ILiveRig`, and an output-gain setter. Edits stay pure value
+  objects and never store controller back-pointers.
 
 The history type must be directly testable without `EditorController` and without diagnostics
 dependencies. It returns transition results/events that the controller can log, but it does not know
@@ -838,9 +886,9 @@ entry is and where it lives — a raw `Edit::undo()` would not):
 - **Reveal-on-undo (the key one).** Applying undo/redo emits a navigation/selection intent alongside
   the state change (per `architectural-principles.md` "separate state from side effects"): switch to
   the affected domain's panel, select and flash the affected signal-chain block, scroll the timeline to
-  the reverted automation point. The undo drives focus to its own target. `EditorUndoEntry` therefore
-  carries enough identity (domain + affected object id) to produce that reveal intent; `EditorView`
-  honors it without owning undo policy.
+  the reverted automation point. The undo drives focus to its own target. Each `IEdit` therefore
+  exposes enough identity (domain + affected object id) to produce that reveal intent — alongside
+  `label()`, e.g. a `revealTarget()` accessor; `EditorView` honors it without owning undo policy.
 
 ### Plugin-parameter edits (the closed-window case)
 
@@ -937,20 +985,21 @@ covered:
 - push after undo clears redo;
 - clean marker tracks push, undo, redo, and mark-clean;
 - clean-marker eviction marks clean unreachable;
-- reset clears stacks and clean state;
-- `remapInstanceId` updates every payload, including nested placement ids and the plugin-parameter
-  entry's `instance_id`.
+- reset clears stacks and clean state.
+
+(No id-remap responsibility: recreate preserves instance ids, so stored entries never need
+rewriting — see "Instance-Id Preservation".)
 
 Controller:
 
 - insert pushes one entry only on success and stores the returned inserted id;
 - insert undo removes;
-- insert redo re-inserts from the catalog candidate, restores its block placement, and remaps ids
-  from the explicit returned id (including a later parameter/display entry on the same plugin
-  retargeting to the new id);
+- insert redo re-inserts from the catalog candidate under the insert edit's stored id (preserved,
+  not remapped) and restores its block placement, so a later parameter/display entry on the same
+  plugin still resolves;
 - remove captures audio and visual state before removing;
 - remove capture failure removes nothing and pushes nothing;
-- remove undo recreates, applies visual state, and remaps ids;
+- remove undo recreates under the original id (preserved, not remapped) and applies visual state;
 - move undo/redo restores order and placement;
 - placement/display-type undo/redo restore prior value and dirty state;
 - a plugin gesture emits one before/after-chunk parameter entry and undo/redo restore the chunks via
@@ -1021,13 +1070,15 @@ interface.
 0. Tracktion/JUCE behavior spike: internal undo stack mutation, safe quarantine mechanism, rollback
    feasibility for undo-wired Tracktion mutations, real plugin parameter callback patterns,
    observation scoped to user plugins, open-editor refresh on parameter restore, and safe parameter
-   cache initialization.
+   cache initialization. Plugin instance-id preservation on recreate confirmed (2026-06-14): keep a
+   regression test that pins it (see "Instance-Id Preservation").
 1. `EditorUndoHistory` and direct tests: two-phase commit, unchanged-on-error failures,
-   rollback-contract non-commit results, clean-marker eviction, and `remapInstanceId`. Keep the type
-   pure: no logger dependency and no controller dependency. Return compact
-   transition results/events for push, undo, redo, clean-revision mark, clean-revision eviction, id
-   remap, and non-commit failures so the controller can log them later and fault the session when
-   required.
+   rollback-contract non-commit results, and clean-marker eviction. The history stores
+   `std::unique_ptr<IEdit>` and never inspects concrete types; cover `IEdit` undo/redo dispatch with
+   stub edits and a fake `EditorEditContext`. Keep the type pure: no logger dependency and no
+   controller dependency. Return compact transition results/events for push, undo, redo,
+   clean-revision mark, clean-revision eviction, and non-commit failures so the controller can log
+   them later and fault the session when required.
 2. Update `IPluginHost` contracts: unchanged-on-error mutating methods, explicit insert result id,
    complete `PluginInstanceState`, `setPluginState` (in-place chunk restore), before/after-chunk
    parameter-edit observer/status, and fakes. Write the rollback proof and exact-pre-state tests for
@@ -1051,8 +1102,14 @@ interface.
    audio-event vs. undo-entry ownership boundary remains clearer, or rename/consolidate only if the
    conversion code shows the distinction is accidental.
 7. Output-gain gesture boundaries and output-gain undo entries. Log output-gain entries.
-8. Remove memento boundary: capture/restore, restore result/id mapping, editor visual-state
-   capture/apply, insert/remove wiring, and id remapping. Add rollback-contract handling here (the
+8. Remove memento boundary: capture/restore, the id-preserving recreate path (restored id equals the
+   original), editor visual-state capture/apply, and insert/remove wiring. This renames/recontracts
+   the already-implemented `insertPluginState` into `recreatePluginStatePreservingId` rather than
+   adding a parallel method, and drops the `PluginInstanceRestoreResult` struct: the recreate path
+   returns a bare `PluginChainSnapshot` (the preserved id is guaranteed by contract, so the
+   `original_instance_id`/`restored_instance_id` echo is removed). There is no production caller today
+   (only the fake/test overrides), so update those tests in the same change and either drop the
+   general id-stripping insert path or re-contract it for a future duplication feature. Add rollback-contract handling here (the
    trigger lands in this stage): the `Error` diagnostic, entering the faulted state (block all editing
    + Save/Save As via the centralized availability check), and the report-to-developer +
    reopen/close message.
@@ -1131,8 +1188,9 @@ the probes as written. Both `[spike]` cases passed.
   id stripped (current `captureActiveRig()` behavior, `engine.cpp:3660`), capture/remove/reinsert
   yielded a new id (1011 -> 1017). Keeping `tracktion::IDs::id` in the state tree preserved the id
   (1017 -> 1017) — but only because the original was removed first, so the id was free. **Decision
-  stands: support changed-id restore unconditionally** (it is the only collision-safe option while
-  an original may still exist); id preservation is possible but not relied upon.
+  updated 2026-06-14:** undo relies on the id-preserving case through a dedicated recreate path,
+  valid only after the original instance is gone. New-instance and future duplication paths must
+  still strip ids instead of reusing an existing live id.
 - **Full plugin chunks capture cleanly.** The Nolly state tree serialized to ~10 KB
   (`stateBytes=10118`) and round-tripped without error, confirming the remove memento can hold a
   complete external-plugin chunk.
@@ -1179,8 +1237,9 @@ the probes as written. Both `[spike]` cases passed.
   chose RockHero mementos: the product stack owns tone undo entries, and Tracktion undo stays
   adapter-local.
 - **Useful byproduct:** Tracktion preserves item ids across its own undo/redo of an isolated
-  transaction. The chosen memento path does not rely on that; it supports changed-id restore
-  unconditionally. The finding remains useful evidence about Tracktion behavior.
+  transaction. The chosen memento path relies on the same id-preservation primitive through a
+  project-owned adapter path, not on Tracktion's undo stack. The finding remains useful evidence
+  about Tracktion behavior.
 
 **Step 2 — gesture-callback characterization (T1), ran 2026-06-12 in the full editor with a real VST3
 (Archetype Nolly X), one plugin:**
@@ -1253,9 +1312,9 @@ per the cleanup ledger.**
 - **Deferred automation follow-up:** empirically verify automation-curve restore audibility once
   automation editing exists in the application. Automation is outside the current undo scope, and the
   current mechanism is source-proven through Tracktion's curve/listener path.
-- **Resolved (Step 1):** `insertPluginState` can preserve Tracktion item/runtime ids only when the
-  id is left in the state tree and the original is gone; current capture strips it, so restore gets
-  a new id. Support changed-id restore unconditionally.
+- **Resolved (Step 1):** Tracktion preserves item/runtime ids only when the id is left in the state
+  tree and the original is gone. The current general `insertPluginState` strips ids and gets a new
+  id by design; undo uses a separate id-preserving recreate path without remapping ids.
 - **Resolved (Step 1):** Remove memento captures a full external-plugin chunk fine (~10 KB for
   Nolly), round-tripped without error.
 - Are command labels ("Undo Move Plugin") worth the first pass, or are booleans enough? (Tracktion
