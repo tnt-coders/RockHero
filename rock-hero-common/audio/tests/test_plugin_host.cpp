@@ -543,4 +543,23 @@ TEST_CASE("IPluginHost opens a plugin window", "[audio][plugin-host]")
     CHECK(plugin_host.open_call_count == 1);
 }
 
+// Verifies hosted plugin-window command callbacks can be installed and emitted by the port fake.
+TEST_CASE("IPluginHost forwards plugin window commands", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    int undo_count = 0;
+    int redo_count = 0;
+    plugin_host.setPluginWindowCommandObserver(
+        PluginWindowCommandObserver{
+            .undo_requested = [&undo_count] { undo_count += 1; },
+            .redo_requested = [&redo_count] { redo_count += 1; },
+        });
+
+    plugin_host.notifyPluginWindowUndoRequested();
+    plugin_host.notifyPluginWindowRedoRequested();
+
+    CHECK(undo_count == 1);
+    CHECK(redo_count == 1);
+}
+
 } // namespace rock_hero::common::audio
