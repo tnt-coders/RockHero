@@ -535,7 +535,7 @@ TEST_CASE("Engine plugin host rejects invalid plugin state", "[audio][engine][in
         .opaque_data = {std::byte{0x01}, std::byte{0x02}},
     };
 
-    const auto insert_result = plugin_host.insertPluginState(invalid_state, 0);
+    const auto insert_result = plugin_host.recreatePluginStatePreservingId(invalid_state, 0);
     const auto set_result = plugin_host.setPluginState("missing-instance-id", invalid_state);
 
     REQUIRE_FALSE(insert_result.has_value());
@@ -560,15 +560,16 @@ TEST_CASE("Engine plugin host rejects unknown state targets", "[audio][engine][i
     CHECK(set_result.error().code == PluginHostErrorCode::PluginInstanceNotFound);
 }
 
-// Verifies state-insert load failure removes any partial Tracktion plugin before returning.
-TEST_CASE("Engine plugin host rejects missing restored plugin", "[audio][engine][integration]")
+// Verifies state-recreate load failure removes any partial Tracktion plugin before returning.
+TEST_CASE("Engine plugin host rejects missing recreated plugin", "[audio][engine][integration]")
 {
     EngineTestHarness harness;
     const TemporarySongDirectory song_directory;
     IPluginHost& plugin_host = harness.engine;
     ILiveRig& live_rig = harness.engine;
 
-    const auto result = plugin_host.insertPluginState(missingExternalPluginState(), 0);
+    const auto result =
+        plugin_host.recreatePluginStatePreservingId(missingExternalPluginState(), 0);
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);

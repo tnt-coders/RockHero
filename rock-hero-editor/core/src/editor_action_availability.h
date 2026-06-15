@@ -28,6 +28,9 @@ struct ActionConditions
     /*! \brief True when the input calibration prompt is visible. */
     bool input_calibration_prompt_visible{false};
 
+    /*! \brief True when the live backend is untrusted after a rollback-contract violation. */
+    bool session_faulted{false};
+
     /*! \brief True when live input can be auditioned through the current route. */
     bool live_input_audition_available{false};
 

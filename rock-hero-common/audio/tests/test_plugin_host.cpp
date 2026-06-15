@@ -364,7 +364,7 @@ TEST_CASE("IPluginHost rolls back remove failures after mutation", "[audio][plug
 }
 
 // Verifies the fake host's opaque plugin-state mementos recreate equivalent plugins.
-TEST_CASE("IPluginHost round-trips plugin instance state", "[audio][plugin-host]")
+TEST_CASE("IPluginHost recreates plugin instance state", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
     plugin_host.chain = {
@@ -383,18 +383,33 @@ TEST_CASE("IPluginHost round-trips plugin instance state", "[audio][plugin-host]
     const auto captured = plugin_host.capturePluginState("amp-instance");
     REQUIRE(captured.has_value());
     REQUIRE(plugin_host.removePlugin("amp-instance").has_value());
-    plugin_host.next_restored_instance_id = "amp-restored";
 
-    const auto restored = plugin_host.insertPluginState(*captured, 0);
+    const auto restored = plugin_host.recreatePluginStatePreservingId(*captured, 0);
 
     REQUIRE(restored.has_value());
-    REQUIRE(restored->snapshot.plugins.size() == 1);
-    CHECK(restored->original_instance_id == "amp-instance");
-    CHECK(restored->restored_instance_id == "amp-restored");
-    CHECK(restored->snapshot.plugins[0].instance_id == "amp-restored");
-    CHECK(restored->snapshot.plugins[0].plugin_id == "amp");
-    CHECK(restored->snapshot.plugins[0].block_index == 4);
-    CHECK(restored->snapshot.plugins[0].display_type_override == "compact");
+    REQUIRE(restored->plugins.size() == 1);
+    CHECK(restored->plugins[0].instance_id == "amp-instance");
+    CHECK(restored->plugins[0].plugin_id == "amp");
+    CHECK(restored->plugins[0].block_index == 4);
+    CHECK(restored->plugins[0].display_type_override == "compact");
+}
+
+// Verifies id-preserving recreate is valid only after the original instance is absent.
+TEST_CASE("IPluginHost rejects duplicate state recreate ids", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+    plugin_host.chain = {
+        makeChainEntry("amp-instance", "amp", 0),
+    };
+    const auto captured = plugin_host.capturePluginState("amp-instance");
+    REQUIRE(captured.has_value());
+    const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
+
+    const auto result = plugin_host.recreatePluginStatePreservingId(*captured, 1);
+
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
+    CHECK(plugin_host.chain == original_chain);
 }
 
 // Verifies invalid opaque state bytes are rejected before mutating the fake chain.
@@ -409,7 +424,7 @@ TEST_CASE("IPluginHost rejects bad plugin state without mutation", "[audio][plug
         .opaque_data = {std::byte{0x01}, std::byte{0x02}},
     };
 
-    const auto insert_result = plugin_host.insertPluginState(invalid_state, 1);
+    const auto insert_result = plugin_host.recreatePluginStatePreservingId(invalid_state, 1);
     const auto set_result = plugin_host.setPluginState("amp-instance", invalid_state);
 
     REQUIRE_FALSE(insert_result.has_value());
@@ -419,29 +434,31 @@ TEST_CASE("IPluginHost rejects bad plugin state without mutation", "[audio][plug
     CHECK(plugin_host.chain == original_chain);
 }
 
-// Verifies state-insert failures after side effects repair the fake's chain and state map.
-TEST_CASE("IPluginHost rolls back state insert failures", "[audio][plugin-host]")
+// Verifies state-recreate failures after side effects repair the fake's chain and state map.
+TEST_CASE("IPluginHost rolls back state recreate failures", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
     plugin_host.chain = {
         makeChainEntry("amp-instance", "amp", 0),
+        makeChainEntry("drive-instance", "drive", 1),
     };
     const auto captured = plugin_host.capturePluginState("amp-instance");
     REQUIRE(captured.has_value());
+    REQUIRE(plugin_host.removePlugin("amp-instance").has_value());
+    const auto surviving_state = plugin_host.capturePluginState("drive-instance");
+    REQUIRE(surviving_state.has_value());
     const std::vector<PluginChainEntry> original_chain = plugin_host.chain;
-    const PluginInstanceState original_state = *captured;
-    plugin_host.next_restored_instance_id = "amp-restored";
-    plugin_host.next_insert_state_after_mutation_error =
+    plugin_host.next_recreate_state_after_mutation_error =
         PluginHostError{PluginHostErrorCode::PluginStateRestoreFailed};
 
-    const auto result = plugin_host.insertPluginState(*captured, 1);
-    const auto after_failure = plugin_host.capturePluginState("amp-instance");
+    const auto result = plugin_host.recreatePluginStatePreservingId(*captured, 0);
+    const auto after_failure = plugin_host.capturePluginState("drive-instance");
 
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().code == PluginHostErrorCode::PluginStateRestoreFailed);
     CHECK(plugin_host.chain == original_chain);
     REQUIRE(after_failure.has_value());
-    CHECK(*after_failure == original_state);
+    CHECK(*after_failure == *surviving_state);
 }
 
 // Verifies in-place state failures after side effects restore the exact previous state.

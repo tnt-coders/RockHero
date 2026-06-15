@@ -85,6 +85,10 @@ namespace
         {
             return "Could not restore plugin state";
         }
+        case PluginHostErrorCode::RollbackContractViolation:
+        {
+            return "Plugin-host mutation could not prove success or rollback";
+        }
     }
 
     return "Plugin-host operation failed";

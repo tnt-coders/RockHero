@@ -93,6 +93,15 @@ public:
     void runAfterBusyOverlayPainted(std::function<void()> callback) override
     {
         busy_overlay_paint_callback_count += 1;
+        if (defer_busy_overlay_paint_callbacks)
+        {
+            if (callback)
+            {
+                busy_overlay_paint_callbacks.push_back(std::move(callback));
+            }
+            return;
+        }
+
         if (callback)
         {
             callback();
@@ -103,6 +112,28 @@ public:
     void runAfterBusyOverlayRemoved(std::function<void()> callback) override
     {
         busy_overlay_removed_callback_count += 1;
+        if (callback)
+        {
+            callback();
+        }
+    }
+
+    // Reports whether a deferred busy-overlay paint callback is waiting to be released.
+    [[nodiscard]] bool hasBusyOverlayPaintCallback() const noexcept
+    {
+        return !busy_overlay_paint_callbacks.empty();
+    }
+
+    // Releases the oldest deferred busy-overlay paint callback to simulate the view painting.
+    void runNextBusyOverlayPaintCallback()
+    {
+        if (busy_overlay_paint_callbacks.empty())
+        {
+            return;
+        }
+
+        std::function<void()> callback = std::move(busy_overlay_paint_callbacks.front());
+        busy_overlay_paint_callbacks.erase(busy_overlay_paint_callbacks.begin());
         if (callback)
         {
             callback();
@@ -129,6 +160,12 @@ public:
 
     // Number of busy-overlay removal callbacks requested by the controller.
     int busy_overlay_removed_callback_count{0};
+
+    // True when tests need to release busy paint fences manually.
+    bool defer_busy_overlay_paint_callbacks{false};
+
+    // Deferred busy paint-fence callbacks waiting for test-controlled release.
+    std::vector<std::function<void()>> busy_overlay_paint_callbacks{};
 };
 
 /*!

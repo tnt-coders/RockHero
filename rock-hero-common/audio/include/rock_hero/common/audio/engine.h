@@ -252,12 +252,13 @@ public:
         const std::string& instance_id) override;
 
     /*!
-    \brief Restores a captured plugin state as a new hosted chain instance.
+    \brief Recreates a captured plugin state under its encoded runtime instance ID.
     \param state Opaque plugin state previously captured from this boundary.
     \param chain_index User-visible insertion index.
-    \return Authoritative post-restore snapshot plus runtime ID mapping, or a typed failure.
+    \return Authoritative post-recreate snapshot, or a typed failure.
     */
-    [[nodiscard]] std::expected<PluginInstanceRestoreResult, PluginHostError> insertPluginState(
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError>
+    recreatePluginStatePreservingId(
         const PluginInstanceState& state, std::size_t chain_index) override;
 
     /*!

@@ -208,4 +208,41 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
 }
 
+// Verifies a faulted session leaves only project recovery and prompt-resolution actions available.
+TEST_CASE("Faulted session blocks editing and saving", "[core][editor-action]")
+{
+    ActionConditions conditions{
+        .session_faulted = true,
+        .live_input_audition_available = true,
+        .has_project = true,
+        .has_unsaved_changes_prompt = true,
+        .undo_available = true,
+        .redo_available = true,
+        .has_loaded_arrangement = true,
+        .can_stop_transport = true,
+        .has_plugin_candidates = true,
+        .has_plugin_insert_capacity = true,
+        .has_loaded_plugins = true,
+    };
+
+    CHECK(isActionAvailable(ActionId::OpenProject, conditions));
+    CHECK(isActionAvailable(ActionId::RestoreProject, conditions));
+    CHECK(isActionAvailable(ActionId::ImportSong, conditions));
+    CHECK(isActionAvailable(ActionId::CloseProject, conditions));
+    CHECK(isActionAvailable(ActionId::ExitApplication, conditions));
+    CHECK(isActionAvailable(ActionId::ResolveUnsavedChangesPrompt, conditions));
+
+    CHECK_FALSE(isActionAvailable(ActionId::SaveProject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SaveProjectAs, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::PublishProject, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::ShowPluginBrowser, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::RemovePlugin, conditions));
+
+    conditions.has_unsaved_changes_prompt = false;
+    CHECK_FALSE(isActionAvailable(ActionId::ResolveUnsavedChangesPrompt, conditions));
+}
+
 } // namespace rock_hero::editor::core

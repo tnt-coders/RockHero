@@ -4128,8 +4128,8 @@ std::expected<PluginInstanceState, PluginHostError> Engine::capturePluginState(
     return makePluginInstanceState(external_plugin->state.createCopy());
 }
 
-// Restores a captured external-plugin memento as a new user-visible chain plugin.
-std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPluginState(
+// Recreates a captured external-plugin memento as a user-visible plugin with its original id.
+std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStatePreservingId(
     const PluginInstanceState& state, std::size_t chain_index)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
@@ -4175,60 +4175,118 @@ std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPlugin
     }
 
     const std::string original_instance_id = pluginInstanceIdFromState(*plugin_state);
-    juce::ValueTree insertion_state = plugin_state->createCopy();
-    insertion_state.removeProperty(tracktion::IDs::id, nullptr);
+    if (original_instance_id.empty())
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Captured plugin state does not contain a runtime instance id",
+        }};
+    }
+
+    if (m_impl->findInstrumentPluginInstance(original_instance_id) != nullptr)
+    {
+        return std::unexpected{PluginHostError{
+            PluginHostErrorCode::PluginStateRestoreFailed,
+            "Plugin instance id is already loaded: " + original_instance_id,
+        }};
+    }
 
     tracktion::Plugin::Ptr inserted_plugin;
     auto mutation_result = m_impl->mutateAndReroutePluginChain(
-        [&instrument_track, &insertion_state, &insert_position, &inserted_plugin]
-        -> std::expected<void, PluginChainMutationFailure> {
-            auto remove_partial_insert = [&inserted_plugin] {
+        [&instrument_track,
+         &plugin_state,
+         &insert_position,
+         &inserted_plugin,
+         &original_instance_id] -> std::expected<void, PluginChainMutationFailure> {
+            auto remove_partial_insert =
+                [&instrument_track,
+                 &inserted_plugin] -> std::expected<void, PluginChainMutationFailure> {
                 if (inserted_plugin != nullptr)
                 {
+                    tracktion::Plugin* const inserted_plugin_ptr = inserted_plugin.get();
                     inserted_plugin->deleteFromParent();
-                    inserted_plugin = nullptr;
+                    if (instrument_track->pluginList.indexOf(inserted_plugin_ptr) >= 0)
+                    {
+                        return std::unexpected{PluginChainMutationFailure{
+                            .error =
+                                PluginHostError{
+                                    PluginHostErrorCode::RollbackContractViolation,
+                                    "Could not remove partial recreated plugin",
+                                },
+                            .reroute_context = "plugin-state recreate rollback failed",
+                        }};
+                    }
                 }
+                inserted_plugin = nullptr;
+                return {};
             };
 
-            inserted_plugin =
-                instrument_track->pluginList.insertPlugin(insertion_state, *insert_position);
+            inserted_plugin = instrument_track->pluginList.insertPlugin(
+                plugin_state->createCopy(), *insert_position);
             auto* const external_plugin =
                 inserted_plugin != nullptr
                     ? dynamic_cast<tracktion::ExternalPlugin*>(inserted_plugin.get())
                     : nullptr;
             if (external_plugin == nullptr)
             {
-                remove_partial_insert();
+                if (auto removed = remove_partial_insert(); !removed.has_value())
+                {
+                    return std::unexpected{std::move(removed.error())};
+                }
                 return std::unexpected{PluginChainMutationFailure{
                     .error =
                         PluginHostError{
                             PluginHostErrorCode::PluginStateRestoreFailed,
-                            "Could not insert captured plugin state",
+                            "Could not recreate captured plugin state",
                         },
-                    .reroute_context = "plugin-state insertion rollback failed",
+                    .reroute_context = "plugin-state recreate rollback failed",
                 }};
             }
 
             const juce::String load_error = external_plugin->getLoadError();
             if (load_error.isNotEmpty())
             {
-                remove_partial_insert();
+                if (auto removed = remove_partial_insert(); !removed.has_value())
+                {
+                    return std::unexpected{std::move(removed.error())};
+                }
                 return std::unexpected{PluginChainMutationFailure{
                     .error =
                         PluginHostError{
                             PluginHostErrorCode::PluginStateRestoreFailed,
                             load_error.toStdString(),
                         },
-                    .reroute_context = "plugin-state load rollback failed",
+                    .reroute_context = "plugin-state recreate load rollback failed",
                 }};
             }
 
             if (instrument_track->pluginList.indexOf(inserted_plugin.get()) < 0)
             {
-                remove_partial_insert();
+                if (auto removed = remove_partial_insert(); !removed.has_value())
+                {
+                    return std::unexpected{std::move(removed.error())};
+                }
                 return std::unexpected{PluginChainMutationFailure{
                     .error = PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
-                    .reroute_context = "plugin-state insertion rollback failed",
+                    .reroute_context = "plugin-state recreate rollback failed",
+                }};
+            }
+
+            const std::string restored_instance_id =
+                inserted_plugin->itemID.toString().toStdString();
+            if (restored_instance_id != original_instance_id)
+            {
+                if (auto removed = remove_partial_insert(); !removed.has_value())
+                {
+                    return std::unexpected{std::move(removed.error())};
+                }
+                return std::unexpected{PluginChainMutationFailure{
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginStateRestoreFailed,
+                            "Recreated plugin id did not match captured state",
+                        },
+                    .reroute_context = "plugin-state recreate id rollback failed",
                 }};
             }
 
@@ -4240,17 +4298,13 @@ std::expected<PluginInstanceRestoreResult, PluginHostError> Engine::insertPlugin
                 inserted_plugin->deleteFromParent();
             }
         },
-        "plugin-state insertion route rollback failed");
+        "plugin-state recreate route rollback failed");
     if (!mutation_result.has_value())
     {
         return std::unexpected{std::move(mutation_result.error())};
     }
 
-    return PluginInstanceRestoreResult{
-        .snapshot = m_impl->pluginChainSnapshot(),
-        .original_instance_id = original_instance_id,
-        .restored_instance_id = inserted_plugin->itemID.toString().toStdString(),
-    };
+    return m_impl->pluginChainSnapshot();
 }
 
 // Restores a captured state chunk into an existing external plugin's live processor.

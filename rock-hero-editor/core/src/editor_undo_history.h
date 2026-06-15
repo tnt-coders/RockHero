@@ -114,6 +114,17 @@ public:
     /*! \brief Returns the user-visible command label for menus and diagnostics. */
     [[nodiscard]] virtual std::string label() const = 0;
 
+    /*!
+    \brief Reports whether applying this edit in the given direction recreates a plugin.
+
+    Directions that instantiate a plugin (insert redo, remove undo) are potentially slow and must
+    run behind the editor's plugin-loading busy presentation. All other edits apply synchronously.
+    */
+    [[nodiscard]] virtual bool instantiatesPlugin(EditorUndoDirection /*direction*/) const
+    {
+        return false;
+    }
+
 protected:
     /*! \brief Allows construction only through derived edit objects. */
     IEdit() = default;
@@ -123,6 +134,81 @@ private:
     IEdit(IEdit&&) = delete;
     IEdit& operator=(const IEdit&) = delete;
     IEdit& operator=(IEdit&&) = delete;
+};
+
+/*! \brief Editor-owned visual state for one plugin instance across recreate. */
+struct [[nodiscard]] PluginVisualEditState
+{
+    /*! \brief Plugin instance ID the visual state belongs to. */
+    std::string instance_id;
+
+    /*! \brief Fixed visual block occupied by the plugin. */
+    std::size_t block_index{};
+
+    /*! \brief Manual display type override before removal or after insertion. */
+    std::optional<PluginDisplayType> display_type_override;
+
+    /*! \brief Compares two visual edit states by their stored values. */
+    friend bool operator==(const PluginVisualEditState& lhs, const PluginVisualEditState& rhs) =
+        default;
+};
+
+/*! \brief Edit that removes or recreates a newly inserted plugin. */
+struct [[nodiscard]] PluginInsertEdit final : IEdit
+{
+    /*! \brief Inserted plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Chain index where the plugin was inserted. */
+    std::size_t chain_index{};
+
+    /*! \brief Full plugin state captured after insertion for id-preserving redo. */
+    common::audio::PluginInstanceState plugin_state;
+
+    /*! \brief Placement before insertion. */
+    std::vector<PluginBlockAssignment> before_placement;
+
+    /*! \brief Placement after insertion. */
+    std::vector<PluginBlockAssignment> after_placement;
+
+    /*! \brief Visual state after insertion. */
+    PluginVisualEditState visual_state;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+    [[nodiscard]] bool instantiatesPlugin(EditorUndoDirection direction) const override;
+};
+
+/*! \brief Edit that recreates or removes a deleted plugin. */
+struct [[nodiscard]] PluginRemoveEdit final : IEdit
+{
+    /*! \brief Removed plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Chain index occupied before removal. */
+    std::size_t chain_index{};
+
+    /*! \brief Full plugin state captured before removal for id-preserving undo. */
+    common::audio::PluginInstanceState plugin_state;
+
+    /*! \brief Placement before removal. */
+    std::vector<PluginBlockAssignment> before_placement;
+
+    /*! \brief Placement after removal. */
+    std::vector<PluginBlockAssignment> after_placement;
+
+    /*! \brief Visual state before removal. */
+    PluginVisualEditState visual_state;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+    [[nodiscard]] bool instantiatesPlugin(EditorUndoDirection direction) const override;
 };
 
 /*! \brief Edit that moves one plugin and restores its visual placement. */

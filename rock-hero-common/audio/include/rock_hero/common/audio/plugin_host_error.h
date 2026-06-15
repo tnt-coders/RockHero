@@ -66,6 +66,9 @@ enum class PluginHostErrorCode
 
     /*! \brief The backend could not restore a full opaque state chunk to a plugin instance. */
     PluginStateRestoreFailed,
+
+    /*! \brief The backend could prove neither success nor rollback after a mutation failure. */
+    RollbackContractViolation,
 };
 
 /*! \brief Recoverable plugin-host failure with a stable code and displayable detail. */

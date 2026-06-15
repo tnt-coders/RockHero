@@ -74,28 +74,6 @@ struct [[nodiscard]] PluginInsertResult
     friend bool operator==(const PluginInsertResult& lhs, const PluginInsertResult& rhs) = default;
 };
 
-/*! \brief Result returned after restoring a captured plugin as a chain instance. */
-struct [[nodiscard]] PluginInstanceRestoreResult
-{
-    /*! \brief Authoritative chain snapshot after the restore succeeded. */
-    PluginChainSnapshot snapshot;
-
-    /*! \brief Runtime instance ID encoded in the restored state. */
-    std::string original_instance_id;
-
-    /*! \brief Runtime instance ID assigned to the restored live plugin. */
-    std::string restored_instance_id;
-
-    /*!
-    \brief Compares two restore results by their stored values.
-    \param lhs Left-hand restore result.
-    \param rhs Right-hand restore result.
-    \return True when both results store equal values.
-    */
-    friend bool operator==(
-        const PluginInstanceRestoreResult& lhs, const PluginInstanceRestoreResult& rhs) = default;
-};
-
 /*! \brief Full before/after state for one settled user plugin-parameter edit. */
 struct [[nodiscard]] PluginParameterEdit
 {
@@ -249,19 +227,19 @@ public:
         const std::string& instance_id) = 0;
 
     /*!
-    \brief Restores a captured plugin state as a new hosted chain instance.
+    \brief Recreates a captured plugin state under its encoded runtime instance ID.
 
     The chain index is in the user-visible chain, excluding hidden structural gain and meter
-    plugins. Callers must treat the returned original/restored ID mapping as authoritative because
-    backends may assign a new runtime ID during recreation.
+    plugins. The original instance must already be absent from the hosted chain. Implementations
+    preserve the runtime ID encoded in the state and fail if they cannot prove that identity.
 
     \param state Opaque plugin state previously captured from this boundary.
     \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.
-    \return Authoritative post-restore snapshot plus original/restored runtime IDs, or failure.
+    \return Authoritative post-recreate snapshot, or failure.
     \note This method must be called on the message thread.
     */
-    [[nodiscard]] virtual std::expected<PluginInstanceRestoreResult, PluginHostError>
-    insertPluginState(const PluginInstanceState& state, std::size_t chain_index) = 0;
+    [[nodiscard]] virtual std::expected<PluginChainSnapshot, PluginHostError>
+    recreatePluginStatePreservingId(const PluginInstanceState& state, std::size_t chain_index) = 0;
 
     /*!
     \brief Restores a full opaque state chunk onto an existing plugin instance.
