@@ -592,6 +592,165 @@ TEST_CASE("EditorController keeps plugin browser open after add error", "[core][
     CHECK_FALSE(error_state->busy.has_value());
 }
 
+// If undo preparation fails after insertion, rolling back the insert preserves prior history.
+TEST_CASE("EditorController rolls back insert when undo prep fails", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    plugin_host.next_capture_state_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginStateCaptureFailed,
+        "capture rejected",
+    };
+
+    addKnownPlugin(controller);
+
+    CHECK(plugin_host.remove_call_count == 1);
+    CHECK(plugin_host.last_removed_instance_id == std::optional<std::string>{"instance-b"});
+    const EditorViewState* failed_state = stateOrNull(view.last_state);
+    REQUIRE(failed_state != nullptr);
+    CHECK_FALSE(failed_state->busy.has_value());
+    CHECK_FALSE(failed_state->plugin_browser.visible);
+    REQUIRE(failed_state->signal_chain.plugins.size() == 1);
+    CHECK(failed_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(failed_state->undo_label == std::optional<std::string>{"Insert Plugin"});
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back().find("insert was rolled back") != std::string::npos);
+
+    controller.onUndoRequested();
+    controller.onCloseRequested();
+
+    const EditorViewState* closed_state = stateOrNull(view.last_state);
+    REQUIRE(closed_state != nullptr);
+    CHECK_FALSE(closed_state->unsaved_changes_prompt.has_value());
+}
+
+// If rollback fails after an untracked insert, the controller clears partial undo history.
+TEST_CASE("EditorController clears undo when insert rollback fails", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    plugin_host.next_capture_state_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginStateCaptureFailed,
+        "capture rejected",
+    };
+    plugin_host.next_remove_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginRemovalFailed,
+        "remove rejected",
+    };
+
+    addKnownPlugin(controller);
+
+    CHECK(plugin_host.remove_call_count == 1);
+    const EditorViewState* failed_state = stateOrNull(view.last_state);
+    REQUIRE(failed_state != nullptr);
+    REQUIRE(failed_state->signal_chain.plugins.size() == 2);
+    CHECK(failed_state->signal_chain.plugins[0].instance_id == "instance-a");
+    CHECK(failed_state->signal_chain.plugins[1].instance_id == "instance-b");
+    CHECK_FALSE(failed_state->undo_label.has_value());
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(view.shown_errors.back().find("rollback failed") != std::string::npos);
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
+}
+
+// A rollback-contract violation during insert cleanup faults the current editor session.
+TEST_CASE("EditorController faults when insert rollback breaks", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    plugin_host.next_capture_state_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::PluginStateCaptureFailed,
+        "capture rejected",
+    };
+    plugin_host.next_remove_error = common::audio::PluginHostError{
+        common::audio::PluginHostErrorCode::RollbackContractViolation,
+        "rollback contract rejected",
+    };
+
+    addKnownPlugin(controller);
+
+    const EditorViewState* faulted_state = stateOrNull(view.last_state);
+    REQUIRE(faulted_state != nullptr);
+    CHECK(faulted_state->open_enabled);
+    CHECK(faulted_state->import_enabled);
+    CHECK(faulted_state->close_enabled);
+    CHECK_FALSE(faulted_state->save_enabled);
+    CHECK_FALSE(faulted_state->save_as_enabled);
+    CHECK_FALSE(faulted_state->publish_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.insert_plugin_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.move_plugins_enabled);
+    CHECK_FALSE(faulted_state->signal_chain.remove_plugins_enabled);
+    REQUIRE(view.shown_errors.size() == 1);
+    CHECK(
+        view.shown_errors.back() ==
+        "An unexpected internal error left the live editor state untrusted. Please report this "
+        "bug and attach the editor log file, then reopen or close the project before continuing.");
+}
+
 // Opening the browser from a gap inserts the selected plugin at that backend slot and block.
 TEST_CASE("EditorController inserts browser plugin at a gap", "[core][editor-controller]")
 {
@@ -1288,7 +1447,7 @@ TEST_CASE(
     CHECK(live_rig.last_capture_request->display_type_overrides == std::vector<std::string>{"cab"});
 }
 
-// Once tone persistence is available, plugin mutations become unsaved project changes.
+// Plugin insertions are tracked as undoable tone edits, which makes the project dirty.
 TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1428,6 +1587,141 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     const EditorViewState* closed_state = stateOrNull(view.last_state);
     REQUIRE(closed_state != nullptr);
     CHECK_FALSE(closed_state->unsaved_changes_prompt.has_value());
+}
+
+// Redo returns the controller to an edited history position and should prompt before replacement.
+TEST_CASE("EditorController redo makes clean placement dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
+    controller.onUndoRequested();
+    controller.onRedoRequested();
+
+    const EditorViewState* redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    REQUIRE(redone_state->signal_chain.plugins.size() == 1);
+    CHECK(redone_state->signal_chain.plugins[0].block_index == 3);
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
+}
+
+// A new edit after undo discards the saved redo branch, so the old clean marker is unreachable.
+TEST_CASE("EditorController forked redo branch stays dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 1;
+    live_rig.next_capture_snapshot.plugins = {pluginEntry("loaded-instance", 0, 3)};
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_function = project_services.saveFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 3)});
+    controller.onSaveRequested();
+    controller.onUndoRequested();
+    controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", 4)});
+    controller.onUndoRequested();
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
+}
+
+// Once bounded history evicts the clean marker, undoing all reachable edits still stays dirty.
+TEST_CASE("EditorController evicted clean marker stays dirty", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.front().block_index = 0;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    for (std::size_t index = 0; index < 101; ++index)
+    {
+        const std::size_t block_index = index % 2 == 0 ? 1 : 0;
+        controller.onSignalChainPlacementChanged({blockAssignment("loaded-instance", block_index)});
+    }
+
+    for (std::size_t index = 0; index < 100; ++index)
+    {
+        controller.onUndoRequested();
+    }
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
 }
 
 // Display-type undo and redo restore editor-owned classification metadata only.
@@ -1790,6 +2084,14 @@ TEST_CASE("EditorController faults after rollback violation", "[core][editor-con
         view.shown_errors.back() ==
         "An unexpected internal error left the live editor state untrusted. Please report this "
         "bug and attach the editor log file, then reopen or close the project before continuing.");
+
+    controller.onCloseRequested();
+
+    const EditorViewState* prompt_state = stateOrNull(view.last_state);
+    REQUIRE(prompt_state != nullptr);
+    CHECK(
+        prompt_state->unsaved_changes_prompt ==
+        std::optional{UnsavedChangesPrompt{EditorActionId::CloseProject}});
 }
 
 // Moving a plugin applies the backend's authoritative reordered chain snapshot.
