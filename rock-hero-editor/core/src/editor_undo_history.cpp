@@ -1,7 +1,11 @@
 #include "editor_undo_history.h"
 
+#include "signal_chain_workflow.h"
+
 #include <algorithm>
-#include <type_traits>
+#include <rock_hero/common/audio/i_live_rig.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/editor/core/plugin_view_state.h>
 #include <utility>
 
 namespace rock_hero::editor::core
@@ -32,81 +36,229 @@ namespace
     };
 }
 
-// Replaces a runtime instance ID if this field currently references the old ID.
-void remapStringId(std::string& instance_id, const std::string& old_id, const std::string& new_id)
+// Validates that a stored placement snapshot addresses the current plugin set before side effects.
+[[nodiscard]] bool placementTargetsPlugins(
+    const std::vector<PluginBlockAssignment>& placement,
+    const std::vector<PluginViewState>& plugins)
 {
-    if (instance_id == old_id)
+    if (placement.size() != plugins.size())
     {
-        instance_id = new_id;
+        return false;
     }
+
+    return std::ranges::all_of(plugins, [&placement](const PluginViewState& plugin) {
+        return std::ranges::any_of(placement, [&plugin](const PluginBlockAssignment& assignment) {
+            return assignment.instance_id == plugin.instance_id;
+        });
+    });
 }
 
-// Replaces instance IDs in an editor-owned placement vector.
-void remapPlacement(
-    std::vector<PluginBlockAssignment>& placement, const std::string& old_id,
-    const std::string& new_id)
+// Applies a move edit in one direction and restores the matching editor-owned placement snapshot.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginMoveEdit(
+    const PluginMoveEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    for (PluginBlockAssignment& assignment : placement)
+    const std::size_t target_index =
+        direction == EditorUndoDirection::Undo ? edit.before_index : edit.after_index;
+    const std::vector<PluginBlockAssignment>& placement =
+        direction == EditorUndoDirection::Undo ? edit.before_placement : edit.after_placement;
+    const std::vector<PluginViewState>& plugins = context.signal_chain.plugins();
+    if (!placementTargetsPlugins(placement, plugins))
     {
-        remapStringId(assignment.instance_id, old_id, new_id);
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
+
+    const std::optional<std::size_t> current_index =
+        context.signal_chain.chainIndexForInstance(edit.instance_id);
+    if (!current_index.has_value() || target_index >= context.signal_chain.appendIndex())
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    if (*current_index == target_index)
+    {
+        if (context.signal_chain.setBlockPlacement(placement))
+        {
+            return {};
+        }
+
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    auto snapshot = context.plugin_host.movePlugin(edit.instance_id, target_index);
+    if (!snapshot.has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
+    }
+
+    context.signal_chain.replaceSnapshot(std::move(*snapshot));
+    (void)context.signal_chain.setBlockPlacement(placement);
+    return {};
 }
 
-// Replaces the runtime ID stored by one plugin visual-state snapshot.
-void remapVisualState(
-    PluginVisualEditState& visual_state, const std::string& old_id, const std::string& new_id)
+// Applies a placement edit in one direction.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginPlacementEdit(
+    const PluginPlacementEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    remapStringId(visual_state.instance_id, old_id, new_id);
+    const std::vector<PluginBlockAssignment>& placement =
+        direction == EditorUndoDirection::Undo ? edit.before_placement : edit.after_placement;
+    if (!context.signal_chain.setBlockPlacement(placement))
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    return {};
 }
 
-// Replaces runtime IDs held by one typed undo payload.
-void remapPayload(EditorUndoPayload& payload, const std::string& old_id, const std::string& new_id)
+// Applies a display-type edit in one direction.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginDisplayTypeEdit(
+    const PluginDisplayTypeEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    std::visit(
-        [&](auto& edit) {
-            using Edit = std::decay_t<decltype(edit)>;
-            if constexpr (std::is_same_v<Edit, PluginInsertEdit>)
-            {
-                remapStringId(edit.instance_id, old_id, new_id);
-                remapVisualState(edit.visual_state, old_id, new_id);
-                remapPlacement(edit.placement, old_id, new_id);
-            }
-            else if constexpr (std::is_same_v<Edit, PluginRemoveEdit>)
-            {
-                remapStringId(edit.instance_id, old_id, new_id);
-                remapVisualState(edit.visual_state, old_id, new_id);
-                remapPlacement(edit.placement, old_id, new_id);
-            }
-            else if constexpr (std::is_same_v<Edit, PluginMoveEdit>)
-            {
-                remapStringId(edit.instance_id, old_id, new_id);
-                remapPlacement(edit.before_placement, old_id, new_id);
-                remapPlacement(edit.after_placement, old_id, new_id);
-            }
-            else if constexpr (std::is_same_v<Edit, PluginPlacementEdit>)
-            {
-                remapPlacement(edit.before_placement, old_id, new_id);
-                remapPlacement(edit.after_placement, old_id, new_id);
-            }
-            else if constexpr (std::is_same_v<Edit, PluginDisplayTypeEdit>)
-            {
-                remapStringId(edit.instance_id, old_id, new_id);
-            }
-            else if constexpr (std::is_same_v<Edit, PluginParameterEdit>)
-            {
-                remapStringId(edit.instance_id, old_id, new_id);
-            }
-        },
-        payload);
+    const std::optional<PluginDisplayType> display_type =
+        direction == EditorUndoDirection::Undo ? edit.before_type : edit.after_type;
+    if (!context.signal_chain.setPluginDisplayTypeOverride(edit.instance_id, display_type))
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    return {};
 }
 
-// Replaces runtime IDs held by one undo entry.
-void remapEntry(EditorUndoEntry& entry, const std::string& old_id, const std::string& new_id)
+// Applies a full plugin-state memento in one direction through the audio boundary.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginParameterEdit(
+    const PluginParameterEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
-    remapPayload(entry.payload, old_id, new_id);
+    if (!context.signal_chain.containsInstance(edit.instance_id))
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const common::audio::PluginInstanceState& state =
+        direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
+    const common::audio::PluginInstanceState& opposite_state =
+        direction == EditorUndoDirection::Undo ? edit.after_state : edit.before_state;
+    if (state == opposite_state)
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    if (const auto restored = context.plugin_host.setPluginState(edit.instance_id, state);
+        !restored.has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
+    }
+
+    return {};
+}
+
+// Applies an output-gain edit in one direction through the live-rig boundary.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyOutputGainEdit(
+    const OutputGainEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
+{
+    const common::audio::Gain gain =
+        direction == EditorUndoDirection::Undo ? edit.before_gain : edit.after_gain;
+    const common::audio::Gain opposite_gain =
+        direction == EditorUndoDirection::Undo ? edit.after_gain : edit.before_gain;
+    if (gain == opposite_gain)
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    if (const auto applied = context.live_rig.setOutputGain(gain); !applied.has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
+    }
+
+    context.output_gain_db = gain.db;
+    return {};
 }
 
 } // namespace
+
+std::expected<void, EditorUndoFailureCode> PluginMoveEdit::undo(EditorEditContext& context) const
+{
+    return applyPluginMoveEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> PluginMoveEdit::redo(EditorEditContext& context) const
+{
+    return applyPluginMoveEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string PluginMoveEdit::label() const
+{
+    return "Move Plugin";
+}
+
+std::expected<void, EditorUndoFailureCode> PluginPlacementEdit::undo(
+    EditorEditContext& context) const
+{
+    return applyPluginPlacementEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> PluginPlacementEdit::redo(
+    EditorEditContext& context) const
+{
+    return applyPluginPlacementEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string PluginPlacementEdit::label() const
+{
+    return "Move Plugin Block";
+}
+
+std::expected<void, EditorUndoFailureCode> PluginDisplayTypeEdit::undo(
+    EditorEditContext& context) const
+{
+    return applyPluginDisplayTypeEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> PluginDisplayTypeEdit::redo(
+    EditorEditContext& context) const
+{
+    return applyPluginDisplayTypeEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string PluginDisplayTypeEdit::label() const
+{
+    return "Set Plugin Display Type";
+}
+
+std::expected<void, EditorUndoFailureCode> PluginParameterEdit::undo(
+    EditorEditContext& context) const
+{
+    return applyPluginParameterEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> PluginParameterEdit::redo(
+    EditorEditContext& context) const
+{
+    return applyPluginParameterEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string PluginParameterEdit::label() const
+{
+    if (label_hint.empty())
+    {
+        return "Edit Plugin Parameter";
+    }
+
+    return "Edit " + label_hint;
+}
+
+std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
+{
+    return applyOutputGainEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> OutputGainEdit::redo(EditorEditContext& context) const
+{
+    return applyOutputGainEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string OutputGainEdit::label() const
+{
+    return "Set Output Gain";
+}
 
 EditorUndoHistory::EditorUndoHistory(std::size_t max_entries)
     : m_max_entries(std::max<std::size_t>(1, max_entries))
@@ -159,7 +311,7 @@ std::optional<std::string> EditorUndoHistory::undoLabel() const
         return std::nullopt;
     }
 
-    return m_entries[m_position - 1].label;
+    return m_entries[m_position - 1]->label();
 }
 
 std::optional<std::string> EditorUndoHistory::redoLabel() const
@@ -169,32 +321,27 @@ std::optional<std::string> EditorUndoHistory::redoLabel() const
         return std::nullopt;
     }
 
-    return m_entries[m_position].label;
-}
-
-const std::vector<EditorUndoEntry>& EditorUndoHistory::entries() const noexcept
-{
-    return m_entries;
-}
-
-std::optional<EditorUndoPendingTransition> EditorUndoHistory::pendingTransition() const
-{
-    return m_pending;
+    return m_entries[m_position]->label();
 }
 
 // Appends a successfully-applied user edit and discards any no-longer-linear redo branch.
-EditorUndoTransitionResult EditorUndoHistory::push(EditorUndoEntry entry)
+EditorUndoTransitionResult EditorUndoHistory::push(std::unique_ptr<IEdit> edit)
 {
     if (m_pending.has_value())
     {
         return nonCommitFailure(EditorUndoFailureCode::TransitionAlreadyPending);
     }
 
+    if (edit == nullptr)
+    {
+        return nonCommitFailure(EditorUndoFailureCode::PreflightRejected);
+    }
+
     std::vector<EditorUndoEvent> events;
     truncateRedo(events);
 
-    const std::string label = entry.label;
-    m_entries.push_back(std::move(entry));
+    const std::string label = edit->label();
+    m_entries.push_back(std::move(edit));
     m_position = m_entries.size();
     events.push_back(EditorUndoEvent{.type = EditorUndoEventType::EntryPushed, .label = label});
     enforceMaxEntries(events);
@@ -252,14 +399,14 @@ EditorUndoTransitionResult EditorUndoHistory::begin(EditorUndoDirection directio
     m_pending = EditorUndoPendingTransition{
         .token = m_next_pending_token++,
         .direction = direction,
-        .entry = m_entries[entry_index],
+        .edit = m_entries[entry_index].get(),
     };
 
     return EditorUndoTransitionResult{
         .status = EditorUndoTransitionStatus::Pending,
         .events = {EditorUndoEvent{
             .type = is_undo ? EditorUndoEventType::UndoBegan : EditorUndoEventType::RedoBegan,
-            .label = m_pending->entry.label,
+            .label = m_pending->edit->label(),
             .direction = direction,
         }},
     };
@@ -289,7 +436,7 @@ EditorUndoTransitionResult EditorUndoHistory::commit(const EditorUndoPendingTran
         ++m_position;
     }
 
-    const std::string label = m_pending->entry.label;
+    const std::string label = pendingLabel();
     m_pending.reset();
 
     return EditorUndoTransitionResult{
@@ -317,7 +464,7 @@ EditorUndoTransitionResult EditorUndoHistory::abort(
         return nonCommitFailure(EditorUndoFailureCode::PendingTokenMismatch);
     }
 
-    const std::string label = m_pending->entry.label;
+    const std::string label = pendingLabel();
     const EditorUndoDirection direction = m_pending->direction;
     m_pending.reset();
 
@@ -360,35 +507,6 @@ EditorUndoTransitionResult EditorUndoHistory::reset()
     return EditorUndoTransitionResult{
         .status = EditorUndoTransitionStatus::Applied,
         .events = {EditorUndoEvent{.type = EditorUndoEventType::HistoryReset}},
-    };
-}
-
-// Remaps runtime IDs across all stored entries and the active pending entry copy.
-EditorUndoTransitionResult EditorUndoHistory::remapInstanceId(
-    const std::string& old_instance_id, const std::string& new_instance_id)
-{
-    if (old_instance_id == new_instance_id)
-    {
-        return EditorUndoTransitionResult{.status = EditorUndoTransitionStatus::Applied};
-    }
-
-    for (EditorUndoEntry& entry : m_entries)
-    {
-        remapEntry(entry, old_instance_id, new_instance_id);
-    }
-
-    if (m_pending.has_value())
-    {
-        remapEntry(m_pending->entry, old_instance_id, new_instance_id);
-    }
-
-    return EditorUndoTransitionResult{
-        .status = EditorUndoTransitionStatus::Applied,
-        .events = {EditorUndoEvent{
-            .type = EditorUndoEventType::InstanceIdRemapped,
-            .old_instance_id = old_instance_id,
-            .new_instance_id = new_instance_id,
-        }},
     };
 }
 
@@ -456,6 +574,16 @@ void EditorUndoHistory::makeCleanMarkerUnreachable(std::vector<EditorUndoEvent>&
 bool EditorUndoHistory::pendingMatches(const EditorUndoPendingTransition& pending) const noexcept
 {
     return m_pending.has_value() && m_pending->token == pending.token;
+}
+
+std::string EditorUndoHistory::pendingLabel() const
+{
+    if (!m_pending.has_value() || m_pending->edit == nullptr)
+    {
+        return {};
+    }
+
+    return m_pending->edit->label();
 }
 
 } // namespace rock_hero::editor::core
