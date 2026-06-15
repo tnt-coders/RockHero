@@ -86,7 +86,13 @@ public:
         virtual void onInputCalibrationPressed() = 0;
 
         /*!
-        \brief Called when the user adjusts the output gain slider.
+        \brief Called when the user previews output gain during a slider drag.
+        \param gain_db New output gain in decibels.
+        */
+        virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+
+        /*!
+        \brief Called when the user commits the output gain slider value.
         \param gain_db New output gain in decibels.
         */
         virtual void onOutputGainChanged(double gain_db) = 0;
@@ -219,6 +225,9 @@ private:
 
     // Output gain slider positioned within the right-side output gain group.
     juce::Slider m_output_gain_slider;
+
+    // True while JUCE is issuing drag-scoped output gain value changes.
+    bool m_output_gain_dragging{false};
 
     // Post-output-gain peak meter positioned beside the output slider.
     AudioLevelMeter m_output_meter;
