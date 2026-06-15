@@ -163,6 +163,42 @@ TEST_CASE("Output gain slider emits controller intent", "[ui][editor-view]")
     output_slider.setValue(-6.0, juce::sendNotificationSync);
 
     CHECK(controller.output_gain_change_count == 1);
+    CHECK(controller.output_gain_preview_change_count == 0);
+    CHECK(controller.last_output_gain_db == std::optional{-6.0});
+}
+
+// Verifies that output gain drag changes preview continuously and commits once on release.
+TEST_CASE("Output gain drag previews then commits once", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setState(
+        core::EditorViewState{
+            .signal_chain = core::SignalChainViewState{
+                .output_gain_controls_enabled = true,
+            },
+        });
+
+    auto& output_slider = findRequiredDescendant<juce::Slider>(view, "output_gain_slider");
+    REQUIRE(static_cast<bool>(output_slider.onDragStart));
+    REQUIRE(static_cast<bool>(output_slider.onDragEnd));
+
+    output_slider.onDragStart();
+    output_slider.setValue(-3.0, juce::sendNotificationSync);
+    output_slider.setValue(-6.0, juce::sendNotificationSync);
+
+    CHECK(controller.output_gain_preview_change_count == 2);
+    CHECK(controller.output_gain_change_count == 0);
+    CHECK(controller.last_output_gain_preview_db == std::optional{-6.0});
+
+    output_slider.onDragEnd();
+
+    CHECK(controller.output_gain_preview_change_count == 2);
+    CHECK(controller.output_gain_change_count == 1);
     CHECK(controller.last_output_gain_db == std::optional{-6.0});
 }
 

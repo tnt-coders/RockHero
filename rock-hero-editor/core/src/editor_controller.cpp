@@ -65,6 +65,13 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
         message);
 }
 
+// Distinguishes live slider audition from a value that should enter undo history.
+enum class OutputGainChangeIntent
+{
+    Preview,
+    Commit,
+};
+
 [[nodiscard]] std::string_view actionIdText(EditorAction::Id action) noexcept
 {
     switch (action)
@@ -800,6 +807,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::expected<void, common::audio::LiveInputError> onInputCalibrationManuallySet(
         double gain_db);
     void onInputCalibrationDismissed();
+    void onOutputGainPreviewChanged(double gain_db);
     void onOutputGainChanged(double gain_db);
     void onAudioDeviceChangeRequested(
         std::function<void()> change_audio_device, std::function<void()> after_busy_cleared);
@@ -846,7 +854,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const PluginDisplayTypeEdit& edit, EditorUndoDirection direction);
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
         const PluginParameterEdit& edit, EditorUndoDirection direction);
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
+        const OutputGainEdit& edit, EditorUndoDirection direction);
     void pushUndoEntry(EditorUndoEntry entry);
+    void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
+    void applyOutputGainChange(double gain_db, OutputGainChangeIntent intent);
     void resetUndoHistory(std::string_view context);
     void markUndoHistoryClean(std::string_view context);
     void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
@@ -1055,6 +1067,9 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
+
+    // Present only while a live slider preview is waiting for its final commit.
+    std::optional<common::audio::Gain> m_output_gain_preview_before{};
 
     // True only after arrangement audio and the live rig restore have both committed.
     bool m_project_audio_ready{false};
@@ -1395,6 +1410,11 @@ std::expected<void, common::audio::LiveInputError> EditorController::onInputCali
 void EditorController::onInputCalibrationDismissed()
 {
     m_impl->onInputCalibrationDismissed();
+}
+
+void EditorController::onOutputGainPreviewChanged(double gain_db)
+{
+    m_impl->onOutputGainPreviewChanged(gain_db);
 }
 
 void EditorController::onOutputGainChanged(double gain_db)
@@ -1964,6 +1984,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                 m_signal_chain.replaceSnapshot(
                     common::audio::PluginChainSnapshot{.plugins = rig_result->plugins});
                 m_output_gain_db = rig_result->output_gain.db;
+                m_output_gain_preview_before.reset();
                 applyLiveInputGate();
                 if (!report_progress)
                 {
@@ -2479,7 +2500,7 @@ std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoEntr
             if constexpr (
                 std::is_same_v<Edit, PluginMoveEdit> || std::is_same_v<Edit, PluginPlacementEdit> ||
                 std::is_same_v<Edit, PluginDisplayTypeEdit> ||
-                std::is_same_v<Edit, PluginParameterEdit>
+                std::is_same_v<Edit, PluginParameterEdit> || std::is_same_v<Edit, OutputGainEdit>
             )
             {
                 return applyUndoPayload(edit, direction);
@@ -2589,6 +2610,28 @@ std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayl
     return {};
 }
 
+// Restores the structural output gain through the live-rig boundary.
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+    const OutputGainEdit& edit, EditorUndoDirection direction)
+{
+    const common::audio::Gain gain =
+        direction == EditorUndoDirection::Undo ? edit.before_gain : edit.after_gain;
+    const common::audio::Gain opposite_gain =
+        direction == EditorUndoDirection::Undo ? edit.after_gain : edit.before_gain;
+    if (gain == opposite_gain)
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    if (const auto applied = m_live_rig.setOutputGain(gain); !applied.has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
+    }
+
+    m_output_gain_db = gain.db;
+    return {};
+}
+
 // Pushes one already-applied user edit into the product-level history stack.
 void EditorController::Impl::pushUndoEntry(EditorUndoEntry entry)
 {
@@ -2596,9 +2639,100 @@ void EditorController::Impl::pushUndoEntry(EditorUndoEntry entry)
     logEditorUndoTransitionResult("undo.push", result);
 }
 
+// Pushes a net-changed output-gain command into product-level history.
+void EditorController::Impl::pushOutputGainUndoEntry(
+    common::audio::Gain before_gain, common::audio::Gain after_gain)
+{
+    if (before_gain == after_gain)
+    {
+        return;
+    }
+
+    RH_LOG_INFO(
+        "editor.controller",
+        "Completed output gain edit before_db={} after_db={}",
+        before_gain.db,
+        after_gain.db);
+    pushUndoEntry(
+        EditorUndoEntry{
+            .label = "Set Output Gain",
+            .payload = OutputGainEdit{
+                .before_gain = before_gain,
+                .after_gain = after_gain,
+            },
+        });
+}
+
+// Applies output gain previews immediately, but records only committed values in undo history.
+void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainChangeIntent intent)
+{
+    if (!m_project_audio_ready || !hasLoadedArrangement() || isBusy())
+    {
+        return;
+    }
+
+    const bool is_commit = intent == OutputGainChangeIntent::Commit;
+    if (is_commit)
+    {
+        if (!m_output_gain_preview_before.has_value())
+        {
+            flushPendingPluginParameterEdits("plugin_parameter.output_gain_commit");
+        }
+    }
+    else if (!m_output_gain_preview_before.has_value())
+    {
+        flushPendingPluginParameterEdits("plugin_parameter.output_gain_preview");
+        m_output_gain_preview_before = common::audio::Gain{m_output_gain_db};
+    }
+
+    const common::audio::Gain before_gain =
+        m_output_gain_preview_before.value_or(common::audio::Gain{m_output_gain_db});
+    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
+    const bool needs_live_update = gain.db != m_output_gain_db;
+
+    if (!needs_live_update)
+    {
+        if (is_commit && m_output_gain_preview_before.has_value())
+        {
+            if (hasLiveRigPersistence())
+            {
+                pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
+            }
+            m_output_gain_preview_before.reset();
+            updateView();
+        }
+        return;
+    }
+
+    const auto result = m_live_rig.setOutputGain(gain);
+    if (!result.has_value())
+    {
+        reportError(std::string{"Could not set output gain: "} + result.error().message);
+        if (is_commit && m_output_gain_preview_before.has_value() && hasLiveRigPersistence())
+        {
+            pushOutputGainUndoEntry(before_gain, common::audio::Gain{m_output_gain_db});
+        }
+        m_output_gain_preview_before.reset();
+        updateView();
+        return;
+    }
+
+    m_output_gain_db = gain.db;
+    if (is_commit)
+    {
+        if (hasLiveRigPersistence())
+        {
+            pushOutputGainUndoEntry(before_gain, gain);
+        }
+        m_output_gain_preview_before.reset();
+    }
+    updateView();
+}
+
 // Clears the current undo stack at a project or partial-coverage invalidation boundary.
 void EditorController::Impl::resetUndoHistory(std::string_view context)
 {
+    m_output_gain_preview_before.reset();
     const EditorUndoTransitionResult result = m_undo_history.reset();
     logEditorUndoTransitionResult(context, result);
 }
@@ -3139,35 +3273,16 @@ void EditorController::Impl::onInputCalibrationDismissed()
     updateView();
 }
 
-// Applies a clamped output gain to the live rig and marks the tone dirty.
+// Applies a live output gain preview without adding an undo entry until the final commit arrives.
+void EditorController::Impl::onOutputGainPreviewChanged(double gain_db)
+{
+    applyOutputGainChange(gain_db, OutputGainChangeIntent::Preview);
+}
+
+// Applies a clamped output gain to the live rig and records the committed value in undo history.
 void EditorController::Impl::onOutputGainChanged(double gain_db)
 {
-    if (!m_project_audio_ready || !hasLoadedArrangement() || isBusy())
-    {
-        return;
-    }
-
-    const auto gain = common::audio::clampGain(common::audio::Gain{gain_db});
-    if (gain.db == m_output_gain_db)
-    {
-        return;
-    }
-
-    const auto result = m_live_rig.setOutputGain(gain);
-    if (!result.has_value())
-    {
-        reportError(std::string{"Could not set output gain: "} + result.error().message);
-        updateView();
-        return;
-    }
-
-    m_output_gain_db = gain.db;
-    if (hasLiveRigPersistence())
-    {
-        m_has_unsaved_changes = true;
-        clearUndoHistoryAfterUntrackedEdit("undo.reset.untracked_output_gain_edit");
-    }
-    updateView();
+    applyOutputGainChange(gain_db, OutputGainChangeIntent::Commit);
 }
 
 // Collects availability inputs using fresh controller snapshots for immediate action gates.
@@ -3436,6 +3551,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
     m_signal_chain.replaceSnapshot(
         common::audio::PluginChainSnapshot{.plugins = snapshot->plugins});
     m_output_gain_db = snapshot->output_gain.db;
+    m_output_gain_preview_before.reset();
     return {};
 }
 
@@ -3783,6 +3899,7 @@ std::expected<void, common::audio::SongAudioError> EditorController::Impl::loadS
         assert(committed && "Session rejected backend-accepted project song");
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
+        m_output_gain_preview_before.reset();
         m_plugin_catalog.hide();
     }
     m_session_load_in_progress = false;

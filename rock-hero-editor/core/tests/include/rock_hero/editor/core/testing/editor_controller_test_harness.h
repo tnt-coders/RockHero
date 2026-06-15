@@ -557,6 +557,11 @@ struct FakeLiveRig final : public common::audio::ILiveRig
     [[nodiscard]] std::expected<void, common::audio::LiveRigError> setOutputGain(
         common::audio::Gain gain) override
     {
+        if (next_set_output_gain_error.has_value())
+        {
+            return std::unexpected{*next_set_output_gain_error};
+        }
+
         current_output_gain = common::audio::clampGain(gain);
         set_output_gain_call_count += 1;
         return {};
@@ -603,6 +608,9 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 
     // Optional clear error returned instead of success.
     std::optional<common::audio::LiveRigError> next_clear_error{};
+
+    // Optional output-gain error returned instead of success.
+    std::optional<common::audio::LiveRigError> next_set_output_gain_error{};
 
     // When set, loadLiveRig stores its completion so tests can finish it explicitly.
     bool defer_load_completion{false};

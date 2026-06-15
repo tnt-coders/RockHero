@@ -99,6 +99,9 @@ public:
     void onInputCalibrationPressed() override
     {}
 
+    void onOutputGainPreviewChanged(double /*gain_db*/) override
+    {}
+
     void onOutputGainChanged(double /*gain_db*/) override
     {}
 

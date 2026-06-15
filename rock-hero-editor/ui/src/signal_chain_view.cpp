@@ -1143,7 +1143,19 @@ SignalChainView::SignalChainView(Listener& listener)
 
     configureGainSlider(m_output_gain_slider, "output_gain_slider");
     m_output_gain_slider.setLookAndFeel(m_output_gain_slider_look_and_feel.get());
+    m_output_gain_slider.onDragStart = [this] { m_output_gain_dragging = true; };
     m_output_gain_slider.onValueChange = [this] {
+        const double gain_db = m_output_gain_slider.getValue();
+        if (m_output_gain_dragging)
+        {
+            m_listener.onOutputGainPreviewChanged(gain_db);
+            return;
+        }
+
+        m_listener.onOutputGainChanged(gain_db);
+    };
+    m_output_gain_slider.onDragEnd = [this] {
+        m_output_gain_dragging = false;
         m_listener.onOutputGainChanged(m_output_gain_slider.getValue());
     };
     addAndMakeVisible(m_output_gain_slider);

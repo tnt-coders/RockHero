@@ -197,7 +197,13 @@ public:
     virtual void onInputCalibrationDismissed() = 0;
 
     /*!
-    \brief Handles a change to the output gain slider.
+    \brief Handles a preview-only output gain change while the user is dragging the slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    virtual void onOutputGainPreviewChanged(double gain_db) = 0;
+
+    /*!
+    \brief Handles a committed change to the output gain slider.
     \param gain_db Desired output gain in decibels.
     */
     virtual void onOutputGainChanged(double gain_db) = 0;

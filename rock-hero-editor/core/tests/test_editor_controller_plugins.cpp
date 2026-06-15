@@ -1379,8 +1379,8 @@ TEST_CASE("EditorController flushes parameters before undo", "[core][editor-cont
     CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Plugin Parameter"});
 }
 
-// Untracked edit categories clear metadata history so partial undo cannot skip a newer change.
-TEST_CASE("EditorController clears metadata undo after output gain", "[core][editor-controller]")
+// Output gain is tracked separately and preserves earlier metadata undo entries behind it.
+TEST_CASE("EditorController keeps metadata undo after output gain", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -1412,8 +1412,16 @@ TEST_CASE("EditorController clears metadata undo after output gain", "[core][edi
 
     const EditorViewState* gain_state = stateOrNull(view.last_state);
     REQUIRE(gain_state != nullptr);
-    CHECK_FALSE(gain_state->undo_label.has_value());
+    CHECK(gain_state->undo_label == std::optional<std::string>{"Set Output Gain"});
     CHECK_FALSE(gain_state->redo_label.has_value());
+
+    controller.onUndoRequested();
+    controller.onUndoRequested();
+
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    REQUIRE(undone_state->signal_chain.plugins.size() == 1);
+    CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
 }
 
 // Removing a plugin updates runtime state and reindexes the remaining linear chain.

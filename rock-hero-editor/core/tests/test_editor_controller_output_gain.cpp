@@ -90,6 +90,95 @@ TEST_CASE("Output gain change calls live rig and marks dirty", "[core][editor-co
     const auto* const final_state = stateOrNull(view.last_state);
     REQUIRE(final_state != nullptr);
     CHECK(final_state->signal_chain.output_gain_db == -12.0);
+    CHECK(final_state->undo_label == std::optional<std::string>{"Set Output Gain"});
+}
+
+// Verifies that output gain undo and redo replay through the live-rig port.
+TEST_CASE("Output gain undo redo restores live rig", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    controller.onOutputGainChanged(-9.0);
+    controller.onUndoRequested();
+
+    CHECK(live_rig.set_output_gain_call_count == 2);
+    CHECK(live_rig.current_output_gain == common::audio::Gain{0.0});
+    const auto* const undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK(undone_state->signal_chain.output_gain_db == 0.0);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Set Output Gain"});
+
+    controller.onRedoRequested();
+
+    CHECK(live_rig.set_output_gain_call_count == 3);
+    CHECK(live_rig.current_output_gain == common::audio::Gain{-9.0});
+    const auto* const redone_state = stateOrNull(view.last_state);
+    REQUIRE(redone_state != nullptr);
+    CHECK(redone_state->signal_chain.output_gain_db == -9.0);
+}
+
+// Verifies that live output gain previews coalesce into one committed undo entry.
+TEST_CASE("Output gain preview commits one undo entry", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    FakeProjectServices project_services;
+    FakeEditorView view;
+    EditorController controller{
+        audioPorts(transport, audio, plugin_host, live_rig),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    controller.attachView(view);
+
+    REQUIRE(
+        loadArrangement(controller, project_services, audio, std::filesystem::path{"song.wav"}));
+
+    controller.onOutputGainPreviewChanged(-3.0);
+    controller.onOutputGainPreviewChanged(-12.0);
+
+    const auto* const preview_state = stateOrNull(view.last_state);
+    REQUIRE(preview_state != nullptr);
+    CHECK(preview_state->signal_chain.output_gain_db == -12.0);
+    CHECK_FALSE(preview_state->undo_label.has_value());
+    CHECK(live_rig.set_output_gain_call_count == 2);
+
+    controller.onOutputGainChanged(-12.0);
+
+    const auto* const committed_state = stateOrNull(view.last_state);
+    REQUIRE(committed_state != nullptr);
+    CHECK(committed_state->undo_label == std::optional<std::string>{"Set Output Gain"});
+    CHECK(live_rig.set_output_gain_call_count == 2);
+
+    controller.onUndoRequested();
+
+    CHECK(live_rig.set_output_gain_call_count == 3);
+    CHECK(live_rig.current_output_gain == common::audio::Gain{0.0});
+    const auto* const undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK(undone_state->signal_chain.output_gain_db == 0.0);
 }
 
 // Verifies that output gain values are clamped through the project-owned gain value type.

@@ -308,7 +308,17 @@ public:
     }
 
     /*!
-    \brief Records output gain change intents emitted by the signal-chain panel.
+    \brief Records output gain preview intents emitted by the signal-chain panel.
+    \param gain_db Output gain preview selected by the view.
+    */
+    void onOutputGainPreviewChanged(double gain_db) override
+    {
+        last_output_gain_preview_db = gain_db;
+        output_gain_preview_change_count += 1;
+    }
+
+    /*!
+    \brief Records output gain commit intents emitted by the signal-chain panel.
     \param gain_db Output gain selected by the view.
     */
     void onOutputGainChanged(double gain_db) override
@@ -485,6 +495,9 @@ public:
     /*! \brief Last output gain value emitted by the signal-chain panel. */
     std::optional<double> last_output_gain_db{};
 
+    /*! \brief Last output gain preview value emitted by the signal-chain panel. */
+    std::optional<double> last_output_gain_preview_db{};
+
     /*! \brief Number of input calibration intents received. */
     int input_calibration_request_count{0};
 
@@ -505,6 +518,9 @@ public:
 
     /*! \brief Number of output gain change intents received. */
     int output_gain_change_count{0};
+
+    /*! \brief Number of output gain preview intents received. */
+    int output_gain_preview_change_count{0};
 
     /*! \brief Last audio-device change callback handed to onAudioDeviceChangeRequested(). */
     std::function<void()> last_audio_device_change{};
