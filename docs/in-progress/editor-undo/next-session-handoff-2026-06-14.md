@@ -11,7 +11,7 @@ current code as authoritative when work resumes; this file is only a waypoint.
   `IEdit` objects, not `EditorUndoEntry` plus a variant payload.
 - Instance-id remapping is removed from `EditorUndoHistory`. Recreate now preserves plugin instance
   ids by contract.
-- The implementation is aligned through Stage 8.
+- The implementation is aligned through Stage 9.
 
 Completed implementation stages:
 
@@ -26,6 +26,9 @@ Completed implementation stages:
 - Stage 7: output-gain gesture boundaries and output-gain undo entries.
 - Stage 8: id-preserving plugin recreate, insert/remove undo entries, editor visual-state restore,
   and rollback-contract fault handling.
+- Stage 9: dirty tracking migrated to undo-history clean markers, with
+  `m_save_requires_destination` for imported/unsaved projects and a narrow untracked dirty state
+  for load normalization rewrites, undo-recording failures, and faulted sessions.
 
 Authoritative plan references:
 
@@ -58,6 +61,10 @@ Authoritative plan references:
 - `EditorController` records plugin insert/remove:
   - insert captures the inserted plugin state after successful candidate insert and stores a
     `PluginInsertEdit`;
+  - if insert undo preparation fails after the plugin was inserted, the controller first tries to
+    remove the inserted plugin and preserve existing undo history;
+  - if that cleanup fails, the inserted plugin remains as an untracked dirty edit and undo history
+    is cleared; rollback-contract violations fault the session;
   - remove captures plugin state and editor visual state before removal and stores a
     `PluginRemoveEdit`;
   - insert undo / remove redo remove the instance and restore the surviving block placement;
@@ -72,12 +79,38 @@ Authoritative plan references:
 - The controller enters a faulted session after rollback-contract violations: editing, Undo/Redo,
   Save, Save As, Publish, and output-gain controls are blocked; Open/Restore/Import/Close/Exit
   remain available. The flag clears on successful open/import and close.
+- Dirty state is derived from `EditorUndoHistory::hasUnsavedEdits()`,
+  `m_save_requires_destination`, and the narrow `m_has_untracked_unsaved_changes` fallback flag.
+  Import dirtiness relies on `m_save_requires_destination`; normal tone edits rely on the undo
+  clean marker.
+- Live-rig persistence is the current editor-core path. The old hardcoded
+  `hasLiveRigPersistence()` stub and no-persistence dirty fallbacks have been removed.
 - User-facing Undo/Redo is still intentionally disabled in `deriveViewState()` until Stage 10, but
   controller tests continue to exercise `onUndoRequested()` / `onRedoRequested()` directly.
 
+## Dirty Transition Matrix
+
+- Load saved project: reset undo history, mark the load baseline clean, and remain clean unless
+  audio normalization rewrites project data on load.
+- Import native song: reset undo history, mark the import baseline clean, and remain dirty through
+  `m_save_requires_destination` until Save As chooses an editor project path.
+- Save: clear untracked dirty state and mark the current undo position clean.
+- Save As: clear untracked dirty state, clear `m_save_requires_destination`, update the project
+  file, and mark the current undo position clean.
+- Tracked edit: push an `IEdit`; dirtiness comes from the history position differing from the clean
+  marker.
+- Undo to clean marker: close/replacement prompts clear because the history position is clean.
+- Redo away from clean marker: close/replacement prompts return.
+- New edit after undo: redo truncation makes a clean marker in that discarded branch unreachable,
+  so the project remains dirty even if all reachable edits are undone.
+- Clean-marker eviction: bounded history eviction makes the marker unreachable and keeps close
+  prompts active.
+- Faulted session: rollback-contract violations set the untracked dirty flag and block Save,
+  Save As, Publish, editing, and Undo/Redo while leaving recovery actions available.
+
 ## Verification
 
-The Stage 8 pass plus the busy-fence review fixes were verified with:
+The Stage 9 plus cleanup pass was verified with:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.codex\skills\rockhero-build\scripts\rockhero-build.ps1 -Targets rock_hero_editor_core_tests -RunTouchedTests
@@ -86,7 +119,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\.codex\skills\rockhero-bui
 Result:
 
 - `rock_hero_common_audio_tests`: all tests passed, `597 assertions in 126 test cases`.
-- `rock_hero_editor_core_tests`: all tests passed, `2429 assertions in 298 test cases`.
+- `rock_hero_editor_core_tests`: all tests passed, `2486 assertions in 304 test cases`.
 - `rock_hero_editor_ui_tests`: all tests passed, `624 assertions in 88 test cases`.
 
 The first configure attempt needed network access for Conan/GitHub and succeeded after rerunning the
@@ -94,8 +127,6 @@ same helper with escalation. The final verification command above did not requir
 
 ## Caveats To Remember
 
-- Stage 9 has not landed yet. Dirty tracking still uses the existing hybrid state:
-  `m_has_unsaved_changes`, `m_save_requires_destination`, and `EditorUndoHistory` clean markers.
 - Stage 10 has not landed yet. `deriveViewState()` still reports `undo_enabled = false` and
   `redo_enabled = false` even when labels are present.
 - The raw Tracktion ID-preservation regression exists in
@@ -107,16 +138,14 @@ same helper with escalation. The final verification command above did not requir
 
 ## Next Step
 
-Resume with Stage 9: dirty tracking migration.
+Resume with Stage 10: enable user-facing Undo/Redo.
 
-Expected Stage 9 shape:
+Expected Stage 10 shape:
 
-- Move edit dirtiness onto `EditorUndoHistory` clean-marker state where possible.
-- Preserve `m_save_requires_destination` for imported/unsaved projects.
-- Keep any truly non-history dirty cases explicit and narrow.
-- Add the before/after transition test matrix for load, import, save, save-as, edit, undo, redo,
-  redo truncation, clean-marker eviction, close prompts, and faulted sessions.
-
-After Stage 9, the remaining order is:
-
-1. Stage 10: enable user-facing Undo/Redo.
+- Let `deriveViewState()` expose `undo_enabled` and `redo_enabled` from the action-availability
+  policy now that the implementation has clean-marker dirty tracking and rollback fault handling.
+- Keep the existing labels from `EditorUndoHistory` wired to the view.
+- Verify menu/button/shortcut availability through the core action-availability tests and focused
+  UI wiring tests.
+- Manually test Undo/Redo for placement, display type, move, parameter, output gain, insert, and
+  remove once the UI controls are enabled.
