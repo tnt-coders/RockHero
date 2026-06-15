@@ -267,8 +267,13 @@ The editor-facing song-audio boundary is `common::audio::ISongAudio`: it prepare
 validating arrangement audio and filling accepted durations, makes the selected arrangement active
 in the playback backend, reports typed preparation and activation failures, and clears the active
 arrangement when the project closes.
-`common::audio::IEdit` is reserved for future undoable/redoable model-edit commands and should not
-carry project loading, audio preparation, transport, or playback setup responsibilities.
+`common::audio::IEdit` is reserved for any future *audio-model* edit commands and should not carry
+project loading, audio preparation, transport, or playback setup responsibilities. It is **not** the
+editor's undo/redo edit-command interface: that interface lives in `rock-hero-editor/core`, because
+undo entries also restore editor-only visual state (block placement, display-type overrides) that
+`rock-hero-common/audio` must not depend on (see
+`docs/in-progress/editor-undo/editor-undo-plan.md`). The empty `common::audio::IEdit` placeholder is
+a candidate for removal if no audio-model edit-command need materializes.
 
 Audio-device and settings boundaries report recoverable side-effect failures with typed errors.
 `common::audio::IAudioDeviceConfiguration` owns serialized audio-device restore diagnostics,

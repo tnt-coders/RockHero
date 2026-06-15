@@ -33,7 +33,8 @@ add_executable(
     test_plugin_move_index.cpp
     test_monitoring_mode_transition.cpp
     test_tracktion_instrument_wave_device_mapping.cpp
-    test_plugin_host.cpp)
+    test_plugin_host.cpp
+    test_tracktion_plugin_id_preservation.cpp)
 
 # Let focused adapter tests include private implementation helpers without making them public API.
 target_include_directories(rock_hero_common_audio_tests

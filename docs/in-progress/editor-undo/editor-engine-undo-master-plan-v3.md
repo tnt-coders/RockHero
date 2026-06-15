@@ -593,14 +593,24 @@ is shared with delegation or is reuse:
   + `state.createCopy`) and recreate-from-state (`loadLiveRig` `pluginList.insertPlugin(stateTree, -1)`);
   plus `remapInstanceId` across payloads + tests (~50-100 LOC, the clearest genuinely-new piece, since
   delegation gets Tracktion's id preservation free); plus fake-host round-trip/rollback tests.
+  (Superseded 2026-06-14 — see the cost-section note below: the recreate port is now
+  `recreatePluginStatePreservingId`, the memento path also gets id preservation free, and
+  `remapInstanceId` is removed, so this "genuinely-new piece" delta evaporates.)
 - *Delegation-specific delta vs mementos:* transaction bracketing + labels per command; capture-flush
   mitigation (fighting `ExternalPlugin`'s hardcoded flush); pointer-alignment maintenance or a
   black-box tone-undo port; and the behavioral-coupling maintenance risk above.
 
-Net: the memento delta is **modest — on the order of a few hundred lines, much of it reused and the
-genuinely-new part (id remapping) being well-contained, headless-testable logic** — in exchange for
-keeping the coupling local. Delegation's savings are partly offset by transaction-discipline code and
-buy a behavioral dependency the Pimpl cannot hide.
+Net: the memento delta is **modest — on the order of a few hundred lines, much of it reused** — in
+exchange for keeping the coupling local. Delegation's savings are partly offset by
+transaction-discipline code and buy a behavioral dependency the Pimpl cannot hide.
+
+> **Superseded specifics (2026-06-14):** the representation and id-handling details in this cost
+> estimate are out of date; `editor-undo-plan.md` ("Representation decided" callout) is authoritative.
+> Two corrections: (1) undo entries are polymorphic editor-core `IEdit` objects, not `EditorUndoEntry`
+> + a payload variant; (2) the `remapInstanceId` line item is **gone**. A spike confirmed Tracktion
+> preserves a plugin's `itemID` on recreate when the captured state's `id` is left intact, so the
+> memento path also gets id preservation "free" — closing the one cost gap this section flagged
+> against delegation. The Phase M conclusion (mementos; coupling stays local) is unaffected.
 
 Decision criteria applied:
 
