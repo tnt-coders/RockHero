@@ -1313,7 +1313,7 @@ TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-contr
 
     const EditorViewState* edited_state = stateOrNull(view.last_state);
     REQUIRE(edited_state != nullptr);
-    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Gain"});
 
     controller.onUndoRequested();
 
@@ -1322,7 +1322,7 @@ TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-contr
     CHECK(plugin_host.last_set_state == std::optional{*before_state});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gain"});
 
     controller.onRedoRequested();
 
@@ -1376,11 +1376,11 @@ TEST_CASE("EditorController flushes parameters before undo", "[core][editor-cont
     CHECK(plugin_host.last_set_state == std::optional{*before_state});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Drive"});
 }
 
-// Output gain is tracked separately and preserves earlier metadata undo entries behind it.
-TEST_CASE("EditorController keeps metadata undo after output gain", "[core][editor-controller]")
+// Output gain is tracked separately and preserves earlier placement undo entries behind it.
+TEST_CASE("EditorController keeps placement undo after output gain", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
