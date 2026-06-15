@@ -286,6 +286,12 @@ public:
     void setPluginParameterEditObserver(PluginParameterEditObserver observer) override;
 
     /*!
+    \brief Installs callbacks for Undo/Redo shortcuts received by hosted plugin editor windows.
+    \param observer Callback set replacing any previous observer.
+    */
+    void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) override;
+
+    /*!
     \brief Opens a hosted plugin editor window for the requested runtime instance.
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \return Empty success, or a typed failure.

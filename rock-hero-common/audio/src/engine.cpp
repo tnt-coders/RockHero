@@ -48,6 +48,41 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 
+enum class PluginWindowCommand
+{
+    Undo,
+    Redo,
+};
+
+using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
+
+[[nodiscard]] int normalizedAsciiKeyCode(int key_code) noexcept
+{
+    if (key_code >= 'A' && key_code <= 'Z')
+    {
+        return key_code - 'A' + 'a';
+    }
+    return key_code;
+}
+
+[[nodiscard]] bool hasCommandShortcutModifier(const juce::KeyPress& key) noexcept
+{
+    const juce::ModifierKeys modifiers = key.getModifiers();
+    return modifiers.isCommandDown() && !modifiers.isAltDown();
+}
+
+[[nodiscard]] bool isUndoShortcut(const juce::KeyPress& key) noexcept
+{
+    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
+           normalizedAsciiKeyCode(key.getKeyCode()) == 'z';
+}
+
+[[nodiscard]] bool isRedoShortcut(const juce::KeyPress& key) noexcept
+{
+    return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
+           normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
+}
+
 // Formats filesystem paths as UTF-8 text for stable IDs and logs. path::string() can lossy-convert
 // through the active code page on Windows and drop non-ANSI characters from plugin paths.
 [[nodiscard]] std::string pathToUtf8String(const std::filesystem::path& path)
@@ -1114,30 +1149,23 @@ public:
         {
             RH_LOG_INFO(
                 "audio.engine",
-                "Dropped in-flight plugin parameter gesture instance_id={}",
-                m_instance_id);
-            discardPendingEdit();
+                "Flushed in-flight plugin parameter gesture instance_id={} label_hint={}",
+                m_instance_id,
+                m_label_hint);
+            settlePendingGesture();
             return;
         }
 
-        if (!m_fallback_before.has_value())
-        {
-            return;
-        }
-
-        const auto elapsed_since_change =
-            std::chrono::steady_clock::now() - m_last_non_gesture_change;
-        if (elapsed_since_change < g_non_gesture_debounce)
+        if (m_fallback_before.has_value())
         {
             RH_LOG_INFO(
                 "audio.engine",
-                "Dropped continuous plugin parameter edit instance_id={}",
-                m_instance_id);
-            discardPendingEdit();
+                "Flushed pending plugin parameter edit instance_id={} label_hint={}",
+                m_instance_id,
+                m_label_hint);
+            settlePendingFallback();
             return;
         }
-
-        settlePendingFallback();
     }
 
     void discardPendingEdit()
@@ -1305,28 +1333,7 @@ private:
             return;
         }
 
-        auto after = captureState();
-        PluginInstanceState before = std::move(*m_gesture_before);
-        clearGestureState();
-        if (!after.has_value())
-        {
-            RH_LOG_WARNING(
-                "audio.engine",
-                "Could not complete plugin parameter edit instance_id={} detail={}",
-                m_instance_id,
-                after.error().message);
-            refreshBaseline();
-            notifyPendingChanged();
-            return;
-        }
-
-        RH_LOG_INFO(
-            "audio.engine",
-            "Plugin parameter edit completed instance_id={} label_hint={}",
-            m_instance_id,
-            m_label_hint);
-        emitIfChanged(std::move(before), std::move(*after), m_label_hint);
-        notifyPendingChanged();
+        settlePendingGesture();
     }
 
     void curveHasChanged(tracktion::AutomatableParameter& /*parameter*/) override
@@ -1350,8 +1357,8 @@ private:
             return;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        if (m_gesture_before.has_value() || now < m_ignore_non_gesture_until)
+        if (m_gesture_before.has_value() ||
+            std::chrono::steady_clock::now() < m_ignore_non_gesture_until)
         {
             return;
         }
@@ -1379,7 +1386,6 @@ private:
                 m_label_hint);
         }
 
-        m_last_non_gesture_change = now;
         startTimer(static_cast<int>(g_non_gesture_debounce.count()));
     }
 
@@ -1414,6 +1420,37 @@ private:
         notifyPendingChanged();
     }
 
+    void settlePendingGesture()
+    {
+        if (!m_gesture_before.has_value())
+        {
+            return;
+        }
+
+        auto after = captureState();
+        PluginInstanceState before = std::move(*m_gesture_before);
+        clearGestureState();
+        if (!after.has_value())
+        {
+            RH_LOG_WARNING(
+                "audio.engine",
+                "Could not complete plugin parameter edit instance_id={} detail={}",
+                m_instance_id,
+                after.error().message);
+            refreshBaseline();
+            notifyPendingChanged();
+            return;
+        }
+
+        RH_LOG_INFO(
+            "audio.engine",
+            "Plugin parameter edit completed instance_id={} label_hint={}",
+            m_instance_id,
+            m_label_hint);
+        emitIfChanged(std::move(before), std::move(*after), m_label_hint);
+        notifyPendingChanged();
+    }
+
     void timerCallback() override
     {
         stopTimer();
@@ -1430,7 +1467,6 @@ private:
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_gesture_before;
     std::optional<PluginInstanceState> m_fallback_before;
-    std::chrono::steady_clock::time_point m_last_non_gesture_change{};
     std::chrono::steady_clock::time_point m_ignore_non_gesture_until{};
     std::string m_label_hint;
     int m_open_gesture_count{0};
@@ -1543,11 +1579,12 @@ public:
 };
 
 // Top-level JUCE window that Tracktion owns through PluginWindowState::pluginWindow.
-class PluginWindow final : public juce::DocumentWindow
+class PluginWindow final : public juce::DocumentWindow, private juce::KeyListener
 {
 public:
     // Creates a window only when Tracktion can supply a concrete plugin editor component.
-    [[nodiscard]] static std::unique_ptr<juce::Component> create(tracktion::Plugin& plugin)
+    [[nodiscard]] static std::unique_ptr<juce::Component> create(
+        tracktion::Plugin& plugin, PluginWindowCommandDispatcher command_dispatcher)
     {
         std::unique_ptr<tracktion::Plugin::EditorComponent> editor = plugin.createEditor();
         if (editor == nullptr)
@@ -1555,19 +1592,23 @@ public:
             return {};
         }
 
-        return std::make_unique<PluginWindow>(plugin, std::move(editor));
+        return std::make_unique<PluginWindow>(
+            plugin, std::move(editor), std::move(command_dispatcher));
     }
 
     // Takes ownership of Tracktion's editor component and lets plugin size changes drive bounds.
     PluginWindow(
-        tracktion::Plugin& plugin, std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
+        tracktion::Plugin& plugin, std::unique_ptr<tracktion::Plugin::EditorComponent> editor,
+        PluginWindowCommandDispatcher command_dispatcher)
         : juce::DocumentWindow(
               plugin.getName(), juce::Colours::darkgrey,
               juce::DocumentWindow::closeButton | juce::DocumentWindow::minimiseButton)
         , m_plugin(plugin)
         , m_window_state(*plugin.windowState)
+        , m_command_dispatcher(std::move(command_dispatcher))
     {
         setUsingNativeTitleBar(true);
+        setWantsKeyboardFocus(true);
 
         // Configure the default ResizableWindow constrainer as a backstop. setEditor() will
         // replace this with the plugin editor's own constrainer when one is supplied; these
@@ -1662,6 +1703,17 @@ public:
         return 1.0F;
     }
 
+    // Forwards editor-level Undo/Redo shortcuts from top-level plugin windows back to the app.
+    bool keyPressed(const juce::KeyPress& key) override
+    {
+        if (handleCommandShortcut(key, "window"))
+        {
+            return true;
+        }
+
+        return juce::DocumentWindow::keyPressed(key);
+    }
+
     // Persists the latest bounds so reopening can restore the user's window position.
     void moved() override
     {
@@ -1676,9 +1728,109 @@ public:
     }
 
 private:
+    bool keyPressed(const juce::KeyPress& key, juce::Component* /*originating_component*/) override
+    {
+        return handleCommandShortcut(key, "editor_component");
+    }
+
+    bool handleCommandShortcut(const juce::KeyPress& key, std::string_view source)
+    {
+        if (!m_command_dispatcher)
+        {
+            return false;
+        }
+
+        if (isUndoShortcut(key))
+        {
+            postCommandShortcut(PluginWindowCommand::Undo, source);
+            return true;
+        }
+
+        if (isRedoShortcut(key))
+        {
+            postCommandShortcut(PluginWindowCommand::Redo, source);
+            return true;
+        }
+
+        return false;
+    }
+
+    void addCommandShortcutListeners(juce::Component& component)
+    {
+        component.addKeyListener(this);
+        for (int child_index = 0; child_index < component.getNumChildComponents(); ++child_index)
+        {
+            if (auto* const child = component.getChildComponent(child_index))
+            {
+                addCommandShortcutListeners(*child);
+            }
+        }
+    }
+
+    void removeCommandShortcutListeners(juce::Component& component)
+    {
+        component.removeKeyListener(this);
+        for (int child_index = 0; child_index < component.getNumChildComponents(); ++child_index)
+        {
+            if (auto* const child = component.getChildComponent(child_index))
+            {
+                removeCommandShortcutListeners(*child);
+            }
+        }
+    }
+
+    [[nodiscard]] static std::string_view commandName(PluginWindowCommand command) noexcept
+    {
+        switch (command)
+        {
+            case PluginWindowCommand::Undo:
+            {
+                return "Undo";
+            }
+            case PluginWindowCommand::Redo:
+            {
+                return "Redo";
+            }
+        }
+
+        return "Unknown";
+    }
+
+    void dispatchCommandShortcut(PluginWindowCommand command, std::string_view source)
+    {
+        if (!m_command_dispatcher)
+        {
+            return;
+        }
+
+        RH_LOG_INFO(
+            "audio.engine",
+            "Plugin window shortcut forwarded source={} command={}",
+            source,
+            commandName(command));
+        m_command_dispatcher(command);
+    }
+
+    void postCommandShortcut(PluginWindowCommand command, std::string_view source)
+    {
+        const juce::Component::SafePointer<PluginWindow> safe_this{this};
+        const std::string source_text{source};
+        juce::MessageManager::callAsync([safe_this, command, source_text] {
+            if (auto* const window = safe_this.getComponent())
+            {
+                window->dispatchCommandShortcut(command, source_text);
+            }
+        });
+    }
+
     // Installs Tracktion's editor wrapper while preserving plugin-owned resize notifications.
     void setEditor(std::unique_ptr<tracktion::Plugin::EditorComponent> editor)
     {
+        if (m_editor != nullptr)
+        {
+            removeCommandShortcutListeners(*m_editor);
+        }
+
         setConstrainer(nullptr);
         clearContentComponent();
         m_editor.reset();
@@ -1686,6 +1838,7 @@ private:
         if (editor != nullptr)
         {
             m_editor = std::move(editor);
+            addCommandShortcutListeners(*m_editor);
             setContentNonOwned(m_editor.get(), true);
         }
 
@@ -1719,6 +1872,10 @@ private:
     // Tracktion editor wrapper installed as the non-owned DocumentWindow content component.
     std::unique_ptr<tracktion::Plugin::EditorComponent> m_editor;
 
+    // Routes top-level host commands to the current application observer without coupling this
+    // audio adapter to editor-core.
+    PluginWindowCommandDispatcher m_command_dispatcher;
+
     // Prevents construction-time resized callbacks from overwriting Tracktion's default position.
     bool m_update_stored_bounds = false;
 };
@@ -1727,6 +1884,10 @@ private:
 class RockHeroUIBehaviour final : public tracktion::UIBehaviour
 {
 public:
+    explicit RockHeroUIBehaviour(PluginWindowCommandDispatcher command_dispatcher)
+        : m_command_dispatcher(std::move(command_dispatcher))
+    {}
+
     // Creates windows only for normal plugin instances; rack windows will get their own UI later.
     std::unique_ptr<juce::Component> createPluginWindow(
         tracktion::PluginWindowState& window_state) override
@@ -1738,7 +1899,7 @@ public:
             return {};
         }
 
-        return PluginWindow::create(plugin_window_state->plugin);
+        return PluginWindow::create(plugin_window_state->plugin, m_command_dispatcher);
     }
 
     // Refreshes the editor contents without replacing Tracktion's owning plugin window.
@@ -1753,6 +1914,9 @@ public:
 
         tracktion::UIBehaviour::recreatePluginWindowContentAsync(plugin);
     }
+
+private:
+    PluginWindowCommandDispatcher m_command_dispatcher;
 };
 
 // Opens an asset through Tracktion only long enough to validate it and read its duration.
@@ -1921,6 +2085,9 @@ private:
 
     // Observer installed by editor-core for completed plugin-parameter mementos.
     PluginParameterEditObserver m_plugin_parameter_edit_observer;
+
+    // Observer installed by the owning app/controller for shortcuts from hosted plugin windows.
+    PluginWindowCommandObserver m_plugin_window_command_observer;
 
     // Per-external-plugin parameter observers for the user-visible live-rig chain.
     std::vector<std::unique_ptr<PluginParameterMementoTracker>> m_plugin_parameter_trackers;
@@ -2750,6 +2917,30 @@ private:
         }
     }
 
+    // Routes hosted plugin-window shortcuts to the current app-level command observer.
+    void dispatchPluginWindowCommand(PluginWindowCommand command)
+    {
+        switch (command)
+        {
+            case PluginWindowCommand::Undo:
+            {
+                if (m_plugin_window_command_observer.undo_requested)
+                {
+                    m_plugin_window_command_observer.undo_requested();
+                }
+                break;
+            }
+            case PluginWindowCommand::Redo:
+            {
+                if (m_plugin_window_command_observer.redo_requested)
+                {
+                    m_plugin_window_command_observer.redo_requested();
+                }
+                break;
+            }
+        }
+    }
+
     // Detaches all Tracktion parameter listeners and reports any aggregate pending transition.
     void clearPluginParameterObservers()
     {
@@ -3496,9 +3687,11 @@ Engine::Engine()
     : m_impl(std::make_unique<Impl>())
 {
     // Tracktion uses the engine application name as its property-storage folder.
+    Impl* const impl = m_impl.get();
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
         toJuceString(core::applicationDataFolderName()),
-        std::make_unique<RockHeroUIBehaviour>(),
+        std::make_unique<RockHeroUIBehaviour>(
+            [impl](PluginWindowCommand command) { impl->dispatchPluginWindowCommand(command); }),
         std::make_unique<RockHeroEngineBehaviour>());
     m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
 
@@ -4390,6 +4583,17 @@ void Engine::setPluginParameterEditObserver(PluginParameterEditObserver observer
     m_impl->m_plugin_parameter_edit_observer = std::move(observer);
     m_impl->m_plugin_parameter_pending_notified = false;
     m_impl->notifyPluginParameterPendingStateChanged();
+}
+
+// Stores the app-level endpoint for hosted plugin-window Undo/Redo shortcuts.
+void Engine::setPluginWindowCommandObserver(PluginWindowCommandObserver observer)
+{
+    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        return;
+    }
+
+    m_impl->m_plugin_window_command_observer = std::move(observer);
 }
 
 // Opens a plugin editor window through Tracktion's plugin window state.

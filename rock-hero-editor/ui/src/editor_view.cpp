@@ -970,22 +970,12 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 {
     if (isUndoShortcut(key))
     {
-        if (!m_state.undo_enabled)
-        {
-            return false;
-        }
-
         m_controller.onUndoRequested();
         return true;
     }
 
     if (isRedoShortcut(key))
     {
-        if (!m_state.redo_enabled)
-        {
-            return false;
-        }
-
         m_controller.onRedoRequested();
         return true;
     }

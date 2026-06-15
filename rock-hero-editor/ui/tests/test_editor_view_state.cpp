@@ -98,10 +98,10 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.save_request_count == 0);
     CHECK(controller.undo_request_count == 0);
     CHECK(controller.redo_request_count == 0);
-    CHECK_FALSE(view.keyPressed(undo_key));
-    CHECK_FALSE(view.keyPressed(redo_key));
-    CHECK(controller.undo_request_count == 0);
-    CHECK(controller.redo_request_count == 0);
+    CHECK(view.keyPressed(undo_key));
+    CHECK(view.keyPressed(redo_key));
+    CHECK(controller.undo_request_count == 1);
+    CHECK(controller.redo_request_count == 1);
     CHECK_FALSE(getPlayPauseButton(controls).isEnabled());
     CHECK_FALSE(getStopButton(controls).isEnabled());
     CHECK(track_viewport.isVisible());
@@ -180,12 +180,12 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(controller.save_request_count == 1);
     CHECK(controller.close_request_count == 1);
     CHECK(controller.exit_request_count == 1);
-    CHECK(controller.undo_request_count == 1);
-    CHECK(controller.redo_request_count == 1);
-    CHECK(view.keyPressed(undo_key));
-    CHECK(view.keyPressed(redo_key));
     CHECK(controller.undo_request_count == 2);
     CHECK(controller.redo_request_count == 2);
+    CHECK(view.keyPressed(undo_key));
+    CHECK(view.keyPressed(redo_key));
+    CHECK(controller.undo_request_count == 3);
+    CHECK(controller.redo_request_count == 3);
     CHECK(getPlayPauseButton(controls).isEnabled());
     CHECK(getStopButton(controls).isEnabled());
     CHECK(

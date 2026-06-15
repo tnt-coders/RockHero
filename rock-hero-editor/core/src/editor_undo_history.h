@@ -114,6 +114,12 @@ public:
     /*! \brief Returns the user-visible command label for menus and diagnostics. */
     [[nodiscard]] virtual std::string label() const = 0;
 
+    /*! \brief Reports whether this entry represents a plugin parameter/state edit. */
+    [[nodiscard]] virtual bool isPluginParameterEdit() const noexcept
+    {
+        return false;
+    }
+
     /*!
     \brief Reports whether applying this edit in the given direction recreates a plugin.
 
@@ -291,6 +297,7 @@ struct [[nodiscard]] PluginParameterEdit final : IEdit
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
         EditorEditContext& context) const override;
     [[nodiscard]] std::string label() const override;
+    [[nodiscard]] bool isPluginParameterEdit() const noexcept override;
 };
 
 /*! \brief Edit that restores the fixed output-gain plugin value. */
@@ -476,6 +483,12 @@ public:
 
     /*! \brief Returns the label of the entry that would be redone next. */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
+
+    /*! \brief Reports whether the next undo entry is a plugin parameter/state edit. */
+    [[nodiscard]] bool nextUndoIsPluginParameterEdit() const noexcept;
+
+    /*! \brief Reports whether the next redo entry is a plugin parameter/state edit. */
+    [[nodiscard]] bool nextRedoIsPluginParameterEdit() const noexcept;
 
     /*!
     \brief Commits a new user edit and clears any redo branch.

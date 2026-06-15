@@ -460,6 +460,15 @@ public:
     }
 
     /*!
+    \brief Installs fake plugin-window command observer callbacks.
+    \param observer Callback set replacing any previous observer.
+    */
+    void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) override
+    {
+        m_window_command_observer = std::move(observer);
+    }
+
+    /*!
     \brief Queues a completed fake parameter edit for the next flush.
     \param edit Full before/after edit to emit.
     */
@@ -470,6 +479,24 @@ public:
         if (!was_pending && m_parameter_edit_observer.pending_changed)
         {
             m_parameter_edit_observer.pending_changed(true);
+        }
+    }
+
+    /*! \brief Emits a fake Undo shortcut from a hosted plugin editor window. */
+    void notifyPluginWindowUndoRequested()
+    {
+        if (m_window_command_observer.undo_requested)
+        {
+            m_window_command_observer.undo_requested();
+        }
+    }
+
+    /*! \brief Emits a fake Redo shortcut from a hosted plugin editor window. */
+    void notifyPluginWindowRedoRequested()
+    {
+        if (m_window_command_observer.redo_requested)
+        {
+            m_window_command_observer.redo_requested();
         }
     }
 
@@ -641,6 +668,9 @@ private:
 
     // Holds fake parameter-edit callbacks installed through the public port.
     PluginParameterEditObserver m_parameter_edit_observer{};
+
+    // Holds fake plugin-window command callbacks installed through the public port.
+    PluginWindowCommandObserver m_window_command_observer{};
 
     // Appends one field to the test-only state format.
     static void appendStateField(std::string& state, std::string_view value)

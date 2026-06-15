@@ -492,6 +492,11 @@ std::string PluginParameterEdit::label() const
     return "Edit " + label_hint;
 }
 
+bool PluginParameterEdit::isPluginParameterEdit() const noexcept
+{
+    return true;
+}
+
 std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
 {
     return applyOutputGainEdit(*this, EditorUndoDirection::Undo, context);
@@ -569,6 +574,16 @@ std::optional<std::string> EditorUndoHistory::redoLabel() const
     }
 
     return m_entries[m_position]->label();
+}
+
+bool EditorUndoHistory::nextUndoIsPluginParameterEdit() const noexcept
+{
+    return canUndo() && m_entries[m_position - 1]->isPluginParameterEdit();
+}
+
+bool EditorUndoHistory::nextRedoIsPluginParameterEdit() const noexcept
+{
+    return canRedo() && m_entries[m_position]->isPluginParameterEdit();
 }
 
 // Appends a successfully-applied user edit and discards any no-longer-linear redo branch.

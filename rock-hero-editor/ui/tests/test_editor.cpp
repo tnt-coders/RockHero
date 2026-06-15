@@ -209,6 +209,9 @@ public:
     void setPluginParameterEditObserver(common::audio::PluginParameterEditObserver) override
     {}
 
+    void setPluginWindowCommandObserver(common::audio::PluginWindowCommandObserver) override
+    {}
+
     [[nodiscard]] std::expected<void, common::audio::PluginHostError> openPluginWindow(
         const std::string&) override
     {
