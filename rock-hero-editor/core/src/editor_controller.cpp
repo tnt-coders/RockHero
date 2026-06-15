@@ -2085,13 +2085,13 @@ void EditorController::Impl::onBusyCancelRequested()
     runAction(EditorAction::CancelBusyOperation{});
 }
 
-// Routes Undo through the central action gate while the command remains user-disabled.
+// Routes Undo through the central action gate so UI and direct requests share policy.
 void EditorController::Impl::onUndoRequested()
 {
     runAction(EditorAction::Undo{});
 }
 
-// Routes Redo through the central action gate while the command remains user-disabled.
+// Routes Redo through the central action gate so UI and direct requests share policy.
 void EditorController::Impl::onRedoRequested()
 {
     runAction(EditorAction::Redo{});
@@ -3424,7 +3424,10 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
-        .undo_available = m_undo_history.canUndo(),
+        // A pending plugin-parameter edit is flushed into a real undo entry at the action gate, so
+        // undo is offered for it too (matches the action availability the plan specifies).
+        .undo_available =
+            m_undo_history.canUndo() || m_plugin_host.hasPendingPluginParameterEdits(),
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
@@ -4056,10 +4059,9 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.save_enabled = isActionAvailable(EditorAction::Id::SaveProject, action_conditions);
     state.save_as_enabled = isActionAvailable(EditorAction::Id::SaveProjectAs, action_conditions);
     state.publish_enabled = isActionAvailable(EditorAction::Id::PublishProject, action_conditions);
-    // Undo/redo entries are recorded now, but user-facing commands stay disabled until Stage 10.
-    state.undo_enabled = false;
+    state.undo_enabled = isActionAvailable(EditorAction::Id::Undo, action_conditions);
     state.undo_label = m_undo_history.undoLabel();
-    state.redo_enabled = false;
+    state.redo_enabled = isActionAvailable(EditorAction::Id::Redo, action_conditions);
     state.redo_label = m_undo_history.redoLabel();
     if (!m_project_file.empty())
     {

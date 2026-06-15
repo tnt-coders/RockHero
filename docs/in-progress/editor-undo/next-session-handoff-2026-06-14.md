@@ -11,7 +11,7 @@ current code as authoritative when work resumes; this file is only a waypoint.
   `IEdit` objects, not `EditorUndoEntry` plus a variant payload.
 - Instance-id remapping is removed from `EditorUndoHistory`. Recreate now preserves plugin instance
   ids by contract.
-- The implementation is aligned through Stage 9.
+- The implementation is aligned through Stage 10.
 
 Completed implementation stages:
 
@@ -19,7 +19,7 @@ Completed implementation stages:
 - Stage 1: `EditorUndoHistory` two-phase policy and clean-marker behavior.
 - Stage 2A: `IPluginHost` contracts, fakes, and rollback-proof fake behavior.
 - Stage 2 adapter half: real plugin-state capture, state insertion, and `setPluginState`.
-- Stage 3: Undo/Redo actions added but user-facing commands still disabled.
+- Stage 3: Undo/Redo actions added behind the temporary disabled user-facing gate.
 - Stage 4: signal-chain placement and display-type override undo.
 - Stage 5: plugin move undo.
 - Stage 6: plugin parameter undo via full-state before/after chunks.
@@ -29,6 +29,8 @@ Completed implementation stages:
 - Stage 9: dirty tracking migrated to undo-history clean markers, with
   `m_save_requires_destination` for imported/unsaved projects and a narrow untracked dirty state
   for load normalization rewrites, undo-recording failures, and faulted sessions.
+- Stage 10: user-facing Undo/Redo availability is enabled through the central action policy, with
+  existing labels shown in the Edit menu and shortcut dispatch gated by the same view state.
 
 Authoritative plan references:
 
@@ -85,8 +87,9 @@ Authoritative plan references:
   clean marker.
 - Live-rig persistence is the current editor-core path. The old hardcoded
   `hasLiveRigPersistence()` stub and no-persistence dirty fallbacks have been removed.
-- User-facing Undo/Redo is still intentionally disabled in `deriveViewState()` until Stage 10, but
-  controller tests continue to exercise `onUndoRequested()` / `onRedoRequested()` directly.
+- User-facing Undo/Redo now flows through `deriveViewState()` using the same action-availability
+  policy as direct controller requests. Empty history, busy work, calibration prompts, and faulted
+  sessions still disable the commands.
 
 ## Dirty Transition Matrix
 
@@ -110,7 +113,7 @@ Authoritative plan references:
 
 ## Verification
 
-The Stage 9 plus cleanup pass was verified with:
+The Stage 10 pass was verified with:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\.codex\skills\rockhero-build\scripts\rockhero-build.ps1 -Targets rock_hero_editor_core_tests -RunTouchedTests
@@ -127,8 +130,6 @@ same helper with escalation. The final verification command above did not requir
 
 ## Caveats To Remember
 
-- Stage 10 has not landed yet. `deriveViewState()` still reports `undo_enabled = false` and
-  `redo_enabled = false` even when labels are present.
 - The raw Tracktion ID-preservation regression exists in
   `rock-hero-common/audio/tests/test_tracktion_plugin_id_preservation.cpp`. A concrete
   Engine success-path recreate test still needs a real external plugin fixture; current adapter tests
@@ -138,14 +139,7 @@ same helper with escalation. The final verification command above did not requir
 
 ## Next Step
 
-Resume with Stage 10: enable user-facing Undo/Redo.
-
-Expected Stage 10 shape:
-
-- Let `deriveViewState()` expose `undo_enabled` and `redo_enabled` from the action-availability
-  policy now that the implementation has clean-marker dirty tracking and rollback fault handling.
-- Keep the existing labels from `EditorUndoHistory` wired to the view.
-- Verify menu/button/shortcut availability through the core action-availability tests and focused
-  UI wiring tests.
-- Manually test Undo/Redo for placement, display type, move, parameter, output gain, insert, and
-  remove once the UI controls are enabled.
+The ordered undo implementation sequence is complete. Before calling the feature user-ready,
+manually exercise Undo/Redo from the UI for placement, display type, move, parameter, output gain,
+insert, and remove. After that, the master plan points at the separate
+`docs/in-progress/remaining-god-object-decomposition-plan.md` initiative.
