@@ -1562,7 +1562,7 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     REQUIRE(edited_state != nullptr);
     REQUIRE(edited_state->signal_chain.plugins.size() == 1);
     CHECK(edited_state->signal_chain.plugins[0].block_index == 3);
-    CHECK_FALSE(edited_state->undo_enabled);
+    CHECK(edited_state->undo_enabled);
     CHECK(edited_state->undo_label == std::optional<std::string>{"Move Plugin Block"});
 
     controller.onUndoRequested();
@@ -1571,7 +1571,7 @@ TEST_CASE("EditorController undoes signal-chain placement", "[core][editor-contr
     REQUIRE(undone_state != nullptr);
     REQUIRE(undone_state->signal_chain.plugins.size() == 1);
     CHECK(undone_state->signal_chain.plugins[0].block_index == 1);
-    CHECK_FALSE(undone_state->redo_enabled);
+    CHECK(undone_state->redo_enabled);
     CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin Block"});
 
     controller.onRedoRequested();
@@ -1757,7 +1757,7 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
     CHECK(
         edited_state->signal_chain.plugins[0].display_type_override ==
         std::optional{PluginDisplayType::Cab});
-    CHECK_FALSE(edited_state->undo_enabled);
+    CHECK(edited_state->undo_enabled);
     CHECK(edited_state->undo_label == std::optional<std::string>{"Set Plugin Display Type"});
 
     controller.onUndoRequested();
@@ -1777,6 +1777,45 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
     CHECK(
         redone_state->signal_chain.plugins[0].display_type_override ==
         std::optional{PluginDisplayType::Cab});
+}
+
+// A pending plugin-parameter edit makes Undo available even with an otherwise empty history,
+// because the action gate flushes it into a real undo entry before undoing.
+TEST_CASE("EditorController offers undo for a pending parameter edit", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    const EditorViewState* clean_state = stateOrNull(view.last_state);
+    REQUIRE(clean_state != nullptr);
+    CHECK_FALSE(clean_state->undo_enabled);
+
+    plugin_host.queuePendingPluginParameterEdit(
+        common::audio::PluginParameterEdit{
+            .instance_id = "instance-a",
+            .before = common::audio::PluginInstanceState{},
+            .after = common::audio::PluginInstanceState{},
+            .label_hint = "Gain",
+        });
+
+    const EditorViewState* pending_view = stateOrNull(view.last_state);
+    REQUIRE(pending_view != nullptr);
+    CHECK(pending_view->undo_enabled);
 }
 
 // Parameter mementos restore full plugin state through the plugin host on undo and redo.
@@ -2196,7 +2235,7 @@ TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
     CHECK(moved_state->signal_chain.plugins[1].block_index == 2);
     CHECK(moved_state->signal_chain.plugins[2].instance_id == "instance-a");
     CHECK(moved_state->signal_chain.plugins[2].block_index == 5);
-    CHECK_FALSE(moved_state->undo_enabled);
+    CHECK(moved_state->undo_enabled);
     CHECK(moved_state->undo_label == std::optional<std::string>{"Move Plugin"});
 
     controller.onUndoRequested();
@@ -2211,7 +2250,7 @@ TEST_CASE("EditorController undoes plugin moves", "[core][editor-controller]")
     CHECK(undone_state->signal_chain.plugins[1].block_index == 3);
     CHECK(undone_state->signal_chain.plugins[2].instance_id == "instance-c");
     CHECK(undone_state->signal_chain.plugins[2].block_index == 4);
-    CHECK_FALSE(undone_state->redo_enabled);
+    CHECK(undone_state->redo_enabled);
     CHECK(undone_state->redo_label == std::optional<std::string>{"Move Plugin"});
 
     controller.onRedoRequested();
