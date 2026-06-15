@@ -297,20 +297,21 @@ public:
     }
 
     /*!
-    \brief Restores a fake plugin state as a new chain instance.
+    \brief Recreates a fake plugin state under its encoded runtime instance ID.
     \param state Opaque state previously captured from this fake.
     \param chain_index User-visible insertion index.
-    \return Updated chain snapshot plus original/restored runtime IDs, or a failure.
+    \return Updated chain snapshot, or a failure.
     */
-    [[nodiscard]] std::expected<PluginInstanceRestoreResult, PluginHostError> insertPluginState(
+    [[nodiscard]] std::expected<PluginChainSnapshot, PluginHostError>
+    recreatePluginStatePreservingId(
         const PluginInstanceState& state, std::size_t chain_index) override
     {
-        last_inserted_state = state;
-        last_insert_state_index = chain_index;
-        insert_state_call_count += 1;
-        if (next_insert_state_error.has_value())
+        last_recreated_state = state;
+        last_recreate_state_index = chain_index;
+        recreate_state_call_count += 1;
+        if (next_recreate_state_error.has_value())
         {
-            return std::unexpected{*next_insert_state_error};
+            return std::unexpected{*next_recreate_state_error};
         }
 
         auto decoded_entry = pluginChainEntryFromState(state);
@@ -327,6 +328,15 @@ public:
             return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
         }
 
+        if (decoded_entry->instance_id.empty() ||
+            findPlugin(decoded_entry->instance_id) != chain.end())
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginStateRestoreFailed,
+                "Plugin state instance id is already loaded or empty",
+            }};
+        }
+
         if (chain.size() >= max_signal_chain_plugins)
         {
             return std::unexpected{PluginHostError{
@@ -338,27 +348,21 @@ public:
         const std::vector<PluginChainEntry> previous_chain = chain;
         const std::unordered_map<std::string, PluginInstanceState> previous_states =
             m_instance_states;
-        const std::string original_instance_id = decoded_entry->instance_id;
-        decoded_entry->instance_id = next_restored_instance_id;
         decoded_entry->chain_index = chain_index;
-        const std::string restored_instance_id = decoded_entry->instance_id;
+        const std::string recreated_instance_id = decoded_entry->instance_id;
         chain.insert(
             chain.begin() + static_cast<std::ptrdiff_t>(chain_index), std::move(*decoded_entry));
         reindexChain();
-        m_instance_states[restored_instance_id] = makePluginInstanceState(chain[chain_index]);
+        m_instance_states[recreated_instance_id] = makePluginInstanceState(chain[chain_index]);
 
-        if (next_insert_state_after_mutation_error.has_value())
+        if (next_recreate_state_after_mutation_error.has_value())
         {
             chain = previous_chain;
             m_instance_states = previous_states;
-            return std::unexpected{*next_insert_state_after_mutation_error};
+            return std::unexpected{*next_recreate_state_after_mutation_error};
         }
 
-        return PluginInstanceRestoreResult{
-            .snapshot = snapshot(),
-            .original_instance_id = original_instance_id,
-            .restored_instance_id = restored_instance_id,
-        };
+        return snapshot();
     }
 
     /*!
@@ -517,9 +521,6 @@ public:
     /*! \brief Instance ID assigned to the next successful insertion. */
     std::string next_instance_id{"instance-id"};
 
-    /*! \brief Instance ID assigned to the next successful state restore. */
-    std::string next_restored_instance_id{"restored-instance-id"};
-
     /*! \brief Optional catalog scan error returned instead of success. */
     std::optional<PluginHostError> next_catalog_scan_error{};
 
@@ -547,11 +548,11 @@ public:
     /*! \brief Optional state-capture error returned instead of captured bytes. */
     std::optional<PluginHostError> next_capture_state_error{};
 
-    /*! \brief Optional state-insert error returned instead of a restored plugin. */
-    std::optional<PluginHostError> next_insert_state_error{};
+    /*! \brief Optional state-recreate error returned instead of a restored plugin. */
+    std::optional<PluginHostError> next_recreate_state_error{};
 
-    /*! \brief Optional error returned after state insert is rolled back to pre-call state. */
-    std::optional<PluginHostError> next_insert_state_after_mutation_error{};
+    /*! \brief Optional error returned after state recreate is rolled back to pre-call state. */
+    std::optional<PluginHostError> next_recreate_state_after_mutation_error{};
 
     /*! \brief Optional in-place state-restore error returned instead of success. */
     std::optional<PluginHostError> next_set_state_error{};
@@ -583,11 +584,11 @@ public:
     /*! \brief Last instance ID passed to capturePluginState(). */
     std::optional<std::string> last_captured_instance_id{};
 
-    /*! \brief Last state passed to insertPluginState(). */
-    std::optional<PluginInstanceState> last_inserted_state{};
+    /*! \brief Last state passed to recreatePluginStatePreservingId(). */
+    std::optional<PluginInstanceState> last_recreated_state{};
 
-    /*! \brief Last chain index passed to insertPluginState(). */
-    std::optional<std::size_t> last_insert_state_index{};
+    /*! \brief Last chain index passed to recreatePluginStatePreservingId(). */
+    std::optional<std::size_t> last_recreate_state_index{};
 
     /*! \brief Last instance ID passed to setPluginState(). */
     std::optional<std::string> last_set_state_instance_id{};
@@ -619,8 +620,8 @@ public:
     /*! \brief Number of state-capture calls received. */
     int capture_state_call_count{0};
 
-    /*! \brief Number of state-insert calls received. */
-    int insert_state_call_count{0};
+    /*! \brief Number of state-recreate calls received. */
+    int recreate_state_call_count{0};
 
     /*! \brief Number of in-place state-restore calls received. */
     int set_state_call_count{0};
