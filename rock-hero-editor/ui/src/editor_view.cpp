@@ -1684,7 +1684,17 @@ void EditorView::onInputCalibrationPressed()
     m_controller.onInputCalibrationRequested();
 }
 
-// Forwards output gain slider changes to the controller when output controls are enabled.
+// Forwards live output gain preview changes while the slider is being dragged.
+void EditorView::onOutputGainPreviewChanged(double gain_db)
+{
+    if (!m_state.signal_chain.output_gain_controls_enabled)
+    {
+        return;
+    }
+    m_controller.onOutputGainPreviewChanged(gain_db);
+}
+
+// Forwards committed output gain slider changes to the controller when controls are enabled.
 void EditorView::onOutputGainChanged(double gain_db)
 {
     if (!m_state.signal_chain.output_gain_controls_enabled)

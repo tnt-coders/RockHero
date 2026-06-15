@@ -432,7 +432,13 @@ public:
     void onInputCalibrationDismissed() override;
 
     /*!
-    \brief Handles a change to the output gain slider.
+    \brief Handles a preview-only output gain change while the user is dragging the slider.
+    \param gain_db Desired output gain in decibels.
+    */
+    void onOutputGainPreviewChanged(double gain_db) override;
+
+    /*!
+    \brief Handles a committed change to the output gain slider.
     \param gain_db Desired output gain in decibels.
     */
     void onOutputGainChanged(double gain_db) override;
