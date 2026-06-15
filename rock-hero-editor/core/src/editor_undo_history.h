@@ -1,185 +1,32 @@
 /*!
 \file editor_undo_history.h
-\brief Pure editor undo history state for project-level undo/redo ordering.
+\brief Editor undo edit objects and project-level undo/redo ordering state.
 */
 
 #pragma once
 
 #include <cstddef>
 #include <cstdint>
+#include <expected>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/plugin_instance_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
-#include <variant>
 #include <vector>
+
+namespace rock_hero::common::audio
+{
+class ILiveRig;
+class IPluginHost;
+} // namespace rock_hero::common::audio
 
 namespace rock_hero::editor::core
 {
 
-/*! \brief Editor-owned visual metadata for a plugin instance. */
-struct [[nodiscard]] PluginVisualEditState
-{
-    /*! \brief Opaque runtime plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Fixed visual block occupied by the plugin. */
-    std::size_t block_index{};
-
-    /*! \brief Manual display type override, or empty for automatic classification. */
-    std::optional<PluginDisplayType> display_type_override;
-
-    /*! \brief Compares two visual edit states by their stored values. */
-    friend bool operator==(const PluginVisualEditState& lhs, const PluginVisualEditState& rhs) =
-        default;
-};
-
-/*! \brief Undo payload for a plugin insertion. */
-struct [[nodiscard]] PluginInsertEdit
-{
-    /*! \brief Inserted plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Chain index used for redo insertion. */
-    std::size_t chain_index{};
-
-    /*! \brief Editor visual metadata to restore on redo. */
-    PluginVisualEditState visual_state;
-
-    /*! \brief Placement snapshot carried so later id remaps update nested placement keys. */
-    std::vector<PluginBlockAssignment> placement;
-
-    /*! \brief Compares two insert edits by their stored values. */
-    friend bool operator==(const PluginInsertEdit& lhs, const PluginInsertEdit& rhs) = default;
-};
-
-/*! \brief Undo payload for removing and later recreating one plugin. */
-struct [[nodiscard]] PluginRemoveEdit
-{
-    /*! \brief Removed plugin instance ID before any recreate remap. */
-    std::string instance_id;
-
-    /*! \brief Original chain index for undo recreation. */
-    std::size_t chain_index{};
-
-    /*! \brief Captured plugin state used to recreate the removed instance. */
-    common::audio::PluginInstanceState plugin_state;
-
-    /*! \brief Editor visual metadata to restore after recreation. */
-    PluginVisualEditState visual_state;
-
-    /*! \brief Placement snapshot carried so later id remaps update nested placement keys. */
-    std::vector<PluginBlockAssignment> placement;
-
-    /*! \brief Compares two remove edits by their stored values. */
-    friend bool operator==(const PluginRemoveEdit& lhs, const PluginRemoveEdit& rhs) = default;
-};
-
-/*! \brief Undo payload for moving one plugin and its visual placement. */
-struct [[nodiscard]] PluginMoveEdit
-{
-    /*! \brief Moved plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Chain index before the move. */
-    std::size_t before_index{};
-
-    /*! \brief Chain index after the move. */
-    std::size_t after_index{};
-
-    /*! \brief Placement before the move. */
-    std::vector<PluginBlockAssignment> before_placement;
-
-    /*! \brief Placement after the move. */
-    std::vector<PluginBlockAssignment> after_placement;
-
-    /*! \brief Compares two move edits by their stored values. */
-    friend bool operator==(const PluginMoveEdit& lhs, const PluginMoveEdit& rhs) = default;
-};
-
-/*! \brief Undo payload for changing signal-chain block placement only. */
-struct [[nodiscard]] PluginPlacementEdit
-{
-    /*! \brief Placement before the edit. */
-    std::vector<PluginBlockAssignment> before_placement;
-
-    /*! \brief Placement after the edit. */
-    std::vector<PluginBlockAssignment> after_placement;
-
-    /*! \brief Compares two placement edits by their stored values. */
-    friend bool operator==(const PluginPlacementEdit& lhs, const PluginPlacementEdit& rhs) =
-        default;
-};
-
-/*! \brief Undo payload for changing one plugin's manual display type override. */
-struct [[nodiscard]] PluginDisplayTypeEdit
-{
-    /*! \brief Edited plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Display type override before the edit. */
-    std::optional<PluginDisplayType> before_type;
-
-    /*! \brief Display type override after the edit. */
-    std::optional<PluginDisplayType> after_type;
-
-    /*! \brief Compares two display type edits by their stored values. */
-    friend bool operator==(const PluginDisplayTypeEdit& lhs, const PluginDisplayTypeEdit& rhs) =
-        default;
-};
-
-/*! \brief Undo payload for restoring one plugin's full parameter/state chunk. */
-struct [[nodiscard]] PluginParameterEdit
-{
-    /*! \brief Edited plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Full plugin state before the edit settled. */
-    common::audio::PluginInstanceState before_state;
-
-    /*! \brief Full plugin state after the edit settled. */
-    common::audio::PluginInstanceState after_state;
-
-    /*! \brief Display-only label hint for the parameter or gesture group. */
-    std::string label_hint;
-
-    /*! \brief Compares two parameter edits by their stored values. */
-    friend bool operator==(const PluginParameterEdit& lhs, const PluginParameterEdit& rhs) =
-        default;
-};
-
-/*! \brief Undo payload for changing the fixed output-gain plugin value. */
-struct [[nodiscard]] OutputGainEdit
-{
-    /*! \brief Output gain before the edit. */
-    common::audio::Gain before_gain;
-
-    /*! \brief Output gain after the edit. */
-    common::audio::Gain after_gain;
-
-    /*! \brief Compares two output gain edits by their stored values. */
-    friend bool operator==(const OutputGainEdit& lhs, const OutputGainEdit& rhs) = default;
-};
-
-/*! \brief Payload variants stored by one editor undo entry. */
-using EditorUndoPayload = std::variant<
-    PluginInsertEdit, PluginRemoveEdit, PluginMoveEdit, PluginPlacementEdit, PluginDisplayTypeEdit,
-    PluginParameterEdit, OutputGainEdit>;
-
-/*! \brief One user-visible undo history entry. */
-struct [[nodiscard]] EditorUndoEntry
-{
-    /*! \brief Human-readable action label used by menus, confirmation text, and diagnostics. */
-    std::string label;
-
-    /*! \brief Typed payload used to apply the entry's undo and redo inverse. */
-    EditorUndoPayload payload;
-
-    /*! \brief Compares two undo entries by their stored values. */
-    friend bool operator==(const EditorUndoEntry& lhs, const EditorUndoEntry& rhs) = default;
-};
+class SignalChainWorkflow;
 
 /*! \brief Direction of a pending undo-history transition. */
 enum class EditorUndoDirection
@@ -191,7 +38,7 @@ enum class EditorUndoDirection
     Redo,
 };
 
-/*! \brief Non-commit reason reported by the pure undo history. */
+/*! \brief Non-commit reason reported by the pure undo history and edit objects. */
 enum class EditorUndoFailureCode
 {
     /*! \brief No failure occurred. */
@@ -223,6 +70,157 @@ enum class EditorUndoFailureCode
 
     /*! \brief The caller could not prove success or rollback and must fault the session. */
     RollbackContractViolation,
+};
+
+/*! \brief Apply-time dependencies passed to concrete editor edit objects. */
+struct [[nodiscard]] EditorEditContext
+{
+    /*! \brief Editor-owned signal-chain model updated by visual and snapshot edits. */
+    SignalChainWorkflow& signal_chain;
+
+    /*! \brief Audio boundary used by plugin-chain and plugin-state edits. */
+    common::audio::IPluginHost& plugin_host;
+
+    /*! \brief Live-rig boundary used by output-gain edits. */
+    common::audio::ILiveRig& live_rig;
+
+    /*! \brief Controller-owned output-gain mirror refreshed after output-gain undo/redo. */
+    double& output_gain_db;
+};
+
+/*! \brief Polymorphic editor-core undo entry. */
+class IEdit
+{
+public:
+    /*! \brief Destroys the edit object. */
+    virtual ~IEdit() = default;
+
+    /*!
+    \brief Applies the inverse of this edit.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const = 0;
+
+    /*!
+    \brief Re-applies this edit.
+    \param context Apply-time editor/audio dependencies.
+    \return Empty success, or the non-commit failure that should abort the transition.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const = 0;
+
+    /*! \brief Returns the user-visible command label for menus and diagnostics. */
+    [[nodiscard]] virtual std::string label() const = 0;
+
+protected:
+    /*! \brief Allows construction only through derived edit objects. */
+    IEdit() = default;
+
+private:
+    IEdit(const IEdit&) = delete;
+    IEdit(IEdit&&) = delete;
+    IEdit& operator=(const IEdit&) = delete;
+    IEdit& operator=(IEdit&&) = delete;
+};
+
+/*! \brief Edit that moves one plugin and restores its visual placement. */
+struct [[nodiscard]] PluginMoveEdit final : IEdit
+{
+    /*! \brief Moved plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Chain index before the move. */
+    std::size_t before_index{};
+
+    /*! \brief Chain index after the move. */
+    std::size_t after_index{};
+
+    /*! \brief Placement before the move. */
+    std::vector<PluginBlockAssignment> before_placement;
+
+    /*! \brief Placement after the move. */
+    std::vector<PluginBlockAssignment> after_placement;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores signal-chain block placement without touching audio. */
+struct [[nodiscard]] PluginPlacementEdit final : IEdit
+{
+    /*! \brief Placement before the edit. */
+    std::vector<PluginBlockAssignment> before_placement;
+
+    /*! \brief Placement after the edit. */
+    std::vector<PluginBlockAssignment> after_placement;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores one plugin's manual display type override. */
+struct [[nodiscard]] PluginDisplayTypeEdit final : IEdit
+{
+    /*! \brief Edited plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Display type override before the edit. */
+    std::optional<PluginDisplayType> before_type;
+
+    /*! \brief Display type override after the edit. */
+    std::optional<PluginDisplayType> after_type;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores one plugin's full parameter/state chunk. */
+struct [[nodiscard]] PluginParameterEdit final : IEdit
+{
+    /*! \brief Edited plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Full plugin state before the edit settled. */
+    common::audio::PluginInstanceState before_state;
+
+    /*! \brief Full plugin state after the edit settled. */
+    common::audio::PluginInstanceState after_state;
+
+    /*! \brief Display-only label hint for the parameter or gesture group. */
+    std::string label_hint;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores the fixed output-gain plugin value. */
+struct [[nodiscard]] OutputGainEdit final : IEdit
+{
+    /*! \brief Output gain before the edit. */
+    common::audio::Gain before_gain;
+
+    /*! \brief Output gain after the edit. */
+    common::audio::Gain after_gain;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
 };
 
 /*! \brief High-level result shape for one history transition request. */
@@ -273,9 +271,6 @@ enum class EditorUndoEventType
 
     /*! \brief Undo and redo entries were cleared. */
     HistoryReset,
-
-    /*! \brief A runtime plugin instance ID was remapped through stored entries. */
-    InstanceIdRemapped,
 };
 
 /*! \brief One transition event plus optional detail useful for diagnostics. */
@@ -292,12 +287,6 @@ struct [[nodiscard]] EditorUndoEvent
 
     /*! \brief Non-commit failure code, when applicable. */
     EditorUndoFailureCode failure_code{EditorUndoFailureCode::None};
-
-    /*! \brief Previous plugin instance ID for remap events. */
-    std::string old_instance_id;
-
-    /*! \brief New plugin instance ID for remap events. */
-    std::string new_instance_id;
 
     /*! \brief True when the controller must fault the editor session. */
     bool requires_fault{false};
@@ -335,8 +324,8 @@ struct [[nodiscard]] EditorUndoPendingTransition
     /*! \brief Pending transition direction. */
     EditorUndoDirection direction{EditorUndoDirection::Undo};
 
-    /*! \brief Entry the caller should apply before committing the transition. */
-    EditorUndoEntry entry;
+    /*! \brief Non-owning edit object to apply before committing the transition. */
+    const IEdit* edit{};
 
     /*! \brief Compares two pending transitions by their stored values. */
     friend bool operator==(
@@ -402,18 +391,12 @@ public:
     /*! \brief Returns the label of the entry that would be redone next. */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
 
-    /*! \brief Returns all stored entries for direct headless history tests. */
-    [[nodiscard]] const std::vector<EditorUndoEntry>& entries() const noexcept;
-
-    /*! \brief Returns the currently pending transition, if any. */
-    [[nodiscard]] std::optional<EditorUndoPendingTransition> pendingTransition() const;
-
     /*!
     \brief Commits a new user edit and clears any redo branch.
-    \param entry User-visible undo entry to append.
+    \param edit User-visible undo entry to append.
     \return Transition result and events for controller logging.
     */
-    [[nodiscard]] EditorUndoTransitionResult push(EditorUndoEntry entry);
+    [[nodiscard]] EditorUndoTransitionResult push(std::unique_ptr<IEdit> edit);
 
     /*!
     \brief Begins applying the next undo entry without moving the history pointer.
@@ -449,15 +432,6 @@ public:
     /*! \brief Clears all entries, pending state, and clean-marker state. */
     [[nodiscard]] EditorUndoTransitionResult reset();
 
-    /*!
-    \brief Replaces one runtime plugin instance ID throughout stored undo payloads.
-    \param old_instance_id Runtime plugin instance ID currently stored by undo entries.
-    \param new_instance_id Replacement runtime plugin instance ID.
-    \return Transition result and events for controller logging.
-    */
-    [[nodiscard]] EditorUndoTransitionResult remapInstanceId(
-        const std::string& old_instance_id, const std::string& new_instance_id);
-
 private:
     enum class CleanMarkerState
     {
@@ -473,8 +447,9 @@ private:
     void enforceMaxEntries(std::vector<EditorUndoEvent>& events);
     void makeCleanMarkerUnreachable(std::vector<EditorUndoEvent>& events);
     [[nodiscard]] bool pendingMatches(const EditorUndoPendingTransition& pending) const noexcept;
+    [[nodiscard]] std::string pendingLabel() const;
 
-    std::vector<EditorUndoEntry> m_entries;
+    std::vector<std::unique_ptr<IEdit>> m_entries;
     std::size_t m_position{};
     std::size_t m_max_entries{100};
     CleanMarkerState m_clean_marker_state{CleanMarkerState::None};
