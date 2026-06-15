@@ -109,6 +109,16 @@ struct PluginParameterEditObserver
     std::function<void(PluginParameterEdit)> edit_completed;
 };
 
+/*! \brief Host-window shortcut callbacks forwarded to the owning application workflow. */
+struct PluginWindowCommandObserver
+{
+    /*! \brief Called when a hosted plugin editor window receives the Undo shortcut. */
+    std::function<void()> undo_requested;
+
+    /*! \brief Called when a hosted plugin editor window receives the Redo shortcut. */
+    std::function<void()> redo_requested;
+};
+
 /*!
 \brief Project-owned facade for plugin discovery and chain mutation.
 
@@ -258,8 +268,9 @@ public:
     /*!
     \brief Flushes pending user plugin-parameter edits into completed before/after chunks.
 
-    Implementations synchronously settle eligible discrete edits, drop uncertain continuous edits,
-    refresh their internal baseline, and notify the observer if aggregate pending state changes.
+    Implementations synchronously capture the current after-state for pending edits, emit completed
+    before/after chunks for net changes, refresh their internal baseline, and notify the observer
+    if aggregate pending state changes.
 
     \note This method must be called on the message thread.
     */
@@ -278,6 +289,18 @@ public:
     \note This method must be called on the message thread.
     */
     virtual void setPluginParameterEditObserver(PluginParameterEditObserver observer) = 0;
+
+    /*!
+    \brief Installs callbacks for Undo/Redo shortcuts received by hosted plugin editor windows.
+
+    The plugin host only forwards window-level shortcuts; the owning application remains
+    responsible for deciding whether a command is available and how pending edits become undo
+    history.
+
+    \param observer Callback set replacing any previous observer.
+    \note This method must be called on the message thread.
+    */
+    virtual void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) = 0;
 
     /*!
     \brief Opens the hosted editor window for a loaded plugin instance.
