@@ -836,18 +836,23 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetSignalChainPlacement& action);
     void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
-    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoEntry(
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoEntry(
         const EditorUndoEntry& entry, EditorUndoDirection direction);
-    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
         const PluginMoveEdit& edit, EditorUndoDirection direction);
-    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
         const PluginPlacementEdit& edit, EditorUndoDirection direction);
-    [[nodiscard]] std::optional<EditorUndoFailureCode> applyUndoPayload(
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
         const PluginDisplayTypeEdit& edit, EditorUndoDirection direction);
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyUndoPayload(
+        const PluginParameterEdit& edit, EditorUndoDirection direction);
     void pushUndoEntry(EditorUndoEntry entry);
     void resetUndoHistory(std::string_view context);
     void markUndoHistoryClean(std::string_view context);
     void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
+    void flushPendingPluginParameterEdits(std::string_view context);
+    void onPluginParameterPendingChanged(bool pending);
+    void onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
         const InputCalibrationWorkflow::Snapshot& input_calibration,
@@ -1451,6 +1456,26 @@ EditorController::Impl::Impl(
     , m_task_runner(services.task_runner)
     , m_transport_listener(transport, *this)
 {
+    const std::weak_ptr<bool> alive{m_alive};
+    m_plugin_host.setPluginParameterEditObserver(
+        common::audio::PluginParameterEditObserver{
+            .pending_changed =
+                [this, alive](bool pending) {
+                    if (alive.expired())
+                    {
+                        return;
+                    }
+                    onPluginParameterPendingChanged(pending);
+                },
+            .edit_completed =
+                [this, alive](common::audio::PluginParameterEdit edit) {
+                    if (alive.expired())
+                    {
+                        return;
+                    }
+                    onPluginParameterEditCompleted(std::move(edit));
+                },
+        });
     restoreAudioDeviceState();
     common::audio::IAudioDeviceConfiguration::Listener& self_as_listener = *this;
     m_audio_device_listener = std::make_unique<common::audio::ScopedListener<
@@ -1470,6 +1495,7 @@ EditorController::Impl::~Impl()
     // Stop any in-flight scan worker before teardown so the task runner's join does not block on a
     // scan that no observer will ever consume.
     cancelActiveScanToken();
+    m_plugin_host.setPluginParameterEditObserver({});
     detachView();
     m_alive.reset();
 }
@@ -2229,6 +2255,10 @@ void EditorController::Impl::runAction(EditorAction::Action action)
 {
     const EditorAction::Id action_id = idOf(action);
     logEditorActionRequested(action_id);
+    if (!isBusy())
+    {
+        flushPendingPluginParameterEdits("plugin_parameter.action_dispatch");
+    }
 
     if (!prepareAction(action_id))
     {
@@ -2397,11 +2427,11 @@ void EditorController::Impl::performActionImpl(EditorAction::Undo /*action*/)
     }
 
     const EditorUndoPendingTransition pending = *begin.pending;
-    if (const std::optional<EditorUndoFailureCode> failure =
+    if (const std::expected<void, EditorUndoFailureCode> applied =
             applyUndoEntry(pending.entry, EditorUndoDirection::Undo);
-        failure.has_value())
+        !applied.has_value())
     {
-        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, *failure);
+        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, applied.error());
         logEditorUndoTransitionResult("undo.abort", abort);
         updateView();
         return;
@@ -2424,11 +2454,11 @@ void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
     }
 
     const EditorUndoPendingTransition pending = *begin.pending;
-    if (const std::optional<EditorUndoFailureCode> failure =
+    if (const std::expected<void, EditorUndoFailureCode> applied =
             applyUndoEntry(pending.entry, EditorUndoDirection::Redo);
-        failure.has_value())
+        !applied.has_value())
     {
-        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, *failure);
+        const EditorUndoTransitionResult abort = m_undo_history.abort(pending, applied.error());
         logEditorUndoTransitionResult("redo.abort", abort);
         updateView();
         return;
@@ -2440,29 +2470,30 @@ void EditorController::Impl::performActionImpl(EditorAction::Redo /*action*/)
 }
 
 // Dispatches one stored undo entry to the currently wired payload implementation.
-std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoEntry(
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoEntry(
     const EditorUndoEntry& entry, EditorUndoDirection direction)
 {
     return std::visit(
-        [this, direction](const auto& edit) -> std::optional<EditorUndoFailureCode> {
+        [this, direction](const auto& edit) -> std::expected<void, EditorUndoFailureCode> {
             using Edit = std::decay_t<decltype(edit)>;
             if constexpr (
                 std::is_same_v<Edit, PluginMoveEdit> || std::is_same_v<Edit, PluginPlacementEdit> ||
-                std::is_same_v<Edit, PluginDisplayTypeEdit>
+                std::is_same_v<Edit, PluginDisplayTypeEdit> ||
+                std::is_same_v<Edit, PluginParameterEdit>
             )
             {
                 return applyUndoPayload(edit, direction);
             }
             else
             {
-                return EditorUndoFailureCode::PreflightRejected;
+                return std::unexpected{EditorUndoFailureCode::PreflightRejected};
             }
         },
         entry.payload);
 }
 
 // Restores a backend plugin move together with the editor-owned visual placement snapshot.
-std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
     const PluginMoveEdit& edit, EditorUndoDirection direction)
 {
     const std::size_t target_index =
@@ -2472,63 +2503,90 @@ std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
     const std::vector<PluginViewState>& plugins = m_signal_chain.plugins();
     if (!placementTargetsPlugins(placement, plugins))
     {
-        return EditorUndoFailureCode::PreflightRejected;
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
     const std::optional<std::size_t> current_index =
         m_signal_chain.chainIndexForInstance(edit.instance_id);
     if (!current_index.has_value() || target_index >= m_signal_chain.appendIndex())
     {
-        return EditorUndoFailureCode::PreflightRejected;
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
     if (*current_index == target_index)
     {
         if (m_signal_chain.setBlockPlacement(placement))
         {
-            return std::nullopt;
+            return {};
         }
 
-        return EditorUndoFailureCode::NoNetMutation;
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
     }
 
     auto snapshot = m_plugin_host.movePlugin(edit.instance_id, target_index);
     if (!snapshot.has_value())
     {
-        return EditorUndoFailureCode::RepairedFailure;
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
     }
 
     applySignalChainMutationSnapshot(std::move(*snapshot), false);
     (void)m_signal_chain.setBlockPlacement(placement);
-    return std::nullopt;
+    return {};
 }
 
 // Restores editor-authored block placement without touching the audio backend.
-std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
     const PluginPlacementEdit& edit, EditorUndoDirection direction)
 {
     const std::vector<PluginBlockAssignment>& placement =
         direction == EditorUndoDirection::Undo ? edit.before_placement : edit.after_placement;
     if (!m_signal_chain.setBlockPlacement(placement))
     {
-        return EditorUndoFailureCode::NoNetMutation;
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
     }
 
-    return std::nullopt;
+    return {};
 }
 
 // Restores one editor-authored display type override without touching the audio backend.
-std::optional<EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
     const PluginDisplayTypeEdit& edit, EditorUndoDirection direction)
 {
     const std::optional<PluginDisplayType> display_type =
         direction == EditorUndoDirection::Undo ? edit.before_type : edit.after_type;
     if (!m_signal_chain.setPluginDisplayTypeOverride(edit.instance_id, display_type))
     {
-        return EditorUndoFailureCode::NoNetMutation;
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
     }
 
-    return std::nullopt;
+    return {};
+}
+
+// Restores one plugin's full parameter/state memento through the audio boundary.
+std::expected<void, EditorUndoFailureCode> EditorController::Impl::applyUndoPayload(
+    const PluginParameterEdit& edit, EditorUndoDirection direction)
+{
+    if (!m_signal_chain.containsInstance(edit.instance_id))
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const common::audio::PluginInstanceState& state =
+        direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
+    const common::audio::PluginInstanceState& opposite_state =
+        direction == EditorUndoDirection::Undo ? edit.after_state : edit.before_state;
+    if (state == opposite_state)
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    if (const auto restored = m_plugin_host.setPluginState(edit.instance_id, state);
+        !restored.has_value())
+    {
+        return std::unexpected{EditorUndoFailureCode::RepairedFailure};
+    }
+
+    return {};
 }
 
 // Pushes one already-applied user edit into the product-level history stack.
@@ -2562,6 +2620,64 @@ void EditorController::Impl::clearUndoHistoryAfterUntrackedEdit(std::string_view
     }
 
     resetUndoHistory(context);
+}
+
+// Settles any host-observed plugin parameter memento before a controller action runs.
+void EditorController::Impl::flushPendingPluginParameterEdits(std::string_view context)
+{
+    if (!m_plugin_host.hasPendingPluginParameterEdits())
+    {
+        return;
+    }
+
+    RH_LOG_INFO("editor.controller", "Flushing pending plugin parameter edit context={}", context);
+    m_plugin_host.flushPendingPluginParameterEdits();
+}
+
+// Reflects host parameter-observation state transitions into logs and derived view state.
+void EditorController::Impl::onPluginParameterPendingChanged(bool pending)
+{
+    RH_LOG_INFO("editor.controller", "Plugin parameter edit pending changed pending={}", pending);
+    updateView();
+}
+
+// Commits one settled host parameter memento into product-level undo history.
+void EditorController::Impl::onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit)
+{
+    if (!hasLoadedArrangement() || !m_signal_chain.containsInstance(edit.instance_id))
+    {
+        RH_LOG_INFO(
+            "editor.controller",
+            "Dropped stale plugin parameter edit instance_id={}",
+            edit.instance_id);
+        return;
+    }
+
+    if (edit.before == edit.after)
+    {
+        RH_LOG_INFO(
+            "editor.controller",
+            "Dropped unchanged plugin parameter edit instance_id={}",
+            edit.instance_id);
+        return;
+    }
+
+    RH_LOG_INFO(
+        "editor.controller",
+        "Completed plugin parameter edit instance_id={} label_hint={}",
+        edit.instance_id,
+        edit.label_hint);
+    pushUndoEntry(
+        EditorUndoEntry{
+            .label = "Edit Plugin Parameter",
+            .payload = PluginParameterEdit{
+                .instance_id = std::move(edit.instance_id),
+                .before_state = std::move(edit.before),
+                .after_state = std::move(edit.after),
+                .label_hint = std::move(edit.label_hint),
+            },
+        });
+    updateView();
 }
 
 void EditorController::Impl::performActionImpl(EditorAction::PlayPause /*action*/)

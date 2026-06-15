@@ -1272,6 +1272,113 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
         std::optional{PluginDisplayType::Cab});
 }
 
+// Parameter mementos restore full plugin state through the plugin host on undo and redo.
+TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+
+    const auto before_state = plugin_host.capturePluginState("instance-a");
+    const auto after_state = plugin_host.capturePluginState("instance-b");
+    REQUIRE(before_state.has_value());
+    REQUIRE(after_state.has_value());
+    plugin_host.queuePendingPluginParameterEdit(
+        common::audio::PluginParameterEdit{
+            .instance_id = "instance-a",
+            .before = *before_state,
+            .after = *after_state,
+            .label_hint = "Gain",
+        });
+
+    plugin_host.flushPendingPluginParameterEdits();
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.set_state_call_count == 1);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{*before_state});
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.set_state_call_count == 2);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{*after_state});
+}
+
+// The action gate settles pending parameter mementos before deciding whether Undo is available.
+TEST_CASE("EditorController flushes parameters before undo", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.next_instance_id = "instance-b";
+    addKnownPlugin(controller);
+
+    const auto before_state = plugin_host.capturePluginState("instance-a");
+    const auto after_state = plugin_host.capturePluginState("instance-b");
+    REQUIRE(before_state.has_value());
+    REQUIRE(after_state.has_value());
+    plugin_host.queuePendingPluginParameterEdit(
+        common::audio::PluginParameterEdit{
+            .instance_id = "instance-a",
+            .before = *before_state,
+            .after = *after_state,
+            .label_hint = "Drive",
+        });
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
+    CHECK(plugin_host.set_state_call_count == 1);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{*before_state});
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Plugin Parameter"});
+}
+
 // Untracked edit categories clear metadata history so partial undo cannot skip a newer change.
 TEST_CASE("EditorController clears metadata undo after output gain", "[core][editor-controller]")
 {
