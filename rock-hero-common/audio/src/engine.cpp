@@ -56,7 +56,7 @@ constexpr std::string_view g_tone_state_directory_name{"state"};
 constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
-constexpr auto g_plugin_state_change_debounce = std::chrono::milliseconds{750};
+constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::milliseconds{750};
 constexpr auto g_plugin_restore_quiet_debounce = std::chrono::milliseconds{200};
 
 enum class PluginWindowCommand
@@ -1105,15 +1105,13 @@ public:
     using MarkDirty = std::function<void()>;
 
     PluginParameterDirtyTracker(tracktion::ExternalPlugin& plugin, MarkDirty mark_dirty)
-        : m_plugin(plugin)
-        , m_mark_dirty(std::move(mark_dirty))
+        : m_mark_dirty(std::move(mark_dirty))
     {
-        const int parameter_count = m_plugin.getNumAutomatableParameters();
+        const int parameter_count = plugin.getNumAutomatableParameters();
         m_parameters.reserve(static_cast<std::size_t>(std::max(parameter_count, 0)));
         for (int index = 0; index < parameter_count; ++index)
         {
-            tracktion::AutomatableParameter::Ptr parameter =
-                m_plugin.getAutomatableParameter(index);
+            tracktion::AutomatableParameter::Ptr parameter = plugin.getAutomatableParameter(index);
             if (parameter == nullptr)
             {
                 continue;
@@ -1166,13 +1164,12 @@ private:
         markDirty();
     }
 
-    tracktion::ExternalPlugin& m_plugin;
     MarkDirty m_mark_dirty;
     std::vector<tracktion::AutomatableParameter::Ptr> m_parameters;
 };
 
-// Observes plugin-wide processor changes and emits full-state edits for presets and file loads.
-class PluginStateChangeTracker final : private tracktion::SelectableListener, private juce::Timer
+// Owns one plugin's debounced dirty-state transaction and emits full-state edits.
+class PluginDirtyStateTracker final : private tracktion::SelectableListener, private juce::Timer
 {
 public:
     using CaptureState = std::function<std::expected<PluginInstanceState, PluginHostError>(
@@ -1182,7 +1179,7 @@ public:
     using ShouldDeferCapture = std::function<bool()>;
     using DirtyObserved = std::function<void(const std::string&)>;
 
-    PluginStateChangeTracker(
+    PluginDirtyStateTracker(
         tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
         PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
         DirtyObserved dirty_observed)
@@ -1198,7 +1195,7 @@ public:
         m_plugin.addSelectableListener(this);
     }
 
-    ~PluginStateChangeTracker() override
+    ~PluginDirtyStateTracker() override
     {
         stopTimer();
         if (tracktion::Selectable::isSelectableValid(&m_plugin))
@@ -1332,7 +1329,7 @@ private:
                 m_plugin.getName().toStdString());
         }
 
-        startTimer(static_cast<int>(g_plugin_state_change_debounce.count()));
+        startTimer(static_cast<int>(g_plugin_dirty_transaction_quiet_debounce.count()));
     }
 
     void selectableObjectAboutToBeDeleted(tracktion::Selectable* selectable) override
@@ -2118,21 +2115,21 @@ private:
     // Per-external-plugin parameter observers for the user-visible live-rig chain.
     std::vector<std::unique_ptr<PluginParameterDirtyTracker>> m_plugin_parameter_dirty_trackers;
 
-    // Per-external-plugin state observers for processor-wide preset/file changes.
-    std::vector<std::unique_ptr<PluginStateChangeTracker>> m_plugin_state_trackers;
+    // Per-external-plugin dirty-state transaction observers.
+    std::vector<std::unique_ptr<PluginDirtyStateTracker>> m_plugin_state_trackers;
 
     // Defers undo capture during host-owned restore/load paths without hiding dirty callbacks.
     bool m_plugin_undo_capture_deferred{false};
 
     struct PluginRestoreSettleGuard
     {
-        std::uint64_t generation{};
         std::chrono::steady_clock::time_point quiet_deadline{};
     };
 
     // Per-plugin restore guards absorb callbacks caused by host-driven setStateInformation calls.
+    // Without a separate user-input signal, a manual edit during this quiet tail is still
+    // indistinguishable from a plugin re-announce and will be folded into the refreshed baseline.
     std::unordered_map<std::string, PluginRestoreSettleGuard> m_plugin_restore_settle_guards;
-    std::uint64_t m_next_plugin_restore_generation{};
 
     // Last aggregate pending state reported to the editor observer.
     bool m_plugin_edit_pending_notified{false};
@@ -2912,7 +2909,7 @@ private:
     [[nodiscard]] bool hasPendingPluginEdits() const
     {
         const bool has_state_edit = std::ranges::any_of(
-            m_plugin_state_trackers, [](const std::unique_ptr<PluginStateChangeTracker>& tracker) {
+            m_plugin_state_trackers, [](const std::unique_ptr<PluginDirtyStateTracker>& tracker) {
                 return tracker != nullptr && tracker->hasPendingEdit();
             });
         return has_state_edit;
@@ -2967,13 +2964,12 @@ private:
     void beginPluginRestoreSettleGuard(const std::string& instance_id)
     {
         m_plugin_restore_settle_guards[instance_id] = PluginRestoreSettleGuard{
-            .generation = ++m_next_plugin_restore_generation,
             .quiet_deadline = std::chrono::steady_clock::now() + g_plugin_restore_quiet_debounce,
         };
         schedulePluginRestoreSettleTimer();
     }
 
-    void notePluginEditObserved(const std::string& instance_id)
+    void notePluginDirtyObserved(const std::string& instance_id)
     {
         auto guard = m_plugin_restore_settle_guards.find(instance_id);
         if (guard == m_plugin_restore_settle_guards.end())
@@ -2995,7 +2991,7 @@ private:
 
     void refreshPluginStateBaseline(const std::string& instance_id)
     {
-        for (const std::unique_ptr<PluginStateChangeTracker>& tracker : m_plugin_state_trackers)
+        for (const std::unique_ptr<PluginDirtyStateTracker>& tracker : m_plugin_state_trackers)
         {
             if (tracker != nullptr && tracker->instanceId() == instance_id)
             {
@@ -3114,7 +3110,7 @@ private:
             }
 
             const std::string instance_id = external_plugin->itemID.toString().toStdString();
-            auto state_tracker = std::make_unique<PluginStateChangeTracker>(
+            auto state_tracker = std::make_unique<PluginDirtyStateTracker>(
                 *external_plugin,
                 [this](tracktion::ExternalPlugin& observed_plugin)
                     -> std::expected<PluginInstanceState, PluginHostError> {
@@ -3131,12 +3127,12 @@ private:
                 [this] { notifyPluginEditPendingStateChanged(); },
                 [this, instance_id] { return shouldDeferPluginUndoCapture(instance_id); },
                 [this](const std::string& observed_instance_id) {
-                    notePluginEditObserved(observed_instance_id);
+                    notePluginDirtyObserved(observed_instance_id);
                 });
             // The pointer targets the heap object owned by the unique_ptr, so vector growth does
-            // not invalidate the callback target. Trackers are cleared in parameter-then-state
-            // order before plugin-chain observer rebuilds.
-            PluginStateChangeTracker* const state_tracker_ptr = state_tracker.get();
+            // not invalidate the callback target. Parameter trackers are cleared before state
+            // trackers, so their callbacks cannot outlive the target.
+            PluginDirtyStateTracker* const state_tracker_ptr = state_tracker.get();
             m_plugin_state_trackers.push_back(std::move(state_tracker));
             m_plugin_parameter_dirty_trackers.push_back(
                 std::make_unique<PluginParameterDirtyTracker>(
@@ -3155,7 +3151,7 @@ private:
     // later dispatch, not applied under this loop.
     void flushPendingPluginEdits()
     {
-        for (const std::unique_ptr<PluginStateChangeTracker>& tracker : m_plugin_state_trackers)
+        for (const std::unique_ptr<PluginDirtyStateTracker>& tracker : m_plugin_state_trackers)
         {
             if (tracker != nullptr)
             {
