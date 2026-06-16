@@ -487,48 +487,55 @@ TEST_CASE("IPluginHost rolls back in-place state failures", "[audio][plugin-host
     CHECK(*after_failure == *original_state);
 }
 
-// Verifies parameter-edit flush emits pending and completed edit notifications.
-TEST_CASE("IPluginHost flushes pending parameter edits", "[audio][plugin-host]")
+// Verifies plugin-edit flush emits pending notifications and completed state edits.
+TEST_CASE("IPluginHost flushes pending plugin edits", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
     plugin_host.chain = {
         makeChainEntry("amp-instance", "amp", 0),
         makeChainEntry("drive-instance", "drive", 1),
     };
+    const auto before_state = plugin_host.capturePluginState("amp-instance");
+    PluginChainEntry after_entry = plugin_host.chain[0];
+    after_entry.name = "amp preset";
+    testing::RecordingPluginHost after_host;
+    after_host.chain = {after_entry};
+    const auto after_state = after_host.capturePluginState("amp-instance");
+    REQUIRE(before_state.has_value());
+    REQUIRE(after_state.has_value());
 
     std::vector<bool> pending_notifications;
-    std::vector<PluginParameterEdit> completed_edits;
-    plugin_host.setPluginParameterEditObserver(
-        PluginParameterEditObserver{
-            .pending_changed = [&pending_notifications](
-                                   bool pending) { pending_notifications.push_back(pending); },
-            .edit_completed =
-                [&completed_edits](PluginParameterEdit edit) {
-                    completed_edits.push_back(std::move(edit));
-                },
+    std::vector<PluginStateEdit> completed_edits;
+    plugin_host.setPluginEditObserver(
+        PluginEditObserver{
+            .pending_changed = [&pending_notifications](bool pending) {
+                pending_notifications.push_back(pending);
+            },
+        });
+    plugin_host.setPluginStateEditObserver(
+        PluginStateEditObserver{
+            .edit_completed = [&completed_edits](PluginStateEdit edit) {
+                completed_edits.push_back(std::move(edit));
+            },
         });
 
-    plugin_host.queuePendingPluginParameterEdit(
-        PluginParameterEdit{
+    plugin_host.queuePendingPluginStateEdit(
+        PluginStateEdit{
             .instance_id = "amp-instance",
-            .parameter_id = "gain",
-            .parameter_index = 3,
-            .before_normalized = 0.25,
-            .after_normalized = 0.75,
-            .label_hint = "Gain",
+            .before = *before_state,
+            .after = *after_state,
+            .label_hint = "Amp",
         });
-    plugin_host.flushPendingPluginParameterEdits();
+    plugin_host.flushPendingPluginEdits();
 
-    CHECK_FALSE(plugin_host.hasPendingPluginParameterEdits());
-    CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
+    CHECK_FALSE(plugin_host.hasPendingPluginEdits());
+    CHECK(plugin_host.flush_pending_plugin_edits_call_count == 1);
     CHECK(pending_notifications == std::vector<bool>{true, false});
     REQUIRE(completed_edits.size() == 1);
     CHECK(completed_edits[0].instance_id == "amp-instance");
-    CHECK(completed_edits[0].parameter_id == "gain");
-    CHECK(completed_edits[0].parameter_index == 3);
-    CHECK(completed_edits[0].before_normalized == 0.25);
-    CHECK(completed_edits[0].after_normalized == 0.75);
-    CHECK(completed_edits[0].label_hint == "Gain");
+    CHECK(completed_edits[0].before == *before_state);
+    CHECK(completed_edits[0].after == *after_state);
+    CHECK(completed_edits[0].label_hint == "Amp");
 }
 
 // Verifies hosted plugin-window command callbacks can be installed and emitted by the port fake.

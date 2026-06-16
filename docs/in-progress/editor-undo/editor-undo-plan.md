@@ -7,16 +7,14 @@ testable, clarifies that undo-specific diagnostics are introduced with the undo 
 them, and tightens faulted-session persistence so the app does not save from an untrusted live
 backend.
 
-> **Parameter-undo correction (2026-06-15): plugin knob edits use value mementos.** The
-> full-plugin-chunk parameter undo direction was rejected after live testing with Archetype Nolly
-> and Gateway: `setStateInformation` is too invasive for ordinary knob undo on a live plugin/editor.
-> RockHero still owns one project undo stack and still records plugin changes as editor-core
-> `IEdit` entries, but the normal plugin-parameter edit memento is now
-> `{instance_id, parameter_id, parameter_index, before_normalized, after_normalized, label_hint}` and
-> replays through `IPluginHost::setPluginParameterValue`. Full plugin chunks remain appropriate for
-> plugin insert/remove/recreate, persistence, and future explicit preset/state-load undo paths.
-> Some older sections below still describe the superseded full-chunk parameter plan and should be
-> revised before using this document as an implementation checklist.
+> **Parameter-undo correction (2026-06-16): plugin edits use full-state mementos.** The granular
+> parameter-value workaround was rejected after the freeze root cause was isolated to UI meter reads
+> touching Tracktion's playback context during plugin state restore. Normal plugin UI edits now use
+> the same full opaque `PluginStateEdit` memento path as preset/file-load edits and replay through
+> `IPluginHost::setPluginState`. This preserves plugin-owned non-parameter state such as preset
+> labels, dirty markers, loaded files/IRs, and hidden processor metadata. The removed granular API
+> (`PluginParameterEdit`, `PluginParameterSnapshot`, and `setPluginParameterValue`) should not be
+> reintroduced without a new design review for a distinct non-undo use case such as automation.
 
 > **Phase M decided (2026-06-11): RockHero mementos; Tracktion is a backend.** The inverse-mechanism
 > question is now settled in favor of the memento design this document already describes, so the memento
@@ -26,8 +24,8 @@ backend.
 > rollback uses `UndoManager::undoCurrentTransactionOnly()`, never raw `Edit::undo()`. Editor metadata
 > stays in editor-core; stay on B2-lite. Rationale: `editor-engine-undo-master-plan-v3.md` (Phase M
 > Decision) and `undo-ownership-analysis.md` (Decision + the tree-vs-runtime and automation-curve
-> proofs). The parameter sections have been rewritten to the full-chunk capture/restore payload
-> (`PluginParameterEdit` carries before/after `PluginInstanceState`; replay via `setPluginState`).
+> proofs). Plugin edit sections now use the full-chunk capture/restore payload
+> (`PluginStateEdit` carries before/after `PluginInstanceState`; replay via `setPluginState`).
 > For corrected Tracktion mechanics, `undo-ownership-analysis.md` remains authoritative.
 
 > **Non-negotiable constraint — plugin-state reproduction fidelity (2026-06-11).** Undo/redo of a
@@ -310,7 +308,7 @@ Rules:
   control-surface paths.
 - Do not derive RockHero `canUndo()` / `canRedo()` from `Edit::getUndoManager()`.
 - Do not assume Tracktion's internal undo history is empty after RockHero plugin operations.
-- Suppress RockHero parameter-edit ingestion while RockHero is applying an edit, undo, or redo.
+- Suppress RockHero plugin-edit ingestion while RockHero is applying an edit, undo, or redo.
 
 Preferred implementation shape:
 
@@ -552,19 +550,22 @@ struct PluginInstanceState
     std::vector<std::byte> opaque_data;
 };
 
-struct PluginParameterEdit
+struct PluginStateEdit
 {
     std::string instance_id;
-    PluginInstanceState before;  // full chunk before the settled edit
-    PluginInstanceState after;   // full chunk after the settled edit
-    std::string label_hint;      // display-only: changed parameter name(s) from observation,
-                                 // e.g. "Gain". Never used for restore, identity, or remapping.
+    PluginInstanceState before;
+    PluginInstanceState after;
+    std::string label_hint;      // display-only plugin or edit label.
 };
 
-struct PluginParameterEditObserver
+struct PluginEditObserver
 {
     std::function<void(bool)> pending_changed;
-    std::function<void(PluginParameterEdit)> edit_completed;
+};
+
+struct PluginStateEditObserver
+{
+    std::function<void(PluginStateEdit)> edit_completed;
 };
 
 [[nodiscard]] virtual std::expected<PluginInsertResult, PluginHostError> insertPlugin(
@@ -584,14 +585,15 @@ recreatePluginStatePreservingId(
     const PluginInstanceState& state, std::size_t chain_index) = 0;
 
 // Restores a full opaque state chunk to an EXISTING instance, driving the live processor via
-// setStateInformation (the setter). Used by plugin-parameter undo/redo. Distinct from
+// setStateInformation (the setter). Used by plugin edit undo/redo. Distinct from
 // recreatePluginStatePreservingId, which recreates a removed plugin under its prior id.
 [[nodiscard]] virtual std::expected<void, PluginHostError> setPluginState(
     const std::string& instance_id, const PluginInstanceState& state) = 0;
 
-virtual void flushPendingPluginParameterEdits() = 0;
-[[nodiscard]] virtual bool hasPendingPluginParameterEdits() const = 0;
-virtual void setPluginParameterEditObserver(PluginParameterEditObserver observer) = 0;
+virtual void flushPendingPluginEdits() = 0;
+[[nodiscard]] virtual bool hasPendingPluginEdits() const = 0;
+virtual void setPluginEditObserver(PluginEditObserver observer) = 0;
+virtual void setPluginStateEditObserver(PluginStateEditObserver observer) = 0;
 ```
 
 The implementation can choose a different spelling, but the semantics are required:
@@ -611,25 +613,25 @@ The implementation can choose a different spelling, but the semantics are requir
   back in the result.
 - The general new-instance state-insert path must remain separate from undo. If retained for future
   duplication, name and contract it so callers know it strips or allocates runtime ids.
-- The parameter-edit observer is attached only to user-inserted plugins' automatable parameters,
-  which it uses solely to detect a settled user edit; the emitted payload is the before/after full
-  state chunk, not parameter values. Structural live-rig plugins are not attached (the gain plugin has
-  no automatable parameter, and meters/input gain are not user tone edits).
+- Parameter-change observers are attached only to user-inserted plugins' automatable parameters.
+  They exist solely to tell the plugin-state tracker that a settled user edit occurred; completed
+  undo entries are before/after full-state chunks, not parameter values. Structural live-rig plugins
+  are not attached (the gain plugin has no automatable parameter, and meters/input gain are not user
+  tone edits).
 - `setPluginState` restores an opaque chunk to an existing instance through the live setter
   (`setStateInformation`), so the running processor follows; it must not be implemented as a raw
   ValueTree property revert (which would not reload the processor) and must not enter Tracktion's undo
   manager.
-- Capture, id-preserving recreate, state restore (`setPluginState`), and pending-parameter flush are
+- Capture, id-preserving recreate, state restore (`setPluginState`), and pending-plugin flush are
   message-thread operations.
-- The parameter-edit observer is the single notification surface for this stream. It reports
-  pending-state changes and completed before/after-chunk edits so editor-core can keep command
-  availability in sync with gesture/debounce state. Each completed edit also carries a display-only
-  `label_hint` (the changed parameter name(s) from observation) for the history label/confirmation;
-  it is never used for restore, identity, or remapping.
-- `flushPendingPluginParameterEdits` synchronously emits settled/discrete pending edits (each a
-  before/after chunk), drops continuous or uncertain pending edits, refreshes the per-plugin state
-  baseline, clears pending state, and sends a pending-state notification when the aggregate pending
-  state changes.
+- `PluginEditObserver` reports aggregate pending-state changes so editor-core can keep command
+  availability in sync with gesture/debounce state. `PluginStateEditObserver` reports completed
+  before/after-chunk edits with a display-only `label_hint`; the label is never used for restore,
+  identity, or remapping.
+- `flushPendingPluginEdits` synchronously emits settled/discrete pending edits (each a before/after
+  chunk), drops continuous or uncertain pending edits, refreshes the per-plugin state baseline,
+  clears pending state, and sends a pending-state notification when the aggregate pending state
+  changes.
 - The controller fences the two instantiating directions behind `BusyOperation::LoadingPlugin`; the
   audio layer does not own editor busy state.
 - The boundary stays on `IPluginHost`, not `ILiveRig`, because it reverses per-plugin host
@@ -817,9 +819,9 @@ Private editor-core types near the existing workflow classes:
 - `IEdit`: the editor-core polymorphic edit interface — `undo(EditorEditContext&)`,
   `redo(EditorEditContext&)`, and `label()`, each apply method returning a typed success/failure
   (including restored id verification for recreate operations). Concrete edits exist for insert,
-  remove, move, placement, display-type, plugin-parameter, and output-gain. Each co-locates its data
-  with its own forward/inverse logic; remove and plugin-parameter edits hold their before/after full
-  plugin chunks as members.
+  remove, move, placement, display-type, plugin-state, and output-gain. Each co-locates its data
+  with its own forward/inverse logic; plugin-state edits hold their before/after full plugin chunks
+  as members.
 - `EditorEditContext`: the apply-time seam handed to every `undo`/`redo` — references to the
   signal-chain model, `IPluginHost`, `ILiveRig`, and an output-gain setter. Edits stay pure value
   objects and never store controller back-pointers.
@@ -849,15 +851,15 @@ Availability:
   Save, and Save As in the same centralized check the busy state uses; leave only
   Open/Import/Restore, Close, and Exit available until a project is loaded or closed;
 - undo is available when the session is not faulted and `EditorUndoHistory::canUndo()` or
-  `IPluginHost::hasPendingPluginParameterEdits()` is true;
+  `IPluginHost::hasPendingPluginEdits()` is true;
 - redo requires a non-faulted session and `canRedo()`;
 - close and exit remain the only normal actions that supersede busy work.
 
 Execution:
 
-- the controller subscribes to the plugin-parameter edit observer and refreshes view state whenever
-  pending state changes or a completed batch is emitted;
-- pending parameter edits are flushed once at the action-dispatch chokepoint before any command;
+- the controller subscribes to plugin edit observers and refreshes view state whenever pending state
+  changes or a completed batch is emitted;
+- pending plugin edits are flushed once at the action-dispatch chokepoint before any command;
 - synchronous directions run on the message thread;
 - insert-redo and remove-undo run behind `BusyOperation::LoadingPlugin`;
 - plugin rebuild undo/redo is not cancellable under the current scan-only cancellation policy;
@@ -1026,15 +1028,15 @@ Controller:
 - pending parameter observer notifications refresh Undo availability when pending starts, completes,
   or is dropped;
 - output-gain drag pushes one entry;
-- parameter-edit ingestion is suppressed during edit/undo/redo;
-- undo availability is true while a net-changed parameter edit is pending;
+- plugin-edit ingestion is suppressed during edit/undo/redo;
+- undo availability is true while a net-changed plugin edit is pending;
 - undo/redo availability appears in view state;
 - undo/redo are disabled while busy and while calibration blocks signal-chain edits;
 - a rollback-contract violation enters the faulted state (all editing, Undo/Redo, Save, and Save As
   blocked; Open/Import/Restore/Close/Exit allowed) without terminating; its developer-facing
   `RH_LOG_ERROR` record may be asserted with a focused Quill test sink only if proving emission is
   required;
-- Save marks clean after flushing pending parameters;
+- Save marks clean after flushing pending plugin edits;
 - undoing back to saved state clears dirtiness;
 - dirty tracking is history-based before Undo/Redo are enabled;
 - close/open/import reset history.
@@ -1048,8 +1050,8 @@ Common audio:
 - fake maintains a per-plugin state baseline and uses it as `before` for non-gesture edits;
 - fake drops continuous/self-animating non-gesture motion;
 - fake refreshes the state baseline when dropping continuous or uncertain pending motion;
-- fake flushes pending plugin parameter edits synchronously;
-- fake emits pending-state notifications when pending parameter edits start, complete, or are
+- fake flushes pending plugin edits synchronously;
+- fake emits pending-state notifications when pending plugin edits start, complete, or are
   dropped;
 - fake `setPluginState` round-trips a chunk to an existing instance for undo and redo;
 - fake emits a display-only `label_hint` naming the changed parameter(s) on a completed parameter edit;
@@ -1064,8 +1066,8 @@ UI:
 
 - Edit menu shows Undo/Redo from controller-derived enabled state;
 - `Ctrl+Z` and `Ctrl+Y` emit intents only when enabled;
-- pending parameter edits make Undo enabled after the controller observes pending state;
-- dropped pending parameter edits clear pending Undo availability without adding history;
+- pending plugin edits make Undo enabled after the controller observes pending state;
+- dropped pending plugin edits clear pending Undo availability without adding history;
 - disabled items/shortcuts emit nothing;
 - output-gain drag begin/commit emit the expected intents;
 - a rollback-contract violation shows the report-to-developer message, blocks all editing, Save, and
@@ -1092,7 +1094,7 @@ interface.
    them later and fault the session when required.
 2. Update `IPluginHost` contracts: unchanged-on-error mutating methods, explicit insert result id,
    complete `PluginInstanceState`, `setPluginState` (in-place chunk restore), before/after-chunk
-   parameter-edit observer/status, and fakes. Write the rollback proof and exact-pre-state tests for
+   plugin-edit observer/status, and fakes. Write the rollback proof and exact-pre-state tests for
    each mutating port before the controller records that port in user-visible history.
 3. Undo/Redo action ids, intents, availability in all switches, view-state fields, Edit menu, and
    `Ctrl+Z` / `Ctrl+Y` routing. Keep user-facing commands disabled until coverage is complete. Log
@@ -1103,15 +1105,11 @@ interface.
 4. Lightweight inverse tier with no audio change: block placement and display-type override. Log
    their undo-entry push and undo/redo apply.
 5. Move as a compound inverse with placement restore. Log move entries.
-6. Parameter boundary: per-plugin state baseline, observation scoped to user plugins, gesture-bounded
+6. Plugin edit boundary: per-plugin state baseline, observation scoped to user plugins, gesture-bounded
    before/after-chunk capture, non-gesture debounce settle with the self-animating guard, explicit
    flushing with drop/baseline-refresh semantics at the dispatch chokepoint, pending-state
-   notifications, `setPluginState` replay, fake tests, and ingestion suppression. Log parameter edit
-   started/completed/flushed/dropped and pending-state changes. While wiring the observer into undo
-   history, review the near-identical `common::audio::PluginParameterEdit` event payload and
-   `editor::core::PluginParameterEdit` undo payload names/shapes; keep them separate if the
-   audio-event vs. undo-entry ownership boundary remains clearer, or rename/consolidate only if the
-   conversion code shows the distinction is accidental.
+   notifications, `setPluginState` replay, fake tests, and ingestion suppression. Log plugin edit
+   started/completed/flushed/dropped and pending-state changes.
 7. Output-gain gesture boundaries and output-gain undo entries. Log output-gain entries.
 8. Remove memento boundary: capture/restore, the id-preserving recreate path (restored id equals the
    original), editor visual-state capture/apply, and insert/remove wiring. This renames/recontracts
