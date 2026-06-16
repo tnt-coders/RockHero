@@ -11,7 +11,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
-#include <rock_hero/common/audio/plugin_instance_state.h>
+#include <rock_hero/common/audio/i_plugin_host.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_display_type.h>
 #include <string>
@@ -290,6 +290,34 @@ struct [[nodiscard]] PluginParameterEdit final : IEdit
     double after_normalized = 0.0;
 
     /*! \brief Display-only label hint for the parameter or gesture group. */
+    std::string label_hint;
+
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
+        EditorEditContext& context) const override;
+    [[nodiscard]] std::string label() const override;
+};
+
+/*! \brief Edit that restores one plugin's full opaque state. */
+struct [[nodiscard]] PluginStateEdit final : IEdit
+{
+    /*! \brief Edited plugin instance ID. */
+    std::string instance_id;
+
+    /*! \brief Full plugin state before the edit settled. */
+    common::audio::PluginInstanceState before_state;
+
+    /*! \brief Full plugin state after the edit settled. */
+    common::audio::PluginInstanceState after_state;
+
+    /*! \brief Parameter values before the edit settled, when available. */
+    std::vector<common::audio::PluginParameterSnapshot> before_parameters;
+
+    /*! \brief Parameter values after the edit settled, when available. */
+    std::vector<common::audio::PluginParameterSnapshot> after_parameters;
+
+    /*! \brief Display-only label hint for the plugin or state change. */
     std::string label_hint;
 
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
