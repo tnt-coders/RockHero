@@ -74,17 +74,23 @@ struct [[nodiscard]] PluginInsertResult
     friend bool operator==(const PluginInsertResult& lhs, const PluginInsertResult& rhs) = default;
 };
 
-/*! \brief Full before/after state for one settled user plugin-parameter edit. */
+/*! \brief Before/after value for one settled user plugin-parameter edit. */
 struct [[nodiscard]] PluginParameterEdit
 {
-    /*! \brief Runtime plugin instance whose state changed. */
+    /*! \brief Runtime plugin instance whose parameter changed. */
     std::string instance_id;
 
-    /*! \brief Full opaque chunk captured before the settled edit. */
-    PluginInstanceState before;
+    /*! \brief Stable Tracktion/JUCE parameter ID when the hosted plugin provides one. */
+    std::string parameter_id;
 
-    /*! \brief Full opaque chunk captured after the settled edit. */
-    PluginInstanceState after;
+    /*! \brief Parameter index used as a validated fallback when the ID cannot be resolved. */
+    int parameter_index = -1;
+
+    /*! \brief Normalized value before the settled edit. */
+    double before_normalized = 0.0;
+
+    /*! \brief Normalized value after the settled edit. */
+    double after_normalized = 0.0;
 
     /*! \brief Display-only changed parameter name hint; never used for restore identity. */
     std::string label_hint;
@@ -105,7 +111,7 @@ struct PluginParameterEditObserver
     /*! \brief Called when aggregate pending plugin-parameter edit state changes. */
     std::function<void(bool)> pending_changed;
 
-    /*! \brief Called when a settled edit yields a full before/after memento pair. */
+    /*! \brief Called when a settled edit yields a before/after parameter value pair. */
     std::function<void(PluginParameterEdit)> edit_completed;
 };
 
@@ -254,8 +260,9 @@ public:
     /*!
     \brief Restores a full opaque state chunk onto an existing plugin instance.
 
-    This is the parameter-undo path. Implementations must drive the live processor state setter,
-    not merely mutate a serialized tree that would leave the running plugin unchanged.
+    Full state restore is intended for explicit state/preset restore workflows. Ordinary
+    plugin-parameter undo should use setPluginParameterValue() instead so live plugin editors and
+    audio processing are not forced through full processor state reloads.
 
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \param state Opaque plugin state previously captured from this boundary.
@@ -266,11 +273,28 @@ public:
         const std::string& instance_id, const PluginInstanceState& state) = 0;
 
     /*!
-    \brief Flushes pending user plugin-parameter edits into completed before/after chunks.
+    \brief Sets one hosted plugin parameter through the host's normal parameter API.
 
-    Implementations synchronously capture the current after-state for pending edits, emit completed
-    before/after chunks for net changes, refresh their internal baseline, and notify the observer
-    if aggregate pending state changes.
+    The parameter ID is preferred when it resolves to a currently exposed parameter. The index is a
+    validated fallback for plugins that expose unstable or empty IDs; implementations must fail
+    rather than set a different parameter when neither identity matches.
+
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param parameter_id Stable parameter ID captured from the host parameter.
+    \param parameter_index Parameter index captured with the edit.
+    \param normalized_value Target value in the normalized [0, 1] parameter range.
+    \return Empty success, or a typed failure.
+    \note This method must be called on the message thread.
+    */
+    [[nodiscard]] virtual std::expected<void, PluginHostError> setPluginParameterValue(
+        const std::string& instance_id, const std::string& parameter_id, int parameter_index,
+        double normalized_value) = 0;
+
+    /*!
+    \brief Flushes pending user plugin-parameter edits into completed before/after values.
+
+    Implementations synchronously settle eligible discrete edits, drop uncertain continuous edits,
+    refresh their internal baseline, and notify the observer if aggregate pending state changes.
 
     \note This method must be called on the message thread.
     */

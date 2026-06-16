@@ -495,10 +495,6 @@ TEST_CASE("IPluginHost flushes pending parameter edits", "[audio][plugin-host]")
         makeChainEntry("amp-instance", "amp", 0),
         makeChainEntry("drive-instance", "drive", 1),
     };
-    const auto before_state = plugin_host.capturePluginState("amp-instance");
-    const auto after_state = plugin_host.capturePluginState("drive-instance");
-    REQUIRE(before_state.has_value());
-    REQUIRE(after_state.has_value());
 
     std::vector<bool> pending_notifications;
     std::vector<PluginParameterEdit> completed_edits;
@@ -515,8 +511,10 @@ TEST_CASE("IPluginHost flushes pending parameter edits", "[audio][plugin-host]")
     plugin_host.queuePendingPluginParameterEdit(
         PluginParameterEdit{
             .instance_id = "amp-instance",
-            .before = *before_state,
-            .after = *after_state,
+            .parameter_id = "gain",
+            .parameter_index = 3,
+            .before_normalized = 0.25,
+            .after_normalized = 0.75,
             .label_hint = "Gain",
         });
     plugin_host.flushPendingPluginParameterEdits();
@@ -526,21 +524,11 @@ TEST_CASE("IPluginHost flushes pending parameter edits", "[audio][plugin-host]")
     CHECK(pending_notifications == std::vector<bool>{true, false});
     REQUIRE(completed_edits.size() == 1);
     CHECK(completed_edits[0].instance_id == "amp-instance");
-    CHECK(completed_edits[0].before == *before_state);
-    CHECK(completed_edits[0].after == *after_state);
+    CHECK(completed_edits[0].parameter_id == "gain");
+    CHECK(completed_edits[0].parameter_index == 3);
+    CHECK(completed_edits[0].before_normalized == 0.25);
+    CHECK(completed_edits[0].after_normalized == 0.75);
     CHECK(completed_edits[0].label_hint == "Gain");
-}
-
-// Verifies loaded plugin instances expose a message-thread window operation through the port.
-TEST_CASE("IPluginHost opens a plugin window", "[audio][plugin-host]")
-{
-    testing::RecordingPluginHost plugin_host;
-
-    const auto result = plugin_host.openPluginWindow("instance-1");
-
-    REQUIRE(result.has_value());
-    CHECK(plugin_host.last_opened_instance_id == std::optional<std::string>{"instance-1"});
-    CHECK(plugin_host.open_call_count == 1);
 }
 
 // Verifies hosted plugin-window command callbacks can be installed and emitted by the port fake.
@@ -560,6 +548,18 @@ TEST_CASE("IPluginHost forwards plugin window commands", "[audio][plugin-host]")
 
     CHECK(undo_count == 1);
     CHECK(redo_count == 1);
+}
+
+// Verifies loaded plugin instances expose a message-thread window operation through the port.
+TEST_CASE("IPluginHost opens a plugin window", "[audio][plugin-host]")
+{
+    testing::RecordingPluginHost plugin_host;
+
+    const auto result = plugin_host.openPluginWindow("instance-1");
+
+    REQUIRE(result.has_value());
+    CHECK(plugin_host.last_opened_instance_id == std::optional<std::string>{"instance-1"});
+    CHECK(plugin_host.open_call_count == 1);
 }
 
 } // namespace rock_hero::common::audio

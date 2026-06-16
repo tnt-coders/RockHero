@@ -419,6 +419,39 @@ public:
         return {};
     }
 
+    /*!
+    \brief Records a fake hosted parameter value restore.
+    \param instance_id Runtime plugin instance requested for parameter replay.
+    \param parameter_id Stable parameter ID captured with the edit.
+    \param parameter_index Parameter index captured with the edit.
+    \param normalized_value Target normalized value.
+    \return Empty success, or a configured/validation failure.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> setPluginParameterValue(
+        const std::string& instance_id, const std::string& parameter_id, int parameter_index,
+        double normalized_value) override
+    {
+        last_set_parameter_instance_id = instance_id;
+        last_set_parameter_id = parameter_id;
+        last_set_parameter_index = parameter_index;
+        last_set_parameter_normalized_value = normalized_value;
+        set_parameter_value_call_count += 1;
+        if (next_set_parameter_value_error.has_value())
+        {
+            return std::unexpected{*next_set_parameter_value_error};
+        }
+
+        if (findPlugin(instance_id) == chain.end())
+        {
+            return std::unexpected{PluginHostError{
+                PluginHostErrorCode::PluginInstanceNotFound,
+                "Plugin instance was not found: " + instance_id,
+            }};
+        }
+
+        return {};
+    }
+
     /*! \brief Flushes the queued fake parameter edit through the installed observer. */
     void flushPendingPluginParameterEdits() override
     {
@@ -470,7 +503,7 @@ public:
 
     /*!
     \brief Queues a completed fake parameter edit for the next flush.
-    \param edit Full before/after edit to emit.
+    \param edit Before/after parameter value edit to emit.
     */
     void queuePendingPluginParameterEdit(PluginParameterEdit edit)
     {
@@ -587,6 +620,9 @@ public:
     /*! \brief Optional error returned after state restore is rolled back to pre-call state. */
     std::optional<PluginHostError> next_set_state_after_mutation_error{};
 
+    /*! \brief Optional parameter-value restore error returned instead of success. */
+    std::optional<PluginHostError> next_set_parameter_value_error{};
+
     /*! \brief Optional open-window error returned instead of success. */
     std::optional<PluginHostError> next_open_error{};
 
@@ -623,6 +659,18 @@ public:
     /*! \brief Last state passed to setPluginState(). */
     std::optional<PluginInstanceState> last_set_state{};
 
+    /*! \brief Last instance ID passed to setPluginParameterValue(). */
+    std::optional<std::string> last_set_parameter_instance_id{};
+
+    /*! \brief Last parameter ID passed to setPluginParameterValue(). */
+    std::optional<std::string> last_set_parameter_id{};
+
+    /*! \brief Last parameter index passed to setPluginParameterValue(). */
+    std::optional<int> last_set_parameter_index{};
+
+    /*! \brief Last normalized value passed to setPluginParameterValue(). */
+    std::optional<double> last_set_parameter_normalized_value{};
+
     /*! \brief Last instance ID passed to openPluginWindow(). */
     std::optional<std::string> last_opened_instance_id{};
 
@@ -652,6 +700,9 @@ public:
 
     /*! \brief Number of in-place state-restore calls received. */
     int set_state_call_count{0};
+
+    /*! \brief Number of parameter-value restore calls received. */
+    int set_parameter_value_call_count{0};
 
     /*! \brief Number of pending parameter-edit flush calls received. */
     int flush_pending_parameter_edits_call_count{0};

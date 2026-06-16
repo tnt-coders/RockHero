@@ -270,7 +270,19 @@ public:
     [[nodiscard]] std::expected<void, PluginHostError> setPluginState(
         const std::string& instance_id, const PluginInstanceState& state) override;
 
-    /*! \brief Flushes pending user plugin-parameter edits into completed before/after chunks. */
+    /*!
+    \brief Sets one hosted plugin parameter through Tracktion's normal parameter API.
+    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
+    \param parameter_id Stable parameter ID captured from the host parameter.
+    \param parameter_index Parameter index captured with the edit.
+    \param normalized_value Target value in the normalized [0, 1] parameter range.
+    \return Empty success, or a typed failure.
+    */
+    [[nodiscard]] std::expected<void, PluginHostError> setPluginParameterValue(
+        const std::string& instance_id, const std::string& parameter_id, int parameter_index,
+        double normalized_value) override;
+
+    /*! \brief Flushes pending user plugin-parameter edits into completed before/after values. */
     void flushPendingPluginParameterEdits() override;
 
     /*!

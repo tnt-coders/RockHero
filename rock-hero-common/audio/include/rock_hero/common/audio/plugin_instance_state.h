@@ -11,7 +11,7 @@
 namespace rock_hero::common::audio
 {
 
-/*! \brief Opaque full plugin-state chunk used by editor-owned undo mementos. */
+/*! \brief Opaque full plugin-state chunk used by structural restore and persistence paths. */
 struct [[nodiscard]] PluginInstanceState
 {
     /*! \brief Backend-owned bytes that editor-core stores but never interprets. */
