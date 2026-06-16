@@ -328,7 +328,7 @@ void applyPluginVisualState(
     return {};
 }
 
-// Applies a full plugin-state memento in one direction through the audio boundary.
+// Applies a plugin-parameter value edit in one direction through the audio boundary.
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginParameterEdit(
     const PluginParameterEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
 {
@@ -337,16 +337,17 @@ void applyPluginVisualState(
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
-    const common::audio::PluginInstanceState& state =
-        direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
-    const common::audio::PluginInstanceState& opposite_state =
-        direction == EditorUndoDirection::Undo ? edit.after_state : edit.before_state;
-    if (state == opposite_state)
+    const double value =
+        direction == EditorUndoDirection::Undo ? edit.before_normalized : edit.after_normalized;
+    const double opposite_value =
+        direction == EditorUndoDirection::Undo ? edit.after_normalized : edit.before_normalized;
+    if (value == opposite_value)
     {
         return std::unexpected{EditorUndoFailureCode::NoNetMutation};
     }
 
-    if (const auto restored = context.plugin_host.setPluginState(edit.instance_id, state);
+    if (const auto restored = context.plugin_host.setPluginParameterValue(
+            edit.instance_id, edit.parameter_id, edit.parameter_index, value);
         !restored.has_value())
     {
         return std::unexpected{undoFailureFromPluginHostError(restored.error())};
@@ -492,11 +493,6 @@ std::string PluginParameterEdit::label() const
     return "Edit " + label_hint;
 }
 
-bool PluginParameterEdit::isPluginParameterEdit() const noexcept
-{
-    return true;
-}
-
 std::expected<void, EditorUndoFailureCode> OutputGainEdit::undo(EditorEditContext& context) const
 {
     return applyOutputGainEdit(*this, EditorUndoDirection::Undo, context);
@@ -574,16 +570,6 @@ std::optional<std::string> EditorUndoHistory::redoLabel() const
     }
 
     return m_entries[m_position]->label();
-}
-
-bool EditorUndoHistory::nextUndoIsPluginParameterEdit() const noexcept
-{
-    return canUndo() && m_entries[m_position - 1]->isPluginParameterEdit();
-}
-
-bool EditorUndoHistory::nextRedoIsPluginParameterEdit() const noexcept
-{
-    return canRedo() && m_entries[m_position]->isPluginParameterEdit();
 }
 
 // Appends a successfully-applied user edit and discards any no-longer-linear redo branch.

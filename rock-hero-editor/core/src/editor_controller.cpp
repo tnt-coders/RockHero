@@ -803,8 +803,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onBusyCancelRequested();
     void onUndoRequested();
     void onRedoRequested();
-    void onPluginWindowUndoRequested();
-    void onPluginWindowRedoRequested();
     void onCloseRequested();
     void onExitRequested();
     void onUnsavedChangesDecision(UnsavedChangesDecision decision);
@@ -872,7 +870,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(const EditorAction::SetPluginDisplayTypeOverride& action);
     void performActionImpl(const EditorAction::OpenPlugin& action);
     [[nodiscard]] EditorEditContext editContext() noexcept;
-    bool pushUndoEntry(std::unique_ptr<IEdit> edit);
+    void pushUndoEntry(std::unique_ptr<IEdit> edit);
     void pushOutputGainUndoEntry(common::audio::Gain before_gain, common::audio::Gain after_gain);
     void enterFaultedSession();
     void faultSessionAfterRollbackContractViolation(
@@ -894,10 +892,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void markUntrackedUnsavedChanges() noexcept;
     void markUntrackedUnsavedEdit(std::string_view context);
     void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
-    [[nodiscard]] bool flushPendingPluginParameterEditsBeforeAction(
-        EditorAction::Id action, std::string_view context);
-    [[nodiscard]] bool preparePluginWindowHistoryAction(
-        EditorAction::Id action, std::string_view context);
     void flushPendingPluginParameterEdits(std::string_view context);
     void onPluginParameterPendingChanged(bool pending);
     void onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit);
@@ -1102,10 +1096,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Product-level undo history for tone edits currently covered by the implementation plan.
     EditorUndoHistory m_undo_history;
-
-    // Tracks whether a synchronous host parameter flush actually committed an undo entry.
-    bool m_flushing_plugin_parameter_edits{false};
-    bool m_plugin_parameter_edit_pushed_during_flush{false};
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
@@ -1531,7 +1521,7 @@ EditorController::Impl::Impl(
                     {
                         return;
                     }
-                    onPluginWindowUndoRequested();
+                    onUndoRequested();
                 },
             .redo_requested =
                 [this, alive] {
@@ -1539,7 +1529,7 @@ EditorController::Impl::Impl(
                     {
                         return;
                     }
-                    onPluginWindowRedoRequested();
+                    onRedoRequested();
                 },
         });
     m_plugin_host.setPluginParameterEditObserver(
@@ -2127,26 +2117,6 @@ void EditorController::Impl::onRedoRequested()
     runAction(EditorAction::Redo{});
 }
 
-// Plugin-window shortcuts should only act on plugin-parameter edits captured from that window.
-void EditorController::Impl::onPluginWindowUndoRequested()
-{
-    if (preparePluginWindowHistoryAction(
-            EditorAction::Id::Undo, "plugin_parameter.plugin_window_undo"))
-    {
-        runAction(EditorAction::Undo{});
-    }
-}
-
-// Plugin-window shortcuts should only replay plugin-parameter edits, not structural project undo.
-void EditorController::Impl::onPluginWindowRedoRequested()
-{
-    if (preparePluginWindowHistoryAction(
-            EditorAction::Id::Redo, "plugin_parameter.plugin_window_redo"))
-    {
-        runAction(EditorAction::Redo{});
-    }
-}
-
 // Closes the current project after prompting for unsaved changes when needed.
 void EditorController::Impl::onCloseRequested()
 {
@@ -2364,10 +2334,9 @@ void EditorController::Impl::runAction(EditorAction::Action action)
 {
     const EditorAction::Id action_id = idOf(action);
     logEditorActionRequested(action_id);
-    if (!isBusy() && !flushPendingPluginParameterEditsBeforeAction(
-                         action_id, "plugin_parameter.action_dispatch"))
+    if (!isBusy())
     {
-        return;
+        flushPendingPluginParameterEdits("plugin_parameter.action_dispatch");
     }
 
     if (!prepareAction(action_id))
@@ -2652,7 +2621,7 @@ EditorEditContext EditorController::Impl::editContext() noexcept
 }
 
 // Pushes one already-applied user edit into the product-level history stack.
-bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
+void EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
 {
     const bool had_edit = edit != nullptr;
     const EditorUndoTransitionResult result = m_undo_history.push(std::move(edit));
@@ -2661,8 +2630,6 @@ bool EditorController::Impl::pushUndoEntry(std::unique_ptr<IEdit> edit)
     {
         markUntrackedUnsavedEdit("undo.reset.failed_push");
     }
-
-    return had_edit && result.status == EditorUndoTransitionStatus::Applied;
 }
 
 // Pushes a net-changed output-gain command into product-level history.
@@ -2820,66 +2787,7 @@ void EditorController::Impl::clearUndoHistoryAfterUntrackedEdit(std::string_view
     resetUndoHistory(context);
 }
 
-// Settles host-observed parameter edits before actions, blocking Undo if nothing was recorded.
-bool EditorController::Impl::flushPendingPluginParameterEditsBeforeAction(
-    EditorAction::Id action, std::string_view context)
-{
-    const bool had_pending_parameter_edit = m_plugin_host.hasPendingPluginParameterEdits();
-    if (!had_pending_parameter_edit)
-    {
-        return true;
-    }
-
-    const juce::ScopedValueSetter<bool> flushing{m_flushing_plugin_parameter_edits, true};
-    m_plugin_parameter_edit_pushed_during_flush = false;
-    flushPendingPluginParameterEdits(context);
-    const bool pushed_parameter_edit = m_plugin_parameter_edit_pushed_during_flush;
-    m_plugin_parameter_edit_pushed_during_flush = false;
-
-    if (action != EditorAction::Id::Undo || pushed_parameter_edit)
-    {
-        return true;
-    }
-
-    RH_LOG_WARNING(
-        "editor.controller",
-        "Skipped undo because pending plugin parameter edit produced no undo entry context={}",
-        context);
-    updateView();
-    return false;
-}
-
-// Allows plugin-window shortcuts to operate only on plugin-parameter history entries.
-bool EditorController::Impl::preparePluginWindowHistoryAction(
-    EditorAction::Id action, std::string_view context)
-{
-    if (isBusy())
-    {
-        return true;
-    }
-
-    if (!flushPendingPluginParameterEditsBeforeAction(action, context))
-    {
-        return false;
-    }
-
-    const bool next_entry_is_plugin_parameter =
-        action == EditorAction::Id::Undo ? m_undo_history.nextUndoIsPluginParameterEdit()
-                                         : m_undo_history.nextRedoIsPluginParameterEdit();
-    if (next_entry_is_plugin_parameter)
-    {
-        return true;
-    }
-
-    RH_LOG_INFO(
-        "editor.controller",
-        "Plugin window history shortcut ignored action={} reason=next-entry-not-plugin-parameter",
-        actionIdText(action));
-    updateView();
-    return false;
-}
-
-// Settles any host-observed plugin parameter memento before a controller action runs.
+// Settles any host-observed plugin parameter value edit before a controller action runs.
 void EditorController::Impl::flushPendingPluginParameterEdits(std::string_view context)
 {
     if (!m_plugin_host.hasPendingPluginParameterEdits())
@@ -2898,7 +2806,7 @@ void EditorController::Impl::onPluginParameterPendingChanged(bool pending)
     updateView();
 }
 
-// Commits one settled host parameter memento into product-level undo history.
+// Commits one settled host parameter value edit into product-level undo history.
 void EditorController::Impl::onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit)
 {
     if (!hasLoadedArrangement() || !m_signal_chain.containsInstance(edit.instance_id))
@@ -2910,7 +2818,7 @@ void EditorController::Impl::onPluginParameterEditCompleted(common::audio::Plugi
         return;
     }
 
-    if (edit.before == edit.after)
+    if (edit.before_normalized == edit.after_normalized)
     {
         RH_LOG_INFO(
             "editor.controller",
@@ -2921,19 +2829,18 @@ void EditorController::Impl::onPluginParameterEditCompleted(common::audio::Plugi
 
     RH_LOG_INFO(
         "editor.controller",
-        "Completed plugin parameter edit instance_id={} label_hint={}",
+        "Completed plugin parameter edit instance_id={} parameter_id={} label_hint={}",
         edit.instance_id,
+        edit.parameter_id,
         edit.label_hint);
     auto undo_edit = std::make_unique<PluginParameterEdit>();
     undo_edit->instance_id = std::move(edit.instance_id);
-    undo_edit->before_state = std::move(edit.before);
-    undo_edit->after_state = std::move(edit.after);
+    undo_edit->parameter_id = std::move(edit.parameter_id);
+    undo_edit->parameter_index = edit.parameter_index;
+    undo_edit->before_normalized = edit.before_normalized;
+    undo_edit->after_normalized = edit.after_normalized;
     undo_edit->label_hint = std::move(edit.label_hint);
-    const bool pushed = pushUndoEntry(std::move(undo_edit));
-    if (m_flushing_plugin_parameter_edits && pushed)
-    {
-        m_plugin_parameter_edit_pushed_during_flush = true;
-    }
+    pushUndoEntry(std::move(undo_edit));
     updateView();
 }
 
@@ -3540,7 +3447,10 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
-        .undo_available = m_undo_history.canUndo(),
+        // A pending plugin-parameter edit is flushed into a real undo entry at the action gate, so
+        // undo is offered for it too (matches the action availability the plan specifies).
+        .undo_available =
+            m_undo_history.canUndo() || m_plugin_host.hasPendingPluginParameterEdits(),
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
