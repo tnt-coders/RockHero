@@ -81,6 +81,36 @@ private:
     };
 }
 
+// Builds a RecordingPluginHost-compatible opaque plugin state for preset/state undo tests.
+[[nodiscard]] common::audio::PluginInstanceState pluginStateFromEntry(
+    const common::audio::PluginChainEntry& entry)
+{
+    const auto append_field = [](std::string& state, std::string_view value) {
+        state.append(value);
+        state.push_back('\n');
+    };
+
+    std::string serialized_state;
+    append_field(serialized_state, "RecordingPluginHostState1");
+    append_field(serialized_state, entry.instance_id);
+    append_field(serialized_state, entry.plugin_id);
+    append_field(serialized_state, entry.name);
+    append_field(serialized_state, entry.manufacturer);
+    append_field(serialized_state, entry.format_name);
+    append_field(serialized_state, entry.category);
+    append_field(serialized_state, std::to_string(entry.chain_index));
+    append_field(serialized_state, std::to_string(entry.block_index));
+    append_field(serialized_state, entry.display_type_override);
+
+    std::vector<std::byte> bytes;
+    bytes.reserve(serialized_state.size());
+    for (const char character : serialized_state)
+    {
+        bytes.push_back(static_cast<std::byte>(static_cast<unsigned char>(character)));
+    }
+    return common::audio::PluginInstanceState{.opaque_data = std::move(bytes)};
+}
+
 // Extracts determinate plugin-scan busy states pushed during a catalog refresh.
 [[nodiscard]] std::vector<BusyViewState> pluginScanProgressStates(const FakeEditorView& view)
 {
@@ -1876,6 +1906,144 @@ TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-contr
     CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"gain"});
     CHECK(plugin_host.last_set_parameter_index == std::optional{1});
     CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.75});
+}
+
+// Processor-wide plugin changes restore their full opaque plugin state on undo and redo.
+TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+
+    common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    common::audio::PluginChainEntry after_entry = before_entry;
+    after_entry.name = "Gateway Clean Preset";
+    after_entry.category = "Fx|Amp";
+    const common::audio::PluginInstanceState before_state = pluginStateFromEntry(before_entry);
+    const common::audio::PluginInstanceState after_state = pluginStateFromEntry(after_entry);
+
+    plugin_host.queuePendingPluginStateEdit(
+        common::audio::PluginStateEdit{
+            .instance_id = "instance-a",
+            .before = before_state,
+            .after = after_state,
+            .label_hint = "Gateway",
+        });
+
+    plugin_host.flushPendingPluginParameterEdits();
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Gateway"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.set_state_call_count == 1);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{before_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 0);
+    const EditorViewState* undone_state = stateOrNull(view.last_state);
+    REQUIRE(undone_state != nullptr);
+    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gateway"});
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.set_state_call_count == 2);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{after_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 0);
+}
+
+// Parameter-representable state edits avoid opaque state restore on undo and redo.
+TEST_CASE("EditorController replays plugin state parameters", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+
+    const common::audio::PluginInstanceState state =
+        pluginStateFromEntry(pluginEntry("instance-a", 0, 0));
+    plugin_host.queuePendingPluginStateEdit(
+        common::audio::PluginStateEdit{
+            .instance_id = "instance-a",
+            .before = state,
+            .after = state,
+            .before_parameters =
+                {
+                    common::audio::PluginParameterSnapshot{
+                        .parameter_id = "amp-gain",
+                        .parameter_index = 3,
+                        .normalized_value = 0.25,
+                        .label_hint = "Amp Gain",
+                    },
+                },
+            .after_parameters =
+                {
+                    common::audio::PluginParameterSnapshot{
+                        .parameter_id = "amp-gain",
+                        .parameter_index = 3,
+                        .normalized_value = 0.75,
+                        .label_hint = "Amp Gain",
+                    },
+                },
+            .label_hint = "Archetype Nolly X",
+        });
+
+    plugin_host.flushPendingPluginParameterEdits();
+
+    const EditorViewState* edited_state = stateOrNull(view.last_state);
+    REQUIRE(edited_state != nullptr);
+    CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Archetype Nolly X"});
+
+    controller.onUndoRequested();
+
+    CHECK(plugin_host.set_parameter_value_call_count == 1);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"amp-gain"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{3});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.25});
+    CHECK(plugin_host.set_state_call_count == 0);
+
+    controller.onRedoRequested();
+
+    CHECK(plugin_host.set_parameter_value_call_count == 2);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"amp-gain"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{3});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.75});
+    CHECK(plugin_host.set_state_call_count == 0);
 }
 
 // The action gate settles pending parameter values before deciding whether Undo is available.
