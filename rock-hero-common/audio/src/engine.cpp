@@ -3433,20 +3433,15 @@ private:
         return nullptr;
     }
 
-    // Finds a structural LevelMeterPlugin by its stored EditItemID, or null if not present.
-    [[nodiscard]] tracktion::LevelMeterPlugin* findStructuralMeterPlugin(
-        tracktion::EditItemID plugin_id) const
+    // Finds a structural LevelMeterPlugin by its stored EditItemID within a plugin list, or null.
+    [[nodiscard]] static tracktion::LevelMeterPlugin* findLevelMeter(
+        tracktion::PluginList& list, tracktion::EditItemID plugin_id)
     {
         if (!plugin_id.isValid())
         {
             return nullptr;
         }
-        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
-        if (instrument_track == nullptr)
-        {
-            return nullptr;
-        }
-        for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+        for (tracktion::Plugin* const plugin : list)
         {
             if (plugin != nullptr && plugin->itemID == plugin_id)
             {
@@ -3456,22 +3451,27 @@ private:
         return nullptr;
     }
 
-    // Finds the structural master-output LevelMeterPlugin on the edit master plugin list, or null.
-    [[nodiscard]] tracktion::LevelMeterPlugin* findStructuralMasterMeterPlugin(
+    // Finds the input/output structural LevelMeterPlugin on the instrument track, or null.
+    [[nodiscard]] tracktion::LevelMeterPlugin* findStructuralMeterPlugin(
         tracktion::EditItemID plugin_id) const
     {
-        if (!plugin_id.isValid() || m_edit == nullptr)
+        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        if (instrument_track == nullptr)
         {
             return nullptr;
         }
-        for (tracktion::Plugin* const plugin : m_edit->getMasterPluginList())
+        return findLevelMeter(instrument_track->pluginList, plugin_id);
+    }
+
+    // Finds the master-output structural LevelMeterPlugin on the edit master plugin list, or null.
+    [[nodiscard]] tracktion::LevelMeterPlugin* findStructuralMasterMeterPlugin(
+        tracktion::EditItemID plugin_id) const
+    {
+        if (m_edit == nullptr)
         {
-            if (plugin != nullptr && plugin->itemID == plugin_id)
-            {
-                return dynamic_cast<tracktion::LevelMeterPlugin*>(plugin);
-            }
+            return nullptr;
         }
-        return nullptr;
+        return findLevelMeter(m_edit->getMasterPluginList(), plugin_id);
     }
 
     // Creates a hidden live-rig gain plugin on the instrument track at the given index.
@@ -3505,7 +3505,33 @@ private:
         return live_rig_gain;
     }
 
-    // Creates a LevelMeterPlugin on the instrument track at the given index and returns it.
+    // Creates and inserts a hidden structural LevelMeterPlugin at a slot in the given plugin list.
+    [[nodiscard]] std::expected<tracktion::LevelMeterPlugin*, LiveRigError> createLevelMeter(
+        tracktion::PluginList& list, int insert_index)
+    {
+        const tracktion::Plugin::Ptr plugin =
+            m_edit->getPluginCache().createNewPlugin(tracktion::LevelMeterPlugin::xmlTypeName, {});
+        if (plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not create structural meter plugin",
+            }};
+        }
+        list.insertPlugin(plugin, insert_index, nullptr);
+        auto* const level_meter = dynamic_cast<tracktion::LevelMeterPlugin*>(plugin.get());
+        if (level_meter == nullptr || !list.contains(level_meter))
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not insert structural meter plugin",
+            }};
+        }
+
+        return level_meter;
+    }
+
+    // Creates the input/output LevelMeterPlugin on the instrument track at the given slot.
     [[nodiscard]] std::expected<tracktion::LevelMeterPlugin*, LiveRigError> createLevelMeterPlugin(
         int insert_index)
     {
@@ -3514,31 +3540,12 @@ private:
         {
             return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
         }
-        const tracktion::Plugin::Ptr plugin =
-            m_edit->getPluginCache().createNewPlugin(tracktion::LevelMeterPlugin::xmlTypeName, {});
-        if (plugin == nullptr)
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not create structural live rig meter plugin",
-            }};
-        }
-        instrument_track->pluginList.insertPlugin(plugin, insert_index, nullptr);
-        auto* const level_meter = dynamic_cast<tracktion::LevelMeterPlugin*>(plugin.get());
-        if (level_meter == nullptr || !instrument_track->pluginList.contains(level_meter))
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not insert structural live rig meter plugin",
-            }};
-        }
-
-        return level_meter;
+        return createLevelMeter(instrument_track->pluginList, insert_index);
     }
 
-    // Creates the structural master-output LevelMeterPlugin at the end of the edit master plugin
-    // list. Unlike EditPlaybackContext::masterLevels, this measurer is not torn down when a plugin
-    // reconfigure rebuilds the playback graph, so the UI meter read stays a no-op re-attach.
+    // Creates the master-output LevelMeterPlugin at the end of the edit master plugin list. Unlike
+    // EditPlaybackContext::masterLevels, this measurer is not torn down when a plugin reconfigure
+    // rebuilds the playback graph, so the UI meter read stays a no-op re-attach.
     [[nodiscard]] std::expected<tracktion::LevelMeterPlugin*, LiveRigError>
     createMasterLevelMeterPlugin()
     {
@@ -3549,27 +3556,30 @@ private:
                 "Edit is not available for master meter creation",
             }};
         }
-        const tracktion::Plugin::Ptr plugin =
-            m_edit->getPluginCache().createNewPlugin(tracktion::LevelMeterPlugin::xmlTypeName, {});
-        if (plugin == nullptr)
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not create structural master meter plugin",
-            }};
-        }
-        tracktion::PluginList& master_list = m_edit->getMasterPluginList();
-        master_list.insertPlugin(plugin, -1, nullptr);
-        auto* const level_meter = dynamic_cast<tracktion::LevelMeterPlugin*>(plugin.get());
-        if (level_meter == nullptr || !master_list.contains(level_meter))
-        {
-            return std::unexpected{LiveRigError{
-                LiveRigErrorCode::PluginRestoreFailed,
-                "Could not insert structural master meter plugin",
-            }};
-        }
+        return createLevelMeter(m_edit->getMasterPluginList(), -1);
+    }
 
-        return level_meter;
+    // Attaches a meter reader to a level meter's measurer, or detaches it when the meter is absent.
+    static void attachMeterReader(MeterReader& reader, tracktion::LevelMeterPlugin* meter)
+    {
+        if (meter != nullptr)
+        {
+            reader.attach(&meter->measurer);
+        }
+        else
+        {
+            reader.detach();
+        }
+    }
+
+    // Detaches a meter reader and clears the retained peak window on its plugin's measurer.
+    static void detachAndClearMeter(MeterReader& reader, tracktion::LevelMeterPlugin* meter)
+    {
+        reader.detach();
+        if (meter != nullptr)
+        {
+            meter->measurer.clear();
+        }
     }
 
     // Validates that the hidden live-rig plugins exist at their fixed measurement points.
@@ -3695,27 +3705,12 @@ private:
     // Clears live-rig meter windows retained by structural meter plugins across project changes.
     void clearRetainedLiveRigMeterState()
     {
-        m_input_meter_reader.detach();
-        m_output_meter_reader.detach();
-        m_master_meter_reader.detach();
-
-        if (auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
-            input_meter != nullptr)
-        {
-            input_meter->measurer.clear();
-        }
-
-        if (auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
-            output_meter != nullptr)
-        {
-            output_meter->measurer.clear();
-        }
-
-        if (auto* const master_meter = findStructuralMasterMeterPlugin(m_master_meter_plugin_id);
-            master_meter != nullptr)
-        {
-            master_meter->measurer.clear();
-        }
+        detachAndClearMeter(
+            m_input_meter_reader, findStructuralMeterPlugin(m_input_meter_plugin_id));
+        detachAndClearMeter(
+            m_output_meter_reader, findStructuralMeterPlugin(m_output_meter_plugin_id));
+        detachAndClearMeter(
+            m_master_meter_reader, findStructuralMasterMeterPlugin(m_master_meter_plugin_id));
     }
 
     // Resets project-owned live-rig structural state while preserving device input calibration.
@@ -4048,41 +4043,17 @@ private:
         return {};
     }
 
-    // Connects meter readers to the current Tracktion measurers and returns one display snapshot.
+    // Connects meter readers to their structural measurers and returns one display snapshot. All
+    // three meters ride stable structural LevelMeterPlugins (the master deliberately does not use the
+    // churning EditPlaybackContext::masterLevels), so each attach() is a no-op once registered and the
+    // read never re-registers a client onto a measurer a plugin reconfigure is mid-rebuild.
     [[nodiscard]] AudioMeterSnapshot audioMeterSnapshot() const
     {
-        if (auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
-            input_meter != nullptr)
-        {
-            m_input_meter_reader.attach(&input_meter->measurer);
-        }
-        else
-        {
-            m_input_meter_reader.detach();
-        }
-
-        if (auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
-            output_meter != nullptr)
-        {
-            m_output_meter_reader.attach(&output_meter->measurer);
-        }
-        else
-        {
-            m_output_meter_reader.detach();
-        }
-
-        // Master rides a stable structural meter, not the churning EditPlaybackContext, so attach()
-        // is a no-op once registered - the UI read never calls getCurrentPlaybackContext() or
-        // re-registers a client onto a measurer that a plugin reconfigure is mid-rebuild.
-        if (auto* const master_meter = findStructuralMasterMeterPlugin(m_master_meter_plugin_id);
-            master_meter != nullptr)
-        {
-            m_master_meter_reader.attach(&master_meter->measurer);
-        }
-        else
-        {
-            m_master_meter_reader.detach();
-        }
+        attachMeterReader(m_input_meter_reader, findStructuralMeterPlugin(m_input_meter_plugin_id));
+        attachMeterReader(
+            m_output_meter_reader, findStructuralMeterPlugin(m_output_meter_plugin_id));
+        attachMeterReader(
+            m_master_meter_reader, findStructuralMasterMeterPlugin(m_master_meter_plugin_id));
 
         return AudioMeterSnapshot{
             .live_rig_input = m_input_meter_reader.read(),
