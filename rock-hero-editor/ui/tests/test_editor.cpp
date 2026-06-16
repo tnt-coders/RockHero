@@ -215,6 +215,9 @@ public:
     void setPluginParameterEditObserver(common::audio::PluginParameterEditObserver) override
     {}
 
+    void setPluginStateEditObserver(common::audio::PluginStateEditObserver) override
+    {}
+
     void setPluginWindowCommandObserver(common::audio::PluginWindowCommandObserver) override
     {}
 

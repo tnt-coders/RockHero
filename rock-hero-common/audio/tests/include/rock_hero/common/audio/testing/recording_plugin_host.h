@@ -456,19 +456,28 @@ public:
     void flushPendingPluginParameterEdits() override
     {
         flush_pending_parameter_edits_call_count += 1;
-        if (!pending_parameter_edit.has_value())
+        if (pending_parameter_edit.has_value())
         {
-            return;
+            PluginParameterEdit edit = std::move(*pending_parameter_edit);
+            pending_parameter_edit.reset();
+            if (m_parameter_edit_observer.edit_completed)
+            {
+                m_parameter_edit_observer.edit_completed(std::move(edit));
+            }
         }
 
-        PluginParameterEdit edit = std::move(*pending_parameter_edit);
-        pending_parameter_edit.reset();
-        if (m_parameter_edit_observer.edit_completed)
+        if (pending_state_edit.has_value())
         {
-            m_parameter_edit_observer.edit_completed(std::move(edit));
+            PluginStateEdit edit = std::move(*pending_state_edit);
+            pending_state_edit.reset();
+            if (m_state_edit_observer.edit_completed)
+            {
+                m_state_edit_observer.edit_completed(std::move(edit));
+            }
         }
 
-        if (m_parameter_edit_observer.pending_changed)
+        if (!pending_parameter_edit.has_value() && !pending_state_edit.has_value() &&
+            m_parameter_edit_observer.pending_changed)
         {
             m_parameter_edit_observer.pending_changed(false);
         }
@@ -480,7 +489,7 @@ public:
     */
     [[nodiscard]] bool hasPendingPluginParameterEdits() const override
     {
-        return pending_parameter_edit.has_value();
+        return pending_parameter_edit.has_value() || pending_state_edit.has_value();
     }
 
     /*!
@@ -490,6 +499,15 @@ public:
     void setPluginParameterEditObserver(PluginParameterEditObserver observer) override
     {
         m_parameter_edit_observer = std::move(observer);
+    }
+
+    /*!
+    \brief Installs fake plugin-state-edit observer callbacks.
+    \param observer Callback set replacing any previous observer.
+    */
+    void setPluginStateEditObserver(PluginStateEditObserver observer) override
+    {
+        m_state_edit_observer = std::move(observer);
     }
 
     /*!
@@ -507,8 +525,22 @@ public:
     */
     void queuePendingPluginParameterEdit(PluginParameterEdit edit)
     {
-        const bool was_pending = pending_parameter_edit.has_value();
+        const bool was_pending = hasPendingPluginParameterEdits();
         pending_parameter_edit = std::move(edit);
+        if (!was_pending && m_parameter_edit_observer.pending_changed)
+        {
+            m_parameter_edit_observer.pending_changed(true);
+        }
+    }
+
+    /*!
+    \brief Queues a completed fake plugin-state edit for the next flush.
+    \param edit Before/after full-state edit to emit.
+    */
+    void queuePendingPluginStateEdit(PluginStateEdit edit)
+    {
+        const bool was_pending = hasPendingPluginParameterEdits();
+        pending_state_edit = std::move(edit);
         if (!was_pending && m_parameter_edit_observer.pending_changed)
         {
             m_parameter_edit_observer.pending_changed(true);
@@ -713,12 +745,18 @@ public:
     /*! \brief Pending fake parameter edit emitted by the next flush. */
     std::optional<PluginParameterEdit> pending_parameter_edit{};
 
+    /*! \brief Pending fake plugin-state edit emitted by the next flush. */
+    std::optional<PluginStateEdit> pending_state_edit{};
+
 private:
     // Stores fake state chunks for live instances when a test has applied a state memento.
     std::unordered_map<std::string, PluginInstanceState> m_instance_states{};
 
     // Holds fake parameter-edit callbacks installed through the public port.
     PluginParameterEditObserver m_parameter_edit_observer{};
+
+    // Holds fake plugin-state-edit callbacks installed through the public port.
+    PluginStateEditObserver m_state_edit_observer{};
 
     // Holds fake plugin-window command callbacks installed through the public port.
     PluginWindowCommandObserver m_window_command_observer{};

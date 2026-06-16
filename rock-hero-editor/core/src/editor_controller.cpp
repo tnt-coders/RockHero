@@ -895,6 +895,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void flushPendingPluginParameterEdits(std::string_view context);
     void onPluginParameterPendingChanged(bool pending);
     void onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit);
+    void onPluginStateEditCompleted(common::audio::PluginStateEdit edit);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
         const InputCalibrationWorkflow::Snapshot& input_calibration,
@@ -1551,6 +1552,16 @@ EditorController::Impl::Impl(
                     onPluginParameterEditCompleted(std::move(edit));
                 },
         });
+    m_plugin_host.setPluginStateEditObserver(
+        common::audio::PluginStateEditObserver{
+            .edit_completed = [this, alive](common::audio::PluginStateEdit edit) {
+                if (alive.expired())
+                {
+                    return;
+                }
+                onPluginStateEditCompleted(std::move(edit));
+            },
+        });
     restoreAudioDeviceState();
     common::audio::IAudioDeviceConfiguration::Listener& self_as_listener = *this;
     m_audio_device_listener = std::make_unique<common::audio::ScopedListener<
@@ -1572,6 +1583,7 @@ EditorController::Impl::~Impl()
     cancelActiveScanToken();
     m_plugin_host.setPluginWindowCommandObserver({});
     m_plugin_host.setPluginParameterEditObserver({});
+    m_plugin_host.setPluginStateEditObserver({});
     detachView();
     m_alive.reset();
 }
@@ -2839,6 +2851,43 @@ void EditorController::Impl::onPluginParameterEditCompleted(common::audio::Plugi
     undo_edit->parameter_index = edit.parameter_index;
     undo_edit->before_normalized = edit.before_normalized;
     undo_edit->after_normalized = edit.after_normalized;
+    undo_edit->label_hint = std::move(edit.label_hint);
+    pushUndoEntry(std::move(undo_edit));
+    updateView();
+}
+
+// Commits one settled host processor-wide state edit into product-level undo history.
+void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginStateEdit edit)
+{
+    if (!hasLoadedArrangement() || !m_signal_chain.containsInstance(edit.instance_id))
+    {
+        RH_LOG_INFO(
+            "editor.controller",
+            "Dropped stale plugin state edit instance_id={}",
+            edit.instance_id);
+        return;
+    }
+
+    if (edit.before == edit.after && edit.before_parameters == edit.after_parameters)
+    {
+        RH_LOG_INFO(
+            "editor.controller",
+            "Dropped unchanged plugin state edit instance_id={}",
+            edit.instance_id);
+        return;
+    }
+
+    RH_LOG_INFO(
+        "editor.controller",
+        "Completed plugin state edit instance_id={} label_hint={}",
+        edit.instance_id,
+        edit.label_hint);
+    auto undo_edit = std::make_unique<PluginStateEdit>();
+    undo_edit->instance_id = std::move(edit.instance_id);
+    undo_edit->before_state = std::move(edit.before);
+    undo_edit->after_state = std::move(edit.after);
+    undo_edit->before_parameters = std::move(edit.before_parameters);
+    undo_edit->after_parameters = std::move(edit.after_parameters);
     undo_edit->label_hint = std::move(edit.label_hint);
     pushUndoEntry(std::move(undo_edit));
     updateView();

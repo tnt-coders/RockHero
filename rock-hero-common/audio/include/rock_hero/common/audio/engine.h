@@ -282,12 +282,12 @@ public:
         const std::string& instance_id, const std::string& parameter_id, int parameter_index,
         double normalized_value) override;
 
-    /*! \brief Flushes pending user plugin-parameter edits into completed before/after values. */
+    /*! \brief Flushes pending user plugin edits into completed before/after values. */
     void flushPendingPluginParameterEdits() override;
 
     /*!
-    \brief Reports whether any user plugin-parameter edit is waiting to settle or flush.
-    \return True while a plugin-parameter edit is pending.
+    \brief Reports whether any user plugin edit is waiting to settle or flush.
+    \return True while a plugin parameter or plugin-wide state edit is pending.
     */
     [[nodiscard]] bool hasPendingPluginParameterEdits() const override;
 
@@ -296,6 +296,12 @@ public:
     \param observer Callback set replacing any previous observer.
     */
     void setPluginParameterEditObserver(PluginParameterEditObserver observer) override;
+
+    /*!
+    \brief Installs callbacks for completed plugin-wide state edit notifications.
+    \param observer Callback set replacing any previous observer.
+    */
+    void setPluginStateEditObserver(PluginStateEditObserver observer) override;
 
     /*!
     \brief Installs callbacks for Undo/Redo shortcuts received by hosted plugin editor windows.
