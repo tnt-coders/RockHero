@@ -365,44 +365,10 @@ void applyPluginVisualState(
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
-    const std::vector<common::audio::PluginParameterSnapshot>& parameters =
-        direction == EditorUndoDirection::Undo ? edit.before_parameters : edit.after_parameters;
-    const std::vector<common::audio::PluginParameterSnapshot>& opposite_parameters =
-        direction == EditorUndoDirection::Undo ? edit.after_parameters : edit.before_parameters;
-    if (!parameters.empty() && parameters.size() == opposite_parameters.size())
-    {
-        bool restored_any_parameter = false;
-        for (std::size_t index = 0; index < parameters.size(); ++index)
-        {
-            const common::audio::PluginParameterSnapshot& parameter = parameters[index];
-            const common::audio::PluginParameterSnapshot& opposite_parameter =
-                opposite_parameters[index];
-            if (parameter.parameter_id != opposite_parameter.parameter_id ||
-                parameter.parameter_index != opposite_parameter.parameter_index ||
-                parameter.normalized_value == opposite_parameter.normalized_value)
-            {
-                continue;
-            }
-
-            if (const auto restored = context.plugin_host.setPluginParameterValue(
-                    edit.instance_id,
-                    parameter.parameter_id,
-                    parameter.parameter_index,
-                    parameter.normalized_value);
-                !restored.has_value())
-            {
-                return std::unexpected{undoFailureFromPluginHostError(restored.error())};
-            }
-
-            restored_any_parameter = true;
-        }
-
-        if (restored_any_parameter)
-        {
-            return {};
-        }
-    }
-
+    // A plugin state edit always restores via full-chunk setPluginState. The edit is captured
+    // precisely because the change carries opaque plugin state (e.g. the preset-name label and other
+    // non-parameter bytes) that granular parameter replay cannot reproduce. Single-parameter edits
+    // take the lighter PluginParameterEdit path instead; they never reach here.
     const common::audio::PluginInstanceState& state =
         direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
     const common::audio::PluginInstanceState& opposite_state =
