@@ -356,6 +356,71 @@ void applyPluginVisualState(
     return {};
 }
 
+// Applies a plugin-wide full-state edit in one direction through the audio boundary.
+[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginStateEdit(
+    const PluginStateEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
+{
+    if (!context.signal_chain.containsInstance(edit.instance_id))
+    {
+        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
+    }
+
+    const std::vector<common::audio::PluginParameterSnapshot>& parameters =
+        direction == EditorUndoDirection::Undo ? edit.before_parameters : edit.after_parameters;
+    const std::vector<common::audio::PluginParameterSnapshot>& opposite_parameters =
+        direction == EditorUndoDirection::Undo ? edit.after_parameters : edit.before_parameters;
+    if (!parameters.empty() && parameters.size() == opposite_parameters.size())
+    {
+        bool restored_any_parameter = false;
+        for (std::size_t index = 0; index < parameters.size(); ++index)
+        {
+            const common::audio::PluginParameterSnapshot& parameter = parameters[index];
+            const common::audio::PluginParameterSnapshot& opposite_parameter =
+                opposite_parameters[index];
+            if (parameter.parameter_id != opposite_parameter.parameter_id ||
+                parameter.parameter_index != opposite_parameter.parameter_index ||
+                parameter.normalized_value == opposite_parameter.normalized_value)
+            {
+                continue;
+            }
+
+            if (const auto restored = context.plugin_host.setPluginParameterValue(
+                    edit.instance_id,
+                    parameter.parameter_id,
+                    parameter.parameter_index,
+                    parameter.normalized_value);
+                !restored.has_value())
+            {
+                return std::unexpected{undoFailureFromPluginHostError(restored.error())};
+            }
+
+            restored_any_parameter = true;
+        }
+
+        if (restored_any_parameter)
+        {
+            return {};
+        }
+    }
+
+    const common::audio::PluginInstanceState& state =
+        direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
+    const common::audio::PluginInstanceState& opposite_state =
+        direction == EditorUndoDirection::Undo ? edit.after_state : edit.before_state;
+    if (state == opposite_state)
+    {
+        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
+    }
+
+    if (const auto restored = context.plugin_host.setPluginState(edit.instance_id, state);
+        !restored.has_value())
+    {
+        return std::unexpected{undoFailureFromPluginHostError(restored.error())};
+    }
+
+    return {};
+}
+
 // Applies an output-gain edit in one direction through the live-rig boundary.
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyOutputGainEdit(
     const OutputGainEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
@@ -488,6 +553,26 @@ std::string PluginParameterEdit::label() const
     if (label_hint.empty())
     {
         return "Edit Plugin Parameter";
+    }
+
+    return "Edit " + label_hint;
+}
+
+std::expected<void, EditorUndoFailureCode> PluginStateEdit::undo(EditorEditContext& context) const
+{
+    return applyPluginStateEdit(*this, EditorUndoDirection::Undo, context);
+}
+
+std::expected<void, EditorUndoFailureCode> PluginStateEdit::redo(EditorEditContext& context) const
+{
+    return applyPluginStateEdit(*this, EditorUndoDirection::Redo, context);
+}
+
+std::string PluginStateEdit::label() const
+{
+    if (label_hint.empty())
+    {
+        return "Edit Plugin State";
     }
 
     return "Edit " + label_hint;
