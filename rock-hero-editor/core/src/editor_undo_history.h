@@ -271,34 +271,6 @@ struct [[nodiscard]] PluginDisplayTypeEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 };
 
-/*! \brief Edit that restores one plugin parameter value. */
-struct [[nodiscard]] PluginParameterEdit final : IEdit
-{
-    /*! \brief Edited plugin instance ID. */
-    std::string instance_id;
-
-    /*! \brief Stable Tracktion/JUCE parameter ID captured with the edit. */
-    std::string parameter_id;
-
-    /*! \brief Parameter index captured as a fallback identity. */
-    int parameter_index = -1;
-
-    /*! \brief Normalized parameter value before the edit settled. */
-    double before_normalized = 0.0;
-
-    /*! \brief Normalized parameter value after the edit settled. */
-    double after_normalized = 0.0;
-
-    /*! \brief Display-only label hint for the parameter or gesture group. */
-    std::string label_hint;
-
-    [[nodiscard]] std::expected<void, EditorUndoFailureCode> undo(
-        EditorEditContext& context) const override;
-    [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
-        EditorEditContext& context) const override;
-    [[nodiscard]] std::string label() const override;
-};
-
 /*! \brief Edit that restores one plugin's full opaque state. */
 struct [[nodiscard]] PluginStateEdit final : IEdit
 {
@@ -310,12 +282,6 @@ struct [[nodiscard]] PluginStateEdit final : IEdit
 
     /*! \brief Full plugin state after the edit settled. */
     common::audio::PluginInstanceState after_state;
-
-    /*! \brief Parameter values before the edit settled, when available. */
-    std::vector<common::audio::PluginParameterSnapshot> before_parameters;
-
-    /*! \brief Parameter values after the edit settled, when available. */
-    std::vector<common::audio::PluginParameterSnapshot> after_parameters;
 
     /*! \brief Display-only label hint for the plugin or state change. */
     std::string label_hint;
