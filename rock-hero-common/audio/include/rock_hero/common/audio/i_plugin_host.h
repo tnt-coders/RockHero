@@ -74,62 +74,6 @@ struct [[nodiscard]] PluginInsertResult
     friend bool operator==(const PluginInsertResult& lhs, const PluginInsertResult& rhs) = default;
 };
 
-/*! \brief Before/after value for one settled user plugin-parameter edit. */
-struct [[nodiscard]] PluginParameterEdit
-{
-    /*! \brief Runtime plugin instance whose parameter changed. */
-    std::string instance_id;
-
-    /*! \brief Stable Tracktion/JUCE parameter ID when the hosted plugin provides one. */
-    std::string parameter_id;
-
-    /*! \brief Parameter index used as a validated fallback when the ID cannot be resolved. */
-    int parameter_index = -1;
-
-    /*! \brief Normalized value before the settled edit. */
-    double before_normalized = 0.0;
-
-    /*! \brief Normalized value after the settled edit. */
-    double after_normalized = 0.0;
-
-    /*! \brief Display-only changed parameter name hint; never used for restore identity. */
-    std::string label_hint;
-
-    /*!
-    \brief Compares two parameter edits by their stored values.
-    \param lhs Left-hand parameter edit.
-    \param rhs Right-hand parameter edit.
-    \return True when both edits store equal values.
-    */
-    friend bool operator==(const PluginParameterEdit& lhs, const PluginParameterEdit& rhs) =
-        default;
-};
-
-/*! \brief Captured normalized value for one hosted plugin parameter. */
-struct [[nodiscard]] PluginParameterSnapshot
-{
-    /*! \brief Stable Tracktion/JUCE parameter ID when the hosted plugin provides one. */
-    std::string parameter_id;
-
-    /*! \brief Parameter index used as a validated fallback when the ID cannot be resolved. */
-    int parameter_index = -1;
-
-    /*! \brief Captured normalized value in the [0, 1] parameter range. */
-    double normalized_value = 0.0;
-
-    /*! \brief Display-only parameter name hint. */
-    std::string label_hint;
-
-    /*!
-    \brief Compares two parameter snapshots by their stored values.
-    \param lhs Left-hand parameter snapshot.
-    \param rhs Right-hand parameter snapshot.
-    \return True when both snapshots store equal values.
-    */
-    friend bool operator==(const PluginParameterSnapshot& lhs, const PluginParameterSnapshot& rhs) =
-        default;
-};
-
 /*! \brief Full before/after state for one settled plugin-wide state edit. */
 struct [[nodiscard]] PluginStateEdit
 {
@@ -141,12 +85,6 @@ struct [[nodiscard]] PluginStateEdit
 
     /*! \brief Full opaque chunk captured after the settled edit. */
     PluginInstanceState after;
-
-    /*! \brief Parameter values captured before the settled edit, when available. */
-    std::vector<PluginParameterSnapshot> before_parameters;
-
-    /*! \brief Parameter values captured after the settled edit, when available. */
-    std::vector<PluginParameterSnapshot> after_parameters;
 
     /*! \brief Display-only label hint for the plugin or state change. */
     std::string label_hint;
@@ -160,14 +98,11 @@ struct [[nodiscard]] PluginStateEdit
     friend bool operator==(const PluginStateEdit& lhs, const PluginStateEdit& rhs) = default;
 };
 
-/*! \brief Observer callbacks for pending and completed user plugin-parameter edits. */
-struct PluginParameterEditObserver
+/*! \brief Observer callbacks for pending and completed user plugin edits. */
+struct PluginEditObserver
 {
-    /*! \brief Called when aggregate pending plugin-parameter edit state changes. */
+    /*! \brief Called when aggregate pending plugin edit state changes. */
     std::function<void(bool)> pending_changed;
-
-    /*! \brief Called when a settled edit yields a before/after parameter value pair. */
-    std::function<void(PluginParameterEdit)> edit_completed;
 };
 
 /*! \brief Observer callbacks for completed plugin-wide state edits. */
@@ -322,9 +257,8 @@ public:
     /*!
     \brief Restores a full opaque state chunk onto an existing plugin instance.
 
-    Full state restore is intended for explicit state/preset restore workflows. Ordinary
-    plugin-parameter undo should use setPluginParameterValue() instead so live plugin editors and
-    audio processing are not forced through full processor state reloads.
+    Full state restore is used for user plugin edits so plugin-owned opaque state such as preset
+    labels, dirty flags, and loaded file references stays consistent across undo and redo.
 
     \param instance_id Opaque instance ID returned in a plugin chain snapshot.
     \param state Opaque plugin state previously captured from this boundary.
@@ -335,47 +269,28 @@ public:
         const std::string& instance_id, const PluginInstanceState& state) = 0;
 
     /*!
-    \brief Sets one hosted plugin parameter through the host's normal parameter API.
-
-    The parameter ID is preferred when it resolves to a currently exposed parameter. The index is a
-    validated fallback for plugins that expose unstable or empty IDs; implementations must fail
-    rather than set a different parameter when neither identity matches.
-
-    \param instance_id Opaque instance ID returned in a plugin chain snapshot.
-    \param parameter_id Stable parameter ID captured from the host parameter.
-    \param parameter_index Parameter index captured with the edit.
-    \param normalized_value Target value in the normalized [0, 1] parameter range.
-    \return Empty success, or a typed failure.
-    \note This method must be called on the message thread.
-    */
-    [[nodiscard]] virtual std::expected<void, PluginHostError> setPluginParameterValue(
-        const std::string& instance_id, const std::string& parameter_id, int parameter_index,
-        double normalized_value) = 0;
-
-    /*!
     \brief Flushes pending user plugin edits into completed before/after values.
 
-    Implementations synchronously settle eligible discrete parameter edits and plugin-wide state
-    edits, refresh their internal baseline, and notify the observer if aggregate pending state
-    changes.
+    Implementations synchronously settle eligible user plugin edits, refresh their internal
+    baseline, and notify observers if aggregate pending state changes.
 
     \note This method must be called on the message thread.
     */
-    virtual void flushPendingPluginParameterEdits() = 0;
+    virtual void flushPendingPluginEdits() = 0;
 
     /*!
     \brief Reports whether any user plugin edit is waiting to settle or flush.
-    \return True while a plugin parameter or plugin-wide state edit is pending.
+    \return True while a plugin edit is pending.
     \note This method must be called on the message thread.
     */
-    [[nodiscard]] virtual bool hasPendingPluginParameterEdits() const = 0;
+    [[nodiscard]] virtual bool hasPendingPluginEdits() const = 0;
 
     /*!
-    \brief Installs callbacks for pending and completed user plugin-parameter edit notifications.
+    \brief Installs callbacks for pending user plugin edit notifications.
     \param observer Callback set replacing any previous observer.
     \note This method must be called on the message thread.
     */
-    virtual void setPluginParameterEditObserver(PluginParameterEditObserver observer) = 0;
+    virtual void setPluginEditObserver(PluginEditObserver observer) = 0;
 
     /*!
     \brief Installs callbacks for completed plugin-wide state edit notifications.

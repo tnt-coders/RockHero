@@ -892,9 +892,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void markUntrackedUnsavedChanges() noexcept;
     void markUntrackedUnsavedEdit(std::string_view context);
     void clearUndoHistoryAfterUntrackedEdit(std::string_view context);
-    void flushPendingPluginParameterEdits(std::string_view context);
-    void onPluginParameterPendingChanged(bool pending);
-    void onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit);
+    void flushPendingPluginEdits(std::string_view context);
+    void onPluginEditPendingChanged(bool pending);
     void onPluginStateEditCompleted(common::audio::PluginStateEdit edit);
     [[nodiscard]] ActionConditions currentActionConditions() const;
     [[nodiscard]] ActionConditions currentActionConditions(
@@ -1533,24 +1532,15 @@ EditorController::Impl::Impl(
                     onRedoRequested();
                 },
         });
-    m_plugin_host.setPluginParameterEditObserver(
-        common::audio::PluginParameterEditObserver{
-            .pending_changed =
-                [this, alive](bool pending) {
-                    if (alive.expired())
-                    {
-                        return;
-                    }
-                    onPluginParameterPendingChanged(pending);
-                },
-            .edit_completed =
-                [this, alive](common::audio::PluginParameterEdit edit) {
-                    if (alive.expired())
-                    {
-                        return;
-                    }
-                    onPluginParameterEditCompleted(std::move(edit));
-                },
+    m_plugin_host.setPluginEditObserver(
+        common::audio::PluginEditObserver{
+            .pending_changed = [this, alive](bool pending) {
+                if (alive.expired())
+                {
+                    return;
+                }
+                onPluginEditPendingChanged(pending);
+            },
         });
     m_plugin_host.setPluginStateEditObserver(
         common::audio::PluginStateEditObserver{
@@ -1582,7 +1572,7 @@ EditorController::Impl::~Impl()
     // scan that no observer will ever consume.
     cancelActiveScanToken();
     m_plugin_host.setPluginWindowCommandObserver({});
-    m_plugin_host.setPluginParameterEditObserver({});
+    m_plugin_host.setPluginEditObserver({});
     m_plugin_host.setPluginStateEditObserver({});
     detachView();
     m_alive.reset();
@@ -2348,7 +2338,7 @@ void EditorController::Impl::runAction(EditorAction::Action action)
     logEditorActionRequested(action_id);
     if (!isBusy())
     {
-        flushPendingPluginParameterEdits("plugin_parameter.action_dispatch");
+        flushPendingPluginEdits("plugin_edit.action_dispatch");
     }
 
     if (!prepareAction(action_id))
@@ -2712,12 +2702,12 @@ void EditorController::Impl::applyOutputGainChange(double gain_db, OutputGainCha
     {
         if (!m_output_gain_preview_before.has_value())
         {
-            flushPendingPluginParameterEdits("plugin_parameter.output_gain_commit");
+            flushPendingPluginEdits("plugin_edit.output_gain_commit");
         }
     }
     else if (!m_output_gain_preview_before.has_value())
     {
-        flushPendingPluginParameterEdits("plugin_parameter.output_gain_preview");
+        flushPendingPluginEdits("plugin_edit.output_gain_preview");
         m_output_gain_preview_before = common::audio::Gain{m_output_gain_db};
     }
 
@@ -2799,60 +2789,22 @@ void EditorController::Impl::clearUndoHistoryAfterUntrackedEdit(std::string_view
     resetUndoHistory(context);
 }
 
-// Settles any host-observed plugin parameter value edit before a controller action runs.
-void EditorController::Impl::flushPendingPluginParameterEdits(std::string_view context)
+// Settles any host-observed plugin edit before a controller action runs.
+void EditorController::Impl::flushPendingPluginEdits(std::string_view context)
 {
-    if (!m_plugin_host.hasPendingPluginParameterEdits())
+    if (!m_plugin_host.hasPendingPluginEdits())
     {
         return;
     }
 
-    RH_LOG_INFO("editor.controller", "Flushing pending plugin parameter edit context={}", context);
-    m_plugin_host.flushPendingPluginParameterEdits();
+    RH_LOG_INFO("editor.controller", "Flushing pending plugin edit context={}", context);
+    m_plugin_host.flushPendingPluginEdits();
 }
 
-// Reflects host parameter-observation state transitions into logs and derived view state.
-void EditorController::Impl::onPluginParameterPendingChanged(bool pending)
+// Reflects host plugin-edit observation state transitions into logs and derived view state.
+void EditorController::Impl::onPluginEditPendingChanged(bool pending)
 {
-    RH_LOG_INFO("editor.controller", "Plugin parameter edit pending changed pending={}", pending);
-    updateView();
-}
-
-// Commits one settled host parameter value edit into product-level undo history.
-void EditorController::Impl::onPluginParameterEditCompleted(common::audio::PluginParameterEdit edit)
-{
-    if (!hasLoadedArrangement() || !m_signal_chain.containsInstance(edit.instance_id))
-    {
-        RH_LOG_INFO(
-            "editor.controller",
-            "Dropped stale plugin parameter edit instance_id={}",
-            edit.instance_id);
-        return;
-    }
-
-    if (edit.before_normalized == edit.after_normalized)
-    {
-        RH_LOG_INFO(
-            "editor.controller",
-            "Dropped unchanged plugin parameter edit instance_id={}",
-            edit.instance_id);
-        return;
-    }
-
-    RH_LOG_INFO(
-        "editor.controller",
-        "Completed plugin parameter edit instance_id={} parameter_id={} label_hint={}",
-        edit.instance_id,
-        edit.parameter_id,
-        edit.label_hint);
-    auto undo_edit = std::make_unique<PluginParameterEdit>();
-    undo_edit->instance_id = std::move(edit.instance_id);
-    undo_edit->parameter_id = std::move(edit.parameter_id);
-    undo_edit->parameter_index = edit.parameter_index;
-    undo_edit->before_normalized = edit.before_normalized;
-    undo_edit->after_normalized = edit.after_normalized;
-    undo_edit->label_hint = std::move(edit.label_hint);
-    pushUndoEntry(std::move(undo_edit));
+    RH_LOG_INFO("editor.controller", "Plugin edit pending changed pending={}", pending);
     updateView();
 }
 
@@ -2868,7 +2820,7 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
         return;
     }
 
-    if (edit.before == edit.after && edit.before_parameters == edit.after_parameters)
+    if (edit.before == edit.after)
     {
         RH_LOG_INFO(
             "editor.controller",
@@ -2886,8 +2838,6 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
     undo_edit->instance_id = std::move(edit.instance_id);
     undo_edit->before_state = std::move(edit.before);
     undo_edit->after_state = std::move(edit.after);
-    undo_edit->before_parameters = std::move(edit.before_parameters);
-    undo_edit->after_parameters = std::move(edit.after_parameters);
     undo_edit->label_hint = std::move(edit.label_hint);
     pushUndoEntry(std::move(undo_edit));
     updateView();
@@ -3496,10 +3446,9 @@ ActionConditions EditorController::Impl::currentActionConditions(
         .has_unsaved_changes_prompt =
             m_deferred_project_action_state.unsavedChangesPrompt().has_value(),
         .has_save_as_prompt = m_deferred_project_action_state.saveAsPrompt().has_value(),
-        // A pending plugin-parameter edit is flushed into a real undo entry at the action gate, so
-        // undo is offered for it too (matches the action availability the plan specifies).
-        .undo_available =
-            m_undo_history.canUndo() || m_plugin_host.hasPendingPluginParameterEdits(),
+        // A pending plugin edit is flushed into a real undo entry at the action gate, so undo is
+        // offered for it too.
+        .undo_available = m_undo_history.canUndo() || m_plugin_host.hasPendingPluginEdits(),
         .redo_available = m_undo_history.canRedo(),
         .has_loaded_arrangement = hasLoadedArrangement(),
         .can_stop_transport = canStopTransport(transport_state),
