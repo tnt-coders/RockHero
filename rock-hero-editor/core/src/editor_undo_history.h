@@ -114,12 +114,6 @@ public:
     /*! \brief Returns the user-visible command label for menus and diagnostics. */
     [[nodiscard]] virtual std::string label() const = 0;
 
-    /*! \brief Reports whether this entry represents a plugin parameter/state edit. */
-    [[nodiscard]] virtual bool isPluginParameterEdit() const noexcept
-    {
-        return false;
-    }
-
     /*!
     \brief Reports whether applying this edit in the given direction recreates a plugin.
 
@@ -277,17 +271,23 @@ struct [[nodiscard]] PluginDisplayTypeEdit final : IEdit
     [[nodiscard]] std::string label() const override;
 };
 
-/*! \brief Edit that restores one plugin's full parameter/state chunk. */
+/*! \brief Edit that restores one plugin parameter value. */
 struct [[nodiscard]] PluginParameterEdit final : IEdit
 {
     /*! \brief Edited plugin instance ID. */
     std::string instance_id;
 
-    /*! \brief Full plugin state before the edit settled. */
-    common::audio::PluginInstanceState before_state;
+    /*! \brief Stable Tracktion/JUCE parameter ID captured with the edit. */
+    std::string parameter_id;
 
-    /*! \brief Full plugin state after the edit settled. */
-    common::audio::PluginInstanceState after_state;
+    /*! \brief Parameter index captured as a fallback identity. */
+    int parameter_index = -1;
+
+    /*! \brief Normalized parameter value before the edit settled. */
+    double before_normalized = 0.0;
+
+    /*! \brief Normalized parameter value after the edit settled. */
+    double after_normalized = 0.0;
 
     /*! \brief Display-only label hint for the parameter or gesture group. */
     std::string label_hint;
@@ -297,7 +297,6 @@ struct [[nodiscard]] PluginParameterEdit final : IEdit
     [[nodiscard]] std::expected<void, EditorUndoFailureCode> redo(
         EditorEditContext& context) const override;
     [[nodiscard]] std::string label() const override;
-    [[nodiscard]] bool isPluginParameterEdit() const noexcept override;
 };
 
 /*! \brief Edit that restores the fixed output-gain plugin value. */
@@ -483,12 +482,6 @@ public:
 
     /*! \brief Returns the label of the entry that would be redone next. */
     [[nodiscard]] std::optional<std::string> redoLabel() const;
-
-    /*! \brief Reports whether the next undo entry is a plugin parameter/state edit. */
-    [[nodiscard]] bool nextUndoIsPluginParameterEdit() const noexcept;
-
-    /*! \brief Reports whether the next redo entry is a plugin parameter/state edit. */
-    [[nodiscard]] bool nextRedoIsPluginParameterEdit() const noexcept;
 
     /*!
     \brief Commits a new user edit and clears any redo branch.

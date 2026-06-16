@@ -1779,23 +1779,17 @@ TEST_CASE("EditorController undoes display type override", "[core][editor-contro
         std::optional{PluginDisplayType::Cab});
 }
 
-// Parameter mementos restore full plugin state through the plugin host on undo and redo.
-TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-controller]")
+// A pending plugin-parameter edit makes Undo available even with an otherwise empty history,
+// because the action gate flushes it into a real undo entry before undoing.
+TEST_CASE("EditorController offers undo for a pending parameter edit", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
     ConfigurableAudioDeviceConfiguration audio_devices;
     RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    const std::vector<common::audio::PluginChainEntry> loaded_plugins{
-        pluginEntry("instance-a", 0, 0),
-        pluginEntry("instance-b", 1, 1),
-    };
-    plugin_host.chain = loaded_plugins;
-    live_rig.next_load_result.plugins = loaded_plugins;
     FakeProjectServices project_services;
     EditorController controller{
-        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        audioPorts(transport, audio, audio_devices, plugin_host),
         defaultControllerServices(),
         noopExitFunction(),
         EditorController::ProjectOperations{
@@ -1807,47 +1801,84 @@ TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-contr
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
 
-    const auto before_state = plugin_host.capturePluginState("instance-a");
-    const auto after_state = plugin_host.capturePluginState("instance-b");
-    REQUIRE(before_state.has_value());
-    REQUIRE(after_state.has_value());
+    const EditorViewState* clean_state = stateOrNull(view.last_state);
+    REQUIRE(clean_state != nullptr);
+    CHECK_FALSE(clean_state->undo_enabled);
+
     plugin_host.queuePendingPluginParameterEdit(
         common::audio::PluginParameterEdit{
             .instance_id = "instance-a",
-            .before = *before_state,
-            .after = *after_state,
+            .parameter_id = "gain",
+            .parameter_index = 1,
+            .before_normalized = 0.25,
+            .after_normalized = 0.75,
             .label_hint = "Gain",
         });
 
-    const EditorViewState* pending_state = stateOrNull(view.last_state);
-    REQUIRE(pending_state != nullptr);
-    CHECK_FALSE(pending_state->undo_enabled);
+    const EditorViewState* pending_view = stateOrNull(view.last_state);
+    REQUIRE(pending_view != nullptr);
+    CHECK(pending_view->undo_enabled);
+}
+
+// Parameter value edits restore through the plugin host on undo and redo.
+TEST_CASE("EditorController undoes plugin parameter edits", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+    plugin_host.next_instance_id = "instance-a";
+    addKnownPlugin(controller);
+    plugin_host.queuePendingPluginParameterEdit(
+        common::audio::PluginParameterEdit{
+            .instance_id = "instance-a",
+            .parameter_id = "gain",
+            .parameter_index = 1,
+            .before_normalized = 0.25,
+            .after_normalized = 0.75,
+            .label_hint = "Gain",
+        });
 
     plugin_host.flushPendingPluginParameterEdits();
 
     const EditorViewState* edited_state = stateOrNull(view.last_state);
     REQUIRE(edited_state != nullptr);
-    CHECK(edited_state->undo_enabled);
     CHECK(edited_state->undo_label == std::optional<std::string>{"Edit Gain"});
 
     controller.onUndoRequested();
 
-    CHECK(plugin_host.set_state_call_count == 1);
-    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_state == std::optional{*before_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 1);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"gain"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{1});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.25});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_enabled);
     CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gain"});
 
     controller.onRedoRequested();
 
-    CHECK(plugin_host.set_state_call_count == 2);
-    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_state == std::optional{*after_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 2);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"gain"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{1});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.75});
 }
 
-// The action gate settles pending parameter mementos before deciding whether Undo is available.
+// The action gate settles pending parameter values before deciding whether Undo is available.
 TEST_CASE("EditorController flushes parameters before undo", "[core][editor-controller]")
 {
     FakeTransport transport;
@@ -1869,37 +1900,31 @@ TEST_CASE("EditorController flushes parameters before undo", "[core][editor-cont
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
-    plugin_host.next_instance_id = "instance-b";
-    addKnownPlugin(controller);
-
-    const auto before_state = plugin_host.capturePluginState("instance-a");
-    const auto after_state = plugin_host.capturePluginState("instance-b");
-    REQUIRE(before_state.has_value());
-    REQUIRE(after_state.has_value());
     plugin_host.queuePendingPluginParameterEdit(
         common::audio::PluginParameterEdit{
             .instance_id = "instance-a",
-            .before = *before_state,
-            .after = *after_state,
+            .parameter_id = "drive",
+            .parameter_index = 2,
+            .before_normalized = 0.1,
+            .after_normalized = 0.9,
             .label_hint = "Drive",
         });
 
     controller.onUndoRequested();
 
     CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
-    CHECK(plugin_host.set_state_call_count == 1);
-    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_state == std::optional{*before_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 1);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"drive"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{2});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.1});
     const EditorViewState* undone_state = stateOrNull(view.last_state);
     REQUIRE(undone_state != nullptr);
     CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Drive"});
 }
 
-// If a pending parameter edit settles without a usable undo entry, Undo must not fall through to
-// an older structural entry such as the plugin insertion itself.
-TEST_CASE(
-    "EditorController stops undo after parameter flush records no entry",
-    "[core][editor-controller]")
+// Plugin editor windows dispatch Undo through the same action gate as the main editor view.
+TEST_CASE("EditorController routes plugin window undo", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -1921,147 +1946,24 @@ TEST_CASE(
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
 
-    const auto plugin_state = plugin_host.capturePluginState("instance-a");
-    REQUIRE(plugin_state.has_value());
     plugin_host.queuePendingPluginParameterEdit(
         common::audio::PluginParameterEdit{
             .instance_id = "instance-a",
-            .before = *plugin_state,
-            .after = *plugin_state,
-            .label_hint = "Gain",
+            .parameter_id = "middle",
+            .parameter_index = 4,
+            .before_normalized = 0.2,
+            .after_normalized = 0.8,
+            .label_hint = "Middle",
         });
-
-    controller.onUndoRequested();
-
-    CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
-    CHECK(plugin_host.set_state_call_count == 0);
-    CHECK(plugin_host.remove_call_count == 0);
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    REQUIRE(state->signal_chain.plugins.size() == 1);
-    CHECK(state->signal_chain.plugins[0].instance_id == "instance-a");
-    CHECK(state->undo_label == std::optional<std::string>{"Insert Plugin"});
-}
-
-// Plugin editor windows are top-level audio-adapter components, so their shortcuts must still
-// reach the editor controller action gate instead of depending on EditorView focus.
-TEST_CASE("EditorController routes plugin window undo shortcuts", "[core][editor-controller]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    ConfigurableAudioDeviceConfiguration audio_devices;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    const std::vector<common::audio::PluginChainEntry> loaded_plugins{
-        pluginEntry("instance-a", 0, 0),
-        pluginEntry("instance-b", 1, 1),
-    };
-    plugin_host.chain = loaded_plugins;
-    live_rig.next_load_result.plugins = loaded_plugins;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadCalibratedArrangement(
-        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
-
-    const auto before_state = plugin_host.capturePluginState("instance-a");
-    const auto after_state = plugin_host.capturePluginState("instance-b");
-    REQUIRE(before_state.has_value());
-    REQUIRE(after_state.has_value());
-    plugin_host.queuePendingPluginParameterEdit(
-        common::audio::PluginParameterEdit{
-            .instance_id = "instance-a",
-            .before = *before_state,
-            .after = *after_state,
-            .label_hint = "Gain",
-        });
-
-    const EditorViewState* pending_state = stateOrNull(view.last_state);
-    REQUIRE(pending_state != nullptr);
-    CHECK_FALSE(pending_state->undo_enabled);
 
     plugin_host.notifyPluginWindowUndoRequested();
 
     CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
-    CHECK(plugin_host.set_state_call_count == 1);
-    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_state == std::optional{*before_state});
-    const EditorViewState* undone_state = stateOrNull(view.last_state);
-    REQUIRE(undone_state != nullptr);
-    CHECK(undone_state->redo_label == std::optional<std::string>{"Edit Gain"});
-
-    plugin_host.notifyPluginWindowRedoRequested();
-
-    CHECK(plugin_host.set_state_call_count == 2);
-    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_state == std::optional{*after_state});
-}
-
-// A plugin-window shortcut may undo the just-recorded parameter memento, but it must not keep
-// walking into structural entries such as the plugin insertion underneath it.
-TEST_CASE(
-    "EditorController keeps plugin window undo scoped to parameter edits",
-    "[core][editor-controller]")
-{
-    FakeTransport transport;
-    ConfigurableSongAudio audio;
-    ConfigurableAudioDeviceConfiguration audio_devices;
-    RecordingPluginHost plugin_host;
-    FakeLiveRig live_rig;
-    const std::vector<common::audio::PluginChainEntry> loaded_plugins{
-        pluginEntry("instance-b", 0, 1),
-    };
-    plugin_host.chain = loaded_plugins;
-    live_rig.next_load_result.plugins = loaded_plugins;
-    FakeProjectServices project_services;
-    EditorController controller{
-        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
-        defaultControllerServices(),
-        noopExitFunction(),
-        EditorController::ProjectOperations{
-            .open_function = project_services.openFunction(),
-        }
-    };
-    FakeEditorView view;
-    controller.attachView(view);
-    REQUIRE(loadCalibratedArrangement(
-        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
-    plugin_host.next_instance_id = "instance-a";
-    addKnownPlugin(controller);
-
-    const auto before_state = plugin_host.capturePluginState("instance-a");
-    const auto after_state = plugin_host.capturePluginState("instance-b");
-    REQUIRE(before_state.has_value());
-    REQUIRE(after_state.has_value());
-    plugin_host.queuePendingPluginParameterEdit(
-        common::audio::PluginParameterEdit{
-            .instance_id = "instance-a",
-            .before = *before_state,
-            .after = *after_state,
-            .label_hint = "Gain",
-        });
-
-    plugin_host.notifyPluginWindowUndoRequested();
-    plugin_host.notifyPluginWindowUndoRequested();
-
-    CHECK(plugin_host.flush_pending_parameter_edits_call_count == 1);
-    CHECK(plugin_host.set_state_call_count == 1);
-    CHECK(plugin_host.remove_call_count == 0);
-    const EditorViewState* state = stateOrNull(view.last_state);
-    REQUIRE(state != nullptr);
-    CHECK(state->undo_label == std::optional<std::string>{"Insert Plugin"});
-    CHECK(state->redo_label == std::optional<std::string>{"Edit Gain"});
-    CHECK(std::ranges::any_of(state->signal_chain.plugins, [](const PluginViewState& plugin) {
-        return plugin.instance_id == "instance-a";
-    }));
+    CHECK(plugin_host.set_parameter_value_call_count == 1);
+    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"middle"});
+    CHECK(plugin_host.last_set_parameter_index == std::optional{4});
+    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.2});
 }
 
 // Output gain is tracked separately and preserves earlier placement undo entries behind it.
