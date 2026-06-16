@@ -1461,7 +1461,6 @@ void EditorView::updateAudioDeviceButton()
 void EditorView::refreshAudioMeters()
 {
     const common::audio::AudioMeterSnapshot snapshot = m_audio_meters.audioMeterSnapshot();
-
     m_master_output_meter.setLevel(snapshot.master_output);
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
 }
