@@ -328,34 +328,6 @@ void applyPluginVisualState(
     return {};
 }
 
-// Applies a plugin-parameter value edit in one direction through the audio boundary.
-[[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginParameterEdit(
-    const PluginParameterEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
-{
-    if (!context.signal_chain.containsInstance(edit.instance_id))
-    {
-        return std::unexpected{EditorUndoFailureCode::PreflightRejected};
-    }
-
-    const double value =
-        direction == EditorUndoDirection::Undo ? edit.before_normalized : edit.after_normalized;
-    const double opposite_value =
-        direction == EditorUndoDirection::Undo ? edit.after_normalized : edit.before_normalized;
-    if (value == opposite_value)
-    {
-        return std::unexpected{EditorUndoFailureCode::NoNetMutation};
-    }
-
-    if (const auto restored = context.plugin_host.setPluginParameterValue(
-            edit.instance_id, edit.parameter_id, edit.parameter_index, value);
-        !restored.has_value())
-    {
-        return std::unexpected{undoFailureFromPluginHostError(restored.error())};
-    }
-
-    return {};
-}
-
 // Applies a plugin-wide full-state edit in one direction through the audio boundary.
 [[nodiscard]] std::expected<void, EditorUndoFailureCode> applyPluginStateEdit(
     const PluginStateEdit& edit, EditorUndoDirection direction, EditorEditContext& context)
@@ -365,10 +337,8 @@ void applyPluginVisualState(
         return std::unexpected{EditorUndoFailureCode::PreflightRejected};
     }
 
-    // A plugin state edit always restores via full-chunk setPluginState. The edit is captured
-    // precisely because the change carries opaque plugin state (e.g. the preset-name label and other
-    // non-parameter bytes) that granular parameter replay cannot reproduce. Single-parameter edits
-    // take the lighter PluginParameterEdit path instead; they never reach here.
+    // Plugin edits restore via full-chunk setPluginState so plugin-owned metadata such as preset
+    // labels, dirty flags, and loaded file references stays consistent with parameter values.
     const common::audio::PluginInstanceState& state =
         direction == EditorUndoDirection::Undo ? edit.before_state : edit.after_state;
     const common::audio::PluginInstanceState& opposite_state =
@@ -500,28 +470,6 @@ std::expected<void, EditorUndoFailureCode> PluginDisplayTypeEdit::redo(
 std::string PluginDisplayTypeEdit::label() const
 {
     return "Set Plugin Display Type";
-}
-
-std::expected<void, EditorUndoFailureCode> PluginParameterEdit::undo(
-    EditorEditContext& context) const
-{
-    return applyPluginParameterEdit(*this, EditorUndoDirection::Undo, context);
-}
-
-std::expected<void, EditorUndoFailureCode> PluginParameterEdit::redo(
-    EditorEditContext& context) const
-{
-    return applyPluginParameterEdit(*this, EditorUndoDirection::Redo, context);
-}
-
-std::string PluginParameterEdit::label() const
-{
-    if (label_hint.empty())
-    {
-        return "Edit Plugin Parameter";
-    }
-
-    return "Edit " + label_hint;
 }
 
 std::expected<void, EditorUndoFailureCode> PluginStateEdit::undo(EditorEditContext& context) const

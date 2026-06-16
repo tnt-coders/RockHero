@@ -198,21 +198,15 @@ public:
         return {};
     }
 
-    [[nodiscard]] std::expected<void, common::audio::PluginHostError> setPluginParameterValue(
-        const std::string&, const std::string&, int, double) override
-    {
-        return {};
-    }
-
-    void flushPendingPluginParameterEdits() override
+    void flushPendingPluginEdits() override
     {}
 
-    [[nodiscard]] bool hasPendingPluginParameterEdits() const override
+    [[nodiscard]] bool hasPendingPluginEdits() const override
     {
         return false;
     }
 
-    void setPluginParameterEditObserver(common::audio::PluginParameterEditObserver) override
+    void setPluginEditObserver(common::audio::PluginEditObserver) override
     {}
 
     void setPluginStateEditObserver(common::audio::PluginStateEditObserver) override

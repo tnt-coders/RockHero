@@ -1094,28 +1094,22 @@ void copyPluginStatePreservingInstanceId(
     target_plugin.itemID.writeID(target_state, nullptr);
 }
 
-// Observes one external plugin's Tracktion gestures and emits parameter value edits.
-class PluginParameterValueTracker final : private tracktion::AutomatableParameter::Listener,
-                                          private juce::Timer
+// Observes one external plugin's parameter notifications and turns them into plugin-state edits.
+class PluginParameterChangeTracker final : private tracktion::AutomatableParameter::Listener
 {
 public:
-    using EmitEdit = std::function<void(PluginParameterEdit)>;
     using PendingChanged = std::function<void()>;
     using ShouldSuppress = std::function<bool()>;
-    using NonGestureChanged = std::function<void()>;
-    using CancelStateChanged = std::function<void()>;
+    using StateChanged = std::function<void()>;
 
-    PluginParameterValueTracker(
-        tracktion::ExternalPlugin& plugin, EmitEdit emit_edit, PendingChanged pending_changed,
-        ShouldSuppress should_suppress, NonGestureChanged non_gesture_changed,
-        CancelStateChanged cancel_state_changed)
+    PluginParameterChangeTracker(
+        tracktion::ExternalPlugin& plugin, PendingChanged pending_changed,
+        ShouldSuppress should_suppress, StateChanged state_changed)
         : m_plugin(plugin)
         , m_instance_id(plugin.itemID.toString().toStdString())
-        , m_emit_edit(std::move(emit_edit))
         , m_pending_changed(std::move(pending_changed))
         , m_should_suppress(std::move(should_suppress))
-        , m_non_gesture_changed(std::move(non_gesture_changed))
-        , m_cancel_state_changed(std::move(cancel_state_changed))
+        , m_state_changed(std::move(state_changed))
     {
         const int parameter_count = m_plugin.getNumAutomatableParameters();
         m_parameters.reserve(static_cast<std::size_t>(std::max(parameter_count, 0)));
@@ -1133,9 +1127,8 @@ public:
         }
     }
 
-    ~PluginParameterValueTracker() override
+    ~PluginParameterChangeTracker() override
     {
-        stopTimer();
         for (const tracktion::AutomatableParameter::Ptr& parameter : m_parameters)
         {
             if (parameter != nullptr)
@@ -1147,78 +1140,34 @@ public:
 
     [[nodiscard]] bool hasPendingEdit() const noexcept
     {
-        return m_gesture_edit.has_value() || m_completed_gesture_edit.has_value();
+        return m_open_gesture_count > 0;
     }
 
     void flushPendingEdit()
     {
-        stopTimer();
-        if (m_gesture_edit.has_value())
+        if (m_open_gesture_count <= 0)
         {
-            RH_LOG_INFO(
-                "audio.engine",
-                "Dropped in-flight plugin parameter gesture instance_id={}",
-                m_instance_id);
-            discardPendingEdit();
             return;
         }
 
-        emitCompletedGestureEdit();
-    }
-
-    void discardPendingEdit()
-    {
-        stopTimer();
-        m_gesture_edit.reset();
-        m_completed_gesture_edit.reset();
-        m_parameter_burst_promoted = false;
+        RH_LOG_INFO(
+            "audio.engine",
+            "Settled in-flight plugin parameter gesture as state edit instance_id={}",
+            m_instance_id);
         m_open_gesture_count = 0;
+        notifyStateChanged();
         notifyPendingChanged();
     }
 
 private:
-    static constexpr auto g_gesture_coalesce = std::chrono::milliseconds{250};
-    static constexpr auto g_promoted_burst_debounce = std::chrono::milliseconds{750};
-    static constexpr auto g_post_gesture_tail_suppression = std::chrono::milliseconds{200};
-
     [[nodiscard]] static std::string labelHintFor(tracktion::AutomatableParameter& parameter)
     {
         return parameter.getParameterName().toStdString();
     }
 
-    [[nodiscard]] static std::string parameterIdFor(tracktion::AutomatableParameter& parameter)
-    {
-        return parameter.paramID.toStdString();
-    }
-
     [[nodiscard]] bool isSuppressed() const
     {
         return m_should_suppress && m_should_suppress();
-    }
-
-    [[nodiscard]] int parameterIndexFor(tracktion::AutomatableParameter& parameter) const
-    {
-        for (std::size_t index = 0; index < m_parameters.size(); ++index)
-        {
-            if (m_parameters[index].get() == &parameter)
-            {
-                return static_cast<int>(index);
-            }
-        }
-
-        return -1;
-    }
-
-    [[nodiscard]] PluginParameterEdit makePendingEdit(tracktion::AutomatableParameter& parameter)
-    {
-        return PluginParameterEdit{
-            .instance_id = m_instance_id,
-            .parameter_id = parameterIdFor(parameter),
-            .parameter_index = parameterIndexFor(parameter),
-            .before_normalized = parameter.getCurrentNormalisedValue(),
-            .after_normalized = parameter.getCurrentNormalisedValue(),
-            .label_hint = labelHintFor(parameter),
-        };
     }
 
     void notifyPendingChanged()
@@ -1229,54 +1178,12 @@ private:
         }
     }
 
-    void emitIfChanged(PluginParameterEdit edit)
+    void notifyStateChanged()
     {
-        if (edit.before_normalized == edit.after_normalized)
+        if (m_state_changed)
         {
-            return;
+            m_state_changed();
         }
-
-        if (m_emit_edit)
-        {
-            m_emit_edit(std::move(edit));
-        }
-    }
-
-    void clearGestureState()
-    {
-        m_gesture_edit.reset();
-        m_open_gesture_count = 0;
-    }
-
-    void noteStateBurstChanged()
-    {
-        if (m_non_gesture_changed)
-        {
-            m_non_gesture_changed();
-        }
-        startTimer(static_cast<int>(g_promoted_burst_debounce.count()));
-    }
-
-    void emitCompletedGestureEdit()
-    {
-        if (!m_completed_gesture_edit.has_value())
-        {
-            return;
-        }
-
-        PluginParameterEdit edit = std::move(*m_completed_gesture_edit);
-        m_completed_gesture_edit.reset();
-        if (m_cancel_state_changed)
-        {
-            m_cancel_state_changed();
-        }
-        RH_LOG_INFO(
-            "audio.engine",
-            "Plugin parameter edit completed instance_id={} label_hint={}",
-            m_instance_id,
-            edit.label_hint);
-        emitIfChanged(std::move(edit));
-        notifyPendingChanged();
     }
 
     void parameterChangeGestureBegin(tracktion::AutomatableParameter& parameter) override
@@ -1286,44 +1193,15 @@ private:
             return;
         }
 
-        if (m_parameter_burst_promoted)
+        if (m_open_gesture_count == 0)
         {
-            noteStateBurstChanged();
-            return;
-        }
-
-        if (m_completed_gesture_edit.has_value())
-        {
-            if (m_completed_gesture_edit->parameter_id == parameterIdFor(parameter) &&
-                m_completed_gesture_edit->parameter_index == parameterIndexFor(parameter))
-            {
-                m_gesture_edit = std::move(*m_completed_gesture_edit);
-                m_completed_gesture_edit.reset();
-                stopTimer();
-            }
-            else
-            {
-                RH_LOG_INFO(
-                    "audio.engine",
-                    "Promoted plugin parameter burst to state edit instance_id={}",
-                    m_instance_id);
-                m_completed_gesture_edit.reset();
-                m_parameter_burst_promoted = true;
-                noteStateBurstChanged();
-                notifyPendingChanged();
-                return;
-            }
-        }
-
-        if (!m_gesture_edit.has_value())
-        {
-            m_gesture_edit = makePendingEdit(parameter);
+            notifyStateChanged();
             notifyPendingChanged();
             RH_LOG_INFO(
                 "audio.engine",
-                "Plugin parameter edit started instance_id={} label_hint={}",
+                "Plugin edit started from parameter gesture instance_id={} label_hint={}",
                 m_instance_id,
-                m_gesture_edit->label_hint);
+                labelHintFor(parameter));
         }
 
         ++m_open_gesture_count;
@@ -1333,13 +1211,11 @@ private:
     {
         if (isSuppressed())
         {
-            discardPendingEdit();
-            return;
-        }
-
-        if (m_parameter_burst_promoted)
-        {
-            noteStateBurstChanged();
+            if (m_open_gesture_count > 0)
+            {
+                m_open_gesture_count = 0;
+                notifyPendingChanged();
+            }
             return;
         }
 
@@ -1347,43 +1223,18 @@ private:
         {
             --m_open_gesture_count;
         }
-        m_ignore_non_gesture_until =
-            std::chrono::steady_clock::now() + g_post_gesture_tail_suppression;
+
+        notifyStateChanged();
         if (m_open_gesture_count > 0)
         {
             return;
         }
 
-        if (!m_gesture_edit.has_value())
-        {
-            notifyPendingChanged();
-            return;
-        }
-
-        PluginParameterEdit edit = std::move(*m_gesture_edit);
-        edit.after_normalized = parameter.getCurrentNormalisedValue();
-        clearGestureState();
-
-        if (edit.before_normalized != edit.after_normalized)
-        {
-            m_completed_gesture_edit = std::move(edit);
-            RH_LOG_INFO(
-                "audio.engine",
-                "Held plugin parameter edit for coalescing instance_id={} label_hint={}",
-                m_instance_id,
-                m_completed_gesture_edit->label_hint);
-            startTimer(static_cast<int>(g_gesture_coalesce.count()));
-        }
-        else
-        {
-            RH_LOG_INFO(
-                "audio.engine",
-                "Plugin parameter gesture yielded no delta; tracking state instance_id={} "
-                "label_hint={}",
-                m_instance_id,
-                edit.label_hint);
-            noteStateBurstChanged();
-        }
+        RH_LOG_INFO(
+            "audio.engine",
+            "Plugin parameter gesture completed instance_id={} label_hint={}",
+            m_instance_id,
+            labelHintFor(parameter));
         notifyPendingChanged();
     }
 
@@ -1395,68 +1246,28 @@ private:
 
     void parameterChanged(tracktion::AutomatableParameter& parameter, float /*new_value*/) override
     {
-        handleNonGestureChange(parameter);
-    }
-
-    void handleNonGestureChange(tracktion::AutomatableParameter& /*parameter*/)
-    {
         if (isSuppressed())
         {
             return;
         }
 
-        const auto now = std::chrono::steady_clock::now();
-        if (m_gesture_edit.has_value() || now < m_ignore_non_gesture_until)
-        {
-            return;
-        }
-
-        if (m_non_gesture_changed)
-        {
-            m_non_gesture_changed();
-        }
-    }
-
-    void timerCallback() override
-    {
-        stopTimer();
-        if (m_parameter_burst_promoted)
-        {
-            m_parameter_burst_promoted = false;
-            notifyPendingChanged();
-            return;
-        }
-
-        emitCompletedGestureEdit();
+        notifyStateChanged();
     }
 
     tracktion::ExternalPlugin& m_plugin;
     std::string m_instance_id;
-    EmitEdit m_emit_edit;
     PendingChanged m_pending_changed;
     ShouldSuppress m_should_suppress;
-    NonGestureChanged m_non_gesture_changed;
-    CancelStateChanged m_cancel_state_changed;
+    StateChanged m_state_changed;
     std::vector<tracktion::AutomatableParameter::Ptr> m_parameters;
-    std::optional<PluginParameterEdit> m_gesture_edit;
-    std::optional<PluginParameterEdit> m_completed_gesture_edit;
-    std::chrono::steady_clock::time_point m_ignore_non_gesture_until{};
     int m_open_gesture_count{0};
-    bool m_parameter_burst_promoted{false};
-};
-
-// Captures both opaque state and parameter values for one hosted plugin.
-struct PluginStateSnapshot
-{
-    PluginInstanceState state;
-    std::vector<PluginParameterSnapshot> parameters;
 };
 
 // Observes plugin-wide processor changes and emits full-state edits for presets and file loads.
 class PluginStateChangeTracker final : private tracktion::SelectableListener, private juce::Timer
 {
 public:
-    using CaptureState = std::function<std::expected<PluginStateSnapshot, PluginHostError>(
+    using CaptureState = std::function<std::expected<PluginInstanceState, PluginHostError>(
         tracktion::ExternalPlugin&)>;
     using EmitEdit = std::function<void(PluginStateEdit)>;
     using PendingChanged = std::function<void()>;
@@ -1501,19 +1312,6 @@ public:
         beginPendingEdit();
     }
 
-    void cancelPendingParameterStateChange()
-    {
-        if (!m_before.has_value())
-        {
-            return;
-        }
-
-        stopTimer();
-        m_before.reset();
-        refreshBaseline();
-        notifyPendingChanged();
-    }
-
 private:
     static constexpr auto g_state_change_debounce = std::chrono::milliseconds{750};
 
@@ -1522,7 +1320,7 @@ private:
         return m_should_suppress && m_should_suppress();
     }
 
-    [[nodiscard]] std::expected<PluginStateSnapshot, PluginHostError> captureState()
+    [[nodiscard]] std::expected<PluginInstanceState, PluginHostError> captureState()
     {
         if (!m_capture_state)
         {
@@ -1619,7 +1417,7 @@ private:
         }
 
         auto after = captureState();
-        PluginStateSnapshot before = std::move(*m_before);
+        PluginInstanceState before = std::move(*m_before);
         m_before.reset();
         if (!after.has_value())
         {
@@ -1634,7 +1432,7 @@ private:
         }
 
         m_baseline = *after;
-        if ((before.state != after->state || before.parameters != after->parameters) && m_emit_edit)
+        if (before != *after && m_emit_edit)
         {
             RH_LOG_INFO(
                 "audio.engine",
@@ -1644,10 +1442,8 @@ private:
             m_emit_edit(
                 PluginStateEdit{
                     .instance_id = m_instance_id,
-                    .before = std::move(before.state),
-                    .after = std::move(after->state),
-                    .before_parameters = std::move(before.parameters),
-                    .after_parameters = std::move(after->parameters),
+                    .before = std::move(before),
+                    .after = std::move(*after),
                     .label_hint = m_plugin.getName().toStdString(),
                 });
         }
@@ -1667,8 +1463,8 @@ private:
     EmitEdit m_emit_edit;
     PendingChanged m_pending_changed;
     ShouldSuppress m_should_suppress;
-    std::optional<PluginStateSnapshot> m_baseline;
-    std::optional<PluginStateSnapshot> m_before;
+    std::optional<PluginInstanceState> m_baseline;
+    std::optional<PluginInstanceState> m_before;
 };
 
 // Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
@@ -2371,8 +2167,8 @@ private:
     // Message-thread listener list for audio-device configuration changes.
     juce::ListenerList<IAudioDeviceConfiguration::Listener> m_audio_device_listeners;
 
-    // Observer installed by editor-core for completed plugin-parameter value edits.
-    PluginParameterEditObserver m_plugin_parameter_edit_observer;
+    // Observer installed by editor-core for pending user plugin edit state.
+    PluginEditObserver m_plugin_edit_observer;
 
     // Observer installed by editor-core for completed plugin-wide state edits.
     PluginStateEditObserver m_plugin_state_edit_observer;
@@ -2381,19 +2177,19 @@ private:
     PluginWindowCommandObserver m_plugin_window_command_observer;
 
     // Per-external-plugin parameter observers for the user-visible live-rig chain.
-    std::vector<std::unique_ptr<PluginParameterValueTracker>> m_plugin_parameter_trackers;
+    std::vector<std::unique_ptr<PluginParameterChangeTracker>> m_plugin_parameter_change_trackers;
 
     // Per-external-plugin state observers for processor-wide preset/file changes.
     std::vector<std::unique_ptr<PluginStateChangeTracker>> m_plugin_state_trackers;
 
     // Guards programmatic restore/load paths from recording plugin undo entries.
-    bool m_plugin_parameter_observation_suppressed{false};
+    bool m_plugin_edit_observation_suppressed{false};
 
     // Tracktion can deliver parameter notifications asynchronously after a host-driven apply.
-    std::chrono::steady_clock::time_point m_plugin_parameter_observation_suppressed_until{};
+    std::chrono::steady_clock::time_point m_plugin_edit_observation_suppressed_until{};
 
     // Last aggregate pending state reported to the editor observer.
-    bool m_plugin_parameter_pending_notified{false};
+    bool m_plugin_edit_pending_notified{false};
 
     // Coalesces JUCE audio-device callbacks so Tracktion route repair runs after callback unwinds.
     bool m_audio_device_configuration_refresh_pending{false};
@@ -3167,11 +2963,11 @@ private:
     }
 
     // Reports whether any tracked plugin currently holds an unsettled user edit.
-    [[nodiscard]] bool hasPendingPluginParameterEdits() const
+    [[nodiscard]] bool hasPendingPluginEdits() const
     {
         const bool has_parameter_edit = std::ranges::any_of(
-            m_plugin_parameter_trackers,
-            [](const std::unique_ptr<PluginParameterValueTracker>& tracker) {
+            m_plugin_parameter_change_trackers,
+            [](const std::unique_ptr<PluginParameterChangeTracker>& tracker) {
                 return tracker != nullptr && tracker->hasPendingEdit();
             });
         const bool has_state_edit = std::ranges::any_of(
@@ -3182,71 +2978,32 @@ private:
     }
 
     // Sends aggregate pending-state changes to editor-core.
-    void notifyPluginParameterPendingStateChanged()
+    void notifyPluginEditPendingStateChanged()
     {
-        const bool pending = hasPendingPluginParameterEdits();
-        if (pending == m_plugin_parameter_pending_notified)
+        const bool pending = hasPendingPluginEdits();
+        if (pending == m_plugin_edit_pending_notified)
         {
             return;
         }
 
-        m_plugin_parameter_pending_notified = pending;
-        if (m_plugin_parameter_edit_observer.pending_changed)
+        m_plugin_edit_pending_notified = pending;
+        if (m_plugin_edit_observer.pending_changed)
         {
-            m_plugin_parameter_edit_observer.pending_changed(pending);
+            m_plugin_edit_observer.pending_changed(pending);
         }
     }
 
-    [[nodiscard]] static std::vector<PluginParameterSnapshot> capturePluginParameters(
-        tracktion::ExternalPlugin& plugin)
+    [[nodiscard]] bool shouldSuppressPluginEditObservation() const
     {
-        std::vector<PluginParameterSnapshot> parameters;
-        const int parameter_count = plugin.getNumAutomatableParameters();
-        parameters.reserve(static_cast<std::size_t>(std::max(parameter_count, 0)));
-        for (int index = 0; index < parameter_count; ++index)
-        {
-            tracktion::AutomatableParameter::Ptr parameter = plugin.getAutomatableParameter(index);
-            if (parameter == nullptr)
-            {
-                continue;
-            }
-
-            parameters.push_back(
-                PluginParameterSnapshot{
-                    .parameter_id = parameter->paramID.toStdString(),
-                    .parameter_index = index,
-                    .normalized_value = parameter->getCurrentNormalisedValue(),
-                    .label_hint = parameter->getParameterName().toStdString(),
-                });
-        }
-        return parameters;
-    }
-
-    [[nodiscard]] bool shouldSuppressPluginParameterObservation() const
-    {
-        return m_plugin_parameter_observation_suppressed ||
+        return m_plugin_edit_observation_suppressed ||
                (m_edit != nullptr && m_edit->getTransport().isPlaying()) ||
-               std::chrono::steady_clock::now() < m_plugin_parameter_observation_suppressed_until;
-    }
-
-    // Emits a completed parameter value edit to editor-core unless the engine is restoring state.
-    void emitPluginParameterEdit(PluginParameterEdit edit)
-    {
-        if (shouldSuppressPluginParameterObservation())
-        {
-            return;
-        }
-
-        if (m_plugin_parameter_edit_observer.edit_completed)
-        {
-            m_plugin_parameter_edit_observer.edit_completed(std::move(edit));
-        }
+               std::chrono::steady_clock::now() < m_plugin_edit_observation_suppressed_until;
     }
 
     // Emits a completed plugin-wide state edit to editor-core unless the engine is restoring state.
     void emitPluginStateEdit(PluginStateEdit edit)
     {
-        if (shouldSuppressPluginParameterObservation())
+        if (shouldSuppressPluginEditObservation())
         {
             return;
         }
@@ -3282,22 +3039,22 @@ private:
     }
 
     // Detaches all Tracktion plugin edit listeners and reports any aggregate pending transition.
-    void clearPluginParameterObservers()
+    void clearPluginEditObservers()
     {
-        m_plugin_parameter_trackers.clear();
+        m_plugin_parameter_change_trackers.clear();
         m_plugin_state_trackers.clear();
-        notifyPluginParameterPendingStateChanged();
+        notifyPluginEditPendingStateChanged();
     }
 
     // Rebuilds plugin edit listeners for user-visible external plugins only.
-    void refreshPluginParameterObservers()
+    void refreshPluginEditObservers()
     {
-        m_plugin_parameter_trackers.clear();
+        m_plugin_parameter_change_trackers.clear();
         m_plugin_state_trackers.clear();
         tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
         {
-            notifyPluginParameterPendingStateChanged();
+            notifyPluginEditPendingStateChanged();
             return;
         }
 
@@ -3317,7 +3074,7 @@ private:
             auto state_tracker = std::make_unique<PluginStateChangeTracker>(
                 *external_plugin,
                 [this](tracktion::ExternalPlugin& observed_plugin)
-                    -> std::expected<PluginStateSnapshot, PluginHostError> {
+                    -> std::expected<PluginInstanceState, PluginHostError> {
                     observed_plugin.flushPluginStateToValueTree();
                     auto state = makePluginInstanceState(observed_plugin.state.createCopy());
                     if (!state.has_value())
@@ -3325,46 +3082,40 @@ private:
                         return std::unexpected{std::move(state.error())};
                     }
 
-                    return PluginStateSnapshot{
-                        .state = std::move(*state),
-                        .parameters = capturePluginParameters(observed_plugin),
-                    };
+                    return std::move(*state);
                 },
                 [this](PluginStateEdit edit) { emitPluginStateEdit(std::move(edit)); },
-                [this] { notifyPluginParameterPendingStateChanged(); },
-                [this] { return shouldSuppressPluginParameterObservation(); });
+                [this] { notifyPluginEditPendingStateChanged(); },
+                [this] { return shouldSuppressPluginEditObservation(); });
             // The pointer targets the heap object owned by the unique_ptr, so vector growth does
             // not invalidate the callback target. Trackers are cleared in parameter-then-state
             // order before plugin-chain observer rebuilds.
             PluginStateChangeTracker* const state_tracker_ptr = state_tracker.get();
             m_plugin_state_trackers.push_back(std::move(state_tracker));
-            m_plugin_parameter_trackers.push_back(
-                std::make_unique<PluginParameterValueTracker>(
+            m_plugin_parameter_change_trackers.push_back(
+                std::make_unique<PluginParameterChangeTracker>(
                     *external_plugin,
-                    [this](PluginParameterEdit edit) { emitPluginParameterEdit(std::move(edit)); },
-                    [this] { notifyPluginParameterPendingStateChanged(); },
-                    [this] { return shouldSuppressPluginParameterObservation(); },
-                    [state_tracker_ptr] { state_tracker_ptr->noteParameterStateChanged(); },
-                    [state_tracker_ptr] {
-                        state_tracker_ptr->cancelPendingParameterStateChange();
-                    }));
+                    [this] { notifyPluginEditPendingStateChanged(); },
+                    [this] { return shouldSuppressPluginEditObservation(); },
+                    [state_tracker_ptr] { state_tracker_ptr->noteParameterStateChanged(); }));
         }
 
-        notifyPluginParameterPendingStateChanged();
+        notifyPluginEditPendingStateChanged();
     }
 
     // Settles all pending plugin edits synchronously.
     //
-    // Invariant: this iterates m_plugin_parameter_trackers while each flushPendingEdit() re-enters
+    // Invariant: this iterates m_plugin_parameter_change_trackers while each flushPendingEdit()
+    // re-enters
     // editor-core synchronously (the completed-edit observer). That is safe only because render
     // (updateView) never synchronously mutates the plugin chain; a chain mutation here would call
-    // clearPluginParameterObservers()/refreshPluginParameterObservers() and invalidate this loop's
+    // clearPluginEditObservers()/refreshPluginEditObservers() and invalidate this loop's
     // iterator. Any render-triggered chain change must be enqueued for a later dispatch, not applied
     // under this loop. If that invariant is ever relaxed, snapshot the trackers before iterating.
-    void flushPendingPluginParameterEdits()
+    void flushPendingPluginEdits()
     {
-        for (const std::unique_ptr<PluginParameterValueTracker>& tracker :
-             m_plugin_parameter_trackers)
+        for (const std::unique_ptr<PluginParameterChangeTracker>& tracker :
+             m_plugin_parameter_change_trackers)
         {
             if (tracker != nullptr)
             {
@@ -3378,7 +3129,7 @@ private:
                 tracker->flushPendingEdit();
             }
         }
-        notifyPluginParameterPendingStateChanged();
+        notifyPluginEditPendingStateChanged();
     }
 
     // Keeps plugin-list mutation, monitoring teardown, re-route, and failure routing in one path.
@@ -3387,27 +3138,27 @@ private:
         Mutate mutate, Rollback rollback, std::string_view route_rollback_context)
     {
         stopTransportAndReleaseContext();
-        clearPluginParameterObservers();
+        clearPluginEditObservers();
 
         auto mutation_result = mutate();
         if (!mutation_result.has_value())
         {
             PluginChainMutationFailure failure = std::move(mutation_result.error());
             rebuildInstrumentMonitoringGraphBestEffort(failure.reroute_context);
-            refreshPluginParameterObservers();
+            refreshPluginEditObservers();
             return std::unexpected{std::move(failure.error)};
         }
 
         auto route_result = rebuildInstrumentMonitoringGraph();
         if (route_result.has_value())
         {
-            refreshPluginParameterObservers();
+            refreshPluginEditObservers();
             return {};
         }
 
         rollback();
         rebuildInstrumentMonitoringGraphBestEffort(route_rollback_context);
-        refreshPluginParameterObservers();
+        refreshPluginEditObservers();
         return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
     }
 
@@ -3689,7 +3440,7 @@ private:
             return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
         }
 
-        clearPluginParameterObservers();
+        clearPluginEditObservers();
         const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
         for (tracktion::Plugin* const plugin : plugins)
         {
@@ -4956,121 +4707,49 @@ std::expected<void, PluginHostError> Engine::setPluginState(
     }
 
     {
-        const juce::ScopedValueSetter<bool> suppress_parameter_observation(
-            m_impl->m_plugin_parameter_observation_suppressed, true);
+        const juce::ScopedValueSetter<bool> suppress_plugin_edit_observation(
+            m_impl->m_plugin_edit_observation_suppressed, true);
         external_plugin->restorePluginStateFromValueTree(*plugin_state);
         copyPluginStatePreservingInstanceId(*external_plugin, *plugin_state);
     }
-    m_impl->refreshPluginParameterObservers();
+    m_impl->refreshPluginEditObservers();
 
     return {};
 }
 
-// Applies one parameter value through Tracktion's parameter object instead of restoring a chunk.
-std::expected<void, PluginHostError> Engine::setPluginParameterValue(
-    const std::string& instance_id, const std::string& parameter_id, int parameter_index,
-    double normalized_value)
-{
-    if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
-    {
-        return std::unexpected{PluginHostError{PluginHostErrorCode::MessageThreadRequired}};
-    }
-
-    tracktion::Plugin* const plugin = m_impl->findInstrumentPluginInstance(instance_id);
-    if (plugin == nullptr || m_impl->isStructuralLiveRigPlugin(plugin))
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginInstanceNotFound,
-            "Plugin instance was not found: " + instance_id,
-        }};
-    }
-
-    auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(plugin);
-    if (external_plugin == nullptr)
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginStateRestoreFailed,
-            "Only external plugin parameters can be restored right now: " +
-                plugin->getName().toStdString(),
-        }};
-    }
-
-    tracktion::AutomatableParameter::Ptr selected_parameter;
-    const int parameter_count = external_plugin->getNumAutomatableParameters();
-    const juce::String target_parameter_id{parameter_id};
-    for (int index = 0; index < parameter_count; ++index)
-    {
-        tracktion::AutomatableParameter::Ptr parameter =
-            external_plugin->getAutomatableParameter(index);
-        if (parameter != nullptr && parameter->paramID == target_parameter_id)
-        {
-            selected_parameter = std::move(parameter);
-            break;
-        }
-    }
-
-    if (selected_parameter == nullptr && parameter_index >= 0 && parameter_index < parameter_count)
-    {
-        tracktion::AutomatableParameter::Ptr indexed_parameter =
-            external_plugin->getAutomatableParameter(parameter_index);
-        if (indexed_parameter != nullptr &&
-            (target_parameter_id.isEmpty() || indexed_parameter->paramID == target_parameter_id))
-        {
-            selected_parameter = std::move(indexed_parameter);
-        }
-    }
-
-    if (selected_parameter == nullptr)
-    {
-        return std::unexpected{PluginHostError{
-            PluginHostErrorCode::PluginStateRestoreFailed,
-            "Plugin parameter was not found: " + parameter_id,
-        }};
-    }
-
-    constexpr auto suppress_async_tail = std::chrono::milliseconds{250};
-    m_impl->m_plugin_parameter_observation_suppressed_until =
-        std::chrono::steady_clock::now() + suppress_async_tail;
-    const juce::ScopedValueSetter<bool> suppress_parameter_observation(
-        m_impl->m_plugin_parameter_observation_suppressed, true);
-    selected_parameter->setNormalisedParameter(
-        static_cast<float>(normalized_value), juce::sendNotification);
-    return {};
-}
-
-// Settles or conservatively drops any pending plugin-parameter value edits.
-void Engine::flushPendingPluginParameterEdits()
+// Settles or conservatively drops any pending user plugin edits.
+void Engine::flushPendingPluginEdits()
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return;
     }
 
-    m_impl->flushPendingPluginParameterEdits();
+    m_impl->flushPendingPluginEdits();
 }
 
-// Reports whether any plugin-parameter value edit is waiting for gesture end or debounce.
-bool Engine::hasPendingPluginParameterEdits() const
+// Reports whether any user plugin edit is waiting for gesture end or debounce.
+bool Engine::hasPendingPluginEdits() const
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return false;
     }
 
-    return m_impl->hasPendingPluginParameterEdits();
+    return m_impl->hasPendingPluginEdits();
 }
 
-// Stores the observer endpoint driven by Tracktion parameter callbacks.
-void Engine::setPluginParameterEditObserver(PluginParameterEditObserver observer)
+// Stores the observer endpoint driven by Tracktion plugin-edit callbacks.
+void Engine::setPluginEditObserver(PluginEditObserver observer)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
         return;
     }
 
-    m_impl->m_plugin_parameter_edit_observer = std::move(observer);
-    m_impl->m_plugin_parameter_pending_notified = false;
-    m_impl->notifyPluginParameterPendingStateChanged();
+    m_impl->m_plugin_edit_observer = std::move(observer);
+    m_impl->m_plugin_edit_pending_notified = false;
+    m_impl->notifyPluginEditPendingStateChanged();
 }
 
 // Stores the observer endpoint driven by Tracktion processor-wide plugin changes.
@@ -5146,7 +4825,7 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     // Clear also cancels cooperative restore steps queued by loadLiveRig(); otherwise stale
     // continuations could rebuild the chain after the editor has closed the project.
     m_impl->m_load_op.reset();
-    m_impl->m_plugin_parameter_observation_suppressed = false;
+    m_impl->m_plugin_edit_observation_suppressed = false;
 
     if (m_impl->instrumentTrack() == nullptr)
     {
@@ -5157,24 +4836,24 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     auto cleared = m_impl->clearUserLiveRigPlugins();
     if (!cleared.has_value())
     {
-        m_impl->refreshPluginParameterObservers();
+        m_impl->refreshPluginEditObservers();
         return std::unexpected{std::move(cleared.error())};
     }
 
     auto reset = m_impl->resetLiveRigProjectState();
     if (!reset.has_value())
     {
-        m_impl->refreshPluginParameterObservers();
+        m_impl->refreshPluginEditObservers();
         return std::unexpected{std::move(reset.error())};
     }
 
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
-        m_impl->refreshPluginParameterObservers();
+        m_impl->refreshPluginEditObservers();
         return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
     }
-    m_impl->refreshPluginParameterObservers();
+    m_impl->refreshPluginEditObservers();
     return {};
 }
 
@@ -5485,13 +5164,13 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    m_impl->m_plugin_parameter_observation_suppressed = true;
+    m_impl->m_plugin_edit_observation_suppressed = true;
     m_impl->stopTransportAndReleaseContext();
     auto cleared = m_impl->clearUserLiveRigPlugins();
     if (!cleared.has_value())
     {
-        m_impl->m_plugin_parameter_observation_suppressed = false;
-        m_impl->refreshPluginParameterObservers();
+        m_impl->m_plugin_edit_observation_suppressed = false;
+        m_impl->refreshPluginEditObservers();
         on_result(std::unexpected{std::move(cleared.error())});
         return;
     }
@@ -5499,8 +5178,8 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
     auto reset = m_impl->resetLiveRigProjectState();
     if (!reset.has_value())
     {
-        m_impl->m_plugin_parameter_observation_suppressed = false;
-        m_impl->refreshPluginParameterObservers();
+        m_impl->m_plugin_edit_observation_suppressed = false;
+        m_impl->refreshPluginEditObservers();
         on_result(std::unexpected{std::move(reset.error())});
         return;
     }
@@ -5569,8 +5248,8 @@ void Engine::Impl::beginNextPluginStep()
             return;
         }
 
-        m_plugin_parameter_observation_suppressed = false;
-        refreshPluginParameterObservers();
+        m_plugin_edit_observation_suppressed = false;
+        refreshPluginEditObservers();
         auto operation = std::move(m_load_op);
         operation->result.output_gain = operation->output_gain;
         operation->on_result(std::move(operation->result));
@@ -5747,8 +5426,8 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
         }
     }
     rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
-    m_plugin_parameter_observation_suppressed = false;
-    refreshPluginParameterObservers();
+    m_plugin_edit_observation_suppressed = false;
+    refreshPluginEditObservers();
     operation->on_result(std::unexpected{std::move(error)});
 }
 
