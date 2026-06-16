@@ -1,6 +1,7 @@
 # Plugin Re-Announce Undo Pollution
 
-Status: **open** — root cause proven, solution proposed but not implemented.
+Status: **open** — root cause proven, quiet-debounce mitigation implemented, input causality
+release still unresolved.
 Last updated: 2026-06-16.
 
 ## The exact issue we are trying to resolve
@@ -17,14 +18,13 @@ the re-announce as a **new, spurious undo entry**. Symptoms the user sees:
 - The undo stack gains a bogus entry that, if undone, does nothing meaningful (or corrupts the
   user's mental model of the stack).
 
-The currently staged mitigation is a **fixed-duration suppression window** after each restore. It
-has two defects we consider unacceptable:
+The current mitigation is a **restore-settle quiet debounce** after each host-driven restore. It
+re-baselines after the plugin has stopped re-announcing dirty callbacks, so late re-announce bursts
+extend the guard instead of leaking onto the undo stack. It still has one defect we consider
+unacceptable:
 
-1. **Fragile fixed window (#1).** The window is a hardcoded duration. If Nolly's re-announce runs
-   longer than the window, late re-announce callbacks leak past it and are recorded as spurious
-   edits.
-2. **Drops genuine user edits (#2).** Any real parameter change the user makes *during* the
-   suppression window is silently swallowed. Per the user: "There should NEVER be a situation where
+1. **Drops genuine user edits.** Any real parameter change the user makes *during* the guarded
+   quiet-debounce tail is silently swallowed. Per the user: "There should NEVER be a situation where
    a manual user edit could be ignored by the undo queue. ... This COULD happen and is definitively
    a bug. It would leave the undo stack in an invalid state. We CANNOT allow that."
 
@@ -45,10 +45,10 @@ clean mechanism demonstrably exists; we have been missing it.
   dependent parameters, or controller sync. "Memento" = full-chunk memento. This is non-negotiable
   (`project_undo_fidelity_nonnegotiable`).
 - The editor observes plugin edits through two trackers, both gated on
-  `shouldSuppressPluginEditObservation()`:
-  - `PluginParameterChangeTracker` — listens to `AutomatableParameter::Listener` gesture
-    begin/end; pokes the state tracker via `noteParameterStateChanged()`.
-  - `PluginStateChangeTracker` — `SelectableListener` + `juce::Timer` debounce; captures
+  `shouldDeferPluginUndoCapture()`:
+  - `PluginParameterDirtyTracker` — listens to `AutomatableParameter::Listener` dirty signals and
+    pokes the state tracker.
+  - `PluginDirtyStateTracker` — `SelectableListener` + `juce::Timer` quiet debounce; captures
     before/after `PluginInstanceState` and emits a `PluginStateEdit` when `before != after`.
 - `PluginInstanceState` is captured by `flushPluginStateToValueTree()` then serializing
   `ExternalPlugin::state` (the Tracktion `ValueTree`) to XML. The before/after comparison is a diff
@@ -134,7 +134,7 @@ consequence of our restore and never happens spontaneously. The genuinely hard p
    reproduce opaque non-parameter state, dependent parameters, or controller sync
    (`project_undo_fidelity_nonnegotiable`).
 
-3. **Fixed-duration suppression window** (currently staged). Suppresses observation for a hardcoded
+3. **Fixed-duration suppression window**. Suppresses observation for a hardcoded
    interval after the restore. Defects #1 (fragile if re-announce outlasts it) and #2 (drops user
    edits made during the window). This is the thing we are replacing.
 
@@ -168,7 +168,21 @@ giving the master meter its own stable structural `LevelMeterPlugin`. See
 `project_preset_undo_freeze_resolved`. The full-chunk restore mechanism itself is correct and fast
 (~90 ms).
 
-## Proposed solution: restore-settle guard released by quiet-debounce OR user input
+## Current mitigation: restore-settle guard released by quiet-debounce
+
+The current code implements the quiet-debounce half of the plan:
+
+- On `setPluginState` (undo/redo restore): enter a per-plugin restore-settle guard and defer edit
+  emission.
+- Dirty callbacks during the guard push the quiet deadline forward.
+- When the plugin has been quiet for the guard interval, re-capture the baseline and exit the
+  guard.
+
+This solves the spurious re-announce entry, but it does **not** solve the immediate-post-undo user
+edit bug. Without a causal user-input signal, a real user edit during the guarded tail is
+indistinguishable from a restore re-announce callback and will be folded into the re-baseline.
+
+## Proposed completion: release the guard on user input
 
 Because passive observation cannot distinguish cause, key the suppression on **causality** (which is
 almost certainly how REAPER does it). A **restore-settle guard**:
@@ -177,13 +191,13 @@ almost certainly how REAPER does it). A **restore-settle guard**:
 - **Re-capture the baseline once the re-announce settles**, so the settled (9657-byte) chunk
   *becomes* the new baseline. The non-idempotent +4-byte drift is absorbed into the baseline and is
   never emitted as an edit.
-- **Exit the guard on a quiet-debounce** — no plugin callback for a short interval (~200 ms) —
-  rather than a fixed total duration. This tracks Nolly's actual multi-burst re-announce and fixes
-  defect **#1** (no fragile fixed window).
-- **Exit the guard immediately on detected user input to the plugin window.** If the user acts
+- **Exit the guard on a quiet-debounce** — no plugin callback for a short interval — rather than a
+  fixed total duration. This tracks Nolly's actual multi-burst re-announce and avoids a fragile
+  fixed total window.
+- **Also exit the guard immediately on detected user input to the plugin window.** If the user acts
   during the tail, the guard releases, the baseline is taken as current, and the user's change is
-  observed and recorded normally. This fixes defect **#2** (a user edit in the tail is never
-  dropped — closed by construction, not merely made unlikely).
+  observed and recorded normally. This fixes the remaining dropped-edit defect by construction, not
+  merely by making it unlikely.
 
 ### Why this is sound
 
