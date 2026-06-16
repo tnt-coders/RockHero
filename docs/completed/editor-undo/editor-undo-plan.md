@@ -1,11 +1,9 @@
 # Editor Undo/Redo Plan
 
-Status: in-progress planning note. Consolidated from the v9 review draft and supersedes the
-earlier numbered drafts that existed during plan review. This version keeps the faulted-session
-failure policy, fixes diagnostics ownership so `EditorUndoHistory` stays pure and directly
-testable, clarifies that undo-specific diagnostics are introduced with the undo stages that need
-them, and tightens faulted-session persistence so the app does not save from an untrusted live
-backend.
+Status: completed planning and implementation record. Consolidated from the v9 review draft and
+supersedes the earlier numbered drafts that existed during plan review. This version records the
+faulted-session failure policy, diagnostics ownership, undo-specific diagnostics, and
+faulted-session persistence decisions used by the implemented editor undo system.
 
 > **Parameter-undo correction (2026-06-16): plugin edits use full-state mementos.** The granular
 > parameter-value workaround was rejected after the freeze root cause was isolated to UI meter reads

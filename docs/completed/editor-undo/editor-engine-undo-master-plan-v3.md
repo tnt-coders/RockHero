@@ -1,43 +1,35 @@
 # Editor Engine And Undo Master Plan v3
 
-Status: in-progress master plan and the **entry point** for the editor undo initiative. Supersedes the
-earlier v2 draft (removed). This file and its companions all live in `docs/in-progress/editor-undo/`
-and form one plan: this file defines the order and decision; the others hold the detail.
+Status: completed master plan and decision record for the editor undo initiative. Supersedes the
+earlier v2 draft (removed). This file and its companions all live in `docs/completed/editor-undo/`
+and are retained as the completed implementation record.
 
-## Document map (all under `docs/in-progress/editor-undo/`)
+## Document map (all under `docs/completed/editor-undo/`)
 
 | Doc | Role | State |
 |---|---|---|
-| `editor-engine-undo-master-plan-v3.md` (this) | Coordinator: phases, decision record, implementation sequence | active |
-| `editor-undo-plan.md` | Detailed undo implementation (Stages 0–10): contracts, fakes, tests | active — this is Phase 3+ |
+| `editor-engine-undo-master-plan-v3.md` (this) | Coordinator: phases, decision record, implementation sequence | complete |
+| `editor-undo-plan.md` | Detailed undo implementation (Stages 0–10): contracts, fakes, tests | complete |
 | `undo-ownership-analysis.md` | Source-grounded Tracktion mechanics + the mementos-vs-delegation rationale | settled reference |
 | `editor-undo-phase-m-decision-review.md` | Phase M challenge review + final decision text + the 8 review answers | settled reference |
 | `editor-engine-undo-phase-b-findings.md` | Phase B evidence (B0 scoping + B3 measurement) | done reference |
 
 Related plans outside this folder, on which the undo work does **not** depend:
-`../remaining-god-object-decomposition-plan.md` (the `Engine::Impl` seam split — sequenced *after*
-undo) and `../../todo/test-fixture-opportunities-plan.md` (deferred).
+`../../in-progress/remaining-god-object-decomposition-plan.md` (the `Engine::Impl` seam split —
+sequenced *after* undo) and `../../todo/test-fixture-opportunities-plan.md` (deferred).
 
 ## Implementation sequence (the direct path)
 
-Done: Phase 0, Phase 1, Phase B (B0–B3), B2-lite+ monitoring-mode centralization (2026-06-12),
-Phase 2 / Stage 0 spike work needed for the current undo gate, and the Phase M decision. Some
-feature-specific verification remains deferred until suitable plugins or automation editing exist;
-those follow-ups are recorded in `editor-undo-plan.md` and block no stage of the sequence below:
-automation verification is out of the MVP undo scope, and the fallback-path check relates to Stage 6
-but its conservative design proceeds without it. Remaining, in order:
+Complete: Phase 0, Phase 1, Phase B (B0–B3), B2-lite+ monitoring-mode centralization
+(2026-06-12), Phase 2 / Stage 0 spike work needed for the undo gate, the Phase M decision, and the
+Stage 1–10 product undo implementation recorded in `editor-undo-plan.md`. Some feature-specific
+verification remains deferred until suitable plugins or automation editing exist; those follow-ups
+are recorded in `editor-undo-plan.md` and block no completed undo work: automation verification is
+out of the MVP undo scope, and plugin-diversity checks are conservative hardening items.
 
-1. **Stage 1 — `EditorUndoHistory`:** pure, headless, fakeable; no Tracktion dependency.
-2. **Headless sequence:** Stage 2 contracts + fakes + rollback-proof tests · Stage 3 action
-   ids/intents/availability/menu/shortcuts (kept disabled) + reveal-on-undo intents · Stage 4
-   placement + display-type · Stage 5 move.
-3. **Audio-adapter stages:** Stage 2 adapter half (`setPluginState`, observer, capture/restore) ·
-   Stage 6 parameters · Stage 7 output gain · Stage 8 remove memento +
-   rollback-contract/faulted-session handling.
-4. **Finalize:** Stage 9 dirty-state migration · Stage 10 enable the Edit menu/shortcuts (the ship gate).
-
-Only after undo: `../remaining-god-object-decomposition-plan.md` (separate initiative; undo first so it
-builds on the stable engine and adds adapter test coverage that de-risks the decomposition).
+After undo: `../../in-progress/remaining-god-object-decomposition-plan.md` (separate initiative; undo
+first so it builds on the stable engine and adds adapter test coverage that de-risks the
+decomposition).
 
 ## Why v3 exists
 
@@ -125,7 +117,7 @@ Phase B   BASELINE ENGINE CLEANUP (pre-undo, value on its own merits)
    B3  Re-measure transaction cleanliness on the cleaned base  [done]
 Phase 2   Tracktion behavior spike                            [done for current undo gate; targeted follow-ups deferred]
 Phase M   UNDO MECHANISM DECISION GATE                        [DECIDED 2026-06-11: RockHero mementos / Tracktion-as-backend]
-Phase 3+  Undo implementation (RockHero mementos)             [follow revised editor-undo-plan.md]
+Phase 3+  Undo implementation (RockHero mementos)             [complete; see editor-undo-plan.md]
 ```
 
 ## Temporary Spike Code Ledger
@@ -190,10 +182,10 @@ Expected source cleanup at spike close:
   `rg -n "SPIKE|test_undo_spike|spike[A-Z]" rock-hero-common/audio`; source hits should be gone
   unless a newer explicitly-ledgered spike still exists.
 
-The remaining god-object work (`../remaining-god-object-decomposition-plan.md`, the `Engine::Impl`
-seam split) is a separate initiative, **sequenced after undo** (see Implementation sequence): undo
-builds against the stable engine and adds `IPluginHost`/adapter test coverage that then de-risks the
-decomposition. It is not a prerequisite for undo.
+The remaining god-object work (`../../in-progress/remaining-god-object-decomposition-plan.md`, the
+`Engine::Impl` seam split) is a separate initiative, **sequenced after undo** (see Implementation
+sequence): undo builds against the stable engine and adds `IPluginHost`/adapter test coverage that
+then de-risks the decomposition. It is not a prerequisite for undo.
 
 ## Phase B - Baseline engine cleanup
 

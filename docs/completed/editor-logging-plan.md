@@ -1,7 +1,7 @@
 # Editor Logging Implementation Plan
 
 Status: completed (superseded approach), retired from `docs/in-progress/` in Phase 0 of the editor undo
-master plan (`../in-progress/editor-undo/editor-engine-undo-master-plan-v3.md`). The durable, file-backed editor logging this plan called for
+master plan (`editor-undo/editor-engine-undo-master-plan-v3.md`). The durable, file-backed editor logging this plan called for
 is implemented, but by a different mechanism than the plan specified. Retained as a historical
 record; see Implementation Result below for what actually shipped.
 

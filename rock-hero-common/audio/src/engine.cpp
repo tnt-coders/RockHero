@@ -57,7 +57,6 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
 constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::milliseconds{750};
-constexpr auto g_plugin_restore_quiet_debounce = std::chrono::milliseconds{200};
 
 enum class PluginWindowCommand
 {
@@ -1177,19 +1176,16 @@ public:
     using EmitEdit = std::function<void(PluginStateEdit)>;
     using PendingChanged = std::function<void()>;
     using ShouldDeferCapture = std::function<bool()>;
-    using DirtyObserved = std::function<void(const std::string&)>;
 
     PluginDirtyStateTracker(
         tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
-        PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-        DirtyObserved dirty_observed)
+        PendingChanged pending_changed, ShouldDeferCapture should_defer_capture)
         : m_plugin(plugin)
         , m_instance_id(plugin.itemID.toString().toStdString())
         , m_capture_state(std::move(capture_state))
         , m_emit_edit(std::move(emit_edit))
         , m_pending_changed(std::move(pending_changed))
         , m_should_defer_capture(std::move(should_defer_capture))
-        , m_dirty_observed(std::move(dirty_observed))
     {
         refreshBaseline();
         m_plugin.addSelectableListener(this);
@@ -1220,17 +1216,8 @@ public:
         settlePendingEdit();
     }
 
-    void discardPendingEditAndRefreshBaseline()
-    {
-        stopTimer();
-        m_before.reset();
-        refreshBaseline();
-        notifyPendingChanged();
-    }
-
     void markDirty()
     {
-        noteDirtyObserved();
         beginPendingEdit();
     }
 
@@ -1238,14 +1225,6 @@ private:
     [[nodiscard]] bool isCaptureDeferred() const
     {
         return m_should_defer_capture && m_should_defer_capture();
-    }
-
-    void noteDirtyObserved()
-    {
-        if (m_dirty_observed)
-        {
-            m_dirty_observed(m_instance_id);
-        }
     }
 
     [[nodiscard]] std::expected<PluginInstanceState, PluginHostError> captureState()
@@ -1288,11 +1267,6 @@ private:
 
     void selectableObjectChanged(tracktion::Selectable* selectable) override
     {
-        if (selectable == &m_plugin)
-        {
-            noteDirtyObserved();
-        }
-
         if (selectable != &m_plugin || isCaptureDeferred())
         {
             return;
@@ -1396,7 +1370,6 @@ private:
     EmitEdit m_emit_edit;
     PendingChanged m_pending_changed;
     ShouldDeferCapture m_should_defer_capture;
-    DirtyObserved m_dirty_observed;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
 };
@@ -2048,9 +2021,7 @@ private:
 } // namespace
 
 // Private Tracktion/JUCE adapter state hidden behind Engine's public pimpl boundary.
-struct Engine::Impl : public juce::ChangeListener,
-                      public juce::ValueTree::Listener,
-                      private juce::Timer
+struct Engine::Impl : public juce::ChangeListener, public juce::ValueTree::Listener
 {
 private:
     friend class Engine;
@@ -2120,16 +2091,6 @@ private:
 
     // Defers undo capture during host-owned restore/load paths without hiding dirty callbacks.
     bool m_plugin_undo_capture_deferred{false};
-
-    struct PluginRestoreSettleGuard
-    {
-        std::chrono::steady_clock::time_point quiet_deadline{};
-    };
-
-    // Per-plugin restore guards absorb callbacks caused by host-driven setStateInformation calls.
-    // Without a separate user-input signal, a manual edit during this quiet tail is still
-    // indistinguishable from a plugin re-announce and will be folded into the refreshed baseline.
-    std::unordered_map<std::string, PluginRestoreSettleGuard> m_plugin_restore_settle_guards;
 
     // Last aggregate pending state reported to the editor observer.
     bool m_plugin_edit_pending_notified{false};
@@ -2931,111 +2892,21 @@ private:
         }
     }
 
-    [[nodiscard]] bool hasPluginRestoreSettleGuard(const std::string& instance_id) const
-    {
-        return m_plugin_restore_settle_guards.contains(instance_id);
-    }
-
-    [[nodiscard]] bool shouldDeferPluginUndoCapture(const std::string& instance_id) const
+    [[nodiscard]] bool shouldDeferPluginUndoCapture() const
     {
         return m_plugin_undo_capture_deferred ||
-               (m_edit != nullptr && m_edit->getTransport().isPlaying()) ||
-               hasPluginRestoreSettleGuard(instance_id);
-    }
-
-    void schedulePluginRestoreSettleTimer()
-    {
-        if (m_plugin_restore_settle_guards.empty())
-        {
-            stopTimer();
-            return;
-        }
-
-        const auto now = std::chrono::steady_clock::now();
-        const auto next = std::ranges::min_element(
-            m_plugin_restore_settle_guards, [](const auto& left, const auto& right) {
-                return left.second.quiet_deadline < right.second.quiet_deadline;
-            });
-        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-            next->second.quiet_deadline - now);
-        startTimer(static_cast<int>(std::max(remaining.count(), 1LL)));
-    }
-
-    void beginPluginRestoreSettleGuard(const std::string& instance_id)
-    {
-        m_plugin_restore_settle_guards[instance_id] = PluginRestoreSettleGuard{
-            .quiet_deadline = std::chrono::steady_clock::now() + g_plugin_restore_quiet_debounce,
-        };
-        schedulePluginRestoreSettleTimer();
-    }
-
-    void notePluginDirtyObserved(const std::string& instance_id)
-    {
-        auto guard = m_plugin_restore_settle_guards.find(instance_id);
-        if (guard == m_plugin_restore_settle_guards.end())
-        {
-            return;
-        }
-
-        guard->second.quiet_deadline =
-            std::chrono::steady_clock::now() + g_plugin_restore_quiet_debounce;
-        schedulePluginRestoreSettleTimer();
+               (m_edit != nullptr && m_edit->getTransport().isPlaying());
     }
 
     void clearPluginUndoCaptureDeferral()
     {
-        stopTimer();
         m_plugin_undo_capture_deferred = false;
-        m_plugin_restore_settle_guards.clear();
-    }
-
-    void refreshPluginStateBaseline(const std::string& instance_id)
-    {
-        for (const std::unique_ptr<PluginDirtyStateTracker>& tracker : m_plugin_state_trackers)
-        {
-            if (tracker != nullptr && tracker->instanceId() == instance_id)
-            {
-                tracker->discardPendingEditAndRefreshBaseline();
-                break;
-            }
-        }
-
-        notifyPluginEditPendingStateChanged();
-    }
-
-    void settleQuietPluginRestoreGuards()
-    {
-        const auto now = std::chrono::steady_clock::now();
-        std::vector<std::string> settled_instance_ids;
-        for (const auto& [instance_id, guard] : m_plugin_restore_settle_guards)
-        {
-            if (guard.quiet_deadline <= now)
-            {
-                settled_instance_ids.push_back(instance_id);
-            }
-        }
-
-        if (settled_instance_ids.empty())
-        {
-            schedulePluginRestoreSettleTimer();
-            return;
-        }
-
-        const juce::ScopedValueSetter<bool> defer_plugin_undo_capture(
-            m_plugin_undo_capture_deferred, true);
-        for (const std::string& instance_id : settled_instance_ids)
-        {
-            m_plugin_restore_settle_guards.erase(instance_id);
-            refreshPluginStateBaseline(instance_id);
-        }
-
-        schedulePluginRestoreSettleTimer();
     }
 
     // Emits a completed plugin-wide state edit to editor-core unless the engine is restoring state.
     void emitPluginStateEdit(PluginStateEdit edit)
     {
-        if (shouldDeferPluginUndoCapture(edit.instance_id))
+        if (shouldDeferPluginUndoCapture())
         {
             return;
         }
@@ -3068,12 +2939,6 @@ private:
                 break;
             }
         }
-    }
-
-    void timerCallback() override
-    {
-        stopTimer();
-        settleQuietPluginRestoreGuards();
     }
 
     // Detaches all Tracktion plugin edit listeners and reports any aggregate pending transition.
@@ -3109,7 +2974,6 @@ private:
                 continue;
             }
 
-            const std::string instance_id = external_plugin->itemID.toString().toStdString();
             auto state_tracker = std::make_unique<PluginDirtyStateTracker>(
                 *external_plugin,
                 [this](tracktion::ExternalPlugin& observed_plugin)
@@ -3125,10 +2989,7 @@ private:
                 },
                 [this](PluginStateEdit edit) { emitPluginStateEdit(std::move(edit)); },
                 [this] { notifyPluginEditPendingStateChanged(); },
-                [this, instance_id] { return shouldDeferPluginUndoCapture(instance_id); },
-                [this](const std::string& observed_instance_id) {
-                    notePluginDirtyObserved(observed_instance_id);
-                });
+                [this] { return shouldDeferPluginUndoCapture(); });
             // The pointer targets the heap object owned by the unique_ptr, so vector growth does
             // not invalidate the callback target. Parameter trackers are cleared before state
             // trackers, so their callbacks cannot outlive the target.
@@ -4740,7 +4601,6 @@ std::expected<void, PluginHostError> Engine::setPluginState(
             m_impl->m_plugin_undo_capture_deferred, true);
         external_plugin->restorePluginStateFromValueTree(*plugin_state);
         copyPluginStatePreservingInstanceId(*external_plugin, *plugin_state);
-        m_impl->beginPluginRestoreSettleGuard(instance_id);
     }
     m_impl->refreshPluginEditObservers();
 

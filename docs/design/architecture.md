@@ -272,7 +272,7 @@ project loading, audio preparation, transport, or playback setup responsibilitie
 editor's undo/redo edit-command interface: that interface lives in `rock-hero-editor/core`, because
 undo entries also restore editor-only visual state (block placement, display-type overrides) that
 `rock-hero-common/audio` must not depend on (see
-`docs/in-progress/editor-undo/editor-undo-plan.md`). The empty `common::audio::IEdit` placeholder is
+`docs/completed/editor-undo/editor-undo-plan.md`). The empty `common::audio::IEdit` placeholder is
 a candidate for removal if no audio-model edit-command need materializes.
 
 Audio-device and settings boundaries report recoverable side-effect failures with typed errors.

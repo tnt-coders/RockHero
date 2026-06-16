@@ -1,7 +1,7 @@
 # Plugin Re-Announce Undo Pollution
 
-Status: **open** — root cause proven, quiet-debounce mitigation implemented, input causality
-release still unresolved.
+Status: **complete** — resolved by removing post-restore suppression and accepting coherent
+REAPER-like extra undo entries when plugins re-announce after restore.
 Last updated: 2026-06-16.
 
 ## The exact issue we are trying to resolve
@@ -11,30 +11,28 @@ When the user undoes (or redoes) a plugin state change on a live Tracktion `Exte
 full-chunk `setStateInformation`. After that restore, the plugin **asynchronously re-announces all
 of its parameters** over roughly 850 ms – 2.5 s, in multiple bursts with gaps between them.
 
-Our plugin-edit observer cannot tell that re-announce apart from a genuine user edit, so it records
-the re-announce as a **new, spurious undo entry**. Symptoms the user sees:
+Our plugin-edit observer cannot tell that re-announce apart from a genuine user edit. The resolved
+policy is to record later plugin dirtiness as normal full-state transactions rather than suppressing
+it and risking missed user edits. This can produce an extra coherent undo entry after restore, which
+matches the observed REAPER-like tradeoff. Earlier symptoms were:
 
 - The preset/dirty label shows `*` (dirty) after a clean undo.
 - The undo stack gains a bogus entry that, if undone, does nothing meaningful (or corrupts the
   user's mental model of the stack).
 
-The current mitigation is a **restore-settle quiet debounce** after each host-driven restore. It
-re-baselines after the plugin has stopped re-announcing dirty callbacks, so late re-announce bursts
-extend the guard instead of leaking onto the undo stack. It still has one defect we consider
-unacceptable:
+The rejected mitigation was a **restore-settle quiet debounce** after each host-driven restore. It
+absorbed late re-announce bursts, but it also created a period where genuine user edits could be
+folded into the refreshed baseline. That is worse than an extra undo entry.
 
-1. **Drops genuine user edits.** Any real parameter change the user makes *during* the guarded
-   quiet-debounce tail is silently swallowed. Per the user: "There should NEVER be a situation where
-   a manual user edit could be ignored by the undo queue. ... This COULD happen and is definitively
-   a bug. It would leave the undo stack in an invalid state. We CANNOT allow that."
+**Resolved policy:** only defer undo capture while RockHero is synchronously applying a host-owned
+state restore/load. After that call returns, all later plugin dirtiness is treated as a normal
+full-state transaction. This can create an extra coherent undo entry for a plugin's post-restore
+settling, but it should not drop immediate user edits.
 
-**Hard requirement:** a correct solution must (a) record real user edits (knob drags, in-plugin
-preset loads), (b) **never** drop a user edit, (c) never record a spurious edit from the
-re-announce, and (d) not rely on a fragile fixed-duration timer.
-
-Reference point: **REAPER hosts this same plugin with no post-undo delay** — you can undo and
-immediately make a new edit, and it is captured correctly with no spurious re-announce entry. So a
-clean mechanism demonstrably exists; we have been missing it.
+Reference point: **REAPER hosts this same plugin with no apparent post-undo settle window**. A
+follow-up test showed that immediately turning a knob after undoing a preset load required two
+subsequent Ctrl+Z presses, implying REAPER may tolerate an extra post-restore plugin-state entry
+rather than suppressing the tail completely.
 
 ## System context
 
@@ -134,9 +132,9 @@ consequence of our restore and never happens spontaneously. The genuinely hard p
    reproduce opaque non-parameter state, dependent parameters, or controller sync
    (`project_undo_fidelity_nonnegotiable`).
 
-3. **Fixed-duration suppression window**. Suppresses observation for a hardcoded
-   interval after the restore. Defects #1 (fragile if re-announce outlasts it) and #2 (drops user
-   edits made during the window). This is the thing we are replacing.
+3. **Fixed-duration suppression window**. Suppresses observation for a hardcoded interval after the
+   restore. Defects: fragile if re-announce outlasts it, and drops user edits made during the
+   window.
 
 4. **Gesture value-delta detection** (reverted). Recorded an edit only when a gesture's begin/end
    parameter values differed. **Dropped preset loads** — both the re-announce and a real in-plugin
@@ -168,65 +166,17 @@ giving the master meter its own stable structural `LevelMeterPlugin`. See
 `project_preset_undo_freeze_resolved`. The full-chunk restore mechanism itself is correct and fast
 (~90 ms).
 
-## Current mitigation: restore-settle guard released by quiet-debounce
+## Current implementation: no post-restore suppression tail
 
-The current code implements the quiet-debounce half of the plan:
+The current code implements the REAPER-like tradeoff:
 
-- On `setPluginState` (undo/redo restore): enter a per-plugin restore-settle guard and defer edit
-  emission.
-- Dirty callbacks during the guard push the quiet deadline forward.
-- When the plugin has been quiet for the guard interval, re-capture the baseline and exit the
-  guard.
+- `Engine::setPluginState` defers undo capture only around the synchronous
+  `restorePluginStateFromValueTree` / `setStateInformation` call.
+- After the call returns, plugin observers are rebuilt with the immediate restored chunk as their
+  baseline.
+- Any later re-announce, preset normalization, MIDI input, keybind, mouse edit, or plugin-internal
+  state change is captured by the normal `PluginDirtyStateTracker` full-state transaction path.
 
-This solves the spurious re-announce entry, but it does **not** solve the immediate-post-undo user
-edit bug. Without a causal user-input signal, a real user edit during the guarded tail is
-indistinguishable from a restore re-announce callback and will be folded into the re-baseline.
-
-## Proposed completion: release the guard on user input
-
-Because passive observation cannot distinguish cause, key the suppression on **causality** (which is
-almost certainly how REAPER does it). A **restore-settle guard**:
-
-- On `setPluginState` (undo/redo restore): enter the guard and suppress edit emission.
-- **Re-capture the baseline once the re-announce settles**, so the settled (9657-byte) chunk
-  *becomes* the new baseline. The non-idempotent +4-byte drift is absorbed into the baseline and is
-  never emitted as an edit.
-- **Exit the guard on a quiet-debounce** — no plugin callback for a short interval — rather than a
-  fixed total duration. This tracks Nolly's actual multi-burst re-announce and avoids a fragile
-  fixed total window.
-- **Also exit the guard immediately on detected user input to the plugin window.** If the user acts
-  during the tail, the guard releases, the baseline is taken as current, and the user's change is
-  observed and recorded normally. This fixes the remaining dropped-edit defect by construction, not
-  merely by making it unlikely.
-
-### Why this is sound
-
-- Spurious edits: impossible — the re-announce occurs only inside the guarded window and is absorbed
-  into the re-baseline.
-- Dropped user edits: impossible — the only way a change occurs during the window without our
-  restore causing it is a user input event, which releases the guard.
-- Preset loads and knob drags after the window: recorded normally by the existing trackers against
-  the settled baseline.
-
-### New infrastructure required
-
-The one missing piece is **detecting mouse-down inside the plugin's native child window**. We
-already have the keyboard half: the Windows native hook (`native_hook`) that forwards plugin-window
-shortcuts such as Ctrl+Z. We would add mouse-down detection on the plugin's child HWND so that a
-knob grab during the tail releases the guard. Keyboard alone is insufficient because the dangerous
-dropped-edit case is a mouse knob-drag immediately after Ctrl+Z.
-
-### Open questions / confirm before implementing
-
-- Confirm the causality/input model matches the user's understanding of how REAPER avoids this
-  (input-driven capture, not state diff).
-- Confirm adding plugin-window **mouse-input** detection alongside the existing keyboard hook is
-  acceptable — this is the piece that makes "never drop a user edit" airtight.
-- Decide the quiet-debounce interval (start ~200 ms; the observed re-announce bursts are ~90 ms
-  apart and the whole settle completes within ~1.5 s).
-
-### Temporary instrumentation to remove
-
-`Engine::setPluginState` currently contains a temporary `[chunk]` measurement block (captures
-`IDs::state` / `IDs::parameters` at restore time and 2.5 s later). Remove it as part of
-implementing the chosen solution.
+This deliberately chooses **never drop later edits** over **never create a post-restore entry**. If
+Nolly's re-announce changes the opaque chunk after undo/redo, that change can become an extra undo
+entry. The entry should still be coherent because it is a full before/after plugin-state memento.

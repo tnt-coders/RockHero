@@ -102,7 +102,7 @@ engine.cpp                   - thin: just what cannot move (or remove if fully d
 
 `engine.h` stays at the public root as the composition-facing facade.
 
-**Folder discipline (reconciled with the editor undo master plan, `editor-undo/editor-engine-undo-master-plan-v3.md`).** Introduce a
+**Folder discipline (reconciled with the editor undo master plan, `../completed/editor-undo/editor-engine-undo-master-plan-v3.md`).** Introduce a
 `src/tracktion/` subfolder only when a genuine private cluster has emerged and the flat folder is
 demonstrably hard to scan — earn the folder, do not pre-create it. This matches the "folders before
 namespaces" principle and the deferred register's warning against moving a monolith into a folder
