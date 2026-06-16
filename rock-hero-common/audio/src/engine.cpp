@@ -2342,6 +2342,11 @@ private:
     tracktion::EditItemID m_output_gain_plugin_id;
     tracktion::EditItemID m_output_meter_plugin_id;
 
+    // Structural master-output meter, living on the edit master plugin list rather than the
+    // instrument track. It rides a stable measurer (unlike the churning EditPlaybackContext), so the
+    // UI meter read never re-registers a client onto a measurer that is mid-rebuild.
+    tracktion::EditItemID m_master_meter_plugin_id;
+
     // Meter readers registered with Tracktion measurers on demand by audioMeterSnapshot().
     mutable MeterReader m_input_meter_reader;
     mutable MeterReader m_output_meter_reader;
@@ -3451,6 +3456,24 @@ private:
         return nullptr;
     }
 
+    // Finds the structural master-output LevelMeterPlugin on the edit master plugin list, or null.
+    [[nodiscard]] tracktion::LevelMeterPlugin* findStructuralMasterMeterPlugin(
+        tracktion::EditItemID plugin_id) const
+    {
+        if (!plugin_id.isValid() || m_edit == nullptr)
+        {
+            return nullptr;
+        }
+        for (tracktion::Plugin* const plugin : m_edit->getMasterPluginList())
+        {
+            if (plugin != nullptr && plugin->itemID == plugin_id)
+            {
+                return dynamic_cast<tracktion::LevelMeterPlugin*>(plugin);
+            }
+        }
+        return nullptr;
+    }
+
     // Creates a hidden live-rig gain plugin on the instrument track at the given index.
     [[nodiscard]] std::expected<LiveRigGainPlugin*, LiveRigError> createLiveRigGainPlugin(
         int insert_index)
@@ -3507,6 +3530,42 @@ private:
             return std::unexpected{LiveRigError{
                 LiveRigErrorCode::PluginRestoreFailed,
                 "Could not insert structural live rig meter plugin",
+            }};
+        }
+
+        return level_meter;
+    }
+
+    // Creates the structural master-output LevelMeterPlugin at the end of the edit master plugin
+    // list. Unlike EditPlaybackContext::masterLevels, this measurer is not torn down when a plugin
+    // reconfigure rebuilds the playback graph, so the UI meter read stays a no-op re-attach.
+    [[nodiscard]] std::expected<tracktion::LevelMeterPlugin*, LiveRigError>
+    createMasterLevelMeterPlugin()
+    {
+        if (m_edit == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Edit is not available for master meter creation",
+            }};
+        }
+        const tracktion::Plugin::Ptr plugin =
+            m_edit->getPluginCache().createNewPlugin(tracktion::LevelMeterPlugin::xmlTypeName, {});
+        if (plugin == nullptr)
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not create structural master meter plugin",
+            }};
+        }
+        tracktion::PluginList& master_list = m_edit->getMasterPluginList();
+        master_list.insertPlugin(plugin, -1, nullptr);
+        auto* const level_meter = dynamic_cast<tracktion::LevelMeterPlugin*>(plugin.get());
+        if (level_meter == nullptr || !master_list.contains(level_meter))
+        {
+            return std::unexpected{LiveRigError{
+                LiveRigErrorCode::PluginRestoreFailed,
+                "Could not insert structural master meter plugin",
             }};
         }
 
@@ -3601,6 +3660,13 @@ private:
         }
         m_output_meter_plugin_id = (*created_output_meter)->itemID;
 
+        auto created_master_meter = createMasterLevelMeterPlugin();
+        if (!created_master_meter.has_value())
+        {
+            return std::unexpected{std::move(created_master_meter.error())};
+        }
+        m_master_meter_plugin_id = (*created_master_meter)->itemID;
+
         return validateStructuralLiveRigPlugins();
     }
 
@@ -3631,6 +3697,7 @@ private:
     {
         m_input_meter_reader.detach();
         m_output_meter_reader.detach();
+        m_master_meter_reader.detach();
 
         if (auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
             input_meter != nullptr)
@@ -3642,6 +3709,12 @@ private:
             output_meter != nullptr)
         {
             output_meter->measurer.clear();
+        }
+
+        if (auto* const master_meter = findStructuralMasterMeterPlugin(m_master_meter_plugin_id);
+            master_meter != nullptr)
+        {
+            master_meter->measurer.clear();
         }
     }
 
@@ -3998,10 +4071,13 @@ private:
             m_output_meter_reader.detach();
         }
 
-        auto* const playback_context = m_edit->getCurrentPlaybackContext();
-        if (playback_context != nullptr)
+        // Master rides a stable structural meter, not the churning EditPlaybackContext, so attach()
+        // is a no-op once registered - the UI read never calls getCurrentPlaybackContext() or
+        // re-registers a client onto a measurer that a plugin reconfigure is mid-rebuild.
+        if (auto* const master_meter = findStructuralMasterMeterPlugin(m_master_meter_plugin_id);
+            master_meter != nullptr)
         {
-            m_master_meter_reader.attach(&playback_context->masterLevels);
+            m_master_meter_reader.attach(&master_meter->measurer);
         }
         else
         {

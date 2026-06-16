@@ -1970,8 +1970,11 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     CHECK(plugin_host.set_parameter_value_call_count == 0);
 }
 
-// Parameter-representable state edits avoid opaque state restore on undo and redo.
-TEST_CASE("EditorController replays plugin state parameters", "[core][editor-controller]")
+// Plugin-wide state edits always replay the opaque state chunk, even when parameter snapshots are
+// available, because preset/file loads can carry plugin-owned non-parameter state.
+TEST_CASE(
+    "EditorController replays plugin state through opaque state restore",
+    "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -1993,13 +1996,17 @@ TEST_CASE("EditorController replays plugin state parameters", "[core][editor-con
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
 
-    const common::audio::PluginInstanceState state =
-        pluginStateFromEntry(pluginEntry("instance-a", 0, 0));
+    common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    common::audio::PluginChainEntry after_entry = before_entry;
+    after_entry.name = "Archetype Nolly X Lead";
+    after_entry.category = "Fx|Amp";
+    const common::audio::PluginInstanceState before_state = pluginStateFromEntry(before_entry);
+    const common::audio::PluginInstanceState after_state = pluginStateFromEntry(after_entry);
     plugin_host.queuePendingPluginStateEdit(
         common::audio::PluginStateEdit{
             .instance_id = "instance-a",
-            .before = state,
-            .after = state,
+            .before = before_state,
+            .after = after_state,
             .before_parameters =
                 {
                     common::audio::PluginParameterSnapshot{
@@ -2029,21 +2036,17 @@ TEST_CASE("EditorController replays plugin state parameters", "[core][editor-con
 
     controller.onUndoRequested();
 
-    CHECK(plugin_host.set_parameter_value_call_count == 1);
-    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"amp-gain"});
-    CHECK(plugin_host.last_set_parameter_index == std::optional{3});
-    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.25});
-    CHECK(plugin_host.set_state_call_count == 0);
+    CHECK(plugin_host.set_state_call_count == 1);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{before_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 0);
 
     controller.onRedoRequested();
 
-    CHECK(plugin_host.set_parameter_value_call_count == 2);
-    CHECK(plugin_host.last_set_parameter_instance_id == std::optional<std::string>{"instance-a"});
-    CHECK(plugin_host.last_set_parameter_id == std::optional<std::string>{"amp-gain"});
-    CHECK(plugin_host.last_set_parameter_index == std::optional{3});
-    CHECK(plugin_host.last_set_parameter_normalized_value == std::optional{0.75});
-    CHECK(plugin_host.set_state_call_count == 0);
+    CHECK(plugin_host.set_state_call_count == 2);
+    CHECK(plugin_host.last_set_state_instance_id == std::optional<std::string>{"instance-a"});
+    CHECK(plugin_host.last_set_state == std::optional{after_state});
+    CHECK(plugin_host.set_parameter_value_call_count == 0);
 }
 
 // The action gate settles pending parameter values before deciding whether Undo is available.
