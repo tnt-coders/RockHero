@@ -3022,12 +3022,13 @@ private:
         notifyPluginEditPendingStateChanged();
     }
 
-    // Keeps plugin-list mutation, monitoring teardown, re-route, and failure routing in one path.
+    // Keeps user-plugin mutation, monitoring re-route, and failure routing in one path.
     template <typename Mutate, typename Rollback>
     [[nodiscard]] std::expected<void, PluginHostError> mutateAndReroutePluginChain(
         Mutate mutate, Rollback rollback, std::string_view route_rollback_context)
     {
-        stopTransportAndReleaseContext();
+        const bool was_playing = m_edit != nullptr && m_edit->getTransport().isPlaying();
+        RH_LOG_INFO("audio.engine", "Plugin-chain mutation started playing_before={}", was_playing);
         clearPluginEditObservers();
 
         auto mutation_result = mutate();
@@ -3036,6 +3037,10 @@ private:
             PluginChainMutationFailure failure = std::move(mutation_result.error());
             rebuildInstrumentMonitoringGraphBestEffort(failure.reroute_context);
             refreshPluginEditObservers();
+            RH_LOG_INFO(
+                "audio.engine",
+                "Plugin-chain mutation failed playing_after={}",
+                m_edit != nullptr && m_edit->getTransport().isPlaying());
             return std::unexpected{std::move(failure.error)};
         }
 
@@ -3043,12 +3048,20 @@ private:
         if (route_result.has_value())
         {
             refreshPluginEditObservers();
+            RH_LOG_INFO(
+                "audio.engine",
+                "Plugin-chain mutation completed playing_after={}",
+                m_edit != nullptr && m_edit->getTransport().isPlaying());
             return {};
         }
 
         rollback();
         rebuildInstrumentMonitoringGraphBestEffort(route_rollback_context);
         refreshPluginEditObservers();
+        RH_LOG_INFO(
+            "audio.engine",
+            "Plugin-chain mutation rolled back playing_after={}",
+            m_edit != nullptr && m_edit->getTransport().isPlaying());
         return std::unexpected{pluginHostErrorFromLiveInputError(route_result.error())};
     }
 

@@ -303,9 +303,10 @@ rows.
 ## Rock Hero Editor
 
 Hosts tone design and chart authoring in one process. Loads and mutates `Song`/`Arrangement`
-while auditioning playback. Disables structural model edits while transport is running. Tone and
-chart decisions are kept in one executable by design — they are too tightly coupled to author in
-separate tools.
+while auditioning playback. User plugin-chain edits are allowed during audition playback; broader
+session and arrangement lifecycle operations may still fence transport while replacing the active
+playback graph. Tone and chart decisions are kept in one executable by design — they are too tightly
+coupled to author in separate tools.
 
 ## Rock Hero Game
 
