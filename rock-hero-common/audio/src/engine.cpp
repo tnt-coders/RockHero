@@ -58,6 +58,14 @@ constexpr std::string_view g_plugin_scan_command_line_prefix{"--PluginScan:"};
 constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::milliseconds{750};
 
+// After a programmatic state restore (undo/redo), the plugin asynchronously re-announces its
+// parameters; that re-announce must never be recorded as a user edit (doing so discards the redo
+// stack). Any dirty transaction beginning within this window of the restore - or of the previous
+// absorbed re-announce settling - is folded into the baseline instead of emitted. The window
+// self-extends on each absorbed settle, so it tracks a multi-burst re-announce and closes shortly
+// after the plugin goes quiet.
+constexpr auto g_plugin_post_restore_absorb_window = std::chrono::milliseconds{100};
+
 enum class PluginWindowCommand
 {
     Undo,
@@ -1218,7 +1226,11 @@ public:
     {
         if (initial_baseline.has_value())
         {
+            // An initial baseline is only supplied on the restore (undo/redo) rebuild path, so arm
+            // the absorb window just as resetBaseline does for the in-place retarget path.
             m_baseline = std::move(initial_baseline);
+            m_absorb_deadline =
+                std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
         }
         else
         {
@@ -1257,11 +1269,16 @@ public:
         beginPendingEdit();
     }
 
+    // Retargets the baseline to a just-restored (undo/redo) memento and arms the absorb window so
+    // the plugin's asynchronous post-restore re-announce is folded into the baseline instead of
+    // recorded as a spurious user edit (which would discard the redo stack).
     void resetBaseline(PluginInstanceState baseline)
     {
         stopTimer();
         m_before.reset();
+        m_absorbing_current = false;
         m_baseline = std::move(baseline);
+        m_absorb_deadline = std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
         notifyPendingChanged();
     }
 
@@ -1339,12 +1356,14 @@ private:
             }
 
             m_before = *m_baseline;
+            m_absorbing_current = std::chrono::steady_clock::now() < m_absorb_deadline;
             notifyPendingChanged();
             RH_LOG_INFO(
                 "audio.engine",
-                "Plugin state edit started instance_id={} label_hint={}",
+                "Plugin state edit started instance_id={} label_hint={} absorbing={}",
                 m_instance_id,
-                m_plugin.getName().toStdString());
+                m_plugin.getName().toStdString(),
+                m_absorbing_current);
         }
 
         startTimer(static_cast<int>(g_plugin_dirty_transaction_quiet_debounce.count()));
@@ -1370,6 +1389,8 @@ private:
         auto after = captureState();
         PluginInstanceState before = std::move(*m_before);
         m_before.reset();
+        const bool absorbing = m_absorbing_current;
+        m_absorbing_current = false;
         if (!after.has_value())
         {
             RH_LOG_WARNING(
@@ -1383,6 +1404,22 @@ private:
         }
 
         m_baseline = *after;
+        if (absorbing)
+        {
+            // Post-restore re-announce: fold it into the baseline and extend the window so the next
+            // burst of the same re-announce (often triggered by this settle's own state flush) is
+            // absorbed too. Never emitted as an edit.
+            m_absorb_deadline =
+                std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
+            RH_LOG_INFO(
+                "audio.engine",
+                "Absorbed post-restore plugin re-announce instance_id={} label_hint={}",
+                m_instance_id,
+                m_plugin.getName().toStdString());
+            notifyPendingChanged();
+            return;
+        }
+
         if (before != *after && m_emit_edit)
         {
             RH_LOG_INFO(
@@ -1416,6 +1453,10 @@ private:
     ShouldDeferCapture m_should_defer_capture;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
+    // True while the in-flight transaction is a post-restore re-announce to be absorbed, not emitted.
+    bool m_absorbing_current = false;
+    // Transactions beginning before this deadline are absorbed; armed/extended around a restore.
+    std::chrono::steady_clock::time_point m_absorb_deadline{};
 };
 
 // Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
