@@ -1202,6 +1202,58 @@ private:
     std::vector<tracktion::AutomatableParameter::Ptr> m_parameters;
 };
 
+// Tracks the brief window after a plugin-state restore during which the plugin re-announces its
+// own state. Two facts that always change together live here: the window deadline (armed and
+// extended around restores) and whether the dirty transaction currently in flight began inside
+// that window and should therefore be absorbed rather than emitted as an edit. Message-thread
+// only; no synchronization.
+class PostRestoreAbsorbWindow final
+{
+public:
+    // Opens or extends the absorb window, measured from now.
+    void arm() noexcept
+    {
+        m_deadline = Clock::now() + g_plugin_post_restore_absorb_window;
+    }
+
+    // Begins a dirty transaction; returns whether it started inside the absorb window.
+    [[nodiscard]] bool beginTransaction() noexcept
+    {
+        m_transaction_absorbing = Clock::now() < m_deadline;
+        return m_transaction_absorbing;
+    }
+
+    [[nodiscard]] bool isAbsorbingTransaction() const noexcept
+    {
+        return m_transaction_absorbing;
+    }
+
+    // Reports whether an armed window has closed. False on a never-armed window so callers cannot
+    // read a default-constructed deadline as already elapsed.
+    [[nodiscard]] bool hasElapsed() const noexcept
+    {
+        return m_deadline != Clock::time_point{} && Clock::now() >= m_deadline;
+    }
+
+    // Closes the in-flight transaction; returns whether it was still being absorbed.
+    [[nodiscard]] bool finishTransaction() noexcept
+    {
+        return std::exchange(m_transaction_absorbing, false);
+    }
+
+    // Abandons the in-flight transaction's absorb flag without touching the window.
+    void clearTransaction() noexcept
+    {
+        m_transaction_absorbing = false;
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+
+    Clock::time_point m_deadline{};
+    bool m_transaction_absorbing{false};
+};
+
 // Owns one plugin's debounced dirty-state transaction and emits full-state edits.
 class PluginDirtyStateTracker final : private tracktion::SelectableListener, private juce::Timer
 {
@@ -1228,8 +1280,7 @@ public:
             // An initial baseline is only supplied on the restore (undo/redo) rebuild path, so arm
             // the absorb window just as resetBaseline does for the in-place retarget path.
             m_baseline = std::move(initial_baseline);
-            m_absorb_deadline =
-                std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
+            m_post_restore_absorb.arm();
         }
         else
         {
@@ -1275,9 +1326,9 @@ public:
     {
         stopTimer();
         m_before.reset();
-        m_absorbing_current = false;
+        m_post_restore_absorb.clearTransaction();
         m_baseline = std::move(baseline);
-        m_absorb_deadline = std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
+        m_post_restore_absorb.arm();
         notifyPendingChanged();
     }
 
@@ -1342,13 +1393,14 @@ private:
             return;
         }
 
-        const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-        if (m_before.has_value() && m_absorbing_current && now >= m_absorb_deadline)
+        // A transaction can begin as a post-restore re-announce, then receive a real user edit
+        // after the short absorb window but before the longer debounce settles. Once the window has
+        // elapsed, keep the transaction open but stop treating it as restore noise so the final
+        // state change is emitted as a normal edit.
+        if (m_before.has_value() && m_post_restore_absorb.isAbsorbingTransaction() &&
+            m_post_restore_absorb.hasElapsed())
         {
-            // The absorb decision is allowed to expire while the 750ms quiet debounce is still
-            // open. Without this, a quick user edit after undo can be folded into an old absorbed
-            // re-announce transaction and the next Undo falls through to the plugin insert entry.
-            m_absorbing_current = false;
+            m_post_restore_absorb.clearTransaction();
             RH_LOG_INFO(
                 "audio.engine",
                 "Plugin state edit left post-restore absorb window instance_id={} label_hint={}",
@@ -1369,14 +1421,14 @@ private:
             }
 
             m_before = *m_baseline;
-            m_absorbing_current = now < m_absorb_deadline;
+            const bool absorbing = m_post_restore_absorb.beginTransaction();
             notifyPendingChanged();
             RH_LOG_INFO(
                 "audio.engine",
                 "Plugin state edit started instance_id={} label_hint={} absorbing={}",
                 m_instance_id,
                 m_plugin.getName().toStdString(),
-                m_absorbing_current);
+                absorbing);
         }
 
         startTimer(static_cast<int>(g_plugin_dirty_transaction_quiet_debounce.count()));
@@ -1402,8 +1454,7 @@ private:
         auto after = captureState();
         PluginInstanceState before = std::move(*m_before);
         m_before.reset();
-        const bool absorbing = m_absorbing_current;
-        m_absorbing_current = false;
+        const bool absorbing = m_post_restore_absorb.finishTransaction();
         if (!after.has_value())
         {
             RH_LOG_WARNING(
@@ -1422,8 +1473,7 @@ private:
             // Post-restore re-announce: fold it into the baseline and extend the window so the next
             // burst of the same re-announce (often triggered by this settle's own state flush) is
             // absorbed too. Never emitted as an edit.
-            m_absorb_deadline =
-                std::chrono::steady_clock::now() + g_plugin_post_restore_absorb_window;
+            m_post_restore_absorb.arm();
             RH_LOG_INFO(
                 "audio.engine",
                 "Absorbed post-restore plugin re-announce instance_id={} label_hint={}",
@@ -1466,11 +1516,7 @@ private:
     ShouldDeferCapture m_should_defer_capture;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
-    // True while the in-flight transaction is a post-restore re-announce to be absorbed, not
-    // emitted.
-    bool m_absorbing_current = false;
-    // Transactions beginning before this deadline are absorbed; armed/extended around a restore.
-    std::chrono::steady_clock::time_point m_absorb_deadline{};
+    PostRestoreAbsorbWindow m_post_restore_absorb;
 };
 
 // Builds the opaque project-owned candidate that UI and core callers can pass back to the host.
