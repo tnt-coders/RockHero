@@ -1,5 +1,6 @@
 #include "main_window.h"
 
+#include <algorithm>
 #include <cassert>
 #include <rock_hero/editor/ui/editor.h>
 #include <utility>
@@ -12,8 +13,34 @@ namespace
 
 constexpr int g_main_window_min_width{1280};
 constexpr int g_main_window_min_height{720};
-constexpr int g_main_window_default_width{1920};
-constexpr int g_main_window_default_height{1080};
+constexpr int g_main_window_restore_width{1920};
+constexpr int g_main_window_restore_height{1080};
+
+// Keeps the restored native window inside the OS work area. A 1920x1080 restored window does not
+// fit on a 1080p Windows desktop once the title bar and taskbar are included.
+[[nodiscard]] juce::Rectangle<int> restoredMainWindowBounds() noexcept
+{
+    const auto* const display = juce::Desktop::getInstance().getDisplays().getPrimaryDisplay();
+    if (display == nullptr)
+    {
+        return {0, 0, g_main_window_restore_width, g_main_window_restore_height};
+    }
+
+    const juce::Rectangle<int> user_bounds = display->userBounds.toNearestInt();
+    if (user_bounds.isEmpty())
+    {
+        return {0, 0, g_main_window_restore_width, g_main_window_restore_height};
+    }
+
+    const juce::Rectangle<int> preferred_bounds{
+        0,
+        0,
+        std::min(g_main_window_restore_width, user_bounds.getWidth()),
+        std::min(g_main_window_restore_height, user_bounds.getHeight()),
+    };
+
+    return preferred_bounds.withCentre(user_bounds.getCentre()).constrainedWithin(user_bounds);
+}
 
 } // namespace
 
@@ -36,9 +63,15 @@ MainWindow::MainWindow(
         setContentNonOwned(&m_editor->component(), true);
     }
     setResizable(true, false);
-    setResizeLimits(g_main_window_min_width, g_main_window_min_height, 8192, 8192);
-    centreWithSize(g_main_window_default_width, g_main_window_default_height);
+    const juce::Rectangle<int> restore_bounds = restoredMainWindowBounds();
+    setResizeLimits(
+        std::min(g_main_window_min_width, restore_bounds.getWidth()),
+        std::min(g_main_window_min_height, restore_bounds.getHeight()),
+        8192,
+        8192);
+    setBounds(restore_bounds);
     setVisible(true);
+    setFullScreen(true);
 }
 
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
