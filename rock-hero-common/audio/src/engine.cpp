@@ -59,11 +59,10 @@ constexpr auto g_plugin_scan_timeout = std::chrono::seconds{30};
 constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::milliseconds{750};
 
 // After a programmatic state restore (undo/redo), the plugin asynchronously re-announces its
-// parameters; that re-announce must never be recorded as a user edit (doing so discards the redo
-// stack). Any dirty transaction beginning within this window of the restore - or of the previous
-// absorbed re-announce settling - is folded into the baseline instead of emitted. The window
-// self-extends on each absorbed settle, so it tracks a multi-burst re-announce and closes shortly
-// after the plugin goes quiet.
+// parameters; immediate re-announces should not become user edits because that discards the redo
+// stack. The window self-extends on each absorbed settle, but an already-open absorbed transaction
+// that receives more dirty signals after the deadline is recorded so real user edits are not lost
+// inside the longer quiet debounce.
 constexpr auto g_plugin_post_restore_absorb_window = std::chrono::milliseconds{100};
 
 enum class PluginWindowCommand
@@ -1343,6 +1342,20 @@ private:
             return;
         }
 
+        const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+        if (m_before.has_value() && m_absorbing_current && now >= m_absorb_deadline)
+        {
+            // The absorb decision is allowed to expire while the 750ms quiet debounce is still
+            // open. Without this, a quick user edit after undo can be folded into an old absorbed
+            // re-announce transaction and the next Undo falls through to the plugin insert entry.
+            m_absorbing_current = false;
+            RH_LOG_INFO(
+                "audio.engine",
+                "Plugin state edit left post-restore absorb window instance_id={} label_hint={}",
+                m_instance_id,
+                m_plugin.getName().toStdString());
+        }
+
         if (!m_before.has_value())
         {
             if (!m_baseline.has_value())
@@ -1356,7 +1369,7 @@ private:
             }
 
             m_before = *m_baseline;
-            m_absorbing_current = std::chrono::steady_clock::now() < m_absorb_deadline;
+            m_absorbing_current = now < m_absorb_deadline;
             notifyPendingChanged();
             RH_LOG_INFO(
                 "audio.engine",
@@ -1453,7 +1466,8 @@ private:
     ShouldDeferCapture m_should_defer_capture;
     std::optional<PluginInstanceState> m_baseline;
     std::optional<PluginInstanceState> m_before;
-    // True while the in-flight transaction is a post-restore re-announce to be absorbed, not emitted.
+    // True while the in-flight transaction is a post-restore re-announce to be absorbed, not
+    // emitted.
     bool m_absorbing_current = false;
     // Transactions beginning before this deadline are absorbed; armed/extended around a restore.
     std::chrono::steady_clock::time_point m_absorb_deadline{};
