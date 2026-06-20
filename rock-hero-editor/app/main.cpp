@@ -97,7 +97,7 @@ public:
         m_logging_started = logging_result.has_value();
         if (logging_result.has_value())
         {
-            RH_LOG_INFO("editor.app", "Rock Hero Editor started log_file={}", log_file.string());
+            RH_LOG_INFO("editor.app", "Rock Hero Editor started log_file={:?}", log_file.string());
         }
         else
         {

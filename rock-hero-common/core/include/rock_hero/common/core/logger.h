@@ -30,6 +30,12 @@ namespace rock_hero::common::core
 Normal project code logs through `RH_LOG_*("category", "message {}", value)`. Realtime-capable
 code uses the explicit `RH_RT_LOG_*` macros with a pre-created \ref RealtimeHandle so the audio
 thread never performs logger lookup or category creation.
+
+Field convention: format string values with `{}` for scalars and `{:?}` for strings. The `{:?}`
+debug specifier quotes and escapes the value, so whitespace and delimiters in names, paths, and
+messages stay unambiguous in `key=value` records (`label_hint={:?}` renders `label_hint="My
+Plugin"`). The specifier is resolved on the backend thread, so it behaves identically in the
+normal and `RH_RT_LOG_*` realtime macros and costs nothing extra on the calling thread.
 */
 struct Logger
 {

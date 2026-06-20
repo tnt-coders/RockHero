@@ -211,7 +211,7 @@ void logPluginValidationSummary(
     {
         RH_LOG_WARNING(
             "audio.plugin_validation",
-            "Plugin validation failed plugin_path={} duration_ms={} error={}",
+            "Plugin validation failed plugin_path={:?} duration_ms={} error={:?}",
             plugin_path_text,
             total_duration.count(),
             *failure_message);
@@ -220,7 +220,7 @@ void logPluginValidationSummary(
     {
         RH_LOG_INFO(
             "audio.plugin_validation",
-            "Plugin validation succeeded plugin_path={} duration_ms={}",
+            "Plugin validation succeeded plugin_path={:?} duration_ms={}",
             plugin_path_text,
             total_duration.count());
     }
@@ -366,7 +366,7 @@ void logInstrumentMonitoringFailure(const juce::String& message)
 {
     RH_LOG_WARNING(
         "audio.instrument_monitoring",
-        "Instrument monitoring route failed detail={}",
+        "Instrument monitoring route failed detail={:?}",
         message.toStdString());
 }
 
@@ -1366,7 +1366,7 @@ private:
         {
             RH_LOG_WARNING(
                 "audio.engine",
-                "Could not refresh plugin state baseline instance_id={} detail={}",
+                "Could not refresh plugin state baseline instance_id={:?} detail={:?}",
                 m_instance_id,
                 captured.error().message);
             m_baseline.reset();
@@ -1403,7 +1403,8 @@ private:
             m_post_restore_absorb.clearTransaction();
             RH_LOG_INFO(
                 "audio.engine",
-                "Plugin state edit left post-restore absorb window instance_id={} label_hint={}",
+                "Plugin state edit left post-restore absorb window instance_id={:?} "
+                "label_hint={:?}",
                 m_instance_id,
                 m_plugin.getName().toStdString());
         }
@@ -1425,7 +1426,7 @@ private:
             notifyPendingChanged();
             RH_LOG_INFO(
                 "audio.engine",
-                "Plugin state edit started instance_id={} label_hint={} absorbing={}",
+                "Plugin state edit started instance_id={:?} label_hint={:?} absorbing={}",
                 m_instance_id,
                 m_plugin.getName().toStdString(),
                 absorbing);
@@ -1459,7 +1460,7 @@ private:
         {
             RH_LOG_WARNING(
                 "audio.engine",
-                "Could not complete plugin state edit instance_id={} detail={}",
+                "Could not complete plugin state edit instance_id={:?} detail={:?}",
                 m_instance_id,
                 after.error().message);
             refreshBaseline();
@@ -1476,7 +1477,7 @@ private:
             m_post_restore_absorb.arm();
             RH_LOG_INFO(
                 "audio.engine",
-                "Absorbed post-restore plugin re-announce instance_id={} label_hint={}",
+                "Absorbed post-restore plugin re-announce instance_id={:?} label_hint={:?}",
                 m_instance_id,
                 m_plugin.getName().toStdString());
             notifyPendingChanged();
@@ -1487,7 +1488,7 @@ private:
         {
             RH_LOG_INFO(
                 "audio.engine",
-                "Plugin state edit completed instance_id={} label_hint={}",
+                "Plugin state edit completed instance_id={:?} label_hint={:?}",
                 m_instance_id,
                 m_plugin.getName().toStdString());
             m_emit_edit(
@@ -1824,7 +1825,7 @@ private:
 
         RH_LOG_INFO(
             "audio.engine",
-            "Plugin window shortcut forwarded source={} command={}",
+            "Plugin window shortcut forwarded source={:?} command={:?}",
             source,
             commandName(command));
         m_command_dispatcher(command);
@@ -4842,7 +4843,7 @@ std::expected<void, PluginHostError> Engine::setPluginState(
     {
         RH_LOG_INFO(
             "audio.engine",
-            "Resuming transport after plugin state restore instance_id={} label_hint={}",
+            "Resuming transport after plugin state restore instance_id={:?} label_hint={:?}",
             instance_id,
             external_plugin->getName().toStdString());
         transport.play(false);
@@ -4851,7 +4852,7 @@ std::expected<void, PluginHostError> Engine::setPluginState(
 
     RH_LOG_INFO(
         "audio.engine",
-        "[timing] setPluginState total={}ms restore={}ms observer={}ms instance_id={}",
+        "[timing] setPluginState total={}ms restore={}ms observer={}ms instance_id={:?}",
         ms_since(t_begin),
         restore_ms,
         observer_ms,
