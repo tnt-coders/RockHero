@@ -60,7 +60,7 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
 {
     RH_LOG_WARNING(
         "editor.controller",
-        "Best-effort cleanup or persistence failed context={} detail={}",
+        "Best-effort cleanup or persistence failed context={:?} detail={:?}",
         context,
         message);
 }
@@ -312,26 +312,26 @@ struct InsertUndoPreparationRollbackResult
 
 void logEditorActionRequested(EditorAction::Id action)
 {
-    RH_LOG_INFO("editor.controller", "Action requested action={}", actionIdText(action));
+    RH_LOG_INFO("editor.controller", "Action requested action={:?}", actionIdText(action));
 }
 
 void logEditorActionAvailabilityRejected(EditorAction::Id action, std::string_view reason)
 {
     RH_LOG_INFO(
         "editor.controller",
-        "Action availability rejected action={} reason={}",
+        "Action availability rejected action={:?} reason={:?}",
         actionIdText(action),
         reason);
 }
 
 void logEditorActionStarted(EditorAction::Id action)
 {
-    RH_LOG_INFO("editor.controller", "Action started action={}", actionIdText(action));
+    RH_LOG_INFO("editor.controller", "Action started action={:?}", actionIdText(action));
 }
 
 void logEditorActionDispatchCompleted(EditorAction::Id action)
 {
-    RH_LOG_INFO("editor.controller", "Action dispatch completed action={}", actionIdText(action));
+    RH_LOG_INFO("editor.controller", "Action dispatch completed action={:?}", actionIdText(action));
 }
 
 [[nodiscard]] std::string_view undoDirectionText(EditorUndoDirection direction) noexcept
@@ -479,7 +479,7 @@ void logEditorUndoTransitionResult(
 {
     RH_LOG_INFO(
         "editor.controller",
-        "Undo transition result context={} status={} failure={} requires_fault={}",
+        "Undo transition result context={:?} status={:?} failure={:?} requires_fault={}",
         context,
         undoTransitionStatusText(result.status),
         undoFailureCodeText(result.failure_code),
@@ -491,7 +491,7 @@ void logEditorUndoTransitionResult(
             event.direction.has_value() ? undoDirectionText(*event.direction) : "none";
         RH_LOG_INFO(
             "editor.controller",
-            "Undo transition event context={} type={} label={} direction={} failure={} "
+            "Undo transition event context={:?} type={:?} label={:?} direction={:?} failure={:?} "
             "requires_fault={}",
             context,
             undoEventTypeText(event.type),
@@ -2673,7 +2673,7 @@ void EditorController::Impl::faultSessionAfterRollbackContractViolation(
     const std::string_view direction = undoDirectionText(pending.direction);
     RH_LOG_ERROR(
         "editor.controller",
-        "Rollback contract violation context={} direction={} label={}",
+        "Rollback contract violation context={:?} direction={:?} label={:?}",
         context,
         direction,
         label);
@@ -2685,7 +2685,10 @@ void EditorController::Impl::faultSessionAfterRollbackContractViolation(
     std::string_view context, std::string_view detail)
 {
     RH_LOG_ERROR(
-        "editor.controller", "Rollback contract violation context={} detail={}", context, detail);
+        "editor.controller",
+        "Rollback contract violation context={:?} detail={:?}",
+        context,
+        detail);
     enterFaultedSession();
 }
 
@@ -2797,7 +2800,7 @@ void EditorController::Impl::flushPendingPluginEdits(std::string_view context)
         return;
     }
 
-    RH_LOG_INFO("editor.controller", "Flushing pending plugin edit context={}", context);
+    RH_LOG_INFO("editor.controller", "Flushing pending plugin edit context={:?}", context);
     m_plugin_host.flushPendingPluginEdits();
 }
 
@@ -2815,7 +2818,7 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
     {
         RH_LOG_INFO(
             "editor.controller",
-            "Dropped stale plugin state edit instance_id={}",
+            "Dropped stale plugin state edit instance_id={:?}",
             edit.instance_id);
         return;
     }
@@ -2824,14 +2827,14 @@ void EditorController::Impl::onPluginStateEditCompleted(common::audio::PluginSta
     {
         RH_LOG_INFO(
             "editor.controller",
-            "Dropped unchanged plugin state edit instance_id={}",
+            "Dropped unchanged plugin state edit instance_id={:?}",
             edit.instance_id);
         return;
     }
 
     RH_LOG_INFO(
         "editor.controller",
-        "Completed plugin state edit instance_id={} label_hint={}",
+        "Completed plugin state edit instance_id={:?} label_hint={:?}",
         edit.instance_id,
         edit.label_hint);
     auto undo_edit = std::make_unique<PluginStateEdit>();
