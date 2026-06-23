@@ -90,6 +90,22 @@ void MainWindow::closeButtonPressed()
     requestExit();
 }
 
+// Routes editor shortcuts when native focus lands on the top-level window shell.
+bool MainWindow::keyPressed(const juce::KeyPress& key)
+{
+    if (m_editor != nullptr)
+    {
+        juce::Component& editor_component = m_editor->component();
+        if (!editor_component.isCurrentlyBlockedByAnotherModalComponent() &&
+            editor_component.keyPressed(key))
+        {
+            return true;
+        }
+    }
+
+    return juce::DocumentWindow::keyPressed(key);
+}
+
 // Routes platform quit requests through the same guarded exit flow as the close button.
 void MainWindow::requestExit()
 {
