@@ -3865,22 +3865,33 @@ private:
         MonitorChannel channel, bool enabled, bool input_device_available,
         std::string_view rollback_context)
     {
-        const std::optional<MonitoringFlags> requested = monitoringFlagsForRequest(
-            MonitoringFlags{
-                .live_input = m_live_input_monitoring_enabled,
-                .calibration = m_calibration_input_monitoring_enabled
-            },
-            channel,
-            enabled,
-            input_device_available);
+        const MonitoringFlags current{
+            .live_input = m_live_input_monitoring_enabled,
+            .calibration = m_calibration_input_monitoring_enabled
+        };
+        const std::optional<MonitoringFlags> requested =
+            monitoringFlagsForRequest(current, channel, enabled, input_device_available);
 
         if (!requested.has_value())
         {
             // No input device to route from: force both modes off and report the route failure.
             m_live_input_monitoring_enabled = false;
             m_calibration_input_monitoring_enabled = false;
-            rebuildInstrumentMonitoringGraphBestEffort(rollback_context);
+            // If monitoring was already off, there is no route to tear down. Tracktion graph
+            // rebuilds can allocate playback contexts, so skip them when no state changes.
+            if (current.live_input || current.calibration)
+            {
+                rebuildInstrumentMonitoringGraphBestEffort(rollback_context);
+            }
             return std::unexpected{LiveInputError{LiveInputErrorCode::InputRouteUnavailable}};
+        }
+
+        if (requested->live_input == current.live_input &&
+            requested->calibration == current.calibration)
+        {
+            // Lifecycle gates can repeat monitoring requests that leave both flags unchanged.
+            // Rebuilding Tracktion routing in that case does work for an identical graph.
+            return {};
         }
 
         m_live_input_monitoring_enabled = requested->live_input;
