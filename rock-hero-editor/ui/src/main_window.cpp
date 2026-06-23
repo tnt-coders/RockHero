@@ -70,8 +70,10 @@ MainWindow::MainWindow(
         8192,
         8192);
     setBounds(restore_bounds);
-    setVisible(true);
+    // Make the first native show use the maximized state directly. Showing the restored bounds
+    // first lets Windows present a stretched restored-size frame before the maximize call lands.
     setFullScreen(true);
+    setVisible(true);
 }
 
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
