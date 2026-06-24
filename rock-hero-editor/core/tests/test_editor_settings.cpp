@@ -30,6 +30,7 @@ constexpr const char* g_input_calibration_input_channel_name_key{
     "inputCalibrationInputChannelName"
 };
 constexpr const char* g_input_calibration_states_json_key{"inputCalibrationStatesJson"};
+constexpr const char* g_project_cursor_positions_json_key{"projectCursorPositionsJson"};
 
 // Owns one build-local settings file so each test starts with clean persisted state.
 class ScopedSettingsFile final
@@ -141,6 +142,15 @@ void writeRawSetting(
     const EditorSettings& settings, const common::audio::InputDeviceIdentity& identity)
 {
     auto result = settings.inputCalibrationFor(identity);
+    REQUIRE(result.has_value());
+    return std::move(*result);
+}
+
+// Reads project cursor state through the typed settings contract and returns the optional payload.
+[[nodiscard]] std::optional<common::core::TimePosition> projectCursorPositionFor(
+    const EditorSettings& settings, const std::filesystem::path& project_file)
+{
+    auto result = settings.projectCursorPositionFor(project_file);
     REQUIRE(result.has_value());
     return std::move(*result);
 }
@@ -286,6 +296,68 @@ TEST_CASE("EditorSettings clears the audio device state", "[core][settings]")
     const EditorSettings reloaded_settings{settings_file.path()};
 
     CHECK_FALSE(reloaded_settings.audioDeviceState().has_value());
+}
+
+// Project cursor history persists app-local resume state without storing it in project packages.
+TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_project_cursor.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Cursor Project.rhp";
+    const std::filesystem::path other_project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Other Cursor Project.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{4.25})
+                    .has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK(
+        projectCursorPositionFor(reloaded_settings, project_file) ==
+        std::optional{common::core::TimePosition{4.25}});
+    CHECK_FALSE(projectCursorPositionFor(reloaded_settings, other_project_file).has_value());
+}
+
+// Saving the same project cursor again replaces only that project's resume position.
+TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"overwrites_project_cursor.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "overwritten_cursor.rhp";
+    EditorSettings settings{settings_file.path()};
+
+    REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{1.0})
+                .has_value());
+    REQUIRE(settings.saveProjectCursorPosition(project_file, common::core::TimePosition{7.5})
+                .has_value());
+
+    CHECK(
+        projectCursorPositionFor(settings, project_file) ==
+        std::optional{common::core::TimePosition{7.5}});
+}
+
+// Malformed cursor JSON is reported and preserved instead of overwritten by a save attempt.
+TEST_CASE("EditorSettings preserves malformed cursor history", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"malformed_project_cursor.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "malformed_cursor.rhp";
+    writeRawSetting(
+        settings_file.path(), g_project_cursor_positions_json_key, juce::String{"not-json"});
+
+    EditorSettings settings{settings_file.path()};
+    const auto loaded = settings.projectCursorPositionFor(project_file);
+    CHECK_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidProjectCursorHistory);
+
+    const auto saved =
+        settings.saveProjectCursorPosition(project_file, common::core::TimePosition{2.0});
+    CHECK_FALSE(saved.has_value());
+    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidProjectCursorHistory);
+    CHECK(rawSettingExists(settings_file.path(), g_project_cursor_positions_json_key));
 }
 
 // Calibration history persists one physical input route and ignores unrelated routes.

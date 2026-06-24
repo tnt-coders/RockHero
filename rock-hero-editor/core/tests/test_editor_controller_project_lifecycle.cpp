@@ -136,6 +136,7 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
         CHECK(state.suggested_publish_file == std::filesystem::path{"second.rock"});
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
+        CHECK(state.project_load_id == 1);
         CHECK(state.save_requires_destination == false);
         CHECK_FALSE(state.unsaved_changes_prompt.has_value());
     }
@@ -143,6 +144,41 @@ TEST_CASE("EditorController successful open stores audio", "[core][editor-contro
     // completion commits or fails. The inline default task runner runs both synchronously.
     CHECK(view.set_state_call_count == pushes_before_success + 2);
     CHECK(view.shown_errors.size() == 1);
+}
+
+// Opening a saved project restores its resume cursor from app-local settings.
+TEST_CASE("EditorController open restores settings cursor", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"open_restores_settings_cursor"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    REQUIRE(
+        settings.saveProjectCursorPosition(files.projectFile(), common::core::TimePosition{2.75})
+            .has_value());
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    controller.onOpenRequested(files.projectFile());
+
+    CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.75}});
+    CHECK(transport.current_position == common::core::TimePosition{2.75});
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->project_loaded == true);
+    CHECK(state->project_load_id == 1);
 }
 
 // Close stops playback, clears backend audio, and returns the view to an empty project state.
@@ -186,6 +222,38 @@ TEST_CASE("EditorController close clears loaded project", "[core][editor-control
     }
 }
 
+// Closing a saved project stores the current cursor before transport stop resets it.
+TEST_CASE("EditorController close stores settings cursor", "[core][editor-controller]")
+{
+    const ScopedControllerFiles files{"close_stores_settings_cursor"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_song =
+        makeSong(std::filesystem::path{"song.wav"}, loadedTimelineRange(6.0));
+    controller.onOpenRequested(files.projectFile());
+    transport.current_position = common::core::TimePosition{3.5};
+
+    controller.onCloseRequested();
+
+    const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
+    REQUIRE(stored_cursor.has_value());
+    CHECK(*stored_cursor == std::optional{common::core::TimePosition{3.5}});
+}
+
 // Exiting persists the editor project path before requesting host shutdown.
 TEST_CASE("EditorController persists project file on exit", "[core][editor-controller]")
 {
@@ -222,12 +290,15 @@ TEST_CASE("EditorController persists project file on exit", "[core][editor-contr
 // Save writes the currently loaded session song through the injected persistence seam.
 TEST_CASE("EditorController save writes current session song", "[core][editor-controller]")
 {
+    const ScopedControllerFiles files{"save_project_cursor_position"};
+    files.createProjectFile();
+    EditorSettings settings{files.settingsFile()};
     FakeTransport transport;
     ConfigurableSongAudio audio;
     FakeProjectServices project_services;
     EditorController controller{
         audioPorts(transport, audio),
-        defaultControllerServices(),
+        controllerServices(settings),
         noopExitFunction(),
         EditorController::ProjectOperations{
             .open_function = project_services.openFunction(),
@@ -242,7 +313,7 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
         .path = std::filesystem::path{"song.wav"}, .normalization = std::nullopt
     };
     project_services.next_song = makeSong(audio_asset.path);
-    controller.onOpenRequested(std::filesystem::path{"song.rhp"});
+    controller.onOpenRequested(files.projectFile());
     transport.current_position = common::core::TimePosition{1.25};
 
     controller.onSaveRequested();
@@ -253,9 +324,11 @@ TEST_CASE("EditorController save writes current session song", "[core][editor-co
     CHECK(
         project_services.last_save_editor_state ==
         std::optional{ProjectEditorState{
-            .cursor_position = common::core::TimePosition{1.25},
             .selected_arrangement = std::string{g_lead_arrangement_id},
         }});
+    const auto stored_cursor = settings.projectCursorPositionFor(files.projectFile());
+    REQUIRE(stored_cursor.has_value());
+    CHECK(*stored_cursor == std::optional{common::core::TimePosition{1.25}});
     CHECK(view.shown_errors.empty());
 }
 
@@ -491,6 +564,8 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
     };
     project_services.next_import_song = makeSong(replacement.path, loadedTimelineRange(4.0));
+    transport.current_position = common::core::TimePosition{2.5};
+    transport.last_seek_position.reset();
     controller.onImportRequested(std::filesystem::path{"second.psarc"});
 
     const common::core::Session& session = controller.session();
@@ -503,6 +578,11 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     CHECK(session.currentArrangement()->audio_asset == replacement);
     CHECK(session.currentArrangement()->audio_duration == common::core::TimeDuration{4.0});
     CHECK(session.timeline() == loadedTimelineRange(4.0));
+    const common::core::TimePosition imported_timeline_start = session.timeline().start;
+    CHECK(transport.current_position == imported_timeline_start);
+    CHECK(
+        transport.last_seek_position ==
+        std::optional<common::core::TimePosition>{imported_timeline_start});
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
     {
@@ -513,6 +593,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
         CHECK(state.publish_enabled == true);
         CHECK(state.close_enabled == true);
         CHECK(state.project_loaded == true);
+        CHECK(state.project_load_id == 1);
         CHECK(state.save_requires_destination == true);
     }
     // Each import produces two pushes: one when busy state begins, one when the task completion
@@ -570,7 +651,6 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
     CHECK(
         project_services.last_save_as_editor_state ==
         std::optional{ProjectEditorState{
-            .cursor_position = common::core::TimePosition{2.5},
             .selected_arrangement = std::string{g_lead_arrangement_id},
         }});
     REQUIRE(view.last_state.has_value());
