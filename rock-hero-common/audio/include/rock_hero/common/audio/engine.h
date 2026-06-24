@@ -292,7 +292,7 @@ public:
     void setPluginStateEditObserver(PluginStateEditObserver observer) override;
 
     /*!
-    \brief Installs callbacks for Undo/Redo shortcuts received by hosted plugin editor windows.
+    \brief Installs callbacks for shortcuts received by hosted plugin editor windows.
     \param observer Callback set replacing any previous observer.
     */
     void setPluginWindowCommandObserver(PluginWindowCommandObserver observer) override;

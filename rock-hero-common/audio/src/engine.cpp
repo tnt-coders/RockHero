@@ -69,6 +69,7 @@ enum class PluginWindowCommand
 {
     Undo,
     Redo,
+    PlayPause,
 };
 
 using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
@@ -98,6 +99,11 @@ using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
 {
     return hasCommandShortcutModifier(key) && !key.getModifiers().isShiftDown() &&
            normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
+}
+
+[[nodiscard]] bool isPlayPauseShortcut(const juce::KeyPress& key) noexcept
+{
+    return key == juce::KeyPress{juce::KeyPress::spaceKey};
 }
 
 // Formats filesystem paths as UTF-8 text for stable IDs and logs. path::string() can lossy-convert
@@ -1796,6 +1802,12 @@ private:
             return true;
         }
 
+        if (isPlayPauseShortcut(key))
+        {
+            postCommandShortcut(PluginWindowCommand::PlayPause, source);
+            return true;
+        }
+
         return false;
     }
 
@@ -1810,6 +1822,10 @@ private:
             case PluginWindowCommand::Redo:
             {
                 return "Redo";
+            }
+            case PluginWindowCommand::PlayPause:
+            {
+                return "Play/Pause";
             }
         }
 
@@ -1863,7 +1879,16 @@ private:
             return std::nullopt;
         }
 
-        if (!isKeyDown(VK_CONTROL) || isKeyDown(VK_MENU) || isKeyDown(VK_SHIFT))
+        const bool control_down = isKeyDown(VK_CONTROL);
+        const bool alt_down = isKeyDown(VK_MENU);
+        const bool shift_down = isKeyDown(VK_SHIFT);
+
+        if (!control_down && !alt_down && !shift_down && message.wParam == VK_SPACE)
+        {
+            return PluginWindowCommand::PlayPause;
+        }
+
+        if (!control_down || alt_down || shift_down)
         {
             return std::nullopt;
         }
@@ -3080,6 +3105,14 @@ private:
                 if (m_plugin_window_command_observer.redo_requested)
                 {
                     m_plugin_window_command_observer.redo_requested();
+                }
+                break;
+            }
+            case PluginWindowCommand::PlayPause:
+            {
+                if (m_plugin_window_command_observer.play_pause_requested)
+                {
+                    m_plugin_window_command_observer.play_pause_requested();
                 }
                 break;
             }
@@ -4918,7 +4951,7 @@ void Engine::setPluginStateEditObserver(PluginStateEditObserver observer)
     m_impl->m_plugin_state_edit_observer = std::move(observer);
 }
 
-// Stores the app-level endpoint for hosted plugin-window Undo/Redo shortcuts.
+// Stores the app-level endpoint for hosted plugin-window shortcuts.
 void Engine::setPluginWindowCommandObserver(PluginWindowCommandObserver observer)
 {
     if (!juce::MessageManager::getInstance()->isThisTheMessageThread())
