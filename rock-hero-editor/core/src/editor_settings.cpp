@@ -1,11 +1,13 @@
 #include "editor_settings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -18,6 +20,9 @@ namespace
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
+constexpr const char* g_project_cursor_positions_json_key{"projectCursorPositionsJson"};
+constexpr const char* g_cursor_project_file_property{"projectFile"};
+constexpr const char* g_cursor_position_property{"cursorPosition"};
 constexpr const char* g_input_calibration_gain_db_key{"inputCalibrationGainDb"};
 constexpr const char* g_input_calibration_backend_name_key{"inputCalibrationBackendName"};
 constexpr const char* g_input_calibration_input_device_name_key{"inputCalibrationInputDeviceName"};
@@ -35,6 +40,18 @@ constexpr const char* g_calibration_input_channel_index_property{"inputChannelIn
 constexpr const char* g_calibration_input_channel_name_property{"inputChannelName"};
 
 using common::core::Json;
+
+struct ProjectCursorState
+{
+    std::filesystem::path project_file;
+    common::core::TimePosition cursor_position{};
+};
+
+struct ProjectCursorHistory
+{
+    std::vector<ProjectCursorState> states;
+    bool malformed_json{false};
+};
 
 struct InputCalibrationHistory
 {
@@ -98,6 +115,128 @@ void removeLegacyInputCalibration(juce::PropertiesFile& properties)
     properties.removeValue(g_input_calibration_input_device_name_key);
     properties.removeValue(g_input_calibration_input_channel_index_key);
     properties.removeValue(g_input_calibration_input_channel_name_key);
+}
+
+// Converts project paths into stable app-settings keys without requiring callers to pre-normalize
+// chooser, restore, and test paths.
+[[nodiscard]] std::filesystem::path projectCursorKeyFor(const std::filesystem::path& project_file)
+{
+    if (project_file.empty())
+    {
+        return {};
+    }
+
+    std::error_code error;
+    const std::filesystem::path canonical = std::filesystem::weakly_canonical(project_file, error);
+    if (!error && !canonical.empty())
+    {
+        return canonical.lexically_normal();
+    }
+
+    return project_file.lexically_normal();
+}
+
+// Replaces any existing cursor record for a project path with the newest resume position.
+void replaceProjectCursor(
+    std::vector<ProjectCursorState>& history, const std::filesystem::path& project_file,
+    common::core::TimePosition cursor_position)
+{
+    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    if (key.empty() || !std::isfinite(cursor_position.seconds))
+    {
+        return;
+    }
+
+    std::erase_if(history, [&key](const ProjectCursorState& existing) {
+        return projectCursorKeyFor(existing.project_file) == key;
+    });
+    history.push_back(ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
+}
+
+// Converts one JSON object into a validated project cursor record.
+[[nodiscard]] std::optional<ProjectCursorState> readProjectCursorStateJson(const juce::var& value)
+{
+    if (!value.isObject())
+    {
+        return std::nullopt;
+    }
+
+    const auto project_file = Json::tryReadString(value, g_cursor_project_file_property);
+    const auto cursor_position = Json::tryReadDouble(value, g_cursor_position_property);
+    if (!project_file.has_value() || project_file->empty() || !cursor_position.has_value() ||
+        !std::isfinite(*cursor_position))
+    {
+        return std::nullopt;
+    }
+
+    std::filesystem::path key = projectCursorKeyFor(
+        common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
+    if (key.empty())
+    {
+        return std::nullopt;
+    }
+
+    return ProjectCursorState{
+        .project_file = std::move(key),
+        .cursor_position = common::core::TimePosition{*cursor_position},
+    };
+}
+
+// Loads app-local project cursor history. Malformed top-level JSON is preserved as a failure so
+// callers do not overwrite unknown user state with a partial replacement.
+[[nodiscard]] ProjectCursorHistory readProjectCursorHistory(const juce::PropertiesFile& properties)
+{
+    if (!properties.containsKey(g_project_cursor_positions_json_key))
+    {
+        return {};
+    }
+
+    const juce::String json_text = properties.getValue(g_project_cursor_positions_json_key);
+    auto parsed = Json::parseDocument(json_text);
+    if (!parsed.has_value() || !parsed->isArray())
+    {
+        return ProjectCursorHistory{.states = {}, .malformed_json = true};
+    }
+
+    ProjectCursorHistory history;
+    history.states.reserve(static_cast<std::size_t>(parsed->size()));
+    const juce::Array<juce::var>* const array = parsed->getArray();
+    for (const juce::var& item : *array)
+    {
+        if (std::optional<ProjectCursorState> state = readProjectCursorStateJson(item);
+            state.has_value())
+        {
+            replaceProjectCursor(history.states, state->project_file, state->cursor_position);
+        }
+    }
+
+    return history;
+}
+
+// Serializes one project cursor record into app-local settings JSON.
+[[nodiscard]] juce::var makeProjectCursorStateJson(const ProjectCursorState& state)
+{
+    return Json::makeObject({
+        {g_cursor_project_file_property,
+         Json::makeString(common::core::juceStringFromPath(state.project_file).toStdString())},
+        {g_cursor_position_property, juce::var{state.cursor_position.seconds}},
+    });
+}
+
+// Writes a complete replacement cursor history as one structured settings value.
+void writeProjectCursorHistory(
+    juce::PropertiesFile& properties, const std::vector<ProjectCursorState>& history)
+{
+    juce::var history_json = Json::makeArray();
+    for (const ProjectCursorState& state : history)
+    {
+        if (!state.project_file.empty() && std::isfinite(state.cursor_position.seconds))
+        {
+            history_json.append(makeProjectCursorStateJson(state));
+        }
+    }
+
+    properties.setValue(g_project_cursor_positions_json_key, juce::JSON::toString(history_json));
 }
 
 // Replaces any existing record for a route with the newest one so duplicate history cannot make
@@ -359,6 +498,64 @@ std::expected<void, EditorSettingsError> EditorSettings::setAudioDeviceState(
     }
 
     return saveIfNeeded(m_properties, "Could not save audio device state setting.");
+}
+
+// Reads the app-local resume cursor associated with one project path.
+std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> EditorSettings::
+    projectCursorPositionFor(const std::filesystem::path& project_file) const
+{
+    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    if (key.empty())
+    {
+        return std::nullopt;
+    }
+
+    const ProjectCursorHistory history = readProjectCursorHistory(m_properties);
+    if (history.malformed_json)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidProjectCursorHistory,
+            "Saved project cursor history is not valid JSON."
+        }};
+    }
+
+    const auto found =
+        std::ranges::find_if(history.states, [&key](const ProjectCursorState& state) {
+            return projectCursorKeyFor(state.project_file) == key;
+        });
+    if (found == history.states.end())
+    {
+        return std::nullopt;
+    }
+
+    return found->cursor_position;
+}
+
+// Stores one project's app-local resume cursor without treating it as project package data.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPosition(
+    const std::filesystem::path& project_file, common::core::TimePosition cursor_position)
+{
+    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    if (key.empty() || !std::isfinite(cursor_position.seconds))
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save a project cursor for an invalid project path or position."
+        }};
+    }
+
+    ProjectCursorHistory history = readProjectCursorHistory(m_properties);
+    if (history.malformed_json)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidProjectCursorHistory,
+            "Cannot save project cursor because saved cursor history is invalid."
+        }};
+    }
+
+    replaceProjectCursor(history.states, key, cursor_position);
+    writeProjectCursorHistory(m_properties, history.states);
+    return saveNow(m_properties, "Could not save project cursor setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.

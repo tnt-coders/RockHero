@@ -82,6 +82,26 @@ public:
     }
 
     /*!
+    \brief Reports that no app-local project cursor is stored.
+    \return Always empty optional success.
+    */
+    [[nodiscard]] std::expected<std::optional<common::core::TimePosition>, EditorSettingsError>
+    projectCursorPositionFor(const std::filesystem::path&) const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores app-local project cursor writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCursorPosition(
+        const std::filesystem::path&, common::core::TimePosition) override
+    {
+        return {};
+    }
+
+    /*!
     \brief Reports that no calibration is stored for the supplied input route.
     \return Always empty optional success.
     */

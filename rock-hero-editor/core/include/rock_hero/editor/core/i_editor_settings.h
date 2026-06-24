@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_settings_error.h>
 #include <string>
 
@@ -70,6 +71,24 @@ public:
     */
     [[nodiscard]] virtual std::expected<void, EditorSettingsError> setAudioDeviceState(
         std::optional<std::string> serialized_state) = 0;
+
+    /*!
+    \brief Reads the app-local resume cursor stored for an editor project path.
+    \param project_file Project path whose cursor should be restored.
+    \return Cursor position, absence, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<
+        std::optional<common::core::TimePosition>, EditorSettingsError>
+    projectCursorPositionFor(const std::filesystem::path& project_file) const = 0;
+
+    /*!
+    \brief Stores or replaces the app-local resume cursor for an editor project path.
+    \param project_file Project path that owns the cursor.
+    \param cursor_position Cursor position to restore next time this path is opened.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectCursorPosition(
+        const std::filesystem::path& project_file, common::core::TimePosition cursor_position) = 0;
 
     /*!
     \brief Reads app-local input calibration for one physical input route.

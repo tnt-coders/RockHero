@@ -121,21 +121,6 @@ std::expected<ProjectEditorState, ProjectError> readProjectDocument(
         }};
     }
 
-    const juce::var& cursor_position_json = Json::value(editor_state_json, "cursorPosition");
-    if (!cursor_position_json.isVoid() && !cursor_position_json.isUndefined())
-    {
-        if (!cursor_position_json.isInt() && !cursor_position_json.isInt64() &&
-            !cursor_position_json.isDouble())
-        {
-            return std::unexpected{ProjectError{
-                ProjectErrorCode::InvalidProjectDocument, "cursorPosition must be a number"
-            }};
-        }
-
-        editor_state.cursor_position =
-            common::core::TimePosition{static_cast<double>(cursor_position_json)};
-    }
-
     auto selected_arrangement = readOptionalString(editor_state_json, "selectedArrangement");
     if (!selected_arrangement.has_value())
     {
@@ -156,8 +141,7 @@ std::expected<void, ProjectError> writeProjectDocument(
     const std::filesystem::path& workspace_directory, const ProjectEditorState& editor_state,
     const std::vector<std::string>& arrangement_ids)
 {
-    juce::var editor_state_json =
-        Json::makeObject({{"cursorPosition", juce::var{editor_state.cursor_position.seconds}}});
+    juce::var editor_state_json = Json::makeObject({});
 
     const auto selected_arrangement = selectedArrangementForSave(editor_state, arrangement_ids);
     if (selected_arrangement.has_value())

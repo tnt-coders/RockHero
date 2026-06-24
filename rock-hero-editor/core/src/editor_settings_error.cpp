@@ -21,6 +21,10 @@ namespace
         {
             return "Saved input calibration settings are invalid.";
         }
+        case EditorSettingsErrorCode::InvalidProjectCursorHistory:
+        {
+            return "Saved project cursor settings are invalid.";
+        }
         case EditorSettingsErrorCode::CouldNotSave:
         {
             return "Could not save editor settings.";

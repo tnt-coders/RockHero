@@ -12,7 +12,6 @@
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/song.h>
-#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/i_song_importer.h>
 #include <rock_hero/editor/core/project_error.h>
 #include <string>
@@ -40,9 +39,6 @@ and editor session state as different concerns.
 */
 struct ProjectEditorState
 {
-    /*! \brief Cursor position to restore when the project is opened. */
-    common::core::TimePosition cursor_position{};
-
     /*! \brief Arrangement ID to display when the project is opened, if one was saved. */
     std::optional<std::string> selected_arrangement;
 

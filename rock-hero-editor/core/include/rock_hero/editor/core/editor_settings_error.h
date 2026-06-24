@@ -19,6 +19,9 @@ enum class EditorSettingsErrorCode
     /*! \brief Persisted input calibration history could not be parsed. */
     InvalidInputCalibrationHistory,
 
+    /*! \brief Persisted project cursor history could not be parsed. */
+    InvalidProjectCursorHistory,
+
     /*! \brief The settings file could not be saved. */
     CouldNotSave,
 };

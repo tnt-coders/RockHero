@@ -913,7 +913,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void openProject(const std::filesystem::path& file, bool clear_last_open_project_on_failure);
     void completeOpenProject(const std::shared_ptr<OpenTaskState>& state);
     void finishOpenProjectAfterLiveRigLoad(
-        const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
+        const std::shared_ptr<OpenTaskState>& state,
         std::expected<void, common::audio::LiveRigError> rig_result);
     void importSongSource(const std::filesystem::path& file);
     void completeImportSongSource(const std::shared_ptr<ImportTaskState>& state);
@@ -961,6 +961,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearInterruptedRestoreMarker();
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
+    [[nodiscard]] common::core::TimePosition cursorPositionForOpenedProject(
+        const std::filesystem::path& project_file) const;
+    void saveCurrentProjectCursorPositionBestEffort(std::string_view context);
+    void saveProjectCursorPositionBestEffort(
+        const std::filesystem::path& project_file, common::core::TimePosition cursor_position,
+        std::string_view context);
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(
         common::core::Song song, const std::optional<std::string>& selected_arrangement);
@@ -1090,6 +1096,12 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Most recently derived view state used as the seed push at view attachment.
     EditorViewState m_last_state{};
+
+    // Monotonic id of the loaded project, bumped only when an open/restore/import completes
+    // successfully. Surfaced through EditorViewState::project_load_id so the view can recognize a
+    // fresh load (e.g. to recenter the timeline on the restored cursor) without inferring it from
+    // busy phases or content diffs.
+    std::uint64_t m_project_load_id{0};
 
     // Headless signal-chain workflow refreshed only from authoritative backend snapshots.
     SignalChainWorkflow m_signal_chain;
@@ -1716,10 +1728,8 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
         ProjectLoadLiveRigStage{
             .token = m_busy.currentToken(),
             .song_directory = songDirectoryForProject(state->project),
-            .finish = [this, state, captured_editor_state = std::move(editor_state)](
-                          std::expected<void, common::audio::LiveRigError> rig_result) {
-                finishOpenProjectAfterLiveRigLoad(
-                    state, captured_editor_state, std::move(rig_result));
+            .finish = [this, state](std::expected<void, common::audio::LiveRigError> rig_result) {
+                finishOpenProjectAfterLiveRigLoad(state, std::move(rig_result));
             },
         });
 }
@@ -1728,7 +1738,7 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
 // Busy-token and controller-liveness checks are owned by ProjectLoadLiveRigStage before this
 // finalizer runs.
 void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
-    const std::shared_ptr<OpenTaskState>& state, const ProjectEditorState& editor_state,
+    const std::shared_ptr<OpenTaskState>& state,
     std::expected<void, common::audio::LiveRigError> rig_result)
 {
     assert(isBusy() && "finishOpenProjectAfterLiveRigLoad called outside a busy operation");
@@ -1758,7 +1768,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
 
     const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
     const common::core::TimePosition next_cursor_position =
-        session().timeline().clamp(editor_state.cursor_position);
+        cursorPositionForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
 
     m_project = std::move(state->project);
@@ -1779,6 +1789,10 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
         clearInterruptedRestoreMarker();
     }
     applyLiveInputGate();
+
+    // Marks a completed load so the view can recenter on the restored cursor; the transport has
+    // already been seeked above, so the state pushed by finishBusyOperation() carries both.
+    ++m_project_load_id;
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
@@ -1892,6 +1906,13 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     resetUndoHistory("undo.reset.import_project");
     markUndoHistoryClean("undo.mark_clean.import_project");
     applyLiveInputGate();
+
+    // Imports have no persisted editor cursor, so establish an explicit start position before the
+    // view observes the new project load id and recenters the timeline.
+    m_transport.seek(session().timeline().start);
+
+    // Marks a completed load so the view can recenter on the established import cursor.
+    ++m_project_load_id;
 
     // finishBusyOperation()'s view update also satisfies any deferred transport refresh that
     // may have arrived during the load window.
@@ -3599,6 +3620,7 @@ bool EditorController::Impl::closeProject()
         return true;
     }
 
+    saveCurrentProjectCursorPositionBestEffort("store project cursor before close");
     m_transport.stop();
     clearLiveRig();
     clearActiveArrangementBestEffort("close project");
@@ -3879,6 +3901,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
 {
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project");
+    saveCurrentProjectCursorPositionBestEffort("store project cursor after save");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SaveProjectAs& action)
@@ -3888,6 +3911,7 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_displaced_project_file.clear();
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project_as");
+    saveCurrentProjectCursorPositionBestEffort("store project cursor after save-as");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
@@ -4009,10 +4033,7 @@ void EditorController::Impl::restoreLastOpenProject()
 // Captures editor-only persistence state from the current transport and displayed arrangement.
 ProjectEditorState EditorController::Impl::projectEditorStateForSave() const
 {
-    ProjectEditorState editor_state{
-        .cursor_position = m_transport.position(),
-        .selected_arrangement = std::nullopt,
-    };
+    ProjectEditorState editor_state{.selected_arrangement = std::nullopt};
 
     const auto* arrangement = session().currentArrangement();
     if (arrangement != nullptr && !arrangement->id.empty())
@@ -4021,6 +4042,53 @@ ProjectEditorState EditorController::Impl::projectEditorStateForSave() const
     }
 
     return editor_state;
+}
+
+// Chooses the cursor restored for a project open from app-local resume state.
+common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProject(
+    const std::filesystem::path& project_file) const
+{
+    const auto saved_position = m_settings.projectCursorPositionFor(project_file);
+    if (saved_position.has_value())
+    {
+        if (saved_position->has_value())
+        {
+            return session().timeline().clamp(**saved_position);
+        }
+    }
+    else
+    {
+        logEditorControllerBestEffortFailure(
+            "restore project cursor position", saved_position.error().message);
+    }
+
+    return session().timeline().start;
+}
+
+// Saves the current cursor as app-local resume state for saved projects.
+void EditorController::Impl::saveCurrentProjectCursorPositionBestEffort(std::string_view context)
+{
+    if (m_project_file.empty())
+    {
+        return;
+    }
+
+    saveProjectCursorPositionBestEffort(m_project_file, m_transport.position(), context);
+}
+
+// Records a cursor position outside the .rhp package so cursor movement never makes project
+// content dirty.
+void EditorController::Impl::saveProjectCursorPositionBestEffort(
+    const std::filesystem::path& project_file, common::core::TimePosition cursor_position,
+    std::string_view context)
+{
+    if (project_file.empty())
+    {
+        return;
+    }
+
+    recordSettingsResultBestEffort(
+        m_settings.saveProjectCursorPosition(project_file, cursor_position), context);
 }
 
 // Prepares project audio, activates the selected arrangement, and commits the song to Session.
@@ -4102,6 +4170,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     }
     state.close_enabled = isActionAvailable(EditorAction::Id::CloseProject, action_conditions);
     state.project_loaded = action_conditions.has_loaded_arrangement;
+    state.project_load_id = m_project_load_id;
     state.save_requires_destination = m_save_requires_destination;
     state.transport.play_pause_enabled =
         isActionAvailable(EditorAction::Id::PlayPause, action_conditions);

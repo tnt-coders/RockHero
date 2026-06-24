@@ -194,6 +194,16 @@ struct EditorViewState
     /*! \brief Reports whether a project arrangement is currently loaded for display. */
     bool project_loaded{false};
 
+    /*!
+    \brief Monotonic id of the loaded project, bumped on each successful open/restore/import.
+
+    The view recognizes a freshly loaded project by a change in this value versus the previously
+    rendered state, and uses it to trigger one-shot load behavior such as centering the timeline on
+    the restored cursor. It stays constant across non-load state pushes (so re-rendering identical
+    state never re-triggers) and is left unchanged on a failed load.
+    */
+    std::uint64_t project_load_id{0};
+
     /*! \brief Selects whether File > Save should ask for a destination first. */
     bool save_requires_destination{false};
 
