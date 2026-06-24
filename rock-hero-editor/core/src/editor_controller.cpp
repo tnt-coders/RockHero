@@ -1531,6 +1531,14 @@ EditorController::Impl::Impl(
                     }
                     onRedoRequested();
                 },
+            .play_pause_requested =
+                [this, alive] {
+                    if (alive.expired())
+                    {
+                        return;
+                    }
+                    onPlayPausePressed();
+                },
         });
     m_plugin_host.setPluginEditObserver(
         common::audio::PluginEditObserver{
