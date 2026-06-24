@@ -29,7 +29,6 @@ using common::core::DifficultyRating;
 using common::core::Part;
 using common::core::Song;
 using common::core::TimeDuration;
-using common::core::TimePosition;
 
 namespace
 {
@@ -201,13 +200,13 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
 
 // Returns the editor project document shared by project package tests.
 [[nodiscard]] ArchiveEntry projectDocumentEntry(
-    const std::string& selected_arrangement = g_lead_arrangement_id, double cursor_position = 0.0)
+    const std::string& selected_arrangement = g_lead_arrangement_id)
 {
     std::string selected_arrangement_field;
     if (!selected_arrangement.empty())
     {
         selected_arrangement_field =
-            R"(,
+            R"(
                     "selectedArrangement": ")" +
             selected_arrangement + R"(")";
     }
@@ -217,9 +216,8 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
         .contents =
             R"({
                 "formatVersion": 1,
-                "editorState": {
-                    "cursorPosition": )" +
-            std::to_string(cursor_position) + selected_arrangement_field +
+                "editorState": {)" +
+            selected_arrangement_field +
             R"(
                 }
             })",
@@ -474,7 +472,6 @@ TEST_CASE("Project loads a minimal RHP package", "[core][project]")
     CHECK(
         project.editorState().selected_arrangement ==
         std::optional<std::string>{g_lead_arrangement_id});
-    CHECK(project.editorState().cursor_position == TimePosition{0.0});
     REQUIRE(result->arrangements.front().audio_asset.normalization.has_value());
     if (result->arrangements.front().audio_asset.normalization.has_value())
     {
@@ -801,7 +798,6 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     const auto saved = project.save(
         *song,
         ProjectEditorState{
-            .cursor_position = TimePosition{4.5},
             .selected_arrangement = std::string{g_lead_arrangement_id},
         });
     REQUIRE(saved.has_value());
@@ -814,10 +810,10 @@ TEST_CASE("Project saves session song metadata", "[core][project]")
     CHECK(reloaded_song->metadata.artist == "Updated Artist");
     CHECK(reloaded_song->metadata.album == "Updated Album");
     CHECK(reloaded_song->metadata.year == 2026);
-    CHECK(reloaded_project.editorState().cursor_position == TimePosition{4.5});
     CHECK(
         reloaded_project.editorState().selected_arrangement ==
         std::optional<std::string>{g_lead_arrangement_id});
+    CHECK(archiveEntryContents(path, "project.json").find("cursorPosition") == std::string::npos);
 }
 
 // Verifies save can import a session audio path that lives outside the extracted workspace.

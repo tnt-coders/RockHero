@@ -145,6 +145,8 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
             .open_function = project_services.openFunction(),
         }
     };
+    FakeEditorView view;
+    controller.attachView(view);
 
     project_services.next_song = makeSong(std::filesystem::path{"song.wav"});
     controller.restoreLastOpenProject();
@@ -154,6 +156,10 @@ TEST_CASE("EditorController restores valid last project", "[core][editor-control
     CHECK(controller.currentProjectFile() == std::optional{files.projectFile()});
     CHECK(settings.lastOpenProject() == std::optional{files.projectFile()});
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->project_loaded == true);
+    CHECK(state->project_load_id == 1);
 }
 
 // Startup restore leaves the saved path intact until the async open completion resolves.
@@ -393,6 +399,8 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
             .open_function = project_services.openFunction(),
         }
     };
+    FakeEditorView view;
+    controller.attachView(view);
 
     controller.restoreLastOpenProject();
 
@@ -400,6 +408,10 @@ TEST_CASE("EditorController clears restore path when open fails", "[core][editor
     CHECK_FALSE(controller.currentProjectFile().has_value());
     CHECK_FALSE(settings.lastOpenProject().has_value());
     CHECK_FALSE(settings.interruptedRestoreProject().has_value());
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->project_loaded);
+    CHECK(state->project_load_id == 0);
 }
 
 // Startup restore clears failed paths only from the async completion path, not scheduling.
