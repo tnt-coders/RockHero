@@ -1082,14 +1082,6 @@ void reportLiveRigLoadProgress(
 void copyPluginStatePreservingInstanceId(
     tracktion::Plugin& target_plugin, const juce::ValueTree& source_state)
 {
-    // TEMPORARY TIMING INSTRUMENTATION - locates which phase of the live-tree sync costs ~77ms on
-    // the message thread during an undo/redo restore. Remove once measured.
-    using TimingClock = std::chrono::steady_clock;
-    const auto ms_since = [](TimingClock::time_point from) {
-        return std::chrono::duration<double, std::milli>(TimingClock::now() - from).count();
-    };
-    const TimingClock::time_point t_props_start = TimingClock::now();
-
     juce::ValueTree target_state = target_plugin.state;
 
     // Remove only properties the restored state no longer carries, then overwrite the rest in
@@ -1117,25 +1109,15 @@ void copyPluginStatePreservingInstanceId(
                 property_name, source_state.getProperty(property_name), nullptr);
         }
     }
-    const double props_ms = ms_since(t_props_start);
 
-    const TimingClock::time_point t_children_start = TimingClock::now();
     target_state.removeAllChildren(nullptr);
     const int source_child_count = source_state.getNumChildren();
     for (int index = 0; index < source_child_count; ++index)
     {
         target_state.addChild(source_state.getChild(index).createCopy(), index, nullptr);
     }
-    const double children_ms = ms_since(t_children_start);
 
     target_plugin.itemID.writeID(target_state, nullptr);
-    RH_LOG_INFO(
-        "audio.engine",
-        "[timing] copyPluginState props={}ms children={}ms (count={}) target_props={}",
-        props_ms,
-        children_ms,
-        source_child_count,
-        target_state.getNumProperties());
 }
 
 // Observes one external plugin's parameter notifications and marks the whole plugin state dirty.
@@ -4951,27 +4933,14 @@ std::expected<void, PluginHostError> Engine::setPluginState(
     tracktion::TransportControl& transport = m_impl->m_edit->getTransport();
     const bool was_playing = transport.isPlaying();
 
-    // TEMPORARY TIMING INSTRUMENTATION - decides where the message-thread block during an undo/redo
-    // restore actually goes (plugin setStateInformation vs. our synchronous refresh/observer work),
-    // so the dropout fix targets the real bottleneck. Remove once measured. See
-    // docs/in-progress/editor-undo/plugin-reannounce-pollution.md.
-    using TimingClock = std::chrono::steady_clock;
-    const auto ms_since = [](TimingClock::time_point from) {
-        return std::chrono::duration<double, std::milli>(TimingClock::now() - from).count();
-    };
-    const TimingClock::time_point t_begin = TimingClock::now();
-
     {
         const juce::ScopedValueSetter<bool> defer_plugin_undo_capture(
             m_impl->m_plugin_undo_capture_deferred, true);
         external_plugin->restorePluginStateFromValueTree(*plugin_state);
         copyPluginStatePreservingInstanceId(*external_plugin, *plugin_state);
     }
-    const double restore_ms = ms_since(t_begin);
 
-    const TimingClock::time_point t_observer = TimingClock::now();
     m_impl->refreshRestoredPluginEditObserver(instance_id, state);
-    const double observer_ms = ms_since(t_observer);
 
     if (was_playing && !transport.isPlaying())
     {
@@ -4983,14 +4952,6 @@ std::expected<void, PluginHostError> Engine::setPluginState(
         transport.play(false);
     }
     m_impl->updateTransportState();
-
-    RH_LOG_INFO(
-        "audio.engine",
-        "[timing] setPluginState total={}ms restore={}ms observer={}ms instance_id={:?}",
-        ms_since(t_begin),
-        restore_ms,
-        observer_ms,
-        instance_id);
 
     return {};
 }
