@@ -727,11 +727,9 @@ private:
 
     // Re-creates the staged preview device only when the audio system or device names change.
     // Format-only changes (sample rate, buffer size) and listener notifications that re-broadcast
-    // the same route therefore skip the rebuild. This is not about speed — it is about not doing
+    // the same route therefore skip the rebuild. This is not about speed; it is about not doing
     // unnecessary work when only the format part of the setup changed. Device-name changes
-    // unavoidably trigger a fresh JUCE createDevice and capability probe; see
-    // docs/in-progress/juce-audio-device-open-performance-review.md for the JUCE-level
-    // bottleneck.
+    // unavoidably trigger a fresh JUCE createDevice and capability probe.
     void refreshStagedDeviceIfRouteChanged()
     {
         if (m_staged_device != nullptr && m_cached_staged_device_type == m_staged_device_type &&
