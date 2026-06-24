@@ -1865,6 +1865,25 @@ private:
         return (GetKeyState(virtual_key) & 0x8000) != 0;
     }
 
+    // Reports whether a text field currently owns keyboard input on this thread. Frameworks that
+    // accept text create a Win32 system caret on focus and destroy it on blur (native edit controls
+    // by design; JUCE in textInputRequired/dismissPendingTextInput), so a live caret is a
+    // cross-framework signal that the focused control wants character keys. This is the fallback
+    // branch of the Space union for plugins that take keys via native hooks instead of honoring the
+    // VST3 onKeyDown contract (e.g. Archetype Nolly). The gap is plugins whose text fields create no
+    // system caret (e.g. Gateway), which are covered by the onKeyDown branch instead.
+    [[nodiscard]] static bool textInputHasFocus() noexcept
+    {
+        GUITHREADINFO info{};
+        info.cbSize = sizeof(info);
+        if (GetGUIThreadInfo(GetCurrentThreadId(), &info) == 0)
+        {
+            return false;
+        }
+
+        return info.hwndCaret != nullptr;
+    }
+
     [[nodiscard]] static std::optional<PluginWindowCommand> commandForWindowsKeyMessage(
         const MSG& message)
     {
@@ -1932,6 +1951,56 @@ private:
         return nullptr;
     }
 
+    // Delivers a key to the hosted plugin through the VST3 keyboard contract
+    // (IPlugView::onKeyDown via our JUCE fork) and reports whether the plugin accepted it. The
+    // contract says a false return means the key was not consumed; buggy plugins can still violate
+    // that, so this speculative delivery is intentionally limited to the Space routing path.
+    [[nodiscard]] bool pluginViewHandlesKey(juce::juce_wchar character, int key_code, int modifiers)
+    {
+        if (auto* const external_plugin = dynamic_cast<tracktion::ExternalPlugin*>(&m_plugin))
+        {
+            if (juce::AudioPluginInstance* const instance =
+                    external_plugin->getAudioPluginInstance())
+            {
+                return instance->sendKeyDownToPluginView(character, key_code, modifiers);
+            }
+        }
+
+        return false;
+    }
+
+    // How the native hook should treat a key that matches a plugin-window shortcut.
+    enum class CommandKeyDisposition
+    {
+        FireShortcut,   // No plugin control wants the key: post the command, swallow the message.
+        PluginConsumed, // The plugin handled the key via onKeyDown (already delivered): swallow.
+        PassToPlugin,   // A native text field owns input: leave the message for the plugin.
+    };
+
+    // Decides how to route a shortcut key over a focused plugin window. Space yields to the plugin's
+    // focused control when it wants the key -- preferring the VST3 onKeyDown contract, falling back
+    // to the system caret -- so typing into plugin text fields keeps working. Undo/Redo always go to
+    // Rock Hero's global undo (single source of truth) and never yield.
+    [[nodiscard]] CommandKeyDisposition disposeCommandKey(PluginWindowCommand command)
+    {
+        if (command != PluginWindowCommand::PlayPause)
+        {
+            return CommandKeyDisposition::FireShortcut;
+        }
+
+        if (pluginViewHandlesKey(' ', 0, 0))
+        {
+            return CommandKeyDisposition::PluginConsumed;
+        }
+
+        if (textInputHasFocus())
+        {
+            return CommandKeyDisposition::PassToPlugin;
+        }
+
+        return CommandKeyDisposition::FireShortcut;
+    }
+
     static LRESULT CALLBACK windowsShortcutHook(int code, WPARAM w_param, LPARAM l_param)
     {
         if (code >= 0 && w_param == PM_REMOVE)
@@ -1946,10 +2015,31 @@ private:
                     if (PluginWindow* const window = windowForNativeMessage(message->hwnd);
                         window != nullptr)
                     {
-                        window->postCommandShortcut(*command, "native_hook");
-                        message->message = WM_NULL;
-                        message->wParam = 0;
-                        message->lParam = 0;
+                        switch (window->disposeCommandKey(*command))
+                        {
+                            case CommandKeyDisposition::FireShortcut:
+                            {
+                                window->postCommandShortcut(*command, "native_hook");
+                                message->message = WM_NULL;
+                                message->wParam = 0;
+                                message->lParam = 0;
+                                break;
+                            }
+                            case CommandKeyDisposition::PluginConsumed:
+                            {
+                                // onKeyDown already delivered the key; drop the native copy so the
+                                // plugin does not receive it twice.
+                                message->message = WM_NULL;
+                                message->wParam = 0;
+                                message->lParam = 0;
+                                break;
+                            }
+                            case CommandKeyDisposition::PassToPlugin:
+                            {
+                                // A native text field owns input; leave the message for the plugin.
+                                break;
+                            }
+                        }
                     }
                 }
             }
