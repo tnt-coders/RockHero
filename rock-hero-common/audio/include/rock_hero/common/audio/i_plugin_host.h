@@ -120,6 +120,9 @@ struct PluginWindowCommandObserver
 
     /*! \brief Called when a hosted plugin editor window receives the Redo shortcut. */
     std::function<void()> redo_requested;
+
+    /*! \brief Called when a hosted plugin editor window receives the Play/Pause shortcut. */
+    std::function<void()> play_pause_requested;
 };
 
 /*!
