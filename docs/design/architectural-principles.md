@@ -182,7 +182,7 @@ Examples:
 
 - `ITransport`
 - `ISongAudio`
-- `IEdit`
+- an audio edit-command port if future audio-model mutation needs one
 - `IWaveformSource`
 - `IClock`
 - `IPitchDetector`

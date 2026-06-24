@@ -18,7 +18,7 @@ namespace rock_hero::common::audio
 
 This interface owns message-thread audio operations needed to prepare loaded project songs and make
 one arrangement active for playback. It is not an undoable edit-command surface; future
-model-editing commands belong on IEdit.
+model-editing commands should get a dedicated audio edit-command port when that need becomes real.
 */
 class ISongAudio
 {
