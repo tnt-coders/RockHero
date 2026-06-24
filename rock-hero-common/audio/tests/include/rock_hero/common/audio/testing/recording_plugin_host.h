@@ -507,6 +507,15 @@ public:
         }
     }
 
+    /*! \brief Emits a fake Play/Pause shortcut from a hosted plugin editor window. */
+    void notifyPluginWindowPlayPauseRequested()
+    {
+        if (m_window_command_observer.play_pause_requested)
+        {
+            m_window_command_observer.play_pause_requested();
+        }
+    }
+
     /*!
     \brief Records a plugin editor-window request and returns the configured outcome.
     \param instance_id Runtime plugin instance whose editor was requested.

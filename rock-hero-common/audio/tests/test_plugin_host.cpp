@@ -544,17 +544,21 @@ TEST_CASE("IPluginHost forwards plugin window commands", "[audio][plugin-host]")
     testing::RecordingPluginHost plugin_host;
     int undo_count = 0;
     int redo_count = 0;
+    int play_pause_count = 0;
     plugin_host.setPluginWindowCommandObserver(
         PluginWindowCommandObserver{
             .undo_requested = [&undo_count] { undo_count += 1; },
             .redo_requested = [&redo_count] { redo_count += 1; },
+            .play_pause_requested = [&play_pause_count] { play_pause_count += 1; },
         });
 
     plugin_host.notifyPluginWindowUndoRequested();
     plugin_host.notifyPluginWindowRedoRequested();
+    plugin_host.notifyPluginWindowPlayPauseRequested();
 
     CHECK(undo_count == 1);
     CHECK(redo_count == 1);
+    CHECK(play_pause_count == 1);
 }
 
 // Verifies loaded plugin instances expose a message-thread window operation through the port.

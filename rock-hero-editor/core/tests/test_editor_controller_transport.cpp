@@ -29,6 +29,34 @@ TEST_CASE("EditorController play intent toggles loaded transport", "[core][edito
     CHECK(transport.pause_call_count == 1);
 }
 
+// Plugin-window Play/Pause shortcuts use the same transport intent as the main editor view.
+TEST_CASE(
+    "EditorController plugin window play intent toggles transport", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    RecordingPluginHost plugin_host;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio, plugin_host),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+
+    plugin_host.notifyPluginWindowPlayPauseRequested();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 0);
+
+    transport.current_state.playing = true;
+    plugin_host.notifyPluginWindowPlayPauseRequested();
+    CHECK(transport.play_call_count == 1);
+    CHECK(transport.pause_call_count == 1);
+}
+
 // Without arrangement audio there is nothing to play, so the intent is a no-op.
 TEST_CASE("EditorController ignores play intent without audio", "[core][editor-controller]")
 {
