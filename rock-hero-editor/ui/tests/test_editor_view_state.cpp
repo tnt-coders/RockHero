@@ -56,8 +56,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
 }
 
-// Verifies setState projects transition-shaped state into child widgets without reading position.
-TEST_CASE("EditorView setState projects controls without polling position", "[ui][editor-view]")
+// Verifies setState projects state and reads position only for the one-shot load focus.
+TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -194,7 +194,7 @@ TEST_CASE("EditorView setState projects controls without polling position", "[ui
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
-    CHECK(transport.position_read_count == 0);
+    CHECK(transport.position_read_count == 1);
 }
 
 // Verifies plugin tile remove controls reflect state and emit the selected instance ID.

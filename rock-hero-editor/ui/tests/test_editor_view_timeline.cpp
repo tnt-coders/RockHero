@@ -31,6 +31,96 @@ TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
     CHECK(viewport.getViewHeight() < track_content.getHeight());
 }
 
+// Verifies a newly loaded project scrolls the timeline to the restored transport cursor.
+TEST_CASE("EditorView project load centers restored cursor", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto state = makeLoadedEditorState(20.0);
+    transport.current_position = common::core::TimePosition{15.0};
+    view.setState(state);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    const auto cursor_x = cursorXForTimelinePosition(
+        transport.current_position, state.visible_timeline, track_content.getWidth());
+    REQUIRE(cursor_x.has_value());
+
+    const double screen_x =
+        static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+}
+
+// Verifies clearing a failed open's busy state does not recenter the still-loaded project.
+TEST_CASE("EditorView failed open keeps viewport position", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+    const auto state = makeLoadedEditorState(20.0);
+    view.setState(state);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    viewport.setViewPosition(0, 0);
+    transport.current_position = common::core::TimePosition{15.0};
+
+    auto opening_state = state;
+    opening_state.busy = core::BusyViewState{
+        .operation = core::BusyOperation::OpeningProject,
+        .message = "Opening project...",
+    };
+    view.setState(opening_state);
+    view.setState(state);
+
+    CHECK(viewport.getViewPositionX() == 0);
+}
+
+// Verifies loading a different project over an open one recenters on the new project's cursor,
+// recognized by a changed project_load_id rather than a content diff.
+TEST_CASE("EditorView project reload centers on new load id", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+
+    auto first_load = makeLoadedEditorState(20.0);
+    first_load.project_load_id = 1;
+    transport.current_position = common::core::TimePosition{6.0};
+    view.setState(first_load);
+
+    auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    viewport.setViewPosition(0, 0);
+
+    auto second_load = makeLoadedEditorState(20.0);
+    second_load.project_load_id = 2;
+    transport.current_position = common::core::TimePosition{12.0};
+    view.setState(second_load);
+
+    const auto cursor_x = cursorXForTimelinePosition(
+        transport.current_position, second_load.visible_timeline, track_content.getWidth());
+    REQUIRE(cursor_x.has_value());
+
+    const double screen_x =
+        static_cast<double>(*cursor_x) - static_cast<double>(viewport.getViewPositionX());
+    CHECK(
+        screen_x == Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
+}
+
 // Verifies mouse wheel zoom scales the timeline content instead of seeking transport.
 TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
 {

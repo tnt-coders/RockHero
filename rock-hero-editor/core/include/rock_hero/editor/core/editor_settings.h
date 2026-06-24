@@ -89,6 +89,24 @@ public:
         std::optional<std::string> serialized_state) override;
 
     /*!
+    \brief Reads the app-local resume cursor stored for an editor project path.
+    \param project_file Project path whose cursor should be restored.
+    \return Cursor position, absence, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<std::optional<common::core::TimePosition>, EditorSettingsError>
+    projectCursorPositionFor(const std::filesystem::path& project_file) const override;
+
+    /*!
+    \brief Stores or replaces the app-local resume cursor for an editor project path.
+    \param project_file Project path that owns the cursor.
+    \param cursor_position Cursor position to restore next time this path is opened.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCursorPosition(
+        const std::filesystem::path& project_file,
+        common::core::TimePosition cursor_position) override;
+
+    /*!
     \brief Reads app-local input calibration for one physical input route.
     \param identity Physical input route to look up.
     \return Calibration state, absence, or a typed settings failure.

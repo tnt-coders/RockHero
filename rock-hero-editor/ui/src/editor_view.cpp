@@ -143,6 +143,23 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
            normalizedAsciiKeyCode(key.getKeyCode()) == 'y';
 }
 
+// Requests project-load cursor focus once per accepted load, without inferring "a load happened"
+// from busy phases or timeline diffs. The controller bumps project_load_id only when an open,
+// restore, or import completes successfully, so a change in that id (or a project first appearing)
+// marks a fresh load. A failed open leaves the id unchanged, and ordinary edits keep the same id, so
+// neither recenters.
+[[nodiscard]] bool shouldFocusCursorAfterStateChange(
+    const core::EditorViewState& previous_state, const core::EditorViewState& next_state)
+{
+    if (!next_state.project_loaded || next_state.busy.has_value())
+    {
+        return false;
+    }
+
+    return !previous_state.project_loaded ||
+           next_state.project_load_id != previous_state.project_load_id;
+}
+
 // Gives the unsaved-changes prompt enough context for the action that triggered it. Only the
 // deferrable subset reaches this switch; the post-switch return is a defensive fallback for ids the
 // controller cannot legitimately stash in a deferred slot.
@@ -427,6 +444,7 @@ public:
             m_playback_active = false;
             m_playback_start_pending = false;
             m_stop_enabled = false;
+            m_cursor_focus_pending = false;
         }
 
         m_content.setProjectLoaded(project_loaded);
@@ -467,6 +485,13 @@ public:
         }
     }
 
+    // Requests one viewport recenter once a restored project cursor is available.
+    void requestCursorFocus()
+    {
+        m_cursor_focus_pending = true;
+        focusCursorIfPending();
+    }
+
     // Paints the area around zoomed content when the viewport is larger than the canvas.
     void paint(juce::Graphics& g) override
     {
@@ -478,6 +503,7 @@ public:
     {
         m_viewport.setBounds(getLocalBounds());
         layoutScaledCanvas();
+        focusCursorIfPending();
     }
 
 private:
@@ -615,6 +641,19 @@ private:
         setViewportLeft(next_x);
     }
 
+    // Runs a deferred project-load focus pass only after the viewport has paintable dimensions.
+    void focusCursorIfPending()
+    {
+        if (!m_cursor_focus_pending || !m_project_loaded || timelineDurationSeconds() <= 0.0 ||
+            m_viewport.getViewWidth() <= 0 || m_content.getWidth() <= 0)
+        {
+            return;
+        }
+
+        m_cursor_focus_pending = false;
+        centerViewportOnTime(m_transport.position().seconds);
+    }
+
     // Keeps playback visible using controller-pushed state plus current position reads.
     void updatePlaybackFollow()
     {
@@ -704,6 +743,9 @@ private:
 
     // Previous stop-button enabled state, used to identify a Stop action reset.
     bool m_stop_enabled{false};
+
+    // Set while a project-load state is waiting for a sized viewport before centering the cursor.
+    bool m_cursor_focus_pending{false};
 };
 
 // Paints the editor menu strip as flat application chrome instead of a framed control.
@@ -805,6 +847,7 @@ EditorView::~EditorView()
 // Projects controller-derived state into child widgets and cursor mapping state.
 void EditorView::setState(const core::EditorViewState& state)
 {
+    const core::EditorViewState previous_state = m_state;
     m_state = state;
     if (!m_state.busy.has_value())
     {
@@ -816,6 +859,10 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
         m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
+    if (shouldFocusCursorAfterStateChange(previous_state, m_state))
+    {
+        m_track_viewport->requestCursorFocus();
+    }
     m_transport_controls.setState(m_state.transport);
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
