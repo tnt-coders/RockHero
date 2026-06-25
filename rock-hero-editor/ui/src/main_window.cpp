@@ -74,6 +74,13 @@ MainWindow::MainWindow(
     // first lets Windows present a stretched restored-size frame before the maximize call lands.
     setFullScreen(true);
     setVisible(true);
+
+    // JUCE's show path does not request native foreground activation, so ask once at startup for
+    // foreground keyboard focus after the peer exists. Windows can still refuse this request.
+    if (juce::ComponentPeer* const peer = getPeer())
+    {
+        peer->requestForegroundKeyboardFocus();
+    }
 }
 
 // Removes JUCE's non-owning pointers before the owned editor content is destroyed.
