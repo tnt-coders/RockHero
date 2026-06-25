@@ -151,7 +151,7 @@ TEST_CASE(
 TEST_CASE("DeferredProjectActionState resolves discard", "[core][deferred-project-action-state]")
 {
     DeferredProjectActionState state;
-    state.defer(EditorAction::ImportSong{std::filesystem::path{"song.psarc"}});
+    state.defer(EditorAction::ImportSong{std::filesystem::path{"song.rock"}});
 
     const DeferredProjectActionState::Resolution resolution =
         state.resolveUnsavedChanges(UnsavedChangesDecision::Discard, false);

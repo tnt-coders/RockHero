@@ -511,7 +511,7 @@ TEST_CASE("EditorController failed import preserves session", "[core][editor-con
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onImportRequested(std::filesystem::path{"broken.psarc"});
+    controller.onImportRequested(std::filesystem::path{"broken.rock"});
 
     const common::core::Session& session = controller.session();
     REQUIRE(session.currentArrangement() != nullptr);
@@ -552,11 +552,11 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
 
     project_services.next_import_song = makeSong(std::filesystem::path{"first.ogg"});
     audio.next_set_active_arrangement_result = false;
-    controller.onImportRequested(std::filesystem::path{"first.psarc"});
+    controller.onImportRequested(std::filesystem::path{"first.rock"});
     REQUIRE(view.shown_errors.size() == 1);
     CHECK(
         view.shown_errors.back() ==
-        "Could not load imported audio from: first.psarc: Configured active-arrangement failure");
+        "Could not load imported audio from: first.rock: Configured active-arrangement failure");
     const int pushes_before_success = view.set_state_call_count;
 
     audio.next_set_active_arrangement_result = true;
@@ -566,7 +566,7 @@ TEST_CASE("EditorController successful import stores audio", "[core][editor-cont
     project_services.next_import_song = makeSong(replacement.path, loadedTimelineRange(4.0));
     transport.current_position = common::core::TimePosition{2.5};
     transport.last_seek_position.reset();
-    controller.onImportRequested(std::filesystem::path{"second.psarc"});
+    controller.onImportRequested(std::filesystem::path{"second.rock"});
 
     const common::core::Session& session = controller.session();
     CHECK(project_services.import_call_count == 2);
@@ -625,7 +625,7 @@ TEST_CASE("EditorController import requires Save As destination", "[core][editor
         .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
     };
     project_services.next_import_song = makeSong(audio_asset.path);
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
     transport.current_position = common::core::TimePosition{2.5};
     REQUIRE(view.last_state.has_value());
     if (view.last_state.has_value())
@@ -687,7 +687,7 @@ TEST_CASE("EditorController prompts before closing unsaved import", "[core][edit
     controller.attachView(view);
 
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     controller.onCloseRequested();
 
@@ -760,7 +760,7 @@ TEST_CASE(
         .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
     };
     project_services.next_import_song = makeSong(imported_asset.path);
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     const EditorViewState* import_prompt_state = stateOrNull(view.last_state);
     REQUIRE(import_prompt_state != nullptr);
@@ -816,7 +816,7 @@ TEST_CASE("EditorController saves prompted import before close", "[core][editor-
         .path = std::filesystem::path{"imported.ogg"}, .normalization = std::nullopt
     };
     project_services.next_import_song = makeSong(audio_asset.path);
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     controller.onCloseRequested();
     controller.onUnsavedChangesDecision(UnsavedChangesDecision::Save);
@@ -870,7 +870,7 @@ TEST_CASE("EditorController prompts before exit with unsaved import", "[core][ed
     controller.attachView(view);
 
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     controller.onExitRequested();
 

@@ -24,7 +24,6 @@ There are a few headers that look more public than they need to be:
 - `rock-hero-editor/core/include/rock_hero/editor/core/inline_editor_task_runner.h`
 - `rock-hero-editor/core/include/rock_hero/editor/core/audio_device_status_text.h`
 - `rock-hero-editor/core/include/rock_hero/editor/core/rock_song_importer.h`
-- `rock-hero-editor/core/include/rock_hero/editor/core/psarc_song_importer.h`
 - `rock-hero-editor/ui/include/rock_hero/editor/ui/main_window.h`
 
 These are the strongest candidates for tightening because they are concrete implementation choices,
@@ -77,9 +76,9 @@ Move candidates:
 - `audio_device_status_text.h`: this is display-projection policy. Consider keeping only durable
   state constants public, if needed, and moving formatter behavior private to the controller or a
   `src/` helper.
-- `rock_song_importer.h` and `psarc_song_importer.h`: these are concrete default importers. The
-  public contract is `ISongImporter`. Move the concrete importer headers private unless app code is
-  expected to choose importer implementations explicitly.
+- `rock_song_importer.h`: this is a concrete default importer. The public contract is
+  `ISongImporter`. Move the concrete importer header private unless app code is expected to choose
+  importer implementations explicitly.
 
 Recommended direction: keep public interfaces and state models public, but move concrete fallback
 and default implementation headers private when they are constructed only inside editor core.
@@ -117,7 +116,7 @@ No action is recommended.
 1. Move `InlineEditorTaskRunner` private if only `EditorController` constructs it.
 2. Split `AudioDeviceStatusText` into public state, if needed, and private formatting policy.
 3. Decide whether concrete song importers are app-selected implementations or editor-core defaults.
-4. If they are editor-core defaults, move `RockSongImporter` and `PsarcSongImporter` private.
+4. If it is an editor-core default, move `RockSongImporter` private.
 5. Decide whether `MainWindow` is reusable UI or app-shell composition.
 6. Defer `ScopedListener` cleanup unless a broader controller or listener ownership refactor makes
    it easy.
