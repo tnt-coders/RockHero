@@ -1,24 +1,65 @@
-# Shared User Audio Settings Plan
+# Audio Settings Ownership and Boundary Plan
 
-Status: planned. Implement after the required input calibration workflow has a stable first pass,
-or fold into that work if the game starts using the same audio-device setup soon.
+Status: planned. Consolidates the former `audio-device-configuration-boundary-plan.md` (now removed)
+so audio-settings ownership, the source-of-truth boundary, and the device-configuration port live in
+one place. Implement after the required input calibration workflow has a stable first pass, or fold
+into that work if the game starts using the same audio-device setup soon. UI-view follow-ups from the
+completed settings-view extraction are tracked separately in
+`audio-device-settings-extraction-followups.md`.
 
 ## Goal
 
-Share per-user audio hardware state between Rock Hero Editor and Rock Hero without sharing
-editor-only application state.
+Give Rock Hero one coherent ownership model for audio-related settings across the Editor and the
+(future) Game: share the per-user audio *hardware* state, keep product workflow state product-local,
+and define a single source of truth for audio-device configuration so it cannot drift between stores.
 
-The shared settings should contain only audio state that should naturally follow the same user
-between both apps:
+## Source-of-Truth Boundary
+
+Three stores touch "audio settings." Each owns a disjoint slice; nothing is authoritative in two
+places.
+
+| Store | Writer | Authoritative for | Shared? |
+|---|---|---|---|
+| Tracktion `Settings.xml` (`Engine` `PropertyStorage`) | Tracktion, internally | Known-plugins list / scan results and Tracktion-internal bookkeeping | Yes -- created in `rock-hero-common/audio` with the shared `"Rock Hero"` name (`engine.cpp`), so both products hit the same file |
+| `UserAudioSettings` (new, `rock-hero-common/audio`) | RockHero controllers via a typed port | The user's audio-device configuration (opaque device-manager state) and per-route input calibration | Yes (editor + game) |
+| `EditorSettings` (`rock-hero-editor/core`) | Editor controller | Editor workflow/project state (`lastOpenProject`, interrupted-restore marker, project cursor positions) | No (editor-only) |
+
+Rules:
+
+- **Audio-device configuration is owned by `UserAudioSettings`, not Tracktion's `Settings.xml`.**
+  On startup the controller restores the opaque device state from `UserAudioSettings` and applies it
+  to the engine's device manager. Tracktion's own device-state persistence in `Settings.xml` is a
+  non-authoritative internal cache: the project-owned restore overwrites it, and it is never read as
+  the authority. This prevents two restorers racing on startup. The editor already behaves this way
+  via `restoreAudioDeviceState()`/`persistAudioDeviceState()`; this plan only moves the backing store
+  from `EditorSettings` to the shared `UserAudioSettings`.
+- **The plugin scan / known-plugins list stays owned by Tracktion's `Settings.xml`.** RockHero reads
+  it through the plugin manager and does not duplicate it into a project-owned store. Because that
+  file is already shared, the editor's scan benefits the game for free.
+- **Editor workflow/project state stays in `EditorSettings`** and is never shared.
+- A value must have exactly one authoritative store. If a future setting could plausibly live in two
+  (e.g. buffer size, which Tracktion also tracks), it belongs to `UserAudioSettings`, and Tracktion's
+  copy is whatever results from applying the project-owned state -- never an independent source.
+
+### Consequence for shared vs per-product device config
+
+Because device config is project-owned (not an artifact of Tracktion's shared `Settings.xml`), the
+*granularity* of sharing is a deliberate project decision, not a Tracktion accident:
+
+- Default: editor and game share one device configuration via `UserAudioSettings` (configure once).
+- If the game later needs a different route or a lower-latency buffer than the editor, that becomes an
+  explicit per-product override on top of the shared store, rather than something forced by sharing
+  Tracktion's file. Out of scope until the game needs it; noted so the door stays open.
+
+## Scope of shared values
+
+The shared store contains only audio state that should follow the same user between both apps:
 
 - selected/restored audio-device manager state;
-- required input calibration gain.
+- per-physical-route input calibration history.
 
-Editor-only settings remain editor-only:
-
-- last open editor project;
-- interrupted startup restore marker;
-- future editor window/workflow preferences.
+Editor-only settings remain editor-only: last open editor project, interrupted startup-restore
+marker, project cursor positions, and future editor window/workflow preferences.
 
 ## Current Shape
 
@@ -80,13 +121,23 @@ public:
     [[nodiscard]] virtual std::optional<std::string> audioDeviceState() const = 0;
     virtual void setAudioDeviceState(std::optional<std::string> xml_state) = 0;
 
-    [[nodiscard]] virtual std::optional<Gain> inputCalibrationGain() const = 0;
-    virtual void setInputCalibrationGain(std::optional<Gain> gain) = 0;
+    // Per-physical-route input calibration, relocated from IEditorSettings unchanged.
+    [[nodiscard]] virtual std::expected<std::optional<InputCalibrationState>, SettingsError>
+    inputCalibrationFor(const InputDeviceIdentity&) const = 0;
+    [[nodiscard]] virtual std::expected<void, SettingsError> saveInputCalibration(
+        InputCalibrationState) = 0;
+    [[nodiscard]] virtual std::expected<void, SettingsError> removeInputCalibration(
+        const InputDeviceIdentity&) = 0;
 };
 ```
 
-Use `Gain` instead of raw `double` for the public calibration value so shared gain clamping stays
-near the audio boundary.
+Calibration is **per physical input route**, not a single gain. The existing per-route calibration
+contract and its `inputCalibrationStates` XML schema (now in `EditorSettings`, stored as an
+XML-valued property) move into `UserAudioSettings` unchanged. The typed settings-error type moves
+with them into `rock-hero-common/audio` (rename `EditorSettingsError`, or introduce a common
+`SettingsError`/`UserAudioSettingsError`); `EditorSettings` keeps using the same error type for its
+remaining editor-only methods. Keep `Gain` (not raw `double`) at the boundary so clamping stays near
+the audio layer.
 
 ### `UserAudioSettings`
 
@@ -102,8 +153,12 @@ public:
     [[nodiscard]] std::optional<std::string> audioDeviceState() const override;
     void setAudioDeviceState(std::optional<std::string> xml_state) override;
 
-    [[nodiscard]] std::optional<Gain> inputCalibrationGain() const override;
-    void setInputCalibrationGain(std::optional<Gain> gain) override;
+    [[nodiscard]] std::expected<std::optional<InputCalibrationState>, SettingsError>
+    inputCalibrationFor(const InputDeviceIdentity&) const override;
+    [[nodiscard]] std::expected<void, SettingsError> saveInputCalibration(
+        InputCalibrationState) override;
+    [[nodiscard]] std::expected<void, SettingsError> removeInputCalibration(
+        const InputDeviceIdentity&) override;
 
 private:
     juce::InterProcessLock m_process_lock;
@@ -118,41 +173,38 @@ The explicit-path constructor keeps tests isolated from real user settings.
 In `user_audio_settings.cpp`, add:
 
 - `constexpr const char* g_audio_device_state_key{"audioDeviceState"}`
-- `constexpr const char* g_input_calibration_gain_db_key{"inputCalibrationGainDb"}`
+- `constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"}` (XML-valued)
 - `constexpr const char* g_user_audio_settings_application_name{"Rock Hero User Audio"}`
 - `constexpr const char* g_user_audio_settings_folder_name{"Rock Hero"}`
-- `constexpr const char* g_user_audio_settings_process_lock_name{
-  "RockHeroUserAudioSettings"}`
+- `constexpr const char* g_user_audio_settings_process_lock_name{"RockHeroUserAudioSettings"}`
 
-Read behavior:
+Reuse the existing calibration storage code verbatim when it moves over: the per-route history is an
+XML-valued property (`PropertiesFile::setValue(key, XmlElement*)` / `getXmlValue(key)`) with a
+`formatVersion` root and one validated record per route. Carry the same validation, malformed-XML
+preservation (report a typed error, never overwrite), duplicate-route collapse, and `clampGain`
+behavior already covered by `test_editor_settings.cpp`.
 
-- missing `audioDeviceState` returns `std::nullopt`;
-- empty `audioDeviceState` returns `std::nullopt`;
-- missing `inputCalibrationGainDb` returns `std::nullopt`;
-- invalid or non-finite calibration gain returns `std::nullopt`;
-- finite calibration gain returns `common::audio::clampGain(Gain{value})`.
+Audio-device-state behavior:
 
-Write behavior:
-
-- empty `audioDeviceState` removes the key;
-- empty calibration gain removes the key;
-- present calibration gain is clamped before writing;
+- missing or empty `audioDeviceState` returns `std::nullopt`;
+- empty `audioDeviceState` write removes the key;
 - writes call `saveIfNeeded()` immediately, matching current editor settings behavior.
 
 ## Editor Integration
 
 Keep `EditorSettings` for editor-only state:
 
-- `lastOpenProject()`;
-- `setLastOpenProject(...)`;
-- `interruptedRestoreProject()`;
-- `setInterruptedRestoreProject(...)`.
+- `lastOpenProject()` / `setLastOpenProject(...)`;
+- `interruptedRestoreProject()` / `setInterruptedRestoreProject(...)`;
+- `projectCursorPositionFor(...)` / `saveProjectCursorPosition(...)`.
 
-Move audio state out of `EditorSettings`:
+Move audio state out of `EditorSettings` into `UserAudioSettings`:
 
-- remove or deprecate `audioDeviceState()`;
-- remove or deprecate `setAudioDeviceState(...)`;
-- do not add input calibration methods to `EditorSettings`.
+- remove `audioDeviceState()` / `setAudioDeviceState(...)`;
+- move the existing per-route calibration methods `inputCalibrationFor(...)`,
+  `saveInputCalibration(...)`, and `removeInputCalibration(...)` (and their `inputCalibrationStates`
+  XML schema) over unchanged. They currently live in `EditorSettings`; this is a relocation, not a
+  rewrite.
 
 Update `EditorController::Services`:
 
@@ -179,10 +231,50 @@ When the game gains real audio-device startup and input calibration UI:
 
 - construct `common::audio::UserAudioSettings` in `rock-hero-game/app`;
 - restore `audioDeviceState()` into the game's audio device manager;
-- use `inputCalibrationGain()` to apply the same calibrated input gain;
+- use `inputCalibrationFor(route)` to apply the same calibration for the active physical route;
 - write back only on successful audio-device apply and calibration success.
 
 Do not make the game depend on `rock-hero-editor/core` to access shared settings.
+
+## Audio-Device Configuration Port
+
+(Consolidated from the former `audio-device-configuration-boundary-plan.md`.)
+
+`IAudioDeviceConfiguration` currently exposes `juce::AudioDeviceManager&`, which lets editor and game
+code bypass project-owned device operations. When the game gains its own audio settings UI, narrow
+this port so both products drive the same headless device choices without touching the JUCE manager.
+
+Keep JUCE device ownership inside `rock-hero-common/audio` and expose project-owned operations:
+
+- current route status (`AudioDeviceRouteSnapshot`): backend, device names, channels, sample rate,
+  buffer size, bit depth, latency text, open/closed state;
+- selectable choices (`AudioDeviceChoiceCatalog`): audio systems, devices, channels, sample rates,
+  and buffer sizes for the staged route;
+- a selection/apply command value (`AudioDeviceRouteSelection`);
+- route apply / cancel / test-output / control-panel commands;
+- serialized device-state restore and capture via a small `AudioDeviceConfigurationStore`, instead of
+  exposing `createStateXml()` / `initialise()` to product controllers.
+
+`AudioDeviceConfigurationStore` is where this port meets the source-of-truth boundary above: it
+restores and captures the opaque device-manager state against `UserAudioSettings` (the authority),
+not against Tracktion's `Settings.xml`. The `juce::AudioDeviceManager&` accessor becomes private
+adapter surface, kept only on the concrete adapter for app composition and low-level adapter tests.
+
+Refactor steps:
+
+1. Add project-owned snapshot/catalog/selection values beside the existing settings state.
+2. Route `EditorController`'s restore/persist through `IAudioDeviceConfiguration` /
+   `AudioDeviceConfigurationStore` so it no longer reaches into `deviceManager()`.
+3. Narrow `AudioDeviceSettings` to the enumeration/apply operations it needs rather than the full
+   manager where practical.
+4. Keep a temporary manager escape hatch only in adapter tests / app composition if a full removal
+   would make the migration too large in one step.
+5. Once the game settings UI exists, confirm both products use the common backend with no
+   product-specific JUCE manager calls, then remove the public manager accessor.
+
+Test this at the `AudioDeviceSettings` / `IAudioDeviceConfiguration` API level with hand-written
+fakes for snapshots and command results; keep JUCE-manager tests on the concrete adapter; assert
+typed error codes rather than parsing display text.
 
 ## Migration
 
@@ -190,13 +282,14 @@ The first implementation should migrate existing editor audio settings once:
 
 1. Open `EditorSettings`.
 2. Open `UserAudioSettings`.
-3. If shared `audioDeviceState()` is missing and editor `audioDeviceState()` exists, copy the
-   editor value into shared settings.
-4. Leave the old editor key in place for one release, or clear it immediately only if the
+3. If shared `audioDeviceState()` is missing and editor `audioDeviceState()` exists, copy the editor
+   value into shared settings.
+4. The per-route calibration history (`inputCalibrationStates`) already ships in `EditorSettings`, so
+   it must migrate too: if the shared store has no calibration history and the editor store does,
+   copy the records over (same "copy only when shared is missing" policy). The XML schema is
+   identical, so this is a value copy, not a reformat.
+5. Leave the old editor keys in place for one release, or clear them immediately only if the
    migration is covered by tests and there is no rollback concern.
-
-Input calibration does not need migration unless a first-pass calibration value already shipped in
-`EditorSettings`. If it did, use the same "copy only when shared is missing" policy.
 
 Planned helper:
 
@@ -247,27 +340,27 @@ small "settings changed externally" refresh path rather than overbuilding now.
    - Shared `audioDeviceState` is not overwritten with the failed staged route.
 
 7. Editor calibrates input successfully.
-   - Shared `inputCalibrationGainDb` updates.
-   - Game can use the same input calibration on next startup.
+   - The route's record in the shared `inputCalibrationStates` history updates.
+   - Game can use the same route's calibration on next startup.
 
 8. Game calibrates input successfully.
-   - Shared `inputCalibrationGainDb` updates.
-   - Editor can use the same input calibration on next startup.
+   - The route's record in the shared `inputCalibrationStates` history updates.
+   - Editor can use the same route's calibration on next startup.
 
-9. Calibration value is invalid or non-finite in the shared file.
-   - Reader treats it as missing.
-   - Required calibration workflow handles the missing value.
+9. A calibration record is malformed or non-finite in the shared file.
+   - Malformed history is reported as a typed error and preserved, not overwritten.
+   - A single non-finite/invalid record is dropped; the workflow treats that route as uncalibrated.
 
-10. Calibration value is finite but outside the accepted range.
+10. A calibration gain is finite but outside the accepted range.
     - Reader clamps through `common::audio::clampGain()`.
 
-11. Editor clears calibration because the committed audio-device state changed.
-    - Shared calibration value is cleared.
-    - Game also requires calibration next time it uses that shared state.
+11. Editor removes a route's calibration (e.g. the committed device route changed).
+    - That route's record is removed from the shared history; other routes are untouched.
+    - Game also requires calibration next time it uses that route.
 
-12. Game clears calibration because the committed audio-device state changed.
-    - Shared calibration value is cleared.
-    - Editor also requires calibration next time it uses that shared state.
+12. Game removes a route's calibration (e.g. the committed device route changed).
+    - That route's record is removed from the shared history; other routes are untouched.
+    - Editor also requires calibration next time it uses that route.
 
 13. Editor opens and closes an audio settings window with the exact previous state restored.
     - Shared calibration remains unchanged.
@@ -290,10 +383,15 @@ small "settings changed externally" refresh path rather than overbuilding now.
 - starts empty with a test-local settings file;
 - persists audio-device XML across reload;
 - clears audio-device XML;
-- persists calibration gain across reload;
+- persists per-route calibration history across reload;
+- replaces a route's calibration and collapses duplicate-route records;
+- removes one route's calibration without touching other routes;
 - clamps persisted calibration gain;
-- treats missing, empty, invalid, and non-finite calibration values as missing;
+- drops malformed/non-finite records and preserves a malformed history as a typed error;
 - keeps audio-device state and calibration independent.
+
+(These mirror the calibration cases already covered by `test_editor_settings.cpp`, since the schema
+and validation move over unchanged.)
 
 ### `rock-hero-editor/core/tests/test_editor_settings.cpp`
 
@@ -339,7 +437,6 @@ When game audio startup exists:
 ## Non-Goals
 
 - Do not share all settings between the editor and game.
-- Do not add per-device calibration records.
 - Do not add instrument profiles.
 - Do not add cloud sync or cross-user settings.
 - Do not solve rich cross-process conflict resolution beyond interprocess file locking.
