@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
+#include <memory>
 #include <optional>
 #include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/juce_path.h>
@@ -29,8 +30,10 @@ constexpr const char* g_input_calibration_input_channel_index_key{
 constexpr const char* g_input_calibration_input_channel_name_key{
     "inputCalibrationInputChannelName"
 };
-constexpr const char* g_input_calibration_states_json_key{"inputCalibrationStatesJson"};
-constexpr const char* g_project_cursor_positions_json_key{"projectCursorPositionsJson"};
+constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
+constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"};
+constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
+constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
 
 // Owns one build-local settings file so each test starts with clean persisted state.
 class ScopedSettingsFile final
@@ -72,7 +75,7 @@ private:
     std::filesystem::path m_path;
 };
 
-// Builds explicit settings-file options so tests can seed legacy/raw properties.
+// Builds explicit settings-file options so tests can seed obsolete/raw properties.
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()
 {
     juce::PropertiesFile::Options options;
@@ -89,7 +92,7 @@ private:
     return options;
 }
 
-// Writes one raw property through JUCE so malformed and legacy settings use production storage.
+// Writes one raw property through JUCE so malformed settings use production storage.
 void writeRawSetting(
     const std::filesystem::path& settings_file, const char* key, const juce::var& value)
 {
@@ -100,13 +103,23 @@ void writeRawSetting(
     REQUIRE(properties.save());
 }
 
-// Reads whether a raw property remains present after migration or removal behavior.
+// Reads whether a raw property remains present after settings operations.
 [[nodiscard]] bool rawSettingExists(const std::filesystem::path& settings_file, const char* key)
 {
     const juce::PropertiesFile properties{
         common::core::juceFileFromPath(settings_file), testSettingsOptions()
     };
     return properties.containsKey(key);
+}
+
+// Reads one XML-valued setting from the same JUCE storage path production uses.
+[[nodiscard]] std::unique_ptr<juce::XmlElement> xmlSettingFor(
+    const std::filesystem::path& settings_file, const char* key)
+{
+    const juce::PropertiesFile properties{
+        common::core::juceFileFromPath(settings_file), testSettingsOptions()
+    };
+    return properties.getXmlValue(key);
 }
 
 // Builds a stable route identity for settings history tests.
@@ -155,8 +168,8 @@ void writeRawSetting(
     return std::move(*result);
 }
 
-// Seeds the old one-record schema so migration behavior can be verified.
-void writeLegacyCalibration(
+// Seeds obsolete flat calibration keys so no-migration behavior can be verified.
+void writeObsoleteCalibration(
     const std::filesystem::path& settings_file,
     const common::audio::InputCalibrationState& calibration)
 {
@@ -319,6 +332,12 @@ TEST_CASE("EditorSettings persists project cursor position", "[core][settings]")
         projectCursorPositionFor(reloaded_settings, project_file) ==
         std::optional{common::core::TimePosition{4.25}});
     CHECK_FALSE(projectCursorPositionFor(reloaded_settings, other_project_file).has_value());
+
+    const std::unique_ptr<juce::XmlElement> cursor_xml =
+        xmlSettingFor(settings_file.path(), g_project_cursor_positions_key);
+    REQUIRE(cursor_xml != nullptr);
+    CHECK(cursor_xml->hasTagName(g_project_cursor_positions_tag));
+    CHECK(cursor_xml->getNumChildElements() == 1);
 }
 
 // Saving the same project cursor again replaces only that project's resume position.
@@ -339,14 +358,13 @@ TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]
         std::optional{common::core::TimePosition{7.5}});
 }
 
-// Malformed cursor JSON is reported and preserved instead of overwritten by a save attempt.
+// Malformed cursor XML is reported and preserved instead of overwritten by a save attempt.
 TEST_CASE("EditorSettings preserves malformed cursor history", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"malformed_project_cursor.settings"};
     const std::filesystem::path project_file =
         std::filesystem::path{TEST_SETTINGS_DIR} / "malformed_cursor.rhp";
-    writeRawSetting(
-        settings_file.path(), g_project_cursor_positions_json_key, juce::String{"not-json"});
+    writeRawSetting(settings_file.path(), g_project_cursor_positions_key, juce::String{"not-xml"});
 
     EditorSettings settings{settings_file.path()};
     const auto loaded = settings.projectCursorPositionFor(project_file);
@@ -357,7 +375,7 @@ TEST_CASE("EditorSettings preserves malformed cursor history", "[core][settings]
         settings.saveProjectCursorPosition(project_file, common::core::TimePosition{2.0});
     CHECK_FALSE(saved.has_value());
     CHECK(saved.error().code == EditorSettingsErrorCode::InvalidProjectCursorHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_project_cursor_positions_json_key));
+    CHECK(rawSettingExists(settings_file.path(), g_project_cursor_positions_key));
 }
 
 // Calibration history persists one physical input route and ignores unrelated routes.
@@ -382,6 +400,12 @@ TEST_CASE("EditorSettings persists physical input calibration", "[core][settings
         CHECK(stored_calibration->input_device_identity == identity);
     }
     CHECK_FALSE(inputCalibrationFor(reloaded_settings, other_identity).has_value());
+
+    const std::unique_ptr<juce::XmlElement> calibration_xml =
+        xmlSettingFor(settings_file.path(), g_input_calibration_states_key);
+    REQUIRE(calibration_xml != nullptr);
+    CHECK(calibration_xml->hasTagName(g_input_calibrations_tag));
+    CHECK(calibration_xml->getNumChildElements() == 1);
 }
 
 // Saving the same physical route again replaces only that route's gain.
@@ -478,18 +502,22 @@ TEST_CASE("EditorSettings removes one physical calibration", "[core][settings]")
     }
 }
 
-// Duplicate JSON records collapse to the last valid record for a physical route.
+// Duplicate XML records collapse to the last valid record for a physical route.
 TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"duplicates_input_calibration.settings"};
     const common::audio::InputDeviceIdentity identity = makeIdentity();
     writeRawSetting(
         settings_file.path(),
-        g_input_calibration_states_json_key,
-        juce::String{R"([{"gainDb":2.0,"backendName":"ASIO","inputDeviceName":"Interface A",)"
-                     R"("inputChannelIndex":0,"inputChannelName":"Input 1"},)"
-                     R"({"gainDb":7.0,"backendName":"ASIO","inputDeviceName":"Interface A",)"
-                     R"("inputChannelIndex":0,"inputChannelName":"Mic/Inst 1"}])"});
+        g_input_calibration_states_key,
+        juce::String{
+            R"(<INPUT_CALIBRATIONS formatVersion="1">)"
+            R"(<CALIBRATION gainDb="2.0" backendName="ASIO" inputDeviceName="Interface A" )"
+            R"(inputChannelIndex="0" inputChannelName="Input 1"/>)"
+            R"(<CALIBRATION gainDb="7.0" backendName="ASIO" inputDeviceName="Interface A" )"
+            R"(inputChannelIndex="0" inputChannelName="Mic/Inst 1"/>)"
+            R"(</INPUT_CALIBRATIONS>)"
+        });
 
     const EditorSettings settings{settings_file.path()};
 
@@ -502,14 +530,12 @@ TEST_CASE("EditorSettings collapses duplicate calibration history", "[core][sett
     }
 }
 
-// Malformed JSON blocks lookup and removal without deleting legacy fallback keys.
-TEST_CASE("EditorSettings preserves legacy keys with malformed history", "[core][settings]")
+// Malformed calibration XML blocks lookup and removal without overwriting unknown state.
+TEST_CASE("EditorSettings preserves malformed calibration history", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"malformed_input_calibration.settings"};
     const common::audio::InputDeviceIdentity identity = makeIdentity();
-    writeLegacyCalibration(settings_file.path(), calibrationFor(identity, 5.0));
-    writeRawSetting(
-        settings_file.path(), g_input_calibration_states_json_key, juce::String{"[not-json"});
+    writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
 
     EditorSettings settings{settings_file.path()};
 
@@ -520,62 +546,51 @@ TEST_CASE("EditorSettings preserves legacy keys with malformed history", "[core]
     const auto removed = settings.removeInputCalibration(identity);
     REQUIRE_FALSE(removed.has_value());
     CHECK(removed.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
-    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
+    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_states_key));
 }
 
-// Saving after a legacy-only file seeds the new history and then removes the old flat keys.
-TEST_CASE("EditorSettings migrates legacy calibration on save", "[core][settings]")
+// Obsolete flat calibration keys are ignored rather than migrated into the current history.
+TEST_CASE("EditorSettings ignores obsolete flat calibration", "[core][settings]")
 {
-    const ScopedSettingsFile settings_file{"migrates_legacy_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity legacy_identity = makeIdentity("Interface A");
+    const ScopedSettingsFile settings_file{"ignores_obsolete_input_calibration.settings"};
+    const common::audio::InputDeviceIdentity obsolete_identity = makeIdentity("Interface A");
     const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
-    writeLegacyCalibration(settings_file.path(), calibrationFor(legacy_identity, 4.0));
+    writeObsoleteCalibration(settings_file.path(), calibrationFor(obsolete_identity, 4.0));
 
     {
         EditorSettings settings{settings_file.path()};
-        REQUIRE(inputCalibrationFor(settings, legacy_identity).has_value());
+        CHECK_FALSE(inputCalibrationFor(settings, obsolete_identity).has_value());
         REQUIRE(settings.saveInputCalibration(calibrationFor(new_identity, 7.0)).has_value());
     }
 
     const EditorSettings reloaded_settings{settings_file.path()};
 
-    const auto legacy_calibration = inputCalibrationFor(reloaded_settings, legacy_identity);
-    const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
-    REQUIRE(legacy_calibration.has_value());
-    REQUIRE(new_calibration.has_value());
-    if (legacy_calibration.has_value() && new_calibration.has_value())
-    {
-        CHECK(legacy_calibration->calibration_gain.db == 4.0);
-        CHECK(new_calibration->calibration_gain.db == 7.0);
-    }
-    CHECK_FALSE(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
-}
-
-// Saving over malformed history replaces the bad blob but keeps the legacy fallback keys.
-TEST_CASE("EditorSettings keeps legacy keys when saving over malformed JSON", "[core][settings]")
-{
-    const ScopedSettingsFile settings_file{"malformed_save_input_calibration.settings"};
-    const common::audio::InputDeviceIdentity legacy_identity = makeIdentity("Interface A");
-    const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
-    writeLegacyCalibration(settings_file.path(), calibrationFor(legacy_identity, 5.0));
-    writeRawSetting(
-        settings_file.path(), g_input_calibration_states_json_key, juce::String{"[not-json"});
-
-    {
-        EditorSettings settings{settings_file.path()};
-        REQUIRE(settings.saveInputCalibration(calibrationFor(new_identity, 7.0)).has_value());
-    }
-
-    // The unparseable blob is gone, but the legacy fallback was not deleted along with it.
-    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_gain_db_key));
-
-    const EditorSettings reloaded_settings{settings_file.path()};
     const auto new_calibration = inputCalibrationFor(reloaded_settings, new_identity);
     REQUIRE(new_calibration.has_value());
     if (new_calibration.has_value())
     {
         CHECK(new_calibration->calibration_gain.db == 7.0);
     }
+    CHECK_FALSE(inputCalibrationFor(reloaded_settings, obsolete_identity).has_value());
+}
+
+// Saving refuses to overwrite malformed current-format calibration history.
+TEST_CASE("EditorSettings blocks saving over malformed calibration", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"malformed_save_input_calibration.settings"};
+    const common::audio::InputDeviceIdentity new_identity = makeIdentity("Interface B");
+    writeRawSetting(settings_file.path(), g_input_calibration_states_key, juce::String{"[not-xml"});
+
+    EditorSettings settings{settings_file.path()};
+    const auto saved = settings.saveInputCalibration(calibrationFor(new_identity, 7.0));
+    REQUIRE_FALSE(saved.has_value());
+    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
+    CHECK(rawSettingExists(settings_file.path(), g_input_calibration_states_key));
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+    const auto loaded = reloaded_settings.inputCalibrationFor(new_identity);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidInputCalibrationHistory);
 }
 
 } // namespace rock_hero::editor::core
