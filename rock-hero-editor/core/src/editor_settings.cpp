@@ -1,11 +1,10 @@
 #include "editor_settings.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <cstdint>
-#include <limits>
 #include <rock_hero/common/core/application_identity.h>
-#include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <system_error>
 #include <utility>
@@ -20,26 +19,21 @@ namespace
 constexpr const char* g_last_open_project_key{"lastOpenProject"};
 constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProject"};
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
-constexpr const char* g_project_cursor_positions_json_key{"projectCursorPositionsJson"};
+constexpr int g_settings_xml_format_version{1};
+constexpr const char* g_format_version_property{"formatVersion"};
+constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
+constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"};
+constexpr const char* g_project_cursor_position_tag{"POSITION"};
 constexpr const char* g_cursor_project_file_property{"projectFile"};
 constexpr const char* g_cursor_position_property{"cursorPosition"};
-constexpr const char* g_input_calibration_gain_db_key{"inputCalibrationGainDb"};
-constexpr const char* g_input_calibration_backend_name_key{"inputCalibrationBackendName"};
-constexpr const char* g_input_calibration_input_device_name_key{"inputCalibrationInputDeviceName"};
-constexpr const char* g_input_calibration_input_channel_index_key{
-    "inputCalibrationInputChannelIndex"
-};
-constexpr const char* g_input_calibration_input_channel_name_key{
-    "inputCalibrationInputChannelName"
-};
-constexpr const char* g_input_calibration_states_json_key{"inputCalibrationStatesJson"};
+constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
+constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
+constexpr const char* g_input_calibration_tag{"CALIBRATION"};
 constexpr const char* g_calibration_gain_db_property{"gainDb"};
 constexpr const char* g_calibration_backend_name_property{"backendName"};
 constexpr const char* g_calibration_input_device_name_property{"inputDeviceName"};
 constexpr const char* g_calibration_input_channel_index_property{"inputChannelIndex"};
 constexpr const char* g_calibration_input_channel_name_property{"inputChannelName"};
-
-using common::core::Json;
 
 struct ProjectCursorState
 {
@@ -50,13 +44,13 @@ struct ProjectCursorState
 struct ProjectCursorHistory
 {
     std::vector<ProjectCursorState> states;
-    bool malformed_json{false};
+    bool malformed_xml{false};
 };
 
 struct InputCalibrationHistory
 {
     std::vector<common::audio::InputCalibrationState> states;
-    bool malformed_json{false};
+    bool malformed_xml{false};
 };
 
 // Builds the per-user settings file options used by the editor app.
@@ -76,45 +70,78 @@ struct InputCalibrationHistory
     return options;
 }
 
-// Reads the legacy one-record schema without mutating settings so migration can be explicit.
-[[nodiscard]] std::optional<common::audio::InputCalibrationState> readLegacyInputCalibration(
-    const juce::PropertiesFile& properties)
+// Reads an XML attribute as an integer without accepting JUCE's permissive partial parsing.
+[[nodiscard]] std::optional<int> parseIntAttribute(
+    const juce::XmlElement& element, const char* attribute_name)
 {
-    if (!properties.containsKey(g_input_calibration_gain_db_key) ||
-        !properties.containsKey(g_input_calibration_input_channel_index_key))
+    if (!element.hasAttribute(attribute_name))
     {
         return std::nullopt;
     }
 
-    common::audio::InputCalibrationState state{
-        .calibration_gain = common::audio::clampGain(
-            common::audio::Gain{properties.getDoubleValue(g_input_calibration_gain_db_key)}),
-        .input_device_identity = common::audio::InputDeviceIdentity{
-            .backend_name = properties.getValue(g_input_calibration_backend_name_key).toStdString(),
-            .input_device_name =
-                properties.getValue(g_input_calibration_input_device_name_key).toStdString(),
-            .input_channel_index =
-                properties.getIntValue(g_input_calibration_input_channel_index_key, -1),
-            .input_channel_name =
-                properties.getValue(g_input_calibration_input_channel_name_key).toStdString(),
-        },
-    };
-    if (!common::audio::isValidInputDeviceIdentity(state.input_device_identity))
+    const std::string text = element.getStringAttribute(attribute_name).toStdString();
+    if (text.empty())
     {
         return std::nullopt;
     }
 
-    return state;
+    int value{};
+    const char* const begin = text.data();
+    const char* const end = begin + text.size();
+    const auto [parsed_to, error] = std::from_chars(begin, end, value);
+    if (error != std::errc{} || parsed_to != end)
+    {
+        return std::nullopt;
+    }
+
+    return value;
 }
 
-// Removes the legacy flat schema after a valid route-history write has replaced it.
-void removeLegacyInputCalibration(juce::PropertiesFile& properties)
+// Reads an XML attribute as a finite double without accepting malformed numeric text.
+[[nodiscard]] std::optional<double> parseDoubleAttribute(
+    const juce::XmlElement& element, const char* attribute_name)
 {
-    properties.removeValue(g_input_calibration_gain_db_key);
-    properties.removeValue(g_input_calibration_backend_name_key);
-    properties.removeValue(g_input_calibration_input_device_name_key);
-    properties.removeValue(g_input_calibration_input_channel_index_key);
-    properties.removeValue(g_input_calibration_input_channel_name_key);
+    if (!element.hasAttribute(attribute_name))
+    {
+        return std::nullopt;
+    }
+
+    const std::string text = element.getStringAttribute(attribute_name).toStdString();
+    if (text.empty())
+    {
+        return std::nullopt;
+    }
+
+    double value{};
+    const char* const begin = text.data();
+    const char* const end = begin + text.size();
+    const auto [parsed_to, error] = std::from_chars(begin, end, value);
+    if (error != std::errc{} || parsed_to != end || !std::isfinite(value))
+    {
+        return std::nullopt;
+    }
+
+    return value;
+}
+
+// Reads a required XML string attribute while allowing the caller to validate emptiness.
+[[nodiscard]] std::optional<std::string> readStringAttribute(
+    const juce::XmlElement& element, const char* attribute_name)
+{
+    if (!element.hasAttribute(attribute_name))
+    {
+        return std::nullopt;
+    }
+
+    return element.getStringAttribute(attribute_name).toStdString();
+}
+
+// Validates the root element shared by app-local XML history values.
+[[nodiscard]] bool hasCurrentXmlFormat(const juce::XmlElement& xml, const char* root_tag)
+{
+    const std::optional<int> format_version = parseIntAttribute(xml, g_format_version_property);
+    return xml.hasTagName(root_tag) && format_version.has_value() &&
+           *format_version == g_settings_xml_format_version;
 }
 
 // Converts project paths into stable app-settings keys without requiring callers to pre-normalize
@@ -153,16 +180,19 @@ void replaceProjectCursor(
     history.push_back(ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
 }
 
-// Converts one JSON object into a validated project cursor record.
-[[nodiscard]] std::optional<ProjectCursorState> readProjectCursorStateJson(const juce::var& value)
+// Converts one XML element into a validated project cursor record.
+[[nodiscard]] std::optional<ProjectCursorState> readProjectCursorStateXml(
+    const juce::XmlElement& element)
 {
-    if (!value.isObject())
+    if (!element.hasTagName(g_project_cursor_position_tag))
     {
         return std::nullopt;
     }
 
-    const auto project_file = Json::tryReadString(value, g_cursor_project_file_property);
-    const auto cursor_position = Json::tryReadDouble(value, g_cursor_position_property);
+    const std::optional<std::string> project_file =
+        readStringAttribute(element, g_cursor_project_file_property);
+    const std::optional<double> cursor_position =
+        parseDoubleAttribute(element, g_cursor_position_property);
     if (!project_file.has_value() || project_file->empty() || !cursor_position.has_value() ||
         !std::isfinite(*cursor_position))
     {
@@ -182,28 +212,28 @@ void replaceProjectCursor(
     };
 }
 
-// Loads app-local project cursor history. Malformed top-level JSON is preserved as a failure so
-// callers do not overwrite unknown user state with a partial replacement.
+// Loads app-local project cursor history from its XML-valued settings property.
 [[nodiscard]] ProjectCursorHistory readProjectCursorHistory(const juce::PropertiesFile& properties)
 {
-    if (!properties.containsKey(g_project_cursor_positions_json_key))
+    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_project_cursor_positions_key);
+    if (xml == nullptr)
     {
-        return {};
+        return properties.containsKey(g_project_cursor_positions_key)
+                   ? ProjectCursorHistory{.states = {}, .malformed_xml = true}
+                   : ProjectCursorHistory{};
     }
 
-    const juce::String json_text = properties.getValue(g_project_cursor_positions_json_key);
-    auto parsed = Json::parseDocument(json_text);
-    if (!parsed.has_value() || !parsed->isArray())
+    if (!hasCurrentXmlFormat(*xml, g_project_cursor_positions_tag))
     {
-        return ProjectCursorHistory{.states = {}, .malformed_json = true};
+        return ProjectCursorHistory{.states = {}, .malformed_xml = true};
     }
 
     ProjectCursorHistory history;
-    history.states.reserve(static_cast<std::size_t>(parsed->size()));
-    const juce::Array<juce::var>* const array = parsed->getArray();
-    for (const juce::var& item : *array)
+    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
+    for (const juce::XmlElement* const item :
+         xml->getChildWithTagNameIterator(g_project_cursor_position_tag))
     {
-        if (std::optional<ProjectCursorState> state = readProjectCursorStateJson(item);
+        if (std::optional<ProjectCursorState> state = readProjectCursorStateXml(*item);
             state.has_value())
         {
             replaceProjectCursor(history.states, state->project_file, state->cursor_position);
@@ -213,30 +243,26 @@ void replaceProjectCursor(
     return history;
 }
 
-// Serializes one project cursor record into app-local settings JSON.
-[[nodiscard]] juce::var makeProjectCursorStateJson(const ProjectCursorState& state)
-{
-    return Json::makeObject({
-        {g_cursor_project_file_property,
-         Json::makeString(common::core::juceStringFromPath(state.project_file).toStdString())},
-        {g_cursor_position_property, juce::var{state.cursor_position.seconds}},
-    });
-}
-
-// Writes a complete replacement cursor history as one structured settings value.
+// Writes a complete replacement cursor history as one XML-valued settings property.
 void writeProjectCursorHistory(
     juce::PropertiesFile& properties, const std::vector<ProjectCursorState>& history)
 {
-    juce::var history_json = Json::makeArray();
+    juce::XmlElement history_xml{g_project_cursor_positions_tag};
+    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
     for (const ProjectCursorState& state : history)
     {
         if (!state.project_file.empty() && std::isfinite(state.cursor_position.seconds))
         {
-            history_json.append(makeProjectCursorStateJson(state));
+            juce::XmlElement* const item =
+                history_xml.createNewChildElement(g_project_cursor_position_tag);
+            item->setAttribute(
+                g_cursor_project_file_property,
+                common::core::juceStringFromPath(state.project_file));
+            item->setAttribute(g_cursor_position_property, state.cursor_position.seconds);
         }
     }
 
-    properties.setValue(g_project_cursor_positions_json_key, juce::JSON::toString(history_json));
+    properties.setValue(g_project_cursor_positions_key, &history_xml);
 }
 
 // Replaces any existing record for a route with the newest one so duplicate history cannot make
@@ -260,26 +286,28 @@ void replaceRouteCalibration(
     history.push_back(std::move(calibration_state));
 }
 
-// Converts one JSON object into a validated calibration record, dropping incomplete entries.
-[[nodiscard]] std::optional<common::audio::InputCalibrationState> readCalibrationStateJson(
-    const juce::var& value)
+// Converts one XML element into a validated calibration record, dropping incomplete entries.
+[[nodiscard]] std::optional<common::audio::InputCalibrationState> readCalibrationStateXml(
+    const juce::XmlElement& element)
 {
-    if (!value.isObject())
+    if (!element.hasTagName(g_input_calibration_tag))
     {
         return std::nullopt;
     }
 
-    const auto gain_db = Json::tryReadDouble(value, g_calibration_gain_db_property);
-    const auto backend_name = Json::tryReadString(value, g_calibration_backend_name_property);
-    const auto input_device_name =
-        Json::tryReadString(value, g_calibration_input_device_name_property);
-    const auto input_channel_index =
-        Json::tryReadInt64(value, g_calibration_input_channel_index_property);
-    const auto input_channel_name =
-        Json::tryReadString(value, g_calibration_input_channel_name_property);
+    const std::optional<double> gain_db =
+        parseDoubleAttribute(element, g_calibration_gain_db_property);
+    const std::optional<std::string> backend_name =
+        readStringAttribute(element, g_calibration_backend_name_property);
+    const std::optional<std::string> input_device_name =
+        readStringAttribute(element, g_calibration_input_device_name_property);
+    const std::optional<int> input_channel_index =
+        parseIntAttribute(element, g_calibration_input_channel_index_property);
+    const std::optional<std::string> input_channel_name =
+        readStringAttribute(element, g_calibration_input_channel_name_property);
     if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
         !input_channel_index.has_value() || !input_channel_name.has_value() ||
-        *input_channel_index < 0 || *input_channel_index > std::numeric_limits<int>::max())
+        *input_channel_index < 0)
     {
         return std::nullopt;
     }
@@ -289,7 +317,7 @@ void replaceRouteCalibration(
         .input_device_identity = common::audio::InputDeviceIdentity{
             .backend_name = *backend_name,
             .input_device_name = *input_device_name,
-            .input_channel_index = static_cast<int>(*input_channel_index),
+            .input_channel_index = *input_channel_index,
             .input_channel_name = *input_channel_name,
         },
     };
@@ -301,37 +329,30 @@ void replaceRouteCalibration(
     return state;
 }
 
-// Loads route history. A malformed JSON history is reported separately so lookup can return empty
-// and remove can avoid rewriting unknown user state.
+// Loads route history from its XML-valued settings property.
 [[nodiscard]] InputCalibrationHistory readInputCalibrationHistory(
     const juce::PropertiesFile& properties)
 {
-    if (!properties.containsKey(g_input_calibration_states_json_key))
+    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_input_calibration_states_key);
+    if (xml == nullptr)
     {
-        InputCalibrationHistory history;
-        if (std::optional<common::audio::InputCalibrationState> legacy =
-                readLegacyInputCalibration(properties);
-            legacy.has_value())
-        {
-            history.states.push_back(*legacy);
-        }
-        return history;
+        return properties.containsKey(g_input_calibration_states_key)
+                   ? InputCalibrationHistory{.states = {}, .malformed_xml = true}
+                   : InputCalibrationHistory{};
     }
 
-    const juce::String json_text = properties.getValue(g_input_calibration_states_json_key);
-    auto parsed = Json::parseDocument(json_text);
-    if (!parsed.has_value() || !parsed->isArray())
+    if (!hasCurrentXmlFormat(*xml, g_input_calibrations_tag))
     {
-        return InputCalibrationHistory{.states = {}, .malformed_json = true};
+        return InputCalibrationHistory{.states = {}, .malformed_xml = true};
     }
 
     InputCalibrationHistory history;
-    history.states.reserve(static_cast<std::size_t>(parsed->size()));
-    const juce::Array<juce::var>* const array = parsed->getArray();
-    for (const juce::var& item : *array)
+    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
+    for (const juce::XmlElement* const item :
+         xml->getChildWithTagNameIterator(g_input_calibration_tag))
     {
         if (std::optional<common::audio::InputCalibrationState> state =
-                readCalibrationStateJson(item);
+                readCalibrationStateXml(*item);
             state.has_value())
         {
             replaceRouteCalibration(history.states, std::move(*state));
@@ -341,37 +362,36 @@ void replaceRouteCalibration(
     return history;
 }
 
-// Serializes one physical-route calibration record into the app-local settings JSON schema.
-[[nodiscard]] juce::var makeCalibrationStateJson(const common::audio::InputCalibrationState& state)
-{
-    return Json::makeObject({
-        {g_calibration_gain_db_property, juce::var{state.calibration_gain.db}},
-        {g_calibration_backend_name_property,
-         Json::makeString(state.input_device_identity.backend_name)},
-        {g_calibration_input_device_name_property,
-         Json::makeString(state.input_device_identity.input_device_name)},
-        {g_calibration_input_channel_index_property,
-         juce::var{state.input_device_identity.input_channel_index}},
-        {g_calibration_input_channel_name_property,
-         Json::makeString(state.input_device_identity.input_channel_name)},
-    });
-}
-
-// Writes a complete replacement history as one structured settings value.
+// Writes a complete replacement history as one XML-valued settings property.
 void writeInputCalibrationHistory(
     juce::PropertiesFile& properties,
     const std::vector<common::audio::InputCalibrationState>& history)
 {
-    juce::var history_json = Json::makeArray();
+    juce::XmlElement history_xml{g_input_calibrations_tag};
+    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
     for (const common::audio::InputCalibrationState& state : history)
     {
         if (common::audio::isValidInputDeviceIdentity(state.input_device_identity))
         {
-            history_json.append(makeCalibrationStateJson(state));
+            juce::XmlElement* const item =
+                history_xml.createNewChildElement(g_input_calibration_tag);
+            item->setAttribute(g_calibration_gain_db_property, state.calibration_gain.db);
+            item->setAttribute(
+                g_calibration_backend_name_property,
+                juce::String::fromUTF8(state.input_device_identity.backend_name.c_str()));
+            item->setAttribute(
+                g_calibration_input_device_name_property,
+                juce::String::fromUTF8(state.input_device_identity.input_device_name.c_str()));
+            item->setAttribute(
+                g_calibration_input_channel_index_property,
+                state.input_device_identity.input_channel_index);
+            item->setAttribute(
+                g_calibration_input_channel_name_property,
+                juce::String::fromUTF8(state.input_device_identity.input_channel_name.c_str()));
         }
     }
 
-    properties.setValue(g_input_calibration_states_json_key, juce::JSON::toString(history_json));
+    properties.setValue(g_input_calibration_states_key, &history_xml);
 }
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -511,11 +531,11 @@ std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> Ed
     }
 
     const ProjectCursorHistory history = readProjectCursorHistory(m_properties);
-    if (history.malformed_json)
+    if (history.malformed_xml)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidProjectCursorHistory,
-            "Saved project cursor history is not valid JSON."
+            "Saved project cursor history is not valid XML."
         }};
     }
 
@@ -545,7 +565,7 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPositi
     }
 
     ProjectCursorHistory history = readProjectCursorHistory(m_properties);
-    if (history.malformed_json)
+    if (history.malformed_xml)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidProjectCursorHistory,
@@ -568,11 +588,11 @@ EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& id
     }
 
     const InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    if (history.malformed_json)
+    if (history.malformed_xml)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidInputCalibrationHistory,
-            "Saved input calibration history is not valid JSON."
+            "Saved input calibration history is not valid XML."
         }};
     }
 
@@ -590,7 +610,7 @@ EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& id
     return calibration;
 }
 
-// Saves one physical-route calibration and migrates any legacy record into the JSON history.
+// Saves one physical-route calibration in the XML-valued route history.
 std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
     common::audio::InputCalibrationState calibration_state)
 {
@@ -603,23 +623,17 @@ std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
     }
 
     InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
+    if (history.malformed_xml)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
+            "Cannot save input calibration because saved calibration history is invalid."
+        }};
+    }
+
     replaceRouteCalibration(history.states, std::move(calibration_state));
     writeInputCalibrationHistory(m_properties, history.states);
-    auto saved = saveNow(m_properties, "Could not save input calibration setting.");
-    if (!saved.has_value())
-    {
-        return std::unexpected{std::move(saved.error())};
-    }
-
-    // Only drop the legacy flat schema once the JSON history is the trusted source. If the prior
-    // history was malformed it overwrote any parsed routes, so leave legacy keys as a fallback.
-    if (!history.malformed_json)
-    {
-        removeLegacyInputCalibration(m_properties);
-        return saveIfNeeded(m_properties, "Could not remove legacy input calibration setting.");
-    }
-
-    return {};
+    return saveNow(m_properties, "Could not save input calibration setting.");
 }
 
 // Removes one physical-route calibration without touching unrelated saved routes.
@@ -635,7 +649,7 @@ std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
     }
 
     InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    if (history.malformed_json)
+    if (history.malformed_xml)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidInputCalibrationHistory,
@@ -655,9 +669,6 @@ std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
         {
             return std::unexpected{std::move(saved.error())};
         }
-
-        removeLegacyInputCalibration(m_properties);
-        return saveIfNeeded(m_properties, "Could not remove legacy input calibration setting.");
     }
 
     return {};
