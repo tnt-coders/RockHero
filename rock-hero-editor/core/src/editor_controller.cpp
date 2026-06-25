@@ -9,7 +9,6 @@
 #include "input_calibration_workflow.h"
 #include "plugin_catalog_workflow.h"
 #include "project_io.h"
-#include "psarc_song_importer.h"
 #include "rock_song_importer.h"
 #include "signal_chain_workflow.h"
 
@@ -550,14 +549,6 @@ void logEditorUndoTransitionResult(
     if (extension == ".rock")
     {
         RockSongImporter importer;
-        const AudioNormalizationAnalyzer analyzer =
-            makeReportingAudioNormalizationAnalyzer(report_progress);
-        return project.import(file, importer, {}, analyzer);
-    }
-
-    if (extension == ".psarc")
-    {
-        PsarcSongImporter importer;
         const AudioNormalizationAnalyzer analyzer =
             makeReportingAudioNormalizationAnalyzer(report_progress);
         return project.import(file, importer, {}, analyzer);

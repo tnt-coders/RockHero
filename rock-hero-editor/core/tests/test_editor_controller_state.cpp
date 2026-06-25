@@ -143,7 +143,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
 {
     testing::RecordingEditorController controller;
     const std::filesystem::path open_file{"song.rhp"};
-    const std::filesystem::path import_file{"song.psarc"};
+    const std::filesystem::path import_file{"song.rock"};
     const std::filesystem::path save_as_file{"saved.rhp"};
     const std::filesystem::path publish_file{"saved.rock"};
 

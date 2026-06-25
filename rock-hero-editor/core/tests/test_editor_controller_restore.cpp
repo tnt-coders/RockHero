@@ -474,7 +474,7 @@ TEST_CASE("EditorController restore prompts for unsaved changes", "[core][editor
     controller.attachView(view);
 
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     const int open_call_count_before_restore = project_services.open_call_count;
     controller.restoreLastOpenProject();

@@ -90,8 +90,8 @@ Cache keys should include:
 - Conan profile contents
 - lockfile contents, if lockfiles are introduced
 
-This helps dependencies that already come from Conan, such as Catch2, libzip, nlohmann_json,
-open-psarc, Ogg, and Vorbis. It does not avoid compiling JUCE/Tracktion while those remain
+This helps dependencies that already come from Conan, such as Catch2 and libebur128. It does not
+avoid compiling JUCE/Tracktion while those remain
 submodule source targets.
 
 Expected benefit:

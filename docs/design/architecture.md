@@ -34,7 +34,6 @@ For the structural engineering rules that govern how new code should be organize
 | Plugin format | VST3 (MIT licensed) | Guitar amp sims, effects, cabinets |
 | Audio I/O | ASIO (GPL3 licensed) | Low-latency guitar input on Windows |
 | Rock Hero package formats | JUCE JSON + ZIP utilities | `.rhp` editor project packages; `.rock` native song packages |
-| Rocksmith import format | open-psarc (Conan) | PSARC format read/write for Rocksmith packages |
 | Game rendering | SDL3 + bgfx | 3D note highway, visual feedback |
 | Editor UI | JUCE Components | Waveform display, automation curves, plugin management |
 | License | AGPLv3 | Compatible with all dependencies at zero cost |
@@ -485,7 +484,6 @@ All dependencies are compatible with AGPLv3 at zero cost:
 | AGPLv3 | JUCE | Requires project to use AGPLv3 |
 | MIT (as of October 2025) | VST3 SDK | Permissive, compatible with everything |
 | Dual GPL3/proprietary (as of October 2025) | ASIO SDK | GPL3 option compatible |
-| MIT | open-psarc | Permissive, compatible with everything |
 | zlib | SDL3 | Permissive |
 | BSD 2-Clause | bgfx | Permissive |
 

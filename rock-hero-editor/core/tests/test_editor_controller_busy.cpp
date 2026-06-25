@@ -85,7 +85,7 @@ TEST_CASE("EditorController import begins busy with default message", "[core][ed
     controller.attachView(view);
 
     project_services.next_import_song = makeSong(std::filesystem::path{"first.ogg"});
-    controller.onImportRequested(std::filesystem::path{"first.psarc"});
+    controller.onImportRequested(std::filesystem::path{"first.rock"});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -115,7 +115,7 @@ TEST_CASE("EditorController import reports audio analysis state", "[core][editor
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onImportRequested(std::filesystem::path{"song.psarc"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
@@ -442,7 +442,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     REQUIRE(state->busy.has_value());
 
     controller.onOpenRequested(std::filesystem::path{"blocked.rhp"});
-    controller.onImportRequested(std::filesystem::path{"blocked.psarc"});
+    controller.onImportRequested(std::filesystem::path{"blocked.rock"});
     controller.onSaveRequested();
     controller.onSaveAsRequested(std::filesystem::path{"blocked.rhp"});
     controller.onPublishRequested(std::filesystem::path{"blocked.rock"});
