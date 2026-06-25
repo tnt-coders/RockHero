@@ -1,8 +1,6 @@
 add_library(rock_hero_editor_core STATIC)
 add_library(rock_hero::editor::core ALIAS rock_hero_editor_core)
 
-find_package(OpenPSARC REQUIRED)
-
 # Headless editor workflow and project persistence stay testable without owning JUCE widgets.
 target_sources(
     rock_hero_editor_core
@@ -37,7 +35,6 @@ target_sources(
             src/project_io.cpp
             src/project_error.cpp
             src/editor_settings_error.cpp
-            src/psarc_song_importer.cpp
             src/rock_song_importer.cpp
             src/song_import_error.cpp
             src/editor_settings.cpp)
@@ -51,7 +48,6 @@ target_include_directories(
 target_link_libraries(
     rock_hero_editor_core
     PUBLIC rock_hero::common::core rock_hero::common::audio rock_hero::juce_data_structures
-    PRIVATE rock_hero::build_policy rock_hero::juce_core rock_hero::juce_events
-            OpenPSARC::OpenPSARC)
+    PRIVATE rock_hero::build_policy rock_hero::juce_core rock_hero::juce_events)
 
 add_subdirectory(tests)

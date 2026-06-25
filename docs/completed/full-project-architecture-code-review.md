@@ -87,7 +87,6 @@ The major product boundary is in better shape than the file sizes suggest:
 - `editor` does not include `game`.
 - `game` does not include `editor`.
 - Tracktion headers are isolated to `rock-hero-common/audio` implementation/private helper files.
-- OpenPSARC is isolated to the editor import path.
 - UI widgets are mostly passive, and core tests generally exercise controller or service APIs
   rather than concrete widgets.
 
