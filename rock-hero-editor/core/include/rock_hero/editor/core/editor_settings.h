@@ -19,8 +19,8 @@ namespace rock_hero::editor::core
 \brief Stores editor settings that live outside project packages.
 
 EditorSettings is the JUCE-backed implementation of IEditorSettings used by production app
-composition. These settings are per-user application state, not `.rhp` project data and not
-`.rock` package data.
+composition. Scalar values and XML-valued histories are stored in the app properties file. These
+settings are per-user application state, not `.rhp` project data and not `.rock` package data.
 */
 class EditorSettings final : public IEditorSettings
 {
