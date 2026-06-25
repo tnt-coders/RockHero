@@ -18,10 +18,6 @@ namespace
         {
             return "Song source does not exist.";
         }
-        case SongImportErrorCode::UnsupportedSource:
-        {
-            return "Unsupported song source.";
-        }
         case SongImportErrorCode::ExtractionFailed:
         {
             return "Could not extract song source.";
@@ -29,26 +25,6 @@ namespace
         case SongImportErrorCode::InvalidImportedSong:
         {
             return "Imported song package is invalid.";
-        }
-        case SongImportErrorCode::AudioConversionFailed:
-        {
-            return "Could not convert source audio.";
-        }
-        case SongImportErrorCode::AudioImportFailed:
-        {
-            return "Could not import source audio.";
-        }
-        case SongImportErrorCode::NoPlayableArrangement:
-        {
-            return "Source did not contain a playable arrangement.";
-        }
-        case SongImportErrorCode::FilesystemFailure:
-        {
-            return "Could not write imported song files.";
-        }
-        case SongImportErrorCode::ExternalImportFailed:
-        {
-            return "Could not import song source.";
         }
     }
 

@@ -1203,9 +1203,9 @@ void EditorView::showOpenChooser()
 void EditorView::showImportChooser()
 {
     m_file_chooser = std::make_unique<juce::FileChooser>(
-        "Import Rock Hero Song or the source game source-package",
+        "Import Rock Hero Song",
         juce::File::getSpecialLocation(juce::File::userHomeDirectory),
-        "*.rock;*.source-package");
+        "*.rock");
 
     const juce::Component::SafePointer<EditorView> safe_this{this};
     m_file_chooser->launchAsync(
