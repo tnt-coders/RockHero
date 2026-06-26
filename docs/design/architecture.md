@@ -233,21 +233,27 @@ Song
   arrangements[*]
     id            (stable project-local arrangement identifier)
     part          (Lead | Rhythm | Bass)
-    difficulty    (0 Unknown, 1-10 authored rating)
+    difficulty    (0 Unknown, 1-10; derived from the chart, not persisted yet)
     audio_asset    (required path/identifier for backing audio)
     audio_duration (full natural duration of the audio asset)
     tone_document_ref (package-relative tone document interpreted exclusively by common/audio)
     note_events[*]
       position.seconds
       duration.seconds
-      string_number (1–6)
+      string_number (1-based playable string number, capped by package validation config)
       fret
 \endcode
 
-Arrangement difficulty is stored as the numeric rating. The display tier is derived from that
-rating: Easy for 1-2, Medium for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value
-of 0 represents Unknown so draft/default arrangements do not imply a fake difficulty; validation
-for playable songs should reject Unknown.
+Arrangement difficulty is a value *derived* from the chart, not authored data a user sets by hand.
+The display tier is derived from the numeric rating: Easy for 1-2, Medium for 3-4, Hard for 5-6,
+Expert for 7-8, and Master for 9-10. A value of 0 represents Unknown so draft/default arrangements
+do not imply a fake difficulty; validation for playable songs should reject Unknown.
+
+The rating is computed from the note data by a deterministic difficulty calculator. Like audio
+normalization, it is intended to be persisted only as a cache validated against the chart and the
+calculator version and recomputed when stale — never hand-set. That calculator does not exist yet,
+so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
+`docs/todo/arrangement-difficulty-derivation-plan.md`.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading

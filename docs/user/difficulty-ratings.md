@@ -3,6 +3,10 @@
 Rock Hero rates each arrangement on a 1-10 scale. The number is the source of truth; the
 difficulty name is a display tier derived from that number.
 
+The rating is computed automatically from the arrangement's notes rather than chosen by hand, so two
+charts of comparable demand land at comparable ratings regardless of who created them. The automatic
+calculator is not implemented yet; see `docs/todo/arrangement-difficulty-derivation-plan.md`.
+
 | Rating | Difficulty |
 |--------|------------|
 | 0 | Unknown |

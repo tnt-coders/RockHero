@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -143,6 +144,29 @@ void writeAudioFile(const std::filesystem::path& path)
     return song;
 }
 
+// Builds a song whose lead arrangement carries a few notes. Note times are chosen to be exactly
+// representable so the fixed-precision round trip is bit-exact.
+[[nodiscard]] Song makeSongWithNotes(const std::filesystem::path& audio_path)
+{
+    Song song = makeSong(audio_path);
+    Arrangement& arrangement = song.arrangements.front();
+    arrangement.note_events = {
+        NoteEvent{
+            .position = TimePosition{1.5},
+            .duration = TimeDuration{0.0},
+            .string_number = 1,
+            .fret = 17,
+        },
+        NoteEvent{
+            .position = TimePosition{2.25},
+            .duration = TimeDuration{0.125},
+            .string_number = SongPackageValidationConfig{}.max_playable_string_count,
+            .fret = 5,
+        },
+    };
+    return song;
+}
+
 // Writes a minimal package directory fixture that can be edited by negative read tests.
 void writeReadablePackageDirectory(const std::filesystem::path& package_directory)
 {
@@ -150,6 +174,38 @@ void writeReadablePackageDirectory(const std::filesystem::path& package_director
     writeTextFile(
         package_directory / arrangementDocumentPath(g_lead_arrangement_id),
         R"({"formatVersion":1,"notes":[]})");
+}
+
+// Writes a package directory whose arrangement document can be varied by negative tests.
+void writePackageDirectoryWithArrangementDocument(
+    const std::filesystem::path& package_directory, const std::string& arrangement_document)
+{
+    writeAudioFile(package_directory / "audio" / "backing.wav");
+    writeTextFile(
+        package_directory / arrangementDocumentPath(g_lead_arrangement_id), arrangement_document);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
 }
 
 } // namespace
@@ -514,6 +570,101 @@ TEST_CASE(
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK_FALSE(read_song->arrangements.front().audio_asset.normalization.has_value());
+}
+
+// Verifies arrangement difficulty and note events round-trip through native package persistence.
+TEST_CASE("Rock song package round-trips arrangement notes", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const Song song = makeSongWithNotes(source_audio);
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+
+    REQUIRE(written.has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    const Arrangement& read_arrangement = read_song->arrangements.front();
+    CHECK(read_arrangement.note_events == song.arrangements.front().note_events);
+}
+
+// Verifies product configuration can raise the accepted string count for extended instruments.
+TEST_CASE("Rock song package honors configured string limit", "[core][rock-song-package]")
+{
+    SongPackageValidationConfig validation_config;
+    validation_config.max_playable_string_count = 12;
+
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSongWithNotes(source_audio);
+    song.arrangements.front().note_events.front().string_number = 12;
+
+    const auto default_written =
+        writeRockSongPackageDirectory(temporary_directory.path() / "default-package", song);
+
+    REQUIRE_FALSE(default_written.has_value());
+    CHECK(default_written.error().code == SongPackageErrorCode::InvalidArrangement);
+
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    const auto written = writeRockSongPackageDirectory(package_directory, song, validation_config);
+
+    REQUIRE(written.has_value());
+
+    const auto read_song = readRockSongPackageDirectory(package_directory, validation_config);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().note_events == song.arrangements.front().note_events);
+}
+
+// Verifies a note missing a required field is rejected with a typed arrangement error.
+TEST_CASE("Rock song package rejects malformed arrangement notes", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writePackageDirectoryWithArrangementDocument(
+        package_directory,
+        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"string":1,"fret":17}]})");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+// Verifies present note fields still reject values outside the core domain.
+TEST_CASE("Rock song package rejects out-of-domain notes", "[core][rock-song-package]")
+{
+    const std::vector<std::string> invalid_arrangement_documents{
+        R"({"formatVersion":1,"notes":[{"positionSeconds":-0.001,"durationSeconds":0.0,"string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":-0.1,"string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":0,"fret":17}]})",
+        std::string{
+            R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":)"
+        } + std::to_string(SongPackageValidationConfig{}.max_playable_string_count + 1) +
+            R"(,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":-1}]})",
+        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":2147483648}]})",
+    };
+
+    for (const std::string& arrangement_document : invalid_arrangement_documents)
+    {
+        const TemporaryRockSongPackageDirectory temporary_directory;
+        const std::filesystem::path package_directory = temporary_directory.path() / "package";
+        writePackageDirectoryWithArrangementDocument(package_directory, arrangement_document);
+
+        const auto read_song = readRockSongPackageDirectory(package_directory);
+
+        REQUIRE_FALSE(read_song.has_value());
+        CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
+    }
 }
 
 } // namespace rock_hero::common::core
