@@ -4,11 +4,14 @@
 #include <array>
 #include <cassert>
 #include <cctype>
+#include <cmath>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <juce_core/juce_core.h>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/archive_io.h>
@@ -37,6 +40,11 @@ constexpr std::string_view g_song_document_name{"song.json"};
 constexpr std::string_view g_arrangements_directory_name{"arrangements"};
 constexpr std::string_view g_arrangement_document_extension{".json"};
 constexpr int g_zip_compression_level = 9;
+
+// Decimal places used when writing note timeline values. Three places give millisecond resolution,
+// which keeps the note columns narrow and the chart readable. Revisit if note placement ever needs
+// sub-millisecond precision; widening this widens every note line.
+constexpr int g_note_seconds_decimals = 3;
 
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
@@ -307,10 +315,184 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return audio_assets;
 }
 
+// Reports whether a note timeline value can be stored safely in the core model.
+[[nodiscard]] bool isValidNoteSeconds(double seconds) noexcept
+{
+    return std::isfinite(seconds) && seconds >= 0.0;
+}
+
+// Reports whether a parsed JSON integer fits the int field used by NoteEvent.
+[[nodiscard]] bool fitsNoteInt(std::int64_t value) noexcept
+{
+    return value <= static_cast<std::int64_t>(std::numeric_limits<int>::max());
+}
+
+// Validates caller-provided package limits before they influence package IO behavior.
+[[nodiscard]] std::optional<SongPackageError> validatePackageConfig(
+    SongPackageValidationConfig validation_config)
+{
+    if (validation_config.max_playable_string_count <= 0)
+    {
+        return SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "max playable string count must be positive",
+        };
+    }
+
+    return std::nullopt;
+}
+
+// Validates a note already stored in core form before writing it to a package document.
+[[nodiscard]] std::expected<void, SongPackageError> validateNoteEvent(
+    const NoteEvent& note, SongPackageValidationConfig validation_config)
+{
+    if (!isValidNoteSeconds(note.position.seconds) || !isValidNoteSeconds(note.duration.seconds))
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note positionSeconds and durationSeconds must be finite non-negative values",
+        }};
+    }
+
+    if (note.string_number <= 0 || note.string_number > validation_config.max_playable_string_count)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note string must be between 1 and " +
+                std::to_string(validation_config.max_playable_string_count),
+        }};
+    }
+
+    if (note.fret < 0)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note fret must be a non-negative integer",
+        }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
+// Reads the note objects from a parsed arrangement document into core note events.
+[[nodiscard]] std::expected<std::vector<NoteEvent>, SongPackageError> readArrangementNotes(
+    const juce::var& arrangement_document, SongPackageValidationConfig validation_config)
+{
+    const juce::var& notes_json = Json::value(arrangement_document, "notes");
+    if (!notes_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "arrangement document notes must be an array",
+        }};
+    }
+
+    std::vector<NoteEvent> notes;
+    notes.reserve(static_cast<std::size_t>(notes_json.size()));
+
+    const juce::Array<juce::var>* const note_array = notes_json.getArray();
+    for (const juce::var& note_json : *note_array)
+    {
+        if (!note_json.isObject())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "arrangement document notes must be objects",
+            }};
+        }
+
+        const auto position_seconds = Json::tryReadDouble(note_json, "positionSeconds");
+        const auto duration_seconds = Json::tryReadDouble(note_json, "durationSeconds");
+        const auto string_number = Json::tryReadInt64(note_json, "string");
+        const auto fret = Json::tryReadInt64(note_json, "fret");
+        if (!position_seconds.has_value() || !duration_seconds.has_value() ||
+            !string_number.has_value() || !fret.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "each note requires numeric positionSeconds, durationSeconds, string, and fret",
+            }};
+        }
+
+        if (!isValidNoteSeconds(*position_seconds) || !isValidNoteSeconds(*duration_seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "note positionSeconds and durationSeconds must be finite non-negative values",
+            }};
+        }
+
+        if (*string_number <= 0 || !fitsNoteInt(*string_number) ||
+            *string_number > validation_config.max_playable_string_count)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "note string must be between 1 and " +
+                    std::to_string(validation_config.max_playable_string_count),
+            }};
+        }
+
+        if (*fret < 0 || !fitsNoteInt(*fret))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "note fret must be a non-negative integer",
+            }};
+        }
+
+        notes.push_back(
+            NoteEvent{
+                .position = TimePosition{*position_seconds},
+                .duration = TimeDuration{*duration_seconds},
+                .string_number = static_cast<int>(*string_number),
+                .fret = static_cast<int>(*fret),
+            });
+    }
+
+    return notes;
+}
+
+// Opens, parses, and validates an arrangement document file, returning its note events.
+[[nodiscard]] std::expected<std::vector<NoteEvent>, SongPackageError> readArrangementDocumentFile(
+    const std::filesystem::path& document_path, SongPackageValidationConfig validation_config)
+{
+    juce::FileInputStream document_file{juceFileFromPath(document_path)};
+    if (document_file.failedToOpen())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "Could not open arrangement document: " + document_path.string(),
+        }};
+    }
+
+    const juce::String document_text = document_file.readEntireStreamAsString();
+    auto parsed_document = Json::parseDocument(document_text);
+    if (!parsed_document.has_value())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "Could not parse arrangement document: " + parsed_document.error().message,
+        }};
+    }
+
+    const juce::var arrangement_document = std::move(*parsed_document);
+    const auto format_version = Json::readOptionalInt(arrangement_document, "formatVersion", 0);
+    if (!arrangement_document.isObject() || format_version != 1)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "Unsupported arrangement document formatVersion",
+        }};
+    }
+
+    return readArrangementNotes(arrangement_document, validation_config);
+}
+
 // Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
-    const std::unordered_map<std::string, AudioAsset>& audio_assets)
+    const std::unordered_map<std::string, AudioAsset>& audio_assets,
+    SongPackageValidationConfig validation_config)
 {
     const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
@@ -383,7 +565,9 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        if (!resolveExistingFile(directory, *arrangement_document).has_value())
+        const auto resolved_arrangement_document =
+            resolveExistingFile(directory, *arrangement_document);
+        if (!resolved_arrangement_document.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
@@ -429,6 +613,16 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
+        auto note_events =
+            readArrangementDocumentFile(*resolved_arrangement_document, validation_config);
+        if (!note_events.has_value())
+        {
+            return std::unexpected{std::move(note_events.error())};
+        }
+
+        // Difficulty is intentionally not read here. It is a value derived from the chart (see
+        // docs/todo/arrangement-difficulty-derivation-plan.md), not authored persisted data, so it
+        // stays at its Unknown default until the difficulty calculator is added.
         arrangements.push_back(
             Arrangement{
                 .id = *id,
@@ -437,7 +631,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
-                .note_events = {},
+                .note_events = std::move(*note_events),
             });
     }
 
@@ -693,15 +887,85 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return relative_path;
 }
 
-// Ensures an arrangement document exists for the generated song-document reference.
-[[nodiscard]] std::expected<void, SongPackageError> ensureArrangementDocument(
-    const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path)
+// Formats a timeline seconds value at the fixed note precision so columns align and values
+// round-trip deterministically.
+[[nodiscard]] std::string formatNoteSeconds(double seconds)
+{
+    return std::format("{:.{}f}", seconds, g_note_seconds_decimals);
+}
+
+// Widths of the always-present note fields, so rendered note lines align into readable columns.
+struct NoteColumnWidths
+{
+    std::size_t position{0};
+    std::size_t duration{0};
+    std::size_t fret{0};
+};
+
+[[nodiscard]] NoteColumnWidths measureNoteColumns(const std::vector<NoteEvent>& notes)
+{
+    NoteColumnWidths widths;
+    for (const NoteEvent& note : notes)
+    {
+        widths.position =
+            std::max(widths.position, formatNoteSeconds(note.position.seconds).size());
+        widths.duration =
+            std::max(widths.duration, formatNoteSeconds(note.duration.seconds).size());
+        widths.fret = std::max(widths.fret, std::to_string(note.fret).size());
+    }
+
+    return widths;
+}
+
+// Renders one note as a single compact JSON object line, right-padding the core fields into fixed
+// columns so the chart scans as a table. Optional technique keys are appended here as NoteEvent
+// grows; every field is numeric today, so no JSON string escaping is required.
+[[nodiscard]] std::string formatNoteLine(const NoteEvent& note, const NoteColumnWidths& widths)
+{
+    std::string line = "{ \"positionSeconds\": ";
+    line += std::format("{:>{}}", formatNoteSeconds(note.position.seconds), widths.position);
+    line += ", \"durationSeconds\": ";
+    line += std::format("{:>{}}", formatNoteSeconds(note.duration.seconds), widths.duration);
+    line += ", \"string\": ";
+    line += std::to_string(note.string_number);
+    line += ", \"fret\": ";
+    line += std::format("{:>{}}", note.fret, widths.fret);
+    line += " }";
+
+    return line;
+}
+
+// Builds the JSON text of an arrangement document: a format version and the one-line-per-note chart.
+[[nodiscard]] std::string arrangementDocumentContents(const Arrangement& arrangement)
+{
+    const NoteColumnWidths widths = measureNoteColumns(arrangement.note_events);
+
+    std::string contents = "{\n  \"formatVersion\": 1,\n  \"notes\": [";
+    for (std::size_t index = 0; index < arrangement.note_events.size(); ++index)
+    {
+        contents += (index == 0 ? "\n    " : ",\n    ");
+        contents += formatNoteLine(arrangement.note_events[index], widths);
+    }
+    contents += arrangement.note_events.empty() ? "]\n}\n" : "\n  ]\n}\n";
+
+    return contents;
+}
+
+// Writes an arrangement document with the arrangement's current notes, overwriting any prior
+// document so the in-memory song is the source of truth on save.
+[[nodiscard]] std::expected<void, SongPackageError> writeArrangementDocument(
+    const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path,
+    const Arrangement& arrangement, SongPackageValidationConfig validation_config)
 {
     const std::filesystem::path arrangement_path = workspace_directory / relative_path;
     std::error_code error;
-    if (std::filesystem::is_regular_file(arrangement_path, error))
+    for (const NoteEvent& note : arrangement.note_events)
     {
-        return std::expected<void, SongPackageError>{};
+        if (const auto note_error = validateNoteEvent(note, validation_config);
+            !note_error.has_value())
+        {
+            return std::unexpected{note_error.error()};
+        }
     }
 
     std::filesystem::create_directories(arrangement_path.parent_path(), error);
@@ -722,7 +986,15 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         }};
     }
 
-    arrangement_document << "{\n  \"formatVersion\": 1,\n  \"notes\": []\n}\n";
+    arrangement_document << arrangementDocumentContents(arrangement);
+    if (!arrangement_document.good())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::CouldNotWriteSongDocument,
+            "Could not write arrangement document: " + arrangement_path.string(),
+        }};
+    }
+
     return std::expected<void, SongPackageError>{};
 }
 
@@ -774,7 +1046,8 @@ struct SongDocumentForSave
 
 // Creates the JSON song document that represents the supplied session song.
 [[nodiscard]] std::expected<SongDocumentForSave, SongPackageError> buildSongDocumentForSave(
-    const std::filesystem::path& workspace_directory, const Song& song)
+    const std::filesystem::path& workspace_directory, const Song& song,
+    SongPackageValidationConfig validation_config)
 {
     if (song.arrangements.empty())
     {
@@ -850,8 +1123,8 @@ struct SongDocumentForSave
 
         const std::filesystem::path arrangement_document_path =
             arrangementDocumentPath(*arrangement_id);
-        if (const auto arrangement_error =
-                ensureArrangementDocument(workspace_directory, arrangement_document_path);
+        if (const auto arrangement_error = writeArrangementDocument(
+                workspace_directory, arrangement_document_path, arrangement, validation_config);
             !arrangement_error.has_value())
         {
             return std::unexpected{arrangement_error.error()};
@@ -914,7 +1187,8 @@ struct SongDocumentForSave
 
 // Writes native song package files and returns arrangement IDs for callers that need them.
 [[nodiscard]] std::expected<std::vector<std::string>, SongPackageError> writeSongFilesForSave(
-    const std::filesystem::path& song_directory, const Song& song)
+    const std::filesystem::path& song_directory, const Song& song,
+    SongPackageValidationConfig validation_config)
 {
     std::error_code error;
     std::filesystem::create_directories(song_directory, error);
@@ -926,7 +1200,7 @@ struct SongDocumentForSave
         }};
     }
 
-    auto song_document = buildSongDocumentForSave(song_directory, song);
+    auto song_document = buildSongDocumentForSave(song_directory, song, validation_config);
     if (!song_document.has_value())
     {
         return std::unexpected{std::move(song_document.error())};
@@ -1006,8 +1280,14 @@ std::expected<void, ArchiveError> extractArchiveToWorkspace(
 
 // Reads song.json and resolves Rock song package-relative asset references into core data.
 std::expected<Song, SongPackageError> readRockSongPackageDirectory(
-    const std::filesystem::path& directory)
+    const std::filesystem::path& directory, SongPackageValidationConfig validation_config)
 {
+    if (const auto config_error = validatePackageConfig(validation_config);
+        config_error.has_value())
+    {
+        return std::unexpected{*config_error};
+    }
+
     std::error_code error;
     if (!std::filesystem::is_directory(directory, error))
     {
@@ -1062,7 +1342,8 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         return std::unexpected{audio_assets.error()};
     }
 
-    auto arrangements = readArrangements(directory, song_document, *audio_assets);
+    auto arrangements =
+        readArrangements(directory, song_document, *audio_assets, validation_config);
     if (!arrangements.has_value())
     {
         return std::unexpected{std::move(arrangements.error())};
@@ -1077,8 +1358,15 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
 
 // Extracts a native song package and reads the root song document from the workspace.
 std::expected<Song, SongPackageError> readRockSongPackage(
-    const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory)
+    const std::filesystem::path& package_path, const std::filesystem::path& workspace_directory,
+    SongPackageValidationConfig validation_config)
 {
+    if (const auto config_error = validatePackageConfig(validation_config);
+        config_error.has_value())
+    {
+        return std::unexpected{*config_error};
+    }
+
     if (const auto package_error = extractArchiveToWorkspace(package_path, workspace_directory);
         !package_error.has_value())
     {
@@ -1088,7 +1376,7 @@ std::expected<Song, SongPackageError> readRockSongPackage(
         }};
     }
 
-    return readRockSongPackageDirectory(workspace_directory);
+    return readRockSongPackageDirectory(workspace_directory, validation_config);
 }
 
 // Resolves an asset path and reports its workspace-relative spelling.
@@ -1117,9 +1405,16 @@ std::optional<std::filesystem::path> relativeWorkspacePath(
 
 // Writes native song files into a Rock song package content directory.
 std::expected<std::vector<std::string>, SongPackageError> writeRockSongPackageDirectory(
-    const std::filesystem::path& song_directory, const Song& song)
+    const std::filesystem::path& song_directory, const Song& song,
+    SongPackageValidationConfig validation_config)
 {
-    auto song_files = writeSongFilesForSave(song_directory, song);
+    if (const auto config_error = validatePackageConfig(validation_config);
+        config_error.has_value())
+    {
+        return std::unexpected{*config_error};
+    }
+
+    auto song_files = writeSongFilesForSave(song_directory, song, validation_config);
     if (!song_files.has_value())
     {
         return std::unexpected{std::move(song_files.error())};
@@ -1230,9 +1525,15 @@ std::expected<void, ArchiveError> writeWorkspaceToArchive(
 // Writes a native song directory and rewrites its song package archive.
 std::expected<void, SongPackageError> writeRockSongPackage(
     const std::filesystem::path& package_path, const std::filesystem::path& song_directory,
-    const Song& song)
+    const Song& song, SongPackageValidationConfig validation_config)
 {
-    auto song_files = writeRockSongPackageDirectory(song_directory, song);
+    if (const auto config_error = validatePackageConfig(validation_config);
+        config_error.has_value())
+    {
+        return std::unexpected{*config_error};
+    }
+
+    auto song_files = writeRockSongPackageDirectory(song_directory, song, validation_config);
     if (!song_files.has_value())
     {
         return std::unexpected{std::move(song_files.error())};
