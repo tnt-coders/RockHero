@@ -24,7 +24,7 @@ struct NoteEvent
     /*! \brief Sustain duration; zero means a non-sustained note. */
     TimeDuration duration;
 
-    /*! \brief Guitar string number from 1 to 6; one is high E and six is low E. */
+    /*! \brief One-based playable string number, capped by package validation policy. */
     int string_number{0};
 
     /*! \brief Fret number; zero means an open string. */
