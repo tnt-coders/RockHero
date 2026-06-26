@@ -35,7 +35,7 @@ namespace
 
 constexpr std::string_view g_song_document_name{"song.json"};
 constexpr std::string_view g_arrangements_directory_name{"arrangements"};
-constexpr std::string_view g_arrangement_file_extension{".xml"};
+constexpr std::string_view g_arrangement_document_extension{".json"};
 constexpr int g_zip_compression_level = 9;
 
 // Finds the required native song document in an extracted song package directory.
@@ -178,18 +178,18 @@ constexpr int g_zip_compression_level = 9;
     return std::nullopt;
 }
 
-// Builds the canonical package-relative arrangement XML path for a stable arrangement ID.
-[[nodiscard]] std::filesystem::path arrangementFilePath(std::string_view arrangement_id)
+// Builds the canonical package-relative native arrangement document path for a stable ID.
+[[nodiscard]] std::filesystem::path arrangementDocumentPath(std::string_view arrangement_id)
 {
     return std::filesystem::path{std::string{g_arrangements_directory_name}} /
-           (std::string{arrangement_id} + std::string{g_arrangement_file_extension});
+           (std::string{arrangement_id} + std::string{g_arrangement_document_extension});
 }
 
-// Reports whether a package-relative arrangement file path is canonical for its arrangement ID.
-[[nodiscard]] bool isCanonicalArrangementFileRef(
+// Reports whether a package-relative arrangement document path is canonical for its ID.
+[[nodiscard]] bool isCanonicalArrangementDocumentRef(
     std::string_view arrangement_id, const std::string& file_ref)
 {
-    return file_ref == arrangementFilePath(arrangement_id).generic_string();
+    return file_ref == arrangementDocumentPath(arrangement_id).generic_string();
 }
 
 // Reads song metadata while treating missing descriptive fields as blank draft values.
@@ -338,11 +338,11 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
 
         const auto id = Json::tryReadString(arrangement_json, "id");
         const auto part_text = Json::tryReadString(arrangement_json, "part");
-        const auto arrangement_file = Json::tryReadString(arrangement_json, "file");
+        const auto arrangement_document = Json::tryReadString(arrangement_json, "file");
         const auto audio_id = Json::tryReadString(arrangement_json, "audio");
         std::string tone_document_ref;
         if (!id.has_value() || id->empty() || !part_text.has_value() ||
-            !arrangement_file.has_value() || !audio_id.has_value())
+            !arrangement_document.has_value() || !audio_id.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
@@ -375,19 +375,19 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        if (!isCanonicalArrangementFileRef(*id, *arrangement_file))
+        if (!isCanonicalArrangementDocumentRef(*id, *arrangement_document))
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "arrangement file must match arrangement id: " + *arrangement_file,
+                "arrangement document must match arrangement id: " + *arrangement_document,
             }};
         }
 
-        if (!resolveExistingFile(directory, *arrangement_file).has_value())
+        if (!resolveExistingFile(directory, *arrangement_document).has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "arrangement file is missing or unsafe: " + *arrangement_file,
+                "arrangement document is missing or unsafe: " + *arrangement_document,
             }};
         }
 
@@ -693,8 +693,8 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return relative_path;
 }
 
-// Ensures an arrangement file exists for the generated song-document reference.
-[[nodiscard]] std::expected<void, SongPackageError> ensureArrangementFile(
+// Ensures an arrangement document exists for the generated song-document reference.
+[[nodiscard]] std::expected<void, SongPackageError> ensureArrangementDocument(
     const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path)
 {
     const std::filesystem::path arrangement_path = workspace_directory / relative_path;
@@ -713,16 +713,16 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         }};
     }
 
-    std::ofstream arrangement_file{arrangement_path};
-    if (!arrangement_file.is_open())
+    std::ofstream arrangement_document{arrangement_path};
+    if (!arrangement_document.is_open())
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "Could not write arrangement file: " + arrangement_path.string(),
+            "Could not write arrangement document: " + arrangement_path.string(),
         }};
     }
 
-    arrangement_file << "<Arrangement formatVersion=\"1\" />\n";
+    arrangement_document << "{\n  \"formatVersion\": 1,\n  \"notes\": []\n}\n";
     return std::expected<void, SongPackageError>{};
 }
 
@@ -848,9 +848,10 @@ struct SongDocumentForSave
             return std::unexpected{arrangement_id.error()};
         }
 
-        const std::filesystem::path arrangement_file = arrangementFilePath(*arrangement_id);
+        const std::filesystem::path arrangement_document_path =
+            arrangementDocumentPath(*arrangement_id);
         if (const auto arrangement_error =
-                ensureArrangementFile(workspace_directory, arrangement_file);
+                ensureArrangementDocument(workspace_directory, arrangement_document_path);
             !arrangement_error.has_value())
         {
             return std::unexpected{arrangement_error.error()};
@@ -859,7 +860,7 @@ struct SongDocumentForSave
         const juce::var arrangement_document = Json::makeObject({
             {"id", Json::makeString(*arrangement_id)},
             {"part", Json::makeString(partName(arrangement.part))},
-            {"file", Json::makeString(arrangement_file.generic_string())},
+            {"file", Json::makeString(arrangement_document_path.generic_string())},
             {"audio", Json::makeString(audio_id->second)},
         });
         if (!arrangement.tone_document_ref.empty())
