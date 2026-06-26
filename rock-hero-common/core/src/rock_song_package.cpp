@@ -41,9 +41,11 @@ constexpr std::string_view g_arrangements_directory_name{"arrangements"};
 constexpr std::string_view g_arrangement_document_extension{".json"};
 constexpr int g_zip_compression_level = 9;
 
-// Decimal places used when writing note timeline values. Three places give millisecond resolution,
-// which keeps the note columns narrow and the chart readable. Revisit if note placement ever needs
-// sub-millisecond precision; widening this widens every note line.
+// Decimal places used when writing note timeline values: fixed three-decimal (millisecond)
+// precision. This is deliberate and sufficient, not a placeholder. It matches the resolution of the
+// most timing-demanding rhythm games (osu! stores note times as integer milliseconds) and sits far
+// below the multi-millisecond floor of onset detection, the latency chain, and hit windows. See the
+// Song Data Model note in docs/design/architecture.md before changing it.
 constexpr int g_note_seconds_decimals = 3;
 
 // Finds the required native song document in an extracted song package directory.
