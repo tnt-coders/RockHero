@@ -255,6 +255,32 @@ calculator version and recomputed when stale — never hand-set. That calculator
 so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
 `docs/todo/arrangement-difficulty-derivation-plan.md`.
 
+Note timing is stored as absolute seconds at fixed three-decimal (millisecond) precision, and that
+precision is deliberate and settled. Absolute seconds — rather than beat- or tick-relative positions
+— is the right representation because Rock Hero plays along to a fixed recording whose transport is
+measured in seconds, and real recordings drift in tempo; storing seconds aligns notes to the
+recording instead of to an idealized tempo map. Three decimals is sufficient, not a placeholder: it
+is the resolution the most timing-demanding rhythm games use (osu! stores note times as integer
+milliseconds), and it sits roughly 20-40x below the floor of everything that consumes it — onset and
+pitch analysis windows, the ASIO/render/display latency chain, and calibrated hit windows are all
+several milliseconds. The resulting ±0.5 ms quantization is imperceptible, unscoreable, and far too
+coarse to merge or reorder distinct notes (the densest realistic guitar spacing is tens of
+milliseconds). Quantization happens once, at the write boundary: the in-memory value is the source
+of truth during a session and a loaded value re-serializes unchanged, so repeated edit/save cycles
+add no cumulative drift. Higher precision is intentionally avoided — it would imply an accuracy the
+note onsets themselves lack, since a guitar attack ramps over several milliseconds, while only
+widening every note line.
+
+MIDI-driven synthesized audio does not change this representation. A synthesized voice still renders
+to the audio transport's sample clock, so generated instrument audio rides the same seconds/sample
+runtime timeline as the recording and scoring. Second-positioned notes give the synth event times
+directly; string and fret map to pitch through tuning, which is a synthesis concern, not a storage
+one. Absolute seconds do not automatically follow tempo edits: a stored second stays fixed when BPM
+changes. If Rock Hero later adds a tempo-editable generated-song mode where notes should move with
+musical time, that mode should store musical-time positions and derive runtime seconds from the tempo
+map. That would be a separate authoring model, not a reason to make beat/tick storage the primary
+native representation for fixed-recording play-along songs.
+
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading
 validates archive structure, safe asset paths, and required arrangement audio references. Before a
