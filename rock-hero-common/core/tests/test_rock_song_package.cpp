@@ -81,10 +81,10 @@ void writeAudioFile(const std::filesystem::path& path)
     writeTextFile(path, "audio");
 }
 
-// Returns the package-relative arrangement file path for a stable arrangement ID.
-[[nodiscard]] std::filesystem::path arrangementFilePath(std::string_view arrangement_id)
+// Returns the package-relative native arrangement document path for a stable ID.
+[[nodiscard]] std::filesystem::path arrangementDocumentPath(std::string_view arrangement_id)
 {
-    return std::filesystem::path{"arrangements"} / (std::string{arrangement_id} + ".xml");
+    return std::filesystem::path{"arrangements"} / (std::string{arrangement_id} + ".json");
 }
 
 // Returns the package-relative tone document path for a stable tone ID.
@@ -148,8 +148,8 @@ void writeReadablePackageDirectory(const std::filesystem::path& package_director
 {
     writeAudioFile(package_directory / "audio" / "backing.wav");
     writeTextFile(
-        package_directory / arrangementFilePath(g_lead_arrangement_id),
-        "<Arrangement formatVersion=\"1\" />");
+        package_directory / arrangementDocumentPath(g_lead_arrangement_id),
+        R"({"formatVersion":1,"notes":[]})");
 }
 
 } // namespace
@@ -187,7 +187,7 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     CHECK(std::filesystem::is_regular_file(package_directory / "audio" / "source.wav"));
     CHECK(
         std::filesystem::is_regular_file(
-            package_directory / arrangementFilePath(g_lead_arrangement_id)));
+            package_directory / arrangementDocumentPath(g_lead_arrangement_id)));
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
@@ -245,7 +245,9 @@ TEST_CASE("Rock song package directory generates arrangement IDs", "[core][rock-
     REQUIRE(written->size() == 1);
     const std::string& generated_id = written->front();
     CHECK(isCanonicalPackageId(generated_id));
-    CHECK(std::filesystem::is_regular_file(package_directory / arrangementFilePath(generated_id)));
+    CHECK(
+        std::filesystem::is_regular_file(
+            package_directory / arrangementDocumentPath(generated_id)));
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
@@ -359,7 +361,7 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
             R"(",
                     "part": "Lead",
                     "file": ")" +
-            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
             R"(",
                     "audio": "backing",
                     "toneDocument": "../lead.tone.json"
@@ -420,7 +422,7 @@ TEST_CASE("Rock song package without normalization still loads", "[core][rock-so
             R"(",
                     "part": "Lead",
                     "file": ")" +
-            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
             R"(",
                     "audio": "backing"
                 }
@@ -459,7 +461,7 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "file": ")" +
-            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
             R"(",
                     "audio": "backing"
                 }
@@ -500,7 +502,7 @@ TEST_CASE(
             R"(",
                     "part": "Lead",
                     "file": ")" +
-            arrangementFilePath(g_lead_arrangement_id).generic_string() +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
             R"(",
                     "audio": "backing"
                 }
