@@ -1,12 +1,52 @@
 # Native Package Write Safety Discussion
 
-Status: in progress (discussion). No implementation direction is final yet.
+Status: scope narrowed; a minimal write-safety slice has landed (see Resolution). The broader
+two-phase / structured-diagnostics work is deferred. The discussion below is kept as the design
+record for that future work.
 
 ## Goal
 
 Make native package saves predictable when they fail. A validation failure should not leave newly
 written or partially updated package files behind, and IO failures should be contained enough that
 the caller can report a clean failure without silently corrupting the workspace or archive.
+
+## Resolution (current direction)
+
+Scope is intentionally narrowed for now. There is no mechanism in the codebase to create or modify
+note data, so note values normally enter the model through a read/import, where they are already
+validated (`readArrangementNotes`). The writer keeps only minimal round-trip invariant checks so it
+does not emit an arrangement document the reader would reject. The structured, per-field validation
+diagnostics that fed the larger planning design exist to drive a note-editing repair UI that does
+not exist, so they were removed along with the `SongPackageValidationConfig` that only bounded note
+values.
+
+What was kept is the one write-safety property with a real trigger today: tone authoring exists, so a
+save can carry a non-canonical or missing `tone_document_ref`. The save path now validates each
+arrangement's tone reference (canonical, safe, present) **before** writing that arrangement's
+document, so a tone failure no longer leaves a written arrangement file behind — the specific bug in
+"Current Issue" below. This is the minimal Option A reorder, returning the existing
+`SongPackageError`; no new public types, no aggregated validation-error list, no validation config.
+
+Deferred until there is both a producer and a consumer:
+
+- Note-value validation belongs primarily at the read/import boundary, where it now lives. The
+  writer should keep only minimal round-trip checks until a transforming importer or tab editor
+  creates a real need for broader validation.
+- The full plan/commit two-phase, the aggregated structured validation-error list with per-field
+  locations, and commit-time atomicity (Options B/C/D below) wait until an editor save dialog
+  actually consumes field-level diagnostics and a note-authoring path can produce invalid in-memory
+  data. Design those against the real save dialog when it exists rather than speculatively.
+
+### Residual gap
+
+The landed slice validates each arrangement (tone reference and notes) before that arrangement's
+side effects (audio copy, document write), so a **single-arrangement** save is fully clean: a
+validation failure leaves nothing behind. It does **not** make a multi-arrangement save
+transactional. Arrangements are validated and written one at a time, so if arrangement N fails
+validation after arrangements 0..N-1 have already been written, those earlier audio copies and
+arrangement documents remain on disk. Closing that gap requires the validate-all-then-write pass
+(Option B): validate every arrangement up front and produce no write until the whole song passes.
+That is deferred with the rest of Option B.
 
 ## Current Issue
 
