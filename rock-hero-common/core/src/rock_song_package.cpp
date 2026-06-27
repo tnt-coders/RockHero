@@ -4,7 +4,9 @@
 #include <array>
 #include <cassert>
 #include <cctype>
+#include <charconv>
 #include <cmath>
+#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -18,9 +20,11 @@
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/audio_normalization.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/package_id.h>
+#include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/workspace_paths.h>
 #include <set>
 #include <string>
@@ -41,12 +45,29 @@ constexpr std::string_view g_arrangements_directory_name{"arrangements"};
 constexpr std::string_view g_arrangement_document_extension{".json"};
 constexpr int g_zip_compression_level = 9;
 
-// Decimal places used when writing note timeline values: fixed three-decimal (millisecond)
-// precision. This is deliberate and sufficient, not a placeholder. It matches the resolution of the
-// most timing-demanding rhythm games (osu! stores note times as integer milliseconds) and sits far
-// below the multi-millisecond floor of onset detection, the latency chain, and hit windows. See the
-// Song Data Model note in docs/design/architecture.md before changing it.
-constexpr int g_note_seconds_decimals = 3;
+// Anchor seconds are the only absolute time stored in a package, persisted at a fixed three-decimal
+// (millisecond) grid. Note offsets and durations are exact beat fractions and carry no decimal grid.
+// This matches the Song Data Model note in docs/design/architecture.md.
+constexpr int g_timing_decimals = 3;
+
+// Decimal quantum (10^g_timing_decimals) used to verify that anchor seconds are exactly on the
+// persisted grid. Computed from g_timing_decimals so the on-grid check can never drift from the
+// writer's fixed-precision output.
+constexpr int g_seconds_grid_units = [] {
+    int units = 1;
+    for (int decimal = 0; decimal < g_timing_decimals; ++decimal)
+    {
+        units *= 10;
+    }
+    return units;
+}();
+
+constexpr double g_timing_epsilon = 1.0e-9;
+
+// Finest note subdivision the chart format stores: a note offset or duration reduces to a denominator
+// of at most this value (e.g. 1/1024). This bounds authored granularity to musically meaningful
+// subdivisions and keeps stored fractions small.
+constexpr int g_max_fraction_denominator = 1024;
 
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
@@ -243,15 +264,6 @@ constexpr int g_note_seconds_decimals = 3;
     };
 }
 
-// Builds the JSON representation of an AudioNormalization record.
-[[nodiscard]] juce::var makeNormalizationJson(const AudioNormalization& normalization)
-{
-    return Json::makeObject({
-        {"gainDb", juce::var{normalization.gain_db}},
-        {"validationSha256", Json::makeString(normalization.validation_sha256)},
-    });
-}
-
 // Reads song audio assets into an ID map keyed only inside song package IO.
 [[nodiscard]] std::expected<std::unordered_map<std::string, AudioAsset>, SongPackageError>
 readAudioAssets(const std::filesystem::path& directory, const juce::var& song_document)
@@ -317,16 +329,494 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return audio_assets;
 }
 
-// Reports whether a note timeline value can be stored safely in the core model.
-[[nodiscard]] bool isValidNoteSeconds(double seconds) noexcept
+// Reports whether a parsed JSON integer fits the int fields used by core package values.
+[[nodiscard]] bool fitsIntField(std::int64_t value) noexcept
 {
-    return std::isfinite(seconds) && seconds >= 0.0;
+    return value >= static_cast<std::int64_t>(std::numeric_limits<int>::min()) &&
+           value <= static_cast<std::int64_t>(std::numeric_limits<int>::max());
 }
 
-// Reports whether a parsed JSON integer fits the int field used by NoteEvent.
-[[nodiscard]] bool fitsNoteInt(std::int64_t value) noexcept
+// Reports whether a parsed JSON integer fits a positive int field.
+[[nodiscard]] bool fitsPositiveIntField(std::int64_t value) noexcept
 {
-    return value <= static_cast<std::int64_t>(std::numeric_limits<int>::max());
+    return value > 0 && fitsIntField(value);
+}
+
+// Reports whether a parsed JSON integer fits a non-negative int field.
+[[nodiscard]] bool fitsNonNegativeIntField(std::int64_t value) noexcept
+{
+    return value >= 0 && fitsIntField(value);
+}
+
+// Reports whether a timing value can be stored safely in the native format.
+[[nodiscard]] bool isValidTimingValue(double value) noexcept
+{
+    return std::isfinite(value) && value >= 0.0;
+}
+
+// Rounds a seconds value to the integer quantum used by the persisted three-decimal format.
+[[nodiscard]] std::int64_t secondsGridUnits(double value) noexcept
+{
+    return static_cast<std::int64_t>(
+        std::llround(value * static_cast<double>(g_seconds_grid_units)));
+}
+
+// Reports whether a seconds value is already on the persisted three-decimal grid.
+[[nodiscard]] bool isOnSecondsGrid(double value) noexcept
+{
+    if (!std::isfinite(value))
+    {
+        return false;
+    }
+
+    const double grid_value =
+        static_cast<double>(secondsGridUnits(value)) / static_cast<double>(g_seconds_grid_units);
+    return std::abs(value - grid_value) <= g_timing_epsilon;
+}
+
+// Parses a persisted beat fraction written as a whole number ("1") or a reduced ratio ("3/16").
+// The denominator must be positive; the whole token must parse with no trailing characters so a
+// malformed value is rejected at the read boundary rather than silently truncated.
+[[nodiscard]] std::optional<Fraction> parseFractionText(const std::string& text)
+{
+    if (text.empty())
+    {
+        return std::nullopt;
+    }
+
+    const char* const begin = text.data();
+    const char* const end = begin + text.size();
+    const std::size_t slash = text.find('/');
+
+    if (slash == std::string::npos)
+    {
+        int whole = 0;
+        if (const auto result = std::from_chars(begin, end, whole);
+            result.ec != std::errc{} || result.ptr != end)
+        {
+            return std::nullopt;
+        }
+        return Fraction{whole};
+    }
+
+    int numerator = 0;
+    if (const auto result = std::from_chars(begin, begin + slash, numerator);
+        result.ec != std::errc{} || result.ptr != begin + slash)
+    {
+        return std::nullopt;
+    }
+
+    int denominator = 0;
+    if (const auto result = std::from_chars(begin + slash + 1, end, denominator);
+        result.ec != std::errc{} || result.ptr != end || denominator <= 0)
+    {
+        return std::nullopt;
+    }
+
+    return Fraction{numerator, denominator};
+}
+
+// Reports whether a denominator is a positive power of two, matching conventional meter values.
+[[nodiscard]] bool isPowerOfTwoDenominator(int denominator) noexcept
+{
+    return denominator > 0 && (denominator & (denominator - 1)) == 0;
+}
+
+// Reports whether a JSON value represents an absent optional property.
+[[nodiscard]] bool isAbsentJsonValue(const juce::var& value) noexcept
+{
+    return value.isVoid() || value.isUndefined();
+}
+
+// Reads the tempo-map time-signature array without applying cross-entry ordering rules yet.
+[[nodiscard]] std::expected<std::vector<TimeSignatureChange>, SongPackageError>
+readTimeSignatureChanges(const juce::var& tempo_map_json)
+{
+    const juce::var& time_signatures_json = Json::value(tempo_map_json, "timeSignatures");
+    if (!time_signatures_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.timeSignatures must be an array",
+        }};
+    }
+
+    std::vector<TimeSignatureChange> time_signatures;
+    time_signatures.reserve(static_cast<std::size_t>(time_signatures_json.size()));
+
+    const juce::Array<juce::var>* const time_signature_array = time_signatures_json.getArray();
+    for (const juce::var& signature_json : *time_signature_array)
+    {
+        if (!signature_json.isObject())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.timeSignatures entries must be objects",
+            }};
+        }
+
+        const auto measure = Json::tryReadInt64(signature_json, "measure");
+        const auto numerator = Json::tryReadInt64(signature_json, "numerator");
+        const auto denominator = Json::tryReadInt64(signature_json, "denominator");
+        if (!measure.has_value() || !numerator.has_value() || !denominator.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.timeSignatures entries require measure, numerator, and denominator",
+            }};
+        }
+
+        if (!fitsPositiveIntField(*measure) || !fitsPositiveIntField(*numerator) ||
+            !fitsPositiveIntField(*denominator))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.timeSignatures values must be positive integers",
+            }};
+        }
+
+        time_signatures.push_back(
+            TimeSignatureChange{
+                .measure = static_cast<int>(*measure),
+                .numerator = static_cast<int>(*numerator),
+                .denominator = static_cast<int>(*denominator),
+            });
+    }
+
+    return time_signatures;
+}
+
+// Reads the tempo-map anchor array without applying ordering or meter-address rules yet.
+[[nodiscard]] std::expected<std::vector<BeatAnchor>, SongPackageError> readBeatAnchors(
+    const juce::var& tempo_map_json)
+{
+    const juce::var& anchors_json = Json::value(tempo_map_json, "anchors");
+    if (!anchors_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.anchors must be an array",
+        }};
+    }
+
+    std::vector<BeatAnchor> anchors;
+    anchors.reserve(static_cast<std::size_t>(anchors_json.size()));
+
+    const juce::Array<juce::var>* const anchor_array = anchors_json.getArray();
+    for (const juce::var& anchor_json : *anchor_array)
+    {
+        if (!anchor_json.isObject())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors entries must be objects",
+            }};
+        }
+
+        const auto measure = Json::tryReadInt64(anchor_json, "measure");
+        const auto beat = Json::tryReadInt64(anchor_json, "beat");
+        const auto seconds = Json::tryReadDouble(anchor_json, "seconds");
+        if (!measure.has_value() || !beat.has_value() || !seconds.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors entries require measure, beat, and seconds",
+            }};
+        }
+
+        if (!fitsPositiveIntField(*measure) || !fitsPositiveIntField(*beat))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors measure and beat values must be positive integers",
+            }};
+        }
+
+        anchors.push_back(
+            BeatAnchor{
+                .measure = static_cast<int>(*measure),
+                .beat = static_cast<int>(*beat),
+                .seconds = *seconds,
+            });
+    }
+
+    return anchors;
+}
+
+// Validates the package-level tempo-map invariants before arrangements use the grid.
+[[nodiscard]] std::expected<void, SongPackageError> validateTempoMap(const TempoMap& tempo_map)
+{
+    const std::vector<TimeSignatureChange>& time_signatures = tempo_map.timeSignatures();
+    if (time_signatures.empty())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.timeSignatures must contain at least one entry",
+        }};
+    }
+
+    if (time_signatures.front().measure != 1)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.timeSignatures must start at measure 1",
+        }};
+    }
+
+    int previous_measure = 0;
+    for (const TimeSignatureChange& signature : time_signatures)
+    {
+        if (signature.measure <= previous_measure || signature.numerator <= 0 ||
+            !isPowerOfTwoDenominator(signature.denominator))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.timeSignatures must be strictly ordered valid meters",
+            }};
+        }
+        previous_measure = signature.measure;
+    }
+
+    const std::vector<BeatAnchor>& anchors = tempo_map.anchors();
+    if (anchors.size() < 2)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.anchors must contain start and terminal anchors",
+        }};
+    }
+
+    if (anchors.front().measure != 1 || anchors.front().beat != 1)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap.anchors must start at measure 1 beat 1",
+        }};
+    }
+
+    std::int64_t previous_index = -1;
+    double previous_seconds = -1.0;
+    for (const BeatAnchor& anchor : anchors)
+    {
+        if (anchor.measure <= 0 || anchor.beat <= 0 || !isValidTimingValue(anchor.seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors must use positive addresses and finite non-negative seconds",
+            }};
+        }
+
+        if (!isOnSecondsGrid(anchor.seconds))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors seconds must use three-decimal storage precision",
+            }};
+        }
+
+        if (anchor.beat > tempo_map.beatsPerMeasureAt(anchor.measure))
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors beat exceeds the active measure length",
+            }};
+        }
+
+        const std::int64_t anchor_index = tempo_map.globalBeatIndex(anchor.measure, anchor.beat);
+        if (anchor_index <= previous_index || anchor.seconds <= previous_seconds)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidSongDocument,
+                "tempoMap.anchors must be strictly ordered by beat and seconds",
+            }};
+        }
+
+        previous_index = anchor_index;
+        previous_seconds = anchor.seconds;
+    }
+
+    if (anchors.back().beat != 1)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "tempoMap terminal anchor must be on a downbeat",
+        }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
+// Reads and validates the required song-level tempo map.
+[[nodiscard]] std::expected<TempoMap, SongPackageError> readTempoMap(const juce::var& song_document)
+{
+    const juce::var& tempo_map_json = Json::value(song_document, "tempoMap");
+    if (!tempo_map_json.isObject())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidSongDocument,
+            "song.json must contain a tempoMap object",
+        }};
+    }
+
+    auto time_signatures = readTimeSignatureChanges(tempo_map_json);
+    if (!time_signatures.has_value())
+    {
+        return std::unexpected{std::move(time_signatures.error())};
+    }
+
+    auto anchors = readBeatAnchors(tempo_map_json);
+    if (!anchors.has_value())
+    {
+        return std::unexpected{std::move(anchors.error())};
+    }
+
+    TempoMap tempo_map{std::move(*time_signatures), std::move(*anchors)};
+    if (const auto validation_error = validateTempoMap(tempo_map); !validation_error.has_value())
+    {
+        return std::unexpected{validation_error.error()};
+    }
+
+    return tempo_map;
+}
+
+// Uniquely identifies one playable string at one exact onset position. The offset is stored as its
+// reduced numerator and denominator, so equal positions compare equal regardless of how they were
+// written (1/2 and 2/4 both reduce to the same key).
+struct NoteStringOnsetKey
+{
+    std::int64_t global_beat_index{};
+    int offset_numerator{};
+    int offset_denominator{1};
+    int string_number{};
+
+    // Default ordering is sufficient for std::set duplicate detection; it does not need to match the
+    // numeric order of the underlying onset, only to give each distinct onset a unique key.
+    friend auto operator<=>(const NoteStringOnsetKey& lhs, const NoteStringOnsetKey& rhs) = default;
+};
+
+// Builds the exact onset key for a validated note, combining its global beat with its reduced offset.
+[[nodiscard]] NoteStringOnsetKey noteStringOnsetKey(
+    const NoteEvent& note, const TempoMap& tempo_map)
+{
+    return NoteStringOnsetKey{
+        .global_beat_index = tempo_map.globalBeatIndex(note.measure, note.beat),
+        .offset_numerator = note.offset.numerator,
+        .offset_denominator = note.offset.denominator,
+        .string_number = note.string_number,
+    };
+}
+
+// Validates a single in-memory note against the core invariants enforced on read, so the writer
+// never emits an arrangement document its own reader would reject.
+[[nodiscard]] std::expected<void, SongPackageError> validateNoteEvent(
+    const NoteEvent& note, const TempoMap& tempo_map)
+{
+    if (note.measure <= 0)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note measure must be a positive integer",
+        }};
+    }
+
+    const int beats_per_measure = tempo_map.beatsPerMeasureAt(note.measure);
+    if (note.beat <= 0 || note.beat > beats_per_measure)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note beat must fit inside the active measure",
+        }};
+    }
+
+    if (note.offset < Fraction{} || note.offset >= Fraction{1})
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note offset must be a beat fraction in [0, 1)",
+        }};
+    }
+
+    if (note.duration_beats < Fraction{})
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note durationBeats must be a non-negative beat fraction",
+        }};
+    }
+
+    if (note.offset.denominator > g_max_fraction_denominator ||
+        note.duration_beats.denominator > g_max_fraction_denominator)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note offset and durationBeats must reduce to a denominator of at most " +
+                std::to_string(g_max_fraction_denominator),
+        }};
+    }
+
+    if (note.string_number <= 0)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note string must be a positive integer",
+        }};
+    }
+
+    if (note.fret < 0)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note fret must be a non-negative integer",
+        }};
+    }
+
+    const std::int64_t note_start = tempo_map.globalBeatIndex(note.measure, note.beat);
+    const std::int64_t terminal_beat = tempo_map.terminalGlobalBeatIndex();
+    if (note_start >= terminal_beat)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note must start before the tempo map terminal anchor",
+        }};
+    }
+
+    const double note_end =
+        static_cast<double>(note_start) + note.offset.toDouble() + note.duration_beats.toDouble();
+    if (note_end > static_cast<double>(terminal_beat) + g_timing_epsilon)
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "note sustain must end at or before the tempo map terminal anchor",
+        }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
+// Validates cross-note invariants that require seeing the whole arrangement.
+[[nodiscard]] std::expected<void, SongPackageError> validateArrangementNoteEvents(
+    const std::vector<NoteEvent>& notes, const TempoMap& tempo_map)
+{
+    std::set<NoteStringOnsetKey> occupied_string_onsets;
+    for (const NoteEvent& note : notes)
+    {
+        if (const auto note_error = validateNoteEvent(note, tempo_map); !note_error.has_value())
+        {
+            return std::unexpected{note_error.error()};
+        }
+
+        const auto inserted_onset =
+            occupied_string_onsets.insert(noteStringOnsetKey(note, tempo_map));
+        if (!inserted_onset.second)
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "notes on the same string cannot share the same onset",
+            }};
+        }
+    }
+
+    return std::expected<void, SongPackageError>{};
 }
 
 // Reads the note objects from a parsed arrangement document into core note events. Note values are
@@ -334,7 +824,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
 // model. The write path repeats only the same core invariants so it never emits a document this
 // reader would reject.
 [[nodiscard]] std::expected<std::vector<NoteEvent>, SongPackageError> readArrangementNotes(
-    const juce::var& arrangement_document)
+    const juce::var& arrangement_document, const TempoMap& tempo_map)
 {
     const juce::var& notes_json = Json::value(arrangement_document, "notes");
     if (!notes_json.isArray())
@@ -359,28 +849,55 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        const auto position_seconds = Json::tryReadDouble(note_json, "positionSeconds");
-        const auto duration_seconds = Json::tryReadDouble(note_json, "durationSeconds");
+        const auto measure = Json::tryReadInt64(note_json, "measure");
+        const auto beat = Json::tryReadInt64(note_json, "beat");
+        const auto duration_text = Json::tryReadString(note_json, "durationBeats");
         const auto string_number = Json::tryReadInt64(note_json, "string");
         const auto fret = Json::tryReadInt64(note_json, "fret");
-        if (!position_seconds.has_value() || !duration_seconds.has_value() ||
+        if (!measure.has_value() || !beat.has_value() || !duration_text.has_value() ||
             !string_number.has_value() || !fret.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "each note requires numeric positionSeconds, durationSeconds, string, and fret",
+                "each note requires measure, beat, durationBeats, string, and fret",
             }};
         }
 
-        if (!isValidNoteSeconds(*position_seconds) || !isValidNoteSeconds(*duration_seconds))
+        if (!fitsPositiveIntField(*measure) || !fitsPositiveIntField(*beat))
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "note positionSeconds and durationSeconds must be finite non-negative values",
+                "note measure and beat must be positive integers",
             }};
         }
 
-        if (*string_number <= 0 || !fitsNoteInt(*string_number))
+        const auto duration_beats = parseFractionText(*duration_text);
+        if (!duration_beats.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                R"(note durationBeats must be a beat fraction such as "1" or "1/8")",
+            }};
+        }
+
+        Fraction offset;
+        const juce::var& offset_json = Json::value(note_json, "offset");
+        if (!isAbsentJsonValue(offset_json))
+        {
+            const auto offset_text = Json::tryReadString(note_json, "offset");
+            const auto parsed_offset =
+                offset_text.has_value() ? parseFractionText(*offset_text) : std::nullopt;
+            if (!parsed_offset.has_value())
+            {
+                return std::unexpected{SongPackageError{
+                    SongPackageErrorCode::InvalidArrangement,
+                    R"(note offset must be a beat fraction such as "1/3" when present)",
+                }};
+            }
+            offset = *parsed_offset;
+        }
+
+        if (!fitsPositiveIntField(*string_number))
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
@@ -388,7 +905,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        if (*fret < 0 || !fitsNoteInt(*fret))
+        if (!fitsNonNegativeIntField(*fret))
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
@@ -396,13 +913,22 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        notes.push_back(
-            NoteEvent{
-                .position = TimePosition{*position_seconds},
-                .duration = TimeDuration{*duration_seconds},
-                .string_number = static_cast<int>(*string_number),
-                .fret = static_cast<int>(*fret),
-            });
+        NoteEvent note{
+            .measure = static_cast<int>(*measure),
+            .beat = static_cast<int>(*beat),
+            .offset = offset,
+            .duration_beats = *duration_beats,
+            .string_number = static_cast<int>(*string_number),
+            .fret = static_cast<int>(*fret),
+        };
+
+        notes.push_back(note);
+    }
+
+    if (const auto note_error = validateArrangementNoteEvents(notes, tempo_map);
+        !note_error.has_value())
+    {
+        return std::unexpected{note_error.error()};
     }
 
     return notes;
@@ -410,7 +936,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
 
 // Opens, parses, and validates an arrangement document file, returning its note events.
 [[nodiscard]] std::expected<std::vector<NoteEvent>, SongPackageError> readArrangementDocumentFile(
-    const std::filesystem::path& document_path)
+    const std::filesystem::path& document_path, const TempoMap& tempo_map)
 {
     juce::FileInputStream document_file{juceFileFromPath(document_path)};
     if (document_file.failedToOpen())
@@ -441,13 +967,13 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         }};
     }
 
-    return readArrangementNotes(arrangement_document);
+    return readArrangementNotes(arrangement_document, tempo_map);
 }
 
 // Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
-    const std::unordered_map<std::string, AudioAsset>& audio_assets)
+    const std::unordered_map<std::string, AudioAsset>& audio_assets, const TempoMap& tempo_map)
 {
     const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
@@ -568,7 +1094,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
             }};
         }
 
-        auto note_events = readArrangementDocumentFile(*resolved_arrangement_document);
+        auto note_events = readArrangementDocumentFile(*resolved_arrangement_document, tempo_map);
         if (!note_events.has_value())
         {
             return std::unexpected{std::move(note_events.error())};
@@ -841,30 +1367,65 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return relative_path;
 }
 
-// Formats a timeline seconds value at the fixed note precision so columns align and values
-// round-trip deterministically.
-[[nodiscard]] std::string formatNoteSeconds(double seconds)
+// Escapes a project string as a JSON string literal.
+[[nodiscard]] std::string jsonString(const std::string& text)
 {
-    return std::format("{:.{}f}", seconds, g_note_seconds_decimals);
+    return juce::JSON::toString(Json::makeString(text)).toStdString();
 }
 
-// Widths of the always-present note fields, so rendered note lines align into readable columns.
+// Formats native timing values at the fixed package precision.
+[[nodiscard]] std::string formatTimingValue(double value)
+{
+    return std::format("{:.{}f}", value, g_timing_decimals);
+}
+
+// Formats non-timing JSON numbers compactly without introducing string values.
+[[nodiscard]] std::string formatJsonDouble(double value)
+{
+    return std::format("{:.15g}", value);
+}
+
+// Renders a beat fraction as compact text: a whole number ("0", "4") or a reduced ratio ("1/8").
+[[nodiscard]] std::string fractionToText(Fraction value)
+{
+    if (value.denominator == 1)
+    {
+        return std::to_string(value.numerator);
+    }
+
+    return std::to_string(value.numerator) + "/" + std::to_string(value.denominator);
+}
+
+// Renders a beat fraction as a quoted JSON string token so the chart stores exact subdivisions.
+[[nodiscard]] std::string quotedFractionText(Fraction value)
+{
+    return "\"" + fractionToText(value) + "\"";
+}
+
+// Widths of the note fields, so rendered note lines align into readable columns.
 struct NoteColumnWidths
 {
-    std::size_t position{0};
-    std::size_t duration{0};
+    std::size_t measure{0};
+    std::size_t beat{0};
+    std::size_t offset{0};
+    std::size_t duration_beats{0};
     std::size_t fret{0};
 };
 
+// Measures note fields before writing so the arrangement chart scans like a compact table.
 [[nodiscard]] NoteColumnWidths measureNoteColumns(const std::vector<NoteEvent>& notes)
 {
     NoteColumnWidths widths;
     for (const NoteEvent& note : notes)
     {
-        widths.position =
-            std::max(widths.position, formatNoteSeconds(note.position.seconds).size());
-        widths.duration =
-            std::max(widths.duration, formatNoteSeconds(note.duration.seconds).size());
+        widths.measure = std::max(widths.measure, std::to_string(note.measure).size());
+        widths.beat = std::max(widths.beat, std::to_string(note.beat).size());
+        if (note.offset != Fraction{})
+        {
+            widths.offset = std::max(widths.offset, quotedFractionText(note.offset).size());
+        }
+        widths.duration_beats =
+            std::max(widths.duration_beats, quotedFractionText(note.duration_beats).size());
         widths.fret = std::max(widths.fret, std::to_string(note.fret).size());
     }
 
@@ -872,14 +1433,21 @@ struct NoteColumnWidths
 }
 
 // Renders one note as a single compact JSON object line, right-padding the core fields into fixed
-// columns so the chart scans as a table. Optional technique keys are appended here as NoteEvent
-// grows; every field is numeric today, so no JSON string escaping is required.
+// columns so the chart scans as a table. Offset and durationBeats are quoted fraction tokens (digits
+// and a slash only, so no JSON escaping is required); the remaining fields are plain integers.
 [[nodiscard]] std::string formatNoteLine(const NoteEvent& note, const NoteColumnWidths& widths)
 {
-    std::string line = "{ \"positionSeconds\": ";
-    line += std::format("{:>{}}", formatNoteSeconds(note.position.seconds), widths.position);
-    line += ", \"durationSeconds\": ";
-    line += std::format("{:>{}}", formatNoteSeconds(note.duration.seconds), widths.duration);
+    std::string line = "{ \"measure\": ";
+    line += std::format("{:>{}}", note.measure, widths.measure);
+    line += ", \"beat\": ";
+    line += std::format("{:>{}}", note.beat, widths.beat);
+    if (note.offset != Fraction{})
+    {
+        line += ", \"offset\": ";
+        line += std::format("{:>{}}", quotedFractionText(note.offset), widths.offset);
+    }
+    line += ", \"durationBeats\": ";
+    line += std::format("{:>{}}", quotedFractionText(note.duration_beats), widths.duration_beats);
     line += ", \"string\": ";
     line += std::to_string(note.string_number);
     line += ", \"fret\": ";
@@ -901,6 +1469,202 @@ struct NoteColumnWidths
         contents += formatNoteLine(arrangement.note_events[index], widths);
     }
     contents += arrangement.note_events.empty() ? "]\n}\n" : "\n  ]\n}\n";
+
+    return contents;
+}
+
+// Widths of time-signature fields used by song document formatting.
+struct TimeSignatureColumnWidths
+{
+    std::size_t measure{0};
+    std::size_t numerator{0};
+    std::size_t denominator{0};
+};
+
+// Measures time-signature fields before writing one JSON object per line.
+[[nodiscard]] TimeSignatureColumnWidths measureTimeSignatureColumns(
+    const std::vector<TimeSignatureChange>& time_signatures)
+{
+    TimeSignatureColumnWidths widths;
+    for (const TimeSignatureChange& signature : time_signatures)
+    {
+        widths.measure = std::max(widths.measure, std::to_string(signature.measure).size());
+        widths.numerator = std::max(widths.numerator, std::to_string(signature.numerator).size());
+        widths.denominator =
+            std::max(widths.denominator, std::to_string(signature.denominator).size());
+    }
+
+    return widths;
+}
+
+// Renders one time-signature change as a compact object line.
+[[nodiscard]] std::string formatTimeSignatureLine(
+    const TimeSignatureChange& signature, const TimeSignatureColumnWidths& widths)
+{
+    std::string line = "{ \"measure\": ";
+    line += std::format("{:>{}}", signature.measure, widths.measure);
+    line += ", \"numerator\": ";
+    line += std::format("{:>{}}", signature.numerator, widths.numerator);
+    line += ", \"denominator\": ";
+    line += std::format("{:>{}}", signature.denominator, widths.denominator);
+    line += " }";
+
+    return line;
+}
+
+// Widths of anchor fields used by song document formatting.
+struct AnchorColumnWidths
+{
+    std::size_t measure{0};
+    std::size_t beat{0};
+    std::size_t seconds{0};
+};
+
+// Measures anchor fields before writing one JSON object per line.
+[[nodiscard]] AnchorColumnWidths measureAnchorColumns(const std::vector<BeatAnchor>& anchors)
+{
+    AnchorColumnWidths widths;
+    for (const BeatAnchor& anchor : anchors)
+    {
+        widths.measure = std::max(widths.measure, std::to_string(anchor.measure).size());
+        widths.beat = std::max(widths.beat, std::to_string(anchor.beat).size());
+        widths.seconds = std::max(widths.seconds, formatTimingValue(anchor.seconds).size());
+    }
+
+    return widths;
+}
+
+// Renders one beat anchor as a compact object line.
+[[nodiscard]] std::string formatAnchorLine(
+    const BeatAnchor& anchor, const AnchorColumnWidths& widths)
+{
+    std::string line = "{ \"measure\": ";
+    line += std::format("{:>{}}", anchor.measure, widths.measure);
+    line += ", \"beat\": ";
+    line += std::format("{:>{}}", anchor.beat, widths.beat);
+    line += ", \"seconds\": ";
+    line += std::format("{:>{}}", formatTimingValue(anchor.seconds), widths.seconds);
+    line += " }";
+
+    return line;
+}
+
+// Song-document audio entry retained between validation and final JSON formatting.
+struct AudioAssetDocumentEntry
+{
+    std::string id;
+    std::string path;
+    std::optional<AudioNormalization> normalization;
+};
+
+// Song-document arrangement entry retained between validation and final JSON formatting.
+struct ArrangementDocumentEntry
+{
+    std::string id;
+    std::string part;
+    std::string file;
+    std::string audio;
+    std::string tone_document;
+};
+
+// Renders one audio asset entry as a compact object line.
+[[nodiscard]] std::string formatAudioAssetLine(const AudioAssetDocumentEntry& entry)
+{
+    std::string line = "{ \"id\": ";
+    line += jsonString(entry.id);
+    line += ", \"path\": ";
+    line += jsonString(entry.path);
+    if (entry.normalization.has_value())
+    {
+        line += ", \"normalization\": { \"gainDb\": ";
+        line += formatJsonDouble(entry.normalization->gain_db);
+        line += ", \"validationSha256\": ";
+        line += jsonString(entry.normalization->validation_sha256);
+        line += " }";
+    }
+    line += " }";
+
+    return line;
+}
+
+// Renders one arrangement reference as a compact object line.
+[[nodiscard]] std::string formatArrangementLine(const ArrangementDocumentEntry& entry)
+{
+    std::string line = "{ \"id\": ";
+    line += jsonString(entry.id);
+    line += ", \"part\": ";
+    line += jsonString(entry.part);
+    line += ", \"file\": ";
+    line += jsonString(entry.file);
+    line += ", \"audio\": ";
+    line += jsonString(entry.audio);
+    if (!entry.tone_document.empty())
+    {
+        line += ", \"toneDocument\": ";
+        line += jsonString(entry.tone_document);
+    }
+    line += " }";
+
+    return line;
+}
+
+// Pairs the generated song document with arrangement IDs useful to callers.
+struct SongDocumentForSave
+{
+    std::string contents;
+    std::vector<std::string> arrangement_ids;
+};
+
+// Renders the full song document while keeping scan-heavy arrays at one object per line.
+[[nodiscard]] std::string songDocumentContents(
+    const SongMetadata& metadata, const TempoMap& tempo_map,
+    const std::vector<AudioAssetDocumentEntry>& audio_assets,
+    const std::vector<ArrangementDocumentEntry>& arrangements)
+{
+    const TimeSignatureColumnWidths time_signature_widths =
+        measureTimeSignatureColumns(tempo_map.timeSignatures());
+    const AnchorColumnWidths anchor_widths = measureAnchorColumns(tempo_map.anchors());
+
+    std::string contents = "{\n";
+    contents += "  \"formatVersion\": 1,\n";
+    contents += "  \"metadata\": {\n";
+    contents += "    \"title\": " + jsonString(metadata.title) + ",\n";
+    contents += "    \"artist\": " + jsonString(metadata.artist) + ",\n";
+    contents += "    \"album\": " + jsonString(metadata.album) + ",\n";
+    contents += "    \"year\": " + std::to_string(metadata.year) + "\n";
+    contents += "  },\n";
+    contents += "  \"tempoMap\": {\n";
+    contents += "    \"timeSignatures\": [";
+    for (std::size_t index = 0; index < tempo_map.timeSignatures().size(); ++index)
+    {
+        contents += (index == 0 ? "\n      " : ",\n      ");
+        contents +=
+            formatTimeSignatureLine(tempo_map.timeSignatures()[index], time_signature_widths);
+    }
+    contents += tempo_map.timeSignatures().empty() ? "],\n" : "\n    ],\n";
+    contents += "    \"anchors\": [";
+    for (std::size_t index = 0; index < tempo_map.anchors().size(); ++index)
+    {
+        contents += (index == 0 ? "\n      " : ",\n      ");
+        contents += formatAnchorLine(tempo_map.anchors()[index], anchor_widths);
+    }
+    contents += tempo_map.anchors().empty() ? "]\n" : "\n    ]\n";
+    contents += "  },\n";
+    contents += "  \"audioAssets\": [";
+    for (std::size_t index = 0; index < audio_assets.size(); ++index)
+    {
+        contents += (index == 0 ? "\n    " : ",\n    ");
+        contents += formatAudioAssetLine(audio_assets[index]);
+    }
+    contents += audio_assets.empty() ? "],\n" : "\n  ],\n";
+    contents += "  \"arrangements\": [";
+    for (std::size_t index = 0; index < arrangements.size(); ++index)
+    {
+        contents += (index == 0 ? "\n    " : ",\n    ");
+        contents += formatArrangementLine(arrangements[index]);
+    }
+    contents += arrangements.empty() ? "]\n" : "\n  ]\n";
+    contents += "}\n";
 
     return contents;
 }
@@ -942,13 +1706,6 @@ struct NoteColumnWidths
 
     return std::expected<void, SongPackageError>{};
 }
-
-// Pairs the generated song document with arrangement IDs useful to callers.
-struct SongDocumentForSave
-{
-    juce::var document;
-    std::vector<std::string> arrangement_ids;
-};
 
 // Chooses the ID to write for one arrangement, generating a stable fallback when needed.
 [[nodiscard]] std::expected<std::string, SongPackageError> arrangementIdForSave(
@@ -1023,38 +1780,6 @@ struct SongDocumentForSave
     return std::expected<void, SongPackageError>{};
 }
 
-// Validates a single in-memory note against the core invariants enforced on read, so the writer
-// never emits an arrangement document its own reader would reject. Intentionally minimal and
-// config-free: finite non-negative timing, a positive string number, and a non-negative fret.
-[[nodiscard]] std::expected<void, SongPackageError> validateNoteEvent(const NoteEvent& note)
-{
-    if (!isValidNoteSeconds(note.position.seconds) || !isValidNoteSeconds(note.duration.seconds))
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "note positionSeconds and durationSeconds must be finite non-negative values",
-        }};
-    }
-
-    if (note.string_number <= 0)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "note string must be a positive integer",
-        }};
-    }
-
-    if (note.fret < 0)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "note fret must be a non-negative integer",
-        }};
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
 // Creates the JSON song document that represents the supplied session song.
 [[nodiscard]] std::expected<SongDocumentForSave, SongPackageError> buildSongDocumentForSave(
     const std::filesystem::path& workspace_directory, const Song& song)
@@ -1067,11 +1792,18 @@ struct SongDocumentForSave
         }};
     }
 
-    juce::var audio_assets = Json::makeArray();
-    juce::var arrangements = Json::makeArray();
+    if (const auto tempo_map_error = validateTempoMap(song.tempo_map); !tempo_map_error.has_value())
+    {
+        return std::unexpected{tempo_map_error.error()};
+    }
+
+    std::vector<AudioAssetDocumentEntry> audio_assets;
+    std::vector<ArrangementDocumentEntry> arrangements;
     std::unordered_map<std::string, std::string> audio_ids_by_path;
     std::set<std::string> used_arrangement_ids;
     std::vector<std::string> arrangement_ids;
+    audio_assets.reserve(song.arrangements.size());
+    arrangements.reserve(song.arrangements.size());
     arrangement_ids.reserve(song.arrangements.size());
 
     for (std::size_t index = 0; index < song.arrangements.size(); ++index)
@@ -1093,12 +1825,11 @@ struct SongDocumentForSave
         {
             return std::unexpected{tone_error.error()};
         }
-        for (const NoteEvent& note : arrangement.note_events)
+        if (const auto note_error =
+                validateArrangementNoteEvents(arrangement.note_events, song.tempo_map);
+            !note_error.has_value())
         {
-            if (const auto note_error = validateNoteEvent(note); !note_error.has_value())
-            {
-                return std::unexpected{note_error.error()};
-            }
+            return std::unexpected{note_error.error()};
         }
 
         const auto arrangement_id = arrangementIdForSave(arrangement, used_arrangement_ids);
@@ -1130,20 +1861,15 @@ struct SongDocumentForSave
         {
             const std::string generated_id =
                 "audio-" + std::to_string(audio_ids_by_path.size() + 1);
-            const juce::var audio_entry = Json::makeObject({
-                {"id", Json::makeString(generated_id)},
-                {"path", Json::makeString(relative_audio_name)},
-            });
             // Persist normalization only when the in-memory asset carries it. Assets without
             // normalization round-trip without growing song.json; the open/import flow will
             // analyze them before the project becomes usable.
-            if (arrangement.audio_asset.normalization.has_value())
-            {
-                audio_entry.getDynamicObject()->setProperty(
-                    Json::identifier("normalization"),
-                    makeNormalizationJson(*arrangement.audio_asset.normalization));
-            }
-            audio_assets.append(audio_entry);
+            audio_assets.push_back(
+                AudioAssetDocumentEntry{
+                    .id = generated_id,
+                    .path = relative_audio_name,
+                    .normalization = arrangement.audio_asset.normalization,
+                });
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
@@ -1157,35 +1883,19 @@ struct SongDocumentForSave
             return std::unexpected{arrangement_error.error()};
         }
 
-        const juce::var arrangement_document = Json::makeObject({
-            {"id", Json::makeString(*arrangement_id)},
-            {"part", Json::makeString(partName(arrangement.part))},
-            {"file", Json::makeString(arrangement_document_path.generic_string())},
-            {"audio", Json::makeString(audio_id->second)},
-        });
-        if (!arrangement.tone_document_ref.empty())
-        {
-            arrangement_document.getDynamicObject()->setProperty(
-                Json::identifier("toneDocument"), Json::makeString(arrangement.tone_document_ref));
-        }
-
-        arrangements.append(arrangement_document);
+        arrangements.push_back(
+            ArrangementDocumentEntry{
+                .id = *arrangement_id,
+                .part = partName(arrangement.part),
+                .file = arrangement_document_path.generic_string(),
+                .audio = audio_id->second,
+                .tone_document = arrangement.tone_document_ref,
+            });
         arrangement_ids.push_back(*arrangement_id);
     }
 
     return SongDocumentForSave{
-        .document = Json::makeObject({
-            {"formatVersion", juce::var{1}},
-            {"metadata",
-             Json::makeObject({
-                 {"title", Json::makeString(song.metadata.title)},
-                 {"artist", Json::makeString(song.metadata.artist)},
-                 {"album", Json::makeString(song.metadata.album)},
-                 {"year", juce::var{song.metadata.year}},
-             })},
-            {"audioAssets", audio_assets},
-            {"arrangements", arrangements},
-        }),
+        .contents = songDocumentContents(song.metadata, song.tempo_map, audio_assets, arrangements),
         .arrangement_ids = std::move(arrangement_ids),
     };
 }
@@ -1218,7 +1928,7 @@ struct SongDocumentForSave
         }};
     }
 
-    song_document_file << juce::JSON::toString(song_document->document).toStdString() << '\n';
+    song_document_file << song_document->contents;
     if (!song_document_file.good())
     {
         return std::unexpected{SongPackageError{
@@ -1340,7 +2050,13 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         return std::unexpected{audio_assets.error()};
     }
 
-    auto arrangements = readArrangements(directory, song_document, *audio_assets);
+    auto tempo_map = readTempoMap(song_document);
+    if (!tempo_map.has_value())
+    {
+        return std::unexpected{std::move(tempo_map.error())};
+    }
+
+    auto arrangements = readArrangements(directory, song_document, *audio_assets, *tempo_map);
     if (!arrangements.has_value())
     {
         return std::unexpected{std::move(arrangements.error())};
@@ -1348,6 +2064,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
 
     Song song;
     song.metadata = readMetadata(song_document);
+    song.tempo_map = std::move(*tempo_map);
     song.arrangements = std::move(*arrangements);
 
     return std::expected<Song, SongPackageError>{std::in_place, std::move(song)};

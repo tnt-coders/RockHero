@@ -6,6 +6,7 @@
 #pragma once
 
 #include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/tempo_map.h>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,7 @@ struct SongMetadata
 
 A Song owns all data needed to start a game or editing session:
 - Descriptive metadata such as title, artist, and album.
+- The song-level tempo map that resolves chart grid positions to seconds.
 - Playable Arrangements for authored parts.
 
 Arrangement-owned tone document references are interpreted exclusively by common/audio and the
@@ -43,6 +45,9 @@ struct Song
 {
     /*! \brief Descriptive metadata for the song. */
     SongMetadata metadata;
+
+    /*! \brief Song-level beat grid used to resolve arrangement notes to timeline seconds. */
+    TempoMap tempo_map;
 
     /*! \brief Playable part/difficulty-rating variants available for the song. */
     std::vector<Arrangement> arrangements;

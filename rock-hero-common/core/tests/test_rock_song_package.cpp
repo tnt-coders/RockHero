@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <rock_hero/common/core/audio_normalization.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/package_id.h>
 #include <rock_hero/common/core/rock_song_package.h>
 #include <string>
@@ -100,12 +101,29 @@ void writeAudioFile(const std::filesystem::path& path)
     return toneDocumentPath(g_tone_id).generic_string();
 }
 
+// Returns the required native tempo-map document fragment shared by package fixtures.
+[[nodiscard]] std::string tempoMapJsonFragment()
+{
+    return R"(
+            "tempoMap": {
+                "timeSignatures": [
+                    { "measure": 1, "numerator": 4, "denominator": 4 }
+                ],
+                "anchors": [
+                    { "measure": 1, "beat": 1, "seconds": 0.000 },
+                    { "measure": 3, "beat": 1, "seconds": 4.000 }
+                ]
+            },
+)";
+}
+
 // Builds the smallest valid native song for package round-trip tests.
 [[nodiscard]] Song makeSong(const std::filesystem::path& audio_path)
 {
     Song song;
     song.metadata.title = "Native Song";
     song.metadata.artist = "Native Artist";
+    song.tempo_map = TempoMap::defaultMap(TimeDuration{4.0});
     song.arrangements.push_back(
         Arrangement{
             .id = std::string{g_lead_arrangement_id},
@@ -144,22 +162,25 @@ void writeAudioFile(const std::filesystem::path& path)
     return song;
 }
 
-// Builds a song whose lead arrangement carries a few notes. Note times are chosen to be exactly
-// representable so the fixed-precision round trip is bit-exact.
+// Builds a song whose lead arrangement carries a few grid-relative notes on common subdivisions.
 [[nodiscard]] Song makeSongWithNotes(const std::filesystem::path& audio_path)
 {
     Song song = makeSong(audio_path);
     Arrangement& arrangement = song.arrangements.front();
     arrangement.note_events = {
         NoteEvent{
-            .position = TimePosition{1.5},
-            .duration = TimeDuration{0.0},
+            .measure = 1,
+            .beat = 2,
+            .offset = Fraction{1, 2},
+            .duration_beats = Fraction{},
             .string_number = 1,
             .fret = 17,
         },
         NoteEvent{
-            .position = TimePosition{2.25},
-            .duration = TimeDuration{0.125},
+            .measure = 2,
+            .beat = 1,
+            .offset = Fraction{1, 4},
+            .duration_beats = Fraction{1, 8},
             .string_number = 2,
             .fret = 5,
         },
@@ -186,7 +207,44 @@ void writePackageDirectoryWithArrangementDocument(
     writeTextFile(
         package_directory / "song.json",
         R"({
-            "formatVersion": 1,
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
+}
+
+// Writes a readable package whose song.json carries a caller-supplied tempo-map fragment so negative
+// tests can vary only the grid. The fragment is the full "tempoMap": { ... }, text spliced ahead of
+// audioAssets, matching tempoMapJsonFragment()'s shape; the arrangement document has no notes so only
+// the tempo map drives the result.
+void writePackageDirectoryWithTempoMap(
+    const std::filesystem::path& package_directory, const std::string& tempo_map_fragment)
+{
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempo_map_fragment +
+            R"(
             "audioAssets": [
                 {
                     "id": "backing",
@@ -251,6 +309,7 @@ TEST_CASE("Rock song package directory writes native song data", "[core][rock-so
     REQUIRE(read_song->arrangements.size() == 1);
     CHECK(read_song->metadata.title == "Native Song");
     CHECK(read_song->metadata.artist == "Native Artist");
+    CHECK(read_song->tempo_map == TempoMap::defaultMap(TimeDuration{4.0}));
     CHECK(read_song->arrangements.front().id == std::string{g_lead_arrangement_id});
     CHECK(
         read_song->arrangements.front().audio_asset.path == package_directory / "audio/source.wav");
@@ -407,7 +466,9 @@ TEST_CASE("Rock song package rejects unsafe tone refs", "[core][rock-song-packag
     writeTextFile(
         package_directory / "song.json",
         R"({
-            "formatVersion": 1,
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
             "audioAssets": [
                 {
                     "id": "backing",
@@ -468,7 +529,9 @@ TEST_CASE("Rock song package without normalization still loads", "[core][rock-so
     writeTextFile(
         package_directory / "song.json",
         R"({
-            "formatVersion": 1,
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
             "audioAssets": [
                 {
                     "id": "backing",
@@ -506,7 +569,9 @@ TEST_CASE(
     writeTextFile(
         package_directory / "song.json",
         R"({
-            "formatVersion": 1,
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
             "audioAssets": [
                 {
                     "id": "backing",
@@ -545,7 +610,9 @@ TEST_CASE(
     writeTextFile(
         package_directory / "song.json",
         R"({
-            "formatVersion": 1,
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
             "audioAssets": [
                 {
                     "id": "backing",
@@ -594,7 +661,107 @@ TEST_CASE("Rock song package round-trips arrangement notes", "[core][rock-song-p
     REQUIRE(read_song.has_value());
     REQUIRE(read_song->arrangements.size() == 1);
     const Arrangement& read_arrangement = read_song->arrangements.front();
+    CHECK(read_song->tempo_map == song.tempo_map);
     CHECK(read_arrangement.note_events == song.arrangements.front().note_events);
+}
+
+// Verifies format version 1 still requires the native tempo-map object.
+TEST_CASE("Rock song package requires tempo map", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,
+            "audioAssets": [
+                {
+                    "id": "backing",
+                    "path": "audio/backing.wav"
+                }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "file": ")" +
+            arrangementDocumentPath(g_lead_arrangement_id).generic_string() +
+            R"(",
+                    "audio": "backing"
+                }
+            ]
+        })");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE_FALSE(read_song.has_value());
+    CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
+    CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
+}
+
+// Verifies the reader rejects tempo maps that break grid invariants. Each fragment parses and passes
+// the per-entry field reads, so these exercise validateTempoMap's structural rules: meter coverage
+// and ordering, the required start and terminal anchors, downbeat terminals, and anchor ordering.
+TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-package]")
+{
+    const std::vector<std::string> invalid_tempo_maps{
+        // timeSignatures must contain at least one meter.
+        R"(
+            "tempoMap": { "timeSignatures": [], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.000 } ] },
+)",
+        // timeSignatures must start at measure 1.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 2, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.000 } ] },
+)",
+        // Denominators must be a power of two.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 3 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.000 } ] },
+)",
+        // timeSignatures measures must be strictly increasing.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 }, { "measure": 1, "numerator": 3, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.000 } ] },
+)",
+        // anchors must contain both a start and a terminal anchor.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 } ] },
+)",
+        // The first anchor must address measure 1 beat 1.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 2, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.000 } ] },
+)",
+        // The terminal anchor must land on a downbeat.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 2, "beat": 2, "seconds": 4.000 } ] },
+)",
+        // anchor seconds must be strictly increasing.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 0.000 } ] },
+)",
+        // anchor seconds must already be on the persisted three-decimal grid.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 3, "beat": 1, "seconds": 4.0004 } ] },
+)",
+        // An anchor beat must fit inside its measure's active meter.
+        R"(
+            "tempoMap": { "timeSignatures": [ { "measure": 1, "numerator": 4, "denominator": 4 } ], "anchors": [ { "measure": 1, "beat": 1, "seconds": 0.000 }, { "measure": 1, "beat": 5, "seconds": 2.000 } ] },
+)",
+    };
+
+    for (const std::string& tempo_map_fragment : invalid_tempo_maps)
+    {
+        const TemporaryRockSongPackageDirectory temporary_directory;
+        const std::filesystem::path package_directory = temporary_directory.path() / "package";
+        writePackageDirectoryWithTempoMap(package_directory, tempo_map_fragment);
+
+        const auto read_song = readRockSongPackageDirectory(package_directory);
+
+        REQUIRE_FALSE(read_song.has_value());
+        CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
+        CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
+    }
 }
 
 // Verifies a note missing a required field is rejected with a typed arrangement error.
@@ -604,7 +771,7 @@ TEST_CASE("Rock song package rejects malformed arrangement notes", "[core][rock-
     const std::filesystem::path package_directory = temporary_directory.path() / "package";
     writePackageDirectoryWithArrangementDocument(
         package_directory,
-        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"string":1,"fret":17}]})");
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"string":1,"fret":17}]})");
 
     const auto read_song = readRockSongPackageDirectory(package_directory);
 
@@ -612,15 +779,64 @@ TEST_CASE("Rock song package rejects malformed arrangement notes", "[core][rock-
     CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
 }
 
+// Verifies note offsets and durations must be well-formed beat fractions, not numbers or bad ratios.
+TEST_CASE("Rock song package rejects malformed note fractions", "[core][rock-song-package]")
+{
+    const std::vector<std::string> invalid_arrangement_documents{
+        // A zero or negative denominator is not a valid fraction.
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"1/0","string":1,"fret":17}]})",
+        // Non-numeric fraction text is rejected at the read boundary.
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"abc","string":1,"fret":17}]})",
+        // A trailing component leaves unparsed characters and is rejected.
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"offset":"1/2/3","durationBeats":"0","string":1,"fret":17}]})",
+        // Offsets must be quoted fraction strings, not JSON numbers.
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"offset":0.5,"durationBeats":"0","string":1,"fret":17}]})",
+    };
+
+    for (const std::string& arrangement_document : invalid_arrangement_documents)
+    {
+        const TemporaryRockSongPackageDirectory temporary_directory;
+        const std::filesystem::path package_directory = temporary_directory.path() / "package";
+        writePackageDirectoryWithArrangementDocument(package_directory, arrangement_document);
+
+        const auto read_song = readRockSongPackageDirectory(package_directory);
+
+        REQUIRE_FALSE(read_song.has_value());
+        CHECK(read_song.error().code == SongPackageErrorCode::InvalidArrangement);
+    }
+}
+
+// Verifies chords can represent same-time notes as long as each string is unique.
+TEST_CASE("Rock song package allows chord notes on different strings", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temporary_directory;
+    const std::filesystem::path package_directory = temporary_directory.path() / "package";
+    writePackageDirectoryWithArrangementDocument(
+        package_directory,
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"0","string":1,"fret":5},{"measure":1,"beat":2,"durationBeats":"0","string":2,"fret":7}]})");
+
+    const auto read_song = readRockSongPackageDirectory(package_directory);
+
+    REQUIRE(read_song.has_value());
+    REQUIRE(read_song->arrangements.size() == 1);
+    CHECK(read_song->arrangements.front().note_events.size() == 2);
+}
+
 // Verifies present note fields still reject values outside the core domain.
 TEST_CASE("Rock song package rejects out-of-domain notes", "[core][rock-song-package]")
 {
     const std::vector<std::string> invalid_arrangement_documents{
-        R"({"formatVersion":1,"notes":[{"positionSeconds":-0.001,"durationSeconds":0.0,"string":1,"fret":17}]})",
-        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":-0.1,"string":1,"fret":17}]})",
-        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":0,"fret":17}]})",
-        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":-1}]})",
-        R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":2147483648}]})",
+        R"({"formatVersion":1,"notes":[{"measure":0,"beat":1,"durationBeats":"0","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":5,"durationBeats":"0","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"offset":"-1/4","durationBeats":"0","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"offset":"1","durationBeats":"0","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"offset":"1/2048","durationBeats":"0","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"-1/2","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":2,"beat":4,"offset":"3/4","durationBeats":"1/2","string":1,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"0","string":0,"fret":17}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"0","string":1,"fret":-1}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"0","string":1,"fret":2147483648}]})",
+        R"({"formatVersion":1,"notes":[{"measure":1,"beat":2,"durationBeats":"0","string":1,"fret":5},{"measure":1,"beat":2,"durationBeats":"0","string":1,"fret":7}]})",
     };
 
     for (const std::string& arrangement_document : invalid_arrangement_documents)
