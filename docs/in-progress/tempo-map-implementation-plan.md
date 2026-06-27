@@ -31,8 +31,9 @@ seconds/sample time; the grid is the layer that maps musical positions to that t
   to fall out of sync.
 - **Sparse anchors + change-only meter store only what is not derivable.** Steady-tempo stretches
   cost a couple of anchors; meter changes cost nothing in time data.
-- **Import is trivial and lossless to ~1 ms**: a note's grid position is just the fraction of the way
-  between its surrounding beats; no exotic-tuplet rationals or ticks are needed.
+- **Import snaps onsets to subdivisions**: a note's grid position is the fraction of the way between
+  its surrounding beats, snapped to the nearest musical subdivision and stored as an exact rational —
+  no floating-point drift, and tuplets fall out naturally (`1/3`, `1/6`, …).
 
 ## Design decisions (durable)
 
@@ -42,10 +43,12 @@ seconds/sample time; the grid is the layer that maps musical positions to that t
    accepted trade, paid back by editor grid-alignment tooling and authoring QA, not by runtime
    decoupling.
 
-2. **Notes are stored grid-relative:** `{ measure, beat, offset }`. `beat` is 1-based; `offset` is a
-   decimal in `[0, 1)` giving the fraction of the way to the next beat (`0`, i.e. on the beat, is the
-   default and is omitted). No seconds are stored on notes. A note bakes to seconds at load as
-   `beatSeconds + offset × beatSpan`. Note durations are musical too (in beats), not seconds.
+2. **Notes are stored grid-relative:** `{ measure, beat, offset }`. `beat` is 1-based; `offset` is an
+   **exact rational fraction** in `[0, 1)` (a `numerator/denominator` such as `1/3` or `3/16`) giving
+   the position within the beat (`0`, i.e. on the beat, is the default and is omitted). No seconds are
+   stored on notes. A note bakes to seconds at load as `beatSeconds + offset × beatSpan`. Note
+   durations are exact beat fractions too, not seconds. Both reduce to a denominator of at most 1024
+   (the finest stored subdivision).
 
 3. **The tempo map is a warp-anchor grid**, stored as two sparse lists:
    - `timeSignatures` — meter **changes only**: `{ measure, numerator, denominator }`, carried
@@ -71,11 +74,12 @@ seconds/sample time; the grid is the layer that maps musical positions to that t
    carries forward). Measure numbers are kept as explicit, readable, self-locating addresses — in
    sparse lists they are the address, not redundant. On-beat notes omit `offset`.
 
-7. **Precision: three decimals** for anchor `seconds` and note `offset`. Anchor seconds have
-   millisecond resolution with at most +/-0.5 ms quantization error. Offsets are dimensionless
-   fractions of the current beat span, so their effective time precision depends on tempo. This is
-   still below the onset-detection / latency / hit-window floor for the charting and scoring work
-   planned here. See the timing note in `docs/design/architecture.md`.
+7. **Anchor seconds use three decimals; note positions are exact fractions.** Anchor `seconds` are the
+   only absolute time stored and use a fixed three-decimal (millisecond) grid (±0.5 ms quantization),
+   which is below the onset-detection / latency / hit-window floor for the charting and scoring work
+   planned here. Note `offset` and `duration_beats` are exact rational fractions of a beat — authored
+   by snapping to subdivisions — so they carry no decimal grid and round-trip losslessly. See the
+   timing note in `docs/design/architecture.md`.
 
 8. **Warp-following is drift-free by construction.** Moving an anchor re-resolves every downstream
    beat and note. Because the offset is the stored invariant and seconds live only on anchors, there
@@ -94,11 +98,28 @@ seconds/sample time; the grid is the layer that maps musical positions to that t
     behind `ISongAudio`. Core owns the persisted grid and all musical-timing math; Tracktion types
     stay behind the audio boundary.
 
+12. **Anchor seconds are validated onto the decimal grid; note fractions are exact.** Because note
+    `offset` and `duration_beats` are exact rational fractions, there is no offset-rounding problem (an
+    offset can never round up to a full beat) and **no on-grid check applies to notes**. Anchor
+    `seconds`, however, are still decimal: the package reader requires every anchor second to already
+    be on the three-decimal grid, so the writer is lossless and never emits a document its own reader
+    rejects. Import and any future editing **snap anchor seconds to the grid before constructing the
+    model**; two anchors that snap to the same second are simply equal, and the existing
+    strictly-increasing-`seconds` check rejects them, so no separate minimum-separation rule is needed.
+    Notes may share an onset only when they are on different strings, which represents a chord;
+    duplicate same-string onsets are invalid (compared on the exact `{ global beat, reduced offset }`).
+
 ## Target core model
 
 Add value types under `rock-hero-common/core/include/rock_hero/common/core/`:
 
 ```cpp
+struct Fraction              // exact rational; reduced on construction, denominator > 0
+{
+    int numerator{0};
+    int denominator{1};
+};
+
 struct TimeSignatureChange   // meter from this measure onward
 {
     int measure{1};
@@ -126,7 +147,7 @@ public:
 
     // Time resolution (anchors are pinned; everything else interpolates)
     [[nodiscard]] double secondsAtBeat(int measure, int beat) const;         // anchored or interpolated
-    [[nodiscard]] double secondsAtNote(int measure, int beat, double offset) const;
+    [[nodiscard]] double secondsAtNote(int measure, int beat, Fraction offset) const;
 };
 ```
 
@@ -137,10 +158,10 @@ struct NoteEvent
 {
     int measure{1};
     int beat{1};             // 1-based
-    double offset{0.0};      // [0,1) fraction to the next beat; 0 = on the beat
+    Fraction offset{};       // exact fraction in [0,1) to the next beat; 0 = on the beat
     int string_number{0};
     int fret{0};
-    double duration_beats{0.0};
+    Fraction duration_beats{}; // exact beat fraction; 0 = non-sustained
     // optional techniques, omit-when-absent (slideTo, hammerOn, palmMute, bend, …)
 };
 ```
@@ -154,7 +175,7 @@ version; add an index only if profiling on long imported maps shows a need.
 Validation rules:
 
 - `timeSignatures` is non-empty and begins at measure 1; numerators positive; denominators a power of
-  two in 1–32; measures strictly increasing.
+  two; measures strictly increasing.
 - `anchors` is strictly increasing in both `(measure, beat)` and `seconds`, with a start anchor at
   measure 1 beat 1 and a terminal anchor at the one-past-content downbeat. The terminal anchor is a
   grid boundary, not a content bar, and it needs no `timeSignatures` entry of its own.
@@ -162,7 +183,10 @@ Validation rules:
   `beat` is in `1..numerator` of that measure's meter.
 - Every note sustain resolves within the grid: the note's `{ measure, beat, offset }` plus
   `duration_beats` must end at or before the terminal anchor's global beat index.
-- `seconds` finite and non-negative; `offset` in `[0, 1)`.
+- `seconds` finite, non-negative, and on the three-decimal grid; `offset` an exact fraction in
+  `[0, 1)`; `duration_beats` a non-negative exact fraction. Both note fractions reduce to a
+  denominator of at most 1024 (the finest stored subdivision).
+- No two notes on the same string share an onset (a chord is the same onset on different strings).
 - Missing grid on a song with notes is an error after migration has run; a freshly imported or
   default song uses `TempoMap::defaultMap()`.
 
@@ -184,18 +208,21 @@ In `song.json`, alongside `metadata`, `audioAssets`, `arrangements`:
 }
 ```
 
-Notes in the per-arrangement document become grid-relative:
+Notes in the per-arrangement document become grid-relative. `offset` and `durationBeats` are quoted
+exact-fraction strings (`"1/3"`, `"3/16"`, whole values like `"1"` or `"0"`); `offset` is omitted when
+the note is on the beat:
 
 ```json
 "notes": [
-  { "measure": 2, "beat": 1, "string": 1, "fret": 17 },
-  { "measure": 53, "beat": 1, "offset": 0.166, "string": 2, "fret": 7 }
+  { "measure": 2,  "beat": 1, "durationBeats": "0",   "string": 1, "fret": 17 },
+  { "measure": 53, "beat": 1, "offset": "1/6", "durationBeats": "1/2", "string": 2, "fret": 7 }
 ]
 ```
 
-This is an incompatible note-schema change, so **bump the arrangement-document `formatVersion`** (and
-`song.json` `formatVersion` if the loader cannot otherwise distinguish). The tempo map itself is
-durable song content in `song.json`, never in editor-only `project.json`.
+The note schema changed incompatibly, but `formatVersion` stays at `1` for now: the project is in
+early development with a single owner of `.rhp` files, so the version bump is intentionally deferred
+until the format stabilizes. The tempo map itself is durable song content in `song.json`, never in
+editor-only `project.json`.
 
 ## Import (absolute seconds → grid)
 
@@ -209,21 +236,29 @@ External/legacy sources give beat grids and note onsets in seconds. Convert once
    content bar). Its seconds come from the source's bar-end downbeat, or are extrapolated one beat
    from the final span if the source stops at the last beat. Audio-file duration stays audio-asset
    metadata; it is not a substitute for an addressed grid anchor.
-4. **Notes** → for each onset second, find its beat bracket and store
-   `{ measure, beat, offset = (S − beatStart) / (beatNext − beatStart) }`. No subdivision snapping or
-   tuplet detection — the raw fraction is kept.
-5. **QA residuals** → report any note whose round-trip differs from its source second by more than
-   tolerance. Large or biased residuals indicate a misaligned grid to fix, not notes to force.
+4. **Notes** → for each onset second, find its beat bracket, take the raw fraction
+   `(S − beatStart) / (beatNext − beatStart)`, and **snap it to the nearest musical subdivision** from
+   a configured denominator set (1/2, 1/3, 1/4, … 1/16 and triplet families), storing the exact
+   `Fraction`. The snapped denominator is the chart's subdivision; the residual to the source second is
+   reported for QA (step 5), not stored.
+5. **QA residuals** → report any note whose snapped position differs from its source second by more
+   than tolerance. Large or biased residuals indicate a misaligned grid to fix, not notes to force.
+6. **Quantize anchor seconds** → snap each anchor's `seconds` to the three-decimal grid before
+   constructing the `TempoMap`, so the in-memory model equals its persisted form (note fractions are
+   already exact and need no quantization). Two anchors that snap to the same second are rejected by
+   validation. See design decision 12.
 
 ## Implementation steps
 
 1. **Core grid + note model + conversion** — add the value types above, `Song::tempo_map`,
    grid-relative `NoteEvent`, and `tempo_map.cpp` with `globalBeatIndex` / `secondsAtBeat` /
    `secondsAtNote`. Pure tests for interpolation, meter walking, note baking, and validation.
-2. **Package persistence** — read/write `tempoMap` and grid-relative notes in
-   `rock_song_package.cpp`; round-trip and malformed-map tests; bump the note `formatVersion`.
+2. **Package persistence** — read/write `tempoMap` and grid-relative notes (exact-fraction `offset`
+   and `durationBeats`) in `rock_song_package.cpp`; round-trip and malformed-map tests. `formatVersion`
+   stays at `1` for now (see Persistence format).
 3. **Migration / import** — convert legacy seconds-notes and external imports to the grid model per
-   the Import section; residual reporting for QA.
+   the Import section; snap onsets to subdivisions and quantize anchor seconds (design decision 12);
+   residual reporting for QA.
 4. **Editor state + read-only display** — expose the grid via `EditorViewState`; render a read-only
    bar/beat ruler in `rock-hero-editor/ui` using `TempoMap` conversion helpers; do not mark projects
    dirty for loading/displaying.

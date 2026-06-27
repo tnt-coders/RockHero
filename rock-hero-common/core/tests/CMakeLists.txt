@@ -10,6 +10,8 @@ add_executable(
     test_arrangement.cpp
     test_application_identity.cpp
     test_difficulty.cpp
+    test_fraction.cpp
+    test_tempo_map.cpp
     test_timeline.cpp
     test_juce_path.cpp
     test_logger.cpp

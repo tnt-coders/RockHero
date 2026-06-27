@@ -165,6 +165,22 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
     return arrangementDocumentPath(arrangement_id).generic_string();
 }
 
+// Returns the required native tempo-map document fragment shared by package fixtures.
+[[nodiscard]] std::string tempoMapJsonFragment()
+{
+    return R"(
+                "tempoMap": {
+                    "timeSignatures": [
+                        { "measure": 1, "numerator": 4, "denominator": 4 }
+                    ],
+                    "anchors": [
+                        { "measure": 1, "beat": 1, "seconds": 0.000 },
+                        { "measure": 3, "beat": 1, "seconds": 4.000 }
+                    ]
+                },
+)";
+}
+
 // Returns the minimal nested song document shared by project package tests.
 [[nodiscard]] ArchiveEntry minimalSongDocumentEntry()
 {
@@ -172,7 +188,9 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
         .path = "song/song.json",
         .contents =
             R"({
-                "formatVersion": 1,
+                "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
                 "metadata": {
                     "title": "Monument",
                     "artist": "A Day To Remember"
@@ -286,7 +304,9 @@ void writeTwoArrangementProjectPackage(
                 .path = song_document_name,
                 .contents = std::string{
                     R"({
-                            "formatVersion": 1,
+                            "formatVersion": 1,)" +
+                    tempoMapJsonFragment() +
+                    R"(
                             "metadata": {
                                 "title": "Monument",
                                 "artist": "A Day To Remember",
@@ -344,7 +364,9 @@ void writeUnsafeAssetProjectPackage(
                 .path = "song/song.json",
                 .contents =
                     R"({
-                        "formatVersion": 1,
+                        "formatVersion": 1,)" +
+                    tempoMapJsonFragment() +
+                    R"(
                         "audioAssets": [
                             {
                                 "id": "backing",
@@ -561,7 +583,9 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
                 .path = "song.json",
                 .contents = std::string{
                     R"({
-                            "formatVersion": 1,
+                            "formatVersion": 1,)" +
+                    tempoMapJsonFragment() +
+                    R"(
                             "metadata": {"title": "x", "artist": "y", "album": "", "year": 0},
                             "audioAssets": [
                                 {"id": "backing", "path": "audio/backing.wav"}
