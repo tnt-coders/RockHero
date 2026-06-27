@@ -240,7 +240,7 @@ Song
     note_events[*]
       position.seconds
       duration.seconds
-      string_number (1-based playable string number, capped by package validation config)
+      string_number (1-based playable string number)
       fret
 \endcode
 

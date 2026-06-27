@@ -24,7 +24,7 @@ struct NoteEvent
     /*! \brief Sustain duration; zero means a non-sustained note. */
     TimeDuration duration;
 
-    /*! \brief One-based playable string number, capped by package validation policy. */
+    /*! \brief One-based playable string number; one is the highest-pitched string. */
     int string_number{0};
 
     /*! \brief Fret number; zero means an open string. */
