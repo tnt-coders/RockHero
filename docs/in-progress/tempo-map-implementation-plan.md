@@ -1,221 +1,264 @@
-# Tempo Map Implementation Plan
+# Tempo Map and Grid-Relative Note Model — Implementation Plan
 
-Status: in progress (planning). First slice is read-only tempo-map loading and display; tone
-changes, tempo editing, and live-rig switching are deliberately out of scope.
+Status: in progress (planning). Defines the durable storage model for the tempo map **and** note
+positions. Note positions are now **grid-relative**; this supersedes the earlier absolute-seconds
+note storage and the BPM-segment tempo map (see
+`docs/in-progress/tempo-map-storage-shape-discussion.md` for how the model was reached). The first
+implementation slice remains read-only grid loading and display; tempo and note editing come later.
 
 ## Goal
 
-Add a project-owned tempo map to the song model, load and save it with the project/song package,
-and display a beat/bar-aware timeline in the editor. This gives future tone-change authoring a
-musical grid to snap and label against without making the tempo map the runtime source of truth for
-instant rig switching.
+Make the **tempo map (a beat grid) the source of truth for note positioning.** The grid is authored
+to match the fixed backing recording as closely as possible, and notes are positioned relative to it
+(bar / beat / fractional offset) — exactly like charting in Guitar Pro against a backing track.
+Notes are baked to absolute seconds at load for the highway and scoring, but the **stored truth is
+grid-relative**.
 
-Runtime playback and future rig switching must still schedule against the audio transport timeline
-in seconds/sample time. The tempo map is authoring and conversion data layered over that timeline.
+The grid is a **warp-anchor model**: a small set of beats pinned to absolute seconds (anchors) plus
+the time-signature changes, with every other beat and measure interpolated. **Absolute seconds appear
+in exactly one place — the anchors.** Everything else (measures, beats, notes, durations) is
+musical/relative and resolves to seconds only through the anchors.
 
-## Current Grounding
+The tempo map lives on `Song` (shared by all arrangements). Runtime and scoring schedule in
+seconds/sample time; the grid is the layer that maps musical positions to that timeline.
 
-- `Song` currently owns metadata and arrangements only.
-- Arrangement notes and transport positions use `TimePosition`/`TimeDuration` in seconds.
-- `.rhp` projects write editor-only state to root `project.json` and shared song data to
-  `song/song.json` through the native `.rock` package serializer.
-- `Session::timeline()` is derived from the selected arrangement audio duration. Tempo map data
-  should not define the playable timeline length.
-- `EditorViewState::visible_timeline` is currently the full displayed timeline range, and the
-  scroll/zoom state lives in `EditorView::TrackViewport`.
-- `common/audio` owns the Tracktion `Edit`; Tracktion's `Edit::tempoSequence` supports tempos,
-  time signatures, and time/beat conversion, but Tracktion types must stay behind the audio
-  adapter boundary.
+## Why this shape
 
-## Design Decisions
+- **Grid-relative notes match the authoring model** (snap-to-grid against a backing track) and
+  **follow grid edits automatically** — fixing the grid moves the notes that were charted to it.
+- **Warp anchors make grid editing drift-free**: moving an anchor re-resolves everything downstream,
+  and because the only stored absolute time is the anchors, there is no second copy of the timeline
+  to fall out of sync.
+- **Sparse anchors + change-only meter store only what is not derivable.** Steady-tempo stretches
+  cost a couple of anchors; meter changes cost nothing in time data.
+- **Import is trivial and lossless to ~1 ms**: a note's grid position is just the fraction of the way
+  between its surrounding beats; no exotic-tuplet rationals or ticks are needed.
 
-- **Store the tempo map on `Song`, not `Arrangement`.** The displayed arrangement lanes share one
-  transport, tempo map, and time-signature sequence. Arrangement-specific audio is allowed, but the
-  musical timeline is song-level.
-- **Persist positions in absolute song seconds.** Rock Hero's backing audio is fixed, and the
-  transport is the timing source. The tempo map derives musical positions from seconds; it does not
-  remap audio.
-- **Include time signatures in the first model.** A tempo-only model can draw beats, but it cannot
-  label bars correctly. Start with minimal time-signature support rather than bolting it on later.
-- **Default missing maps to 120 BPM, 4/4 at 0 seconds.** This keeps existing fixtures and project
-  files loadable without a migration path. The default matches Tracktion's built-in default.
-- **Keep Tracktion synchronization as an adapter step.** Core owns the persisted model and
-  conversion rules. `common/audio` translates that model into `Edit::tempoSequence` on the message
-  thread during project load/setup.
-- **Keep first UI pass read-only.** The editor should render beat/bar grid lines and tempo/time
-  signature markers, but not allow tempo editing yet.
+## Design decisions (durable)
 
-## Target Core Model
+1. **The grid is the source of truth for note positioning.** Notes are authored grid-relative, the
+   grid must be authored to match the recording, and a misaligned grid is a *defective chart* fixed
+   by aligning the grid (notes follow). Scoring accuracy is therefore gated on grid accuracy — an
+   accepted trade, paid back by editor grid-alignment tooling and authoring QA, not by runtime
+   decoupling.
 
-Add small value types under `rock-hero-common/core/include/rock_hero/common/core/`:
+2. **Notes are stored grid-relative:** `{ measure, beat, offset }`. `beat` is 1-based; `offset` is a
+   decimal in `[0, 1)` giving the fraction of the way to the next beat (`0`, i.e. on the beat, is the
+   default and is omitted). No seconds are stored on notes. A note bakes to seconds at load as
+   `beatSeconds + offset × beatSpan`. Note durations are musical too (in beats), not seconds.
+
+3. **The tempo map is a warp-anchor grid**, stored as two sparse lists:
+   - `timeSignatures` — meter **changes only**: `{ measure, numerator, denominator }`, carried
+     forward to later measures.
+   - `anchors` — beats pinned to absolute seconds: `{ measure, beat, seconds }`, sparse. Two are
+     always required: a **start** anchor (measure 1, beat 1) and a **terminal** anchor at the
+     one-past-content downbeat (beat 1 of the bar after the last content bar), which closes the last
+     span and bounds the grid. Interior anchors are added only where interpolation needs them.
+   No BPM is stored; tempo is implied by adjacent anchors (the beat rate between them).
+
+4. **Seconds live only on anchors.** Every other position is derived: non-anchored beats interpolate
+   linearly between the two surrounding anchors by **global beat index**; a note resolves via its
+   beat's (anchored or interpolated) seconds plus its offset. There is no other absolute-time value
+   anywhere in the grid or note data. (Audio-file duration on an audio asset is unrelated metadata,
+   not part of positioning.)
+
+5. **Adaptive anchor density.** Beats between anchors are spaced evenly (constant tempo per span), so
+   anchors are placed wherever even interpolation would otherwise miss the recording's beats by more
+   than ~1 ms. Steady tempo → sparse anchors; rubato or drift → denser, down to per-beat. Meter
+   changes are structural and require no anchors.
+
+6. **Store only what changes or is not derivable.** Unchanged-meter measures are omitted (meter
+   carries forward). Measure numbers are kept as explicit, readable, self-locating addresses — in
+   sparse lists they are the address, not redundant. On-beat notes omit `offset`.
+
+7. **Precision: three decimals** for anchor `seconds` and note `offset`. Anchor seconds have
+   millisecond resolution with at most +/-0.5 ms quantization error. Offsets are dimensionless
+   fractions of the current beat span, so their effective time precision depends on tempo. This is
+   still below the onset-detection / latency / hit-window floor for the charting and scoring work
+   planned here. See the timing note in `docs/design/architecture.md`.
+
+8. **Warp-following is drift-free by construction.** Moving an anchor re-resolves every downstream
+   beat and note. Because the offset is the stored invariant and seconds live only on anchors, there
+   is nothing to accumulate; on-beat notes stay welded to their beat exactly. (Future editing
+   capability — the storage model already supports it.)
+
+9. **The tempo map lives on `Song`, not `Arrangement`.** Arrangements share one transport and one
+   musical timeline; arrangement-specific audio is still allowed.
+
+10. **The grid is mandatory once notes are grid-relative.** A song with notes must have a grid to
+    resolve them. Legacy seconds-based songs and external imports build a grid and convert their note
+    times to `{ measure, beat, offset }` (see Import). The fallback grid, when no beat grid is known,
+    is a single 4/4 meter at 120 BPM expressed as a constant-tempo span (start + end anchors).
+
+11. **Tracktion synchronization is an adapter step** in `common/audio` (`Edit::tempoSequence`),
+    behind `ISongAudio`. Core owns the persisted grid and all musical-timing math; Tracktion types
+    stay behind the audio boundary.
+
+## Target core model
+
+Add value types under `rock-hero-common/core/include/rock_hero/common/core/`:
 
 ```cpp
-struct BeatPosition
+struct TimeSignatureChange   // meter from this measure onward
 {
-    double beats{0.0};
-};
-
-struct TempoEvent
-{
-    TimePosition position;
-    double bpm{120.0};
-};
-
-struct TimeSignatureEvent
-{
-    TimePosition position;
+    int measure{1};
     int numerator{4};
     int denominator{4};
+};
+
+struct BeatAnchor            // a beat pinned to absolute time — the only stored seconds
+{
+    int measure{1};
+    int beat{1};             // 1-based
+    double seconds{0.0};
 };
 
 class TempoMap
 {
 public:
-    [[nodiscard]] static TempoMap defaultMap();
+    [[nodiscard]] static TempoMap defaultMap(double audioDurationSeconds);
 
-    [[nodiscard]] const std::vector<TempoEvent>& tempos() const noexcept;
-    [[nodiscard]] const std::vector<TimeSignatureEvent>& timeSignatures() const noexcept;
+    [[nodiscard]] const std::vector<TimeSignatureChange>& timeSignatures() const noexcept;
+    [[nodiscard]] const std::vector<BeatAnchor>& anchors() const noexcept;
+    // Musical structure
+    [[nodiscard]] TimeSignatureChange meterAt(int measure) const noexcept;   // last change <= measure
+    [[nodiscard]] long long globalBeatIndex(int measure, int beat) const;    // walk the meter map
 
-    [[nodiscard]] double bpmAt(TimePosition position) const noexcept;
-    [[nodiscard]] BeatPosition beatAt(TimePosition position) const noexcept;
-    [[nodiscard]] TimePosition timeAt(BeatPosition beat) const noexcept;
+    // Time resolution (anchors are pinned; everything else interpolates)
+    [[nodiscard]] double secondsAtBeat(int measure, int beat) const;         // anchored or interpolated
+    [[nodiscard]] double secondsAtNote(int measure, int beat, double offset) const;
 };
 ```
 
+`NoteEvent` becomes grid-relative:
+
+```cpp
+struct NoteEvent
+{
+    int measure{1};
+    int beat{1};             // 1-based
+    double offset{0.0};      // [0,1) fraction to the next beat; 0 = on the beat
+    int string_number{0};
+    int fret{0};
+    double duration_beats{0.0};
+    // optional techniques, omit-when-absent (slideTo, hammerOn, palmMute, bend, …)
+};
+```
+
+Conversion outline: `globalBeatIndex` sums numerators of prior measures via the meter changes;
+`secondsAtBeat` returns the anchor's seconds if that beat is anchored, otherwise linearly
+interpolates between the two surrounding anchors by global beat index; `secondsAtNote` adds
+`offset × (secondsAtBeat(nextBeat) − secondsAtBeat(beat))`. Linear scans are fine for the first
+version; add an index only if profiling on long imported maps shows a need.
+
 Validation rules:
 
-- At least one tempo event and one time-signature event.
-- The first event of each sequence is at exactly 0 seconds after normalization.
-- Event positions are finite, non-negative, sorted, and unique within their sequence.
-- BPM is finite and in Tracktion's supported range: 20 to 300 BPM.
-- Time-signature numerator is positive; denominator is a power of two in the practical range
-  1 through 32.
-- Missing JSON creates `TempoMap::defaultMap()`. Malformed present JSON is a load error.
+- `timeSignatures` is non-empty and begins at measure 1; numerators positive; denominators a power of
+  two in 1–32; measures strictly increasing.
+- `anchors` is strictly increasing in both `(measure, beat)` and `seconds`, with a start anchor at
+  measure 1 beat 1 and a terminal anchor at the one-past-content downbeat. The terminal anchor is a
+  grid boundary, not a content bar, and it needs no `timeSignatures` entry of its own.
+- Every note onset lives within a real content bar: `measure` is before the terminal boundary and
+  `beat` is in `1..numerator` of that measure's meter.
+- Every note sustain resolves within the grid: the note's `{ measure, beat, offset }` plus
+  `duration_beats` must end at or before the terminal anchor's global beat index.
+- `seconds` finite and non-negative; `offset` in `[0, 1)`.
+- Missing grid on a song with notes is an error after migration has run; a freshly imported or
+  default song uses `TempoMap::defaultMap()`.
 
-Keep the implementation simple and deterministic. Linear scans are acceptable for the first
-version; a five-minute song has only hundreds of visible beats. Add caching only if profiling or
-imported maps prove it is needed.
+## Persistence format
 
-## Persistence Format
-
-Store the map in `song.json`, alongside `metadata`, `audioAssets`, and `arrangements`:
+In `song.json`, alongside `metadata`, `audioAssets`, `arrangements`:
 
 ```json
-{
-  "formatVersion": 1,
-  "metadata": {
-    "title": "Song",
-    "artist": "Artist",
-    "album": "",
-    "year": 2026
-  },
-  "tempoMap": {
-    "tempos": [
-      { "positionSeconds": 0.0, "bpm": 120.0 },
-      { "positionSeconds": 42.5, "bpm": 138.0 }
-    ],
-    "timeSignatures": [
-      { "positionSeconds": 0.0, "numerator": 4, "denominator": 4 }
-    ]
-  },
-  "audioAssets": [],
-  "arrangements": []
+"tempoMap": {
+  "timeSignatures": [
+    { "measure": 1, "numerator": 4, "denominator": 4 },
+    { "measure": 2, "numerator": 3, "denominator": 4 }
+  ],
+  "anchors": [
+    { "measure": 1,   "beat": 1, "seconds": 10.001 },
+    { "measure": 188, "beat": 1, "seconds": 260.291 },
+    { "measure": 229, "beat": 1, "seconds": 316.834 }
+  ]
 }
 ```
 
-Do not put this in root `project.json`; that file is editor-only state such as the selected
-arrangement. The tempo map is durable song content needed by both the editor and the game.
+Notes in the per-arrangement document become grid-relative:
 
-Do not bump `song.json` `formatVersion` solely for this optional field. A missing field has a
-well-defined default. Only bump the version for a future incompatible schema change.
+```json
+"notes": [
+  { "measure": 2, "beat": 1, "string": 1, "fret": 17 },
+  { "measure": 53, "beat": 1, "offset": 0.166, "string": 2, "fret": 7 }
+]
+```
 
-## Implementation Steps
+This is an incompatible note-schema change, so **bump the arrangement-document `formatVersion`** (and
+`song.json` `formatVersion` if the loader cannot otherwise distinguish). The tempo map itself is
+durable song content in `song.json`, never in editor-only `project.json`.
 
-1. **Core values and conversion**
-   - Add tempo-map value headers and `tempo_map.cpp`.
-   - Add `Song::tempo_map` defaulting to `TempoMap::defaultMap()`.
-   - Add pure tests for default values, validation, `bpmAt`, seconds-to-beats, beats-to-seconds,
-     tempo changes, and time-signature lookup.
+## Import (absolute seconds → grid)
 
-2. **Song package persistence**
-   - Read optional `tempoMap` in `rock_song_package.cpp`.
-   - Write `tempoMap` from `Song` in `buildSongDocumentForSave`.
-   - Preserve default behavior when old `song.json` files omit `tempoMap`.
-   - Add package round-trip tests and negative malformed-map tests.
+External/legacy sources give beat grids and note onsets in seconds. Convert once:
 
-3. **Import support**
-   - Keep imported songs valid with the default tempo map first.
-   - Accept tempo maps written by external converters into `.rhp` or `.rock` song data.
-   - Keep converter-specific source parsing outside this repository; RockHero validates and loads
-     the resulting native tempo map only.
+1. **Meter changes** → `timeSignatures` directly from the source time-signature events.
+2. **Anchors** → run line-simplification (Douglas–Peucker, ε ≈ 1 ms) over the source `(beat-index,
+   seconds)` beat curve, keeping the minimal set of beats whose linear interpolation reproduces the
+   rest within tolerance. Steady tempo collapses to a few anchors; wandering tempo keeps more.
+3. **Terminal anchor** → anchor the one-past-content downbeat (beat 1 of the bar after the last
+   content bar). Its seconds come from the source's bar-end downbeat, or are extrapolated one beat
+   from the final span if the source stops at the last beat. Audio-file duration stays audio-asset
+   metadata; it is not a substitute for an addressed grid anchor.
+4. **Notes** → for each onset second, find its beat bracket and store
+   `{ measure, beat, offset = (S − beatStart) / (beatNext − beatStart) }`. No subdivision snapping or
+   tuplet detection — the raw fraction is kept.
+5. **QA residuals** → report any note whose round-trip differs from its source second by more than
+   tolerance. Large or biased residuals indicate a misaligned grid to fix, not notes to force.
 
-4. **Editor state exposure**
-   - Add tempo-map state to `EditorViewState`, sourced from `session().song().tempo_map` when a
-     project is loaded.
-   - Keep `Session::timeline()` derived from selected arrangement audio duration.
-   - Do not mark projects dirty for loading or displaying the map; future tempo editing will be an
-     undoable project edit and will mark the project dirty.
+## Implementation steps
 
-5. **Editor UI display**
-   - Add a read-only timeline ruler/grid component in `rock-hero-editor/ui`.
-   - Host it in `TrackViewport` above the arrangement waveform and below the cursor overlay.
-   - Draw bar lines, beat lines, and compact tempo/time-signature markers using the current
-     content width and timeline range.
-   - Keep density decisions presentation-local, but use `TempoMap` conversion helpers for all
-     musical timing math.
+1. **Core grid + note model + conversion** — add the value types above, `Song::tempo_map`,
+   grid-relative `NoteEvent`, and `tempo_map.cpp` with `globalBeatIndex` / `secondsAtBeat` /
+   `secondsAtNote`. Pure tests for interpolation, meter walking, note baking, and validation.
+2. **Package persistence** — read/write `tempoMap` and grid-relative notes in
+   `rock_song_package.cpp`; round-trip and malformed-map tests; bump the note `formatVersion`.
+3. **Migration / import** — convert legacy seconds-notes and external imports to the grid model per
+   the Import section; residual reporting for QA.
+4. **Editor state + read-only display** — expose the grid via `EditorViewState`; render a read-only
+   bar/beat ruler in `rock-hero-editor/ui` using `TempoMap` conversion helpers; do not mark projects
+   dirty for loading/displaying.
+5. **Tracktion adapter** — translate the grid into `Edit::tempoSequence` in `common/audio` behind
+   `ISongAudio::prepareSong`; adapter tests at the project-owned boundary.
 
-6. **Tracktion adapter synchronization**
-   - Use `ISongAudio::prepareSong` as the song-level timing setup point and update its
-     documentation accordingly. It already receives the full `Song`, so no new public audio port is
-     needed for this slice.
-   - Translate `TempoMap` to `Edit::tempoSequence` inside `common/audio` on the message thread
-     before playback starts.
-   - Keep `setActiveArrangement` focused on selecting the prepared arrangement audio.
-   - Add adapter tests around the project-owned boundary. Do not expose Tracktion tempo types in
-     public core/editor headers.
+## Testing
 
-## Testing Plan
+- `rock-hero-common/core/tests/test_tempo_map.cpp`: default map; validation; `globalBeatIndex` across
+  meter changes; `secondsAtBeat` for anchored and interpolated beats; `secondsAtNote` including
+  offsets; warp invariance (moving an anchor re-resolves notes, on-beat notes stay welded).
+- `rock-hero-common/core/tests/test_rock_song_package.cpp`: grid + grid-relative notes round-trip;
+  malformed grid fails with `InvalidSongDocument`; import converts seconds-notes to `{measure, beat,
+  offset}` within tolerance.
+- `rock-hero-editor/core` / `ui` tests: loaded view state carries the grid; read-only ruler renders
+  for loaded projects; bar/beat lines land at expected positions.
+- `rock-hero-common/audio` tests: engine accepts prepared songs whose grid syncs to Tracktion behind
+  `ISongAudio`.
 
-- `rock-hero-common/core/tests/test_tempo_map.cpp`
-  - default map is 120 BPM, 4/4 at 0 seconds.
-  - validation rejects bad BPM, duplicate positions, negative positions, and invalid denominators.
-  - conversion works across tempo changes in both directions.
-  - bar/beat lookup respects time-signature changes.
+## Non-goals
 
-- `rock-hero-common/core/tests/test_rock_song_package.cpp`
-  - tempo maps round-trip through `song.json`.
-  - missing `tempoMap` loads as the default map.
-  - malformed present `tempoMap` fails with `InvalidSongDocument`.
-
-- `rock-hero-editor/core/tests`
-  - loaded view state carries the session song tempo map.
-  - imported songs receive either parsed tempo data or the default map.
-
-- `rock-hero-editor/ui/tests`
-  - the ruler/grid component appears for loaded projects and is hidden for empty projects.
-  - default 120 BPM maps beat/bar lines to expected x positions at the default zoom.
-  - zooming and restored cursor focus still behave as they do now.
-
-- `rock-hero-common/audio/tests`
-  - the engine accepts prepared songs with valid tempo maps.
-  - Tracktion synchronization remains behind `ISongAudio`/`Engine` and does not alter public model
-    contracts outside the intended `prepareSong` documentation update.
-
-## Non-Goals
-
-- No tempo-map editing UI.
-- No snapping behavior yet.
-- No note-event conversion or chart authoring changes.
+- No tempo or note editing UI yet (the storage model supports warp-following; the editor for it is
+  later).
+- No grid-alignment/auto-detection tooling in this slice (it is the dependency for *good* charts, but
+  not for the storage model).
 - No tone-change events, plugin automation authoring, or live-rig switching.
-- No audio stretching, tempo remapping, or arrangement-duration changes caused by tempo edits.
-- No durable `docs/design/` updates until the implementation shape proves itself and the user
-  confirms the design is a durable architecture decision.
+- No audio stretching or arrangement-duration changes from tempo edits.
 
-## Exit Criteria
+## Exit criteria
 
-- `Song` owns a validated, defaulted tempo map.
-- `.rhp` and `.rock` song content persist the map in `song.json`.
-- Existing projects without a `tempoMap` still open with a default grid.
-- The editor shows a read-only beat/bar timeline for loaded projects.
-- Tracktion tempo sequence setup is either implemented behind `common/audio` or explicitly left as
-  the next adapter slice before any beat-aware automation work begins.
+- `Song` owns a validated grid (`timeSignatures` + addressed `anchors`); seconds appear only on
+  anchors, with a start anchor and a one-past-content terminal anchor closing the grid.
+- Notes persist and load as `{ measure, beat, offset, … }` and bake to seconds through the grid.
+- Import/migration converts seconds-based note sources to the grid model within ~1 ms, with a QA
+  residual report.
+- The editor shows a read-only bar/beat timeline for loaded projects.
+- Tracktion tempo-sequence setup is implemented behind `common/audio` or explicitly deferred as the
+  next adapter slice.

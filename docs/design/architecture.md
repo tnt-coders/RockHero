@@ -230,6 +230,8 @@ format parsing/package details private to the module.
 \code{.txt}
 Song
   metadata          (title, artist, album, year)
+  tempo_map         (song-level beat grid: time-signature changes + sparse beat anchors; the only
+                     place absolute seconds are stored — see the timing note below)
   arrangements[*]
     id            (stable project-local arrangement identifier)
     part          (Lead | Rhythm | Bass)
@@ -238,8 +240,10 @@ Song
     audio_duration (full natural duration of the audio asset)
     tone_document_ref (package-relative tone document interpreted exclusively by common/audio)
     note_events[*]
-      position.seconds
-      duration.seconds
+      measure        (1-based bar number)
+      beat           (1-based beat within the measure)
+      offset         (0..1 fraction to the next beat; 0 = on the beat, omitted)
+      duration_beats (musical sustain length)
       string_number (1-based playable string number)
       fret
 \endcode
@@ -255,31 +259,37 @@ calculator version and recomputed when stale — never hand-set. That calculator
 so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
 `docs/todo/arrangement-difficulty-derivation-plan.md`.
 
-Note timing is stored as absolute seconds at fixed three-decimal (millisecond) precision, and that
-precision is deliberate and settled. Absolute seconds — rather than beat- or tick-relative positions
-— is the right representation because Rock Hero plays along to a fixed recording whose transport is
-measured in seconds, and real recordings drift in tempo; storing seconds aligns notes to the
-recording instead of to an idealized tempo map. Three decimals is sufficient, not a placeholder: it
-is the resolution the most timing-demanding rhythm games use (osu! stores note times as integer
-milliseconds), and it sits roughly 20-40x below the floor of everything that consumes it — onset and
-pitch analysis windows, the ASIO/render/display latency chain, and calibrated hit windows are all
-several milliseconds. The resulting ±0.5 ms quantization is imperceptible, unscoreable, and far too
-coarse to merge or reorder distinct notes (the densest realistic guitar spacing is tens of
-milliseconds). Quantization happens once, at the write boundary: the in-memory value is the source
-of truth during a session and a loaded value re-serializes unchanged, so repeated edit/save cycles
-add no cumulative drift. Higher precision is intentionally avoided — it would imply an accuracy the
-note onsets themselves lack, since a guitar attack ramps over several milliseconds, while only
-widening every note line.
+Note positions are stored **grid-relative**, not as absolute seconds: a note is a bar, a beat, and a
+fractional `offset` (0..1) between beats, resolved to seconds at load through the song's tempo map.
+The tempo map is the source of truth for note positioning — Rock Hero charts are authored against a
+grid aligned to the fixed recording (the Guitar-Pro-with-backing-track model), so a note's musical
+position is its truth and its second is derived. This is the intended native package model; the
+migration from the current seconds-based reader/writer is tracked in
+`docs/in-progress/tempo-map-implementation-plan.md`.
 
-MIDI-driven synthesized audio does not change this representation. A synthesized voice still renders
-to the audio transport's sample clock, so generated instrument audio rides the same seconds/sample
-runtime timeline as the recording and scoring. Second-positioned notes give the synth event times
-directly; string and fret map to pitch through tuning, which is a synthesis concern, not a storage
-one. Absolute seconds do not automatically follow tempo edits: a stored second stays fixed when BPM
-changes. If Rock Hero later adds a tempo-editable generated-song mode where notes should move with
-musical time, that mode should store musical-time positions and derive runtime seconds from the tempo
-map. That would be a separate authoring model, not a reason to make beat/tick storage the primary
-native representation for fixed-recording play-along songs.
+The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
+and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
+second). A start anchor (measure 1, beat 1) and a terminal anchor at the one-past-content downbeat
+are always required; every other beat, measure, and note interpolates, so absolute seconds appear
+only in anchors. Notes start before that terminal boundary, and sustains must end at or before it.
+This makes grid editing
+drift-free — moving an anchor re-resolves the notes charted to it, with the fractional offset as the
+stored invariant — and it deliberately gates scoring on grid accuracy. That is an accepted trade
+backed by editor grid-alignment tooling and authoring QA, not by runtime decoupling.
+
+Three decimals is the precision for anchor seconds and note offsets — deliberate and settled. Anchor
+seconds have millisecond resolution with at most +/-0.5 ms quantization error. Offsets are
+dimensionless fractions of the current beat span, so their effective time precision depends on
+tempo. This is still below the onset-detection / latency / hit-window floor for the charting and
+scoring work planned here. Higher precision is intentionally avoided — it would imply an accuracy
+fuzzy note onsets (a guitar attack ramps over several milliseconds) do not have.
+
+MIDI-driven synthesized audio fits this model directly. A synthesized voice renders to the audio
+transport's sample clock, and a grid-relative note already bakes to a second at load, so generated
+instrument audio rides the same seconds/sample runtime timeline as the recording and scoring (string
+and fret map to pitch through tuning, a synthesis concern). Because positions are grid-relative they
+also follow tempo/grid edits by construction — there is no separate tempo-editable storage mode to
+add later; warping the grid moves the notes.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
 headless `Session` and displays one arrangement at a time. Native song package loading
