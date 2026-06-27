@@ -13,7 +13,8 @@ target_sources(
             src/song.cpp
             src/package_id.cpp
             src/rock_song_package.cpp
-            src/song_package_error.cpp)
+            src/song_package_error.cpp
+            src/tempo_map.cpp)
 
 target_include_directories(
     rock_hero_common_core

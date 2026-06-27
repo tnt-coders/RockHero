@@ -242,8 +242,8 @@ Song
     note_events[*]
       measure        (1-based bar number)
       beat           (1-based beat within the measure)
-      offset         (0..1 fraction to the next beat; 0 = on the beat, omitted)
-      duration_beats (musical sustain length)
+      offset         (exact fraction in [0,1) to the next beat; 0 = on the beat, omitted)
+      duration_beats (exact fraction of beats; sustain length, 0 = non-sustained)
       string_number (1-based playable string number)
       fret
 \endcode
@@ -259,13 +259,12 @@ calculator version and recomputed when stale — never hand-set. That calculator
 so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
 `docs/todo/arrangement-difficulty-derivation-plan.md`.
 
-Note positions are stored **grid-relative**, not as absolute seconds: a note is a bar, a beat, and a
-fractional `offset` (0..1) between beats, resolved to seconds at load through the song's tempo map.
-The tempo map is the source of truth for note positioning — Rock Hero charts are authored against a
-grid aligned to the fixed recording (the Guitar-Pro-with-backing-track model), so a note's musical
-position is its truth and its second is derived. This is the intended native package model; the
-migration from the current seconds-based reader/writer is tracked in
-`docs/in-progress/tempo-map-implementation-plan.md`.
+Note positions are stored **grid-relative**, not as absolute seconds: a note is a bar, a beat, and an
+exact fractional `offset` in [0,1) between beats, resolved to seconds at load through the song's tempo
+map. The tempo map is the source of truth for note positioning — Rock Hero charts are authored against
+a grid aligned to the fixed recording (the Guitar-Pro-with-backing-track model), so a note's musical
+position is its truth and its second is derived. The full grid model and its remaining slices (import,
+editor display, Tracktion sync) are tracked in `docs/in-progress/tempo-map-implementation-plan.md`.
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
 and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
@@ -277,12 +276,19 @@ drift-free — moving an anchor re-resolves the notes charted to it, with the fr
 stored invariant — and it deliberately gates scoring on grid accuracy. That is an accepted trade
 backed by editor grid-alignment tooling and authoring QA, not by runtime decoupling.
 
-Three decimals is the precision for anchor seconds and note offsets — deliberate and settled. Anchor
-seconds have millisecond resolution with at most +/-0.5 ms quantization error. Offsets are
-dimensionless fractions of the current beat span, so their effective time precision depends on
-tempo. This is still below the onset-detection / latency / hit-window floor for the charting and
-scoring work planned here. Higher precision is intentionally avoided — it would imply an accuracy
-fuzzy note onsets (a guitar attack ramps over several milliseconds) do not have.
+Note positions are **exact rational fractions** of a beat (a `numerator/denominator` such as `1/3` or
+`3/16`), not decimals. Rock Hero charts are authored by snapping notes onto a musical subdivision grid
+(the Guitar-Pro model), so a note's position is a subdivision and is stored exactly; durations are
+exact beat fractions too, each reducing to a denominator of at most 1024 (the finest stored
+subdivision). This keeps subdivisions, snapping, and warp-following lossless and removes any rounding
+between the in-memory model and the persisted form. The fraction is the `Fraction` value type in
+`rock-hero-common/core`.
+
+Anchor seconds — the only absolute time stored — keep a fixed three-decimal (millisecond) grid, with
+at most +/-0.5 ms quantization error. That is below the onset-detection / latency / hit-window floor
+for the charting and scoring work planned here; higher precision is intentionally avoided, since fuzzy
+note onsets (a guitar attack ramps over several milliseconds) do not carry it. Note positions do not
+use this decimal grid at all — they are exact fractions.
 
 MIDI-driven synthesized audio fits this model directly. A synthesized voice renders to the audio
 transport's sample clock, and a grid-relative note already bakes to a second at load, so generated

@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/song.h>
+#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -13,6 +15,7 @@ TEST_CASE("Song default construction is empty", "[core][song]")
     CHECK(song.metadata.artist.empty());
     CHECK(song.metadata.album.empty());
     CHECK(song.metadata.year == 0);
+    CHECK(song.tempo_map == TempoMap{});
     CHECK(song.arrangements.empty());
 }
 
@@ -80,6 +83,16 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     song.metadata.artist = "Test Artist";
     song.metadata.album = "Test Album";
     song.metadata.year = 2026;
+    song.tempo_map = TempoMap{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 4, .beat = 1, .seconds = 5.5},
+        },
+    };
     song.arrangements.push_back(
         {.id = "rhythm",
          .part = Part::Rhythm,
@@ -91,8 +104,10 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
          .audio_duration = TimeDuration{42.0},
          .tone_document_ref = "tone/rhythm.json",
          .note_events = {
-             {.position = TimePosition{3.0},
-              .duration = TimeDuration{1.5},
+             {.measure = 2,
+              .beat = 3,
+              .offset = Fraction{1, 2},
+              .duration_beats = Fraction{5, 4},
               .string_number = 2,
               .fret = 7}
          }});
@@ -101,6 +116,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(song.metadata.artist == "Test Artist");
     CHECK(song.metadata.album == "Test Album");
     CHECK(song.metadata.year == 2026);
+    CHECK(song.tempo_map.timeSignatures().size() == 2);
+    CHECK(song.tempo_map.anchors().size() == 2);
     REQUIRE(song.arrangements.size() == 1);
     const Arrangement& arrangement = song.arrangements[0];
     CHECK(arrangement.part == Part::Rhythm);
@@ -110,8 +127,10 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(arrangement.audio_duration == TimeDuration{42.0});
     CHECK(arrangement.tone_document_ref == "tone/rhythm.json");
     REQUIRE(arrangement.note_events.size() == 1);
-    CHECK(arrangement.note_events[0].position == TimePosition{3.0});
-    CHECK(arrangement.note_events[0].duration == TimeDuration{1.5});
+    CHECK(arrangement.note_events[0].measure == 2);
+    CHECK(arrangement.note_events[0].beat == 3);
+    CHECK(arrangement.note_events[0].offset == Fraction{1, 2});
+    CHECK(arrangement.note_events[0].duration_beats == Fraction{5, 4});
     CHECK(arrangement.note_events[0].string_number == 2);
     CHECK(arrangement.note_events[0].fret == 7);
 }

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/difficulty.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 #include <string>
 #include <vector>
@@ -18,11 +19,17 @@ namespace rock_hero::common::core
 /*! \brief A single note to be played by the player. */
 struct NoteEvent
 {
-    /*! \brief Note position on the song timeline. */
-    TimePosition position;
+    /*! \brief One-based measure containing the note onset. */
+    int measure{1};
 
-    /*! \brief Sustain duration; zero means a non-sustained note. */
-    TimeDuration duration;
+    /*! \brief One-based beat containing the note onset. */
+    int beat{1};
+
+    /*! \brief Exact position within the beat as a fraction in [0, 1); zero is on the beat. */
+    Fraction offset{};
+
+    /*! \brief Sustain duration in beats as an exact fraction; zero means a non-sustained note. */
+    Fraction duration_beats{};
 
     /*! \brief One-based playable string number; one is the highest-pitched string. */
     int string_number{0};
