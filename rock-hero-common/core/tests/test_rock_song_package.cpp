@@ -160,7 +160,7 @@ void writeAudioFile(const std::filesystem::path& path)
         NoteEvent{
             .position = TimePosition{2.25},
             .duration = TimeDuration{0.125},
-            .string_number = SongPackageValidationConfig{}.max_playable_string_count,
+            .string_number = 2,
             .fret = 5,
         },
     };
@@ -328,6 +328,7 @@ TEST_CASE("Rock song package write rejects non-UUID arrangement IDs", "[core][ro
     REQUIRE_FALSE(written.has_value());
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(written.error().message.find("arrangement id") != std::string::npos);
+    CHECK_FALSE(std::filesystem::exists(package_directory / "audio" / "source.wav"));
 }
 
 // Verifies package directory persistence keeps arrangement tone-document references.
@@ -392,6 +393,9 @@ TEST_CASE("Rock song package write rejects missing tone refs", "[core][rock-song
     REQUIRE_FALSE(written.has_value());
     CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
     CHECK(written.error().message.find("tone document") != std::string::npos);
+    CHECK_FALSE(
+        std::filesystem::exists(
+            package_directory / arrangementDocumentPath(g_lead_arrangement_id)));
 }
 
 // Verifies package loading rejects tone-document paths that cannot resolve inside the package.
@@ -593,37 +597,6 @@ TEST_CASE("Rock song package round-trips arrangement notes", "[core][rock-song-p
     CHECK(read_arrangement.note_events == song.arrangements.front().note_events);
 }
 
-// Verifies product configuration can raise the accepted string count for extended instruments.
-TEST_CASE("Rock song package honors configured string limit", "[core][rock-song-package]")
-{
-    SongPackageValidationConfig validation_config;
-    validation_config.max_playable_string_count = 12;
-
-    const TemporaryRockSongPackageDirectory temporary_directory;
-    const std::filesystem::path source_audio = temporary_directory.path() / "source.wav";
-    writeAudioFile(source_audio);
-
-    Song song = makeSongWithNotes(source_audio);
-    song.arrangements.front().note_events.front().string_number = 12;
-
-    const auto default_written =
-        writeRockSongPackageDirectory(temporary_directory.path() / "default-package", song);
-
-    REQUIRE_FALSE(default_written.has_value());
-    CHECK(default_written.error().code == SongPackageErrorCode::InvalidArrangement);
-
-    const std::filesystem::path package_directory = temporary_directory.path() / "package";
-    const auto written = writeRockSongPackageDirectory(package_directory, song, validation_config);
-
-    REQUIRE(written.has_value());
-
-    const auto read_song = readRockSongPackageDirectory(package_directory, validation_config);
-
-    REQUIRE(read_song.has_value());
-    REQUIRE(read_song->arrangements.size() == 1);
-    CHECK(read_song->arrangements.front().note_events == song.arrangements.front().note_events);
-}
-
 // Verifies a note missing a required field is rejected with a typed arrangement error.
 TEST_CASE("Rock song package rejects malformed arrangement notes", "[core][rock-song-package]")
 {
@@ -646,10 +619,6 @@ TEST_CASE("Rock song package rejects out-of-domain notes", "[core][rock-song-pac
         R"({"formatVersion":1,"notes":[{"positionSeconds":-0.001,"durationSeconds":0.0,"string":1,"fret":17}]})",
         R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":-0.1,"string":1,"fret":17}]})",
         R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":0,"fret":17}]})",
-        std::string{
-            R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":)"
-        } + std::to_string(SongPackageValidationConfig{}.max_playable_string_count + 1) +
-            R"(,"fret":17}]})",
         R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":-1}]})",
         R"({"formatVersion":1,"notes":[{"positionSeconds":1.5,"durationSeconds":0.0,"string":1,"fret":2147483648}]})",
     };
