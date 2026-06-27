@@ -1,18 +1,21 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <rock_hero/common/core/arrangement.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 
 namespace rock_hero::common::core
 {
 
-// Verifies an unset note event starts at zero time with no fret/string assignment.
+// Verifies an unset note event starts at the first beat with no fret/string assignment.
 TEST_CASE("NoteEvent default construction is empty", "[core][arrangement]")
 {
     const NoteEvent note;
 
-    CHECK(note.position == TimePosition{});
-    CHECK(note.duration == TimeDuration{});
+    CHECK(note.measure == 1);
+    CHECK(note.beat == 1);
+    CHECK(note.offset == Fraction{});
+    CHECK(note.duration_beats == Fraction{});
     CHECK(note.string_number == 0);
     CHECK(note.fret == 0);
 }
@@ -44,12 +47,19 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
     arr.audio_duration = TimeDuration{12.0};
     arr.tone_document_ref = "tone/lead.json";
     arr.note_events.push_back(
-        {.position = TimePosition{1.0},
-         .duration = TimeDuration{0.5},
+        {.measure = 2,
+         .beat = 1,
+         .offset = Fraction{1, 4},
+         .duration_beats = Fraction{1},
          .string_number = 1,
          .fret = 5});
     arr.note_events.push_back(
-        {.position = TimePosition{2.0}, .duration = TimeDuration{}, .string_number = 6, .fret = 0});
+        {.measure = 3,
+         .beat = 2,
+         .offset = Fraction{},
+         .duration_beats = Fraction{},
+         .string_number = 6,
+         .fret = 0});
 
     CHECK(arr.id == "lead");
     CHECK(arr.part == Part::Lead);
@@ -64,12 +74,16 @@ TEST_CASE("Arrangement holds playable route data", "[core][arrangement]")
                                         .end = TimePosition{12.0},
                                     });
     REQUIRE(arr.note_events.size() == 2);
-    CHECK(arr.note_events[0].position == TimePosition{1.0});
-    CHECK(arr.note_events[0].duration == TimeDuration{0.5});
+    CHECK(arr.note_events[0].measure == 2);
+    CHECK(arr.note_events[0].beat == 1);
+    CHECK(arr.note_events[0].offset == Fraction{1, 4});
+    CHECK(arr.note_events[0].duration_beats == Fraction{1});
     CHECK(arr.note_events[0].string_number == 1);
     CHECK(arr.note_events[0].fret == 5);
-    CHECK(arr.note_events[1].position == TimePosition{2.0});
-    CHECK(arr.note_events[1].duration == TimeDuration{0.0});
+    CHECK(arr.note_events[1].measure == 3);
+    CHECK(arr.note_events[1].beat == 2);
+    CHECK(arr.note_events[1].offset == Fraction{});
+    CHECK(arr.note_events[1].duration_beats == Fraction{});
     CHECK(arr.note_events[1].string_number == 6);
     CHECK(arr.note_events[1].fret == 0);
 }
