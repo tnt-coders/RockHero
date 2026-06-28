@@ -29,13 +29,15 @@ using common::core::DifficultyRating;
 using common::core::Part;
 using common::core::Song;
 using common::core::TimeDuration;
+using common::core::Tuning;
 
 namespace
 {
 
 constexpr const char* g_lead_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a2c9";
-constexpr const char* g_arrangement_document_contents = R"({"formatVersion":1,"notes":[]})";
+constexpr const char* g_arrangement_document_contents =
+    R"({"formatVersion":1,"tuning":["E4","B3","G3","D3","A2","E2"],"events":[]})";
 
 // Describes one in-memory archive entry written to a zip package fixture.
 struct ArchiveEntry
@@ -174,8 +176,8 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
                         { "measure": 1, "numerator": 4, "denominator": 4 }
                     ],
                     "anchors": [
-                        { "measure": 1, "beat": 1, "seconds": 0.000 },
-                        { "measure": 3, "beat": 1, "seconds": 4.000 }
+                        { "position": "1:1", "seconds": 0.000 },
+                        { "position": "3:1", "seconds": 4.000 }
                     ]
                 },
 )";
@@ -468,7 +470,8 @@ public:
             .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
-            .note_events = {},
+            .tuning = Tuning{.open_strings = {"E4", "B3", "G3", "D3", "A2", "E2"}},
+            .events = {},
         });
     return song;
 }

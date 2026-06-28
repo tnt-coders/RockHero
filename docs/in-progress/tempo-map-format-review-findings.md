@@ -42,6 +42,15 @@ The package tests round-trip notes, but they do not directly assert the written 
 human-scannable one-line notes, anchors, and time-signature entries are part of the format goal, add a
 direct writer-output test before treating the formatting as locked.
 
+## Resolution
+
+Resolved on 2026-06-27.
+
+- Save-time note validation now rejects in-memory `Fraction` values whose denominator is not
+  positive before doing fraction comparisons, duplicate-onset keys, or sustain-end math.
+- Package writer coverage now directly asserts the one-line time-signature, anchor, and note row
+  formatting.
+
 ## Verification Run
 
 These checks passed during review:
@@ -60,8 +69,5 @@ Focused test results:
 
 ## Next Steps
 
-1. Fix save-time `Fraction` denominator validation.
-2. Add a writer-output formatting test for one-line note, anchor, and time-signature rows.
-3. Re-run the focused core/editor tests.
-4. Restructure `C:\Users\tjwro\OneDrive\Desktop\Rock Hero Stuff\Jinjer - Pisces.rhp` to the exact
-   fraction format once the code review findings are resolved.
+1. Restructure `C:\Users\tjwro\OneDrive\Desktop\Rock Hero Stuff\Jinjer - Pisces.rhp` to the exact
+   fraction format now that the code review findings are resolved.

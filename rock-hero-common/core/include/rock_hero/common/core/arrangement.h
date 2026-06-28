@@ -1,50 +1,22 @@
 /*!
 \file arrangement.h
-\brief Arrangement entity: one playable route with audio, tone automation, and notes.
+\brief Arrangement entity: one playable route with audio, tone automation, tuning, and chart.
 */
 
 #pragma once
 
 #include <cstdint>
 #include <rock_hero/common/core/audio_asset.h>
+#include <rock_hero/common/core/chart_event.h>
+#include <rock_hero/common/core/chord_template.h>
 #include <rock_hero/common/core/difficulty.h>
-#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/tuning.h>
 #include <string>
 #include <vector>
 
 namespace rock_hero::common::core
 {
-
-/*! \brief A single note to be played by the player. */
-struct NoteEvent
-{
-    /*! \brief One-based measure containing the note onset. */
-    int measure{1};
-
-    /*! \brief One-based beat containing the note onset. */
-    int beat{1};
-
-    /*! \brief Exact position within the beat as a fraction in [0, 1); zero is on the beat. */
-    Fraction offset{};
-
-    /*! \brief Sustain duration in beats as an exact fraction; zero means a non-sustained note. */
-    Fraction duration_beats{};
-
-    /*! \brief One-based playable string number; one is the highest-pitched string. */
-    int string_number{0};
-
-    /*! \brief Fret number; zero means an open string. */
-    int fret{0};
-
-    /*!
-    \brief Compares two note events by their stored fields.
-    \param lhs Left-hand note event.
-    \param rhs Right-hand note event.
-    \return True when both note events store equal values.
-    */
-    friend bool operator==(const NoteEvent& lhs, const NoteEvent& rhs) = default;
-};
 
 /*! \brief Guitar part within an arrangement. */
 enum class Part : std::uint8_t
@@ -61,9 +33,9 @@ enum class Part : std::uint8_t
 \brief One playable route, identified by part and numeric difficulty.
 
 An Arrangement owns the playable data for one path through a song: the backing audio selected for
-that path, the package-relative tone document used by the audio adapter, and the NoteEvents the
-player must execute. Core treats these as plain data; scoring and audio interpretation live outside
-this module.
+that path, the package-relative tone document used by the audio adapter, the instrument tuning, the
+reusable chord templates, and the ChartEvents the player must execute. Core treats these as plain
+data; scoring and audio interpretation live outside this module.
 */
 struct Arrangement
 {
@@ -90,8 +62,14 @@ struct Arrangement
     */
     std::string tone_document_ref;
 
-    /*! \brief Ordered note events the player must execute for this arrangement. */
-    std::vector<NoteEvent> note_events;
+    /*! \brief Instrument tuning used to derive single-note pitch labels. */
+    Tuning tuning;
+
+    /*! \brief Reusable chord voicings referenced by chord events, scoped to this arrangement. */
+    std::vector<ChordTemplate> chord_templates;
+
+    /*! \brief Ordered chart events (single notes and chords) the player must execute. */
+    std::vector<ChartEvent> events;
 
     /*!
     \brief Calculates the range occupied by the arrangement audio on the session timeline.

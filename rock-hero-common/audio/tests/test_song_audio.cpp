@@ -25,7 +25,7 @@ namespace
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
-            .note_events = {},
+            .events = {},
         });
     return song;
 }
