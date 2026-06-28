@@ -239,13 +239,13 @@ Song
     audio_asset    (required path/identifier for backing audio)
     audio_duration (full natural duration of the audio asset)
     tone_document_ref (package-relative tone document interpreted exclusively by common/audio)
-    note_events[*]
-      measure        (1-based bar number)
-      beat           (1-based beat within the measure)
-      offset         (exact fraction in [0,1) to the next beat; 0 = on the beat, omitted)
-      duration_beats (exact fraction of beats; sustain length, 0 = non-sustained)
-      string_number (1-based playable string number)
-      fret
+    tuning             (open-string note names; derives single-note pitch labels for readability)
+    chord_templates[*] (reusable voicings: id, display name, voicing of string/fret/finger)
+    events[*]          (one timed playable event: a single note or a chord instance)
+      start            (grid position; persisted as the token "<measure>:<beat>[+<fraction>]")
+      end              (optional grid position; absent means non-sustained)
+      <single note>    (string + fret, plus a writer-derived pitch label)
+      <chord>          (chord template id + per-string end / technique deviations)
 \endcode
 
 Arrangement difficulty is a value *derived* from the chart, not authored data a user sets by hand.
@@ -259,9 +259,12 @@ calculator version and recomputed when stale — never hand-set. That calculator
 so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
 `docs/todo/arrangement-difficulty-derivation-plan.md`.
 
-Note positions are stored **grid-relative**, not as absolute seconds: a note is a bar, a beat, and an
-exact fractional `offset` in [0,1) between beats, resolved to seconds at load through the song's tempo
-map. The tempo map is the source of truth for note positioning — Rock Hero charts are authored against
+Chart event positions are stored **grid-relative**, not as absolute seconds: an event's `start` (and
+optional sustain `end`) is a bar, a beat, and an exact fractional offset in [0,1) between beats,
+resolved to seconds at load through the song's tempo map. A single event is either one note (string +
+fret) or a chord that references a reusable per-arrangement template; the template owns the frets and
+fingering, so a chord never duplicates them. The tempo map is the source of truth for note positioning
+— Rock Hero charts are authored against
 a grid aligned to the fixed recording (the Guitar-Pro-with-backing-track model), so a note's musical
 position is its truth and its second is derived. The full grid model and its remaining slices (import,
 editor display, Tracktion sync) are tracked in `docs/in-progress/tempo-map-implementation-plan.md`.
@@ -278,9 +281,9 @@ backed by editor grid-alignment tooling and authoring QA, not by runtime decoupl
 
 Note positions are **exact rational fractions** of a beat (a `numerator/denominator` such as `1/3` or
 `3/16`), not decimals. Rock Hero charts are authored by snapping notes onto a musical subdivision grid
-(the Guitar-Pro model), so a note's position is a subdivision and is stored exactly; durations are
-exact beat fractions too, each reducing to a denominator of at most 1024 (the finest stored
-subdivision). This keeps subdivisions, snapping, and warp-following lossless and removes any rounding
+(the Guitar-Pro model), so a position is a subdivision and is stored exactly; a sustain `end` is a
+grid position on the same subdivisions, each offset reducing to a denominator of at most 1024 (the
+finest stored subdivision). This keeps subdivisions, snapping, and warp-following lossless and removes any rounding
 between the in-memory model and the persisted form. The fraction is the `Fraction` value type in
 `rock-hero-common/core`.
 

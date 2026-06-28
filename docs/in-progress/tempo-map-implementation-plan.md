@@ -1,299 +1,314 @@
-# Tempo Map and Grid-Relative Note Model — Implementation Plan
+# Tempo Map and Chart Event Format — Implementation Plan
 
-Status: in progress (planning). Defines the durable storage model for the tempo map **and** note
-positions. Note positions are now **grid-relative**; this supersedes the earlier absolute-seconds
-note storage and the BPM-segment tempo map (see
-`docs/in-progress/tempo-map-storage-shape-discussion.md` for how the model was reached). The first
-implementation slice remains read-only grid loading and display; tempo and note editing come later.
+Status: in progress (planning). Defines the durable storage model for the **tempo map**, **chart
+events** (notes and chords), and **chord templates**. This revision supersedes the earlier
+`note_events` model (`measure`/`beat`/`offset`/`durationBeats` flat notes). The tempo-map warp-anchor
+model itself is unchanged; what changed is how positions are spelled, how sustains are expressed, and
+how notes and chords are modeled. The design was reached across an extended format discussion; this
+document is now the source of truth for the format.
 
 ## Goal
 
 Make the **tempo map (a beat grid) the source of truth for note positioning.** The grid is authored
-to match the fixed backing recording as closely as possible, and notes are positioned relative to it
-(bar / beat / fractional offset) — exactly like charting in Guitar Pro against a backing track.
-Notes are baked to absolute seconds at load for the highway and scoring, but the **stored truth is
-grid-relative**.
+to match the fixed backing recording, and chart events are positioned relative to it (bar / beat /
+fractional offset) — the Guitar-Pro-against-a-backing-track model. Events bake to absolute seconds at
+load for the highway and scoring, but the **stored truth is grid-relative**.
 
-The grid is a **warp-anchor model**: a small set of beats pinned to absolute seconds (anchors) plus
-the time-signature changes, with every other beat and measure interpolated. **Absolute seconds appear
-in exactly one place — the anchors.** Everything else (measures, beats, notes, durations) is
-musical/relative and resolves to seconds only through the anchors.
+## The format at a glance
 
-The tempo map lives on `Song` (shared by all arrangements). Runtime and scoring schedule in
-seconds/sample time; the grid is the layer that maps musical positions to that timeline.
+Song-level musical truth lives in `song.json`; the playable chart lives in each per-arrangement
+document.
 
-## Why this shape
-
-- **Grid-relative notes match the authoring model** (snap-to-grid against a backing track) and
-  **follow grid edits automatically** — fixing the grid moves the notes that were charted to it.
-- **Warp anchors make grid editing drift-free**: moving an anchor re-resolves everything downstream,
-  and because the only stored absolute time is the anchors, there is no second copy of the timeline
-  to fall out of sync.
-- **Sparse anchors + change-only meter store only what is not derivable.** Steady-tempo stretches
-  cost a couple of anchors; meter changes cost nothing in time data.
-- **Import snaps onsets to subdivisions**: a note's grid position is the fraction of the way between
-  its surrounding beats, snapped to the nearest musical subdivision and stored as an exact rational —
-  no floating-point drift, and tuplets fall out naturally (`1/3`, `1/6`, …).
-
-## Design decisions (durable)
-
-1. **The grid is the source of truth for note positioning.** Notes are authored grid-relative, the
-   grid must be authored to match the recording, and a misaligned grid is a *defective chart* fixed
-   by aligning the grid (notes follow). Scoring accuracy is therefore gated on grid accuracy — an
-   accepted trade, paid back by editor grid-alignment tooling and authoring QA, not by runtime
-   decoupling.
-
-2. **Notes are stored grid-relative:** `{ measure, beat, offset }`. `beat` is 1-based; `offset` is an
-   **exact rational fraction** in `[0, 1)` (a `numerator/denominator` such as `1/3` or `3/16`) giving
-   the position within the beat (`0`, i.e. on the beat, is the default and is omitted). No seconds are
-   stored on notes. A note bakes to seconds at load as `beatSeconds + offset × beatSpan`. Note
-   durations are exact beat fractions too, not seconds. Both reduce to a denominator of at most 1024
-   (the finest stored subdivision).
-
-3. **The tempo map is a warp-anchor grid**, stored as two sparse lists:
-   - `timeSignatures` — meter **changes only**: `{ measure, numerator, denominator }`, carried
-     forward to later measures.
-   - `anchors` — beats pinned to absolute seconds: `{ measure, beat, seconds }`, sparse. Two are
-     always required: a **start** anchor (measure 1, beat 1) and a **terminal** anchor at the
-     one-past-content downbeat (beat 1 of the bar after the last content bar), which closes the last
-     span and bounds the grid. Interior anchors are added only where interpolation needs them.
-   No BPM is stored; tempo is implied by adjacent anchors (the beat rate between them).
-
-4. **Seconds live only on anchors.** Every other position is derived: non-anchored beats interpolate
-   linearly between the two surrounding anchors by **global beat index**; a note resolves via its
-   beat's (anchored or interpolated) seconds plus its offset. There is no other absolute-time value
-   anywhere in the grid or note data. (Audio-file duration on an audio asset is unrelated metadata,
-   not part of positioning.)
-
-5. **Adaptive anchor density.** Beats between anchors are spaced evenly (constant tempo per span), so
-   anchors are placed wherever even interpolation would otherwise miss the recording's beats by more
-   than ~1 ms. Steady tempo → sparse anchors; rubato or drift → denser, down to per-beat. Meter
-   changes are structural and require no anchors.
-
-6. **Store only what changes or is not derivable.** Unchanged-meter measures are omitted (meter
-   carries forward). Measure numbers are kept as explicit, readable, self-locating addresses — in
-   sparse lists they are the address, not redundant. On-beat notes omit `offset`.
-
-7. **Anchor seconds use three decimals; note positions are exact fractions.** Anchor `seconds` are the
-   only absolute time stored and use a fixed three-decimal (millisecond) grid (±0.5 ms quantization),
-   which is below the onset-detection / latency / hit-window floor for the charting and scoring work
-   planned here. Note `offset` and `duration_beats` are exact rational fractions of a beat — authored
-   by snapping to subdivisions — so they carry no decimal grid and round-trip losslessly. See the
-   timing note in `docs/design/architecture.md`.
-
-8. **Warp-following is drift-free by construction.** Moving an anchor re-resolves every downstream
-   beat and note. Because the offset is the stored invariant and seconds live only on anchors, there
-   is nothing to accumulate; on-beat notes stay welded to their beat exactly. (Future editing
-   capability — the storage model already supports it.)
-
-9. **The tempo map lives on `Song`, not `Arrangement`.** Arrangements share one transport and one
-   musical timeline; arrangement-specific audio is still allowed.
-
-10. **The grid is mandatory once notes are grid-relative.** A song with notes must have a grid to
-    resolve them. Legacy seconds-based songs and external imports build a grid and convert their note
-    times to `{ measure, beat, offset }` (see Import). The fallback grid, when no beat grid is known,
-    is a single 4/4 meter at 120 BPM expressed as a constant-tempo span (start + end anchors).
-
-11. **Tracktion synchronization is an adapter step** in `common/audio` (`Edit::tempoSequence`),
-    behind `ISongAudio`. Core owns the persisted grid and all musical-timing math; Tracktion types
-    stay behind the audio boundary.
-
-12. **Anchor seconds are validated onto the decimal grid; note fractions are exact.** Because note
-    `offset` and `duration_beats` are exact rational fractions, there is no offset-rounding problem (an
-    offset can never round up to a full beat) and **no on-grid check applies to notes**. Anchor
-    `seconds`, however, are still decimal: the package reader requires every anchor second to already
-    be on the three-decimal grid, so the writer is lossless and never emits a document its own reader
-    rejects. Import and any future editing **snap anchor seconds to the grid before constructing the
-    model**; two anchors that snap to the same second are simply equal, and the existing
-    strictly-increasing-`seconds` check rejects them, so no separate minimum-separation rule is needed.
-    Notes may share an onset only when they are on different strings, which represents a chord;
-    duplicate same-string onsets are invalid (compared on the exact `{ global beat, reduced offset }`).
-
-## Target core model
-
-Add value types under `rock-hero-common/core/include/rock_hero/common/core/`:
-
-```cpp
-struct Fraction              // exact rational; reduced on construction, denominator > 0
-{
-    int numerator{0};
-    int denominator{1};
-};
-
-struct TimeSignatureChange   // meter from this measure onward
-{
-    int measure{1};
-    int numerator{4};
-    int denominator{4};
-};
-
-struct BeatAnchor            // a beat pinned to absolute time — the only stored seconds
-{
-    int measure{1};
-    int beat{1};             // 1-based
-    double seconds{0.0};
-};
-
-class TempoMap
-{
-public:
-    [[nodiscard]] static TempoMap defaultMap(double audioDurationSeconds);
-
-    [[nodiscard]] const std::vector<TimeSignatureChange>& timeSignatures() const noexcept;
-    [[nodiscard]] const std::vector<BeatAnchor>& anchors() const noexcept;
-    // Musical structure
-    [[nodiscard]] TimeSignatureChange meterAt(int measure) const noexcept;   // last change <= measure
-    [[nodiscard]] long long globalBeatIndex(int measure, int beat) const;    // walk the meter map
-
-    // Time resolution (anchors are pinned; everything else interpolates)
-    [[nodiscard]] double secondsAtBeat(int measure, int beat) const;         // anchored or interpolated
-    [[nodiscard]] double secondsAtNote(int measure, int beat, Fraction offset) const;
-};
-```
-
-`NoteEvent` becomes grid-relative:
-
-```cpp
-struct NoteEvent
-{
-    int measure{1};
-    int beat{1};             // 1-based
-    Fraction offset{};       // exact fraction in [0,1) to the next beat; 0 = on the beat
-    int string_number{0};
-    int fret{0};
-    Fraction duration_beats{}; // exact beat fraction; 0 = non-sustained
-    // optional techniques, omit-when-absent (slideTo, hammerOn, palmMute, bend, …)
-};
-```
-
-Conversion outline: `globalBeatIndex` sums numerators of prior measures via the meter changes;
-`secondsAtBeat` returns the anchor's seconds if that beat is anchored, otherwise linearly
-interpolates between the two surrounding anchors by global beat index; `secondsAtNote` adds
-`offset × (secondsAtBeat(nextBeat) − secondsAtBeat(beat))`. Linear scans are fine for the first
-version; add an index only if profiling on long imported maps shows a need.
-
-Validation rules:
-
-- `timeSignatures` is non-empty and begins at measure 1; numerators positive; denominators a power of
-  two; measures strictly increasing.
-- `anchors` is strictly increasing in both `(measure, beat)` and `seconds`, with a start anchor at
-  measure 1 beat 1 and a terminal anchor at the one-past-content downbeat. The terminal anchor is a
-  grid boundary, not a content bar, and it needs no `timeSignatures` entry of its own.
-- Every note onset lives within a real content bar: `measure` is before the terminal boundary and
-  `beat` is in `1..numerator` of that measure's meter.
-- Every note sustain resolves within the grid: the note's `{ measure, beat, offset }` plus
-  `duration_beats` must end at or before the terminal anchor's global beat index.
-- `seconds` finite, non-negative, and on the three-decimal grid; `offset` an exact fraction in
-  `[0, 1)`; `duration_beats` a non-negative exact fraction. Both note fractions reduce to a
-  denominator of at most 1024 (the finest stored subdivision).
-- No two notes on the same string share an onset (a chord is the same onset on different strings).
-- Missing grid on a song with notes is an error after migration has run; a freshly imported or
-  default song uses `TempoMap::defaultMap()`.
-
-## Persistence format
-
-In `song.json`, alongside `metadata`, `audioAssets`, `arrangements`:
+`song.json` (shared by all arrangements):
 
 ```json
-"tempoMap": {
-  "timeSignatures": [
-    { "measure": 1, "numerator": 4, "denominator": 4 },
-    { "measure": 2, "numerator": 3, "denominator": 4 }
+{
+  "tempoMap": {
+    "timeSignatures": [
+      { "measure": 1,  "numerator": 4, "denominator": 4 },
+      { "measure": 17, "numerator": 7, "denominator": 8 },
+      { "measure": 25, "numerator": 4, "denominator": 4 }
+    ],
+    "anchors": [
+      { "position": "1:1",  "seconds": 1.840 },
+      { "position": "17:1", "seconds": 28.057 },
+      { "position": "33:1", "seconds": 48.500 }
+    ]
+  }
+}
+```
+
+Per-arrangement document (templates + chart):
+
+```json
+{
+  "chordTemplates": [
+    { "id": "E5", "name": "E5", "voicing": [
+        { "string": 6, "fret": 0 },
+        { "string": 5, "fret": 2, "finger": 1 },
+        { "string": 4, "fret": 2, "finger": 1 } ] },
+
+    { "id": "Am-1", "name": "Am", "voicing": [
+        { "string": 5, "fret": 0 },
+        { "string": 4, "fret": 2, "finger": 2 },
+        { "string": 3, "fret": 2, "finger": 3 },
+        { "string": 2, "fret": 1, "finger": 1 },
+        { "string": 1, "fret": 0 } ] },
+
+    { "id": "Am-2", "name": "Am", "voicing": [
+        { "string": 6, "fret": 5, "finger": 1 },
+        { "string": 5, "fret": 7, "finger": 3 },
+        { "string": 4, "fret": 7, "finger": 4 },
+        { "string": 3, "fret": 5, "finger": 1 },
+        { "string": 2, "fret": 5, "finger": 1 },
+        { "string": 1, "fret": 5, "finger": 1 } ] },
+
+    { "id": "Am7", "name": "Am7", "voicing": [
+        { "string": 5, "fret": 0 },
+        { "string": 4, "fret": 2, "finger": 2 },
+        { "string": 3, "fret": 0 },
+        { "string": 2, "fret": 1, "finger": 1 },
+        { "string": 1, "fret": 0 } ] },
+
+    { "id": "C6", "name": "C6", "voicing": [
+        { "string": 5, "fret": 0 },
+        { "string": 4, "fret": 2, "finger": 2 },
+        { "string": 3, "fret": 0 },
+        { "string": 2, "fret": 1, "finger": 1 },
+        { "string": 1, "fret": 0 } ] }
   ],
-  "anchors": [
-    { "measure": 1,   "beat": 1, "seconds": 10.001 },
-    { "measure": 188, "beat": 1, "seconds": 260.291 },
-    { "measure": 229, "beat": 1, "seconds": 316.834 }
+
+  "events": [
+    { "start": "1:1", "chord": "E5" },
+    { "start": "1:2+1/2", "chord": "E5" },
+    { "start": "1:4", "end": "2:1", "chord": "G5" },
+
+    { "start": "2:1",     "string": 1, "fret": 12, "note": "E5" },
+    { "start": "2:1+1/3", "string": 1, "fret": 15, "note": "G5" },
+    { "start": "2:1+2/3", "string": 1, "fret": 12, "note": "E5" },
+
+    { "start": "3:1", "end": "3:4", "chord": "Am-1",
+      "strings": [ { "string": 2, "end": "3:2+1/2", "techniques": { "vibrato": true } } ] },
+
+    { "start": "3:4", "end": "4:2", "chord": "Am-2" },
+
+    { "start": "5:1",  "end": "5:3",  "chord": "Am7" },
+    { "start": "13:1", "end": "13:3", "chord": "C6" },
+
+    { "start": "16:1", "end": "18:3", "chord": "E5",
+      "strings": [ { "string": 6, "techniques": { "palmMute": true } } ] },
+
+    { "start": "17:7", "end": "18:1", "string": 1, "fret": 7, "note": "B4" },
+
+    { "start": "20:1", "end": "20:5", "string": 2, "fret": 9, "note": "G#/Ab4",
+      "techniques": { "bend": "1" } }
   ]
 }
 ```
 
-Notes in the per-arrangement document become grid-relative. `offset` and `durationBeats` are quoted
-exact-fraction strings (`"1/3"`, `"3/16"`, whole values like `"1"` or `"0"`); `offset` is omitted when
-the note is on the beat:
+## Design decisions (durable)
 
-```json
-"notes": [
-  { "measure": 2,  "beat": 1, "durationBeats": "0",   "string": 1, "fret": 17 },
-  { "measure": 53, "beat": 1, "offset": "1/6", "durationBeats": "1/2", "string": 2, "fret": 7 }
-]
+1. **The grid is the source of truth for note positioning.** Notes are authored grid-relative; a
+   misaligned grid is a *defective chart* fixed by aligning the grid (events follow). Scoring accuracy
+   is gated on grid accuracy — an accepted trade, paid back by editor grid-alignment tooling, not by
+   runtime decoupling.
+
+2. **Positions are tokens.** A grid position is a single string token, not an object:
+   `"<measure>:<beat>"` or `"<measure>:<beat>+<fraction>"`. `measure` and `beat` are 1-based integers;
+   the optional sub-beat `offset` is an exact reduced `Fraction` in the open interval `(0, 1)`, joined
+   with `+` ("beat 2 plus a half"). A zero offset is omitted (`"12:1"`, never `"12:1+0"`). `:`
+   separates the integer grid address; `+` attaches the fractional refinement. This follows the
+   existing fraction-as-string convention (`"3/16"`): an address is one atomic musical value, so it is
+   one token.
+
+3. **Events carry `start` and an optional `end`, both grid positions.** A sustain endpoint is just
+   another grid address resolved by the same `secondsAt` path as the start — start and end are the
+   same kind of object, mirroring how every beat in the grid resolves through one function. This
+   replaces `durationBeats`: an `end` is meter-agnostic (it reads cleanly across a meter change),
+   whereas a beat-count duration entangles the endpoint with the intervening meter. **`end` omitted =
+   non-sustained** (the previous `"0"`-duration sentinel is gone).
+
+4. **One `events` array holds notes *and* chords.** Each entry is one timed playable event at one
+   onset, discriminated by form:
+   - **single note** — inline `string` + `fret` (+ derived `note` label).
+   - **chord instance** — a `chord` reference to a template id, plus an optional `strings` array of
+     per-string deviations.
+   An entry is not a "note" in the `.chart` sense (one fret per row); it is a note-or-chord composite,
+   so the array is named `events` and the core type is `ChartEvent`.
+
+5. **A chord is an explicit template + instance**, not an emergent same-onset cluster (this reverses
+   the earlier emergent-chord rule). A `chordTemplates` library defines reusable voicings; a chord
+   instance references one by id and stores only what deviates per occurrence. Fret/finger come
+   entirely from the template — never duplicated on the instance.
+
+6. **Per-string deviations are `end` and `techniques` only.** A chord instance's `end` is the default
+   for every struck string; a `strings[]` entry overrides `end` and/or adds `techniques` for one
+   string. There is **no** per-instance refingering and **no** per-instance name override — a
+   different fingering or a different name is a different template (see decision 8).
+
+7. **Chord templates are per-arrangement.** Templates reference instrument-relative string/fret
+   addresses, so they belong to one arrangement's instrument context, not the song. Import collisions
+   across arrangements are impossible by construction. Cross-arrangement sharing (a future editor
+   palette, or an optional song-level library) is a deferred, additive option, not built now.
+
+8. **A template's identity is `(name, frets, fingering)`** — two templates are distinct iff any of the
+   three differ. Same frets + different name → two templates (e.g. `Am7` and `C6`). Same name + frets +
+   different fingering → two templates. Each is a first-class reusable library entry because such
+   variants recur within a song.
+
+9. **Chord template ids are the chord name, with ordinal suffixes on collision.** `id` = the chord's
+   `name`; if two templates share a name, all members of that name-group take `-1`, `-2`, … in order of
+   first appearance in the events. `name` stays the display label; the ordinal lives only in the id.
+   The id is a **file-internal link, regenerated on every whole-document write** — it is not a durable
+   external reference. This trades durable-id stability for readability, and it is acceptable precisely
+   because regenerate-on-write makes any rename/reorder churn a consistent whole-file rewrite rather
+   than a broken reference. (Validation enforces unique ids within an arrangement and that every event
+   `chord` resolves to a template.)
+
+10. **Single-note events carry a derived `note` label** (display only). `note` is a pure function of
+    `(string, fret, tuning)`, **writer-owned and regenerated on every write**, never read back as
+    authoritative — `string`/`fret` remain the single source of truth and what scoring uses. The label
+    makes single notes as self-describing as named chord events. Conventions:
+    - octave included, scientific pitch, **sounding** pitch (middle C = C4);
+    - the five accidental pitch classes show **both** enharmonic spellings with one shared octave
+      (`C#/Db`, `D#/Eb`, `F#/Gb`, `G#/Ab`, `A#/Bb`); naturals stay single (`E5`, `B4`). All five
+      accidental pairs sit in the same octave, so one trailing octave number is unambiguous.
+    Chord events do not carry `note` — their template `name` already labels them.
+
+11. **Tuning lives on the arrangement.** `note` derivation is tuning-relative, so each arrangement
+    declares its tuning (open-string pitch per string). A re-tune regenerates every `note` label on the
+    next write. This is a new prerequisite field on `Arrangement`.
+
+12. **The tempo map is a warp-anchor grid (unchanged), but anchors serialize as position tokens.**
+    `timeSignatures` are meter changes carried forward, addressed by `measure` (a meter change is
+    measure-scoped, so it keeps `measure`, not a `position`). `anchors` pin sparse beats to absolute
+    seconds and now address the beat with a `position` token (`{ "position": "188:1", "seconds": …
+    }`) — anchors are always on a beat, so the token never carries a `+offset`. Seconds remain the
+    only absolute time stored, on a fixed three-decimal grid. Interpolation, the start/terminal anchor
+    requirement, and global-beat-index resolution are unchanged.
+
+13. **The tempo map lives on `Song`; chord templates and events live on each `Arrangement`.**
+
+## Target core model
+
+Types under `rock-hero-common/core/include/rock_hero/common/core/`:
+
+```cpp
+struct Fraction { int numerator{0}; int denominator{1}; };   // existing; reduced, denominator > 0
+
+struct GridPosition          // a grid-relative address; token "<measure>:<beat>[+<fraction>]"
+{
+    int measure{1};          // 1-based
+    int beat{1};             // 1-based
+    Fraction offset{};       // exact fraction in [0,1); 0 = on the beat
+};
+
+struct TimeSignatureChange { int measure{1}; int numerator{4}; int denominator{4}; };  // existing
+struct BeatAnchor { int measure{1}; int beat{1}; double seconds{0.0}; };               // existing
+
+struct Tuning                // open-string note names, used only to derive note labels
+{
+    // Scientific-pitch note names, indexed by (string_number - 1); string 1 first.
+    std::vector<std::string> open_strings;
+};
+
+struct ChordVoicingString { int string_number{}; int fret{}; std::optional<int> finger; };
+
+struct ChordTemplate
+{
+    std::string id;          // chord name, with -1/-2 ordinal on name collision
+    std::string name;        // display label
+    std::vector<ChordVoicingString> voicing;
+};
+
+struct Techniques            // minimal typed set, extensible as technique vocabulary grows
+{
+    bool vibrato{false};
+    bool palm_mute{false};
+    std::optional<Fraction> bend;   // bend amount in whole steps, absent = none
+};
+
+struct ChartEventStringDeviation     // one struck string of a chord that deviates
+{
+    int string_number{};
+    std::optional<GridPosition> end; // overrides the event end for this string
+    Techniques techniques;
+};
+
+// A single timed playable event: either a single note or a chord instance (Open decision E).
+struct ChartEvent
+{
+    GridPosition start;
+    std::optional<GridPosition> end;  // absent = non-sustained
+    // single-note form: string + fret (+ derived note label) + techniques
+    // chord form: chord template id + per-string deviations
+    // exact representation pending Open decision E
+};
 ```
 
-The note schema changed incompatibly, but `formatVersion` stays at `1` for now: the project is in
-early development with a single owner of `.rhp` files, so the version bump is intentionally deferred
-until the format stabilizes. The tempo map itself is durable song content in `song.json`, never in
-editor-only `project.json`.
+`TempoMap`, `globalBeatIndex`, `secondsAtBeat`, `secondsAtNote`, and the interpolation math are
+unchanged. Add `secondsAt(const GridPosition&)` as the single resolver used for both `start` and `end`.
 
-## Import (absolute seconds → grid)
+## Validation rules
 
-External/legacy sources give beat grids and note onsets in seconds. Convert once:
+Tempo map (unchanged except anchor addressing): `timeSignatures` non-empty, starts at measure 1,
+power-of-two denominators, strictly increasing measures; `anchors` strictly increasing in
+`(measure, beat)` and `seconds`, start anchor at `1:1`, terminal anchor on a one-past-content downbeat,
+each anchor's seconds on the three-decimal grid.
 
-1. **Meter changes** → `timeSignatures` directly from the source time-signature events.
-2. **Anchors** → run line-simplification (Douglas–Peucker, ε ≈ 1 ms) over the source `(beat-index,
-   seconds)` beat curve, keeping the minimal set of beats whose linear interpolation reproduces the
-   rest within tolerance. Steady tempo collapses to a few anchors; wandering tempo keeps more.
-3. **Terminal anchor** → anchor the one-past-content downbeat (beat 1 of the bar after the last
-   content bar). Its seconds come from the source's bar-end downbeat, or are extrapolated one beat
-   from the final span if the source stops at the last beat. Audio-file duration stays audio-asset
-   metadata; it is not a substitute for an addressed grid anchor.
-4. **Notes** → for each onset second, find its beat bracket, take the raw fraction
-   `(S − beatStart) / (beatNext − beatStart)`, and **snap it to the nearest musical subdivision** from
-   a configured denominator set (1/2, 1/3, 1/4, … 1/16 and triplet families), storing the exact
-   `Fraction`. The snapped denominator is the chart's subdivision; the residual to the source second is
-   reported for QA (step 5), not stored.
-5. **QA residuals** → report any note whose snapped position differs from its source second by more
-   than tolerance. Large or biased residuals indicate a misaligned grid to fix, not notes to force.
-6. **Quantize anchor seconds** → snap each anchor's `seconds` to the three-decimal grid before
-   constructing the `TempoMap`, so the in-memory model equals its persisted form (note fractions are
-   already exact and need no quantization). Two anchors that snap to the same second are rejected by
-   validation. See design decision 12.
+Chart events and templates:
 
-## Implementation steps
+- Every event `start` is within a real content bar (`measure` before the terminal boundary, `beat` in
+  `1..numerator`); `offset` an exact fraction in `[0, 1)` reducing to denominator ≤ 1024.
+- If `end` is present it resolves at or before the terminal anchor and is **after** `start`.
+- A single-note event has a positive `string` and non-negative `fret`; a chord event's `chord`
+  resolves to a template id; a `strings[]` deviation names a string present in the template, with no
+  duplicate strings.
+- No two struck strings share an onset (a chord is one event; two events must not strike the same
+  string at the same `start`). Compared on `(global beat, reduced offset, string)`.
+- `chordTemplates` ids are unique within the arrangement; names are non-empty; `voicing` strings are
+  unique, positive, and present in the arrangement tuning; frets are non-negative.
+- `note` on a single note, if present on read, must equal the value derived from `(string, fret,
+  tuning)` (writer-owned; a mismatch is rejected rather than trusted).
 
-1. **Core grid + note model + conversion** — add the value types above, `Song::tempo_map`,
-   grid-relative `NoteEvent`, and `tempo_map.cpp` with `globalBeatIndex` / `secondsAtBeat` /
-   `secondsAtNote`. Pure tests for interpolation, meter walking, note baking, and validation.
-2. **Package persistence** — read/write `tempoMap` and grid-relative notes (exact-fraction `offset`
-   and `durationBeats`) in `rock_song_package.cpp`; round-trip and malformed-map tests. `formatVersion`
-   stays at `1` for now (see Persistence format).
-3. **Migration / import** — convert legacy seconds-notes and external imports to the grid model per
-   the Import section; snap onsets to subdivisions and quantize anchor seconds (design decision 12);
-   residual reporting for QA.
-4. **Editor state + read-only display** — expose the grid via `EditorViewState`; render a read-only
-   bar/beat ruler in `rock-hero-editor/ui` using `TempoMap` conversion helpers; do not mark projects
-   dirty for loading/displaying.
-5. **Tracktion adapter** — translate the grid into `Edit::tempoSequence` in `common/audio` behind
-   `ISongAudio::prepareSong`; adapter tests at the project-owned boundary.
+## Settled representation decisions
+
+These decisions are pinned for this implementation slice and reflected in the staged core model:
+
+- **Event content:** `ChartEvent` uses `std::variant<SingleNote, ChordInstance>` so a playable
+  row is either a single note or a chord reference, never both.
+- **Techniques:** techniques use a typed struct with the currently known vocabulary (`vibrato`,
+  `palmMute`, `bend`) and can grow as more techniques are specified.
+- **Tuning:** tuning persists explicit per-string open note names on each arrangement. These names
+  are parsed for validation and used to derive single-note `note` labels.
+
+## Implementation steps (staged; build/test between stages)
+
+1. **Core model** — add `GridPosition`, `Tuning`, `ChordVoicingString`, `ChordTemplate`,
+   `Techniques`, `ChartEventStringDeviation`, `ChartEvent`; replace `NoteEvent` on
+   `Arrangement` with `events`, add `chord_templates` and `tuning`. Pure tests for `secondsAt`.
+2. **Serialization read** — position-token parse, `events` (single note + chord),
+   `chordTemplates`, anchor `position`, tuning; validation per the rules above.
+3. **Serialization write + formatting** — token + `events` + `chordTemplates` emission,
+   derived `note` labels, regenerated chord ids; keep the one-line-per-row readable column
+   formatting.
+4. **Tests** — round-trip and malformed-input tests for the new shapes; writer-output formatting
+   assertion (the open finding from the format review).
+5. **Cleanup** — retire now-dead code (`durationBeats` paths, the old flat-note
+   formatter/validator, `secondsGridUnits` stays for anchors), and align
+   `docs/design/architecture.md` Song Data Model once the code lands.
 
 ## Testing
 
-- `rock-hero-common/core/tests/test_tempo_map.cpp`: default map; validation; `globalBeatIndex` across
-  meter changes; `secondsAtBeat` for anchored and interpolated beats; `secondsAtNote` including
-  offsets; warp invariance (moving an anchor re-resolves notes, on-beat notes stay welded).
-- `rock-hero-common/core/tests/test_rock_song_package.cpp`: grid + grid-relative notes round-trip;
-  malformed grid fails with `InvalidSongDocument`; import converts seconds-notes to `{measure, beat,
-  offset}` within tolerance.
-- `rock-hero-editor/core` / `ui` tests: loaded view state carries the grid; read-only ruler renders
-  for loaded projects; bar/beat lines land at expected positions.
-- `rock-hero-common/audio` tests: engine accepts prepared songs whose grid syncs to Tracktion behind
-  `ISongAudio`.
+- `test_tempo_map.cpp`: interpolation, meter walking, `secondsAt(GridPosition)`, warp invariance
+  (unchanged behavior).
+- `test_rock_song_package.cpp`: tempo map + events + chord templates round-trip; malformed token,
+  malformed chord ref, duplicate same-string onset, derived-`note` mismatch all fail with
+  `InvalidArrangement`/`InvalidSongDocument`; direct writer-output formatting assertion.
+- `test_arrangement.cpp` / `test_song.cpp`: model equality and construction for the new types.
 
 ## Non-goals
 
-- No tempo or note editing UI yet (the storage model supports warp-following; the editor for it is
-  later).
-- No grid-alignment/auto-detection tooling in this slice (it is the dependency for *good* charts, but
-  not for the storage model).
-- No tone-change events, plugin automation authoring, or live-rig switching.
-- No audio stretching or arrangement-duration changes from tempo edits.
-
-## Exit criteria
-
-- `Song` owns a validated grid (`timeSignatures` + addressed `anchors`); seconds appear only on
-  anchors, with a start anchor and a one-past-content terminal anchor closing the grid.
-- Notes persist and load as `{ measure, beat, offset, … }` and bake to seconds through the grid.
-- Import/migration converts seconds-based note sources to the grid model within ~1 ms, with a QA
-  residual report.
-- The editor shows a read-only bar/beat timeline for loaded projects.
-- Tracktion tempo-sequence setup is implemented behind `common/audio` or explicitly deferred as the
-  next adapter slice.
+- No tempo/note editing UI; no grid-alignment tooling in this slice.
+- No tone-change events or plugin-automation authoring.
+- No cross-arrangement shared chord library (deferred, additive).
