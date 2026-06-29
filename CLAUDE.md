@@ -5,20 +5,21 @@ repository.
 
 ## Bootstrap Rules
 
-At the start of each non-trivial task in this repository, before proposing changes or writing
-code:
+At the first non-trivial repository task in a coding-agent session, read this `CLAUDE.md` and apply
+its project guidance unless it conflicts with higher-priority runtime instructions. Reuse that
+context for later tasks in the same session instead of re-reading this file every turn.
 
-1. Read this `CLAUDE.md` and apply its project guidance unless it conflicts with higher-priority
-   runtime instructions.
-2. Read the four design documents listed under [Reference Documents](#reference-documents) and
-   make design, refactoring, layering, coding-style, testing, and documentation decisions with
-   those documents in mind unless a higher-priority runtime instruction overrides them.
+Read the relevant design documents listed under [Reference Documents](#reference-documents) when a
+task makes architecture, layering, coding-style, testing, or documentation decisions that require
+them. Re-read only the document(s) needed for the current decision if the prior context may be
+stale, the file changed, or the task raises a design question not already covered by current
+context.
 
 These documents are the source of truth for architectural and stylistic decisions. Do not rely on
 inference from surrounding code when one of them speaks to the question directly.
 
-A "non-trivial task" is anything beyond a one-line typo fix, a trivial rename, or answering a
-factual question that needs no code change. When in doubt, read the docs.
+Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
+follow-ups should not trigger the full documentation bootstrap.
 
 ## Project Overview
 
