@@ -843,6 +843,28 @@ TEST_CASE("Project saveAs writes an unopened project", "[core][project]")
     CHECK(std::filesystem::is_regular_file(reloaded_audio_asset.path));
 }
 
+// Verifies Save As retargets an already-open project so later operations use the new package path.
+TEST_CASE("Project saveAs retargets opened project", "[core][project]")
+{
+    const TemporaryArchiveDirectory directory;
+    const std::filesystem::path original_path = directory.path() / "original.rhp";
+    const std::filesystem::path saved_as_path = directory.path() / "renamed.rhp";
+    writeMinimalProjectPackage(original_path);
+
+    Project project;
+    FakeAnalyzeAudio fake_analyze;
+    const auto song = project.load(original_path, {}, fake_analyze.function());
+    REQUIRE(song.has_value());
+    REQUIRE(project.path() == original_path);
+
+    const auto saved = project.saveAs(saved_as_path, *song);
+
+    REQUIRE(saved.has_value());
+    CHECK(project.path() == saved_as_path);
+    CHECK(std::filesystem::is_regular_file(original_path));
+    CHECK(std::filesystem::is_regular_file(saved_as_path));
+}
+
 // Verifies publish writes native song content at the package root without retargeting save.
 TEST_CASE("Project publish keeps project path", "[core][project]")
 {

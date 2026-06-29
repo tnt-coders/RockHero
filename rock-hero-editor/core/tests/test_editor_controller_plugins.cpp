@@ -1514,6 +1514,48 @@ TEST_CASE("EditorController plugin add marks tone dirty", "[core][editor-control
     }
 }
 
+// Save As after a tone edit should retarget the project and establish a clean exit baseline.
+TEST_CASE("EditorController save as clears plugin dirty state", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    ConfigurableAudioDeviceConfiguration audio_devices;
+    RecordingPluginHost plugin_host;
+    FakeLiveRig live_rig;
+    live_rig.next_load_result.plugins.clear();
+    FakeProjectServices project_services;
+    int exit_call_count = 0;
+    EditorController controller{
+        audioPorts(transport, audio, audio_devices, plugin_host, live_rig),
+        defaultControllerServices(),
+        [&exit_call_count] { ++exit_call_count; },
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    REQUIRE(loadCalibratedArrangement(
+        controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
+
+    addKnownPlugin(controller);
+    controller.onSaveAsRequested(std::filesystem::path{"renamed.rhp"});
+
+    CHECK(project_services.save_as_call_count == 1);
+    CHECK(controller.currentProjectFile() == std::optional{std::filesystem::path{"renamed.rhp"}});
+    CHECK(project_services.last_save_as_tone_document_ref == std::optional{g_tone_document_ref});
+
+    controller.onExitRequested();
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK_FALSE(state->unsaved_changes_prompt.has_value());
+    CHECK_FALSE(state->project_loaded);
+    CHECK(exit_call_count == 1);
+}
+
 // Placement-only edits are persisted tone changes even when the plugin chain order is unchanged.
 TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-controller]")
 {
