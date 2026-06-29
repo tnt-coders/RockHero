@@ -5,7 +5,8 @@ param(
     [string[]]$Targets = @(),
     [switch]$Configure,
     [string[]]$Tests = @(),
-    [switch]$RunTouchedTests
+    [switch]$RunTouchedTests,
+    [switch]$FullOutput
 )
 
 $ErrorActionPreference = "Stop"
@@ -97,13 +98,25 @@ function Invoke-Checked
 {
     param(
         [scriptblock]$Command,
-        [string]$FailureMessage
+        [string]$FailureMessage,
+        [string]$SuccessMessage
     )
 
-    & $Command
-    if ($LASTEXITCODE -ne 0)
+    $output = & $Command 2>&1
+    $exit_code = $LASTEXITCODE
+    if ($FullOutput -or $exit_code -ne 0)
+    {
+        $output | ForEach-Object { Write-Host $_ }
+    }
+
+    if ($exit_code -ne 0)
     {
         throw $FailureMessage
+    }
+
+    if ($SuccessMessage)
+    {
+        Write-Host $SuccessMessage
     }
 }
 
@@ -133,13 +146,17 @@ if (-not $Configure -and $Targets.Count -eq 0 -and $Tests.Count -eq 0 -and -not 
 $cmake = Find-ClionCMake
 $vs_dev_cmd = Find-VsDevCmd
 
-Write-Host "CMake: $cmake"
-Write-Host "VsDevCmd: $vs_dev_cmd"
+if ($FullOutput)
+{
+    Write-Host "CMake: $cmake"
+    Write-Host "VsDevCmd: $vs_dev_cmd"
+}
 
 if ($Configure)
 {
     Invoke-Checked -Command { & $cmake --preset $Preset } `
-        -FailureMessage "CMake configure failed for preset '$Preset'."
+        -FailureMessage "CMake configure failed for preset '$Preset'." `
+        -SuccessMessage "Configured preset '$Preset'."
 }
 
 if ($Targets.Count -gt 0)
@@ -149,7 +166,8 @@ if ($Targets.Count -gt 0)
         $BuildDir + '" ' + $target_text
 
     Invoke-Checked -Command { & cmd.exe /d /c $build_command } `
-        -FailureMessage "Ninja build failed for targets: $($Targets -join ', ')."
+        -FailureMessage "Ninja build failed for targets: $($Targets -join ', ')." `
+        -SuccessMessage "Built targets: $($Targets -join ', ')."
 }
 
 if ($RunTouchedTests)
@@ -168,5 +186,6 @@ foreach ($test in $Tests)
         throw "Test executable not found: $test"
     }
 
-    Invoke-Checked -Command { & $test } -FailureMessage "Test failed: $test"
+    Invoke-Checked -Command { & $test } -FailureMessage "Test failed: $test" `
+        -SuccessMessage "Passed test: $test"
 }

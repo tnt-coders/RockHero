@@ -1,12 +1,16 @@
 # Repository Guidelines
 
 ## Codex Bootstrap Rules
-- At the start of each non-trivial task, read `CLAUDE.md` and apply its project guidance unless it conflicts with higher-priority runtime instructions.
-- At the start of each non-trivial task, also read `docs/design/architecture.md`,
-  `docs/design/architectural-principles.md`, `docs/design/coding-conventions.md`, and
-  `docs/design/documentation-conventions.md`, and make design, refactoring, layering, coding-style,
-  testing, and documentation decisions with those documents in mind unless a higher-priority
-  runtime instruction overrides them.
+- At the first non-trivial repository task in a Codex session, read `CLAUDE.md` and apply its
+  project guidance unless it conflicts with higher-priority runtime instructions. Reuse that
+  context for later tasks in the same session instead of re-reading it every turn.
+- Read `docs/design/architecture.md`, `docs/design/architectural-principles.md`,
+  `docs/design/coding-conventions.md`, and `docs/design/documentation-conventions.md` when a task
+  makes architecture, layering, coding-style, testing, or documentation decisions that require
+  them. Re-read only the relevant document(s) if the prior context may be stale, the file changed,
+  or the task raises a design question not already covered by current context.
+- Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
+  follow-ups should not trigger the full documentation bootstrap.
 - Treat files in `.codex/agents/*.toml` as Codex subagent profiles that may be used when
   their specialty is relevant.
 - Current Codex subagents:
@@ -15,6 +19,13 @@
   - `.codex/agents/juce-expert.toml` for JUCE UI, device management, message-thread behavior,
     plugin-hosting primitives, CMake/module integration, and JUCE best practices.
 - These profiles are guidance and delegation configuration for Codex.
+
+## Agent Efficiency Rules
+Prefer targeted `rg` queries and focused file reads over broad recursive dumps. Do not re-read
+files whose contents are already current in the active session unless they changed or the task needs
+fresh context. For build/test verification, prefer the quiet `.codex/skills/rockhero-build/`
+helper output; add `-FullOutput` only when diagnosing a failure or when full logs are explicitly
+needed.
 
 ## Documentation Maintenance Rules
 Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design

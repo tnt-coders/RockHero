@@ -2,7 +2,6 @@
 
 #include "audio_device_settings_window.h"
 #include "input_calibration_window.h"
-#include "timeline_geometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -12,6 +11,7 @@
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/editor/core/timeline_geometry.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -223,8 +223,8 @@ std::optional<float> cursorXForTimelinePosition(
     common::core::TimePosition position, common::core::TimeRange visible_timeline,
     int width) noexcept
 {
-    return timelineXForPosition(
-        position, visible_timeline, width, TimelinePositionClamping::ClampToVisibleRange);
+    return core::timelineXForPosition(
+        position, visible_timeline, width, core::TimelinePositionClamping::ClampToVisibleRange);
 }
 
 // Handles editor-wide timeline interaction and draws the cursor from current transport position.
