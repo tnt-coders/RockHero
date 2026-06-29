@@ -1,8 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/song.h>
-#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -49,7 +47,6 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
-            .events = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -62,18 +59,15 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
-            .events = {},
         });
 
     REQUIRE(song.arrangements.size() == 2);
     CHECK(song.arrangements[0].part == Part::Lead);
     CHECK(song.arrangements[0].difficulty == DifficultyRating{2});
     CHECK(difficultyTier(song.arrangements[0].difficulty) == DifficultyTier::Easy);
-    CHECK(song.arrangements[0].events.empty());
     CHECK(song.arrangements[1].part == Part::Bass);
     CHECK(song.arrangements[1].difficulty == DifficultyRating{9});
     CHECK(difficultyTier(song.arrangements[1].difficulty) == DifficultyTier::Master);
-    CHECK(song.arrangements[1].events.empty());
 }
 
 // Verifies Song stores all top-level value fields without imposing validation policy.
@@ -103,14 +97,7 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
                  .path = std::filesystem::path{"audio/rhythm.wav"}, .normalization = std::nullopt
              },
          .audio_duration = TimeDuration{42.0},
-         .tone_document_ref = "tone/rhythm.json",
-         .events = {
-             ChartEvent{
-                 .start = GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}},
-                 .end = GridPosition{.measure = 4, .beat = 1},
-                 .content = SingleNote{.string_number = 2, .fret = 7},
-             },
-         }});
+         .tone_document_ref = "tone/rhythm.json"});
 
     CHECK(song.metadata.title == "Test Song");
     CHECK(song.metadata.artist == "Test Artist");
@@ -126,14 +113,6 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
     CHECK(arrangement.audio_asset.path == std::filesystem::path{"audio/rhythm.wav"});
     CHECK(arrangement.audio_duration == TimeDuration{42.0});
     CHECK(arrangement.tone_document_ref == "tone/rhythm.json");
-    REQUIRE(arrangement.events.size() == 1);
-    const ChartEvent& event = arrangement.events[0];
-    CHECK(event.start == GridPosition{.measure = 2, .beat = 3, .offset = Fraction{1, 2}});
-    REQUIRE(event.end.has_value());
-    CHECK(*event.end == GridPosition{.measure = 4, .beat = 1});
-    REQUIRE(std::holds_alternative<SingleNote>(event.content));
-    CHECK(std::get<SingleNote>(event.content).string_number == 2);
-    CHECK(std::get<SingleNote>(event.content).fret == 7);
 }
 
 } // namespace rock_hero::common::core

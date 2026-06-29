@@ -29,15 +29,12 @@ using common::core::DifficultyRating;
 using common::core::Part;
 using common::core::Song;
 using common::core::TimeDuration;
-using common::core::Tuning;
 
 namespace
 {
 
 constexpr const char* g_lead_arrangement_id = "4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4";
 constexpr const char* g_bass_arrangement_id = "7aa55c5a-0e97-4e71-8f74-86b05bb6a2c9";
-constexpr const char* g_arrangement_document_contents =
-    R"({"formatVersion":1,"tuning":["E4","B3","G3","D3","A2","E2"],"events":[]})";
 
 // Describes one in-memory archive entry written to a zip package fixture.
 struct ArchiveEntry
@@ -155,18 +152,6 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
     return input_stream->readEntireStreamAsString().toStdString();
 }
 
-// Returns the package-relative native arrangement document path for a stable ID.
-[[nodiscard]] std::filesystem::path arrangementDocumentPath(std::string_view arrangement_id)
-{
-    return std::filesystem::path{"arrangements"} / (std::string{arrangement_id} + ".json");
-}
-
-// Returns an arrangement document reference as it appears in song.json.
-[[nodiscard]] std::string arrangementDocumentRef(std::string_view arrangement_id)
-{
-    return arrangementDocumentPath(arrangement_id).generic_string();
-}
-
 // Returns the required native tempo-map document fragment shared by package fixtures.
 [[nodiscard]] std::string tempoMapJsonFragment()
 {
@@ -209,9 +194,6 @@ void writeArchive(const std::filesystem::path& path, const std::vector<ArchiveEn
             std::string{g_lead_arrangement_id} +
             R"(",
                         "part": "Lead",
-                        "file": ")" +
-            arrangementDocumentRef(g_lead_arrangement_id) +
-            R"(",
                         "audio": "backing"
                     }
                 ]
@@ -260,10 +242,6 @@ void writeMinimalProjectPackage(const std::filesystem::path& path)
         path,
         std::vector{
             ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            ArchiveEntry{
-                .path = "song/" + arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
             projectDocumentEntry(),
             minimalSongDocumentEntry(),
         });
@@ -276,10 +254,6 @@ void writeMinimalRockSongPackage(const std::filesystem::path& path)
         path,
         std::vector{
             ArchiveEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
-            ArchiveEntry{
-                .path = arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
             minimalNativeSongDocumentEntry(),
         });
 }
@@ -293,14 +267,6 @@ void writeTwoArrangementProjectPackage(
         path,
         std::vector{
             ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            ArchiveEntry{
-                .path = "song/" + arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
-            ArchiveEntry{
-                .path = "song/" + arrangementDocumentRef(g_bass_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
             projectDocumentEntry(selected_arrangement),
             ArchiveEntry{
                 .path = song_document_name,
@@ -327,9 +293,6 @@ void writeTwoArrangementProjectPackage(
                     std::string{g_lead_arrangement_id} +
                     R"(",
                                     "part": "Lead",
-                                    "file": ")" +
-                    arrangementDocumentRef(g_lead_arrangement_id) +
-                    R"(",
                                     "audio": "backing"
                                 },
                                 {
@@ -337,9 +300,6 @@ void writeTwoArrangementProjectPackage(
                     std::string{g_bass_arrangement_id} +
                     R"(",
                                     "part": "Bass",
-                                    "file": ")" +
-                    arrangementDocumentRef(g_bass_arrangement_id) +
-                    R"(",
                                     "audio": "backing"
                                 }
                             ]
@@ -357,10 +317,6 @@ void writeUnsafeAssetProjectPackage(
         path,
         std::vector{
             ArchiveEntry{.path = "song/audio/backing.wav", .contents = "audio bytes"},
-            ArchiveEntry{
-                .path = "song/" + arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
             projectDocumentEntry(),
             ArchiveEntry{
                 .path = "song/song.json",
@@ -383,9 +339,6 @@ void writeUnsafeAssetProjectPackage(
                     std::string{g_lead_arrangement_id} +
                     R"(",
                                 "part": "Lead",
-                                "file": ")" +
-                    arrangementDocumentRef(g_lead_arrangement_id) +
-                    R"(",
                                 "audio": "backing"
                             }
                         ]
@@ -470,8 +423,6 @@ public:
             .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
-            .tuning = Tuning{.open_strings = {"E4", "B3", "G3", "D3", "A2", "E2"}},
-            .events = {},
         });
     return song;
 }
@@ -575,14 +526,6 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
         std::vector{
             ArchiveEntry{.path = "audio/backing.wav", .contents = "audio bytes"},
             ArchiveEntry{
-                .path = arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
-            ArchiveEntry{
-                .path = arrangementDocumentRef(g_bass_arrangement_id),
-                .contents = g_arrangement_document_contents,
-            },
-            ArchiveEntry{
                 .path = "song.json",
                 .contents = std::string{
                     R"({
@@ -595,13 +538,9 @@ TEST_CASE("Project import analyzes each unique source audio once", "[core][proje
                             ],
                             "arrangements": [
                                 {"id": ")" +
-                    std::string{g_lead_arrangement_id} + R"(", "part": "Lead", "file": ")" +
-                    arrangementDocumentRef(g_lead_arrangement_id) +
-                    R"(", "audio": "backing"},
+                    std::string{g_lead_arrangement_id} + R"(", "part": "Lead", "audio": "backing"},
                                 {"id": ")" +
-                    std::string{g_bass_arrangement_id} + R"(", "part": "Bass", "file": ")" +
-                    arrangementDocumentRef(g_bass_arrangement_id) +
-                    R"(", "audio": "backing"}
+                    std::string{g_bass_arrangement_id} + R"(", "part": "Bass", "audio": "backing"}
                             ]
                         })"
                 }
@@ -684,10 +623,6 @@ TEST_CASE("Project rejects package wrapped in one root directory", "[core][proje
             ArchiveEntry{
                 .path = "wrapped/song/audio/backing.wav",
                 .contents = "audio",
-            },
-            ArchiveEntry{
-                .path = "wrapped/song/" + arrangementDocumentRef(g_lead_arrangement_id),
-                .contents = g_arrangement_document_contents,
             },
             ArchiveEntry{
                 .path = "wrapped/project.json",
@@ -933,9 +868,6 @@ TEST_CASE("Project publish keeps project path", "[core][project]")
     CHECK(std::ranges::find(entry_names, "song/song.json") == entry_names.end());
     CHECK(std::ranges::find(entry_names, "song.json") != entry_names.end());
     CHECK(std::ranges::find(entry_names, "audio/backing.wav") != entry_names.end());
-    CHECK(
-        std::ranges::find(entry_names, arrangementDocumentRef(g_lead_arrangement_id)) !=
-        entry_names.end());
     CHECK(std::ranges::none_of(entry_names, [](const std::string& name) {
         return name.starts_with("song/");
     }));
