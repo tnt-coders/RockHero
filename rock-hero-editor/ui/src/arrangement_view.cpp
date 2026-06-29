@@ -1,16 +1,22 @@
 #include "arrangement_view.h"
 
+#include "timeline_geometry.h"
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <utility>
 
 namespace rock_hero::editor::ui
 {
 
 namespace
 {
+
+const juce::Colour g_beat_grid_colour{46, 46, 46};
+const juce::Colour g_measure_grid_colour{108, 108, 108};
 
 // Concrete draw request after intersecting arrangement audio with the visible timeline.
 struct WaveformDrawRequest
@@ -133,6 +139,45 @@ struct WaveformDrawRequest
     return WaveformDrawRequest{.bounds = draw_bounds, .visible_range = *visible_audio_range};
 }
 
+// Draws beat and measure grid lines from the song tempo map into the visible timeline.
+void drawTempoGrid(
+    juce::Graphics& g, const common::core::TempoMap& tempo_map,
+    common::core::TimeRange visible_timeline, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty() || visible_timeline.duration().seconds <= 0.0)
+    {
+        return;
+    }
+
+    const std::int64_t terminal_beat = tempo_map.terminalGlobalBeatIndex();
+    for (std::int64_t beat_index = 0; beat_index <= terminal_beat; ++beat_index)
+    {
+        const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
+        const double seconds = tempo_map.secondsAtBeat(measure, beat);
+        const auto x = timelineXForPosition(
+            common::core::TimePosition{seconds},
+            visible_timeline,
+            bounds.getWidth(),
+            TimelinePositionClamping::RejectOutsideVisibleRange);
+        if (!x.has_value())
+        {
+            continue;
+        }
+
+        const bool measure_start = beat == 1;
+        const int line_x = bounds.getX() + static_cast<int>(std::round(*x));
+        const int thickness = measure_start ? 2 : 1;
+        const int clipped_thickness = std::min(thickness, bounds.getRight() - line_x);
+        if (clipped_thickness <= 0)
+        {
+            continue;
+        }
+
+        g.setColour(measure_start ? g_measure_grid_colour : g_beat_grid_colour);
+        g.fillRect(line_x, bounds.getY(), clipped_thickness, bounds.getHeight());
+    }
+}
+
 } // namespace
 
 // Creates an empty arrangement view that receives its thumbnail factory and state from a parent.
@@ -154,6 +199,18 @@ void ArrangementView::setThumbnailFactory(common::audio::IThumbnailFactory& thum
 void ArrangementView::setVisibleTimeline(common::core::TimeRange visible_timeline)
 {
     m_visible_timeline = visible_timeline;
+    repaint();
+}
+
+// Stores the song tempo map used for beat-grid rendering.
+void ArrangementView::setTempoMap(common::core::TempoMap tempo_map)
+{
+    if (m_tempo_map == tempo_map)
+    {
+        return;
+    }
+
+    m_tempo_map = std::move(tempo_map);
     repaint();
 }
 
@@ -207,6 +264,7 @@ void ArrangementView::paint(juce::Graphics& g)
 
     if (!m_thumbnail)
     {
+        drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
         g.setColour(juce::Colours::grey);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
         return;
@@ -214,6 +272,7 @@ void ArrangementView::paint(juce::Graphics& g)
 
     if (!m_thumbnail->hasSource())
     {
+        drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
         g.setColour(juce::Colours::grey);
         g.drawText("Preparing waveform", bounds, juce::Justification::centred);
         return;
@@ -221,6 +280,7 @@ void ArrangementView::paint(juce::Graphics& g)
 
     if (m_thumbnail->isGeneratingProxy())
     {
+        drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
         const auto pct = static_cast<int>(m_thumbnail->getProxyProgress() * 100.0f);
         g.setColour(juce::Colours::white);
         g.drawText(
@@ -232,6 +292,7 @@ void ArrangementView::paint(juce::Graphics& g)
         waveformDrawRequest(m_state, m_visible_timeline, bounds, g.getClipBounds());
     if (!draw_request.has_value() || draw_request->bounds.isEmpty())
     {
+        drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
         return;
     }
 
@@ -247,9 +308,13 @@ void ArrangementView::paint(juce::Graphics& g)
     if (!m_thumbnail->drawChannels(
             g, draw_request->bounds, draw_request->visible_range, vertical_zoom))
     {
+        drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
         g.setColour(juce::Colours::grey);
         g.drawText("Waveform unavailable", bounds, juce::Justification::centred);
+        return;
     }
+
+    drawTempoGrid(g, m_tempo_map, m_visible_timeline, bounds);
 }
 
 // Size changes only affect paint-time waveform mapping, so invalidating the row is enough.

@@ -2,6 +2,7 @@
 
 #include "audio_device_settings_window.h"
 #include "input_calibration_window.h"
+#include "timeline_geometry.h"
 
 #include <algorithm>
 #include <cmath>
@@ -222,17 +223,8 @@ std::optional<float> cursorXForTimelinePosition(
     common::core::TimePosition position, common::core::TimeRange visible_timeline,
     int width) noexcept
 {
-    const common::core::TimeDuration visible_duration = visible_timeline.duration();
-    if (width <= 0 || visible_duration.seconds <= 0.0)
-    {
-        return std::nullopt;
-    }
-
-    const double relative_position =
-        (position.seconds - visible_timeline.start.seconds) / visible_duration.seconds;
-    const double clamped_position = std::clamp(relative_position, 0.0, 1.0);
-    const auto max_x = static_cast<double>(width - 1);
-    return static_cast<float>(clamped_position * max_x);
+    return timelineXForPosition(
+        position, visible_timeline, width, TimelinePositionClamping::ClampToVisibleRange);
 }
 
 // Handles editor-wide timeline interaction and draws the cursor from current transport position.
@@ -869,6 +861,7 @@ void EditorView::setState(const core::EditorViewState& state)
     refreshAudioMeters();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
+    m_arrangement_view.setTempoMap(m_state.tempo_map);
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
