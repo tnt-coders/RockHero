@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
 #include <rock_hero/editor/core/busy_view_state.h>
@@ -223,6 +224,9 @@ struct EditorViewState
     \brief Visible timeline range used to map cursor position and waveform content to pixels.
     */
     common::core::TimeRange visible_timeline{};
+
+    /*! \brief Song-level tempo map used to render the editor beat grid. */
+    common::core::TempoMap tempo_map{};
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};

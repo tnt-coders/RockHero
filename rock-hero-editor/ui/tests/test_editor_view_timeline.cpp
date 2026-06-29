@@ -1,7 +1,39 @@
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
+
+namespace
+{
+
+// Builds a one-measure 4/4 map for viewport-grid rendering checks.
+[[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(double measure_seconds)
+{
+    return common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{
+                .measure = 1,
+                .numerator = 4,
+                .denominator = 4,
+            },
+        },
+        std::vector{
+            common::core::BeatAnchor{
+                .measure = 1,
+                .beat = 1,
+                .seconds = 0.0,
+            },
+            common::core::BeatAnchor{
+                .measure = 2,
+                .beat = 1,
+                .seconds = measure_seconds,
+            },
+        },
+    };
+}
+
+} // namespace
 
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.
 TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
@@ -148,6 +180,59 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
 
     CHECK(track_content.getWidth() > default_width);
     CHECK(controller.waveform_click_count == 0);
+}
+
+// Verifies the tempo grid uses the same scaled content width as the timeline viewport.
+TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+
+    const auto grid_line_brightness = [&arrangement_view, &state](double seconds) {
+        const auto x = cursorXForTimelinePosition(
+            common::core::TimePosition{seconds},
+            state.visible_timeline,
+            arrangement_view.getWidth());
+        REQUIRE(x.has_value());
+
+        const juce::Image image =
+            arrangement_view.createComponentSnapshot(arrangement_view.getLocalBounds());
+        return std::pair{
+            static_cast<int>(std::round(*x)),
+            image.getPixelAt(static_cast<int>(std::round(*x)), arrangement_view.getHeight() / 2)
+                .getBrightness(),
+        };
+    };
+
+    const int default_width = arrangement_view.getWidth();
+    const auto [default_x, default_brightness] = grid_line_brightness(1.0);
+    CHECK(default_brightness > 0.0f);
+
+    track_content.mouseWheelMove(
+        makeMouseDownEvent(track_content, 20.0f, 20.0f),
+        juce::MouseWheelDetails{
+            .deltaX = 0.0f,
+            .deltaY = 1.0f,
+            .isReversed = false,
+            .isSmooth = false,
+            .isInertial = false,
+        });
+
+    const auto [zoomed_x, zoomed_brightness] = grid_line_brightness(1.0);
+    CHECK(arrangement_view.getWidth() > default_width);
+    CHECK(zoomed_x > default_x);
+    CHECK(zoomed_brightness > 0.0f);
 }
 
 // Verifies zooming all the way out can fit a long timeline into the viewport.
