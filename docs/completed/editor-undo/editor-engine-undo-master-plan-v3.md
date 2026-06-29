@@ -15,7 +15,7 @@ and are retained as the completed implementation record.
 | `editor-engine-undo-phase-b-findings.md` | Phase B evidence (B0 scoping + B3 measurement) | done reference |
 
 Related plans outside this folder, on which the undo work does **not** depend:
-`../../in-progress/remaining-god-object-decomposition-plan.md` (the `Engine::Impl` seam split —
+`../../todo/remaining-god-object-decomposition-plan.md` (the `Engine::Impl` seam split —
 sequenced *after* undo) and `../../todo/test-fixture-opportunities-plan.md` (deferred).
 
 ## Implementation sequence (the direct path)
@@ -27,7 +27,7 @@ verification remains deferred until suitable plugins or automation editing exist
 are recorded in `editor-undo-plan.md` and block no completed undo work: automation verification is
 out of the MVP undo scope, and plugin-diversity checks are conservative hardening items.
 
-After undo: `../../in-progress/remaining-god-object-decomposition-plan.md` (separate initiative; undo
+After undo: `../../todo/remaining-god-object-decomposition-plan.md` (separate initiative; undo
 first so it builds on the stable engine and adds adapter test coverage that de-risks the
 decomposition).
 
@@ -182,7 +182,7 @@ Expected source cleanup at spike close:
   `rg -n "SPIKE|test_undo_spike|spike[A-Z]" rock-hero-common/audio`; source hits should be gone
   unless a newer explicitly-ledgered spike still exists.
 
-The remaining god-object work (`../../in-progress/remaining-god-object-decomposition-plan.md`, the
+The remaining god-object work (`../../todo/remaining-god-object-decomposition-plan.md`, the
 `Engine::Impl` seam split) is a separate initiative, **sequenced after undo** (see Implementation
 sequence): undo builds against the stable engine and adds `IPluginHost`/adapter test coverage that
 then de-risks the decomposition. It is not a prerequisite for undo.
