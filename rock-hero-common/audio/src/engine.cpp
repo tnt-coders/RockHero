@@ -1255,7 +1255,8 @@ public:
     PluginDirtyStateTracker(
         tracktion::ExternalPlugin& plugin, CaptureState capture_state, EmitEdit emit_edit,
         PendingChanged pending_changed, ShouldDeferCapture should_defer_capture,
-        std::optional<PluginInstanceState> initial_baseline = std::nullopt)
+        std::optional<PluginInstanceState> initial_baseline = std::nullopt,
+        bool absorb_initial_reannounce = false)
         : m_plugin(plugin)
         , m_instance_id(plugin.itemID.toString().toStdString())
         , m_capture_state(std::move(capture_state))
@@ -1263,16 +1264,21 @@ public:
         , m_pending_changed(std::move(pending_changed))
         , m_should_defer_capture(std::move(should_defer_capture))
     {
+        const bool has_initial_baseline = initial_baseline.has_value();
         if (initial_baseline.has_value())
         {
-            // An initial baseline is only supplied on the restore (undo/redo) rebuild path, so arm
-            // the absorb window just as resetBaseline does for the in-place retarget path.
             m_baseline = std::move(initial_baseline);
-            m_post_restore_absorb.arm();
         }
         else
         {
             refreshBaseline();
+        }
+
+        // Undo/redo rebuilds pass a known baseline; save capture rebuilds from the live plugin.
+        // Both host-owned sync points can make plugins immediately re-announce state.
+        if ((has_initial_baseline || absorb_initial_reannounce) && m_baseline.has_value())
+        {
+            m_post_restore_absorb.arm();
         }
         m_plugin.addSelectableListener(this);
     }
@@ -3145,6 +3151,53 @@ private:
         m_plugin_undo_capture_deferred = false;
     }
 
+    // Arms plugin-undo capture deferral for a rig operation that will rebuild the monitoring
+    // graph, so the rebuild's parameter churn is not recorded as undo entries.
+    void beginPluginUndoCaptureDeferral()
+    {
+        m_plugin_undo_capture_deferred = true;
+    }
+
+    // Ends an active capture deferral and reinstalls the plugin edit observers. Call it once a rig
+    // operation has finished rebuilding the monitoring graph. Pass absorb_reannounce so the rebuilt
+    // observers swallow the delayed post-rebuild re-announce (see PluginDirtyStateTracker's
+    // post-restore absorb window).
+    void endPluginUndoCaptureDeferral(bool absorb_reannounce = false)
+    {
+        clearPluginUndoCaptureDeferral();
+        refreshPluginEditObservers(std::nullopt, absorb_reannounce);
+    }
+
+    // RAII guard for synchronous rig capture operations that rebuild the monitoring graph.
+    // While alive it defers plugin-undo capture so the rebuild's parameter re-announce is not
+    // recorded as undo entries; on scope exit it clears the deferral and reinstalls the plugin
+    // edit observers. Pass absorb_reannounce so the rebuilt observers also swallow the delayed
+    // post-rebuild re-announce (see PluginDirtyStateTracker's post-restore absorb window).
+    class [[nodiscard]] ScopedPluginUndoCaptureDeferral
+    {
+    public:
+        ScopedPluginUndoCaptureDeferral(Impl& impl, bool absorb_reannounce)
+            : m_impl(impl)
+            , m_absorb_reannounce(absorb_reannounce)
+        {
+            m_impl.beginPluginUndoCaptureDeferral();
+        }
+
+        ~ScopedPluginUndoCaptureDeferral()
+        {
+            m_impl.endPluginUndoCaptureDeferral(m_absorb_reannounce);
+        }
+
+        ScopedPluginUndoCaptureDeferral(const ScopedPluginUndoCaptureDeferral&) = delete;
+        ScopedPluginUndoCaptureDeferral& operator=(const ScopedPluginUndoCaptureDeferral&) = delete;
+        ScopedPluginUndoCaptureDeferral(ScopedPluginUndoCaptureDeferral&&) = delete;
+        ScopedPluginUndoCaptureDeferral& operator=(ScopedPluginUndoCaptureDeferral&&) = delete;
+
+    private:
+        Impl& m_impl;
+        bool m_absorb_reannounce;
+    };
+
     // Emits a completed plugin-wide state edit to editor-core unless the engine is restoring state.
     void emitPluginStateEdit(PluginStateEdit edit)
     {
@@ -3207,7 +3260,8 @@ private:
 
     // Rebuilds plugin edit listeners for user-visible external plugins only.
     void refreshPluginEditObservers(
-        std::optional<KnownPluginBaseline> known_baseline = std::nullopt)
+        std::optional<KnownPluginBaseline> known_baseline = std::nullopt,
+        bool absorb_initial_reannounce = false)
     {
         m_plugin_parameter_dirty_trackers.clear();
         m_plugin_state_trackers.clear();
@@ -3254,7 +3308,8 @@ private:
                 [this](PluginStateEdit edit) { emitPluginStateEdit(std::move(edit)); },
                 [this] { notifyPluginEditPendingStateChanged(); },
                 [this] { return shouldDeferPluginUndoCapture(); },
-                std::move(initial_baseline));
+                std::move(initial_baseline),
+                absorb_initial_reannounce);
             // The pointer targets the heap object owned by the unique_ptr, so vector growth does
             // not invalidate the callback target. Parameter trackers are cleared before state
             // trackers, so their callbacks cannot outlive the target.
@@ -5075,24 +5130,24 @@ std::expected<void, LiveRigError> Engine::clearLiveRig()
     auto cleared = m_impl->clearUserLiveRigPlugins();
     if (!cleared.has_value())
     {
-        m_impl->refreshPluginEditObservers();
+        m_impl->endPluginUndoCaptureDeferral();
         return std::unexpected{std::move(cleared.error())};
     }
 
     auto reset = m_impl->resetLiveRigProjectState();
     if (!reset.has_value())
     {
-        m_impl->refreshPluginEditObservers();
+        m_impl->endPluginUndoCaptureDeferral();
         return std::unexpected{std::move(reset.error())};
     }
 
     auto route_result = m_impl->rebuildInstrumentMonitoringGraph();
     if (!route_result.has_value())
     {
-        m_impl->refreshPluginEditObservers();
+        m_impl->endPluginUndoCaptureDeferral();
         return std::unexpected{liveRigErrorFromLiveInputError(route_result.error())};
     }
-    m_impl->refreshPluginEditObservers();
+    m_impl->endPluginUndoCaptureDeferral();
     return {};
 }
 
@@ -5234,6 +5289,12 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
             pluginChainLimitExceededMessage(user_plugin_count),
         }};
     }
+
+    // Defer plugin-undo capture for the whole save: the teardown and rebuild below make the
+    // plugins re-announce their parameter state, which must not be recorded as undo entries. The
+    // guard clears the deferral and reinstalls the plugin edit observers on every exit path,
+    // absorbing the post-rebuild re-announce.
+    const Impl::ScopedPluginUndoCaptureDeferral capture_deferral{*m_impl, true};
 
     m_impl->stopTransportAndReleaseContext();
 
@@ -5403,14 +5464,12 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
         return;
     }
 
-    m_impl->clearPluginUndoCaptureDeferral();
-    m_impl->m_plugin_undo_capture_deferred = true;
+    m_impl->beginPluginUndoCaptureDeferral();
     m_impl->stopTransportAndReleaseContext();
     auto cleared = m_impl->clearUserLiveRigPlugins();
     if (!cleared.has_value())
     {
-        m_impl->clearPluginUndoCaptureDeferral();
-        m_impl->refreshPluginEditObservers();
+        m_impl->endPluginUndoCaptureDeferral();
         on_result(std::unexpected{std::move(cleared.error())});
         return;
     }
@@ -5418,8 +5477,7 @@ void Engine::loadLiveRig(LiveRigLoadRequest request, LiveRigLoadResultCallback o
     auto reset = m_impl->resetLiveRigProjectState();
     if (!reset.has_value())
     {
-        m_impl->clearPluginUndoCaptureDeferral();
-        m_impl->refreshPluginEditObservers();
+        m_impl->endPluginUndoCaptureDeferral();
         on_result(std::unexpected{std::move(reset.error())});
         return;
     }
@@ -5488,8 +5546,7 @@ void Engine::Impl::beginNextPluginStep()
             return;
         }
 
-        clearPluginUndoCaptureDeferral();
-        refreshPluginEditObservers();
+        endPluginUndoCaptureDeferral();
         auto operation = std::move(m_load_op);
         operation->result.output_gain = operation->output_gain;
         operation->on_result(std::move(operation->result));
@@ -5666,8 +5723,7 @@ void Engine::Impl::abortLiveRigLoad(LiveRigError error)
         }
     }
     rebuildInstrumentMonitoringGraphBestEffort("live rig load abort rollback failed");
-    clearPluginUndoCaptureDeferral();
-    refreshPluginEditObservers();
+    endPluginUndoCaptureDeferral();
     operation->on_result(std::unexpected{std::move(error)});
 }
 
