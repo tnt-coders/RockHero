@@ -6,7 +6,6 @@
 #include <cctype>
 #include <charconv>
 #include <cmath>
-#include <compare>
 #include <cstdint>
 #include <expected>
 #include <filesystem>
@@ -20,7 +19,6 @@
 #include <rock_hero/common/core/arrangement.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/json.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/package_id.h>
@@ -32,7 +30,6 @@
 #include <system_error>
 #include <unordered_map>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace rock_hero::common::core
@@ -42,13 +39,10 @@ namespace
 {
 
 constexpr std::string_view g_song_document_name{"song.json"};
-constexpr std::string_view g_arrangements_directory_name{"arrangements"};
-constexpr std::string_view g_arrangement_document_extension{".json"};
 constexpr int g_zip_compression_level = 9;
 
 // Anchor seconds are the only absolute time stored in a package, persisted at a fixed three-decimal
-// (millisecond) grid. Note offsets and durations are exact beat fractions and carry no decimal grid.
-// This matches the Song Data Model note in docs/design/architecture.md.
+// (millisecond) grid. This matches the Song Data Model note in docs/design/architecture.md.
 constexpr int g_timing_decimals = 3;
 
 // Decimal quantum (10^g_timing_decimals) used to verify that anchor seconds are exactly on the
@@ -65,10 +59,12 @@ constexpr int g_seconds_grid_units = [] {
 
 constexpr double g_timing_epsilon = 1.0e-9;
 
-// Finest note subdivision the chart format stores: a note offset or duration reduces to a denominator
-// of at most this value (e.g. 1/1024). This bounds authored granularity to musically meaningful
-// subdivisions and keeps stored fractions small.
-constexpr int g_max_fraction_denominator = 1024;
+// Lightweight parsed form of a persisted tempo-map anchor address.
+struct AnchorPosition
+{
+    int measure{1};
+    int beat{1};
+};
 
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
@@ -208,20 +204,6 @@ constexpr int g_max_fraction_denominator = 1024;
     }
 
     return std::nullopt;
-}
-
-// Builds the canonical package-relative native arrangement document path for a stable ID.
-[[nodiscard]] std::filesystem::path arrangementDocumentPath(std::string_view arrangement_id)
-{
-    return std::filesystem::path{std::string{g_arrangements_directory_name}} /
-           (std::string{arrangement_id} + std::string{g_arrangement_document_extension});
-}
-
-// Reports whether a package-relative arrangement document path is canonical for its ID.
-[[nodiscard]] bool isCanonicalArrangementDocumentRef(
-    std::string_view arrangement_id, const std::string& file_ref)
-{
-    return file_ref == arrangementDocumentPath(arrangement_id).generic_string();
 }
 
 // Reads song metadata while treating missing descriptive fields as blank draft values.
@@ -375,56 +357,11 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return std::abs(value - grid_value) <= g_timing_epsilon;
 }
 
-// Parses a persisted beat fraction written as a whole number ("1") or a reduced ratio ("3/16").
-// The denominator must be positive; the whole token must parse with no trailing characters so a
-// malformed value is rejected at the read boundary rather than silently truncated.
-[[nodiscard]] std::optional<Fraction> parseFractionText(const std::string& text)
-{
-    if (text.empty())
-    {
-        return std::nullopt;
-    }
-
-    const char* const begin = text.data();
-    const char* const end = begin + text.size();
-    const std::size_t slash = text.find('/');
-
-    if (slash == std::string::npos)
-    {
-        int whole = 0;
-        if (const auto result = std::from_chars(begin, end, whole);
-            result.ec != std::errc{} || result.ptr != end)
-        {
-            return std::nullopt;
-        }
-        return Fraction{whole};
-    }
-
-    int numerator = 0;
-    if (const auto result = std::from_chars(begin, begin + slash, numerator);
-        result.ec != std::errc{} || result.ptr != begin + slash)
-    {
-        return std::nullopt;
-    }
-
-    int denominator = 0;
-    if (const auto result = std::from_chars(begin + slash + 1, end, denominator);
-        result.ec != std::errc{} || result.ptr != end || denominator <= 0)
-    {
-        return std::nullopt;
-    }
-
-    return Fraction{numerator, denominator};
-}
-
-// Parses a grid-position token: "<measure>:<beat>" or "<measure>:<beat>+<fraction>". Measure and
-// beat are positive integers; the optional sub-beat offset is a reduced fraction in (0, 1) joined
-// with '+'. A zero or whole offset is rejected so the canonical form (offset omitted) is the only
-// accepted spelling, and the offset denominator is bounded like every stored note fraction.
-[[nodiscard]] std::optional<GridPosition> parseGridPosition(const std::string& text)
+// Parses a tempo-map anchor position token: "<measure>:<beat>".
+[[nodiscard]] std::optional<AnchorPosition> parseAnchorPosition(const std::string& text)
 {
     const std::size_t colon = text.find(':');
-    if (colon == std::string::npos)
+    if (colon == std::string::npos || text.find('+') != std::string::npos)
     {
         return std::nullopt;
     }
@@ -436,10 +373,8 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         return std::nullopt;
     }
 
-    const std::size_t plus = text.find('+', colon + 1);
     const char* const beat_begin = text.data() + colon + 1;
-    const char* const beat_end =
-        plus == std::string::npos ? text.data() + text.size() : text.data() + plus;
+    const char* const beat_end = text.data() + text.size();
 
     int beat = 0;
     if (const auto result = std::from_chars(beat_begin, beat_end, beat);
@@ -448,84 +383,7 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
         return std::nullopt;
     }
 
-    Fraction offset;
-    if (plus != std::string::npos)
-    {
-        const auto parsed_offset = parseFractionText(text.substr(plus + 1));
-        if (!parsed_offset.has_value() || *parsed_offset <= Fraction{} ||
-            *parsed_offset >= Fraction{1} ||
-            parsed_offset->denominator > g_max_fraction_denominator)
-        {
-            return std::nullopt;
-        }
-        offset = *parsed_offset;
-    }
-
-    return GridPosition{.measure = measure, .beat = beat, .offset = offset};
-}
-
-// Maps a pitch class (0=C..11=B) to its label: both enharmonic spellings for the five accidental
-// pitch classes and a single name for naturals, matching the dual-spelling note-label convention.
-[[nodiscard]] std::string pitchClassLabel(int pitch_class)
-{
-    static constexpr std::array<std::string_view, 12> names{
-        "C", "C#/Db", "D", "D#/Eb", "E", "F", "F#/Gb", "G", "G#/Ab", "A", "A#/Bb", "B"
-    };
-    return std::string{names[static_cast<std::size_t>(pitch_class)]};
-}
-
-// Renders a MIDI note number as a scientific-pitch label with octave, with middle C = C4.
-[[nodiscard]] std::string pitchLabel(int midi)
-{
-    const int pitch_class = ((midi % 12) + 12) % 12;
-    const int octave = (midi - pitch_class) / 12 - 1;
-    return pitchClassLabel(pitch_class) + std::to_string(octave);
-}
-
-// Parses a canonical scientific-pitch label such as "E2" or "F#/Gb1" into a MIDI note number
-// (middle C = C4 = 60). Accidental pitch classes use the same dual-spelling label that the writer
-// emits, keeping persisted tuning entries independent of any standard-tuning baseline.
-[[nodiscard]] std::optional<int> parsePitchToMidi(const std::string& text)
-{
-    for (int pitch_class = 0; pitch_class < 12; ++pitch_class)
-    {
-        const std::string pitch_class_text = pitchClassLabel(pitch_class);
-        if (!text.starts_with(pitch_class_text))
-        {
-            continue;
-        }
-
-        const char* const octave_begin = text.data() + pitch_class_text.size();
-        const char* const octave_end = text.data() + text.size();
-        int octave = 0;
-        if (const auto result = std::from_chars(octave_begin, octave_end, octave);
-            result.ec == std::errc{} && result.ptr == octave_end)
-        {
-            return (octave + 1) * 12 + pitch_class;
-        }
-    }
-
-    return std::nullopt;
-}
-
-// Derives the display pitch label for a single note from the arrangement tuning. The label is
-// writer-owned: string and fret are the source of truth, so readers validate it but never store it.
-// Returns empty only for an out-of-range string or invalid tuning, which validation rejects.
-[[nodiscard]] std::string noteLabel(const Tuning& tuning, int string_number, int fret)
-{
-    const auto index = static_cast<std::size_t>(string_number - 1);
-    if (string_number <= 0 || index >= tuning.open_strings.size())
-    {
-        return {};
-    }
-
-    const auto open_midi = parsePitchToMidi(tuning.open_strings[index]);
-    if (!open_midi.has_value())
-    {
-        return {};
-    }
-
-    return pitchLabel(*open_midi + fret);
+    return AnchorPosition{.measure = measure, .beat = beat};
 }
 
 // Reports whether a denominator is a positive power of two, matching conventional meter values.
@@ -635,9 +493,8 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        // An anchor pins a whole beat, so its token is always on the beat with no sub-beat offset.
-        const auto position = parseGridPosition(*position_text);
-        if (!position.has_value() || position->offset != Fraction{})
+        const auto position = parseAnchorPosition(*position_text);
+        if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidSongDocument,
@@ -792,765 +649,10 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return tempo_map;
 }
 
-// Identifies one struck string at one exact grid onset. The offset is stored as its reduced numerator
-// and denominator, so equal positions compare equal regardless of how they were written (1/2 and 2/4
-// reduce to the same key).
-struct StringOnsetKey
-{
-    std::int64_t global_beat_index{};
-    int offset_numerator{};
-    int offset_denominator{1};
-    int string_number{};
-
-    // Default ordering is sufficient for std::set duplicate detection; it only needs to give each
-    // distinct (onset, string) a unique key, not to match the numeric order of the onset.
-    friend auto operator<=>(const StringOnsetKey& lhs, const StringOnsetKey& rhs) = default;
-};
-
-// Builds the onset key for one struck string at a grid position.
-[[nodiscard]] StringOnsetKey stringOnsetKey(
-    const GridPosition& position, int string_number, const TempoMap& tempo_map)
-{
-    return StringOnsetKey{
-        .global_beat_index = tempo_map.globalBeatIndex(position.measure, position.beat),
-        .offset_numerator = position.offset.numerator,
-        .offset_denominator = position.offset.denominator,
-        .string_number = string_number,
-    };
-}
-
-// Locates a grid position on the global beat timeline as an exact (global beat index, offset) pair, so
-// terminal-bound and start/end ordering checks compare positions exactly rather than through seconds.
-[[nodiscard]] std::pair<std::int64_t, Fraction> globalBeatPosition(
-    const GridPosition& position, const TempoMap& tempo_map)
-{
-    return {tempo_map.globalBeatIndex(position.measure, position.beat), position.offset};
-}
-
-// Validates a grid position's fields against the tempo map: a positive measure, a beat inside the
-// active meter, and an in-range, denominator-bounded sub-beat offset. Used on both read and save, so
-// it cannot rely on the read-time token parser having already checked these.
-[[nodiscard]] std::expected<void, SongPackageError> validateGridPosition(
-    const GridPosition& position, const TempoMap& tempo_map)
-{
-    if (position.measure <= 0 || position.beat <= 0 ||
-        position.beat > tempo_map.beatsPerMeasureAt(position.measure))
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event position must use a positive measure and a beat inside the active meter",
-        }};
-    }
-
-    // Guards the save path against a directly mutated Fraction whose denominator broke the value
-    // type's positive-denominator invariant; the range comparison below relies on it.
-    if (position.offset.denominator <= 0)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event position offset must have a positive denominator",
-        }};
-    }
-
-    if (position.offset < Fraction{} || position.offset >= Fraction{1} ||
-        position.offset.denominator > g_max_fraction_denominator)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event position offset must be a beat fraction in [0, 1)",
-        }};
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
-// Validates an optional sustain end against its event start and the grid terminal boundary.
-[[nodiscard]] std::expected<void, SongPackageError> validateEventEnd(
-    const GridPosition& end, const std::pair<std::int64_t, Fraction>& start_position,
-    const std::pair<std::int64_t, Fraction>& terminal_position, const TempoMap& tempo_map)
-{
-    if (const auto end_error = validateGridPosition(end, tempo_map); !end_error.has_value())
-    {
-        return std::unexpected{std::move(end_error.error())};
-    }
-
-    const auto end_position = globalBeatPosition(end, tempo_map);
-    if (!(end_position > start_position))
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event end must come after its start",
-        }};
-    }
-
-    if (end_position > terminal_position)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event end must be at or before the tempo map terminal anchor",
-        }};
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
-// Validates a chord template's voicing: non-empty id/name/voicing, in-range unique strings,
-// non-negative frets, and fingers in 1-4. Runs on both read and save so neither path can emit a
-// template the reader would reject.
-[[nodiscard]] std::expected<void, SongPackageError> validateChordTemplate(
-    const ChordTemplate& chord_template, std::size_t string_count)
-{
-    if (chord_template.id.empty() || chord_template.name.empty() || chord_template.voicing.empty())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "chord template requires a non-empty id, name, and voicing",
-        }};
-    }
-
-    std::set<int> voicing_strings;
-    for (const ChordVoicingString& voiced : chord_template.voicing)
-    {
-        if (voiced.string_number <= 0 ||
-            static_cast<std::size_t>(voiced.string_number) > string_count || voiced.fret < 0 ||
-            (voiced.finger.has_value() && (*voiced.finger < 1 || *voiced.finger > 4)))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "chord voicing needs strings present in the tuning, non-negative frets, and "
-                "fingers in 1-4",
-            }};
-        }
-
-        if (!voicing_strings.insert(voiced.string_number).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "chord voicing repeats a string",
-            }};
-        }
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
-// Validates one chart event against the grid, the chord templates, and the tuning, recording every
-// (onset, string) it strikes so duplicate same-string onsets are rejected across the arrangement. A
-// single note carries its own string/fret; a chord strikes every string in its referenced template.
-[[nodiscard]] std::expected<void, SongPackageError> validateChartEvent(
-    const ChartEvent& event,
-    const std::unordered_map<std::string, const ChordTemplate*>& templates_by_id,
-    std::size_t string_count, const TempoMap& tempo_map, std::set<StringOnsetKey>& occupied_onsets)
-{
-    if (const auto start_error = validateGridPosition(event.start, tempo_map);
-        !start_error.has_value())
-    {
-        return std::unexpected{std::move(start_error.error())};
-    }
-
-    const std::pair<std::int64_t, Fraction> terminal_position{
-        tempo_map.terminalGlobalBeatIndex(), Fraction{}
-    };
-    const auto start_position = globalBeatPosition(event.start, tempo_map);
-    if (!(start_position < terminal_position))
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event must start before the tempo map terminal anchor",
-        }};
-    }
-
-    if (event.end.has_value())
-    {
-        if (const auto end_error =
-                validateEventEnd(*event.end, start_position, terminal_position, tempo_map);
-            !end_error.has_value())
-        {
-            return std::unexpected{std::move(end_error.error())};
-        }
-    }
-
-    // Records one struck string at the event onset, rejecting a second strike of the same string.
-    const auto occupy_string = [&](int string_number) -> std::expected<void, SongPackageError> {
-        if (!occupied_onsets.insert(stringOnsetKey(event.start, string_number, tempo_map)).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "two events cannot strike the same string at the same onset",
-            }};
-        }
-        return std::expected<void, SongPackageError>{};
-    };
-
-    if (const auto* single_note = std::get_if<SingleNote>(&event.content))
-    {
-        if (single_note->string_number <= 0 ||
-            static_cast<std::size_t>(single_note->string_number) > string_count)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "single-note string must be a string present in the tuning",
-            }};
-        }
-
-        if (single_note->fret < 0)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "single-note fret must be a non-negative integer",
-            }};
-        }
-
-        return occupy_string(single_note->string_number);
-    }
-
-    const ChordInstance& chord = std::get<ChordInstance>(event.content);
-    const auto template_entry = templates_by_id.find(chord.template_id);
-    if (template_entry == templates_by_id.end())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "chord event references an unknown chord template: " + chord.template_id,
-        }};
-    }
-
-    std::set<int> voicing_strings;
-    for (const ChordVoicingString& voiced : template_entry->second->voicing)
-    {
-        voicing_strings.insert(voiced.string_number);
-        if (const auto occupied = occupy_string(voiced.string_number); !occupied.has_value())
-        {
-            return std::unexpected{std::move(occupied.error())};
-        }
-    }
-
-    std::set<int> deviating_strings;
-    for (const ChordStringDeviation& deviation : chord.string_deviations)
-    {
-        if (!voicing_strings.contains(deviation.string_number) ||
-            !deviating_strings.insert(deviation.string_number).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "chord string deviation must name a distinct string of the template voicing",
-            }};
-        }
-
-        if (deviation.end.has_value())
-        {
-            if (const auto end_error =
-                    validateEventEnd(*deviation.end, start_position, terminal_position, tempo_map);
-                !end_error.has_value())
-            {
-                return std::unexpected{std::move(end_error.error())};
-            }
-        }
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
-// Validates a whole arrangement chart: the tuning, the chord templates, and every event (including
-// cross-event duplicate-onset detection). This is the single semantic gate run on both read and save,
-// so the writer never emits a chart its own reader would reject.
-[[nodiscard]] std::expected<void, SongPackageError> validateArrangementEvents(
-    const std::vector<ChartEvent>& events, const std::vector<ChordTemplate>& chord_templates,
-    const Tuning& tuning, const TempoMap& tempo_map)
-{
-    if (tuning.open_strings.empty())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "arrangement tuning must list at least one open string",
-        }};
-    }
-
-    for (const std::string& open_string : tuning.open_strings)
-    {
-        const auto open_midi = parsePitchToMidi(open_string);
-        if (!open_midi.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "arrangement tuning has an invalid note name: " + open_string,
-            }};
-        }
-
-        if (open_string != pitchLabel(*open_midi))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "arrangement tuning note name must use canonical spelling: " +
-                    pitchLabel(*open_midi),
-            }};
-        }
-    }
-
-    std::unordered_map<std::string, const ChordTemplate*> templates_by_id;
-    for (const ChordTemplate& chord_template : chord_templates)
-    {
-        if (const auto template_error =
-                validateChordTemplate(chord_template, tuning.open_strings.size());
-            !template_error.has_value())
-        {
-            return std::unexpected{std::move(template_error.error())};
-        }
-
-        if (!templates_by_id.emplace(chord_template.id, &chord_template).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "duplicate chord template id: " + chord_template.id,
-            }};
-        }
-    }
-
-    std::set<StringOnsetKey> occupied_onsets;
-    for (const ChartEvent& event : events)
-    {
-        if (const auto event_error = validateChartEvent(
-                event, templates_by_id, tuning.open_strings.size(), tempo_map, occupied_onsets);
-            !event_error.has_value())
-        {
-            return std::unexpected{std::move(event_error.error())};
-        }
-    }
-
-    return std::expected<void, SongPackageError>{};
-}
-
-// Reads an event's optional sustain-end token. Absent means a non-sustained event; a present but
-// malformed token is rejected at the read boundary.
-[[nodiscard]] std::expected<std::optional<GridPosition>, SongPackageError> readOptionalEnd(
-    const juce::var& event_json)
-{
-    if (isAbsentJsonValue(Json::value(event_json, "end")))
-    {
-        return std::optional<GridPosition>{};
-    }
-
-    const auto end_text = Json::tryReadString(event_json, "end");
-    const auto end = end_text.has_value() ? parseGridPosition(*end_text) : std::nullopt;
-    if (!end.has_value())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            R"(event end must be a grid-position token such as "12:3" or "12:3+1/2")",
-        }};
-    }
-
-    return std::optional<GridPosition>{*end};
-}
-
-// Reads an optional techniques object. Absent means no articulations.
-[[nodiscard]] std::expected<Techniques, SongPackageError> readTechniques(
-    const juce::var& techniques_json)
-{
-    Techniques techniques;
-    if (isAbsentJsonValue(techniques_json))
-    {
-        return techniques;
-    }
-
-    if (!techniques_json.isObject())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "event techniques must be an object",
-        }};
-    }
-
-    techniques.vibrato = Json::readOptionalBool(techniques_json, "vibrato", false);
-    techniques.palm_mute = Json::readOptionalBool(techniques_json, "palmMute", false);
-
-    if (!isAbsentJsonValue(Json::value(techniques_json, "bend")))
-    {
-        const auto bend_text = Json::tryReadString(techniques_json, "bend");
-        const auto bend = bend_text.has_value() ? parseFractionText(*bend_text) : std::nullopt;
-        if (!bend.has_value() || *bend < Fraction{} ||
-            bend->denominator > g_max_fraction_denominator)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                R"(technique bend must be a non-negative fraction such as "1" or "1/2")",
-            }};
-        }
-        techniques.bend = *bend;
-    }
-
-    return techniques;
-}
-
-// Reads the arrangement tuning: a non-empty array of open-string note names. The names are validated
-// (parsed to pitches) by validateArrangementEvents, which gates both the read and save paths.
-[[nodiscard]] std::expected<Tuning, SongPackageError> readTuning(
-    const juce::var& arrangement_document)
-{
-    const juce::var& tuning_json = Json::value(arrangement_document, "tuning");
-    if (!tuning_json.isArray() || tuning_json.size() == 0)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "arrangement document tuning must be a non-empty array of note names",
-        }};
-    }
-
-    Tuning tuning;
-    tuning.open_strings.reserve(static_cast<std::size_t>(tuning_json.size()));
-    for (const juce::var& open_string_json : *tuning_json.getArray())
-    {
-        if (!open_string_json.isString())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tuning entries must be note-name strings",
-            }};
-        }
-        tuning.open_strings.push_back(open_string_json.toString().toStdString());
-    }
-
-    return tuning;
-}
-
-// Reads the optional chord-template library. Charts with no chords may omit it. Structural validity
-// (unique ids, voicing shape) is checked by validateArrangementEvents.
-[[nodiscard]] std::expected<std::vector<ChordTemplate>, SongPackageError> readChordTemplates(
-    const juce::var& arrangement_document)
-{
-    std::vector<ChordTemplate> chord_templates;
-    const juce::var& templates_json = Json::value(arrangement_document, "chordTemplates");
-    if (isAbsentJsonValue(templates_json))
-    {
-        return chord_templates;
-    }
-
-    if (!templates_json.isArray())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "chordTemplates must be an array",
-        }};
-    }
-
-    chord_templates.reserve(static_cast<std::size_t>(templates_json.size()));
-    for (const juce::var& template_json : *templates_json.getArray())
-    {
-        if (!template_json.isObject())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "chordTemplates entries must be objects",
-            }};
-        }
-
-        const auto id = Json::tryReadString(template_json, "id");
-        const auto name = Json::tryReadString(template_json, "name");
-        const juce::var& voicing_json = Json::value(template_json, "voicing");
-        if (!id.has_value() || id->empty() || !name.has_value() || !voicing_json.isArray())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "chord template requires a non-empty id, a name, and a voicing array",
-            }};
-        }
-
-        ChordTemplate chord_template{.id = *id, .name = *name, .voicing = {}};
-        for (const juce::var& voiced_json : *voicing_json.getArray())
-        {
-            if (!voiced_json.isObject())
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "chord voicing entries must be objects",
-                }};
-            }
-
-            const auto string_number = Json::tryReadInt64(voiced_json, "string");
-            const auto fret = Json::tryReadInt64(voiced_json, "fret");
-            if (!string_number.has_value() || !fret.has_value() ||
-                !fitsPositiveIntField(*string_number) || !fitsNonNegativeIntField(*fret))
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "chord voicing entry requires a positive string and non-negative fret",
-                }};
-            }
-
-            ChordVoicingString voiced{
-                .string_number = static_cast<int>(*string_number),
-                .fret = static_cast<int>(*fret),
-                .finger = std::nullopt,
-            };
-            if (!isAbsentJsonValue(Json::value(voiced_json, "finger")))
-            {
-                const auto finger = Json::tryReadInt64(voiced_json, "finger");
-                if (!finger.has_value() || !fitsIntField(*finger))
-                {
-                    return std::unexpected{SongPackageError{
-                        SongPackageErrorCode::InvalidArrangement,
-                        "chord voicing finger must be an integer",
-                    }};
-                }
-                voiced.finger = static_cast<int>(*finger);
-            }
-
-            chord_template.voicing.push_back(voiced);
-        }
-
-        chord_templates.push_back(std::move(chord_template));
-    }
-
-    return chord_templates;
-}
-
-// Reads the chart events. Each event is discriminated by its fields: a "chord" reference makes it a
-// chord instance, an inline "string" makes it a single note; both or neither is an error. The
-// display-only "note" label on single notes is rejected when stale, but string and fret remain the
-// stored model fields.
-[[nodiscard]] std::expected<std::vector<ChartEvent>, SongPackageError> readEvents(
-    const juce::var& arrangement_document, const Tuning& tuning)
-{
-    const juce::var& events_json = Json::value(arrangement_document, "events");
-    if (!events_json.isArray())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "arrangement document events must be an array",
-        }};
-    }
-
-    std::vector<ChartEvent> events;
-    events.reserve(static_cast<std::size_t>(events_json.size()));
-    for (const juce::var& event_json : *events_json.getArray())
-    {
-        if (!event_json.isObject())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "events entries must be objects",
-            }};
-        }
-
-        const auto start_text = Json::tryReadString(event_json, "start");
-        const auto start = start_text.has_value() ? parseGridPosition(*start_text) : std::nullopt;
-        if (!start.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                R"(event start must be a grid-position token such as "12:1" or "12:2+1/2")",
-            }};
-        }
-
-        auto end = readOptionalEnd(event_json);
-        if (!end.has_value())
-        {
-            return std::unexpected{std::move(end.error())};
-        }
-
-        const bool has_chord = !isAbsentJsonValue(Json::value(event_json, "chord"));
-        const bool has_string = !isAbsentJsonValue(Json::value(event_json, "string"));
-        if (has_chord == has_string)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "each event must be either a single note (string + fret) or a chord reference",
-            }};
-        }
-
-        ChartEvent event{.start = *start, .end = *end, .content = {}};
-        if (has_chord)
-        {
-            const auto template_id = Json::tryReadString(event_json, "chord");
-            if (!template_id.has_value() || template_id->empty())
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "chord event chord must be a non-empty template id",
-                }};
-            }
-
-            ChordInstance chord{.template_id = *template_id, .string_deviations = {}};
-            const juce::var& deviations_json = Json::value(event_json, "strings");
-            if (!isAbsentJsonValue(deviations_json))
-            {
-                if (!deviations_json.isArray())
-                {
-                    return std::unexpected{SongPackageError{
-                        SongPackageErrorCode::InvalidArrangement,
-                        "chord event strings must be an array of per-string deviations",
-                    }};
-                }
-
-                for (const juce::var& deviation_json : *deviations_json.getArray())
-                {
-                    if (!deviation_json.isObject())
-                    {
-                        return std::unexpected{SongPackageError{
-                            SongPackageErrorCode::InvalidArrangement,
-                            "chord string deviation must be an object",
-                        }};
-                    }
-
-                    const auto string_number = Json::tryReadInt64(deviation_json, "string");
-                    if (!string_number.has_value() || !fitsPositiveIntField(*string_number))
-                    {
-                        return std::unexpected{SongPackageError{
-                            SongPackageErrorCode::InvalidArrangement,
-                            "chord string deviation string must be a positive integer",
-                        }};
-                    }
-
-                    auto deviation_end = readOptionalEnd(deviation_json);
-                    if (!deviation_end.has_value())
-                    {
-                        return std::unexpected{std::move(deviation_end.error())};
-                    }
-
-                    auto deviation_techniques =
-                        readTechniques(Json::value(deviation_json, "techniques"));
-                    if (!deviation_techniques.has_value())
-                    {
-                        return std::unexpected{std::move(deviation_techniques.error())};
-                    }
-
-                    chord.string_deviations.push_back(
-                        ChordStringDeviation{
-                            .string_number = static_cast<int>(*string_number),
-                            .end = *deviation_end,
-                            .techniques = *deviation_techniques,
-                        });
-                }
-            }
-
-            event.content = std::move(chord);
-        }
-        else
-        {
-            const auto string_number = Json::tryReadInt64(event_json, "string");
-            const auto fret = Json::tryReadInt64(event_json, "fret");
-            if (!string_number.has_value() || !fret.has_value() ||
-                !fitsPositiveIntField(*string_number) || !fitsNonNegativeIntField(*fret))
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "single-note event requires a positive string and a non-negative fret",
-                }};
-            }
-
-            const juce::var& note_json = Json::value(event_json, "note");
-            if (!isAbsentJsonValue(note_json))
-            {
-                const auto note_text = Json::tryReadString(event_json, "note");
-                const std::string expected_note =
-                    noteLabel(tuning, static_cast<int>(*string_number), static_cast<int>(*fret));
-                if (!note_text.has_value() ||
-                    (!expected_note.empty() && *note_text != expected_note))
-                {
-                    return std::unexpected{SongPackageError{
-                        SongPackageErrorCode::InvalidArrangement,
-                        "single-note event note label does not match its string, fret, and tuning",
-                    }};
-                }
-            }
-
-            auto techniques = readTechniques(Json::value(event_json, "techniques"));
-            if (!techniques.has_value())
-            {
-                return std::unexpected{std::move(techniques.error())};
-            }
-
-            event.content = SingleNote{
-                .string_number = static_cast<int>(*string_number),
-                .fret = static_cast<int>(*fret),
-                .techniques = *techniques,
-            };
-        }
-
-        events.push_back(std::move(event));
-    }
-
-    return events;
-}
-
-// Chart data read from one arrangement document before it is stored on an Arrangement.
-struct ArrangementChart
-{
-    Tuning tuning;
-    std::vector<ChordTemplate> chord_templates;
-    std::vector<ChartEvent> events;
-};
-
-// Opens, parses, and validates an arrangement document file, returning its tuning, chord templates,
-// and events. Untrusted chart data enters the model here, so validateArrangementEvents runs at this
-// boundary; the write path runs the same gate so it never emits a document this reader would reject.
-[[nodiscard]] std::expected<ArrangementChart, SongPackageError> readArrangementDocumentFile(
-    const std::filesystem::path& document_path, const TempoMap& tempo_map)
-{
-    juce::FileInputStream document_file{juceFileFromPath(document_path)};
-    if (document_file.failedToOpen())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "Could not open arrangement document: " + document_path.string(),
-        }};
-    }
-
-    const juce::String document_text = document_file.readEntireStreamAsString();
-    auto parsed_document = Json::parseDocument(document_text);
-    if (!parsed_document.has_value())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "Could not parse arrangement document: " + parsed_document.error().message,
-        }};
-    }
-
-    const juce::var arrangement_document = std::move(*parsed_document);
-    const auto format_version = Json::readOptionalInt(arrangement_document, "formatVersion", 0);
-    if (!arrangement_document.isObject() || format_version != 1)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidArrangement,
-            "Unsupported arrangement document formatVersion",
-        }};
-    }
-
-    auto tuning = readTuning(arrangement_document);
-    if (!tuning.has_value())
-    {
-        return std::unexpected{std::move(tuning.error())};
-    }
-
-    auto chord_templates = readChordTemplates(arrangement_document);
-    if (!chord_templates.has_value())
-    {
-        return std::unexpected{std::move(chord_templates.error())};
-    }
-
-    auto events = readEvents(arrangement_document, *tuning);
-    if (!events.has_value())
-    {
-        return std::unexpected{std::move(events.error())};
-    }
-
-    if (const auto validation =
-            validateArrangementEvents(*events, *chord_templates, *tuning, tempo_map);
-        !validation.has_value())
-    {
-        return std::unexpected{std::move(validation.error())};
-    }
-
-    return ArrangementChart{
-        .tuning = std::move(*tuning),
-        .chord_templates = std::move(*chord_templates),
-        .events = std::move(*events),
-    };
-}
-
 // Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
-    const std::unordered_map<std::string, AudioAsset>& audio_assets, const TempoMap& tempo_map)
+    const std::unordered_map<std::string, AudioAsset>& audio_assets)
 {
     const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
@@ -1578,15 +680,13 @@ struct ArrangementChart
 
         const auto id = Json::tryReadString(arrangement_json, "id");
         const auto part_text = Json::tryReadString(arrangement_json, "part");
-        const auto arrangement_document = Json::tryReadString(arrangement_json, "file");
         const auto audio_id = Json::tryReadString(arrangement_json, "audio");
         std::string tone_document_ref;
-        if (!id.has_value() || id->empty() || !part_text.has_value() ||
-            !arrangement_document.has_value() || !audio_id.has_value())
+        if (!id.has_value() || id->empty() || !part_text.has_value() || !audio_id.has_value())
         {
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
-                "arrangement entries require non-empty id, part, file, and audio fields",
+                "arrangement entries require non-empty id, part, and audio fields",
             }};
         }
 
@@ -1612,24 +712,6 @@ struct ArrangementChart
             return std::unexpected{SongPackageError{
                 SongPackageErrorCode::InvalidArrangement,
                 "unsupported arrangement part: " + *part_text,
-            }};
-        }
-
-        if (!isCanonicalArrangementDocumentRef(*id, *arrangement_document))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "arrangement document must match arrangement id: " + *arrangement_document,
-            }};
-        }
-
-        const auto resolved_arrangement_document =
-            resolveExistingFile(directory, *arrangement_document);
-        if (!resolved_arrangement_document.has_value())
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "arrangement document is missing or unsafe: " + *arrangement_document,
             }};
         }
 
@@ -1671,15 +753,6 @@ struct ArrangementChart
             }};
         }
 
-        auto chart = readArrangementDocumentFile(*resolved_arrangement_document, tempo_map);
-        if (!chart.has_value())
-        {
-            return std::unexpected{std::move(chart.error())};
-        }
-
-        // Difficulty is intentionally not read here. It is a value derived from the chart (see
-        // docs/todo/arrangement-difficulty-derivation-plan.md), not authored persisted data, so it
-        // stays at its Unknown default until the difficulty calculator is added.
         arrangements.push_back(
             Arrangement{
                 .id = *id,
@@ -1688,9 +761,6 @@ struct ArrangementChart
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
-                .tuning = std::move(chart->tuning),
-                .chord_templates = std::move(chart->chord_templates),
-                .events = std::move(chart->events),
             });
     }
 
@@ -1964,295 +1034,6 @@ struct ArrangementChart
     return std::format("{:.15g}", value);
 }
 
-// Renders a beat fraction as compact text: a whole number ("0", "4") or a reduced ratio ("1/8").
-[[nodiscard]] std::string fractionToText(Fraction value)
-{
-    if (value.denominator == 1)
-    {
-        return std::to_string(value.numerator);
-    }
-
-    return std::to_string(value.numerator) + "/" + std::to_string(value.denominator);
-}
-
-// Renders a beat fraction as a quoted JSON string token so the chart stores exact subdivisions.
-[[nodiscard]] std::string quotedFractionText(Fraction value)
-{
-    return "\"" + fractionToText(value) + "\"";
-}
-
-// Renders a grid position as its token: "<measure>:<beat>" or "<measure>:<beat>+<fraction>".
-[[nodiscard]] std::string gridPositionToken(const GridPosition& position)
-{
-    std::string token = std::to_string(position.measure) + ":" + std::to_string(position.beat);
-    if (position.offset != Fraction{})
-    {
-        token += "+" + fractionToText(position.offset);
-    }
-
-    return token;
-}
-
-// Renders a techniques set as a compact object, or empty text when no technique is active.
-[[nodiscard]] std::string formatTechniques(const Techniques& techniques)
-{
-    if (!techniques.any())
-    {
-        return {};
-    }
-
-    std::string fields;
-    const auto append = [&fields](std::string field) {
-        fields += fields.empty() ? "" : ", ";
-        fields += std::move(field);
-    };
-
-    if (techniques.vibrato)
-    {
-        append(R"("vibrato": true)");
-    }
-    if (techniques.palm_mute)
-    {
-        append(R"("palmMute": true)");
-    }
-    if (techniques.bend.has_value())
-    {
-        append(R"("bend": )" + quotedFractionText(*techniques.bend));
-    }
-
-    return "{ " + fields + " }";
-}
-
-// Renders one voicing string of a chord template as a compact object.
-[[nodiscard]] std::string formatVoicingString(const ChordVoicingString& voiced)
-{
-    std::string text = R"({ "string": )" + std::to_string(voiced.string_number) + R"(, "fret": )" +
-                       std::to_string(voiced.fret);
-    if (voiced.finger.has_value())
-    {
-        text += R"(, "finger": )" + std::to_string(*voiced.finger);
-    }
-    text += " }";
-
-    return text;
-}
-
-// Maps in-memory chord template ids to writer-generated ids.
-struct GeneratedChordIds
-{
-    std::vector<std::string> template_ids;
-    std::unordered_map<std::string, std::string> event_ids_by_source_id;
-};
-
-// Builds normalized chord template ids for a whole arrangement document write without mutating the
-// in-memory arrangement. Validation has already ensured event references resolve.
-[[nodiscard]] GeneratedChordIds generateChordIds(const Arrangement& arrangement)
-{
-    std::unordered_map<std::string, std::size_t> template_indices_by_id;
-    template_indices_by_id.reserve(arrangement.chord_templates.size());
-    for (std::size_t index = 0; index < arrangement.chord_templates.size(); ++index)
-    {
-        template_indices_by_id.emplace(arrangement.chord_templates[index].id, index);
-    }
-
-    std::vector<std::size_t> ordered_indices;
-    std::vector<char> included(arrangement.chord_templates.size(), false);
-    const auto include_template = [&](std::size_t index) {
-        if (!included[index])
-        {
-            included[index] = true;
-            ordered_indices.push_back(index);
-        }
-    };
-
-    for (const ChartEvent& event : arrangement.events)
-    {
-        if (const auto* chord = std::get_if<ChordInstance>(&event.content))
-        {
-            if (const auto found = template_indices_by_id.find(chord->template_id);
-                found != template_indices_by_id.end())
-            {
-                include_template(found->second);
-            }
-        }
-    }
-
-    for (std::size_t index = 0; index < arrangement.chord_templates.size(); ++index)
-    {
-        include_template(index);
-    }
-
-    std::unordered_map<std::string, int> counts_by_name;
-    for (const ChordTemplate& chord_template : arrangement.chord_templates)
-    {
-        ++counts_by_name[chord_template.name];
-    }
-
-    std::unordered_map<std::string, int> ordinals_by_name;
-    std::set<std::string> used_generated_ids;
-    GeneratedChordIds generated{
-        .template_ids = std::vector<std::string>(arrangement.chord_templates.size()),
-        .event_ids_by_source_id = {},
-    };
-    generated.event_ids_by_source_id.reserve(arrangement.chord_templates.size());
-
-    for (const std::size_t index : ordered_indices)
-    {
-        const ChordTemplate& chord_template = arrangement.chord_templates[index];
-        const int ordinal = ++ordinals_by_name[chord_template.name];
-        std::string generated_id = chord_template.name;
-        if (counts_by_name[chord_template.name] > 1)
-        {
-            generated_id += "-" + std::to_string(ordinal);
-        }
-
-        const std::string base_id = generated_id;
-        int collision_ordinal = 1;
-        while (!used_generated_ids.insert(generated_id).second)
-        {
-            generated_id = base_id + "-" + std::to_string(++collision_ordinal);
-        }
-
-        generated.template_ids[index] = generated_id;
-        generated.event_ids_by_source_id.emplace(chord_template.id, std::move(generated_id));
-    }
-
-    return generated;
-}
-
-// Renders one chord template as a single object line with its writer-generated id and voicing
-// inline.
-[[nodiscard]] std::string formatChordTemplate(
-    const ChordTemplate& chord_template, const std::string& generated_id)
-{
-    std::string line = R"({ "id": )" + jsonString(generated_id) + R"(, "name": )" +
-                       jsonString(chord_template.name) + R"(, "voicing": [)";
-    for (std::size_t index = 0; index < chord_template.voicing.size(); ++index)
-    {
-        line += index == 0 ? " " : ", ";
-        line += formatVoicingString(chord_template.voicing[index]);
-    }
-    line += " ] }";
-
-    return line;
-}
-
-// Renders the tuning as a single-line JSON array of open-string note names.
-[[nodiscard]] std::string formatTuning(const Tuning& tuning)
-{
-    std::string line = "[";
-    for (std::size_t index = 0; index < tuning.open_strings.size(); ++index)
-    {
-        line += index == 0 ? " " : ", ";
-        line += jsonString(tuning.open_strings[index]);
-    }
-    line += " ]";
-
-    return line;
-}
-
-// Renders one chord string deviation as a compact object.
-[[nodiscard]] std::string formatStringDeviation(const ChordStringDeviation& deviation)
-{
-    std::string text = R"({ "string": )" + std::to_string(deviation.string_number);
-    if (deviation.end.has_value())
-    {
-        text += R"(, "end": ")" + gridPositionToken(*deviation.end) + "\"";
-    }
-    if (const std::string techniques = formatTechniques(deviation.techniques); !techniques.empty())
-    {
-        text += R"(, "techniques": )" + techniques;
-    }
-    text += " }";
-
-    return text;
-}
-
-// Renders one chart event as a single compact JSON object line. Single notes carry a writer-derived
-// pitch label; chords reference a template id and list only their deviating strings.
-[[nodiscard]] std::string formatEvent(
-    const ChartEvent& event, const Tuning& tuning,
-    const std::unordered_map<std::string, std::string>& generated_chord_ids)
-{
-    std::string line = R"({ "start": ")" + gridPositionToken(event.start) + "\"";
-    if (event.end.has_value())
-    {
-        line += R"(, "end": ")" + gridPositionToken(*event.end) + "\"";
-    }
-
-    if (const auto* single_note = std::get_if<SingleNote>(&event.content))
-    {
-        line += R"(, "string": )" + std::to_string(single_note->string_number);
-        line += R"(, "fret": )" + std::to_string(single_note->fret);
-        if (const std::string label =
-                noteLabel(tuning, single_note->string_number, single_note->fret);
-            !label.empty())
-        {
-            line += R"(, "note": )" + jsonString(label);
-        }
-        if (const std::string techniques = formatTechniques(single_note->techniques);
-            !techniques.empty())
-        {
-            line += R"(, "techniques": )" + techniques;
-        }
-    }
-    else
-    {
-        const ChordInstance& chord = std::get<ChordInstance>(event.content);
-        const auto generated_id = generated_chord_ids.find(chord.template_id);
-        line += R"(, "chord": )" + jsonString(
-                                       generated_id == generated_chord_ids.end()
-                                           ? chord.template_id
-                                           : generated_id->second);
-        if (!chord.string_deviations.empty())
-        {
-            line += R"(, "strings": [)";
-            for (std::size_t index = 0; index < chord.string_deviations.size(); ++index)
-            {
-                line += index == 0 ? " " : ", ";
-                line += formatStringDeviation(chord.string_deviations[index]);
-            }
-            line += " ]";
-        }
-    }
-
-    line += " }";
-
-    return line;
-}
-
-// Builds the JSON text of an arrangement document: the format version, the tuning, the chord
-// template library, and the one-line-per-event chart.
-[[nodiscard]] std::string arrangementDocumentContents(const Arrangement& arrangement)
-{
-    const GeneratedChordIds generated_chord_ids = generateChordIds(arrangement);
-
-    std::string contents = "{\n  \"formatVersion\": 1,\n";
-    contents += "  \"tuning\": " + formatTuning(arrangement.tuning) + ",\n";
-
-    contents += "  \"chordTemplates\": [";
-    for (std::size_t index = 0; index < arrangement.chord_templates.size(); ++index)
-    {
-        contents += index == 0 ? "\n    " : ",\n    ";
-        contents += formatChordTemplate(
-            arrangement.chord_templates[index], generated_chord_ids.template_ids[index]);
-    }
-    contents += arrangement.chord_templates.empty() ? "],\n" : "\n  ],\n";
-
-    contents += "  \"events\": [";
-    for (std::size_t index = 0; index < arrangement.events.size(); ++index)
-    {
-        contents += index == 0 ? "\n    " : ",\n    ";
-        contents += formatEvent(
-            arrangement.events[index],
-            arrangement.tuning,
-            generated_chord_ids.event_ids_by_source_id);
-    }
-    contents += arrangement.events.empty() ? "]\n}\n" : "\n  ]\n}\n";
-
-    return contents;
-}
-
 // Renders one time-signature change as a compact object line.
 [[nodiscard]] std::string formatTimeSignatureLine(const TimeSignatureChange& signature)
 {
@@ -2265,9 +1046,9 @@ struct GeneratedChordIds
 // token and pinning it to seconds at the fixed package precision.
 [[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor)
 {
-    return R"({ "position": ")" +
-           gridPositionToken(GridPosition{.measure = anchor.measure, .beat = anchor.beat}) +
-           R"(", "seconds": )" + formatTimingValue(anchor.seconds) + " }";
+    return R"({ "position": ")" + std::to_string(anchor.measure) + ":" +
+           std::to_string(anchor.beat) + R"(", "seconds": )" + formatTimingValue(anchor.seconds) +
+           " }";
 }
 
 // Song-document audio entry retained between validation and final JSON formatting.
@@ -2283,7 +1064,6 @@ struct ArrangementDocumentEntry
 {
     std::string id;
     std::string part;
-    std::string file;
     std::string audio;
     std::string tone_document;
 };
@@ -2315,8 +1095,6 @@ struct ArrangementDocumentEntry
     line += jsonString(entry.id);
     line += ", \"part\": ";
     line += jsonString(entry.part);
-    line += ", \"file\": ";
-    line += jsonString(entry.file);
     line += ", \"audio\": ";
     line += jsonString(entry.audio);
     if (!entry.tone_document.empty())
@@ -2383,44 +1161,6 @@ struct SongDocumentForSave
     contents += "}\n";
 
     return contents;
-}
-
-// Writes an arrangement document with the arrangement's current notes, overwriting any prior
-// document so the in-memory song is the source of truth on save.
-[[nodiscard]] std::expected<void, SongPackageError> writeArrangementDocument(
-    const std::filesystem::path& workspace_directory, const std::filesystem::path& relative_path,
-    const Arrangement& arrangement)
-{
-    const std::filesystem::path arrangement_path = workspace_directory / relative_path;
-    std::error_code error;
-    std::filesystem::create_directories(arrangement_path.parent_path(), error);
-    if (error)
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "Could not create arrangement directory: " + error.message(),
-        }};
-    }
-
-    std::ofstream arrangement_document{arrangement_path, std::ios::binary};
-    if (!arrangement_document.is_open())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::InvalidSongDocument,
-            "Could not write arrangement document: " + arrangement_path.string(),
-        }};
-    }
-
-    arrangement_document << arrangementDocumentContents(arrangement);
-    if (!arrangement_document.good())
-    {
-        return std::unexpected{SongPackageError{
-            SongPackageErrorCode::CouldNotWriteSongDocument,
-            "Could not write arrangement document: " + arrangement_path.string(),
-        }};
-    }
-
-    return std::expected<void, SongPackageError>{};
 }
 
 // Chooses the ID to write for one arrangement, generating a stable fallback when needed.
@@ -2534,21 +1274,12 @@ struct SongDocumentForSave
         }
 
         // Validate this arrangement before any side effect (audio copy, document write), so a
-        // validation failure does not leave copied audio or a written arrangement document behind.
+        // validation failure does not leave copied audio behind.
         if (const auto tone_error =
                 validateArrangementToneReference(workspace_directory, arrangement);
             !tone_error.has_value())
         {
             return std::unexpected{tone_error.error()};
-        }
-        if (const auto chart_error = validateArrangementEvents(
-                arrangement.events,
-                arrangement.chord_templates,
-                arrangement.tuning,
-                song.tempo_map);
-            !chart_error.has_value())
-        {
-            return std::unexpected{chart_error.error()};
         }
 
         const auto arrangement_id = arrangementIdForSave(arrangement, used_arrangement_ids);
@@ -2592,21 +1323,10 @@ struct SongDocumentForSave
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
-        const std::filesystem::path arrangement_document_path =
-            arrangementDocumentPath(*arrangement_id);
-
-        if (const auto arrangement_error = writeArrangementDocument(
-                workspace_directory, arrangement_document_path, arrangement);
-            !arrangement_error.has_value())
-        {
-            return std::unexpected{arrangement_error.error()};
-        }
-
         arrangements.push_back(
             ArrangementDocumentEntry{
                 .id = *arrangement_id,
                 .part = partName(arrangement.part),
-                .file = arrangement_document_path.generic_string(),
                 .audio = audio_id->second,
                 .tone_document = arrangement.tone_document_ref,
             });
@@ -2775,7 +1495,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         return std::unexpected{std::move(tempo_map.error())};
     }
 
-    auto arrangements = readArrangements(directory, song_document, *audio_assets, *tempo_map);
+    auto arrangements = readArrangements(directory, song_document, *audio_assets);
     if (!arrangements.has_value())
     {
         return std::unexpected{std::move(arrangements.error())};

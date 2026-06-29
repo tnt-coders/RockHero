@@ -30,7 +30,6 @@ namespace
             .audio_asset = makeAudioAsset(std::move(path)),
             .audio_duration = duration,
             .tone_document_ref = {},
-            .events = {},
         });
     return song;
 }
@@ -156,7 +155,6 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
             .audio_duration = TimeDuration{9.0},
             .tone_document_ref = {},
-            .events = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -166,7 +164,6 @@ TEST_CASE("Session loadSong stores the selected arrangement index", "[core][sess
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
             .audio_duration = TimeDuration{5.0},
             .tone_document_ref = {},
-            .events = {},
         });
 
     const bool loaded = session.loadSong(std::move(song), 1);
@@ -198,7 +195,6 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .audio_asset = makeAudioAsset(std::filesystem::path{"lead.wav"}),
             .audio_duration = TimeDuration{6.0},
             .tone_document_ref = {},
-            .events = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -208,7 +204,6 @@ TEST_CASE("Session loadSong rejects arrangement without duration", "[core][sessi
             .audio_asset = makeAudioAsset(std::filesystem::path{"bass.wav"}),
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
-            .events = {},
         });
 
     const bool loaded = session.loadSong(std::move(song), 0);
