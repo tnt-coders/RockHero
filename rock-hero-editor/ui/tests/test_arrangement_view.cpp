@@ -9,6 +9,7 @@
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <utility>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -51,6 +52,32 @@ public:
         .audio_asset =
             common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
         .audio_duration = duration,
+    };
+}
+
+// Builds a simple one-measure 4/4 grid with linearly spaced beats.
+[[nodiscard]] common::core::TempoMap makeOneMeasureTempoMap(double measure_seconds)
+{
+    return common::core::TempoMap{
+        std::vector{
+            common::core::TimeSignatureChange{
+                .measure = 1,
+                .numerator = 4,
+                .denominator = 4,
+            },
+        },
+        std::vector{
+            common::core::BeatAnchor{
+                .measure = 1,
+                .beat = 1,
+                .seconds = 0.0,
+            },
+            common::core::BeatAnchor{
+                .measure = 2,
+                .beat = 1,
+                .seconds = measure_seconds,
+            },
+        },
     };
 }
 
@@ -148,6 +175,31 @@ TEST_CASE("ArrangementView draws the visible waveform range", "[ui][arrangement-
                                                }});
     CHECK(thumbnail->last_draw_bounds == std::optional{image.getBounds()});
     CHECK(thumbnail->last_vertical_zoom == std::optional{1.0f});
+}
+
+// Verifies tempo-map beats are visible over the arrangement row.
+TEST_CASE("ArrangementView draws the tempo-map beat grid", "[ui][arrangement-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    RecordingThumbnailFactory thumbnail_factory;
+    ArrangementView view;
+    view.setBounds(0, 0, 101, 24);
+    view.setThumbnailFactory(thumbnail_factory);
+    view.setVisibleTimeline(
+        common::core::TimeRange{
+            .start = common::core::TimePosition{},
+            .end = common::core::TimePosition{4.0},
+        });
+    view.setTempoMap(makeOneMeasureTempoMap(4.0));
+    view.setState(makeArrangementState(
+        std::filesystem::path{"full_mix.wav"}, common::core::TimeDuration{4.0}));
+    const juce::Image image = view.createComponentSnapshot(view.getLocalBounds());
+
+    const float background = image.getPixelAt(12, 12).getBrightness();
+    const float beat_line = image.getPixelAt(25, 12).getBrightness();
+    const float measure_line = image.getPixelAt(0, 12).getBrightness();
+    CHECK(beat_line > background);
+    CHECK(measure_line > beat_line);
 }
 
 // Verifies audio shorter than the visible range is drawn into the matching view subset.
