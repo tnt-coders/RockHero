@@ -344,6 +344,8 @@ template <class ComponentType>
                 .start = common::core::TimePosition{},
                 .end = common::core::TimePosition{duration_seconds},
             },
+        .tempo_map =
+            common::core::TempoMap::defaultMap(common::core::TimeDuration{duration_seconds}),
         .arrangement = makeArrangementState(std::filesystem::path{"mix.wav"}, duration_seconds),
         .signal_chain =
             core::SignalChainViewState{

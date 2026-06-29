@@ -229,7 +229,7 @@ e.g. by bypass-ramping inactive branches rather than only zeroing their gain.
 
 ## Implementation Slices
 
-1. **Grid visibility**
+1. **Grid visibility** (complete)
    - Expose tempo-map view state through editor core.
    - Add shared time/grid-to-pixel helpers.
    - Draw measure and beat grid lines in the track viewport.
