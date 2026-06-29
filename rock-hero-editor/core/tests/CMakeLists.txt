@@ -37,6 +37,7 @@ add_executable(
     test_plugin_display_type.cpp
     test_signal_chain_block_placement.cpp
     test_signal_chain_workflow.cpp
+    test_timeline_geometry.cpp
     test_project.cpp
     test_editor_settings.cpp)
 

@@ -1,12 +1,11 @@
 #include "arrangement_view.h"
 
-#include "timeline_geometry.h"
-
 #include <algorithm>
 #include <cmath>
 #include <optional>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/editor/core/timeline_geometry.h>
 #include <utility>
 
 namespace rock_hero::editor::ui
@@ -154,11 +153,11 @@ void drawTempoGrid(
     {
         const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
         const double seconds = tempo_map.secondsAtBeat(measure, beat);
-        const auto x = timelineXForPosition(
+        const auto x = core::timelineXForPosition(
             common::core::TimePosition{seconds},
             visible_timeline,
             bounds.getWidth(),
-            TimelinePositionClamping::RejectOutsideVisibleRange);
+            core::TimelinePositionClamping::RejectOutsideVisibleRange);
         if (!x.has_value())
         {
             continue;
