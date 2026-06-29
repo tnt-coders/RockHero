@@ -1,33 +1,32 @@
 # Tempo Map Storage Shape Discussion
 
-Status: resolved. The discussion converged on a model that is none of the original candidates — see
-Resolution below. The candidate comparison (A/B and the time-signature/BPM notes) is kept as the
-design record; the durable model now lives in `docs/in-progress/tempo-map-implementation-plan.md`.
+Status: completed. The discussion converged on a warp-anchor tempo map, which is now captured in
+`docs/design/architecture.md` and `docs/in-progress/tempo-map-implementation-plan.md`. Historical
+note-storage ideas from this discussion are deferred to
+`docs/todo/chart-note-storage-future-work.md`.
 
 ## Resolution
 
-The shape settled on is a **warp-anchor grid plus grid-relative notes**, which supersedes the dense
-per-beat candidates (A and B) below:
+The tempo-map shape settled on is a **warp-anchor grid**, which supersedes the dense per-beat
+candidates (A and B) below:
 
 - **The grid stores only changes and pins.** Time-signature *changes* (`{ measure, numerator,
   denominator }`, carried forward) and a sparse set of **anchors** — beats pinned to absolute
   seconds (`{ measure, beat, seconds }`). Non-anchored beats interpolate linearly between anchors.
-  **Absolute seconds appear only on anchors**; measures, beats, and notes are all derived. Unchanged
-  measures are omitted; the final addressed anchor closes the last span.
+  **Absolute seconds appear only on anchors**; measures and beats are derived. Unchanged measures
+  are omitted; the final addressed anchor closes the last span.
 - **Anchor density is adaptive.** Place anchors only where even interpolation would miss the
   recording by more than ~1 ms (steady tempo → sparse; rubato → dense). Candidate B's per-beat
   storage is the maximal case of this; the chosen model keeps just the anchors that aren't
   derivable.
-- **Notes are grid-relative, not stored in the tempo map.** A note is `{ measure, beat, offset }`
-  with `offset ∈ [0,1)` the fraction to the next beat, baked to seconds at load. This makes import
-  trivial (raw fraction, no subdivision/tuplet snapping) and makes grid warping drift-free (the
-  offset is the stored invariant).
+- **Note storage is deferred.** Earlier discussion assumed grid-relative notes, but notes are not
+  part of the active tempo-map slice.
 
 Why this beat the candidates: A/B both stored every beat (and B nested them in measures), optimizing
 for fidelity Rock Hero's tight, grid-authored content does not need while paying for it in size and
 edit-hostility. The warp-anchor model stores only the non-derivable timing, follows the
-store-only-changes principle the rest of the format uses, and pairs cleanly with grid-relative notes.
-The full model, validation, persistence, and import are specified in the implementation plan.
+store-only-changes principle the rest of the format uses. The current validation and persistence
+work is specified in the implementation plan.
 
 ## Original Question
 
@@ -309,10 +308,10 @@ This was the cleanest dense-beat shape for human inspection and validation. It p
 timestamps, supported per-beat tempo changes, made meter obvious, and avoided duplicate
 measure-start data.
 
-The final decision supersedes this by storing only the timing that is not derivable: sparse
-measure/beat anchors plus grid-relative notes. Candidate B remains useful as the maximal-density
-mental model; a per-beat anchor map can still represent fully non-interpolated source timing when
-the recording requires it.
+The final tempo-map decision supersedes this by storing only the timing that is not derivable:
+sparse measure/beat anchors. Candidate B remains useful as the maximal-density mental model; a
+per-beat anchor map can still represent fully non-interpolated source timing when the recording
+requires it. Note storage is deferred to future chart work.
 
 ## Historical Open Questions
 

@@ -233,85 +233,67 @@ Song
   tempo_map         (song-level beat grid: time-signature changes + sparse beat anchors; the only
                      place absolute seconds are stored — see the timing note below)
   arrangements[*]
-    id            (stable project-local arrangement identifier)
-    part          (Lead | Rhythm | Bass)
-    difficulty    (0 Unknown, 1-10; derived from the chart, not persisted yet)
-    audio_asset    (required path/identifier for backing audio)
-    audio_duration (full natural duration of the audio asset)
-    tone_document_ref (package-relative tone document interpreted exclusively by common/audio)
-    tuning             (open-string note names; derives single-note pitch labels for readability)
-    chord_templates[*] (reusable voicings: id, display name, voicing of string/fret/finger)
-    events[*]          (one timed playable event: a single note or a chord instance)
-      start            (grid position; persisted as the token "<measure>:<beat>[+<fraction>]")
-      end              (optional grid position; absent means non-sustained)
-      <single note>    (string + fret, plus a writer-derived pitch label)
-      <chord>          (chord template id + per-string end / technique deviations)
+    id                (stable project-local arrangement identifier)
+    part              (Lead | Rhythm | Bass)
+    difficulty        (0 Unknown, 1-10; not persisted yet)
+    audio_asset        (required path/identifier for backing audio)
+    audio_duration     (full natural duration of the audio asset)
+    tone_document_ref  (package-relative tone document interpreted exclusively by common/audio)
 \endcode
 
-Arrangement difficulty is a value *derived* from the chart, not authored data a user sets by hand.
-The display tier is derived from the numeric rating: Easy for 1-2, Medium for 3-4, Hard for 5-6,
-Expert for 7-8, and Master for 9-10. A value of 0 represents Unknown so draft/default arrangements
-do not imply a fake difficulty; validation for playable songs should reject Unknown.
-
-The rating is computed from the note data by a deterministic difficulty calculator. Like audio
-normalization, it is intended to be persisted only as a cache validated against the chart and the
-calculator version and recomputed when stale — never hand-set. That calculator does not exist yet,
-so difficulty is currently not persisted in song packages and defaults to Unknown on load. See
+Arrangement difficulty is intended to be a value *derived* from playable chart data, not authored
+data a user sets by hand. The display tier is derived from the numeric rating: Easy for 1-2, Medium
+for 3-4, Hard for 5-6, Expert for 7-8, and Master for 9-10. A value of 0 represents Unknown so
+draft/default arrangements do not imply a fake difficulty; validation for playable songs should
+reject Unknown once playable chart data exists. Difficulty is currently not persisted in song
+packages and defaults to Unknown on load. See
 `docs/todo/arrangement-difficulty-derivation-plan.md`.
-
-Chart event positions are stored **grid-relative**, not as absolute seconds: an event's `start` (and
-optional sustain `end`) is a bar, a beat, and an exact fractional offset in [0,1) between beats,
-resolved to seconds at load through the song's tempo map. A single event is either one note (string +
-fret) or a chord that references a reusable per-arrangement template; the template owns the frets and
-fingering, so a chord never duplicates them. The tempo map is the source of truth for note positioning
-— Rock Hero charts are authored against
-a grid aligned to the fixed recording (the Guitar-Pro-with-backing-track model), so a note's musical
-position is its truth and its second is derived. The full grid model and its remaining slices (import,
-editor display, Tracktion sync) are tracked in `docs/in-progress/tempo-map-implementation-plan.md`.
 
 The tempo map is a **warp-anchor grid**: time signatures are stored as changes (carried forward),
 and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
 second). A start anchor (measure 1, beat 1) and a terminal anchor at the one-past-content downbeat
-are always required; every other beat, measure, and note interpolates, so absolute seconds appear
-only in anchors. Notes start before that terminal boundary, and sustains must end at or before it.
-This makes grid editing
-drift-free — moving an anchor re-resolves the notes charted to it, with the fractional offset as the
-stored invariant — and it deliberately gates scoring on grid accuracy. That is an accepted trade
-backed by editor grid-alignment tooling and authoring QA, not by runtime decoupling.
+are always required; every other beat and measure interpolates, so absolute seconds appear only in
+anchors. Anchor positions are persisted as on-beat tokens such as `"1:1"` and `"17:1"`.
 
-Note positions are **exact rational fractions** of a beat (a `numerator/denominator` such as `1/3` or
-`3/16`), not decimals. Rock Hero charts are authored by snapping notes onto a musical subdivision grid
-(the Guitar-Pro model), so a position is a subdivision and is stored exactly; a sustain `end` is a
-grid position on the same subdivisions, each offset reducing to a denominator of at most 1024 (the
-finest stored subdivision). This keeps subdivisions, snapping, and warp-following lossless and removes any rounding
-between the in-memory model and the persisted form. The fraction is the `Fraction` value type in
-`rock-hero-common/core`.
+The persisted tempo-map shape is:
 
-Anchor seconds — the only absolute time stored — keep a fixed three-decimal (millisecond) grid, with
-at most +/-0.5 ms quantization error. That is below the onset-detection / latency / hit-window floor
-for the charting and scoring work planned here; higher precision is intentionally avoided, since fuzzy
-note onsets (a guitar attack ramps over several milliseconds) do not carry it. Note positions do not
-use this decimal grid at all — they are exact fractions.
+\code{.json}
+{
+  "tempoMap": {
+    "timeSignatures": [
+      { "measure": 1,  "numerator": 4, "denominator": 4 },
+      { "measure": 17, "numerator": 7, "denominator": 8 },
+      { "measure": 25, "numerator": 4, "denominator": 4 }
+    ],
+    "anchors": [
+      { "position": "1:1",  "seconds": 1.840 },
+      { "position": "17:1", "seconds": 28.057 },
+      { "position": "33:1", "seconds": 48.500 }
+    ]
+  }
+}
+\endcode
 
-MIDI-driven synthesized audio fits this model directly. A synthesized voice renders to the audio
-transport's sample clock, and a grid-relative note already bakes to a second at load, so generated
-instrument audio rides the same seconds/sample runtime timeline as the recording and scoring (string
-and fret map to pitch through tuning, a synthesis concern). Because positions are grid-relative they
-also follow tempo/grid edits by construction — there is no separate tempo-editable storage mode to
-add later; warping the grid moves the notes.
+Anchor seconds - the only absolute time stored by the tempo map - keep a fixed three-decimal
+(millisecond) grid, with at most +/-0.5 ms quantization error. That is below the onset-detection /
+latency / hit-window floor for the charting and scoring work planned here; higher precision is
+intentionally avoided, since fuzzy note onsets do not carry it.
+
+Playable note, chord, tuning, technique, and synthesized-instrument storage is intentionally
+deferred. Those decisions should be added when note display, gameplay, or import/export work needs a
+real chart model. The current tone-system slice needs only the settled tempo map plus arrangement
+audio and tone-document references.
 
 `Song` is the persistence root. The editor session projects the song's arrangements into a
-headless `Session` and displays one arrangement at a time. Native song package loading
-validates archive structure, safe asset paths, and required arrangement audio references. Before a
-parsed song is committed to the editor session, the editor workflow validates every arrangement's
-audio through the `rock-hero-common/audio` boundary and rejects the project if any asset is
-unreadable or reports a non-positive duration. When an arrangement is selected, the application
-passes its `audio_asset`
-to `rock-hero-common/audio` for playback and waveform generation, and passes `tone_document_ref`
-to `rock-hero-common/audio` as a package-relative tone document reference. The game or editor reads
-the arrangement notes to drive gameplay or authoring. `rock-hero-common/core` validates and
-persists the tone document reference but never interprets the referenced tone data - that belongs
-entirely to `rock-hero-common/audio`.
+headless `Session` and displays one arrangement at a time. Native song package loading validates
+archive structure, safe asset paths, and required arrangement audio references. Before a parsed song
+is committed to the editor session, the editor workflow validates every arrangement's audio through
+the `rock-hero-common/audio` boundary and rejects the project if any asset is unreadable or reports a
+non-positive duration. When an arrangement is selected, the application passes its `audio_asset` to
+`rock-hero-common/audio` for playback and waveform generation, and passes `tone_document_ref` to
+`rock-hero-common/audio` as a package-relative tone document reference. `rock-hero-common/core`
+validates and persists the tone document reference but never interprets the referenced tone data -
+that belongs entirely to `rock-hero-common/audio`.
 
 The editor-facing song-audio boundary is `common::audio::ISongAudio`: it prepares loaded songs by
 validating arrangement audio and filling accepted durations, makes the selected arrangement active

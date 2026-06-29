@@ -1,8 +1,7 @@
 # Remaining God-Object Decomposition Plan
 
-Status: in progress (planning). Two independently executable parts. Part A (Engine
-implementation-seam split) is the high-value work; Part B (`IEditorController` segmentation) is
-real but modest and may be deferred after reading its scope.
+Status: future work. This broad audio/editor decomposition is not part of the current tempo-map or
+tone-system slice. Re-read the current code before implementing it.
 
 ## Scope
 

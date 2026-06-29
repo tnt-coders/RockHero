@@ -79,7 +79,6 @@ static_assert(std::derived_from<Engine, IThumbnailFactory>);
             .audio_asset = audio_asset,
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
-            .events = {},
         });
     return song;
 }
@@ -800,7 +799,6 @@ TEST_CASE(
             .audio_asset = missing_asset,
             .audio_duration = common::core::TimeDuration{1.0},
             .tone_document_ref = {},
-            .events = {},
         });
 
     transport.removeListener(recorder);

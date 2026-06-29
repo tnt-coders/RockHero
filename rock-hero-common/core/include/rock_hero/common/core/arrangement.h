@@ -1,19 +1,15 @@
 /*!
 \file arrangement.h
-\brief Arrangement entity: one playable route with audio, tone automation, tuning, and chart.
+\brief Arrangement entity: one playable route with audio and tone automation.
 */
 
 #pragma once
 
 #include <cstdint>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/chart_event.h>
-#include <rock_hero/common/core/chord_template.h>
 #include <rock_hero/common/core/difficulty.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/common/core/tuning.h>
 #include <string>
-#include <vector>
 
 namespace rock_hero::common::core
 {
@@ -33,9 +29,8 @@ enum class Part : std::uint8_t
 \brief One playable route, identified by part and numeric difficulty.
 
 An Arrangement owns the playable data for one path through a song: the backing audio selected for
-that path, the package-relative tone document used by the audio adapter, the instrument tuning, the
-reusable chord templates, and the ChartEvents the player must execute. Core treats these as plain
-data; scoring and audio interpretation live outside this module.
+that path and the package-relative tone document used by the audio adapter. Chart, tuning, and
+note-event storage are intentionally deferred until note display or gameplay needs the model.
 */
 struct Arrangement
 {
@@ -61,15 +56,6 @@ struct Arrangement
     the target document as opaque audio-owned data.
     */
     std::string tone_document_ref;
-
-    /*! \brief Instrument tuning used to derive single-note pitch labels. */
-    Tuning tuning;
-
-    /*! \brief Reusable chord voicings referenced by chord events, scoped to this arrangement. */
-    std::vector<ChordTemplate> chord_templates;
-
-    /*! \brief Ordered chart events (single notes and chords) the player must execute. */
-    std::vector<ChartEvent> events;
 
     /*!
     \brief Calculates the range occupied by the arrangement audio on the session timeline.
