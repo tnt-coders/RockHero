@@ -223,17 +223,28 @@ const juce::Colour g_measure_grid_colour{108, 108, 108};
     return "Save changes before continuing?";
 }
 
-// Builds the shared row mask that turns full-height one-pixel lines into pixel-crisp dots.
-[[nodiscard]] juce::RectangleList<int> dottedTempoGridRows(juce::Rectangle<int> bounds)
+// Returns the first dotted-grid row in the current paint clip, preserving the pattern's content
+// origin so partial cursor repaints do not make dots shimmer vertically.
+[[nodiscard]] int firstTempoGridDotYInClip(
+    juce::Rectangle<int> bounds, juce::Rectangle<int> visible_clip) noexcept
 {
-    juce::RectangleList<int> rows;
     constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
-    for (int y = bounds.getY(); y < bounds.getBottom(); y += dot_stride)
+    const int first_visible_y = std::max(bounds.getY(), visible_clip.getY());
+    const int offset = (first_visible_y - bounds.getY()) % dot_stride;
+    return offset == 0 ? first_visible_y : first_visible_y + dot_stride - offset;
+}
+
+// Draws one vertical tempo-grid line as 1px dots clipped to the visible repaint span.
+void drawDottedTempoGridLine(
+    juce::Graphics& g, int x, juce::Rectangle<int> bounds, juce::Rectangle<int> visible_clip)
+{
+    constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
+    const int bottom = std::min(bounds.getBottom(), visible_clip.getBottom());
+
+    for (int y = firstTempoGridDotYInClip(bounds, visible_clip); y < bottom; y += dot_stride)
     {
-        rows.addWithoutMerging(
-            juce::Rectangle<int>{bounds.getX(), y, bounds.getWidth(), g_tempo_grid_dot_size});
+        g.fillRect(x, y, g_tempo_grid_dot_size, g_tempo_grid_dot_size);
     }
-    return rows;
 }
 
 // Draws beat and measure grid dots from the song tempo map into the visible timeline.
@@ -247,11 +258,8 @@ void drawTempoGrid(
     }
 
     // Resolve which beat lines are visible in editor-core so the geometry stays headless and unit
-    // tested; this view only maps the results to colours and the dotted clip. The visible span comes
-    // from the clip captured before reducing it, expressed in drawing-width coordinates (hence the
-    // shift by bounds.getX()). Off-screen lines are not free to skip later: the dotted-row clip is a
-    // RectangleListRegion and JUCE's SubRectangleIterator walks every row strip per fillRect with no
-    // bounding-box reject, so culling here keeps cost tied to visible beats rather than song length.
+    // tested; this view only maps the results to colours and dots. The visible span is expressed in
+    // drawing-width coordinates, hence the shift by bounds.getX().
     const juce::Rectangle<int> visible_clip = g.getClipBounds();
     const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
         tempo_map,
@@ -260,22 +268,11 @@ void drawTempoGrid(
         visible_clip.getX() - bounds.getX(),
         visible_clip.getRight() - bounds.getX());
 
-    g.saveState();
-    const bool has_dotted_row_clip = g.reduceClipRegion(dottedTempoGridRows(bounds));
-    if (!has_dotted_row_clip)
-    {
-        g.restoreState();
-        return;
-    }
-
     for (const core::TempoGridLine& line : lines)
     {
         g.setColour(line.measure_start ? g_measure_grid_colour : g_beat_grid_colour);
-        g.fillRect(
-            bounds.getX() + line.x, bounds.getY(), g_tempo_grid_dot_size, bounds.getHeight());
+        drawDottedTempoGridLine(g, bounds.getX() + line.x, bounds, visible_clip);
     }
-
-    g.restoreState();
 }
 
 } // namespace
