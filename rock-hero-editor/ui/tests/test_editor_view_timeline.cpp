@@ -1,4 +1,7 @@
+#include <algorithm>
+#include <cmath>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
+#include <tuple>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -199,25 +202,37 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
 
-    const auto grid_line_brightness = [&arrangement_view, &state](double seconds) {
+    const auto grid_line_x = [&track_content, &state](double seconds) {
         const auto x = cursorXForTimelinePosition(
-            common::core::TimePosition{seconds},
-            state.visible_timeline,
-            arrangement_view.getWidth());
+            common::core::TimePosition{seconds}, state.visible_timeline, track_content.getWidth());
         REQUIRE(x.has_value());
+        return static_cast<int>(std::round(*x));
+    };
+
+    const auto grid_line_brightness = [&track_content, &grid_line_x](double seconds, int y) {
+        const int x = grid_line_x(seconds);
+        const int background_x = std::min(track_content.getWidth() - 1, x + 12);
 
         const juce::Image image =
-            arrangement_view.createComponentSnapshot(arrangement_view.getLocalBounds());
-        return std::pair{
-            static_cast<int>(std::round(*x)),
-            image.getPixelAt(static_cast<int>(std::round(*x)), arrangement_view.getHeight() / 2)
-                .getBrightness(),
+            track_content.createComponentSnapshot(track_content.getLocalBounds());
+        return std::tuple{
+            x,
+            image.getPixelAt(x, y).getBrightness(),
+            image.getPixelAt(background_x, y).getBrightness(),
         };
     };
 
-    const int default_width = arrangement_view.getWidth();
-    const auto [default_x, default_brightness] = grid_line_brightness(1.0);
-    CHECK(default_brightness > 0.0f);
+    const int waveform_y = arrangement_view.getHeight() / 2;
+    const int lower_track_y = arrangement_view.getBottom() + 20;
+    REQUIRE(lower_track_y < track_content.getHeight());
+    const int default_width = track_content.getWidth();
+    const auto [default_x, default_waveform_brightness, default_waveform_background] =
+        grid_line_brightness(1.0, waveform_y);
+    const auto [default_lower_x, default_lower_brightness, default_lower_background] =
+        grid_line_brightness(1.0, lower_track_y);
+    CHECK(default_lower_x == default_x);
+    CHECK(default_waveform_brightness > default_waveform_background);
+    CHECK(std::abs(default_lower_brightness - default_lower_background) > 0.01f);
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -229,10 +244,47 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
             .isInertial = false,
         });
 
-    const auto [zoomed_x, zoomed_brightness] = grid_line_brightness(1.0);
-    CHECK(arrangement_view.getWidth() > default_width);
+    const auto [zoomed_x, zoomed_brightness, zoomed_background] =
+        grid_line_brightness(1.0, lower_track_y);
+    CHECK(track_content.getWidth() > default_width);
     CHECK(zoomed_x > default_x);
-    CHECK(zoomed_brightness > 0.0f);
+    CHECK(std::abs(zoomed_brightness - zoomed_background) > 0.01f);
+}
+
+// Verifies the content-level grid is below waveform drawing but above the waveform row background.
+TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+    REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
+    thumbnail_factory.last_thumbnail->fill_colour = juce::Colours::lightgreen;
+
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    const auto x = cursorXForTimelinePosition(
+        common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
+    REQUIRE(x.has_value());
+
+    const int line_x = static_cast<int>(std::round(*x));
+    const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
+    const int waveform_y = arrangement_view.getHeight() / 2;
+    const int lower_track_y = arrangement_view.getBottom() + 20;
+    REQUIRE(lower_track_y < track_content.getHeight());
+    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
+
+    CHECK(image.getPixelAt(line_x, waveform_y) == juce::Colours::lightgreen);
+    CHECK(
+        std::abs(
+            image.getPixelAt(line_x, lower_track_y).getBrightness() -
+            image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
 }
 
 // Verifies zooming all the way out can fit a long timeline into the viewport.

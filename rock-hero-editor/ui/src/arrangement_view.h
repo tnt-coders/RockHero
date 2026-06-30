@@ -9,7 +9,6 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
 
@@ -29,8 +28,8 @@ namespace rock_hero::editor::ui
 \brief Renders the current arrangement from framework-free state.
 
 The view owns one thumbnail renderer for the arrangement's full-source audio and draws the
-currently visible timeline range. Cursor motion is intentionally excluded; EditorView owns the
-editor-wide cursor overlay.
+currently visible timeline range. Cursor and tempo-grid overlays are intentionally excluded;
+EditorView owns editor-wide timeline overlays.
 */
 class ArrangementView : public juce::Component
 {
@@ -121,12 +120,6 @@ public:
     void setVisibleTimeline(common::core::TimeRange visible_timeline);
 
     /*!
-    \brief Applies the song-level tempo map used to draw the beat grid.
-    \param tempo_map Tempo map for the currently displayed song.
-    */
-    void setTempoMap(common::core::TempoMap tempo_map);
-
-    /*!
     \brief Applies the current framework-free arrangement-view state.
 
     The view refreshes its thumbnail source when the assigned arrangement audio changes.
@@ -154,7 +147,7 @@ public:
     void mouseDown(const juce::MouseEvent& event) override;
 
     /*!
-    \brief Draws row background, empty states, and waveform content.
+    \brief Draws empty states and waveform content.
     \param g Graphics context used for drawing.
     */
     void paint(juce::Graphics& g) override;
@@ -171,9 +164,6 @@ private:
 
     // Editor-visible timeline range used to choose the waveform span.
     common::core::TimeRange m_visible_timeline{};
-
-    // Song-level tempo map used to render beat and measure grid lines.
-    common::core::TempoMap m_tempo_map{};
 
     // Arrangement-view-owned thumbnail used to render static waveform content.
     std::unique_ptr<common::audio::IThumbnail> m_thumbnail;
