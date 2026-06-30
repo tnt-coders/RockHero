@@ -70,12 +70,17 @@ public:
     \return Configured draw result.
     */
     [[nodiscard]] bool drawChannels(
-        juce::Graphics& /*g*/, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
+        juce::Graphics& g, juce::Rectangle<int> bounds, common::core::TimeRange visible_range,
         float vertical_zoom) override
     {
         last_draw_bounds = bounds;
         last_drawn_visible_range = visible_range;
         last_vertical_zoom = vertical_zoom;
+        if (fill_colour.has_value())
+        {
+            g.setColour(*fill_colour);
+            g.fillRect(bounds);
+        }
         return draw_result;
     }
 
@@ -90,6 +95,9 @@ public:
 
     /*! \brief Last vertical zoom requested during paint. */
     std::optional<float> last_vertical_zoom{};
+
+    /*! \brief Optional solid colour drawn into the requested waveform bounds during tests. */
+    std::optional<juce::Colour> fill_colour{};
 
     /*! \brief Number of source assignments received. */
     int set_source_call_count{0};
