@@ -59,12 +59,15 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 
     auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
     auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(controls.getBounds() == juce::Rectangle<int>{8, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
+    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 32});
+    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 32, 484, 48});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 160, 484, 32});
     CHECK(
         arrangement_view.getBounds() ==
@@ -86,12 +89,15 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     view.setBounds(0, 0, 1280, 800);
 
     auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
+    auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 472});
+    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 1264, 32});
+    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 32, 1264, 440});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 552, 1264, 240});
     CHECK(
         track_content.getBounds() ==
