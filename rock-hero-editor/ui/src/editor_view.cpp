@@ -5,12 +5,14 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <memory>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/editor/core/timeline_geometry.h>
 #include <utility>
 
@@ -55,6 +57,8 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
+const juce::Colour g_beat_grid_colour{46, 46, 46};
+const juce::Colour g_measure_grid_colour{108, 108, 108};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -216,6 +220,45 @@ const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)
     return "Save changes before continuing?";
 }
 
+// Draws beat and measure grid lines from the song tempo map into the visible timeline.
+void drawTempoGrid(
+    juce::Graphics& g, const common::core::TempoMap& tempo_map,
+    common::core::TimeRange visible_timeline, juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty() || visible_timeline.duration().seconds <= 0.0)
+    {
+        return;
+    }
+
+    const std::int64_t terminal_beat = tempo_map.terminalGlobalBeatIndex();
+    for (std::int64_t beat_index = 0; beat_index <= terminal_beat; ++beat_index)
+    {
+        const auto [measure, beat] = tempo_map.beatAtGlobalIndex(beat_index);
+        const double seconds = tempo_map.secondsAtBeat(measure, beat);
+        const auto x = core::timelineXForPosition(
+            common::core::TimePosition{seconds},
+            visible_timeline,
+            bounds.getWidth(),
+            core::TimelinePositionClamping::RejectOutsideVisibleRange);
+        if (!x.has_value())
+        {
+            continue;
+        }
+
+        const bool measure_start = beat == 1;
+        const int line_x = bounds.getX() + static_cast<int>(std::round(*x));
+        const int thickness = measure_start ? 2 : 1;
+        const int clipped_thickness = std::min(thickness, bounds.getRight() - line_x);
+        if (clipped_thickness <= 0)
+        {
+            continue;
+        }
+
+        g.setColour(measure_start ? g_measure_grid_colour : g_beat_grid_colour);
+        g.fillRect(line_x, bounds.getY(), clipped_thickness, bounds.getHeight());
+    }
+}
+
 } // namespace
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
@@ -356,7 +399,7 @@ private:
             repaint();
         }
 
-        // Draws the darker viewport canvas and centered empty-project status text.
+        // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
         void paint(juce::Graphics& g) override
         {
             const auto bounds = getLocalBounds();
@@ -364,6 +407,9 @@ private:
 
             if (m_project_loaded)
             {
+                g.setColour(juce::Colours::black);
+                g.fillRect(bounds.withHeight(m_owner.primaryTrackHeight()));
+                drawTempoGrid(g, m_owner.m_tempo_map, m_owner.m_timeline_range, bounds);
                 return;
             }
 
@@ -456,6 +502,18 @@ public:
         }
 
         layoutScaledCanvas();
+    }
+
+    // Stores the tempo map used by the content background grid.
+    void setTempoMap(common::core::TempoMap tempo_map)
+    {
+        if (m_tempo_map == tempo_map)
+        {
+            return;
+        }
+
+        m_tempo_map = std::move(tempo_map);
+        m_content.repaint();
     }
 
     // Stores coarse transport state pushed by the controller and handles Stop-button reset.
@@ -575,6 +633,7 @@ private:
         m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
         m_cursor_overlay.setBounds(m_content.getLocalBounds());
         m_cursor_overlay.toFront(false);
+        m_content.repaint();
     }
 
     // Changes the horizontal timeline scale around the current transport cursor.
@@ -721,6 +780,9 @@ private:
     // Full timeline range represented by the current zoomed content width.
     common::core::TimeRange m_timeline_range{};
 
+    // Song-level tempo map used to render beat and measure grid lines.
+    common::core::TempoMap m_tempo_map{};
+
     // Horizontal timeline scale used to size the zoomed content canvas.
     double m_pixels_per_second{g_default_pixels_per_second};
 
@@ -851,6 +913,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
         m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
+    m_track_viewport->setTempoMap(m_state.tempo_map);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         m_track_viewport->requestCursorFocus();
@@ -861,7 +924,6 @@ void EditorView::setState(const core::EditorViewState& state)
     refreshAudioMeters();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
-    m_arrangement_view.setTempoMap(m_state.tempo_map);
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
