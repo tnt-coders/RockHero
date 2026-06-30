@@ -4333,6 +4333,20 @@ std::expected<void, SongAudioError> Engine::setActiveArrangement(
         }};
     }
 
+    // Play the user's backing file directly instead of through Tracktion's cached/offline proxy.
+    // Two reasons, both load-bearing:
+    //  - Compressed sources (.ogg) default to proxy-enabled, so getPlaybackFile() returns a proxy
+    //    that is still being rendered asynchronously when the user presses Space right after open.
+    //    WaveNodeRealTime then has no reader and plays silence until the proxy lands and Tracktion
+    //    calls restartPlayback() -- the observed silent-scroll-then-freeze regression.
+    //  - Practice-speed playback time-stretches this clip live. With a proxy, every speed change
+    //    invalidates the proxy hash and schedules a fresh offline render + restartPlayback, stalling
+    //    the slider. Proxy-off routes through WaveNodeRealTime's elastique reader, which stretches
+    //    the original source in realtime and responds to speed changes immediately.
+    // WaveNodeRealTime streams compressed sources via BufferedAudioFileManager, so a single backing
+    // track stays cheap at 1x and only pays elastique cost while actually slowed or sped up.
+    wave_clip->setUsesProxy(false);
+
     // Apply persisted normalization gain so playback volume matches the analyzed loudness target.
     if (arrangement.audio_asset.normalization.has_value())
     {
