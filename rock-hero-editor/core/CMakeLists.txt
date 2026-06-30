@@ -37,6 +37,7 @@ target_sources(
             src/editor_settings_error.cpp
             src/rock_song_importer.cpp
             src/song_import_error.cpp
+            src/tempo_grid_geometry.cpp
             src/timeline_geometry.cpp
             src/editor_settings.cpp)
 
