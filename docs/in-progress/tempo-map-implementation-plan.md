@@ -108,6 +108,19 @@ struct Arrangement
 5. Keep focused tests for malformed tempo maps, writer formatting, arrangement references, and
    missing tone documents.
 
+## Playback Interactions
+
+Recorded for context; not part of this persistence work.
+
+- **Grid alignment does not stretch the source audio.** The tempo map warps the beat grid over
+  fixed backing audio; it does not time-stretch the backing clip.
+- **Whole-track practice speed is a separate, realtime feature.** Slowing or speeding the backing
+  track to practice guitar along with it time-stretches the backing clip live (pitch preserved). It
+  uses Tracktion's realtime elastique path, not an offline render. This is why backing playback runs
+  with the Tracktion proxy disabled (`Engine::setActiveArrangement` calls `setUsesProxy(false)`):
+  proxy-on would re-render and stall on every speed change. See
+  `docs/in-progress/tracktion-proxy-startup-playback-regression.md`.
+
 ## Non-Goals
 
 - No note, chord, tuning, technique, or gameplay chart persistence.
