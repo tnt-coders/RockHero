@@ -2496,30 +2496,16 @@ private:
     void valueTreePropertyChanged(
         juce::ValueTree& /*tree*/, const juce::Identifier& property) override
     {
-        if (property == tracktion::IDs::position && loadedAudioEndReached(currentBackendPosition()))
+        if (property != tracktion::IDs::position)
+        {
+            return;
+        }
+
+        const double position_seconds = m_edit->getTransport().getPosition().inSeconds();
+        if (loadedAudioEndReached(position_seconds))
         {
             stopTransport();
         }
-    }
-
-    // Returns the timeline position the playback backend is currently producing, in seconds.
-    //
-    // During playback, the audible-timeline time trails the transport head by buffer latency and
-    // best matches what leaves the output device. While stopped, instrument monitoring can keep a
-    // Tracktion context allocated, so stopped reads must use the transport head instead of treating
-    // the mere presence of a context as evidence of backing-track playback.
-    [[nodiscard]] double currentBackendPosition() const
-    {
-        auto& transport = m_edit->getTransport();
-        if (transport.isPlaying())
-        {
-            if (auto* const playback_context = transport.getCurrentPlaybackContext();
-                playback_context != nullptr)
-            {
-                return playback_context->getAudibleTimelineTime().inSeconds();
-            }
-        }
-        return transport.getPosition().inSeconds();
     }
 
     // Keeps externally requested positions inside the current loaded file duration.
@@ -4242,11 +4228,22 @@ TransportState Engine::state() const noexcept
     return m_impl->currentTransportState();
 }
 
-// Reads the timeline position for render-cadence cursor drawing. Delegates to the backend
-// position helper, which uses audible time only while backing playback is running.
+// Reads audible playback time while running so Tracktion's post-seek UI hold does not stall the
+// editor cursor for the first few frames after a live seek.
 common::core::TimePosition Engine::position() const noexcept
 {
-    return common::core::TimePosition{m_impl->clampToLoadedRange(m_impl->currentBackendPosition())};
+    auto& transport = m_impl->m_edit->getTransport();
+    double position_seconds = transport.getPosition().inSeconds();
+    if (transport.isPlaying())
+    {
+        if (auto* const playback_context = transport.getCurrentPlaybackContext();
+            playback_context != nullptr)
+        {
+            position_seconds = playback_context->getAudibleTimelineTime().inSeconds();
+        }
+    }
+
+    return common::core::TimePosition{m_impl->clampToLoadedRange(position_seconds)};
 }
 
 // Validates every arrangement audio file and records the accepted backend durations.
