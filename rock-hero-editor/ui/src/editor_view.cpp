@@ -53,6 +53,8 @@ constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
+constexpr int g_tempo_grid_dot_size{1};
+constexpr int g_tempo_grid_dot_gap{1};
 
 const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
@@ -220,7 +222,22 @@ const juce::Colour g_measure_grid_colour{108, 108, 108};
     return "Save changes before continuing?";
 }
 
-// Draws beat and measure grid lines from the song tempo map into the visible timeline.
+// Draws one vertical dotted grid line. Dot size and gap are equal so the pattern stays pixel-crisp.
+void drawDottedTempoGridLine(juce::Graphics& g, int line_x, juce::Rectangle<int> bounds)
+{
+    if (line_x < bounds.getX() || line_x >= bounds.getRight())
+    {
+        return;
+    }
+
+    constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
+    for (int y = bounds.getY(); y < bounds.getBottom(); y += dot_stride)
+    {
+        g.fillRect(line_x, y, g_tempo_grid_dot_size, g_tempo_grid_dot_size);
+    }
+}
+
+// Draws beat and measure grid dots from the song tempo map into the visible timeline.
 void drawTempoGrid(
     juce::Graphics& g, const common::core::TempoMap& tempo_map,
     common::core::TimeRange visible_timeline, juce::Rectangle<int> bounds)
@@ -247,15 +264,8 @@ void drawTempoGrid(
 
         const bool measure_start = beat == 1;
         const int line_x = bounds.getX() + static_cast<int>(std::round(*x));
-        const int thickness = measure_start ? 2 : 1;
-        const int clipped_thickness = std::min(thickness, bounds.getRight() - line_x);
-        if (clipped_thickness <= 0)
-        {
-            continue;
-        }
-
         g.setColour(measure_start ? g_measure_grid_colour : g_beat_grid_colour);
-        g.fillRect(line_x, bounds.getY(), clipped_thickness, bounds.getHeight());
+        drawDottedTempoGridLine(g, line_x, bounds);
     }
 }
 
