@@ -36,6 +36,12 @@ namespace
     };
 }
 
+// Returns a y coordinate that lands on the 1px-on row of the timeline grid dot pattern.
+[[nodiscard]] int gridDotYAtOrAfter(int y) noexcept
+{
+    return y + y % 2;
+}
+
 } // namespace
 
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.
@@ -222,17 +228,22 @@ TEST_CASE("EditorView tempo grid follows zoomed timeline width", "[ui][editor-vi
         };
     };
 
-    const int waveform_y = arrangement_view.getHeight() / 2;
-    const int lower_track_y = arrangement_view.getBottom() + 20;
-    REQUIRE(lower_track_y < track_content.getHeight());
+    const int waveform_y = gridDotYAtOrAfter(arrangement_view.getHeight() / 2);
+    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+    const int lower_track_gap_y = lower_track_y + 1;
+    REQUIRE(lower_track_gap_y < track_content.getHeight());
     const int default_width = track_content.getWidth();
     const auto [default_x, default_waveform_brightness, default_waveform_background] =
         grid_line_brightness(1.0, waveform_y);
     const auto [default_lower_x, default_lower_brightness, default_lower_background] =
         grid_line_brightness(1.0, lower_track_y);
+    const auto [default_gap_x, default_gap_brightness, default_gap_background] =
+        grid_line_brightness(1.0, lower_track_gap_y);
     CHECK(default_lower_x == default_x);
+    CHECK(default_gap_x == default_x);
     CHECK(default_waveform_brightness > default_waveform_background);
     CHECK(std::abs(default_lower_brightness - default_lower_background) > 0.01f);
+    CHECK(std::abs(default_gap_brightness - default_gap_background) < 0.01f);
 
     track_content.mouseWheelMove(
         makeMouseDownEvent(track_content, 20.0f, 20.0f),
@@ -276,8 +287,9 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
     const int line_x = static_cast<int>(std::round(*x));
     const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
     const int waveform_y = arrangement_view.getHeight() / 2;
-    const int lower_track_y = arrangement_view.getBottom() + 20;
-    REQUIRE(lower_track_y < track_content.getHeight());
+    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+    const int lower_track_gap_y = lower_track_y + 1;
+    REQUIRE(lower_track_gap_y < track_content.getHeight());
     const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
 
     CHECK(image.getPixelAt(line_x, waveform_y) == juce::Colours::lightgreen);
@@ -285,6 +297,14 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
         std::abs(
             image.getPixelAt(line_x, lower_track_y).getBrightness() -
             image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
+    CHECK(
+        std::abs(
+            image.getPixelAt(line_x, lower_track_gap_y).getBrightness() -
+            image.getPixelAt(background_x, lower_track_gap_y).getBrightness()) < 0.01f);
+    CHECK(
+        std::abs(
+            image.getPixelAt(0, lower_track_y).getBrightness() -
+            image.getPixelAt(1, lower_track_y).getBrightness()) > 0.01f);
 }
 
 // Verifies zooming all the way out can fit a long timeline into the viewport.
