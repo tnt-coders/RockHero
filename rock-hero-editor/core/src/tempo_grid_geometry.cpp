@@ -103,9 +103,9 @@ std::vector<TempoGridLine> visibleTempoGridLines(
         const bool measure_start = beat == 1;
         if (!lines.empty() && lines.back().x == column)
         {
-            // Several beats round onto one column when zoomed far out; keep the downbeat colour so
+            // Several beats round onto one column when zoomed far out; keep the downbeat color so
             // measure boundaries still read at low zoom. If a later beat in the same column is the
-            // first downbeat, keep that musical position too so ruler labels match the colour.
+            // first downbeat, keep that musical position too so ruler labels match the color.
             if (measure_start && !lines.back().measure_start)
             {
                 lines.back().measure = measure;

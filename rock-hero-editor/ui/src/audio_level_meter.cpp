@@ -39,7 +39,7 @@ constexpr std::array<double, 5> g_vertical_tick_db = {0.0, -12.0, -24.0, -36.0, 
 constexpr float g_tick_font_size{9.0f};
 constexpr int g_horizontal_tick_min_center_gap{22};
 constexpr int g_vertical_tick_min_center_gap{18};
-const juce::Colour g_tick_label_colour{juce::Colours::white.withAlpha(0.7f)};
+const juce::Colour g_tick_label_color{juce::Colours::white.withAlpha(0.7f)};
 
 // Maps a dB value to a display fraction across the full visual meter range (-60..+6).
 [[nodiscard]] constexpr double displayFraction(double db) noexcept
@@ -47,8 +47,8 @@ const juce::Colour g_tick_label_colour{juce::Colours::white.withAlpha(0.7f)};
     return std::clamp((db - g_display_min_db) / g_display_range_db, 0.0, 1.0);
 }
 
-// Selects a readable fill colour based on peak level.
-[[nodiscard]] juce::Colour fillColourForLevel(common::audio::AudioMeterLevel level)
+// Selects a readable fill color based on peak level.
+[[nodiscard]] juce::Colour fillColorForLevel(common::audio::AudioMeterLevel level)
 {
     if (level.clipping || level.peak_db >= -3.0)
     {
@@ -74,7 +74,7 @@ void drawHorizontalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
 
     const juce::Font tick_font{juce::FontOptions{g_tick_font_size}};
     g.setFont(tick_font);
-    g.setColour(g_tick_label_colour);
+    g.setColour(g_tick_label_color);
     constexpr int label_width = 22;
     constexpr int tick_length = 3;
     constexpr int tick_inset = 1;
@@ -129,7 +129,7 @@ void drawVerticalTickLabels(juce::Graphics& g, juce::Rectangle<int> inner)
 
     const juce::Font tick_font{juce::FontOptions{g_tick_font_size}};
     g.setFont(tick_font);
-    g.setColour(g_tick_label_colour);
+    g.setColour(g_tick_label_color);
     constexpr int label_height = 12;
     constexpr int tick_length = 3;
     constexpr int tick_inset = 1;
@@ -263,7 +263,7 @@ void AudioLevelMeter::paint(juce::Graphics& g)
         const int fill_width = static_cast<int>(std::round(inner.getWidth() * fill_fraction));
         if (fill_width > 0)
         {
-            g.setColour(fillColourForLevel(m_level));
+            g.setColour(fillColorForLevel(m_level));
             g.fillRect(inner.withWidth(fill_width));
         }
     }
@@ -272,7 +272,7 @@ void AudioLevelMeter::paint(juce::Graphics& g)
         const int fill_height = static_cast<int>(std::round(inner.getHeight() * fill_fraction));
         if (fill_height > 0)
         {
-            g.setColour(fillColourForLevel(m_level));
+            g.setColour(fillColorForLevel(m_level));
             g.fillRect(
                 inner.getX(), inner.getBottom() - fill_height, inner.getWidth(), fill_height);
         }

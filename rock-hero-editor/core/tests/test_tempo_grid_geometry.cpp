@@ -116,7 +116,7 @@ TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core
 TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid]")
 {
     // 400 beats squeezed into a five-pixel width: every column collects many beats, including
-    // downbeats, so each surviving line keeps the measure colour.
+    // downbeats, so each surviving line keeps the measure color.
     const common::core::TempoMap map = makeUniform44Map(100, 4.0);
     constexpr common::core::TimeRange window{
         .start = common::core::TimePosition{0.0},
