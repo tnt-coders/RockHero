@@ -252,40 +252,64 @@ void appendDottedTempoGridLine(
     }
 }
 
-// Draws beat and measure grid dots from the song tempo map into the visible timeline.
-void drawTempoGrid(
-    juce::Graphics& g, const common::core::TempoMap& tempo_map,
-    common::core::TimeRange visible_timeline, juce::Rectangle<int> bounds)
+// Resolves the beat/measure column positions visible across the full content width. Kept separate
+// from drawing so callers can cache the result and only rerun the tempo-map scan when the timeline
+// geometry or tempo map actually changes, not on every repaint.
+void tempoGridColumns(
+    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
+    std::vector<int>& beat_grid_x, std::vector<int>& measure_grid_x)
 {
-    if (bounds.isEmpty() || visible_timeline.duration().seconds <= 0.0)
+    beat_grid_x.clear();
+    measure_grid_x.clear();
+
+    if (width <= 0 || visible_timeline.duration().seconds <= 0.0)
     {
         return;
     }
 
-    // Resolve which beat lines are visible in editor-core so the geometry stays headless and unit
-    // tested; this view only maps the results to colors and dots. The visible span is expressed in
-    // drawing-width coordinates, hence the shift by bounds.getX().
+    const std::vector<core::TempoGridLine> lines =
+        core::visibleTempoGridLines(tempo_map, visible_timeline, width, 0, width);
+    for (const core::TempoGridLine& line : lines)
+    {
+        (line.measure_start ? measure_grid_x : beat_grid_x).push_back(line.x);
+    }
+}
+
+// Draws beat and measure grid dots from cached column positions, restricted to the current paint's
+// repaint clip. The clip only trims which cached columns and dot rows get drawn; it does not
+// change the geometry itself, so results stay stable regardless of how much of the canvas repaints.
+void drawTempoGridDots(
+    juce::Graphics& g, const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
+    juce::Rectangle<int> bounds)
+{
+    if (bounds.isEmpty())
+    {
+        return;
+    }
+
     const juce::Rectangle<int> visible_clip = g.getClipBounds();
-    const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
-        tempo_map,
-        visible_timeline,
-        bounds.getWidth(),
-        visible_clip.getX() - bounds.getX(),
-        visible_clip.getRight() - bounds.getX());
 
     // Collect dots per color, then issue one batched fill each. Separating the colors keeps the
     // two fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
     // dot count per line, which is what made zoomed-out repaints lag.
     juce::RectangleList<float> beat_dots;
     juce::RectangleList<float> measure_dots;
-    for (const core::TempoGridLine& line : lines)
-    {
-        appendDottedTempoGridLine(
-            line.measure_start ? measure_dots : beat_dots,
-            bounds.getX() + line.x,
-            bounds,
-            visible_clip);
-    }
+    const auto appendColumns = [&](const std::vector<int>& columns,
+                                   juce::RectangleList<float>& dots) {
+        for (const int x : columns)
+        {
+            const int absolute_x = bounds.getX() + x;
+            if (absolute_x < visible_clip.getX() || absolute_x >= visible_clip.getRight())
+            {
+                continue;
+            }
+
+            appendDottedTempoGridLine(dots, absolute_x, bounds, visible_clip);
+        }
+    };
+
+    appendColumns(beat_grid_x, beat_dots);
+    appendColumns(measure_grid_x, measure_dots);
 
     if (!beat_dots.isEmpty())
     {
@@ -427,6 +451,19 @@ private:
             repaint();
         }
 
+        // Recomputes cached beat/measure column positions from the owner's current tempo map and
+        // timeline geometry. Kept out of paint() so repaints that do not change that geometry, such
+        // as cursor movement or a partial scroll reveal, do not repeat the tempo-map beat scan.
+        void refreshGridColumns()
+        {
+            tempoGridColumns(
+                m_owner.m_tempo_map,
+                m_owner.m_timeline_range,
+                getWidth(),
+                m_beat_grid_x,
+                m_measure_grid_x);
+        }
+
         // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
         void paint(juce::Graphics& g) override
         {
@@ -437,7 +474,7 @@ private:
             {
                 g.setColour(juce::Colours::black);
                 g.fillRect(bounds.withHeight(m_owner.primaryTrackHeight()));
-                drawTempoGrid(g, m_owner.m_tempo_map, m_owner.m_timeline_range, bounds);
+                drawTempoGridDots(g, m_beat_grid_x, m_measure_grid_x, bounds);
                 return;
             }
 
@@ -458,6 +495,11 @@ private:
 
         // False while no project is loaded so the viewport itself owns empty-state drawing.
         bool m_project_loaded{false};
+
+        // Cached beat/measure column positions, refreshed only when the owner's timeline geometry
+        // or tempo map changes.
+        std::vector<int> m_beat_grid_x{};
+        std::vector<int> m_measure_grid_x{};
     };
 
     // Viewport subclass that lets the pinned ruler track user-driven scrollbar movement.
@@ -569,6 +611,7 @@ public:
 
         m_tempo_map = std::move(tempo_map);
         m_timeline_ruler.setTempoMap(m_tempo_map);
+        m_content.refreshGridColumns();
         m_content.repaint();
     }
 
@@ -693,6 +736,7 @@ private:
         m_cursor_overlay.setBounds(m_content.getLocalBounds());
         m_cursor_overlay.toFront(false);
         updateRulerView();
+        m_content.refreshGridColumns();
         m_content.repaint();
     }
 
