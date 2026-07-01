@@ -1,7 +1,7 @@
 #include "editor_view.h"
 
 #include "audio_device_settings_window.h"
-#include "editor_colours.h"
+#include "editor_colors.h"
 #include "input_calibration_window.h"
 #include "timeline_cursor.h"
 #include "timeline_ruler.h"
@@ -60,8 +60,8 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr int g_tempo_grid_dot_size{1};
 constexpr int g_tempo_grid_dot_gap{1};
 
-const juce::Colour g_editor_background_colour{juce::Colours::darkgrey};
-const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)};
+const juce::Colour g_editor_background_color{juce::Colours::darkgrey};
+const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -235,7 +235,7 @@ const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)}
 }
 
 // Appends the visible 1px dots of one vertical tempo-grid line to a shared list, clipped to the
-// visible repaint span. The caller batches the dots into a single fillRectList per colour so a
+// visible repaint span. The caller batches the dots into a single fillRectList per color so a
 // wide, line-dense repaint (zooming, or clicking the cursor while zoomed out) costs one edge-table
 // fill instead of one Graphics::fillRect per dot.
 void appendDottedTempoGridLine(
@@ -263,7 +263,7 @@ void drawTempoGrid(
     }
 
     // Resolve which beat lines are visible in editor-core so the geometry stays headless and unit
-    // tested; this view only maps the results to colours and dots. The visible span is expressed in
+    // tested; this view only maps the results to colors and dots. The visible span is expressed in
     // drawing-width coordinates, hence the shift by bounds.getX().
     const juce::Rectangle<int> visible_clip = g.getClipBounds();
     const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
@@ -273,7 +273,7 @@ void drawTempoGrid(
         visible_clip.getX() - bounds.getX(),
         visible_clip.getRight() - bounds.getX());
 
-    // Collect dots per colour, then issue one batched fill each. Separating the colours keeps the
+    // Collect dots per color, then issue one batched fill each. Separating the colors keeps the
     // two fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
     // dot count per line, which is what made zoomed-out repaints lag.
     juce::RectangleList<float> beat_dots;
@@ -289,12 +289,12 @@ void drawTempoGrid(
 
     if (!beat_dots.isEmpty())
     {
-        g.setColour(g_beat_grid_colour);
+        g.setColour(g_beat_grid_color);
         g.fillRectList(beat_dots);
     }
     if (!measure_dots.isEmpty())
     {
-        g.setColour(g_measure_grid_colour);
+        g.setColour(g_measure_grid_color);
         g.fillRectList(measure_dots);
     }
 }
@@ -413,7 +413,7 @@ private:
         void paint(juce::Graphics& g) override
         {
             const auto bounds = getLocalBounds();
-            g.fillAll(g_track_viewport_colour);
+            g.fillAll(g_track_viewport_color);
 
             if (m_project_loaded)
             {
@@ -580,7 +580,7 @@ public:
     // Paints the area around zoomed content when the viewport is larger than the canvas.
     void paint(juce::Graphics& g) override
     {
-        g.fillAll(g_track_viewport_colour);
+        g.fillAll(g_track_viewport_color);
     }
 
     // Keeps the viewport responsive while preserving zoom-derived content bounds.
@@ -872,7 +872,7 @@ public:
         juce::Graphics& g, int /*width*/, int /*height*/, bool /*isMouseOverBar*/,
         juce::MenuBarComponent& /*menu_bar*/) override
     {
-        g.fillAll(g_editor_background_colour);
+        g.fillAll(g_editor_background_color);
     }
 
     // Keeps the menu item readable on the flat strip and uses a simple hover fill.
@@ -1062,9 +1062,9 @@ void EditorView::runAfterBusyOverlayRemoved(std::function<void()> callback)
 // Paints the background and transport strip behind child widgets.
 void EditorView::paint(juce::Graphics& g)
 {
-    g.fillAll(g_editor_background_colour);
+    g.fillAll(g_editor_background_color);
 
-    g.setColour(g_transport_bar_colour);
+    g.setColour(g_transport_bar_color);
     g.fillRect(0, g_menu_bar_height, getWidth(), g_transport_bar_height);
     handleBusyOverlayRemovedPainted();
 }

@@ -246,7 +246,7 @@ enum class PluginIconType
 }
 
 // Assigns a restrained accent so unknown plugins still fit the path while known types differ.
-[[nodiscard]] juce::Colour iconAccentColour(PluginIconType icon_type)
+[[nodiscard]] juce::Colour iconAccentColor(PluginIconType icon_type)
 {
     switch (icon_type)
     {
@@ -800,7 +800,7 @@ public:
         , m_listener(listener)
         , m_plugin(std::move(plugin))
         , m_icon_type(pluginIconTypeFor(m_plugin.primary_display_type))
-        , m_accent(iconAccentColour(m_icon_type))
+        , m_accent(iconAccentColor(m_icon_type))
     {
         setComponentID(juce::String{"plugin_tile_"} + juce::String{m_plugin.instance_id});
         setMouseCursor(juce::MouseCursor::PointingHandCursor);

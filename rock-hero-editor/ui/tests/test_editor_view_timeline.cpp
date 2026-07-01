@@ -301,7 +301,7 @@ TEST_CASE("EditorView tempo grid draws behind the waveform", "[ui][editor-view]"
     state.tempo_map = makeOneMeasureTempoMap(4.0);
     view.setState(state);
     REQUIRE(thumbnail_factory.last_thumbnail != nullptr);
-    thumbnail_factory.last_thumbnail->fill_colour = juce::Colours::lightgreen;
+    thumbnail_factory.last_thumbnail->fill_color = juce::Colours::lightgreen;
 
     auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");

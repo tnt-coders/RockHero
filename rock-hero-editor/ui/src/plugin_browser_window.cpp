@@ -31,12 +31,12 @@ constexpr int g_list_header_height{24};
 constexpr int g_all_types_filter_id{1};
 constexpr int g_first_type_filter_id{2};
 constexpr auto* g_all_types_label = "All types";
-const juce::Colour g_background_colour{juce::Colours::darkgrey.darker(0.28f)};
-const juce::Colour g_header_colour{juce::Colours::darkgrey.darker(0.4f)};
-const juce::Colour g_selected_row_colour{juce::Colour{0xff2f6f96}};
-const juce::Colour g_row_colour{juce::Colours::darkgrey.darker(0.16f)};
-const juce::Colour g_alternate_row_colour{juce::Colours::darkgrey.darker(0.1f)};
-const juce::Colour g_column_header_colour{juce::Colours::darkgrey.darker(0.34f)};
+const juce::Colour g_background_color{juce::Colours::darkgrey.darker(0.28f)};
+const juce::Colour g_header_color{juce::Colours::darkgrey.darker(0.4f)};
+const juce::Colour g_selected_row_color{juce::Colour{0xff2f6f96}};
+const juce::Colour g_row_color{juce::Colours::darkgrey.darker(0.16f)};
+const juce::Colour g_alternate_row_color{juce::Colours::darkgrey.darker(0.1f)};
+const juce::Colour g_column_header_color{juce::Colours::darkgrey.darker(0.34f)};
 
 // Normalizes text for the lightweight browser filter.
 [[nodiscard]] std::string lowerText(std::string text)
@@ -129,7 +129,7 @@ public:
     // Paints compact column labels that match paintListBoxItem().
     void paint(juce::Graphics& g) override
     {
-        g.fillAll(g_column_header_colour);
+        g.fillAll(g_column_header_color);
         auto area = getLocalBounds().reduced(8, 0);
         const auto [name_width, manufacturer_width, format_width] =
             pluginBrowserColumnWidths(area.getWidth());
@@ -216,7 +216,7 @@ public:
         m_list_box.setRowHeight(g_row_height);
         m_list_box.setMultipleSelectionEnabled(false);
         m_list_box.setClickingTogglesRowSelection(false);
-        m_list_box.setColour(juce::ListBox::backgroundColourId, g_background_colour);
+        m_list_box.setColour(juce::ListBox::backgroundColourId, g_background_color);
         m_list_box.setHeaderComponent(std::make_unique<PluginBrowserHeader>());
 
         addAndMakeVisible(m_filter_editor);
@@ -255,7 +255,7 @@ public:
     // Draws the plain browser background.
     void paint(juce::Graphics& g) override
     {
-        g.fillAll(g_background_colour);
+        g.fillAll(g_background_color);
     }
 
     // Keeps controls in a compact file-browser style layout.
@@ -299,8 +299,8 @@ private:
         }
 
         g.setColour(
-            row_is_selected ? g_selected_row_colour
-                            : (row_number % 2 == 0 ? g_row_colour : g_alternate_row_colour));
+            row_is_selected ? g_selected_row_color
+                            : (row_number % 2 == 0 ? g_row_color : g_alternate_row_color));
         g.fillRect(0, 0, width, height);
 
         auto area = juce::Rectangle<int>{0, 0, width, height}.reduced(8, 0);
@@ -598,7 +598,7 @@ private:
 // Creates a native top-level browser window with owned content.
 PluginBrowserWindow::PluginBrowserWindow(Listener& listener)
     : juce::DocumentWindow(
-          "Add Plugin", g_header_colour,
+          "Add Plugin", g_header_color,
           juce::DocumentWindow::closeButton | juce::DocumentWindow::minimiseButton)
     , m_listener(listener)
     , m_content(std::make_unique<Content>(listener))

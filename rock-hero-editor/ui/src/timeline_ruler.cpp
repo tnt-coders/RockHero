@@ -1,6 +1,6 @@
 #include "timeline_ruler.h"
 
-#include "editor_colours.h"
+#include "editor_colors.h"
 #include "timeline_cursor.h"
 
 #include <algorithm>
@@ -16,9 +16,9 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-const juce::Colour g_timeline_ruler_colour{juce::Colours::darkgrey.darker(0.45f)};
-const juce::Colour g_timeline_ruler_text_colour{210, 210, 210};
-const juce::Colour g_timeline_anchor_colour{180, 218, 255};
+const juce::Colour g_timeline_ruler_color{juce::Colours::darkgrey.darker(0.45f)};
+const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
+const juce::Colour g_timeline_anchor_color{180, 218, 255};
 
 // Measures text without using JUCE's deprecated Font string-width helpers.
 [[nodiscard]] int textWidth(const juce::Font& font, const juce::String& text)
@@ -93,8 +93,8 @@ void TimelineRuler::setTempoMap(common::core::TempoMap tempo_map)
 // Paints quiet measure orientation marks and brighter tempo-map anchors.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    g.fillAll(g_timeline_ruler_colour);
-    g.setColour(g_track_viewport_colour);
+    g.fillAll(g_timeline_ruler_color);
+    g.setColour(g_track_viewport_color);
     g.fillRect(0, getHeight() - 1, getWidth(), 1);
 
     if (!m_project_loaded || getWidth() <= 0 || m_content_width <= 0 ||
@@ -161,7 +161,7 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 
     if (!tick_rects.isEmpty())
     {
-        g.setColour(g_measure_grid_colour);
+        g.setColour(g_measure_grid_color);
         g.fillRectList(tick_rects);
     }
 
@@ -177,7 +177,7 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
         const int label_width = textWidth(g.getCurrentFont(), label) + 8;
         if (x >= next_label_x && x + label_width <= getWidth())
         {
-            g.setColour(g_timeline_ruler_text_colour.withAlpha(0.82f));
+            g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
             g.drawText(label, x + 4, 2, label_width, 14, juce::Justification::centredLeft);
             next_label_x = x + label_width + 10;
         }
@@ -206,7 +206,7 @@ void TimelineRuler::drawAnchors(juce::Graphics& g)
         marker.lineTo(x - 4.0f, 15.0f);
         marker.closeSubPath();
 
-        g.setColour(g_timeline_anchor_colour);
+        g.setColour(g_timeline_anchor_color);
         g.fillPath(marker);
 
         const juce::String label = juce::String{anchor.measure} + ":" + juce::String{anchor.beat} +
@@ -215,7 +215,7 @@ void TimelineRuler::drawAnchors(juce::Graphics& g)
         const int label_width = textWidth(g.getCurrentFont(), label) + 10;
         if (label_x >= next_label_x && label_x + label_width <= getWidth())
         {
-            g.setColour(g_timeline_anchor_colour);
+            g.setColour(g_timeline_anchor_color);
             g.drawText(label, label_x, 17, label_width, 13, juce::Justification::centredLeft);
             next_label_x = label_x + label_width + 12;
         }
