@@ -5,6 +5,7 @@
 #include <optional>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
+#include <vector>
 
 namespace rock_hero::editor::ui
 {
@@ -41,9 +42,17 @@ public:
     // Converts ruler clicks into the same normalized placement intent as timeline-content clicks.
     void mouseDown(const juce::MouseEvent& event) override;
 
+    // Refreshes cached grid-line geometry after a resize changes the visible ruler width.
+    void resized() override;
+
 private:
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
+
+    // Recomputes the cached grid lines from the current timeline geometry and tempo map. Kept out
+    // of paint() so cursor-only repaints, which happen at vblank cadence, do not rescan the whole
+    // visible beat range on every frame.
+    void refreshGridLines();
 
     // Draws visible beat ticks, with measure ticks promoted to the full ruler height.
     void drawBeatTicks(juce::Graphics& g);
@@ -74,6 +83,24 @@ private:
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};
+
+    // A measure label already resolved to a non-overlapping draw position.
+    struct MeasureLabel
+    {
+        int x{0};
+        juce::String text{};
+        int width{0};
+    };
+
+    // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
+    // fillRectList call instead of rebuilding geometry on every repaint.
+    juce::RectangleList<float> m_tick_rects{};
+
+    // Measure labels that survived overlap suppression, with widths already measured. Kept out of
+    // paint() because text-width measurement (GlyphArrangement layout) is comparatively expensive
+    // and previously ran for every visible measure column on every repaint, including narrow
+    // cursor-only repaints driven at vblank cadence or triggered by a single click.
+    std::vector<MeasureLabel> m_measure_labels{};
 };
 
 } // namespace rock_hero::editor::ui
