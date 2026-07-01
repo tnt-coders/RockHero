@@ -30,11 +30,11 @@ const juce::Colour g_timeline_anchor_color{180, 218, 255};
 
 } // namespace
 
-// Names the component for tests and keeps it mouse-transparent for now.
+// Names the component for tests and enables direct mouse placement.
 TimelineRuler::TimelineRuler()
 {
     setComponentID("timeline_ruler");
-    setInterceptsMouseClicks(false, false);
+    setInterceptsMouseClicks(true, false);
 }
 
 // Stores whether the ruler should draw musical position data.
@@ -90,6 +90,12 @@ void TimelineRuler::setTempoMap(common::core::TempoMap tempo_map)
     repaint();
 }
 
+// Stores the callback that receives normalized cursor-placement intent.
+void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
+{
+    m_cursor_placement_callback = std::move(callback);
+}
+
 // Paints quiet measure orientation marks and brighter tempo-map anchors.
 void TimelineRuler::paint(juce::Graphics& g)
 {
@@ -106,6 +112,29 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawBeatTicks(g);
     drawAnchors(g);
     drawCursor(g);
+}
+
+// Converts ruler clicks into normalized seek intent using scrollable timeline coordinates.
+void TimelineRuler::mouseDown(const juce::MouseEvent& event)
+{
+    if (!m_project_loaded || m_content_width <= 0 || !m_cursor_placement_callback ||
+        !event.mods.isLeftButtonDown())
+    {
+        return;
+    }
+
+    const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
+    const std::optional<double> ratio = normalizedTimelineCursorPlacementX(
+        m_tempo_map,
+        m_timeline_range,
+        m_content_width,
+        timeline_x,
+        event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
+                                : TimelineCursorPlacementMode::SnapToGrid);
+    if (ratio.has_value())
+    {
+        m_cursor_placement_callback(*ratio);
+    }
 }
 
 // Maps an absolute timeline second to this pinned ruler's local x coordinate.
@@ -225,13 +254,14 @@ void TimelineRuler::drawAnchors(juce::Graphics& g)
 // Draws the same transport cursor through the ruler for vertical alignment.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
-    if (!m_cursor_x.has_value())
+    if (!m_cursor_x.has_value() || getWidth() <= 0)
     {
         return;
     }
 
+    const int cursor_x = std::clamp(static_cast<int>(std::round(*m_cursor_x)), 0, getWidth() - 1);
     g.setColour(juce::Colours::white);
-    g.drawLine(*m_cursor_x, 0.0f, *m_cursor_x, static_cast<float>(getHeight()), 2.0f);
+    g.fillRect(cursor_x, 0, 1, getHeight());
 }
 
 } // namespace rock_hero::editor::ui

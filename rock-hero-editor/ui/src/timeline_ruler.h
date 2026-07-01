@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/core/tempo_map.h>
@@ -14,7 +15,9 @@ inline constexpr int g_timeline_ruler_height{32};
 class TimelineRuler final : public juce::Component
 {
 public:
-    // Names the component for tests and keeps it mouse-transparent for now.
+    using CursorPlacementCallback = std::function<void(double normalized_x)>;
+
+    // Names the component for tests and enables direct cursor-placement clicks.
     TimelineRuler();
 
     // Stores whether the ruler should draw musical position data.
@@ -29,8 +32,14 @@ public:
     // Stores the tempo map that supplies measures and anchors.
     void setTempoMap(common::core::TempoMap tempo_map);
 
+    // Stores the callback that receives normalized cursor-placement intent.
+    void setCursorPlacementCallback(CursorPlacementCallback callback);
+
     // Paints quiet measure orientation marks and brighter tempo-map anchors.
     void paint(juce::Graphics& g) override;
+
+    // Converts ruler clicks into the same normalized placement intent as timeline-content clicks.
+    void mouseDown(const juce::MouseEvent& event) override;
 
 private:
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
@@ -62,6 +71,9 @@ private:
 
     // Last subpixel cursor x coordinate drawn by the ruler.
     std::optional<float> m_cursor_x{};
+
+    // Callback invoked when the user clicks the ruler to place the transport cursor.
+    CursorPlacementCallback m_cursor_placement_callback{};
 };
 
 } // namespace rock_hero::editor::ui

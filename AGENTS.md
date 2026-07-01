@@ -27,6 +27,20 @@ fresh context. For build/test verification, prefer the quiet `.codex/skills/rock
 helper output; add `-FullOutput` only when diagnosing a failure or when full logs are explicitly
 needed.
 
+Minimize context-heavy command output. Prefer `git diff --stat`, `git diff --name-only`, and
+path-scoped diffs over full-repository diffs unless the task is explicitly a review or the full diff
+is needed to diagnose an issue. Use `rg -n` to find the relevant symbols first, then read only the
+smallest practical line range around the match instead of whole large source files.
+
+Batch verification after coherent edit groups instead of running build/test after every small
+change. For narrow follow-ups, run `git diff --check` after edits and defer targeted tests until the
+behavioral change is complete. Do not reconfigure CMake unless CMake files, target source lists,
+generated build graph inputs, or stale-build errors require it. Use full build/test logs only after
+a quiet command fails or when the user explicitly asks for detailed output.
+
+Keep progress updates brief and less frequent for short tasks. For routine edits, report only the
+current action and any meaningful finding or blocker; avoid narrating every small inspection step.
+
 ## Documentation Maintenance Rules
 Do not keep `docs/todo/` planning documents continuously synchronized with routine code or design
 changes. Treat them as deferred implementation plans that may be stale until the user chooses to

@@ -21,6 +21,20 @@ inference from surrounding code when one of them speaks to the question directly
 Trivial renames, formatting-only edits, factual answers, status checks, and narrow mechanical
 follow-ups should not trigger the full documentation bootstrap.
 
+## Coding-Agent Efficiency Baseline
+
+For routine coding tasks, minimize context-heavy output and batch verification:
+
+- Use `rg -n` first, then read only focused line ranges around relevant matches.
+- Avoid full-file reads of large files and full-repository diffs unless explicitly reviewing or
+  diagnosing an issue that needs them.
+- Prefer `git diff --stat`, `git diff --name-only`, and path-scoped diffs before broader diffs.
+- Batch edits before verification instead of running build/test after every small change.
+- Run quiet targeted tests once the behavioral change is complete; use full logs only after failure.
+- Do not reconfigure CMake unless CMake files, target source lists, generated build graph inputs, or
+  stale-build errors require it.
+- Keep progress updates brief for routine edits, reporting only meaningful findings or blockers.
+
 ## Project Overview
 
 Rock Hero is an early-stage guitar-driven rhythm game (C++23) where players plug in a real guitar

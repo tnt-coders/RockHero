@@ -100,10 +100,12 @@ template <class ComponentType>
 \param component Component that should receive the event.
 \param x Horizontal local position.
 \param y Vertical local position.
+\param modifiers Mouse button and keyboard modifiers active for the event.
 \return Mouse event suitable for direct mouseDown() or mouseUp() dispatch in tests.
 */
 [[nodiscard]] inline juce::MouseEvent makeMouseDownEvent(
-    juce::Component& component, float x, float y)
+    juce::Component& component, float x, float y,
+    juce::ModifierKeys modifiers = juce::ModifierKeys::leftButtonModifier)
 {
     const juce::Point<float> position{x, y};
     const juce::Time event_time = juce::Time::getCurrentTime();
@@ -111,7 +113,7 @@ template <class ComponentType>
     return {
         juce::Desktop::getInstance().getMainMouseSource(),
         position,
-        juce::ModifierKeys::leftButtonModifier,
+        modifiers,
         1.0f,
         0.0f,
         0.0f,
