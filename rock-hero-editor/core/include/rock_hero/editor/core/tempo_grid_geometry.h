@@ -18,6 +18,12 @@ struct TempoGridLine
     /*! \brief Zero-based pixel column within the drawing width. */
     int x{0};
 
+    /*! \brief One-based measure number for the beat represented by this line. */
+    int measure{1};
+
+    /*! \brief One-based beat number within the represented measure. */
+    int beat{1};
+
     /*! \brief True when the line marks the first beat of a measure (a downbeat). */
     bool measure_start{false};
 
@@ -25,7 +31,7 @@ struct TempoGridLine
     \brief Compares two grid lines by their stored fields.
     \param lhs Left-hand grid line.
     \param rhs Right-hand grid line.
-    \return True when both lines store the same column and measure flag.
+    \return True when both lines store the same column, musical position, and measure flag.
     */
     friend bool operator==(const TempoGridLine& lhs, const TempoGridLine& rhs) = default;
 };
@@ -38,7 +44,7 @@ landing in [visible_x_begin, visible_x_end), in ascending column order. Because 
 monotonically with the global beat index, the visible beats form a contiguous run: the scan
 binary-searches the first beat that can reach the span and stops once it passes the right edge, so
 cost scales with the visible beat count rather than the whole song. Beats that collapse onto a
-single column when zoomed far out are merged, with downbeats taking colour priority.
+single column when zoomed far out are merged, with downbeats taking colour and label priority.
 
 \param tempo_map Song tempo map supplying the beat grid and absolute beat times.
 \param visible_timeline Timeline range represented by the full drawing width.
