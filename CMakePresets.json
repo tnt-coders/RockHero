@@ -6,53 +6,76 @@
     ],
     "configurePresets": [
         {
-            "name": "debug",
+            "name": "Debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "release",
+            "name": "Release",
             "inherits": [
                 "default-release",
                 "conan-release"
+            ]
+        },
+        {
+            "name": "RelWithDebInfo",
+            "inherits": [
+                "default-relwithdebinfo",
+                "conan-relwithdebinfo"
             ]
         }
     ],
     "buildPresets": [
         {
-            "name": "debug",
-            "configurePreset": "debug",
+            "name": "Debug",
+            "configurePreset": "Debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "release",
-            "configurePreset": "release",
+            "name": "Release",
+            "configurePreset": "Release",
             "inherits": [
                 "default-release",
                 "conan-release"
+            ]
+        },
+        {
+            "name": "RelWithDebInfo",
+            "configurePreset": "RelWithDebInfo",
+            "inherits": [
+                "default-relwithdebinfo",
+                "conan-relwithdebinfo"
             ]
         }
     ],
     "testPresets": [
         {
-            "name": "debug",
-            "configurePreset": "debug",
+            "name": "Debug",
+            "configurePreset": "Debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "release",
-            "configurePreset": "release",
+            "name": "Release",
+            "configurePreset": "Release",
             "inherits": [
                 "default-release",
                 "conan-release"
+            ]
+        },
+        {
+            "name": "RelWithDebInfo",
+            "configurePreset": "RelWithDebInfo",
+            "inherits": [
+                "default-relwithdebinfo",
+                "conan-relwithdebinfo"
             ]
         }
     ]

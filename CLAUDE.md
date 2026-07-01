@@ -92,11 +92,13 @@ git submodule update --init --recursive
 ```
 
 ```sh
-cmake --preset debug                              # Configure debug build
-cmake --build --preset debug                      # Build debug
-cmake --preset release                            # Configure release build
-cmake --build --preset release                    # Build release
-ctest --preset debug                              # Run tests
+cmake --preset Debug                              # Configure debug build
+cmake --build --preset Debug                      # Build debug
+cmake --preset Release                            # Configure release build
+cmake --build --preset Release                    # Build release
+cmake --preset RelWithDebInfo                     # Configure optimized build with debug info, no LTO
+cmake --build --preset RelWithDebInfo             # Build RelWithDebInfo
+ctest --preset Debug                              # Run tests
 cmake --build build/debug --target docs           # Generate Doxygen docs (requires Doxygen)
 cmake --build build/debug --target clang-tidy     # Run static analysis
 cmake --build build/debug --target clang-tidy-fix # Auto-fix lint issues
