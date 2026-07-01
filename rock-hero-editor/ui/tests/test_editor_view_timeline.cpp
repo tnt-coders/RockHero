@@ -515,10 +515,9 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
     CHECK(controller.waveform_click_count == 1);
     const auto last_normalized_x = controller.last_normalized_x;
     REQUIRE(last_normalized_x.has_value());
-    const int max_column = cursor_overlay.getWidth() - 1;
-    const int expected_column = std::clamp(static_cast<int>(std::round(click_x)), 0, max_column);
+    const double max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
     const double expected_normalized_x =
-        static_cast<double>(expected_column) / static_cast<double>(max_column);
+        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column;
     CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
 }
 
@@ -623,10 +622,9 @@ TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-vie
     CHECK(controller.waveform_click_count == 1);
     const auto last_normalized_x = controller.last_normalized_x;
     REQUIRE(last_normalized_x.has_value());
-    const int max_column = track_content.getWidth() - 1;
-    const int expected_column = std::clamp(static_cast<int>(std::round(click_x)), 0, max_column);
+    const double max_column = static_cast<double>(track_content.getWidth() - 1);
     const double expected_normalized_x =
-        static_cast<double>(expected_column) / static_cast<double>(max_column);
+        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column;
     CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
 }
 

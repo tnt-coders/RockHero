@@ -39,9 +39,9 @@ void repaintCursorStrip(
     component.repaint(left, 0, right - left, component.getHeight());
 }
 
-// Converts either overlay or ruler clicks through the same placement path. Both modes resolve the
-// click to an integer pixel column and normalize by the column count, matching the 1px cursor that
-// renders at a single rounded column; snapping only shifts that column to the nearest grid line.
+// Converts either overlay or ruler clicks through the same placement path. Both modes normalize by
+// the column count so they round-trip against the [0, width - 1] cursor mapping. Free placement
+// keeps the sub-pixel click point; snapping resolves the click to the nearest grid line's column.
 std::optional<double> normalizedTimelineCursorPlacementX(
     const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
     int timeline_width, float timeline_x, TimelineCursorPlacementMode mode)
@@ -51,23 +51,22 @@ std::optional<double> normalizedTimelineCursorPlacementX(
         return std::nullopt;
     }
 
-    const int max_column = timeline_width - 1;
-    if (max_column <= 0)
+    const double max_column = static_cast<double>(timeline_width - 1);
+    if (max_column <= 0.0)
     {
         return 0.0;
     }
 
-    int column = std::clamp(static_cast<int>(std::round(timeline_x)), 0, max_column);
-    if (mode == TimelineCursorPlacementMode::SnapToGrid)
+    if (mode == TimelineCursorPlacementMode::Free)
     {
-        if (const std::optional<int> snapped_x =
-                core::nearestTempoGridLineX(tempo_map, visible_timeline, timeline_width, column))
-        {
-            column = *snapped_x;
-        }
+        return std::clamp(static_cast<double>(timeline_x), 0.0, max_column) / max_column;
     }
 
-    return static_cast<double>(column) / static_cast<double>(max_column);
+    const int target_column =
+        std::clamp(static_cast<int>(std::round(timeline_x)), 0, timeline_width - 1);
+    const std::optional<int> snapped_x =
+        core::nearestTempoGridLineX(tempo_map, visible_timeline, timeline_width, target_column);
+    return static_cast<double>(snapped_x.value_or(target_column)) / max_column;
 }
 
 } // namespace rock_hero::editor::ui
