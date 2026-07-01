@@ -234,16 +234,21 @@ const juce::Colour g_measure_grid_colour{108, 108, 108};
     return offset == 0 ? first_visible_y : first_visible_y + dot_stride - offset;
 }
 
-// Draws one vertical tempo-grid line as 1px dots clipped to the visible repaint span.
-void drawDottedTempoGridLine(
-    juce::Graphics& g, int x, juce::Rectangle<int> bounds, juce::Rectangle<int> visible_clip)
+// Appends the visible 1px dots of one vertical tempo-grid line to a shared list, clipped to the
+// visible repaint span. The caller batches the dots into a single fillRectList per colour so a
+// wide, line-dense repaint (zooming, or clicking the cursor while zoomed out) costs one edge-table
+// fill instead of one Graphics::fillRect per dot.
+void appendDottedTempoGridLine(
+    juce::RectangleList<float>& dots, int x, juce::Rectangle<int> bounds,
+    juce::Rectangle<int> visible_clip)
 {
     constexpr int dot_stride = g_tempo_grid_dot_size + g_tempo_grid_dot_gap;
     const int bottom = std::min(bounds.getBottom(), visible_clip.getBottom());
 
     for (int y = firstTempoGridDotYInClip(bounds, visible_clip); y < bottom; y += dot_stride)
     {
-        g.fillRect(x, y, g_tempo_grid_dot_size, g_tempo_grid_dot_size);
+        dots.addWithoutMerging(
+            juce::Rectangle<int>{x, y, g_tempo_grid_dot_size, g_tempo_grid_dot_size}.toFloat());
     }
 }
 
@@ -268,10 +273,29 @@ void drawTempoGrid(
         visible_clip.getX() - bounds.getX(),
         visible_clip.getRight() - bounds.getX());
 
+    // Collect dots per colour, then issue one batched fill each. Separating the colours keeps the
+    // two fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
+    // dot count per line, which is what made zoomed-out repaints lag.
+    juce::RectangleList<float> beat_dots;
+    juce::RectangleList<float> measure_dots;
     for (const core::TempoGridLine& line : lines)
     {
-        g.setColour(line.measure_start ? g_measure_grid_colour : g_beat_grid_colour);
-        drawDottedTempoGridLine(g, bounds.getX() + line.x, bounds, visible_clip);
+        appendDottedTempoGridLine(
+            line.measure_start ? measure_dots : beat_dots,
+            bounds.getX() + line.x,
+            bounds,
+            visible_clip);
+    }
+
+    if (!beat_dots.isEmpty())
+    {
+        g.setColour(g_beat_grid_colour);
+        g.fillRectList(beat_dots);
+    }
+    if (!measure_dots.isEmpty())
+    {
+        g.setColour(g_measure_grid_colour);
+        g.fillRectList(measure_dots);
     }
 }
 
