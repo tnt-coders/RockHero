@@ -62,6 +62,7 @@ void TimelineRuler::setTimelineView(
     m_timeline_range = timeline_range;
     m_content_width = content_width;
     m_view_x = view_x;
+    refreshGridLines();
     repaint();
 }
 
@@ -87,6 +88,7 @@ void TimelineRuler::setTempoMap(common::core::TempoMap tempo_map)
     }
 
     m_tempo_map = std::move(tempo_map);
+    refreshGridLines();
     repaint();
 }
 
@@ -112,6 +114,12 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawBeatTicks(g);
     drawAnchors(g);
     drawCursor(g);
+}
+
+// Refreshes cached grid-line geometry after a resize changes the visible ruler width.
+void TimelineRuler::resized()
+{
+    refreshGridLines();
 }
 
 // Converts ruler clicks into normalized seek intent using scrollable timeline coordinates.
@@ -159,57 +167,61 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
     return local_x;
 }
 
-// Draws visible beat ticks, with measure ticks promoted to the full ruler height.
-void TimelineRuler::drawBeatTicks(juce::Graphics& g)
+// Recomputes cached tick rectangles and measure-label draw positions from the current timeline
+// geometry and tempo map. Kept out of paint() so repaints driven only by cursor movement, whether
+// vblank-driven playback or a single click, do not repeat the beat scan or the per-label
+// GlyphArrangement text-width measurement on every frame; both only need to rerun when the
+// geometry or tempo map they depend on actually changes.
+void TimelineRuler::refreshGridLines()
 {
-    g.setFont(juce::FontOptions{11.0f});
-    int next_label_x = 4;
     const int visible_x_begin = std::max(0, m_view_x);
     const int visible_x_end = std::min(m_content_width, m_view_x + getWidth());
     const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
         m_tempo_map, m_timeline_range, m_content_width, visible_x_begin, visible_x_end);
 
-    juce::RectangleList<float> tick_rects;
-    tick_rects.ensureStorageAllocated(static_cast<int>(lines.size()));
+    m_tick_rects.clear();
+    m_measure_labels.clear();
 
+    const juce::Font font{juce::FontOptions{11.0f}};
+    int next_label_x = 4;
     const int beat_tick_height = std::max(1, getHeight() / 4);
     const int beat_tick_y = getHeight() - beat_tick_height;
     for (const core::TempoGridLine& line : lines)
     {
         const int x = line.x - m_view_x;
-        if (line.measure_start)
-        {
-            tick_rects.addWithoutMerging(juce::Rectangle<int>{x, 0, 1, getHeight()}.toFloat());
-        }
-        else
-        {
-            tick_rects.addWithoutMerging(
-                juce::Rectangle<int>{x, beat_tick_y, 1, beat_tick_height}.toFloat());
-        }
-    }
-
-    if (!tick_rects.isEmpty())
-    {
-        g.setColour(g_measure_grid_color);
-        g.fillRectList(tick_rects);
-    }
-
-    for (const core::TempoGridLine& line : lines)
-    {
         if (!line.measure_start)
         {
+            m_tick_rects.addWithoutMerging(
+                juce::Rectangle<int>{x, beat_tick_y, 1, beat_tick_height}.toFloat());
             continue;
         }
 
-        const int x = line.x - m_view_x;
+        m_tick_rects.addWithoutMerging(juce::Rectangle<int>{x, 0, 1, getHeight()}.toFloat());
+
         const juce::String label{line.measure};
-        const int label_width = textWidth(g.getCurrentFont(), label) + 8;
+        const int label_width = textWidth(font, label) + 8;
         if (x >= next_label_x && x + label_width <= getWidth())
         {
-            g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
-            g.drawText(label, x + 4, 2, label_width, 14, juce::Justification::centredLeft);
+            m_measure_labels.push_back(MeasureLabel{.x = x, .text = label, .width = label_width});
             next_label_x = x + label_width + 10;
         }
+    }
+}
+
+// Draws visible beat ticks, with measure ticks promoted to the full ruler height.
+void TimelineRuler::drawBeatTicks(juce::Graphics& g)
+{
+    if (!m_tick_rects.isEmpty())
+    {
+        g.setColour(g_measure_grid_color);
+        g.fillRectList(m_tick_rects);
+    }
+
+    g.setFont(juce::FontOptions{11.0f});
+    g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
+    for (const MeasureLabel& label : m_measure_labels)
+    {
+        g.drawText(label.text, label.x + 4, 2, label.width, 14, juce::Justification::centredLeft);
     }
 }
 
