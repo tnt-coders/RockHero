@@ -1,3 +1,5 @@
+#include "timeline_ruler.h"
+
 #include <algorithm>
 #include <cmath>
 #include <rock_hero/editor/ui/testing/editor_view_test_harness.h>
@@ -43,6 +45,29 @@ namespace
 }
 
 } // namespace
+
+// Verifies ruler measure ticks span from the top while beat ticks stay in the lower quarter.
+TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setTempoMap(makeOneMeasureTempoMap(4.0));
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    const juce::Colour beat_top = image.getPixelAt(25, 0);
+    const juce::Colour measure_top = image.getPixelAt(0, 0);
+    const juce::Colour beat_lower_quarter = image.getPixelAt(25, 24);
+    CHECK(measure_top != beat_top);
+    CHECK(beat_lower_quarter != beat_top);
+}
 
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.
 TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")

@@ -2,6 +2,7 @@
 
 #include "audio_device_settings_window.h"
 #include "input_calibration_window.h"
+#include "timeline_ruler.h"
 
 #include <algorithm>
 #include <cmath>
@@ -50,7 +51,6 @@ constexpr int g_tracks_visible_at_default_size{3};
 constexpr int g_signal_chain_panel_min_height{160};
 constexpr int g_signal_chain_panel_max_height{260};
 constexpr int g_track_viewport_min_height{80};
-constexpr int g_timeline_ruler_height{32};
 constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
 constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
@@ -63,9 +63,6 @@ const juce::Colour g_transport_bar_colour{juce::Colours::darkgrey.darker(0.16f)}
 const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
 const juce::Colour g_beat_grid_colour{46, 46, 46};
 const juce::Colour g_measure_grid_colour{108, 108, 108};
-const juce::Colour g_timeline_ruler_colour{juce::Colours::darkgrey.darker(0.45f)};
-const juce::Colour g_timeline_ruler_text_colour{210, 210, 210};
-const juce::Colour g_timeline_anchor_colour{180, 218, 255};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
 [[nodiscard]] int audioDeviceButtonWidth(
@@ -82,14 +79,6 @@ const juce::Colour g_timeline_anchor_colour{180, 218, 255};
 [[nodiscard]] bool hasMouseWheelDelta(float delta) noexcept
 {
     return std::abs(delta) > g_min_mouse_wheel_delta;
-}
-
-// Measures text without using JUCE's deprecated Font string-width helpers.
-[[nodiscard]] int textWidth(const juce::Font& font, const juce::String& text)
-{
-    juce::GlyphArrangement arrangement;
-    arrangement.addLineOfText(font, text, 0.0f, 0.0f);
-    return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
 }
 
 // Ensures saved project packages use the Rock Hero project extension when needed.
@@ -482,250 +471,6 @@ private:
 
         // False while no project is loaded so the viewport itself owns empty-state drawing.
         bool m_project_loaded{false};
-    };
-
-    // Draws the pinned bars-and-beats ruler above the scrollable timeline content.
-    class TimelineRuler final : public juce::Component
-    {
-    public:
-        // Names the component for tests and keeps it mouse-transparent for now.
-        TimelineRuler()
-        {
-            setComponentID("timeline_ruler");
-            setInterceptsMouseClicks(false, false);
-        }
-
-        // Stores whether the ruler should draw musical position data.
-        void setProjectLoaded(bool project_loaded)
-        {
-            if (m_project_loaded == project_loaded)
-            {
-                return;
-            }
-
-            m_project_loaded = project_loaded;
-            repaint();
-        }
-
-        // Stores the ruler geometry derived from the viewport and zoomed content.
-        void setTimelineView(common::core::TimeRange timeline_range, int content_width, int view_x)
-        {
-            if (m_timeline_range == timeline_range && m_content_width == content_width &&
-                m_view_x == view_x)
-            {
-                return;
-            }
-
-            m_timeline_range = timeline_range;
-            m_content_width = content_width;
-            m_view_x = view_x;
-            repaint();
-        }
-
-        // Samples the current transport cursor for the ruler's aligned playhead mark.
-        void setCursorPosition(common::core::TimePosition cursor_position)
-        {
-            const auto next_cursor_x = localXForSeconds(cursor_position.seconds);
-            if (next_cursor_x == m_cursor_x)
-            {
-                return;
-            }
-
-            repaintCursorMovement(m_cursor_x, next_cursor_x);
-            m_cursor_x = next_cursor_x;
-        }
-
-        // Stores the tempo map that supplies measures and anchors.
-        void setTempoMap(common::core::TempoMap tempo_map)
-        {
-            if (m_tempo_map == tempo_map)
-            {
-                return;
-            }
-
-            m_tempo_map = std::move(tempo_map);
-            repaint();
-        }
-
-        // Paints quiet measure orientation marks and brighter tempo-map anchors.
-        void paint(juce::Graphics& g) override
-        {
-            g.fillAll(g_timeline_ruler_colour);
-            g.setColour(g_track_viewport_colour);
-            g.fillRect(0, getHeight() - 1, getWidth(), 1);
-
-            if (!m_project_loaded || getWidth() <= 0 || m_content_width <= 0 ||
-                m_timeline_range.duration().seconds <= 0.0)
-            {
-                return;
-            }
-
-            drawBeatTicks(g);
-            drawAnchors(g);
-            drawCursor(g);
-        }
-
-    private:
-        // Maps an absolute timeline second to this pinned ruler's local x coordinate.
-        [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept
-        {
-            const auto content_x = core::timelineXForPosition(
-                common::core::TimePosition{seconds},
-                m_timeline_range,
-                m_content_width,
-                core::TimelinePositionClamping::RejectOutsideVisibleRange);
-            if (!content_x.has_value())
-            {
-                return std::nullopt;
-            }
-
-            const float local_x = *content_x - static_cast<float>(m_view_x);
-            if (local_x < 0.0f || local_x >= static_cast<float>(getWidth()))
-            {
-                return std::nullopt;
-            }
-
-            return local_x;
-        }
-
-        // Draws every beat tick, with taller measure-start ticks and culled measure labels.
-        void drawBeatTicks(juce::Graphics& g)
-        {
-            g.setFont(juce::FontOptions{11.0f});
-            int next_label_x = 4;
-            const std::int64_t terminal_beat = m_tempo_map.terminalGlobalBeatIndex();
-
-            for (std::int64_t beat_index = 0; beat_index <= terminal_beat; ++beat_index)
-            {
-                const auto [measure, beat] = m_tempo_map.beatAtGlobalIndex(beat_index);
-                const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(measure, beat));
-                if (!local_x.has_value())
-                {
-                    continue;
-                }
-
-                const int x = static_cast<int>(std::round(*local_x));
-                const bool measure_start = beat == 1;
-                g.setColour(g_measure_grid_colour);
-                g.fillRect(x, measure_start ? 12 : 22, 1, measure_start ? getHeight() - 13 : 8);
-
-                if (!measure_start)
-                {
-                    continue;
-                }
-
-                const juce::String label{measure};
-                const int label_width = textWidth(g.getCurrentFont(), label) + 8;
-                if (x >= next_label_x && x + label_width <= getWidth())
-                {
-                    g.setColour(g_timeline_ruler_text_colour.withAlpha(0.82f));
-                    g.drawText(label, x + 4, 2, label_width, 14, juce::Justification::centredLeft);
-                    next_label_x = x + label_width + 10;
-                }
-            }
-        }
-
-        // Draws timing anchors as diamonds and labels precise seconds when horizontal room allows.
-        void drawAnchors(juce::Graphics& g)
-        {
-            g.setFont(juce::FontOptions{11.0f});
-            int next_label_x = 4;
-
-            for (const common::core::BeatAnchor& anchor : m_tempo_map.anchors())
-            {
-                const auto local_x = localXForSeconds(anchor.seconds);
-                if (!local_x.has_value())
-                {
-                    continue;
-                }
-
-                const float x = *local_x;
-                juce::Path marker;
-                marker.startNewSubPath(x, 11.0f);
-                marker.lineTo(x + 4.0f, 15.0f);
-                marker.lineTo(x, 19.0f);
-                marker.lineTo(x - 4.0f, 15.0f);
-                marker.closeSubPath();
-
-                g.setColour(g_timeline_anchor_colour);
-                g.fillPath(marker);
-
-                const juce::String label = juce::String{anchor.measure} + ":" +
-                                           juce::String{anchor.beat} + "  " +
-                                           juce::String{anchor.seconds, 3} + "s";
-                const int label_x = static_cast<int>(std::round(x)) + 7;
-                const int label_width = textWidth(g.getCurrentFont(), label) + 10;
-                if (label_x >= next_label_x && label_x + label_width <= getWidth())
-                {
-                    g.setColour(g_timeline_anchor_colour);
-                    g.drawText(
-                        label, label_x, 17, label_width, 13, juce::Justification::centredLeft);
-                    next_label_x = label_x + label_width + 12;
-                }
-            }
-        }
-
-        // Draws the same transport cursor through the ruler for vertical alignment.
-        void drawCursor(juce::Graphics& g)
-        {
-            if (!m_cursor_x.has_value())
-            {
-                return;
-            }
-
-            g.setColour(juce::Colours::white);
-            g.drawLine(*m_cursor_x, 0.0f, *m_cursor_x, static_cast<float>(getHeight()), 2.0f);
-        }
-
-        // Repaints the old/new ruler cursor strips without redrawing the whole ruler every frame.
-        void repaintCursorMovement(
-            std::optional<float> previous_cursor_x, std::optional<float> next_cursor_x)
-        {
-            if ((!previous_cursor_x.has_value() && !next_cursor_x.has_value()) || getWidth() <= 0 ||
-                getHeight() <= 0)
-            {
-                return;
-            }
-
-            float left_x = 0.0f;
-            float right_x = 0.0f;
-            if (previous_cursor_x.has_value() && next_cursor_x.has_value())
-            {
-                left_x = std::min(*previous_cursor_x, *next_cursor_x);
-                right_x = std::max(*previous_cursor_x, *next_cursor_x);
-            }
-            else
-            {
-                const float cursor_x =
-                    previous_cursor_x.has_value() ? *previous_cursor_x : *next_cursor_x;
-                left_x = cursor_x;
-                right_x = cursor_x;
-            }
-
-            constexpr int padding = 3;
-            const int left = std::max(0, static_cast<int>(std::floor(left_x)) - padding);
-            const int right =
-                std::min(getWidth(), static_cast<int>(std::ceil(right_x)) + padding + 1);
-            repaint(left, 0, right - left, getHeight());
-        }
-
-        // Full timeline range represented by the zoomed content width.
-        common::core::TimeRange m_timeline_range{};
-
-        // Tempo map used for ruler measure ticks and anchor positions.
-        common::core::TempoMap m_tempo_map{};
-
-        // Width of the scrollable timeline canvas that shares geometry with the grid.
-        int m_content_width{0};
-
-        // Horizontal scroll offset of the viewport into the zoomed timeline canvas.
-        int m_view_x{0};
-
-        // False while the editor is empty, so the ruler stays as plain chrome.
-        bool m_project_loaded{false};
-
-        // Last subpixel cursor x coordinate drawn by the ruler.
-        std::optional<float> m_cursor_x{};
     };
 
     // Viewport subclass that lets the pinned ruler track user-driven scrollbar movement.
