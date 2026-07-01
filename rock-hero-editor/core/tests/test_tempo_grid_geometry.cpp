@@ -49,11 +49,11 @@ TEST_CASE("Visible tempo grid returns all beats across the full width", "[core][
         visibleTempoGridLines(map, one_measure_window, one_measure_width, 0, one_measure_width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure_start = true},
-        {.x = 100, .measure_start = false},
-        {.x = 200, .measure_start = false},
-        {.x = 300, .measure_start = false},
-        {.x = 400, .measure_start = true},
+        {.x = 0, .measure = 1, .beat = 1, .measure_start = true},
+        {.x = 100, .measure = 1, .beat = 2, .measure_start = false},
+        {.x = 200, .measure = 1, .beat = 3, .measure_start = false},
+        {.x = 300, .measure = 1, .beat = 4, .measure_start = false},
+        {.x = 400, .measure = 2, .beat = 1, .measure_start = true},
     };
     CHECK(lines == expected);
 }
@@ -67,8 +67,8 @@ TEST_CASE("Visible tempo grid culls lines outside the span", "[core][tempo-grid]
         visibleTempoGridLines(map, one_measure_window, one_measure_width, 150, 350);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 200, .measure_start = false},
-        {.x = 300, .measure_start = false},
+        {.x = 200, .measure = 1, .beat = 3, .measure_start = false},
+        {.x = 300, .measure = 1, .beat = 4, .measure_start = false},
     };
     CHECK(lines == expected);
 }
@@ -82,8 +82,8 @@ TEST_CASE("Visible tempo grid treats the span as half-open", "[core][tempo-grid]
         visibleTempoGridLines(map, one_measure_window, one_measure_width, 100, 300);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 100, .measure_start = false},
-        {.x = 200, .measure_start = false},
+        {.x = 100, .measure = 1, .beat = 2, .measure_start = false},
+        {.x = 200, .measure = 1, .beat = 3, .measure_start = false},
     };
     CHECK(lines == expected);
 }
@@ -104,9 +104,9 @@ TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core
 
     // Global beat 200 is measure 51 beat 1, so it is the only downbeat in this span.
     const std::vector<TempoGridLine> expected{
-        {.x = 199, .measure_start = false},
-        {.x = 200, .measure_start = true},
-        {.x = 201, .measure_start = false},
+        {.x = 199, .measure = 50, .beat = 4, .measure_start = false},
+        {.x = 200, .measure = 51, .beat = 1, .measure_start = true},
+        {.x = 201, .measure = 51, .beat = 2, .measure_start = false},
     };
     CHECK(lines == expected);
 }
@@ -127,11 +127,11 @@ TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid
     const std::vector<TempoGridLine> lines = visibleTempoGridLines(map, window, width, 0, width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure_start = true},
-        {.x = 1, .measure_start = true},
-        {.x = 2, .measure_start = true},
-        {.x = 3, .measure_start = true},
-        {.x = 4, .measure_start = true},
+        {.x = 0, .measure = 1, .beat = 1, .measure_start = true},
+        {.x = 1, .measure = 14, .beat = 1, .measure_start = true},
+        {.x = 2, .measure = 39, .beat = 1, .measure_start = true},
+        {.x = 3, .measure = 64, .beat = 1, .measure_start = true},
+        {.x = 4, .measure = 89, .beat = 1, .measure_start = true},
     };
     CHECK(lines == expected);
 }
