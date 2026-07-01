@@ -44,7 +44,7 @@ landing in [visible_x_begin, visible_x_end), in ascending column order. Because 
 monotonically with the global beat index, the visible beats form a contiguous run: the scan
 binary-searches the first beat that can reach the span and stops once it passes the right edge, so
 cost scales with the visible beat count rather than the whole song. Beats that collapse onto a
-single column when zoomed far out are merged, with downbeats taking colour and label priority.
+single column when zoomed far out are merged, with downbeats taking color and label priority.
 
 \param tempo_map Song tempo map supplying the beat grid and absolute beat times.
 \param visible_timeline Timeline range represented by the full drawing width.
