@@ -454,8 +454,8 @@ TEST_CASE("EditorView wheel zoom centers offscreen cursor", "[ui][editor-view]")
         Catch::Approx(static_cast<double>(viewport.getViewWidth()) / 2.0).margin(1.0));
 }
 
-// Verifies editor-wide timeline clicks are forwarded to the controller.
-TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-view]")
+// Verifies Ctrl-click keeps the free timeline placement path.
+TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -504,14 +504,157 @@ TEST_CASE("EditorView forwards timeline clicks to the controller", "[ui][editor-
     const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
     REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
     REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+    cursor_overlay.mouseDown(makeMouseDownEvent(
+        cursor_overlay,
+        click_x,
+        click_y,
+        juce::ModifierKeys{
+            juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier
+        }));
+
+    CHECK(controller.waveform_click_count == 1);
+    const auto last_normalized_x = controller.last_normalized_x;
+    REQUIRE(last_normalized_x.has_value());
+    const int max_column = cursor_overlay.getWidth() - 1;
+    const int expected_column = std::clamp(static_cast<int>(std::round(click_x)), 0, max_column);
+    const double expected_normalized_x =
+        static_cast<double>(expected_column) / static_cast<double>(max_column);
+    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+}
+
+// Verifies unmodified timeline clicks snap to the nearest tempo-grid line.
+TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    CHECK(cursor_overlay.isVisible());
+    REQUIRE(cursor_overlay.getWidth() > 1);
+
+    const auto grid_x = cursorXForTimelinePosition(
+        common::core::TimePosition{1.0}, state.visible_timeline, cursor_overlay.getWidth());
+    REQUIRE(grid_x.has_value());
+
+    const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+    const float click_x = static_cast<float>(expected_grid_x + 20);
+    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
+    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
 
     CHECK(controller.waveform_click_count == 1);
     const auto last_normalized_x = controller.last_normalized_x;
     REQUIRE(last_normalized_x.has_value());
     const double expected_normalized_x =
-        static_cast<double>(click_x) / static_cast<double>(cursor_overlay.getWidth());
+        static_cast<double>(expected_grid_x) / static_cast<double>(cursor_overlay.getWidth() - 1);
     CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+}
+
+// Verifies ruler clicks use the same grid-snapped placement as timeline-content clicks.
+TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    REQUIRE(track_content.getWidth() > 1);
+
+    const auto grid_x = cursorXForTimelinePosition(
+        common::core::TimePosition{1.0}, state.visible_timeline, track_content.getWidth());
+    REQUIRE(grid_x.has_value());
+
+    const int expected_grid_x = static_cast<int>(std::round(*grid_x));
+    const float click_x = static_cast<float>(expected_grid_x + 20);
+    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+
+    CHECK(controller.waveform_click_count == 1);
+    const auto last_normalized_x = controller.last_normalized_x;
+    REQUIRE(last_normalized_x.has_value());
+    const double expected_normalized_x =
+        static_cast<double>(expected_grid_x) / static_cast<double>(track_content.getWidth() - 1);
+    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+}
+
+// Verifies Ctrl-clicking the ruler keeps free cursor placement.
+TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    const auto state = makeLoadedEditorState(4.0);
+    view.setState(state);
+
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    REQUIRE(track_content.getWidth() > 0);
+
+    const float click_x = std::floor(static_cast<float>(track_content.getWidth()) * 0.25f) + 0.5f;
+    timeline_ruler.mouseDown(makeMouseDownEvent(
+        timeline_ruler,
+        click_x,
+        10.0f,
+        juce::ModifierKeys{
+            juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier
+        }));
+
+    CHECK(controller.waveform_click_count == 1);
+    const auto last_normalized_x = controller.last_normalized_x;
+    REQUIRE(last_normalized_x.has_value());
+    const int max_column = track_content.getWidth() - 1;
+    const int expected_column = std::clamp(static_cast<int>(std::round(click_x)), 0, max_column);
+    const double expected_normalized_x =
+        static_cast<double>(expected_column) / static_cast<double>(max_column);
+    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+}
+
+// Verifies non-primary (right-button) clicks never trigger a timeline seek.
+TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    view.setState(state);
+
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    REQUIRE(cursor_overlay.getWidth() > 1);
+
+    const float click_x = static_cast<float>(cursor_overlay.getWidth()) * 0.25f;
+    const juce::ModifierKeys right_button{juce::ModifierKeys::rightButtonModifier};
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 10.0f, right_button));
+    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f, right_button));
+
+    CHECK(controller.waveform_click_count == 0);
+    CHECK_FALSE(controller.last_normalized_x.has_value());
 }
 
 // Verifies the focusable editor root maps keyboard play/pause to the transport intent.
