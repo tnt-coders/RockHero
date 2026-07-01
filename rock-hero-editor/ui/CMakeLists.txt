@@ -22,6 +22,7 @@ target_sources(
             src/signal_chain_panel.cpp
             src/signal_chain_view.cpp
             src/main_window.cpp
+            src/timeline_cursor.cpp
             src/timeline_ruler.cpp
             src/transport_controls.cpp)
 
