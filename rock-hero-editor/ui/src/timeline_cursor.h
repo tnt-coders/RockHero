@@ -1,15 +1,24 @@
 /*!
 \file timeline_cursor.h
-\brief Shared repaint helper for the timeline playback cursor.
+\brief Shared helpers for timeline cursor repainting and placement.
 */
 
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/core/tempo_map.h>
+#include <rock_hero/common/core/timeline.h>
 
 namespace rock_hero::editor::ui
 {
+
+// Controls whether cursor placement snaps to the visible beat grid or preserves the click point.
+enum class TimelineCursorPlacementMode
+{
+    SnapToGrid,
+    Free,
+};
 
 /*!
 \brief Invalidates only the strip spanning the old and new cursor positions.
@@ -26,5 +35,19 @@ strip.
 void repaintCursorStrip(
     juce::Component& component, std::optional<float> previous_cursor_x,
     std::optional<float> next_cursor_x);
+
+/*!
+\brief Converts a timeline-content x coordinate into normalized controller seek intent.
+
+\param tempo_map Song tempo map supplying the snap grid.
+\param visible_timeline Timeline range represented by the full timeline width.
+\param timeline_width Full timeline content width in pixels.
+\param timeline_x X coordinate in timeline-content coordinates.
+\param mode Whether placement should snap to the grid or stay at the click point.
+\return Normalized seek value, or empty for invalid timeline geometry.
+*/
+[[nodiscard]] std::optional<double> normalizedTimelineCursorPlacementX(
+    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
+    int timeline_width, float timeline_x, TimelineCursorPlacementMode mode);
 
 } // namespace rock_hero::editor::ui

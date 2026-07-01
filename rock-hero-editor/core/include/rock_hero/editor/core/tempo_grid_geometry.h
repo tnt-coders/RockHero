@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <optional>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <vector>
@@ -59,5 +60,22 @@ single column when zoomed far out are merged, with downbeats taking color and la
 [[nodiscard]] std::vector<TempoGridLine> visibleTempoGridLines(
     const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
     int visible_x_begin, int visible_x_end);
+
+/*!
+\brief Finds the nearest tempo-grid line column to a target drawing column.
+
+Uses the same beat-to-pixel mapping as visibleTempoGridLines, but searches around the target
+position instead of scanning the whole visible range. This is used for snap-to-grid timeline seek
+gestures.
+
+\param tempo_map Song tempo map supplying the beat grid and absolute beat times.
+\param visible_timeline Timeline range represented by the full drawing width.
+\param width Full drawing width in pixels.
+\param target_x Target pixel column in drawing-width coordinates.
+\return Nearest tempo-grid column in [0, width - 1], or empty for degenerate inputs.
+*/
+[[nodiscard]] std::optional<int> nearestTempoGridLineX(
+    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
+    int target_x);
 
 } // namespace rock_hero::editor::core

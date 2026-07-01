@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/editor/core/tempo_grid_geometry.h>
 
 namespace rock_hero::editor::ui
 {
@@ -36,6 +37,37 @@ void repaintCursorStrip(
     const int right =
         std::min(component.getWidth(), static_cast<int>(std::ceil(right_x)) + padding + 1);
     component.repaint(left, 0, right - left, component.getHeight());
+}
+
+// Converts either overlay or ruler clicks through the same placement path. Both modes resolve the
+// click to an integer pixel column and normalize by the column count, matching the 1px cursor that
+// renders at a single rounded column; snapping only shifts that column to the nearest grid line.
+std::optional<double> normalizedTimelineCursorPlacementX(
+    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
+    int timeline_width, float timeline_x, TimelineCursorPlacementMode mode)
+{
+    if (timeline_width <= 0)
+    {
+        return std::nullopt;
+    }
+
+    const int max_column = timeline_width - 1;
+    if (max_column <= 0)
+    {
+        return 0.0;
+    }
+
+    int column = std::clamp(static_cast<int>(std::round(timeline_x)), 0, max_column);
+    if (mode == TimelineCursorPlacementMode::SnapToGrid)
+    {
+        if (const std::optional<int> snapped_x =
+                core::nearestTempoGridLineX(tempo_map, visible_timeline, timeline_width, column))
+        {
+            column = *snapped_x;
+        }
+    }
+
+    return static_cast<double>(column) / static_cast<double>(max_column);
 }
 
 } // namespace rock_hero::editor::ui

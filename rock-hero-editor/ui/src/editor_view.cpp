@@ -314,11 +314,16 @@ std::optional<float> cursorXForTimelinePosition(
 class EditorView::CursorOverlay final : public juce::Component
 {
 public:
-    // Starts vblank-driven cursor refresh against the injected read-only transport.
-    CursorOverlay(core::IEditorController& controller, const common::audio::ITransport& transport)
+    // Starts vblank-driven cursor refresh against the injected read-only transport. The tempo map
+    // used to snap clicks is referenced (not copied) from EditorView::m_state, which owns it and
+    // outlives this overlay, so it is never null.
+    CursorOverlay(
+        core::IEditorController& controller, const common::audio::ITransport& transport,
+        const common::core::TempoMap& tempo_map)
         : m_controller(controller)
         , m_transport(transport)
         , m_vblank_attachment(this, [this] { advanceCursor(); })
+        , m_tempo_map(tempo_map)
     {
         setComponentID("cursor_overlay");
         setInterceptsMouseClicks(true, false);
@@ -333,26 +338,36 @@ public:
     // Draws only the cursor; static waveform content remains in ArrangementView below it.
     void paint(juce::Graphics& g) override
     {
-        if (!m_cursor_x.has_value())
+        if (!m_cursor_x.has_value() || getWidth() <= 0)
         {
             return;
         }
 
+        const int cursor_x =
+            std::clamp(static_cast<int>(std::round(*m_cursor_x)), 0, getWidth() - 1);
         g.setColour(juce::Colours::white);
-        g.drawLine(*m_cursor_x, 0.0f, *m_cursor_x, static_cast<float>(getHeight()), 2.0f);
+        g.fillRect(cursor_x, 0, 1, getHeight());
     }
 
     // Converts editor-wide timeline clicks into normalized seek intent.
     void mouseDown(const juce::MouseEvent& event) override
     {
-        if (getWidth() <= 0)
+        if (getWidth() <= 0 || !event.mods.isLeftButtonDown())
         {
             return;
         }
 
-        const double ratio =
-            static_cast<double>(event.position.x) / static_cast<double>(getWidth());
-        m_controller.onWaveformClicked(std::clamp(ratio, 0.0, 1.0));
+        const std::optional<double> ratio = normalizedTimelineCursorPlacementX(
+            m_tempo_map,
+            m_visible_timeline,
+            getWidth(),
+            event.position.x,
+            event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
+                                    : TimelineCursorPlacementMode::SnapToGrid);
+        if (ratio.has_value())
+        {
+            m_controller.onWaveformClicked(*ratio);
+        }
     }
 
 private:
@@ -382,6 +397,9 @@ private:
 
     // Visible timeline range last pushed by EditorView::setState().
     common::core::TimeRange m_visible_timeline{};
+
+    // Tempo map owned by EditorView::m_state, referenced to snap non-modified timeline clicks.
+    const common::core::TempoMap& m_tempo_map;
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
@@ -463,9 +481,10 @@ private:
 public:
     // Installs the existing waveform track and cursor overlay into viewport-owned content.
     TrackViewport(
-        ArrangementView& arrangement_view, CursorOverlay& cursor_overlay,
-        const common::audio::ITransport& transport)
-        : m_arrangement_view(arrangement_view)
+        core::IEditorController& controller, ArrangementView& arrangement_view,
+        CursorOverlay& cursor_overlay, const common::audio::ITransport& transport)
+        : m_controller(controller)
+        , m_arrangement_view(arrangement_view)
         , m_cursor_overlay(cursor_overlay)
         , m_transport(transport)
         , m_content(*this)
@@ -487,6 +506,8 @@ public:
         m_content.addAndMakeVisible(m_arrangement_view);
         m_content.addAndMakeVisible(m_cursor_overlay);
         m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
+        m_timeline_ruler.setCursorPlacementCallback(
+            [this](double normalized_x) { m_controller.onWaveformClicked(normalized_x); });
         setProjectLoaded(false);
     }
 
@@ -817,6 +838,9 @@ private:
         m_timeline_ruler.setCursorPosition(m_transport.position());
     }
 
+    // Controller receives ruler-level timeline seek intent.
+    core::IEditorController& m_controller;
+
     // Existing waveform view hosted as the first track row.
     ArrangementView& m_arrangement_view;
 
@@ -906,10 +930,11 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_transport_controls(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_cursor_overlay(std::make_unique<CursorOverlay>(controller, audio_ports.transport))
+    , m_cursor_overlay(
+          std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
           std::make_unique<TrackViewport>(
-              m_arrangement_view, *m_cursor_overlay, audio_ports.transport))
+              controller, m_arrangement_view, *m_cursor_overlay, audio_ports.transport))
     , m_meter_vblank_attachment(this, [this] { refreshAudioMeters(); })
 {
     setWantsKeyboardFocus(true);
