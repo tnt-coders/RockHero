@@ -45,10 +45,6 @@ private:
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
 
-    // Repaints the old/new ruler cursor strips without redrawing the whole ruler every frame.
-    void repaintCursorMovement(
-        std::optional<float> previous_cursor_x, std::optional<float> next_cursor_x);
-
     // Full timeline range represented by the zoomed content width.
     common::core::TimeRange m_timeline_range{};
 

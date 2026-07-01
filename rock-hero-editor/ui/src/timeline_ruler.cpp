@@ -1,5 +1,8 @@
 #include "timeline_ruler.h"
 
+#include "editor_colours.h"
+#include "timeline_cursor.h"
+
 #include <algorithm>
 #include <cmath>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
@@ -13,8 +16,6 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-const juce::Colour g_track_viewport_colour{juce::Colours::darkgrey.darker(0.34f)};
-const juce::Colour g_measure_grid_colour{108, 108, 108};
 const juce::Colour g_timeline_ruler_colour{juce::Colours::darkgrey.darker(0.45f)};
 const juce::Colour g_timeline_ruler_text_colour{210, 210, 210};
 const juce::Colour g_timeline_anchor_colour{180, 218, 255};
@@ -73,7 +74,7 @@ void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position
         return;
     }
 
-    repaintCursorMovement(m_cursor_x, next_cursor_x);
+    repaintCursorStrip(*this, m_cursor_x, next_cursor_x);
     m_cursor_x = next_cursor_x;
 }
 
@@ -231,36 +232,6 @@ void TimelineRuler::drawCursor(juce::Graphics& g)
 
     g.setColour(juce::Colours::white);
     g.drawLine(*m_cursor_x, 0.0f, *m_cursor_x, static_cast<float>(getHeight()), 2.0f);
-}
-
-// Repaints the old/new ruler cursor strips without redrawing the whole ruler every frame.
-void TimelineRuler::repaintCursorMovement(
-    std::optional<float> previous_cursor_x, std::optional<float> next_cursor_x)
-{
-    if ((!previous_cursor_x.has_value() && !next_cursor_x.has_value()) || getWidth() <= 0 ||
-        getHeight() <= 0)
-    {
-        return;
-    }
-
-    float left_x = 0.0f;
-    float right_x = 0.0f;
-    if (previous_cursor_x.has_value() && next_cursor_x.has_value())
-    {
-        left_x = std::min(*previous_cursor_x, *next_cursor_x);
-        right_x = std::max(*previous_cursor_x, *next_cursor_x);
-    }
-    else
-    {
-        const float cursor_x = previous_cursor_x.has_value() ? *previous_cursor_x : *next_cursor_x;
-        left_x = cursor_x;
-        right_x = cursor_x;
-    }
-
-    constexpr int padding = 3;
-    const int left = std::max(0, static_cast<int>(std::floor(left_x)) - padding);
-    const int right = std::min(getWidth(), static_cast<int>(std::ceil(right_x)) + padding + 1);
-    repaint(left, 0, right - left, getHeight());
 }
 
 } // namespace rock_hero::editor::ui
