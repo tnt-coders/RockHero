@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
@@ -101,6 +102,12 @@ public:
     \param position Requested seek position on the song timeline.
     */
     virtual void onTimelineSeekRequested(common::core::TimePosition position) = 0;
+
+    /*!
+    \brief Handles a request to change the timeline grid spacing.
+    \param spacing_beats Grid step measured in tempo-map beats.
+    */
+    virtual void onGridSpacingChangeRequested(common::core::Fraction spacing_beats) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

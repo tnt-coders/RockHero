@@ -1,0 +1,124 @@
+#include "grid_spacing_selector.h"
+
+#include <array>
+#include <cstddef>
+#include <optional>
+
+namespace rock_hero::editor::ui
+{
+
+namespace
+{
+
+// Width reserved for the static caption so the combo box gets the remaining strip space.
+constexpr int g_caption_width{36};
+
+// Power-of-two note-value presets offered as quick selections, per the tempo-grid spacing plan.
+constexpr std::array<common::core::Fraction, 6> g_note_value_presets{
+    common::core::Fraction{1, 4},
+    common::core::Fraction{1, 8},
+    common::core::Fraction{1, 16},
+    common::core::Fraction{1, 32},
+    common::core::Fraction{1, 64},
+    common::core::Fraction{1, 128},
+};
+
+// Formats a note value with the same syntax entry parses, so display and entry stay symmetric.
+[[nodiscard]] juce::String noteValueText(common::core::Fraction note_value)
+{
+    return juce::String{note_value.numerator} + "/" + juce::String{note_value.denominator};
+}
+
+// Parses user text like "3/16" into a positive fraction, rejecting any other shape so garbage
+// entry can never silently change the grid.
+[[nodiscard]] std::optional<common::core::Fraction> parseNoteValueText(const juce::String& text)
+{
+    const juce::String trimmed = text.trim();
+    const int slash_index = trimmed.indexOfChar('/');
+    if (slash_index < 0)
+    {
+        return std::nullopt;
+    }
+
+    const juce::String numerator_text = trimmed.substring(0, slash_index).trim();
+    const juce::String denominator_text = trimmed.substring(slash_index + 1).trim();
+    if (numerator_text.isEmpty() || denominator_text.isEmpty() ||
+        !numerator_text.containsOnly("0123456789") || !denominator_text.containsOnly("0123456789"))
+    {
+        return std::nullopt;
+    }
+
+    const int numerator = numerator_text.getIntValue();
+    const int denominator = denominator_text.getIntValue();
+    if (numerator < 1 || denominator < 1)
+    {
+        return std::nullopt;
+    }
+
+    return common::core::Fraction{numerator, denominator};
+}
+
+} // namespace
+
+// Builds the caption and preset list; item ids are preset indices offset by one because JUCE
+// reserves combo-box id zero for "nothing selected".
+GridSpacingSelector::GridSpacingSelector(Listener& listener)
+    : m_listener(listener)
+{
+    setComponentID("grid_spacing_selector");
+
+    m_caption.setText("Grid", juce::dontSendNotification);
+    m_caption.setJustificationType(juce::Justification::centredRight);
+    m_caption.setInterceptsMouseClicks(false, false);
+    addAndMakeVisible(m_caption);
+
+    for (std::size_t index = 0; index < g_note_value_presets.size(); ++index)
+    {
+        m_note_value_box.addItem(
+            noteValueText(g_note_value_presets[index]), static_cast<int>(index) + 1);
+    }
+    m_note_value_box.setEditableText(true);
+    m_note_value_box.setComponentID("grid_note_value_box");
+    m_note_value_box.onChange = [this] { handleSelectionCommitted(); };
+    addAndMakeVisible(m_note_value_box);
+
+    refreshDisplayedNoteValue();
+}
+
+// Applies the owner's note value; the notification-free refresh keeps state pushes from echoing
+// back into the listener as selections.
+void GridSpacingSelector::setNoteValue(common::core::Fraction note_value)
+{
+    m_note_value = note_value;
+    refreshDisplayedNoteValue();
+}
+
+// Gives the caption a fixed left band and the combo box the remaining strip space.
+void GridSpacingSelector::resized()
+{
+    auto bounds = getLocalBounds();
+    m_caption.setBounds(bounds.removeFromLeft(g_caption_width));
+    m_note_value_box.setBounds(bounds.reduced(4, 0));
+}
+
+// Emits parsed entries and reverts the display otherwise; the accepted value comes back through
+// setNoteValue when the controller republishes view state, so entry never self-applies.
+void GridSpacingSelector::handleSelectionCommitted()
+{
+    const std::optional<common::core::Fraction> parsed =
+        parseNoteValueText(m_note_value_box.getText());
+    if (parsed.has_value() && *parsed != m_note_value)
+    {
+        m_listener.onGridNoteValueChosen(*parsed);
+    }
+
+    refreshDisplayedNoteValue();
+}
+
+// Displays the applied note value without notifications so refreshes cannot recurse into onChange.
+void GridSpacingSelector::refreshDisplayedNoteValue()
+{
+    m_note_value_box.setText(noteValueText(m_note_value), juce::dontSendNotification);
+}
+
+} // namespace rock_hero::editor::ui

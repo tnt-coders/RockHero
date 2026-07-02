@@ -26,6 +26,12 @@ constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"}
 constexpr const char* g_project_cursor_position_tag{"POSITION"};
 constexpr const char* g_cursor_project_file_property{"projectFile"};
 constexpr const char* g_cursor_position_property{"cursorPosition"};
+constexpr const char* g_project_grid_spacings_key{"projectGridSpacings"};
+constexpr const char* g_project_grid_spacings_tag{"PROJECT_GRID_SPACINGS"};
+constexpr const char* g_project_grid_spacing_tag{"SPACING"};
+constexpr const char* g_grid_spacing_project_file_property{"projectFile"};
+constexpr const char* g_grid_spacing_numerator_property{"spacingNumerator"};
+constexpr const char* g_grid_spacing_denominator_property{"spacingDenominator"};
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
 constexpr const char* g_input_calibration_tag{"CALIBRATION"};
@@ -44,6 +50,18 @@ struct ProjectCursorState
 struct ProjectCursorHistory
 {
     std::vector<ProjectCursorState> states;
+    bool malformed_xml{false};
+};
+
+struct ProjectGridSpacingState
+{
+    std::filesystem::path project_file;
+    common::core::Fraction grid_spacing_beats{1, 1};
+};
+
+struct ProjectGridSpacingHistory
+{
+    std::vector<ProjectGridSpacingState> states;
     bool malformed_xml{false};
 };
 
@@ -145,8 +163,8 @@ struct InputCalibrationHistory
 }
 
 // Converts project paths into stable app-settings keys without requiring callers to pre-normalize
-// chooser, restore, and test paths.
-[[nodiscard]] std::filesystem::path projectCursorKeyFor(const std::filesystem::path& project_file)
+// chooser, restore, and test paths. Shared by every per-project record family.
+[[nodiscard]] std::filesystem::path projectSettingsKeyFor(const std::filesystem::path& project_file)
 {
     if (project_file.empty())
     {
@@ -168,14 +186,14 @@ void replaceProjectCursor(
     std::vector<ProjectCursorState>& history, const std::filesystem::path& project_file,
     common::core::TimePosition cursor_position)
 {
-    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
     if (key.empty() || !std::isfinite(cursor_position.seconds))
     {
         return;
     }
 
     std::erase_if(history, [&key](const ProjectCursorState& existing) {
-        return projectCursorKeyFor(existing.project_file) == key;
+        return projectSettingsKeyFor(existing.project_file) == key;
     });
     history.push_back(ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
 }
@@ -199,7 +217,7 @@ void replaceProjectCursor(
         return std::nullopt;
     }
 
-    std::filesystem::path key = projectCursorKeyFor(
+    std::filesystem::path key = projectSettingsKeyFor(
         common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
     if (key.empty())
     {
@@ -263,6 +281,117 @@ void writeProjectCursorHistory(
     }
 
     properties.setValue(g_project_cursor_positions_key, &history_xml);
+}
+
+// Replaces any existing grid-spacing record for a project path with the newest value.
+void replaceProjectGridSpacing(
+    std::vector<ProjectGridSpacingState>& history, const std::filesystem::path& project_file,
+    common::core::Fraction grid_spacing_beats)
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty() || grid_spacing_beats.numerator < 1)
+    {
+        return;
+    }
+
+    std::erase_if(history, [&key](const ProjectGridSpacingState& existing) {
+        return projectSettingsKeyFor(existing.project_file) == key;
+    });
+    history.push_back(
+        ProjectGridSpacingState{.project_file = key, .grid_spacing_beats = grid_spacing_beats});
+}
+
+// Converts one XML element into a structurally valid grid-spacing record. Semantic spacing bounds
+// stay with the controller so this store never silently rewrites persisted values.
+[[nodiscard]] std::optional<ProjectGridSpacingState> readProjectGridSpacingStateXml(
+    const juce::XmlElement& element)
+{
+    if (!element.hasTagName(g_project_grid_spacing_tag))
+    {
+        return std::nullopt;
+    }
+
+    const std::optional<std::string> project_file =
+        readStringAttribute(element, g_grid_spacing_project_file_property);
+    const std::optional<int> numerator =
+        parseIntAttribute(element, g_grid_spacing_numerator_property);
+    const std::optional<int> denominator =
+        parseIntAttribute(element, g_grid_spacing_denominator_property);
+    if (!project_file.has_value() || project_file->empty() || !numerator.has_value() ||
+        !denominator.has_value() || *numerator < 1 || *denominator < 1)
+    {
+        return std::nullopt;
+    }
+
+    std::filesystem::path key = projectSettingsKeyFor(
+        common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
+    if (key.empty())
+    {
+        return std::nullopt;
+    }
+
+    return ProjectGridSpacingState{
+        .project_file = std::move(key),
+        .grid_spacing_beats = common::core::Fraction{*numerator, *denominator},
+    };
+}
+
+// Loads app-local project grid-spacing history from its XML-valued settings property.
+[[nodiscard]] ProjectGridSpacingHistory readProjectGridSpacingHistory(
+    const juce::PropertiesFile& properties)
+{
+    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_project_grid_spacings_key);
+    if (xml == nullptr)
+    {
+        return properties.containsKey(g_project_grid_spacings_key)
+                   ? ProjectGridSpacingHistory{.states = {}, .malformed_xml = true}
+                   : ProjectGridSpacingHistory{};
+    }
+
+    if (!hasCurrentXmlFormat(*xml, g_project_grid_spacings_tag))
+    {
+        return ProjectGridSpacingHistory{.states = {}, .malformed_xml = true};
+    }
+
+    ProjectGridSpacingHistory history;
+    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
+    for (const juce::XmlElement* const item :
+         xml->getChildWithTagNameIterator(g_project_grid_spacing_tag))
+    {
+        if (std::optional<ProjectGridSpacingState> state = readProjectGridSpacingStateXml(*item);
+            state.has_value())
+        {
+            replaceProjectGridSpacing(
+                history.states, state->project_file, state->grid_spacing_beats);
+        }
+    }
+
+    return history;
+}
+
+// Writes a complete replacement grid-spacing history as one XML-valued settings property.
+void writeProjectGridSpacingHistory(
+    juce::PropertiesFile& properties, const std::vector<ProjectGridSpacingState>& history)
+{
+    juce::XmlElement history_xml{g_project_grid_spacings_tag};
+    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
+    for (const ProjectGridSpacingState& state : history)
+    {
+        if (!state.project_file.empty() && state.grid_spacing_beats.numerator >= 1)
+        {
+            juce::XmlElement* const item =
+                history_xml.createNewChildElement(g_project_grid_spacing_tag);
+            item->setAttribute(
+                g_grid_spacing_project_file_property,
+                common::core::juceStringFromPath(state.project_file));
+            item->setAttribute(
+                g_grid_spacing_numerator_property, state.grid_spacing_beats.numerator);
+            item->setAttribute(
+                g_grid_spacing_denominator_property, state.grid_spacing_beats.denominator);
+        }
+    }
+
+    properties.setValue(g_project_grid_spacings_key, &history_xml);
 }
 
 // Replaces any existing record for a route with the newest one so duplicate history cannot make
@@ -524,7 +653,7 @@ std::expected<void, EditorSettingsError> EditorSettings::setAudioDeviceState(
 std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> EditorSettings::
     projectCursorPositionFor(const std::filesystem::path& project_file) const
 {
-    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
     if (key.empty())
     {
         return std::nullopt;
@@ -541,7 +670,7 @@ std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> Ed
 
     const auto found =
         std::ranges::find_if(history.states, [&key](const ProjectCursorState& state) {
-            return projectCursorKeyFor(state.project_file) == key;
+            return projectSettingsKeyFor(state.project_file) == key;
         });
     if (found == history.states.end())
     {
@@ -555,7 +684,7 @@ std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> Ed
 std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPosition(
     const std::filesystem::path& project_file, common::core::TimePosition cursor_position)
 {
-    const std::filesystem::path key = projectCursorKeyFor(project_file);
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
     if (key.empty() || !std::isfinite(cursor_position.seconds))
     {
         return std::unexpected{EditorSettingsError{
@@ -576,6 +705,64 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPositi
     replaceProjectCursor(history.states, key, cursor_position);
     writeProjectCursorHistory(m_properties, history.states);
     return saveNow(m_properties, "Could not save project cursor setting.");
+}
+
+// Reads the app-local timeline grid spacing associated with one project path.
+std::expected<std::optional<common::core::Fraction>, EditorSettingsError> EditorSettings::
+    projectGridSpacingFor(const std::filesystem::path& project_file) const
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty())
+    {
+        return std::nullopt;
+    }
+
+    const ProjectGridSpacingHistory history = readProjectGridSpacingHistory(m_properties);
+    if (history.malformed_xml)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidProjectGridSpacingHistory,
+            "Saved project grid spacing history is not valid XML."
+        }};
+    }
+
+    const auto found =
+        std::ranges::find_if(history.states, [&key](const ProjectGridSpacingState& state) {
+            return projectSettingsKeyFor(state.project_file) == key;
+        });
+    if (found == history.states.end())
+    {
+        return std::nullopt;
+    }
+
+    return found->grid_spacing_beats;
+}
+
+// Stores one project's app-local grid spacing without treating it as project package data.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridSpacing(
+    const std::filesystem::path& project_file, common::core::Fraction grid_spacing_beats)
+{
+    const std::filesystem::path key = projectSettingsKeyFor(project_file);
+    if (key.empty() || grid_spacing_beats.numerator < 1)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidSettingValue,
+            "Cannot save a grid spacing for an invalid project path or spacing."
+        }};
+    }
+
+    ProjectGridSpacingHistory history = readProjectGridSpacingHistory(m_properties);
+    if (history.malformed_xml)
+    {
+        return std::unexpected{EditorSettingsError{
+            EditorSettingsErrorCode::InvalidProjectGridSpacingHistory,
+            "Cannot save grid spacing because saved grid spacing history is invalid."
+        }};
+    }
+
+    replaceProjectGridSpacing(history.states, key, grid_spacing_beats);
+    writeProjectGridSpacingHistory(m_properties, history.states);
+    return saveNow(m_properties, "Could not save project grid spacing setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.

@@ -8,6 +8,7 @@
 #include "arrangement_view.h"
 #include "audio_level_meter.h"
 #include "busy_overlay.h"
+#include "grid_spacing_selector.h"
 #include "menu_bar_button.h"
 #include "plugin_browser_window.h"
 #include "signal_chain_panel.h"
@@ -24,6 +25,7 @@
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
@@ -64,6 +66,7 @@ class EditorView final : public juce::Component,
                          public juce::MenuBarModel,
                          public core::IEditorView,
                          private TransportControls::Listener,
+                         private GridSpacingSelector::Listener,
                          private SignalChainView::Listener,
                          private PluginBrowserWindow::Listener
 {
@@ -257,6 +260,9 @@ private:
     // TransportControls::Listener implementation.
     void onStopPressed() override;
 
+    // GridSpacingSelector::Listener implementation.
+    void onGridNoteValueChosen(common::core::Fraction note_value) override;
+
     // SignalChainView::Listener implementation.
     void onInsertPluginPressed(std::size_t chain_index, std::size_t block_index) override;
 
@@ -322,6 +328,9 @@ private:
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
+
+    // Timeline grid-size selector shown beside the transport controls.
+    GridSpacingSelector m_grid_spacing_selector;
 
     // Transport-bar meter for the final mix output.
     AudioLevelMeter m_master_output_meter;
