@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/core/application_identity.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/editor/core/editor_settings.h>
 #include <string>
@@ -31,6 +32,7 @@ constexpr const char* g_input_calibration_input_channel_name_key{
     "inputCalibrationInputChannelName"
 };
 constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
+constexpr const char* g_project_grid_spacings_key{"projectGridSpacings"};
 constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"};
 constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
 constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
@@ -164,6 +166,15 @@ void writeRawSetting(
     const EditorSettings& settings, const std::filesystem::path& project_file)
 {
     auto result = settings.projectCursorPositionFor(project_file);
+    REQUIRE(result.has_value());
+    return std::move(*result);
+}
+
+// Reads project grid spacing through the typed settings contract and returns the optional payload.
+[[nodiscard]] std::optional<common::core::Fraction> projectGridSpacingFor(
+    const EditorSettings& settings, const std::filesystem::path& project_file)
+{
+    auto result = settings.projectGridSpacingFor(project_file);
     REQUIRE(result.has_value());
     return std::move(*result);
 }
@@ -356,6 +367,66 @@ TEST_CASE("EditorSettings overwrites project cursor position", "[core][settings]
     CHECK(
         projectCursorPositionFor(settings, project_file) ==
         std::optional{common::core::TimePosition{7.5}});
+}
+
+// Grid spacing persists per project path and reloads with exact numerator and denominator.
+TEST_CASE("EditorSettings persists project grid spacing", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_project_grid_spacing.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Grid Project.rhp";
+    const std::filesystem::path other_project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Other Grid Project.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectGridSpacing(project_file, common::core::Fraction{3, 4})
+                    .has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    CHECK(
+        projectGridSpacingFor(reloaded_settings, project_file) ==
+        std::optional{common::core::Fraction{3, 4}});
+    CHECK_FALSE(projectGridSpacingFor(reloaded_settings, other_project_file).has_value());
+}
+
+// Saving again for the same project replaces the record instead of accumulating duplicates.
+TEST_CASE("EditorSettings overwrites project grid spacing", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"overwrites_project_grid_spacing.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "overwritten_grid.rhp";
+    EditorSettings settings{settings_file.path()};
+
+    REQUIRE(
+        settings.saveProjectGridSpacing(project_file, common::core::Fraction{1, 2}).has_value());
+    REQUIRE(
+        settings.saveProjectGridSpacing(project_file, common::core::Fraction{1, 4}).has_value());
+
+    CHECK(
+        projectGridSpacingFor(settings, project_file) ==
+        std::optional{common::core::Fraction{1, 4}});
+}
+
+// Malformed grid-spacing XML is reported and preserved instead of overwritten by a save attempt.
+TEST_CASE("EditorSettings preserves malformed grid spacing history", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"malformed_project_grid_spacing.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "malformed_grid.rhp";
+    writeRawSetting(settings_file.path(), g_project_grid_spacings_key, juce::String{"not-xml"});
+
+    EditorSettings settings{settings_file.path()};
+    const auto loaded = settings.projectGridSpacingFor(project_file);
+    CHECK_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == EditorSettingsErrorCode::InvalidProjectGridSpacingHistory);
+
+    const auto saved = settings.saveProjectGridSpacing(project_file, common::core::Fraction{1, 2});
+    CHECK_FALSE(saved.has_value());
+    CHECK(saved.error().code == EditorSettingsErrorCode::InvalidProjectGridSpacingHistory);
+    CHECK(rawSettingExists(settings_file.path(), g_project_grid_spacings_key));
 }
 
 // Malformed cursor XML is reported and preserved instead of overwritten by a save attempt.

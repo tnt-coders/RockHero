@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
@@ -184,6 +185,21 @@ struct EditorAction
         common::core::TimePosition position;
     };
 
+    /*! \brief Set the timeline grid step measured in tempo-map beats. */
+    struct SetGridSpacing
+    {
+        /*!
+        \brief Creates a grid-spacing change action.
+        \param spacing_beats_value Grid step measured in tempo-map beats.
+        */
+        explicit constexpr SetGridSpacing(common::core::Fraction spacing_beats_value) noexcept
+            : spacing_beats(spacing_beats_value)
+        {}
+
+        /*! \brief Grid step measured in tempo-map beats. */
+        common::core::Fraction spacing_beats;
+    };
+
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -335,9 +351,9 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
-        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, ShowPluginBrowser,
-        BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin,
-        SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
+        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridSpacing,
+        ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin,
+        MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 
 /*!

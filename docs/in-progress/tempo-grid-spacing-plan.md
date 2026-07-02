@@ -37,7 +37,11 @@ expensive at low zoom.
    denominator each in `[1, 1024]`) and rejects non-positive values.
 6. **Rendering and snapping share one setting.** The track grid, timeline ruler, and cursor snapping
    must consume the same spacing value so the visible grid and interaction grid never diverge.
-7. **Grid spacing persists per project in app-local settings.** The remembered spacing lives in
+7. **The first grid-size control lives in the transport strip.** A "Grid" note-value selector
+   (power-of-two presets plus editable fraction text) sits beside the transport controls until a
+   fuller chart-editing toolbar exists. Placing it inside the ruler row was rejected because a
+   left-side cell would shift the ruler origin away from the timeline content and misalign ticks.
+8. **Grid spacing persists per project in app-local settings.** The remembered spacing lives in
    `EditorSettings` keyed by project path, like the per-project resume cursor. It is not stored in
    the `.rhp` project file or `.rock` package, and there is no global last-used fallback in the
    first pass.
@@ -190,4 +194,4 @@ Add editor-ui tests for:
 
 ## Open Questions
 
-- Where should the first grid-size UI control live before a fuller chart-editing toolbar exists?
+None; the numbered decisions above cover the open points this plan started with.

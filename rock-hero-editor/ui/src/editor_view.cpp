@@ -41,6 +41,7 @@ constexpr int g_control_gap{8};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
+constexpr int g_grid_spacing_selector_width{132};
 constexpr int g_master_meter_width{384};
 constexpr int g_master_meter_min_width{196};
 // Floor wide enough to fit the closed-device sentinel without truncation; ceiling chosen so the
@@ -206,6 +207,7 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
         case core::EditorActionId::PlayPause:
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekTimeline:
+        case core::EditorActionId::SetGridSpacing:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -1022,6 +1024,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
+    , m_grid_spacing_selector(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
     , m_cursor_overlay(
@@ -1049,6 +1052,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
+    addAndMakeVisible(m_grid_spacing_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
     addAndMakeVisible(m_signal_chain_panel);
@@ -1099,6 +1103,10 @@ void EditorView::setState(const core::EditorViewState& state)
         m_track_viewport->requestCursorFocus();
     }
     m_transport_controls.setState(m_state.transport);
+    m_grid_spacing_selector.setNoteValue(
+        core::displayedTempoGridNoteValue(
+            m_state.grid_spacing_beats, m_state.tempo_map.timeSignatureAt(1).denominator));
+    m_grid_spacing_selector.setEnabled(m_state.project_loaded);
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
@@ -1203,6 +1211,9 @@ void EditorView::resized()
 
     m_transport_controls.setBounds(
         control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
+    m_grid_spacing_selector.setBounds(
+        control_row.removeFromLeft(std::min(g_grid_spacing_selector_width, control_row.getWidth()))
+            .withTrimmedLeft(g_content_inset));
 
     const int master_meter_width = std::min(g_master_meter_width, control_row.getWidth());
     if (master_meter_width >= g_master_meter_min_width)
@@ -1898,6 +1909,20 @@ void EditorView::onPlayPausePressed()
 void EditorView::onStopPressed()
 {
     m_controller.onStopPressed();
+}
+
+// Converts the chosen note value into beat-relative spacing before emitting the controller
+// intent, using the same time-signature denominator the selector display derives from. Entries
+// that convert outside the supported spacing bounds are dropped here so the selector display
+// simply reverts.
+void EditorView::onGridNoteValueChosen(common::core::Fraction note_value)
+{
+    const common::core::Fraction spacing_beats = core::tempoGridSpacingFromNoteValue(
+        note_value, m_state.tempo_map.timeSignatureAt(1).denominator);
+    if (core::isValidTempoGridSpacing(spacing_beats))
+    {
+        m_controller.onGridSpacingChangeRequested(spacing_beats);
+    }
 }
 
 // Opens the plugin browser for a specific insertion slot selected in the signal-chain panel.

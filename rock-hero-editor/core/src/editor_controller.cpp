@@ -32,11 +32,13 @@
 #include <rock_hero/common/audio/plugin_chain_limits.h>
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/core/cancellation_token.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/logger.h>
 #include <rock_hero/editor/core/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
+#include <rock_hero/editor/core/tempo_grid_geometry.h>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -154,6 +156,10 @@ struct InsertUndoPreparationRollbackResult
         {
             return "SeekTimeline";
         }
+        case EditorAction::Id::SetGridSpacing:
+        {
+            return "SetGridSpacing";
+        }
         case EditorAction::Id::ShowPluginBrowser:
         {
             return "ShowPluginBrowser";
@@ -244,6 +250,7 @@ struct InsertUndoPreparationRollbackResult
             case EditorAction::Id::CancelBusyOperation:
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
+            case EditorAction::Id::SetGridSpacing:
             {
                 break;
             }
@@ -275,6 +282,7 @@ struct InsertUndoPreparationRollbackResult
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
+        case EditorAction::Id::SetGridSpacing:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -801,6 +809,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPlayPausePressed();
     void onStopPressed();
     void onTimelineSeekRequested(common::core::TimePosition position);
+    void onGridSpacingChangeRequested(common::core::Fraction spacing_beats);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -851,6 +860,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekTimeline action);
+    void performActionImpl(EditorAction::SetGridSpacing action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
@@ -953,6 +963,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void clearLastOpenProjectIfMatches(const std::filesystem::path& project_file);
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
     [[nodiscard]] common::core::TimePosition cursorPositionForOpenedProject(
+        const std::filesystem::path& project_file) const;
+    [[nodiscard]] common::core::Fraction gridSpacingForOpenedProject(
         const std::filesystem::path& project_file) const;
     void saveCurrentProjectCursorPositionBestEffort(std::string_view context);
     void saveProjectCursorPositionBestEffort(
@@ -1102,6 +1114,11 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
 
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
+
+    // Timeline grid step measured in tempo-map beats, initialized to the whole-beat grid because
+    // the Fraction default of 0/1 is a degenerate step. Restored per project from app-local
+    // settings on open and reset to the default on close.
+    common::core::Fraction m_grid_spacing_beats{1, 1};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};
@@ -1363,6 +1380,11 @@ void EditorController::onStopPressed()
 void EditorController::onTimelineSeekRequested(common::core::TimePosition position)
 {
     m_impl->onTimelineSeekRequested(position);
+}
+
+void EditorController::onGridSpacingChangeRequested(common::core::Fraction spacing_beats)
+{
+    m_impl->onGridSpacingChangeRequested(spacing_beats);
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -1760,6 +1782,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
     const common::core::TimePosition next_cursor_position =
         cursorPositionForOpenedProject(state->file);
+    m_grid_spacing_beats = gridSpacingForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
 
     m_project = std::move(state->project);
@@ -2216,6 +2239,13 @@ void EditorController::Impl::onStopPressed()
 void EditorController::Impl::onTimelineSeekRequested(common::core::TimePosition position)
 {
     runAction(EditorAction::SeekTimeline{position});
+}
+
+// Routes the spacing change as an action so a missing arrangement or busy state gates it like the
+// other timeline intents.
+void EditorController::Impl::onGridSpacingChangeRequested(common::core::Fraction spacing_beats)
+{
+    runAction(EditorAction::SetGridSpacing{spacing_beats});
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -2903,6 +2933,26 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
 void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action)
 {
     m_transport.seek(session().timeline().clamp(action.position));
+    updateView();
+}
+
+// Applies a validated grid-spacing change, persists it as app-local per-project state, and
+// republishes view state so the grid, ruler, and snapping move together.
+void EditorController::Impl::performActionImpl(EditorAction::SetGridSpacing action)
+{
+    if (!isValidTempoGridSpacing(action.spacing_beats) ||
+        action.spacing_beats == m_grid_spacing_beats)
+    {
+        return;
+    }
+
+    m_grid_spacing_beats = action.spacing_beats;
+    if (!m_project_file.empty())
+    {
+        recordSettingsResultBestEffort(
+            m_settings.saveProjectGridSpacing(m_project_file, m_grid_spacing_beats),
+            "save project grid spacing");
+    }
     updateView();
 }
 
@@ -3627,6 +3677,7 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
+        m_grid_spacing_beats = common::core::Fraction{1, 1};
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
         updateView();
@@ -3639,6 +3690,7 @@ bool EditorController::Impl::closeProject()
     m_save_requires_destination = false;
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
+    m_grid_spacing_beats = common::core::Fraction{1, 1};
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
     return true;
@@ -4054,6 +4106,28 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
     return session().timeline().start;
 }
 
+// Chooses the grid spacing restored for a project open from app-local editor settings, falling
+// back to the whole-beat default for unknown projects or out-of-bounds stored values.
+common::core::Fraction EditorController::Impl::gridSpacingForOpenedProject(
+    const std::filesystem::path& project_file) const
+{
+    const auto saved_spacing = m_settings.projectGridSpacingFor(project_file);
+    if (saved_spacing.has_value())
+    {
+        if (saved_spacing->has_value() && isValidTempoGridSpacing(**saved_spacing))
+        {
+            return **saved_spacing;
+        }
+    }
+    else
+    {
+        logEditorControllerBestEffortFailure(
+            "restore project grid spacing", saved_spacing.error().message);
+    }
+
+    return common::core::Fraction{1, 1};
+}
+
 // Saves the current cursor as app-local resume state for saved projects.
 void EditorController::Impl::saveCurrentProjectCursorPositionBestEffort(std::string_view context)
 {
@@ -4170,6 +4244,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
+    state.grid_spacing_beats = m_grid_spacing_beats;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),

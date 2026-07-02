@@ -22,6 +22,9 @@ enum class EditorSettingsErrorCode
     /*! \brief Persisted project cursor history could not be parsed. */
     InvalidProjectCursorHistory,
 
+    /*! \brief Persisted project grid-spacing history could not be parsed. */
+    InvalidProjectGridSpacingHistory,
+
     /*! \brief The settings file could not be saved. */
     CouldNotSave,
 };

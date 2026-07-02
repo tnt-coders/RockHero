@@ -66,6 +66,9 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Seek the transport to a timeline position. */
     SeekTimeline,
 
+    /*! \brief Set the timeline grid step measured in tempo-map beats. */
+    SetGridSpacing,
+
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 

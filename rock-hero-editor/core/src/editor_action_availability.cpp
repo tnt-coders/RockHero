@@ -39,6 +39,7 @@ namespace
         case EditorAction::Id::CancelBusyOperation:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
+        case EditorAction::Id::SetGridSpacing:
         {
             return false;
         }
@@ -80,6 +81,7 @@ namespace
             case EditorAction::Id::PlayPause:
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
+            case EditorAction::Id::SetGridSpacing:
             case EditorAction::Id::ShowPluginBrowser:
             case EditorAction::Id::BeginPluginInsert:
             case EditorAction::Id::ScanPluginCatalog:
@@ -141,6 +143,7 @@ namespace
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
+        case EditorAction::Id::SetGridSpacing:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -203,6 +206,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
+        case EditorAction::Id::SetGridSpacing:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:
