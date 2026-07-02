@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/arrangement_view_state.h>
@@ -227,6 +228,13 @@ struct EditorViewState
 
     /*! \brief Song-level tempo map used to render the editor beat grid. */
     common::core::TempoMap tempo_map{};
+
+    /*!
+    \brief Grid step measured in tempo-map beats, shared by the track grid, ruler, and snapping.
+
+    Initialized to the whole-beat grid because the Fraction default of 0/1 is a degenerate step.
+    */
+    common::core::Fraction grid_spacing_beats{1, 1};
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};

@@ -13,6 +13,9 @@ namespace rock_hero::editor::ui
 /*! \brief Track viewport background, reused for the seam beneath the timeline ruler. */
 inline const juce::Colour g_track_viewport_color{juce::Colours::darkgrey.darker(0.34f)};
 
+/*! \brief Sub-beat subdivision tempo grid dots, dimmer than beats against the waveform row. */
+inline const juce::Colour g_subdivision_grid_color{38, 38, 38};
+
 /*! \brief Off-beat tempo grid dots. */
 inline const juce::Colour g_beat_grid_color{46, 46, 46};
 
