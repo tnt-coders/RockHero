@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <string>
 #include <utility>
@@ -144,13 +145,13 @@ public:
     }
 
     /*!
-    \brief Captures the normalized timeline click emitted by waveform hit testing.
-    \param normalized_x Click x coordinate normalized to the interval [0, 1].
+    \brief Captures the timeline seek position emitted by timeline click handling.
+    \param position Requested seek position on the song timeline.
     */
-    void onWaveformClicked(double normalized_x) override
+    void onTimelineSeekRequested(common::core::TimePosition position) override
     {
-        last_normalized_x = normalized_x;
-        waveform_click_count += 1;
+        last_seek_position = position;
+        timeline_seek_count += 1;
     }
 
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
@@ -369,8 +370,8 @@ public:
     /*! \brief Last destination passed to onPublishRequested(). */
     std::optional<std::filesystem::path> last_publish_file{};
 
-    /*! \brief Last normalized timeline click emitted by the view. */
-    std::optional<double> last_normalized_x{};
+    /*! \brief Last timeline seek position emitted by the view. */
+    std::optional<common::core::TimePosition> last_seek_position{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};
@@ -456,8 +457,8 @@ public:
     /*! \brief Number of stop intents received. */
     int stop_press_count{0};
 
-    /*! \brief Number of waveform-click intents received. */
-    int waveform_click_count{0};
+    /*! \brief Number of timeline seek intents received. */
+    int timeline_seek_count{0};
 
     /*! \brief Number of plugin-browser open intents received. */
     int plugin_browser_request_count{0};

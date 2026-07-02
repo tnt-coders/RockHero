@@ -75,9 +75,9 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::Stop;
     }
-    else if constexpr (std::is_same_v<A, EditorAction::SeekWaveform>)
+    else if constexpr (std::is_same_v<A, EditorAction::SeekTimeline>)
     {
-        return EditorAction::Id::SeekWaveform;
+        return EditorAction::Id::SeekTimeline;
     }
     else if constexpr (std::is_same_v<A, EditorAction::ShowPluginBrowser>)
     {

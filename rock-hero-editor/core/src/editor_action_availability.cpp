@@ -38,7 +38,7 @@ namespace
         case EditorAction::Id::CancelSaveAsPrompt:
         case EditorAction::Id::CancelBusyOperation:
         case EditorAction::Id::Stop:
-        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::SeekTimeline:
         {
             return false;
         }
@@ -79,7 +79,7 @@ namespace
             case EditorAction::Id::Redo:
             case EditorAction::Id::PlayPause:
             case EditorAction::Id::Stop:
-            case EditorAction::Id::SeekWaveform:
+            case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::ShowPluginBrowser:
             case EditorAction::Id::BeginPluginInsert:
             case EditorAction::Id::ScanPluginCatalog:
@@ -140,7 +140,7 @@ namespace
             return conditions.has_project && conditions.redo_available;
         }
         case EditorAction::Id::PlayPause:
-        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::SeekTimeline:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -202,7 +202,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Redo:
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::Stop:
-        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:

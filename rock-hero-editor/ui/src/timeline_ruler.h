@@ -16,7 +16,7 @@ inline constexpr int g_timeline_ruler_height{32};
 class TimelineRuler final : public juce::Component
 {
 public:
-    using CursorPlacementCallback = std::function<void(double normalized_x)>;
+    using CursorPlacementCallback = std::function<void(common::core::TimePosition position)>;
 
     // Names the component for tests and enables direct cursor-placement clicks.
     TimelineRuler();
@@ -33,13 +33,13 @@ public:
     // Stores the tempo map that supplies measures and anchors.
     void setTempoMap(common::core::TempoMap tempo_map);
 
-    // Stores the callback that receives normalized cursor-placement intent.
+    // Stores the callback that receives cursor-placement seek positions.
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
     // Paints quiet measure orientation marks and brighter tempo-map anchors.
     void paint(juce::Graphics& g) override;
 
-    // Converts ruler clicks into the same normalized placement intent as timeline-content clicks.
+    // Converts ruler clicks into the same snapped placement intent as timeline-content clicks.
     void mouseDown(const juce::MouseEvent& event) override;
 
     // Refreshes cached grid-line geometry after a resize changes the visible ruler width.

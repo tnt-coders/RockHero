@@ -115,13 +115,13 @@ TEST_CASE("Transport actions follow loaded arrangement state", "[core][editor-ac
     ActionConditions conditions;
 
     CHECK_FALSE(isActionAvailable(ActionId::PlayPause, conditions));
-    CHECK_FALSE(isActionAvailable(ActionId::SeekWaveform, conditions));
+    CHECK_FALSE(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Stop, conditions));
 
     conditions.has_loaded_arrangement = true;
 
     CHECK(isActionAvailable(ActionId::PlayPause, conditions));
-    CHECK(isActionAvailable(ActionId::SeekWaveform, conditions));
+    CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Stop, conditions));
 
     conditions.can_stop_transport = true;
@@ -203,7 +203,7 @@ TEST_CASE("Calibration prompt blocks playback and plugin actions", "[core][edito
     CHECK_FALSE(isActionAvailable(ActionId::Undo, conditions));
     CHECK_FALSE(isActionAvailable(ActionId::Redo, conditions));
 
-    CHECK(isActionAvailable(ActionId::SeekWaveform, conditions));
+    CHECK(isActionAvailable(ActionId::SeekTimeline, conditions));
     CHECK(isActionAvailable(ActionId::Stop, conditions));
     CHECK(isActionAvailable(ActionId::CloseProject, conditions));
 }

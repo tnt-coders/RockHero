@@ -213,7 +213,7 @@ TEST_CASE("EditorView wheel zoom scales track width", "[ui][editor-view]")
         });
 
     CHECK(track_content.getWidth() > default_width);
-    CHECK(controller.waveform_click_count == 0);
+    CHECK(controller.timeline_seek_count == 0);
 }
 
 // Verifies the tempo grid uses the same scaled content width as the timeline viewport.
@@ -512,13 +512,14 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
             juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier
         }));
 
-    CHECK(controller.waveform_click_count == 1);
-    const auto last_normalized_x = controller.last_normalized_x;
-    REQUIRE(last_normalized_x.has_value());
+    CHECK(controller.timeline_seek_count == 1);
+    const auto last_seek_position = controller.last_seek_position;
+    REQUIRE(last_seek_position.has_value());
+    // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
     const double max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
-    const double expected_normalized_x =
-        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column;
-    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+    const double expected_seconds =
+        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
+    CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
 }
 
 // Verifies unmodified timeline clicks snap to the nearest tempo-grid line.
@@ -551,12 +552,11 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
 
-    CHECK(controller.waveform_click_count == 1);
-    const auto last_normalized_x = controller.last_normalized_x;
-    REQUIRE(last_normalized_x.has_value());
-    const double expected_normalized_x =
-        static_cast<double>(expected_grid_x) / static_cast<double>(cursor_overlay.getWidth() - 1);
-    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+    CHECK(controller.timeline_seek_count == 1);
+    const auto last_seek_position = controller.last_seek_position;
+    REQUIRE(last_seek_position.has_value());
+    // The snapped seek is the exact beat time, not a value quantized to the beat's pixel column.
+    CHECK(last_seek_position->seconds == Catch::Approx(1.0));
 }
 
 // Verifies ruler clicks use the same grid-snapped placement as timeline-content clicks.
@@ -585,12 +585,11 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     const float click_x = static_cast<float>(expected_grid_x + 20);
     timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
 
-    CHECK(controller.waveform_click_count == 1);
-    const auto last_normalized_x = controller.last_normalized_x;
-    REQUIRE(last_normalized_x.has_value());
-    const double expected_normalized_x =
-        static_cast<double>(expected_grid_x) / static_cast<double>(track_content.getWidth() - 1);
-    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+    CHECK(controller.timeline_seek_count == 1);
+    const auto last_seek_position = controller.last_seek_position;
+    REQUIRE(last_seek_position.has_value());
+    // The snapped seek is the exact beat time, not a value quantized to the beat's pixel column.
+    CHECK(last_seek_position->seconds == Catch::Approx(1.0));
 }
 
 // Verifies Ctrl-clicking the ruler keeps free cursor placement.
@@ -619,13 +618,14 @@ TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-vie
             juce::ModifierKeys::leftButtonModifier | juce::ModifierKeys::ctrlModifier
         }));
 
-    CHECK(controller.waveform_click_count == 1);
-    const auto last_normalized_x = controller.last_normalized_x;
-    REQUIRE(last_normalized_x.has_value());
+    CHECK(controller.timeline_seek_count == 1);
+    const auto last_seek_position = controller.last_seek_position;
+    REQUIRE(last_seek_position.has_value());
+    // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
     const double max_column = static_cast<double>(track_content.getWidth() - 1);
-    const double expected_normalized_x =
-        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column;
-    CHECK(optionalValueForApprox(last_normalized_x) == Catch::Approx(expected_normalized_x));
+    const double expected_seconds =
+        std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
+    CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
 }
 
 // Verifies non-primary (right-button) clicks never trigger a timeline seek.
@@ -651,8 +651,8 @@ TEST_CASE("EditorView right-click does not seek the timeline", "[ui][editor-view
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, 10.0f, right_button));
     timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f, right_button));
 
-    CHECK(controller.waveform_click_count == 0);
-    CHECK_FALSE(controller.last_normalized_x.has_value());
+    CHECK(controller.timeline_seek_count == 0);
+    CHECK_FALSE(controller.last_seek_position.has_value());
 }
 
 // Verifies the focusable editor root maps keyboard play/pause to the transport intent.

@@ -150,9 +150,9 @@ struct InsertUndoPreparationRollbackResult
         {
             return "Stop";
         }
-        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::SeekTimeline:
         {
-            return "SeekWaveform";
+            return "SeekTimeline";
         }
         case EditorAction::Id::ShowPluginBrowser:
         {
@@ -243,7 +243,7 @@ struct InsertUndoPreparationRollbackResult
             case EditorAction::Id::CancelSaveAsPrompt:
             case EditorAction::Id::CancelBusyOperation:
             case EditorAction::Id::Stop:
-            case EditorAction::Id::SeekWaveform:
+            case EditorAction::Id::SeekTimeline:
             {
                 break;
             }
@@ -274,7 +274,7 @@ struct InsertUndoPreparationRollbackResult
             return "not-busy";
         }
         case EditorAction::Id::PlayPause:
-        case EditorAction::Id::SeekWaveform:
+        case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -800,7 +800,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onRestoreInterruptedDecision(RestoreInterruptedDecision decision);
     void onPlayPausePressed();
     void onStopPressed();
-    void onWaveformClicked(double normalized_x);
+    void onTimelineSeekRequested(common::core::TimePosition position);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -850,7 +850,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Redo action);
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
-    void performActionImpl(EditorAction::SeekWaveform action);
+    void performActionImpl(EditorAction::SeekTimeline action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
@@ -1360,9 +1360,9 @@ void EditorController::onStopPressed()
     m_impl->onStopPressed();
 }
 
-void EditorController::onWaveformClicked(double normalized_x)
+void EditorController::onTimelineSeekRequested(common::core::TimePosition position)
 {
-    m_impl->onWaveformClicked(normalized_x);
+    m_impl->onTimelineSeekRequested(position);
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -2211,11 +2211,11 @@ void EditorController::Impl::onStopPressed()
     runAction(EditorAction::Stop{});
 }
 
-// Clamps the normalized input and converts it through the session timeline so the seek target
-// stays inside the loaded content even when the view emits out-of-range values.
-void EditorController::Impl::onWaveformClicked(double normalized_x)
+// Routes the seek as an action so a missing arrangement or busy state gates it like the other
+// transport intents.
+void EditorController::Impl::onTimelineSeekRequested(common::core::TimePosition position)
 {
-    runAction(EditorAction::SeekWaveform{normalized_x});
+    runAction(EditorAction::SeekTimeline{position});
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -2898,13 +2898,11 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
     }
 }
 
-void EditorController::Impl::performActionImpl(EditorAction::SeekWaveform action)
+// Clamps the requested position into the session timeline so out-of-range view intents cannot
+// move the cursor outside the loaded content.
+void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action)
 {
-    const double clamped = std::clamp(action.normalized_x, 0.0, 1.0);
-    const common::core::TimeRange timeline_range = session().timeline();
-    const double target_seconds =
-        timeline_range.start.seconds + clamped * timeline_range.duration().seconds;
-    m_transport.seek(timeline_range.clamp(common::core::TimePosition{target_seconds}));
+    m_transport.seek(session().timeline().clamp(action.position));
     updateView();
 }
 

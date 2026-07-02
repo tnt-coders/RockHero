@@ -92,7 +92,7 @@ void TimelineRuler::setTempoMap(common::core::TempoMap tempo_map)
     repaint();
 }
 
-// Stores the callback that receives normalized cursor-placement intent.
+// Stores the callback that receives cursor-placement seek positions.
 void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
 {
     m_cursor_placement_callback = std::move(callback);
@@ -122,7 +122,7 @@ void TimelineRuler::resized()
     refreshGridLines();
 }
 
-// Converts ruler clicks into normalized seek intent using scrollable timeline coordinates.
+// Converts ruler clicks into timeline seek positions using scrollable timeline coordinates.
 void TimelineRuler::mouseDown(const juce::MouseEvent& event)
 {
     if (!m_project_loaded || m_content_width <= 0 || !m_cursor_placement_callback ||
@@ -132,16 +132,16 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     }
 
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
-    const std::optional<double> ratio = normalizedTimelineCursorPlacementX(
+    const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
         m_tempo_map,
         m_timeline_range,
         m_content_width,
         timeline_x,
         event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
                                 : TimelineCursorPlacementMode::SnapToGrid);
-    if (ratio.has_value())
+    if (position.has_value())
     {
-        m_cursor_placement_callback(*ratio);
+        m_cursor_placement_callback(*position);
     }
 }
 

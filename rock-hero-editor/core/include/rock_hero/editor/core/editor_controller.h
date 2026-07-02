@@ -329,14 +329,15 @@ public:
     void onStopPressed() override;
 
     /*!
-    \brief Handles a click on a waveform at a normalized horizontal position.
+    \brief Handles a timeline seek request at an absolute timeline position.
 
-    The input is clamped to [0, 1] and converted through the session timeline range. A duration
-    of zero results in a seek to the start of the timeline.
+    The position is clamped into the session timeline range before seeking, so out-of-range view
+    intents cannot move the cursor outside the loaded content. A timeline with no duration seeks
+    to its start.
 
-    \param normalized_x Click position normalized to the interval [0, 1].
+    \param position Requested seek position on the song timeline.
     */
-    void onWaveformClicked(double normalized_x) override;
+    void onTimelineSeekRequested(common::core::TimePosition position) override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;

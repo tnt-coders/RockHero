@@ -1,5 +1,4 @@
 #include <catch2/catch_test_macros.hpp>
-#include <optional>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
@@ -157,46 +156,50 @@ TEST_CASE("Visible tempo grid rejects degenerate inputs", "[core][tempo-grid]")
     CHECK(visibleTempoGridLines(map, one_measure_window, one_measure_width, 300, 100).empty());
 }
 
-// Verifies snap lookup picks the nearest rendered beat column without scanning the whole range.
-TEST_CASE("Nearest tempo grid line picks closest beat column", "[core][tempo-grid]")
+// Verifies snap lookup picks the nearest beat time without scanning the whole range.
+TEST_CASE("Nearest tempo grid time picks the closest beat", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
-    const std::optional<int> before_midpoint =
-        nearestTempoGridLineX(map, one_measure_window, one_measure_width, 149);
-    const std::optional<int> after_midpoint =
-        nearestTempoGridLineX(map, one_measure_window, one_measure_width, 151);
-
-    REQUIRE(before_midpoint.has_value());
-    REQUIRE(after_midpoint.has_value());
-    CHECK(*before_midpoint == 100);
-    CHECK(*after_midpoint == 200);
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{1.49}) ==
+        common::core::TimePosition{1.0});
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{1.51}) ==
+        common::core::TimePosition{2.0});
 }
 
-// Verifies exact halfway clicks prefer the earlier grid line for stable snapping.
-TEST_CASE("Nearest tempo grid line resolves ties to the left", "[core][tempo-grid]")
+// Verifies targets exactly halfway between beats prefer the earlier line for stable snapping.
+TEST_CASE("Nearest tempo grid time resolves ties to the earlier beat", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
 
-    const std::optional<int> snapped =
-        nearestTempoGridLineX(map, one_measure_window, one_measure_width, 150);
-
-    REQUIRE(snapped.has_value());
-    CHECK(*snapped == 100);
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{1.5}) ==
+        common::core::TimePosition{1.0});
 }
 
-// Verifies degenerate snap inputs return no target instead of dividing by zero.
-TEST_CASE("Nearest tempo grid line rejects degenerate inputs", "[core][tempo-grid]")
+// Verifies out-of-range targets snap to the first or terminal beat instead of extrapolating.
+TEST_CASE("Nearest tempo grid time clamps to the authored beat range", "[core][tempo-grid]")
 {
     const common::core::TempoMap map = makeUniform44Map(1, 4.0);
-    constexpr common::core::TimeRange empty_window{
-        .start = common::core::TimePosition{4.0},
-        .end = common::core::TimePosition{4.0},
-    };
 
-    CHECK_FALSE(nearestTempoGridLineX(map, one_measure_window, 0, 10).has_value());
-    CHECK_FALSE(nearestTempoGridLineX(map, one_measure_window, -5, 10).has_value());
-    CHECK_FALSE(nearestTempoGridLineX(map, empty_window, one_measure_width, 10).has_value());
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{-3.0}) ==
+        common::core::TimePosition{0.0});
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{9.0}) ==
+        common::core::TimePosition{4.0});
+}
+
+// Verifies a degenerate anchorless map resolves to its clamp position instead of failing.
+TEST_CASE("Nearest tempo grid time tolerates an anchorless map", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map{{}, {}};
+
+    CHECK(
+        nearestTempoGridTime(map, common::core::TimePosition{2.0}) ==
+        common::core::TimePosition{0.0});
 }
 
 } // namespace rock_hero::editor::core
