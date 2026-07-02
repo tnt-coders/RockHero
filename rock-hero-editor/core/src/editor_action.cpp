@@ -79,6 +79,10 @@ template <typename Alternative> [[nodiscard]] constexpr EditorAction::Id idOfAlt
     {
         return EditorAction::Id::SeekTimeline;
     }
+    else if constexpr (std::is_same_v<A, EditorAction::SetGridSpacing>)
+    {
+        return EditorAction::Id::SetGridSpacing;
+    }
     else if constexpr (std::is_same_v<A, EditorAction::ShowPluginBrowser>)
     {
         return EditorAction::Id::ShowPluginBrowser;

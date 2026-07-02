@@ -372,4 +372,43 @@ TEST_CASE("Nearest tempo grid time falls back to whole beats", "[core][tempo-gri
         common::core::TimePosition{1.0});
 }
 
+// Verifies display and entry conversions share note-value units and reduce exactly.
+TEST_CASE("Tempo grid note-value conversions reduce exactly", "[core][tempo-grid]")
+{
+    CHECK(
+        displayedTempoGridNoteValue(common::core::Fraction{1, 1}, 4) ==
+        common::core::Fraction{1, 4});
+    CHECK(
+        displayedTempoGridNoteValue(common::core::Fraction{1, 2}, 4) ==
+        common::core::Fraction{1, 8});
+    CHECK(
+        displayedTempoGridNoteValue(common::core::Fraction{3, 4}, 4) ==
+        common::core::Fraction{3, 16});
+    CHECK(
+        displayedTempoGridNoteValue(common::core::Fraction{1, 3}, 4) ==
+        common::core::Fraction{1, 12});
+    CHECK(
+        displayedTempoGridNoteValue(common::core::Fraction{1, 1}, 8) ==
+        common::core::Fraction{1, 8});
+
+    CHECK(
+        tempoGridSpacingFromNoteValue(common::core::Fraction{1, 16}, 4) ==
+        common::core::Fraction{1, 4});
+    CHECK(
+        tempoGridSpacingFromNoteValue(common::core::Fraction{1, 16}, 8) ==
+        common::core::Fraction{1, 2});
+    CHECK(
+        tempoGridSpacingFromNoteValue(common::core::Fraction{3, 16}, 4) ==
+        common::core::Fraction{3, 4});
+    CHECK(
+        tempoGridSpacingFromNoteValue(common::core::Fraction{1, 12}, 4) ==
+        common::core::Fraction{1, 3});
+
+    // The conversions are inverses, so entry always round-trips back to the same display text.
+    CHECK(
+        tempoGridSpacingFromNoteValue(
+            displayedTempoGridNoteValue(common::core::Fraction{1, 3}, 4), 4) ==
+        common::core::Fraction{1, 3});
+}
+
 } // namespace rock_hero::editor::core

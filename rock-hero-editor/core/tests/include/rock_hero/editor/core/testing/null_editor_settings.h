@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/editor/core/i_editor_settings.h>
 #include <string>
 
@@ -97,6 +98,26 @@ public:
     */
     [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectCursorPosition(
         const std::filesystem::path&, common::core::TimePosition) override
+    {
+        return {};
+    }
+
+    /*!
+    \brief Reports that no app-local project grid spacing is stored.
+    \return Always empty optional success.
+    */
+    [[nodiscard]] std::expected<std::optional<common::core::Fraction>, EditorSettingsError>
+    projectGridSpacingFor(const std::filesystem::path&) const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores app-local project grid spacing writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectGridSpacing(
+        const std::filesystem::path&, common::core::Fraction) override
     {
         return {};
     }

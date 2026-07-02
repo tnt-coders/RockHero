@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <string>
@@ -152,6 +153,16 @@ public:
     {
         last_seek_position = position;
         timeline_seek_count += 1;
+    }
+
+    /*!
+    \brief Captures grid-spacing change intents emitted by the grid selector.
+    \param spacing_beats Grid step measured in tempo-map beats.
+    */
+    void onGridSpacingChangeRequested(common::core::Fraction spacing_beats) override
+    {
+        last_grid_spacing_beats = spacing_beats;
+        grid_spacing_change_count += 1;
     }
 
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
@@ -373,6 +384,9 @@ public:
     /*! \brief Last timeline seek position emitted by the view. */
     std::optional<common::core::TimePosition> last_seek_position{};
 
+    /*! \brief Last grid spacing emitted by the view, measured in tempo-map beats. */
+    std::optional<common::core::Fraction> last_grid_spacing_beats{};
+
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};
 
@@ -459,6 +473,9 @@ public:
 
     /*! \brief Number of timeline seek intents received. */
     int timeline_seek_count{0};
+
+    /*! \brief Number of grid-spacing change intents received. */
+    int grid_spacing_change_count{0};
 
     /*! \brief Number of plugin-browser open intents received. */
     int plugin_browser_request_count{0};

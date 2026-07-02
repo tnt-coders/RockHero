@@ -34,6 +34,45 @@ Fraction{1, 1}.
            spacing.denominator >= 1 && spacing.denominator <= g_max_tempo_grid_spacing_term;
 }
 
+/*!
+\brief Converts a beat-relative grid step into its user-facing note value.
+
+Display and entry share note-value units, expressed as fractions of a whole note: a half-beat step
+in 4/4 displays as 1/8. The conversion assumes the tempo-map beat corresponds to the
+time-signature denominator, and clamps a non-positive denominator to one so a malformed map cannot
+collapse the result to Fraction's 0/1 error value.
+
+\param grid_spacing_beats Grid step measured in tempo-map beats.
+\param time_signature_denominator Note value that represents one beat.
+\return Note value as a reduced fraction of a whole note.
+*/
+[[nodiscard]] constexpr common::core::Fraction displayedTempoGridNoteValue(
+    common::core::Fraction grid_spacing_beats, int time_signature_denominator) noexcept
+{
+    const int denominator = time_signature_denominator < 1 ? 1 : time_signature_denominator;
+    return common::core::Fraction{
+        grid_spacing_beats.numerator, grid_spacing_beats.denominator * denominator
+    };
+}
+
+/*!
+\brief Converts a user-entered note value into a beat-relative grid step.
+
+Inverse of displayedTempoGridNoteValue: entering 1/16 in 4/4 yields a quarter-beat step. Callers
+must validate the result with isValidTempoGridSpacing before using it, because out-of-bounds
+entries can convert to steps outside the supported spacing range.
+
+\param note_value Note value expressed as a fraction of a whole note.
+\param time_signature_denominator Note value that represents one beat.
+\return Grid step measured in tempo-map beats, as a reduced fraction.
+*/
+[[nodiscard]] constexpr common::core::Fraction tempoGridSpacingFromNoteValue(
+    common::core::Fraction note_value, int time_signature_denominator) noexcept
+{
+    const int denominator = time_signature_denominator < 1 ? 1 : time_signature_denominator;
+    return common::core::Fraction{note_value.numerator * denominator, note_value.denominator};
+}
+
 /*! \brief Musical rank of a tempo-grid line, ordered weakest to strongest. */
 enum class TempoGridLineRank : std::uint8_t
 {

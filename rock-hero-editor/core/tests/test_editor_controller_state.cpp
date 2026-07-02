@@ -1,7 +1,59 @@
+#include <rock_hero/editor/core/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
+#include <string_view>
+#include <system_error>
+
+#ifndef TEST_SETTINGS_DIR
+#define TEST_SETTINGS_DIR "."
+#endif
 
 namespace rock_hero::editor::core
 {
+
+namespace
+{
+
+// Owns one build-local settings file so grid-spacing persistence starts from clean state.
+class ScopedControllerSettingsFile final
+{
+public:
+    // Creates a settings-file path and removes any stale file from a prior test run.
+    explicit ScopedControllerSettingsFile(std::string_view file_name)
+        : m_path(std::filesystem::path{TEST_SETTINGS_DIR} / file_name)
+    {
+        removeFile();
+    }
+
+    // Removes the settings file so persistence tests cannot leak state into later tests.
+    ~ScopedControllerSettingsFile()
+    {
+        removeFile();
+    }
+
+    ScopedControllerSettingsFile(const ScopedControllerSettingsFile&) = delete;
+    ScopedControllerSettingsFile& operator=(const ScopedControllerSettingsFile&) = delete;
+    ScopedControllerSettingsFile(ScopedControllerSettingsFile&&) = delete;
+    ScopedControllerSettingsFile& operator=(ScopedControllerSettingsFile&&) = delete;
+
+    // Returns the test-owned settings-file path.
+    [[nodiscard]] const std::filesystem::path& path() const noexcept
+    {
+        return m_path;
+    }
+
+private:
+    // Removes the settings file on a best-effort basis.
+    void removeFile() const
+    {
+        std::error_code error;
+        std::filesystem::remove(m_path, error);
+    }
+
+    // Build-local settings path owned by this fixture.
+    std::filesystem::path m_path;
+};
+
+} // namespace
 
 // Verifies editor state represents a single displayed arrangement without extra identity.
 TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controller]")
@@ -27,6 +79,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
+    CHECK(empty_state.grid_spacing_beats == common::core::Fraction{1, 1});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK(empty_state.signal_chain.insert_plugin_enabled == false);
     CHECK(empty_state.signal_chain.remove_plugins_enabled == false);
@@ -489,6 +542,120 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
         });
 
     CHECK(view.shown_errors.size() == 1);
+}
+
+// Grid-spacing intents publish the new spacing to the view and persist it for the project.
+TEST_CASE("EditorController publishes and persists grid spacing", "[core][editor-controller]")
+{
+    const ScopedControllerSettingsFile settings_file{"controller_grid_spacing.settings"};
+    EditorSettings settings{settings_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 2});
+
+    const auto stored = settings.projectGridSpacingFor(std::filesystem::path{"loaded.rhp"});
+    REQUIRE(stored.has_value());
+    CHECK(*stored == std::optional{common::core::Fraction{1, 2}});
+}
+
+// Out-of-bounds spacing intents are ignored so the published grid can never go degenerate.
+TEST_CASE("EditorController ignores invalid grid spacing", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onGridSpacingChangeRequested(common::core::Fraction{});
+    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2048});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
+}
+
+// Reopening a project restores its stored grid spacing from app-local settings.
+TEST_CASE("EditorController restores project grid spacing on open", "[core][editor-controller]")
+{
+    const ScopedControllerSettingsFile settings_file{"restore_grid_spacing.settings"};
+    EditorSettings settings{settings_file.path()};
+    REQUIRE(settings
+                .saveProjectGridSpacing(
+                    std::filesystem::path{"loaded.rhp"}, common::core::Fraction{1, 4})
+                .has_value());
+
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 4});
+}
+
+// Closing a project resets grid spacing to the whole-beat default for the next project.
+TEST_CASE("EditorController resets grid spacing on close", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+    controller.onCloseRequested();
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->project_loaded == false);
+    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
 }
 
 } // namespace rock_hero::editor::core
