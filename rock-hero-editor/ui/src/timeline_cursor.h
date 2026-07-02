@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 
@@ -45,6 +46,7 @@ target stays on the beat at any zoom level instead of being quantized to the cli
 placement keeps the sub-pixel click point's time.
 
 \param tempo_map Song tempo map supplying the snap grid.
+\param grid_spacing_beats Grid step measured in tempo-map beats shared with grid rendering.
 \param visible_timeline Timeline range represented by the full timeline width.
 \param timeline_width Full timeline content width in pixels.
 \param timeline_x X coordinate in timeline-content coordinates.
@@ -52,7 +54,8 @@ placement keeps the sub-pixel click point's time.
 \return Timeline seek position, or empty for invalid timeline geometry.
 */
 [[nodiscard]] std::optional<common::core::TimePosition> timelineCursorPlacementTime(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
-    int timeline_width, float timeline_x, TimelineCursorPlacementMode mode);
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
+    TimelineCursorPlacementMode mode);
 
 } // namespace rock_hero::editor::ui

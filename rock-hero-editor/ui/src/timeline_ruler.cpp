@@ -79,15 +79,18 @@ void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position
     m_cursor_x = next_cursor_x;
 }
 
-// Stores the tempo map that supplies measures and anchors.
-void TimelineRuler::setTempoMap(common::core::TempoMap tempo_map)
+// Stores the tempo map that supplies measures and anchors, plus the grid step in beats shared
+// with the track grid and snapping.
+void TimelineRuler::setGrid(
+    common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats)
 {
-    if (m_tempo_map == tempo_map)
+    if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
     {
         return;
     }
 
     m_tempo_map = std::move(tempo_map);
+    m_grid_spacing_beats = grid_spacing_beats;
     refreshGridLines();
     repaint();
 }
@@ -134,6 +137,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
     const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
         m_tempo_map,
+        m_grid_spacing_beats,
         m_timeline_range,
         m_content_width,
         timeline_x,
@@ -177,7 +181,12 @@ void TimelineRuler::refreshGridLines()
     const int visible_x_begin = std::max(0, m_view_x);
     const int visible_x_end = std::min(m_content_width, m_view_x + getWidth());
     const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
-        m_tempo_map, m_timeline_range, m_content_width, visible_x_begin, visible_x_end);
+        m_tempo_map,
+        m_grid_spacing_beats,
+        m_timeline_range,
+        m_content_width,
+        visible_x_begin,
+        visible_x_end);
 
     m_tick_rects.clear();
     m_measure_labels.clear();
@@ -185,14 +194,19 @@ void TimelineRuler::refreshGridLines()
     const juce::Font font{juce::FontOptions{11.0f}};
     int next_label_x = 4;
     const int beat_tick_height = std::max(1, getHeight() / 4);
-    const int beat_tick_y = getHeight() - beat_tick_height;
+    // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
+    // beats even when a fine grid fills the space between them.
+    const int subdivision_tick_height = std::max(1, getHeight() / 8);
     for (const core::TempoGridLine& line : lines)
     {
         const int x = line.x - m_view_x;
-        if (!line.measure_start)
+        if (line.rank != core::TempoGridLineRank::Measure)
         {
+            const int tick_height = line.rank == core::TempoGridLineRank::Beat
+                                        ? beat_tick_height
+                                        : subdivision_tick_height;
             m_tick_rects.addWithoutMerging(
-                juce::Rectangle<int>{x, beat_tick_y, 1, beat_tick_height}.toFloat());
+                juce::Rectangle<int>{x, getHeight() - tick_height, 1, tick_height}.toFloat());
             continue;
         }
 

@@ -44,8 +44,9 @@ void repaintCursorStrip(
 // becomes a timeline position, so snapping happens in musical time and the resulting seek is the
 // exact grid-line time instead of a value quantized to the pixel grid.
 std::optional<common::core::TimePosition> timelineCursorPlacementTime(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
-    int timeline_width, float timeline_x, TimelineCursorPlacementMode mode)
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
+    TimelineCursorPlacementMode mode)
 {
     const std::optional<common::core::TimePosition> click_time =
         core::timelinePositionForX(timeline_x, visible_timeline, timeline_width);
@@ -54,7 +55,7 @@ std::optional<common::core::TimePosition> timelineCursorPlacementTime(
         return click_time;
     }
 
-    return core::nearestTempoGridTime(tempo_map, *click_time);
+    return core::nearestTempoGridTime(tempo_map, grid_spacing_beats, *click_time);
 }
 
 } // namespace rock_hero::editor::ui

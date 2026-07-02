@@ -154,8 +154,8 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
 // Requests project-load cursor focus once per accepted load, without inferring "a load happened"
 // from busy phases or timeline diffs. The controller bumps project_load_id only when an open,
 // restore, or import completes successfully, so a change in that id (or a project first appearing)
-// marks a fresh load. A failed open leaves the id unchanged, and ordinary edits keep the same id, so
-// neither recenters.
+// marks a fresh load. A failed open leaves the id unchanged, and ordinary edits keep the same id,
+// so neither recenters.
 [[nodiscard]] bool shouldFocusCursorAfterStateChange(
     const core::EditorViewState& previous_state, const core::EditorViewState& next_state)
 {
@@ -252,13 +252,15 @@ void appendDottedTempoGridLine(
     }
 }
 
-// Resolves the beat/measure column positions visible across the full content width. Kept separate
-// from drawing so callers can cache the result and only rerun the tempo-map scan when the timeline
-// geometry or tempo map actually changes, not on every repaint.
+// Resolves the subdivision/beat/measure column positions visible across the full content width.
+// Kept separate from drawing so callers can cache the result and only rerun the tempo-map scan
+// when the timeline geometry, tempo map, or grid spacing actually changes, not on every repaint.
 void tempoGridColumns(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimeRange visible_timeline, int width, std::vector<int>& subdivision_grid_x,
     std::vector<int>& beat_grid_x, std::vector<int>& measure_grid_x)
 {
+    subdivision_grid_x.clear();
     beat_grid_x.clear();
     measure_grid_x.clear();
 
@@ -267,19 +269,38 @@ void tempoGridColumns(
         return;
     }
 
-    const std::vector<core::TempoGridLine> lines =
-        core::visibleTempoGridLines(tempo_map, visible_timeline, width, 0, width);
+    const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
+        tempo_map, grid_spacing_beats, visible_timeline, width, 0, width);
     for (const core::TempoGridLine& line : lines)
     {
-        (line.measure_start ? measure_grid_x : beat_grid_x).push_back(line.x);
+        switch (line.rank)
+        {
+            case core::TempoGridLineRank::Subdivision:
+            {
+                subdivision_grid_x.push_back(line.x);
+                break;
+            }
+            case core::TempoGridLineRank::Beat:
+            {
+                beat_grid_x.push_back(line.x);
+                break;
+            }
+            case core::TempoGridLineRank::Measure:
+            {
+                measure_grid_x.push_back(line.x);
+                break;
+            }
+        }
     }
 }
 
-// Draws beat and measure grid dots from cached column positions, restricted to the current paint's
-// repaint clip. The clip only trims which cached columns and dot rows get drawn; it does not
-// change the geometry itself, so results stay stable regardless of how much of the canvas repaints.
+// Draws subdivision, beat, and measure grid dots from cached column positions, restricted to the
+// current paint's repaint clip. The clip only trims which cached columns and dot rows get drawn;
+// it does not change the geometry itself, so results stay stable regardless of how much of the
+// canvas repaints.
 void drawTempoGridDots(
-    juce::Graphics& g, const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
+    juce::Graphics& g, const std::vector<int>& subdivision_grid_x,
+    const std::vector<int>& beat_grid_x, const std::vector<int>& measure_grid_x,
     juce::Rectangle<int> bounds)
 {
     if (bounds.isEmpty())
@@ -290,8 +311,9 @@ void drawTempoGridDots(
     const juce::Rectangle<int> visible_clip = g.getClipBounds();
 
     // Collect dots per color, then issue one batched fill each. Separating the colors keeps the
-    // two fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
+    // fills homogeneous; the alternative of one fill per line scaled the draw-call count by the
     // dot count per line, which is what made zoomed-out repaints lag.
+    juce::RectangleList<float> subdivision_dots;
     juce::RectangleList<float> beat_dots;
     juce::RectangleList<float> measure_dots;
     const auto appendColumns = [&](const std::vector<int>& columns,
@@ -308,9 +330,15 @@ void drawTempoGridDots(
         }
     };
 
+    appendColumns(subdivision_grid_x, subdivision_dots);
     appendColumns(beat_grid_x, beat_dots);
     appendColumns(measure_grid_x, measure_dots);
 
+    if (!subdivision_dots.isEmpty())
+    {
+        g.setColour(g_subdivision_grid_color);
+        g.fillRectList(subdivision_dots);
+    }
     if (!beat_dots.isEmpty())
     {
         g.setColour(g_beat_grid_color);
@@ -359,6 +387,13 @@ public:
         m_visible_timeline = visible_timeline;
     }
 
+    // Stores the grid step in beats pushed by EditorView::setState(), so click snapping always
+    // uses the same spacing the grid and ruler render.
+    void setGridSpacing(common::core::Fraction grid_spacing_beats) noexcept
+    {
+        m_grid_spacing_beats = grid_spacing_beats;
+    }
+
     // Draws only the cursor; static waveform content remains in ArrangementView below it.
     void paint(juce::Graphics& g) override
     {
@@ -383,6 +418,7 @@ public:
 
         const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
             m_tempo_map,
+            m_grid_spacing_beats,
             m_visible_timeline,
             getWidth(),
             event.position.x,
@@ -425,6 +461,10 @@ private:
     // Tempo map owned by EditorView::m_state, referenced to snap non-modified timeline clicks.
     const common::core::TempoMap& m_tempo_map;
 
+    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Fraction default of 0/1 is a degenerate step.
+    common::core::Fraction m_grid_spacing_beats{1, 1};
+
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
 };
@@ -451,15 +491,18 @@ private:
             repaint();
         }
 
-        // Recomputes cached beat/measure column positions from the owner's current tempo map and
-        // timeline geometry. Kept out of paint() so repaints that do not change that geometry, such
-        // as cursor movement or a partial scroll reveal, do not repeat the tempo-map beat scan.
+        // Recomputes cached grid column positions from the owner's current tempo map, grid
+        // spacing, and timeline geometry. Kept out of paint() so repaints that do not change that
+        // geometry, such as cursor movement or a partial scroll reveal, do not repeat the grid
+        // scan.
         void refreshGridColumns()
         {
             tempoGridColumns(
                 m_owner.m_tempo_map,
+                m_owner.m_grid_spacing_beats,
                 m_owner.m_timeline_range,
                 getWidth(),
+                m_subdivision_grid_x,
                 m_beat_grid_x,
                 m_measure_grid_x);
         }
@@ -474,7 +517,7 @@ private:
             {
                 g.setColour(juce::Colours::black);
                 g.fillRect(bounds.withHeight(m_owner.primaryTrackHeight()));
-                drawTempoGridDots(g, m_beat_grid_x, m_measure_grid_x, bounds);
+                drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
                 return;
             }
 
@@ -496,8 +539,9 @@ private:
         // False while no project is loaded so the viewport itself owns empty-state drawing.
         bool m_project_loaded{false};
 
-        // Cached beat/measure column positions, refreshed only when the owner's timeline geometry
-        // or tempo map changes.
+        // Cached grid column positions per rank, refreshed only when the owner's timeline
+        // geometry, tempo map, or grid spacing changes.
+        std::vector<int> m_subdivision_grid_x{};
         std::vector<int> m_beat_grid_x{};
         std::vector<int> m_measure_grid_x{};
     };
@@ -602,16 +646,17 @@ public:
         layoutScaledCanvas();
     }
 
-    // Stores the tempo map used by the content background grid.
-    void setTempoMap(common::core::TempoMap tempo_map)
+    // Stores the tempo map and grid spacing used by the content background grid and the ruler.
+    void setGrid(common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats)
     {
-        if (m_tempo_map == tempo_map)
+        if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
         {
             return;
         }
 
         m_tempo_map = std::move(tempo_map);
-        m_timeline_ruler.setTempoMap(m_tempo_map);
+        m_grid_spacing_beats = grid_spacing_beats;
+        m_timeline_ruler.setGrid(m_tempo_map, m_grid_spacing_beats);
         m_content.refreshGridColumns();
         m_content.repaint();
     }
@@ -913,6 +958,10 @@ private:
     // Song-level tempo map used to render beat and measure grid lines.
     common::core::TempoMap m_tempo_map{};
 
+    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Fraction default of 0/1 is a degenerate step.
+    common::core::Fraction m_grid_spacing_beats{1, 1};
+
     // Horizontal timeline scale used to size the zoomed content canvas.
     double m_pixels_per_second{g_default_pixels_per_second};
 
@@ -1044,7 +1093,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
         m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
-    m_track_viewport->setTempoMap(m_state.tempo_map);
+    m_track_viewport->setGrid(m_state.tempo_map, m_state.grid_spacing_beats);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         m_track_viewport->requestCursorFocus();
@@ -1058,6 +1107,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
+    m_cursor_overlay->setGridSpacing(m_state.grid_spacing_beats);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);

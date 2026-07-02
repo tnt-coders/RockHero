@@ -65,8 +65,9 @@ Editor-core policy around the type lives in the grid-geometry code, not in `Frac
 - A validation helper (for example `isValidTempoGridSpacing`) requires a positive fraction whose
   reduced numerator and denominator each fall in `[1, 1024]`.
 - `Fraction` default-constructs to `0/1`, which is a degenerate grid step. Every owner of a spacing
-  value must initialize to `Fraction{1, 1}`, and the geometry functions must reject non-positive
-  spacing.
+  value must initialize to `Fraction{1, 1}`, and the geometry entry points normalize invalid
+  spacing to the whole-beat grid so rendering and snapping can never diverge and a corrupt stored
+  value cannot blank the timeline.
 - `Fraction` has no arithmetic operators, and none are needed: the k-th subdivision of a step
   `n/d` sits at `(k * n) / d` whole beats plus a `Fraction{(k * n) % d, d}` offset, which feeds
   `secondsAtNote` directly with plain integer math.
@@ -115,7 +116,7 @@ denominator.
    - Keep the default equal to the current whole-beat grid (`Fraction{1, 1}`).
 
 2. **Fractional grid generation**
-   - Extend `TempoGridLine` with explicit strength, such as `Measure`, `Beat`, and `Subdivision`.
+   - Extend `TempoGridLine` with an explicit rank, such as `Measure`, `Beat`, and `Subdivision`.
    - Update `visibleTempoGridLines(...)` to accept spacing and emit fractional beat positions.
    - Preserve existing visible-span culling and merged-column behavior.
    - Promote measure starts over beats and beats over subdivisions when multiple positions collapse
@@ -162,9 +163,10 @@ Add editor-core tests for:
 - `1/2` beat and `1/4` beat subdivisions landing at expected columns;
 - non-power-of-two manual spacing such as thirds or fifths of a beat;
 - dense manual spacing preserving visible-span culling;
-- merged columns preferring measure, then beat, then subdivision strength;
+- merged columns preferring measure, then beat, then subdivision rank;
 - snap lookup selecting fractional lines and resolving ties to the left;
-- degenerate spacing (zero or negative, including the `Fraction` default of `0/1`) being rejected;
+- degenerate spacing (zero or negative, including the `Fraction` default of `0/1`) falling back to
+  the whole-beat grid for both generation and snapping;
 - note-value display and entry conversions reducing exactly, including `3/16` and triplet `1/12`
   cases in 4/4 and 7/8;
 - per-project spacing round-tripping through `EditorSettings`, with malformed or out-of-range
