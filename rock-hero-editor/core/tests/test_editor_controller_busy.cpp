@@ -448,7 +448,7 @@ TEST_CASE("EditorController busy routing blocks direct commands", "[core][editor
     controller.onPublishRequested(std::filesystem::path{"blocked.rock"});
     controller.onPlayPausePressed();
     controller.onStopPressed();
-    controller.onWaveformClicked(0.5);
+    controller.onTimelineSeekRequested(common::core::TimePosition{0.5});
     controller.onPluginBrowserRequested();
     controller.onPluginCatalogScanRequested();
     controller.onSelectedPluginInsertRequested("catalog-plugin-id");

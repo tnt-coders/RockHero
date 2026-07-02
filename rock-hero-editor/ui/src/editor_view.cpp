@@ -205,7 +205,7 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
         case core::EditorActionId::Redo:
         case core::EditorActionId::PlayPause:
         case core::EditorActionId::Stop:
-        case core::EditorActionId::SeekWaveform:
+        case core::EditorActionId::SeekTimeline:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -373,7 +373,7 @@ public:
         g.fillRect(cursor_x, 0, 1, getHeight());
     }
 
-    // Converts editor-wide timeline clicks into normalized seek intent.
+    // Converts editor-wide timeline clicks into timeline seek intent.
     void mouseDown(const juce::MouseEvent& event) override
     {
         if (getWidth() <= 0 || !event.mods.isLeftButtonDown())
@@ -381,16 +381,16 @@ public:
             return;
         }
 
-        const std::optional<double> ratio = normalizedTimelineCursorPlacementX(
+        const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
             m_tempo_map,
             m_visible_timeline,
             getWidth(),
             event.position.x,
             event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
                                     : TimelineCursorPlacementMode::SnapToGrid);
-        if (ratio.has_value())
+        if (position.has_value())
         {
-            m_controller.onWaveformClicked(*ratio);
+            m_controller.onTimelineSeekRequested(*position);
         }
     }
 
@@ -548,8 +548,9 @@ public:
         m_content.addAndMakeVisible(m_arrangement_view);
         m_content.addAndMakeVisible(m_cursor_overlay);
         m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
-        m_timeline_ruler.setCursorPlacementCallback(
-            [this](double normalized_x) { m_controller.onWaveformClicked(normalized_x); });
+        m_timeline_ruler.setCursorPlacementCallback([this](common::core::TimePosition position) {
+            m_controller.onTimelineSeekRequested(position);
+        });
         setProjectLoaded(false);
     }
 

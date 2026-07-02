@@ -162,7 +162,7 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
     controller.onRestoreInterruptedDecision(RestoreInterruptedDecision::Retry);
     controller.onPlayPausePressed();
     controller.onStopPressed();
-    controller.onWaveformClicked(0.75);
+    controller.onTimelineSeekRequested(common::core::TimePosition{0.75});
     controller.onPluginBrowserRequested();
     controller.onPluginBrowserClosed();
     controller.onPluginCatalogScanRequested();
@@ -195,8 +195,8 @@ TEST_CASE("IEditorController fake receives editor intents", "[core][editor-contr
         std::optional{RestoreInterruptedDecision::Retry});
     CHECK(controller.play_pause_press_count == 1);
     CHECK(controller.stop_press_count == 1);
-    CHECK(controller.waveform_click_count == 1);
-    CHECK(controller.last_normalized_x == std::optional{0.75});
+    CHECK(controller.timeline_seek_count == 1);
+    CHECK(controller.last_seek_position == std::optional{common::core::TimePosition{0.75}});
     CHECK(controller.plugin_browser_request_count == 1);
     CHECK(controller.plugin_browser_close_count == 1);
     CHECK(controller.plugin_catalog_scan_request_count == 1);

@@ -1,11 +1,10 @@
 /*!
 \file tempo_grid_geometry.h
-\brief Pure tempo-grid line geometry for editor timeline rendering.
+\brief Pure tempo-grid line geometry and snap lookup for the editor timeline.
 */
 
 #pragma once
 
-#include <optional>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <vector>
@@ -62,20 +61,19 @@ single column when zoomed far out are merged, with downbeats taking color and la
     int visible_x_begin, int visible_x_end);
 
 /*!
-\brief Finds the nearest tempo-grid line column to a target drawing column.
+\brief Finds the tempo-grid time nearest to a target timeline position.
 
-Uses the same beat-to-pixel mapping as visibleTempoGridLines, but searches around the target
-position instead of scanning the whole visible range. This is used for snap-to-grid timeline seek
-gestures.
+This is a pure musical-time query used for snap-to-grid timeline seek gestures: it never sees
+pixels, so the snapped time is exact and independent of zoom or drawing width. Targets exactly
+halfway between two beats resolve to the earlier beat so repeated clicks snap stably. Targets
+outside the authored beat range resolve to the first or terminal beat. The result may lie outside
+any particular visible range; callers bound the seek themselves.
 
 \param tempo_map Song tempo map supplying the beat grid and absolute beat times.
-\param visible_timeline Timeline range represented by the full drawing width.
-\param width Full drawing width in pixels.
-\param target_x Target pixel column in drawing-width coordinates.
-\return Nearest tempo-grid column in [0, width - 1], or empty for degenerate inputs.
+\param target Timeline position to snap.
+\return Timeline position of the nearest tempo-grid line.
 */
-[[nodiscard]] std::optional<int> nearestTempoGridLineX(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
-    int target_x);
+[[nodiscard]] common::core::TimePosition nearestTempoGridTime(
+    const common::core::TempoMap& tempo_map, common::core::TimePosition target);
 
 } // namespace rock_hero::editor::core

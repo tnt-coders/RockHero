@@ -2,7 +2,6 @@
 
 #include "timeline_geometry.h"
 
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -57,29 +56,6 @@ double secondsAtColumn(common::core::TimeRange visible_timeline, double width_sp
     }
 
     return first_beat;
-}
-
-// Maps one global beat to its rounded grid column, rejecting beats outside the visible timeline.
-[[nodiscard]] std::optional<int> columnForBeatIndex(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
-    std::int64_t beat_index)
-{
-    if (beat_index < 0 || beat_index > tempo_map.terminalGlobalBeatIndex())
-    {
-        return std::nullopt;
-    }
-
-    const auto x = timelineXForPosition(
-        common::core::TimePosition{secondsAtIndex(tempo_map, beat_index)},
-        visible_timeline,
-        width,
-        TimelinePositionClamping::RejectOutsideVisibleRange);
-    if (!x.has_value())
-    {
-        return std::nullopt;
-    }
-
-    return static_cast<int>(std::round(*x));
 }
 
 } // namespace
@@ -165,46 +141,38 @@ std::vector<TempoGridLine> visibleTempoGridLines(
     return lines;
 }
 
-// Finds the closest visual beat-grid column to a clicked target column.
-std::optional<int> nearestTempoGridLineX(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
-    int target_x)
+// Finds the closest grid time by comparing the two beats bracketing the target. Distances are
+// measured in seconds, not pixels, so the snapped time is exact and independent of zoom.
+common::core::TimePosition nearestTempoGridTime(
+    const common::core::TempoMap& tempo_map, common::core::TimePosition target)
 {
-    if (width <= 0 || visible_timeline.duration().seconds <= 0.0)
-    {
-        return std::nullopt;
-    }
+    const std::int64_t terminal_beat = tempo_map.terminalGlobalBeatIndex();
+    const std::int64_t first_after_target = firstBeatAtOrAfterSeconds(tempo_map, target.seconds);
 
-    const int clamped_target_x = std::clamp(target_x, 0, width - 1);
-    const double width_span = static_cast<double>(width - 1);
-    const double target_seconds =
-        width_span > 0.0 ? secondsAtColumn(visible_timeline, width_span, clamped_target_x)
-                         : visible_timeline.start.seconds;
-    const std::int64_t first_after_target = firstBeatAtOrAfterSeconds(tempo_map, target_seconds);
-
-    std::optional<int> best_column;
-    int best_distance = std::numeric_limits<int>::max();
+    double best_seconds = 0.0;
+    double best_distance = std::numeric_limits<double>::infinity();
     const auto considerBeat = [&](std::int64_t beat_index) {
-        const std::optional<int> column =
-            columnForBeatIndex(tempo_map, visible_timeline, width, beat_index);
-        if (!column.has_value())
+        if (beat_index < 0 || beat_index > terminal_beat)
         {
             return;
         }
 
-        const int distance = std::abs(*column - clamped_target_x);
+        const double seconds = secondsAtIndex(tempo_map, beat_index);
+        const double distance = std::abs(seconds - target.seconds);
         if (distance < best_distance)
         {
-            best_column = column;
+            best_seconds = seconds;
             best_distance = distance;
         }
     };
 
-    // Check the neighboring beats around the click time. Searching the left candidate first makes
-    // exact halfway clicks choose the earlier grid line instead of jumping forward.
+    // Check the neighboring beats around the target time. Considering the earlier beat first makes
+    // exact halfway targets choose the earlier grid line instead of jumping forward. At least one
+    // candidate is always in range because terminalGlobalBeatIndex() is never negative and
+    // firstBeatAtOrAfterSeconds returns a value in [0, terminal + 1].
     considerBeat(first_after_target - 1);
     considerBeat(first_after_target);
-    return best_column;
+    return common::core::TimePosition{best_seconds};
 }
 
 } // namespace rock_hero::editor::core
