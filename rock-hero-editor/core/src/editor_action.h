@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <optional>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
@@ -168,19 +169,19 @@ struct EditorAction
     {
     };
 
-    /*! \brief Seek from a normalized waveform coordinate. */
-    struct SeekWaveform
+    /*! \brief Seek the transport to a timeline position. */
+    struct SeekTimeline
     {
         /*!
-        \brief Creates a waveform seek action.
-        \param normalized_x_value Click position normalized to the interval [0, 1].
+        \brief Creates a timeline seek action.
+        \param position_value Requested seek position on the song timeline.
         */
-        explicit constexpr SeekWaveform(double normalized_x_value) noexcept
-            : normalized_x(normalized_x_value)
+        explicit constexpr SeekTimeline(common::core::TimePosition position_value) noexcept
+            : position(position_value)
         {}
 
-        /*! \brief Waveform x coordinate normalized to the interval [0, 1]. */
-        double normalized_x;
+        /*! \brief Requested seek position on the song timeline. */
+        common::core::TimePosition position;
     };
 
     /*! \brief Show the scanned plugin browser. */
@@ -334,7 +335,7 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
-        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekWaveform, ShowPluginBrowser,
+        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, ShowPluginBrowser,
         BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin, MovePlugin,
         SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
 };

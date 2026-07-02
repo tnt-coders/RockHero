@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
@@ -39,34 +40,21 @@ void repaintCursorStrip(
     component.repaint(left, 0, right - left, component.getHeight());
 }
 
-// Converts either overlay or ruler clicks through the same placement path. Both modes normalize by
-// the column count so they round-trip against the [0, width - 1] cursor mapping. Free placement
-// keeps the sub-pixel click point; snapping resolves the click to the nearest grid line's column.
-std::optional<double> normalizedTimelineCursorPlacementX(
+// Converts either overlay or ruler clicks through the same placement path. The click column first
+// becomes a timeline position, so snapping happens in musical time and the resulting seek is the
+// exact grid-line time instead of a value quantized to the pixel grid.
+std::optional<common::core::TimePosition> timelineCursorPlacementTime(
     const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline,
     int timeline_width, float timeline_x, TimelineCursorPlacementMode mode)
 {
-    if (timeline_width <= 0)
+    const std::optional<common::core::TimePosition> click_time =
+        core::timelinePositionForX(timeline_x, visible_timeline, timeline_width);
+    if (!click_time.has_value() || mode == TimelineCursorPlacementMode::Free)
     {
-        return std::nullopt;
+        return click_time;
     }
 
-    const double max_column = static_cast<double>(timeline_width - 1);
-    if (max_column <= 0.0)
-    {
-        return 0.0;
-    }
-
-    if (mode == TimelineCursorPlacementMode::Free)
-    {
-        return std::clamp(static_cast<double>(timeline_x), 0.0, max_column) / max_column;
-    }
-
-    const int target_column =
-        std::clamp(static_cast<int>(std::round(timeline_x)), 0, timeline_width - 1);
-    const std::optional<int> snapped_x =
-        core::nearestTempoGridLineX(tempo_map, visible_timeline, timeline_width, target_column);
-    return static_cast<double>(snapped_x.value_or(target_column)) / max_column;
+    return core::nearestTempoGridTime(tempo_map, *click_time);
 }
 
 } // namespace rock_hero::editor::ui

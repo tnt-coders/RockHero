@@ -11,6 +11,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/live_input_error.h>
+#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/plugin_block_assignment.h>
 #include <rock_hero/editor/core/plugin_display_type.h>
@@ -96,10 +97,10 @@ public:
     virtual void onStopPressed() = 0;
 
     /*!
-    \brief Handles a click on a waveform at a normalized horizontal position.
-    \param normalized_x Click position normalized to the interval [0, 1].
+    \brief Handles a timeline seek request at an absolute timeline position.
+    \param position Requested seek position on the song timeline.
     */
-    virtual void onWaveformClicked(double normalized_x) = 0;
+    virtual void onTimelineSeekRequested(common::core::TimePosition position) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

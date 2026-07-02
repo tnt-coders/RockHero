@@ -134,8 +134,8 @@ TEST_CASE("EditorController stop intent refreshes paused reset state", "[core][e
     CHECK(lastStopEnabled(view) == std::optional{false});
 }
 
-// Waveform clicks clamp out-of-range input and convert positions through the session timeline.
-TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-controller]")
+// Timeline seek intents clamp out-of-range positions into the loaded session timeline.
+TEST_CASE("EditorController timeline seek clamps into the timeline", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -155,18 +155,18 @@ TEST_CASE("EditorController waveform click clamps and scales", "[core][editor-co
         std::filesystem::path{"a.wav"},
         loadedTimelineRange(4.0)));
 
-    controller.onWaveformClicked(0.5);
+    controller.onTimelineSeekRequested(common::core::TimePosition{2.0});
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
 
-    controller.onWaveformClicked(-0.25);
+    controller.onTimelineSeekRequested(common::core::TimePosition{-1.0});
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{0.0}});
 
-    controller.onWaveformClicked(1.5);
+    controller.onTimelineSeekRequested(common::core::TimePosition{9.0});
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{4.0}});
 }
 
 // A seek issued by the controller refreshes whether Stop can reset the cursor.
-TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor-controller]")
+TEST_CASE("EditorController timeline seek refreshes stop state", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -190,12 +190,12 @@ TEST_CASE("EditorController waveform click refreshes stop state", "[core][editor
 
     CHECK(lastStopEnabled(view) == std::optional{false});
 
-    controller.onWaveformClicked(0.5);
+    controller.onTimelineSeekRequested(common::core::TimePosition{2.0});
 
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{2.0}});
     CHECK(lastStopEnabled(view) == std::optional{true});
 
-    controller.onWaveformClicked(0.0);
+    controller.onTimelineSeekRequested(common::core::TimePosition{0.0});
 
     CHECK(transport.last_seek_position == std::optional{common::core::TimePosition{}});
     CHECK(lastStopEnabled(view) == std::optional{false});

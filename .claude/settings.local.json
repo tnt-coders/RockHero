@@ -4,7 +4,9 @@
             "Bash(git *)",
             "WebSearch",
             "WebFetch(domain:github.com)",
-            "WebFetch(domain:raw.githubusercontent.com)"
+            "WebFetch(domain:raw.githubusercontent.com)",
+            "Bash(xargs grep -ln \"override\")",
+            "Bash(xargs grep -ln \"onTimelineSeekRequested\\\\|IEditorController\")"
         ]
     }
 }

@@ -63,8 +63,8 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Stop playback or reset a paused cursor. */
     Stop,
 
-    /*! \brief Seek from a normalized waveform coordinate. */
-    SeekWaveform,
+    /*! \brief Seek the transport to a timeline position. */
+    SeekTimeline,
 
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
