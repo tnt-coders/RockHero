@@ -3,6 +3,7 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <vector>
@@ -30,8 +31,9 @@ public:
     // Samples the current transport cursor for the ruler's aligned playhead mark.
     void setCursorPosition(common::core::TimePosition cursor_position);
 
-    // Stores the tempo map that supplies measures and anchors.
-    void setTempoMap(common::core::TempoMap tempo_map);
+    // Stores the tempo map that supplies measures and anchors, plus the grid step in beats shared
+    // with the track grid and snapping.
+    void setGrid(common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats);
 
     // Stores the callback that receives cursor-placement seek positions.
     void setCursorPlacementCallback(CursorPlacementCallback callback);
@@ -54,7 +56,8 @@ private:
     // visible beat range on every frame.
     void refreshGridLines();
 
-    // Draws visible beat ticks, with measure ticks promoted to the full ruler height.
+    // Draws visible grid ticks: full-height measures, quarter-height beats, and shorter
+    // subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
 
     // Draws timing anchors as diamonds and labels precise seconds when horizontal room allows.
@@ -68,6 +71,10 @@ private:
 
     // Tempo map used for ruler measure ticks and anchor positions.
     common::core::TempoMap m_tempo_map{};
+
+    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Fraction default of 0/1 is a degenerate step.
+    common::core::Fraction m_grid_spacing_beats{1, 1};
 
     // Width of the scrollable timeline canvas that shares geometry with the grid.
     int m_content_width{0};

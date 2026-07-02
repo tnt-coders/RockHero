@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
 #include <vector>
@@ -12,26 +14,59 @@
 namespace rock_hero::editor::core
 {
 
+/*! \brief Inclusive upper bound for tempo-grid spacing numerator and denominator values. */
+inline constexpr int g_max_tempo_grid_spacing_term = 1024;
+
+/*!
+\brief Reports whether a fraction is usable as a tempo-grid step measured in beats.
+
+Valid spacing is a positive fraction whose numerator and denominator each fall in
+[1, g_max_tempo_grid_spacing_term]. The default-constructed Fraction value of 0/1 is invalid, so
+every owner of a spacing value must initialize it explicitly; the whole-beat grid is
+Fraction{1, 1}.
+
+\param spacing Grid step measured in tempo-map beats.
+\return True when the spacing can drive grid generation and snapping.
+*/
+[[nodiscard]] constexpr bool isValidTempoGridSpacing(common::core::Fraction spacing) noexcept
+{
+    return spacing.numerator >= 1 && spacing.numerator <= g_max_tempo_grid_spacing_term &&
+           spacing.denominator >= 1 && spacing.denominator <= g_max_tempo_grid_spacing_term;
+}
+
+/*! \brief Musical rank of a tempo-grid line, ordered weakest to strongest. */
+enum class TempoGridLineRank : std::uint8_t
+{
+    /*! \brief Fractional position between beats produced by sub-beat grid spacing. */
+    Subdivision,
+
+    /*! \brief Whole tempo-map beat that is not the first beat of its measure. */
+    Beat,
+
+    /*! \brief First beat of a measure (a downbeat). */
+    Measure,
+};
+
 /*! \brief One vertical tempo-grid line resolved to a drawing column. */
 struct TempoGridLine
 {
     /*! \brief Zero-based pixel column within the drawing width. */
     int x{0};
 
-    /*! \brief One-based measure number for the beat represented by this line. */
+    /*! \brief One-based measure number of the beat containing this line. */
     int measure{1};
 
-    /*! \brief One-based beat number within the represented measure. */
+    /*! \brief One-based beat number within the measure for the beat containing this line. */
     int beat{1};
 
-    /*! \brief True when the line marks the first beat of a measure (a downbeat). */
-    bool measure_start{false};
+    /*! \brief Musical rank used for styling and merged-column promotion. */
+    TempoGridLineRank rank{TempoGridLineRank::Beat};
 
     /*!
     \brief Compares two grid lines by their stored fields.
     \param lhs Left-hand grid line.
     \param rhs Right-hand grid line.
-    \return True when both lines store the same column, musical position, and measure flag.
+    \return True when both lines store the same column, musical position, and rank.
     */
     friend bool operator==(const TempoGridLine& lhs, const TempoGridLine& rhs) = default;
 };
@@ -39,14 +74,19 @@ struct TempoGridLine
 /*!
 \brief Resolves the tempo-grid lines whose columns fall inside a visible pixel span.
 
-Maps each song beat onto the drawing width with timelineXForPosition and returns only the lines
-landing in [visible_x_begin, visible_x_end), in ascending column order. Because beat times increase
-monotonically with the global beat index, the visible beats form a contiguous run: the scan
-binary-searches the first beat that can reach the span and stops once it passes the right edge, so
-cost scales with the visible beat count rather than the whole song. Beats that collapse onto a
-single column when zoomed far out are merged, with downbeats taking color and label priority.
+Grid lines sit every grid_spacing_beats along the tempo map's beat axis, so a spacing of 1/2
+places a subdivision line halfway through every beat while whole beats and downbeats keep their
+stronger rank. Each line maps onto the drawing width with timelineXForPosition and only lines
+landing in [visible_x_begin, visible_x_end) are returned, in ascending column order. Because line
+times increase monotonically with the grid-line index, the visible lines form a contiguous run:
+the scan binary-searches the first line that can reach the span and stops once it passes the right
+edge, so cost scales with the visible line count rather than the whole song. Lines that collapse
+onto a single column when zoomed far out are merged, with the strongest rank keeping the column's
+color and label identity.
 
 \param tempo_map Song tempo map supplying the beat grid and absolute beat times.
+\param grid_spacing_beats Grid step measured in tempo-map beats; invalid spacing falls back to the
+       whole-beat grid so rendering and snapping can never diverge.
 \param visible_timeline Timeline range represented by the full drawing width.
 \param width Full drawing width in pixels.
 \param visible_x_begin Inclusive left pixel of the visible span, in drawing-width coordinates.
@@ -57,23 +97,26 @@ single column when zoomed far out are merged, with downbeats taking color and la
       times; a malformed map can only misplace lines, never crash.
 */
 [[nodiscard]] std::vector<TempoGridLine> visibleTempoGridLines(
-    const common::core::TempoMap& tempo_map, common::core::TimeRange visible_timeline, int width,
-    int visible_x_begin, int visible_x_end);
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimeRange visible_timeline, int width, int visible_x_begin, int visible_x_end);
 
 /*!
 \brief Finds the tempo-grid time nearest to a target timeline position.
 
 This is a pure musical-time query used for snap-to-grid timeline seek gestures: it never sees
 pixels, so the snapped time is exact and independent of zoom or drawing width. Targets exactly
-halfway between two beats resolve to the earlier beat so repeated clicks snap stably. Targets
-outside the authored beat range resolve to the first or terminal beat. The result may lie outside
+halfway between two grid lines resolve to the earlier line so repeated clicks snap stably. Targets
+outside the authored beat range resolve to the first or last grid line. The result may lie outside
 any particular visible range; callers bound the seek themselves.
 
 \param tempo_map Song tempo map supplying the beat grid and absolute beat times.
+\param grid_spacing_beats Grid step measured in tempo-map beats; invalid spacing falls back to the
+       whole-beat grid so rendering and snapping can never diverge.
 \param target Timeline position to snap.
 \return Timeline position of the nearest tempo-grid line.
 */
 [[nodiscard]] common::core::TimePosition nearestTempoGridTime(
-    const common::core::TempoMap& tempo_map, common::core::TimePosition target);
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimePosition target);
 
 } // namespace rock_hero::editor::core

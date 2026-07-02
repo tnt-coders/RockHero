@@ -57,7 +57,7 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setTempoMap(makeOneMeasureTempoMap(4.0));
+    ruler.setGrid(makeOneMeasureTempoMap(4.0), common::core::Fraction{1, 1});
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -67,6 +67,30 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
     const juce::Colour beat_lower_quarter = image.getPixelAt(25, 24);
     CHECK(measure_top != beat_top);
     CHECK(beat_lower_quarter != beat_top);
+}
+
+// Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
+TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange one_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{4.0},
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
+    ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
+    ruler.setGrid(makeOneMeasureTempoMap(4.0), common::core::Fraction{1, 2});
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The half-beat subdivision at 0.5s (x = 13) fills only the shorter bottom band, while the
+    // beat at 1.0s (x = 25) also fills the taller beat band above it.
+    const int bottom_y = g_timeline_ruler_height - 1;
+    const int beat_band_y = g_timeline_ruler_height - g_timeline_ruler_height / 4;
+    CHECK(image.getPixelAt(13, bottom_y) == image.getPixelAt(25, bottom_y));
+    CHECK(image.getPixelAt(13, beat_band_y) != image.getPixelAt(25, beat_band_y));
 }
 
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.
@@ -590,6 +614,57 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     REQUIRE(last_seek_position.has_value());
     // The snapped seek is the exact beat time, not a value quantized to the beat's pixel column.
     CHECK(last_seek_position->seconds == Catch::Approx(1.0));
+}
+
+// Verifies the track grid, overlay snapping, and ruler snapping all use the state grid spacing.
+TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    const FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1600, 1000);
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    state.grid_spacing_beats = common::core::Fraction{1, 2};
+    view.setState(state);
+
+    auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
+    auto& timeline_ruler = findRequiredDescendant<TimelineRuler>(view, "timeline_ruler");
+    auto& track_content = findRequiredDescendant<juce::Component>(view, "track_viewport_content");
+    auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
+    REQUIRE(track_content.getWidth() > 1);
+
+    // The half-beat subdivision at 0.5s draws a grid column in the lower track area.
+    const auto subdivision_x = cursorXForTimelinePosition(
+        common::core::TimePosition{0.5}, state.visible_timeline, track_content.getWidth());
+    REQUIRE(subdivision_x.has_value());
+    const int line_x = static_cast<int>(std::round(*subdivision_x));
+    const int background_x = std::min(track_content.getWidth() - 1, line_x + 12);
+    const int lower_track_y = gridDotYAtOrAfter(arrangement_view.getBottom() + 20);
+    const juce::Image image = track_content.createComponentSnapshot(track_content.getLocalBounds());
+    CHECK(
+        std::abs(
+            image.getPixelAt(line_x, lower_track_y).getBrightness() -
+            image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
+
+    // Overlay clicks near the subdivision snap to its exact time.
+    const float click_x = static_cast<float>(line_x + 10);
+    const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
+    REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
+    REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
+    cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
+    CHECK(controller.timeline_seek_count == 1);
+    REQUIRE(controller.last_seek_position.has_value());
+    CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+
+    // Ruler clicks resolve through the same subdivision grid.
+    timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
+    CHECK(controller.timeline_seek_count == 2);
+    REQUIRE(controller.last_seek_position.has_value());
+    CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
 }
 
 // Verifies Ctrl-clicking the ruler keeps free cursor placement.
