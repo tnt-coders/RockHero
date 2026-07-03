@@ -251,4 +251,32 @@ TEST_CASE("TempoMap defaultMap covers audio duration", "[core][tempo-map]")
     CHECK(tempo_map.anchors().back() == BeatAnchor{.measure = 4, .beat = 1, .seconds = 6.0});
 }
 
+// Verifies beat positions below a first anchor that is not measure 1 beat 1 clamp to that
+// anchor's time instead of extrapolating the first span backwards, so the forward map agrees
+// with beatPositionAtSeconds' inverse clamp. Package validation forbids such maps, but the
+// value constructor accepts them and the documented contract still applies.
+TEST_CASE("TempoMap clamps beat positions below the first anchor", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 2, .beat = 1, .seconds = 10.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
+        },
+    };
+
+    CHECK(tempo_map.secondsAtBeat(1, 1) == Catch::Approx(10.0));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(2.0) == Catch::Approx(10.0));
+
+    TempoMap::ForwardBeatTimeCursor cursor{tempo_map};
+    CHECK(cursor.secondsAt(2.0) == Catch::Approx(10.0));
+
+    // Positions inside the authored span still interpolate, and the inverse clamps to the first
+    // anchor's beat index as before.
+    CHECK(tempo_map.secondsAtBeat(2, 3) == Catch::Approx(12.0));
+    CHECK(tempo_map.beatPositionAtSeconds(9.0) == Catch::Approx(4.0));
+}
+
 } // namespace rock_hero::common::core

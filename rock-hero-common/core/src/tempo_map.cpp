@@ -435,6 +435,15 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
 double TempoMap::secondsAtAnchorSpan(
     std::size_t right_index, double quarter_position) const noexcept
 {
+    // Clamp below the first anchor instead of extrapolating a negative fraction through the first
+    // span. Only reachable when the first anchor is not measure 1 beat 1 — package validation
+    // forbids that, but unvalidated value-constructed maps must still honor the documented
+    // clamp-outside-the-range contract, and beatPositionAtSeconds already clamps the inverse.
+    if (quarter_position <= m_anchor_quarter_positions.front())
+    {
+        return m_anchors.front().seconds;
+    }
+
     if (right_index >= m_anchors.size())
     {
         return m_anchors.back().seconds;
