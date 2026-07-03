@@ -72,6 +72,10 @@ private:
     // vblank cadence, do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
+    // Rebuilds the time-signature labels shown at each stored signature change's downbeat; part
+    // of refreshRulerGeometry and runs before measure labels so those can yield to signatures.
+    void refreshSignatureLabels(const juce::Font& font);
+
     // Rebuilds the merged anchor-marker path and overlap-suppressed anchor labels; part of
     // refreshRulerGeometry and shares its font so cached label widths match the paint font.
     void refreshAnchorGeometry(const juce::Font& font);
@@ -129,6 +133,10 @@ private:
     // and previously ran for every visible measure column on every repaint, including narrow
     // cursor-only repaints driven at vblank cadence or triggered by a single click.
     std::vector<RulerLabel> m_measure_labels{};
+
+    // Time-signature labels at signature-change downbeats, sharing the top band with measure
+    // numbers; measure numbers yield to these so a meter change is never hidden by numbering.
+    std::vector<RulerLabel> m_signature_labels{};
 
     // All visible anchor diamonds merged into one path so paint() issues a single fill instead of
     // building and filling a path per anchor on every repaint.

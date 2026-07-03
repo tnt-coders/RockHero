@@ -103,6 +103,69 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     CHECK(image.getPixelAt(13, beat_band_y) != image.getPixelAt(25, beat_band_y));
 }
 
+// Verifies a time-signature change draws a signature label at its downbeat in the ruler's top
+// band. The change entry repeats 4/4 so both maps produce identical ticks and the only pixel
+// difference near the measure-2 tick is the signature label itself.
+TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    constexpr common::core::TimeRange two_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr common::core::Fraction grid_spacing{1, 1};
+    const auto ruler_snapshot = [&](const common::core::TempoMap& tempo_map) {
+        TimelineRuler ruler;
+        ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
+        ruler.setTimelineView(two_measure_window, ruler.getWidth(), 0);
+        ruler.setGrid(tempo_map, grid_spacing);
+        ruler.setGridLines(
+            core::visibleTempoGridLines(
+                tempo_map,
+                grid_spacing,
+                two_measure_window,
+                ruler.getWidth(),
+                0,
+                ruler.getWidth()));
+        ruler.setProjectLoaded(true);
+        return ruler.createComponentSnapshot(ruler.getLocalBounds());
+    };
+
+    const std::vector anchors{
+        common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+        common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
+    };
+    const common::core::TempoMap unchanged_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        anchors,
+    };
+    const common::core::TempoMap changed_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4},
+        },
+        anchors,
+    };
+
+    const juce::Image unchanged_image = ruler_snapshot(unchanged_map);
+    const juce::Image changed_image = ruler_snapshot(changed_map);
+
+    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 100 of the 201px ruler
+    // and the label band starts just right of it.
+    bool label_pixels_differ = false;
+    for (int x = 100; x < 160 && !label_pixels_differ; ++x)
+    {
+        for (int y = 2; y < 16 && !label_pixels_differ; ++y)
+        {
+            label_pixels_differ =
+                unchanged_image.getPixelAt(x, y) != changed_image.getPixelAt(x, y);
+        }
+    }
+    CHECK(label_pixels_differ);
+}
+
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.
 TEST_CASE("EditorView default zoom maps ten seconds", "[ui][editor-view]")
 {
