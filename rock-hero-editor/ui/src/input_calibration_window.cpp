@@ -27,7 +27,8 @@ constexpr int g_input_calibration_wait_sample_count{
 };
 // Discard the first half-second so backend gain resets and meter windows settle before capture.
 constexpr int g_input_calibration_settle_sample_count{g_input_calibration_meter_hz / 2};
-// Match the normal transport-bar master meter width so the popup stays visually compact.
+// Match the transport-bar master meter's preferred width so the popup stays visually compact;
+// the live master meter can flex narrower when the window-centered transport needs the room.
 constexpr int g_input_calibration_meter_width{384};
 constexpr int g_input_calibration_content_margin{14};
 constexpr int g_input_calibration_preferred_width{

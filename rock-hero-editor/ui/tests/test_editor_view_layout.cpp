@@ -59,23 +59,20 @@ TEST_CASE("EditorView lays out toolbar below the menu bar", "[ui][editor-view]")
 
     auto& controls = findRequiredDescendant<TransportControls>(view, "transport_controls");
     auto& grid_selector = findRequiredDescendant<juce::Component>(view, "grid_spacing_selector");
-    auto& musical_display =
-        findRequiredDescendant<juce::Component>(view, "transport_musical_display");
     auto& track_viewport = findRequiredDescendant<juce::Component>(view, "track_viewport");
     auto& timeline_ruler = findRequiredDescendant<juce::Component>(view, "timeline_ruler");
     auto& viewport = findRequiredDescendant<juce::Viewport>(view, "track_viewport_scroll");
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
-    // The grid selector pins to the strip's left edge with the signature/tempo readout beside
-    // it; the playback group (buttons + position readout) centers in the 182px that remain at
-    // this window width, so the buttons start where that leftover region begins.
+    // The grid selector pins to the strip's left edge. The playback block (buttons + position
+    // readout) wants its whole width centered on the window, but at this window width the grid
+    // selector clamps the block to start right of it.
     CHECK(grid_selector.getBounds() == juce::Rectangle<int>{8, 28, 132, 32});
-    CHECK(musical_display.getBounds() == juce::Rectangle<int>{148, 28, 162, 32});
-    CHECK(controls.getBounds() == juce::Rectangle<int>{310, 28, 96, 32});
+    CHECK(controls.getBounds() == juce::Rectangle<int>{140, 28, 96, 32});
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 484, 80});
-    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 40});
-    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 40, 484, 40});
+    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 484, 53});
+    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 53, 484, 27});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 160, 484, 32});
     CHECK(
         arrangement_view.getBounds() ==
@@ -104,8 +101,8 @@ TEST_CASE("EditorView lays out the default track viewport", "[ui][editor-view]")
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
     auto& signal_chain_panel = findRequiredDescendant<SignalChainPanel>(view, "signal_chain_panel");
     CHECK(track_viewport.getBounds() == juce::Rectangle<int>{8, 72, 1264, 472});
-    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 1264, 40});
-    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 40, 1264, 432});
+    CHECK(timeline_ruler.getBounds() == juce::Rectangle<int>{0, 0, 1264, 53});
+    CHECK(viewport.getBounds() == juce::Rectangle<int>{0, 53, 1264, 419});
     CHECK(signal_chain_panel.getBounds() == juce::Rectangle<int>{8, 552, 1264, 240});
     CHECK(
         track_content.getBounds() ==
