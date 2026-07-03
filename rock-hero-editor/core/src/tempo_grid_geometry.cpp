@@ -182,18 +182,17 @@ std::vector<TempoGridLine> visibleTempoGridLines(
         if (!lines.empty() && lines.back().x == column)
         {
             // Several lines round onto one column when zoomed far out; keep the strongest rank so
-            // measure and beat boundaries still read at low zoom, and keep that rank's musical
-            // position so ruler labels match the promoted color.
+            // measure and beat boundaries still read at low zoom, and keep that rank's measure so
+            // ruler labels match the promoted color.
             if (rank > lines.back().rank)
             {
                 lines.back().measure = measure;
-                lines.back().beat = beat;
                 lines.back().rank = rank;
             }
             continue;
         }
 
-        lines.push_back(TempoGridLine{.x = column, .measure = measure, .beat = beat, .rank = rank});
+        lines.push_back(TempoGridLine{.x = column, .measure = measure, .rank = rank});
     }
 
     return lines;

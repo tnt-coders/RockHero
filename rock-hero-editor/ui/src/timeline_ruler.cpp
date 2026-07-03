@@ -422,7 +422,7 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
     }
 }
 
-// Draws one cached row of overlap-suppressed labels in the current colour at a fixed vertical
+// Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
 // band, using the same font the row's widths were measured with.
 void TimelineRuler::drawLabelRow(
     juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,

@@ -1,3 +1,8 @@
+/*!
+\file timeline_ruler.h
+\brief Pinned bars-and-beats ruler with tempo and signature header bands.
+*/
+
 #pragma once
 
 #include <functional>
@@ -12,49 +17,99 @@
 namespace rock_hero::editor::ui
 {
 
+/*!
+\brief Fixed ruler component height in pixels.
+
+The vertical band layout this height accommodates — tempo band, signature band, measure-number
+row, and tick band — is private to timeline_ruler.cpp; change this constant only together with
+those band constants.
+*/
 inline constexpr int g_timeline_ruler_height{53};
 
-// Draws the pinned bars-and-beats ruler above the scrollable timeline content.
+/*!
+\brief Draws the pinned bars-and-beats ruler above the scrollable timeline content.
+
+The ruler stays fixed while the timeline content scrolls under it: callers push the current view
+geometry and the shared visible-span grid lines, and the ruler renders measure numbers, beat and
+subdivision ticks, and the tempo/signature header bands from that one scan result. Clicks convert
+into the same snapped cursor-placement intent as timeline-content clicks.
+*/
 class TimelineRuler final : public juce::Component
 {
 public:
+    /*! \brief Receives the timeline position of a cursor-placement click. */
     using CursorPlacementCallback = std::function<void(common::core::TimePosition position)>;
 
-    // Names the component for tests and enables direct cursor-placement clicks.
+    /*! \brief Names the component for tests and enables direct cursor-placement clicks. */
     TimelineRuler();
 
-    // Stores whether the ruler should draw musical position data.
+    /*!
+    \brief Stores whether the ruler should draw musical position data.
+    \param project_loaded True while a project is loaded; false leaves the ruler as plain chrome.
+    */
     void setProjectLoaded(bool project_loaded);
 
-    // Stores the ruler geometry derived from the viewport and zoomed content. Does not rebuild
-    // cached tick geometry by itself: tick coordinates come from the grid lines, so callers must
-    // follow every view change with a setGridLines push for the new span.
+    /*!
+    \brief Stores the ruler geometry derived from the viewport and zoomed content.
+
+    Does not rebuild cached tick geometry by itself: tick coordinates come from the grid lines,
+    so callers must follow every view change with a setGridLines push for the new span.
+
+    \param timeline_range Full timeline range represented by the zoomed content width.
+    \param content_width Width of the scrollable timeline canvas in pixels.
+    \param view_x Horizontal scroll offset of the viewport into the zoomed timeline canvas.
+    */
     void setTimelineView(common::core::TimeRange timeline_range, int content_width, int view_x);
 
-    // Samples the current transport cursor for the ruler's aligned playhead mark.
+    /*!
+    \brief Samples the current transport cursor for the ruler's aligned playhead mark.
+    \param cursor_position Current transport position on the timeline.
+    */
     void setCursorPosition(common::core::TimePosition cursor_position);
 
-    // Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
-    // shared with the track grid and snapping. Does not rebuild cached geometry by itself:
-    // callers must follow every grid change with a setGridLines push, matching setTimelineView.
+    /*!
+    \brief Stores the tempo map that supplies anchors and click snapping, plus the grid step in
+    beats shared with the track grid and snapping.
+
+    Does not rebuild cached geometry by itself: callers must follow every grid change with a
+    setGridLines push, matching setTimelineView.
+
+    \param tempo_map Song tempo map shared with the track grid and snapping.
+    \param grid_spacing_beats Grid step measured in tempo-map beats.
+    */
     void setGrid(
         const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats);
 
-    // Stores the tempo-grid lines computed once by the owning view for the current visible span
-    // and rebuilds the cached ruler geometry from them. The lines share the scan with the track
-    // content, so the ruler never runs its own tempo-map scan.
+    /*!
+    \brief Stores the visible-span grid lines and rebuilds the cached ruler geometry from them.
+
+    The lines are computed once by the owning view for the current visible span and shared with
+    the track content, so the ruler never runs its own tempo-map scan.
+
+    \param grid_lines Visible tempo-grid lines in content coordinates.
+    */
     void setGridLines(std::vector<core::TempoGridLine> grid_lines);
 
-    // Stores the callback that receives cursor-placement seek positions.
+    /*!
+    \brief Stores the callback that receives cursor-placement seek positions.
+    \param callback Callback invoked with the placement time of each ruler click.
+    */
     void setCursorPlacementCallback(CursorPlacementCallback callback);
 
-    // Paints the tempo and signature bands, the measure-number row, and the tick band.
+    /*!
+    \brief Paints the tempo and signature bands, the measure-number row, and the tick band.
+    \param g Graphics context used for drawing.
+    */
     void paint(juce::Graphics& g) override;
 
-    // Converts ruler clicks into the same snapped placement intent as timeline-content clicks.
+    /*!
+    \brief Converts ruler clicks into the same snapped placement intent as timeline-content
+    clicks.
+    \param event JUCE mouse event relative to this ruler.
+    */
     void mouseDown(const juce::MouseEvent& event) override;
 
-    // Refreshes cached grid-line geometry after a resize changes the visible ruler width.
+    /*! \brief Refreshes cached grid-line geometry after a resize changes the visible width. */
     void resized() override;
 
 private:
@@ -69,9 +124,9 @@ private:
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
-    // Rebuilds the cached tick, label, and anchor geometry from the stored grid lines, timeline
-    // geometry, and tempo map. Kept out of paint() so cursor-only repaints, which happen at
-    // vblank cadence, do not rebuild geometry or remeasure label text on every frame.
+    // Rebuilds the cached tick and label geometry from the stored grid lines, timeline geometry,
+    // and tempo map. Kept out of paint() so cursor-only repaints, which happen at vblank cadence,
+    // do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
     // Rebuilds the tempo and signature bands above the ruler body: a metronome marking (enlarged
@@ -83,7 +138,7 @@ private:
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
 
-    // Draws one cached row of overlap-suppressed labels in the current colour at a fixed vertical
+    // Draws one cached row of overlap-suppressed labels in the current color at a fixed vertical
     // band. The font must match the one the row's widths were measured with.
     void drawLabelRow(
         juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,

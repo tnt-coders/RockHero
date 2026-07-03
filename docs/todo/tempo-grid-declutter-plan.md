@@ -1,5 +1,11 @@
 # Tempo Grid Declutter Plan
 
+Status: deferred (moved from docs/in-progress 2026-07-03). Stale in places: subdivisions have
+since landed, and the `TempoGridLineStrength` sketch is superseded by the implemented
+`TempoGridLineRank`. Re-read the current grid code and revise before implementing. The planned
+note-value grid rework (timeline-ruler-review-fixes-plan.md Phase 7) also reshapes grid-line
+generation and should land first.
+
 ## Goal
 
 Fix zoomed-out timeline/ruler performance by reducing the number of visible tempo-grid lines before

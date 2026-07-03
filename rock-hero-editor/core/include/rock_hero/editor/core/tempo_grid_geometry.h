@@ -109,9 +109,6 @@ struct TempoGridLine
     /*! \brief One-based measure number of the beat containing this line. */
     int measure{1};
 
-    /*! \brief One-based beat number within the measure for the beat containing this line. */
-    int beat{1};
-
     /*! \brief Musical rank used for styling and merged-column promotion. */
     TempoGridLineRank rank{TempoGridLineRank::Beat};
 
@@ -119,7 +116,7 @@ struct TempoGridLine
     \brief Compares two grid lines by their stored fields.
     \param lhs Left-hand grid line.
     \param rhs Right-hand grid line.
-    \return True when both lines store the same column, musical position, and rank.
+    \return True when both lines store the same column, measure, and rank.
     */
     friend bool operator==(const TempoGridLine& lhs, const TempoGridLine& rhs) = default;
 };
