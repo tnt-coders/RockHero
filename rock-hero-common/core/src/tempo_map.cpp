@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <utility>
 
 namespace rock_hero::common::core
@@ -48,14 +49,92 @@ TempoMap::TempoMap()
               .seconds = g_default_seconds_per_beat * g_default_beats_per_measure,
           },
       }
-{}
+{
+    buildDerivedIndices();
+}
 
 // Stores caller-provided map data without imposing package validation policy on the value type.
 TempoMap::TempoMap(
     std::vector<TimeSignatureChange> time_signatures, std::vector<BeatAnchor> anchors)
     : m_time_signatures(std::move(time_signatures))
     , m_anchors(std::move(anchors))
-{}
+{
+    buildDerivedIndices();
+}
+
+// Normalizes the signature list into monotonic reigns with prefix beat indices, then addresses
+// every anchor on that grid. Runs once per construction so beat and time queries stay logarithmic
+// instead of rescanning the authored lists; the timeline grid scan calls them once per line.
+void TempoMap::buildDerivedIndices()
+{
+    m_segments.clear();
+    m_anchor_beat_indices.clear();
+
+    // The first signature governs from measure 1 regardless of its stored measure, so maps whose
+    // first change starts late still define a grid at the song start.
+    const TimeSignatureChange default_signature{};
+    const TimeSignatureChange& first_signature =
+        m_time_signatures.empty() ? default_signature : m_time_signatures.front();
+    m_segments.push_back(
+        SignatureSegment{
+            .start_measure = 1,
+            .beats_per_measure = std::max(1, first_signature.numerator),
+            .start_beat_index = 0,
+        });
+
+    for (std::size_t index = 1; index < m_time_signatures.size(); ++index)
+    {
+        const TimeSignatureChange& signature = m_time_signatures[index];
+        const SignatureSegment& previous = m_segments.back();
+        // A malformed out-of-order measure clamps forward so segment starts stay monotonic for the
+        // binary searches; the later-listed signature still wins from that point on, so a bad map
+        // can only misplace beats, never crash.
+        const int start_measure = std::max(signature.measure, previous.start_measure);
+        m_segments.push_back(
+            SignatureSegment{
+                .start_measure = start_measure,
+                .beats_per_measure = std::max(1, signature.numerator),
+                .start_beat_index =
+                    previous.start_beat_index +
+                    static_cast<std::int64_t>(start_measure - previous.start_measure) *
+                        previous.beats_per_measure,
+            });
+    }
+
+    m_anchor_beat_indices.reserve(m_anchors.size());
+    for (const BeatAnchor& anchor : m_anchors)
+    {
+        m_anchor_beat_indices.push_back(globalBeatIndex(anchor.measure, anchor.beat));
+    }
+}
+
+// Finds the last segment whose reign starts at or before the measure. upper_bound lands past the
+// last segment with an equal start, so a zero-length reign left by a duplicate or out-of-order
+// signature loses to the later-listed one, matching the previous sequential-walk behavior.
+const TempoMap::SignatureSegment& TempoMap::segmentForMeasure(int measure) const noexcept
+{
+    const auto after = std::upper_bound(
+        m_segments.begin(),
+        m_segments.end(),
+        measure,
+        [](int target, const SignatureSegment& segment) { return target < segment.start_measure; });
+    return *std::prev(after);
+}
+
+// Finds the last segment whose first beat sits at or before the global index, with the same
+// duplicate-start tie-break as segmentForMeasure.
+const TempoMap::SignatureSegment& TempoMap::segmentForBeatIndex(
+    std::int64_t global_beat_index) const noexcept
+{
+    const auto after = std::upper_bound(
+        m_segments.begin(),
+        m_segments.end(),
+        global_beat_index,
+        [](std::int64_t target, const SignatureSegment& segment) {
+            return target < segment.start_beat_index;
+        });
+    return *std::prev(after);
+}
 
 // Creates the editor fallback grid used before imported songs receive authored timing.
 TempoMap TempoMap::defaultMap(TimeDuration audio_duration)
@@ -134,73 +213,22 @@ int TempoMap::beatsPerMeasureAt(int measure) const noexcept
 std::int64_t TempoMap::globalBeatIndex(int measure, int beat) const noexcept
 {
     const int target_measure = normalizedMeasure(measure);
-    const int target_beat = std::max(1, beat);
-    const TimeSignatureChange default_signature{};
-    TimeSignatureChange active_signature =
-        m_time_signatures.empty() ? default_signature : m_time_signatures.front();
-
-    std::int64_t global_index = 0;
-    int current_measure = 1;
-    for (std::size_t index = 1; index < m_time_signatures.size(); ++index)
-    {
-        const TimeSignatureChange& next_signature = m_time_signatures[index];
-        const int segment_end_measure = std::min(target_measure, next_signature.measure);
-        if (segment_end_measure > current_measure)
-        {
-            global_index += static_cast<std::int64_t>(segment_end_measure - current_measure) *
-                            std::max(1, active_signature.numerator);
-            current_measure = segment_end_measure;
-        }
-
-        if (target_measure < next_signature.measure)
-        {
-            break;
-        }
-        active_signature = next_signature;
-    }
-
-    if (target_measure > current_measure)
-    {
-        global_index += static_cast<std::int64_t>(target_measure - current_measure) *
-                        std::max(1, active_signature.numerator);
-    }
-
-    return global_index + static_cast<std::int64_t>(target_beat - 1);
+    const SignatureSegment& segment = segmentForMeasure(target_measure);
+    return segment.start_beat_index +
+           static_cast<std::int64_t>(target_measure - segment.start_measure) *
+               segment.beats_per_measure +
+           static_cast<std::int64_t>(std::max(1, beat) - 1);
 }
 
-// Walks signature segments until the remaining beat count lands inside the active segment.
+// Inverts the beat axis back to a measure address inside the owning signature segment.
 std::pair<int, int> TempoMap::beatAtGlobalIndex(std::int64_t global_beat_index) const noexcept
 {
-    std::int64_t remaining = normalizedGlobalBeatIndex(global_beat_index);
-    const TimeSignatureChange default_signature{};
-    TimeSignatureChange active_signature =
-        m_time_signatures.empty() ? default_signature : m_time_signatures.front();
-    int measure = 1;
-
-    for (std::size_t index = 1; index < m_time_signatures.size(); ++index)
-    {
-        const TimeSignatureChange& next_signature = m_time_signatures[index];
-        const int segment_measures = std::max(0, next_signature.measure - measure);
-        const int beats_per_measure = std::max(1, active_signature.numerator);
-        const std::int64_t segment_beats =
-            static_cast<std::int64_t>(segment_measures) * beats_per_measure;
-        if (remaining < segment_beats)
-        {
-            return {
-                measure + static_cast<int>(remaining / beats_per_measure),
-                static_cast<int>(remaining % beats_per_measure) + 1,
-            };
-        }
-
-        remaining -= segment_beats;
-        measure = next_signature.measure;
-        active_signature = next_signature;
-    }
-
-    const int beats_per_measure = std::max(1, active_signature.numerator);
+    const std::int64_t target = normalizedGlobalBeatIndex(global_beat_index);
+    const SignatureSegment& segment = segmentForBeatIndex(target);
+    const std::int64_t beats_into_segment = target - segment.start_beat_index;
     return {
-        measure + static_cast<int>(remaining / beats_per_measure),
-        static_cast<int>(remaining % beats_per_measure) + 1,
+        segment.start_measure + static_cast<int>(beats_into_segment / segment.beats_per_measure),
+        static_cast<int>(beats_into_segment % segment.beats_per_measure) + 1,
     };
 }
 
@@ -220,16 +248,12 @@ double TempoMap::secondsAtNote(int measure, int beat, Fraction offset) const noe
 // Reports the last anchor's grid address so package validation can enforce the terminal boundary.
 std::int64_t TempoMap::terminalGlobalBeatIndex() const noexcept
 {
-    if (m_anchors.empty())
-    {
-        return 0;
-    }
-
-    const BeatAnchor& terminal_anchor = m_anchors.back();
-    return globalBeatIndex(terminal_anchor.measure, terminal_anchor.beat);
+    return m_anchor_beat_indices.empty() ? 0 : m_anchor_beat_indices.back();
 }
 
-// Interpolates inside the nearest anchor span, clamping outside the authored map.
+// Interpolates inside the anchor span found by binary search over the precomputed anchor beat
+// indices, clamping outside the authored map. This is the shared hot query behind every beat,
+// note, and grid-line time lookup, so it must never rescan the anchor list.
 double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const noexcept
 {
     if (m_anchors.empty())
@@ -242,36 +266,39 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
         return m_anchors.front().seconds;
     }
 
-    const auto anchor_global_index = [this](const BeatAnchor& anchor) {
-        return static_cast<double>(globalBeatIndex(anchor.measure, anchor.beat));
-    };
-
-    double left_index = anchor_global_index(m_anchors.front());
-    double left_seconds = m_anchors.front().seconds;
-    for (std::size_t index = 1; index < m_anchors.size(); ++index)
+    // First anchor at or after the position, clamped so a left neighbor always exists; positions
+    // past the terminal anchor clamp to its time.
+    const auto right_iterator = std::lower_bound(
+        m_anchor_beat_indices.begin(),
+        m_anchor_beat_indices.end(),
+        global_beat_position,
+        [](std::int64_t anchor_index, double position) {
+            return static_cast<double>(anchor_index) < position;
+        });
+    const auto right_index = std::max<std::size_t>(
+        1, static_cast<std::size_t>(std::distance(m_anchor_beat_indices.begin(), right_iterator)));
+    if (right_index >= m_anchors.size())
     {
-        const double right_index = anchor_global_index(m_anchors[index]);
-        const double right_seconds = m_anchors[index].seconds;
-        if (global_beat_position <= right_index)
-        {
-            if (right_index <= left_index)
-            {
-                return right_seconds;
-            }
-
-            const double fraction =
-                (global_beat_position - left_index) / (right_index - left_index);
-            return left_seconds + ((right_seconds - left_seconds) * fraction);
-        }
-
-        left_index = right_index;
-        left_seconds = right_seconds;
+        return m_anchors.back().seconds;
     }
 
-    return m_anchors.back().seconds;
+    const auto left_beat = static_cast<double>(m_anchor_beat_indices[right_index - 1]);
+    const auto right_beat = static_cast<double>(m_anchor_beat_indices[right_index]);
+    const double left_seconds = m_anchors[right_index - 1].seconds;
+    const double right_seconds = m_anchors[right_index].seconds;
+    if (right_beat <= left_beat)
+    {
+        // A non-increasing anchor pair from a malformed map cannot interpolate; snap to the later
+        // anchor rather than dividing by a non-positive span.
+        return right_seconds;
+    }
+
+    const double fraction = (global_beat_position - left_beat) / (right_beat - left_beat);
+    return left_seconds + ((right_seconds - left_seconds) * fraction);
 }
 
-// Compares vector-owned map data while BeatAnchor owns exact floating-point equality.
+// Compares vector-owned map data while BeatAnchor owns exact floating-point equality. The derived
+// index tables are a pure function of that data, so they intentionally stay out of the comparison.
 bool operator==(const TempoMap& lhs, const TempoMap& rhs)
 {
     return lhs.m_time_signatures == rhs.m_time_signatures && lhs.m_anchors == rhs.m_anchors;

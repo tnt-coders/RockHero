@@ -64,6 +64,51 @@ TEST_CASE("TempoMap interpolates sparse anchors", "[core][tempo-map]")
     CHECK(tempo_map.terminalGlobalBeatIndex() == 12);
 }
 
+// Verifies the shared global-beat interpolation query matches measure-address lookups and clamps
+// outside the authored anchor range.
+TEST_CASE("TempoMap resolves fractional global beat positions", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
+            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
+        },
+    };
+
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(4.0) == Catch::Approx(12.0));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(5.5) == Catch::Approx(12.75));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(10.0) == Catch::Approx(14.75));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(-1.0) == Catch::Approx(10.0));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(99.0) == Catch::Approx(15.5));
+}
+
+// Verifies anchor interpolation stays aligned with the meter-aware beat axis across signature
+// changes, exercising the derived segment and anchor index tables together.
+TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
+            TimeSignatureChange{.measure = 5, .numerator = 5, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 6, .beat = 1, .seconds = 9.5},
+        },
+    };
+
+    // 19 beats span the anchors (4 + 4 + 3 + 3 + 5), so each beat lasts 0.5 seconds.
+    CHECK(tempo_map.terminalGlobalBeatIndex() == 19);
+    CHECK(tempo_map.secondsAtBeat(3, 1) == Catch::Approx(4.0));
+    CHECK(tempo_map.secondsAtNote(5, 1, Fraction{1, 2}) == Catch::Approx(7.25));
+    CHECK(tempo_map.secondsAtGlobalBeatPosition(14.5) == Catch::Approx(7.25));
+}
+
 // Verifies the generated fallback map extends to a terminal downbeat after the audio.
 TEST_CASE("TempoMap defaultMap covers audio duration", "[core][tempo-map]")
 {
