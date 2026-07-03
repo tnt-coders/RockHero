@@ -66,7 +66,7 @@ void TransportControls::setState(const core::TransportViewState& state)
     m_stop_button->setEnabled(m_state.stop_enabled);
 }
 
-// Keeps fixed-size Stop and Play/Pause buttons centered in the available strip.
+// Keeps fixed-size Play/Pause and Stop buttons centered in the available strip.
 void TransportControls::resized()
 {
     const auto area = getLocalBounds();
@@ -82,9 +82,9 @@ void TransportControls::resized()
     const int group_width = button_size * 2 + g_button_gap;
     auto controls_area =
         juce::Rectangle<int>{group_width, button_size}.withCentre(area.getCentre());
-    m_stop_button->setBounds(controls_area.removeFromLeft(button_size));
-    controls_area.removeFromLeft(g_button_gap);
     m_play_pause_button->setBounds(controls_area.removeFromLeft(button_size));
+    controls_area.removeFromLeft(g_button_gap);
+    m_stop_button->setBounds(controls_area.removeFromLeft(button_size));
 }
 
 // Forwards play/pause button clicks to the parent listener that owns transport semantics.
