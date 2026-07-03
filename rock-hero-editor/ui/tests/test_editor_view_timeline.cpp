@@ -107,6 +107,66 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
+// Verifies the measure-number row pins the active measure to the left edge while scrolled,
+// matching the pinned tempo and signature: a mid-measure scroll position would otherwise show
+// no number until the next downbeat enters the view.
+TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // Two 4/4 measures across an 801px canvas map content x to seconds * 100; a 401px ruler
+    // scrolled to view x 200 puts the left edge at 2.0s, mid-measure 1, with measure 1's own
+    // downbeat scrolled out of view.
+    constexpr common::core::TimeRange two_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr int content_width = 801;
+    constexpr int view_x = 200;
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
+        },
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(two_measure_window, content_width, view_x);
+    ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map,
+            common::core::Fraction{1, 4},
+            two_measure_window,
+            content_width,
+            view_x,
+            view_x + 401));
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The pinned "1" is the only glyph in the left label region of the measure-number row: the
+    // nearest scrolling label (measure 2 at local x 200) and the beat ticks (bottom band only)
+    // cannot reach it. Compare against the ruler body background sampled on the same row far
+    // from any label or downbeat tick.
+    const juce::Colour body_background = image.getPixelAt(390, 36);
+    int glyph_pixels = 0;
+    for (int x = 4; x < 24; ++x)
+    {
+        for (int y = 31; y < 41; ++y)
+        {
+            if (image.getPixelAt(x, y) != body_background)
+            {
+                ++glyph_pixels;
+            }
+        }
+    }
+    CHECK(glyph_pixels > 0);
+}
+
 // Verifies the transport strip readout shows the REAPER-style measure.beat.hundredths position
 // with the timeline time for a loaded project, and falls back to plain time without one.
 TEST_CASE("EditorView transport readout tracks the transport position", "[ui][editor-view]")
