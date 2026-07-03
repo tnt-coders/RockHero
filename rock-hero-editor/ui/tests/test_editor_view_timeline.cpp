@@ -67,13 +67,14 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The bottom row stays label-free (anchor labels end one row above), so tick sampling there
-    // cannot collide with tempo-label glyphs.
-    const juce::Colour beat_top = image.getPixelAt(25, 0);
-    const juce::Colour measure_top = image.getPixelAt(0, 0);
-    const juce::Colour beat_bottom = image.getPixelAt(25, g_timeline_ruler_height - 1);
-    CHECK(measure_top != beat_top);
-    CHECK(beat_bottom != beat_top);
+    // Ticks live in the ruler body below the tempo band: the measure tick at x = 0 spans the
+    // whole body while the beat tick at x = 75 fills only the bottom band; y = 20 is in the body
+    // row, right of the pinned signature's glyphs.
+    const juce::Colour measure_body = image.getPixelAt(0, 20);
+    const juce::Colour beat_body = image.getPixelAt(75, 20);
+    const juce::Colour beat_bottom = image.getPixelAt(75, g_timeline_ruler_height - 1);
+    CHECK(measure_body != beat_body);
+    CHECK(beat_bottom != beat_body);
 }
 
 // Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
@@ -98,18 +99,18 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
     // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band, while the
-    // beat at 3.0s (x = 150) also fills the taller beat band above it. These columns sit right of
-    // the anchor tempo label at the left edge so glyph pixels cannot affect the sampling.
+    // beat at 3.0s (x = 150) also fills the taller 10px beat band above it. These columns sit far
+    // from the pinned labels so glyph pixels cannot affect the sampling.
     const int bottom_y = g_timeline_ruler_height - 1;
-    const int beat_band_y = g_timeline_ruler_height - g_timeline_ruler_height / 4;
+    const int beat_band_y = g_timeline_ruler_height - 10;
     CHECK(image.getPixelAt(175, bottom_y) == image.getPixelAt(150, bottom_y));
     CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
-// Verifies a time-signature change draws a measure-number and signature pair at its downbeat in
-// the ruler's top band. The change entry repeats 4/4 so both maps produce identical ticks and the
-// only pixel difference near the measure-2 tick is the signature pair itself. The ruler is wide
-// enough that the pair clears the pinned signature/tempo block at the left edge.
+// Verifies a time-signature change draws a label at its downbeat in the ruler's signature row.
+// The change entry repeats 4/4 so both maps produce identical ticks and measure numbers, and the
+// only pixel difference near the measure-2 tick is the signature label itself. The ruler is wide
+// enough that the label clears the pinned signature at the left edge.
 TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -156,12 +157,12 @@ TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-rul
     const juce::Image unchanged_image = ruler_snapshot(unchanged_map);
     const juce::Image changed_image = ruler_snapshot(changed_map);
 
-    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 200 of the 401px ruler
-    // and the label band starts just right of it.
+    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 200 of the 401px ruler;
+    // in the changed map its body-row label reads "2 4/4" instead of just "2".
     bool label_pixels_differ = false;
     for (int x = 200; x < 280 && !label_pixels_differ; ++x)
     {
-        for (int y = 2; y < 16 && !label_pixels_differ; ++y)
+        for (int y = 17; y < 29 && !label_pixels_differ; ++y)
         {
             label_pixels_differ =
                 unchanged_image.getPixelAt(x, y) != changed_image.getPixelAt(x, y);

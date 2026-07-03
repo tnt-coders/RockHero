@@ -68,10 +68,12 @@ struct BeatAnchor
 
 TempoMap stores the durable native chart timing model: time-signature changes define the musical
 grid, while anchors pin sparse measure beats to absolute seconds. All intermediate beat and note
-positions resolve by linear interpolation between neighboring anchors. Construction precomputes
-signature-segment and anchor beat indices so address and time queries stay logarithmic in the
-authored list sizes instead of rescanning them; per-frame consumers such as the timeline grid scan
-rely on that bound.
+positions resolve by linear interpolation between neighboring anchors in quarter-note (metronome)
+time: the metronome rate is constant inside each anchor span, so a meter-denominator change
+between anchors re-slices beat durations (an eighth-note beat runs twice as fast as a quarter-note
+beat) instead of stretching them. Construction precomputes signature-segment and anchor indices so
+address and time queries stay logarithmic in the authored list sizes instead of rescanning them;
+per-frame consumers such as the timeline grid scan rely on that bound.
 */
 class TempoMap
 {
@@ -124,13 +126,24 @@ public:
     [[nodiscard]] TimeSignatureChange timeSignatureAtSeconds(double seconds) const noexcept;
 
     /*!
+    \brief Resolves an absolute second position to a fractional global beat position.
+
+    Inverse of secondsAtGlobalBeatPosition: inverse-interpolates the containing anchor span on the
+    metronome axis and converts back to beats through the signature segments. Positions outside
+    the authored anchor range clamp to the first or terminal anchor's beat.
+
+    \param seconds Absolute second position to resolve.
+    \return Zero-based fractional position on the global beat axis.
+    */
+    [[nodiscard]] double beatPositionAtSeconds(double seconds) const noexcept;
+
+    /*!
     \brief Finds the quarter-note tempo active at an absolute second position.
 
-    Seconds are linear in beats between anchors, so the beat rate is constant inside each anchor
-    span; this converts it to the conventional quarter-note tempo reference using the signature
-    denominator active at the position. The quarter-note tempo therefore changes at anchors, and
-    also at any denominator change that is not itself pinned by an anchor. Positions outside the
-    authored anchor range report the first or last span's tempo.
+    Seconds are linear in quarter-note position between anchors, so the metronome rate is constant
+    inside each anchor span and can change only at anchors; meter changes between anchors re-slice
+    beat durations without affecting it. Positions outside the authored anchor range report the
+    first or last span's tempo.
 
     \param seconds Absolute second position to query.
     \return Quarter notes per minute, or zero when the map has fewer than two anchors or the
@@ -226,6 +239,10 @@ public:
         // Index of the current span's right anchor; starts at the first interpolable pair and
         // only moves forward.
         std::size_t m_right_anchor{1};
+
+        // Index of the signature segment containing the last resolved position, advanced
+        // monotonically so the beat-to-quarter conversion stays amortized constant time.
+        std::size_t m_segment{0};
     };
 
     /*!
@@ -257,6 +274,13 @@ private:
         // Global beat index of the first beat of the segment's first measure.
         std::int64_t start_beat_index{0};
 
+        // Quarter notes per beat inside this segment (4 / denominator); exact for the power-of-two
+        // denominators the package format allows.
+        double quarters_per_beat{1.0};
+
+        // Quarter-note position of the segment's first downbeat on the metronome timeline.
+        double start_quarter_position{0.0};
+
         // Absolute second position of the segment's first downbeat, filled after the anchor
         // indices exist because it resolves through anchor interpolation.
         double start_seconds{0.0};
@@ -274,11 +298,20 @@ private:
     [[nodiscard]] const SignatureSegment& segmentForBeatIndex(
         std::int64_t global_beat_index) const noexcept;
 
+    // Finds the segment containing a quarter-note position; the front segment starts at zero so
+    // clamped inputs always match.
+    [[nodiscard]] const SignatureSegment& segmentForQuarterPosition(
+        double quarter_position) const noexcept;
+
+    // Converts a fractional global beat position to its quarter-note (metronome) position using
+    // the active segment's scale; the interpolation axis every time query resolves through.
+    [[nodiscard]] double quarterPositionAtBeatPosition(double global_beat_position) const noexcept;
+
     // Shared interpolation tail behind secondsAtGlobalBeatPosition and ForwardBeatTimeCursor:
-    // right_index names the first anchor at or after the position (clamped to at least one so a
-    // left neighbor exists); indexes past the terminal anchor clamp to its time.
+    // right_index names the first anchor at or after the quarter position (clamped to at least
+    // one so a left neighbor exists); indexes past the terminal anchor clamp to its time.
     [[nodiscard]] double secondsAtAnchorSpan(
-        std::size_t right_index, double global_beat_position) const noexcept;
+        std::size_t right_index, double quarter_position) const noexcept;
 
     std::vector<TimeSignatureChange> m_time_signatures;
     std::vector<BeatAnchor> m_anchors;
@@ -288,6 +321,10 @@ private:
 
     // Global beat index of each anchor, parallel to m_anchors; non-decreasing for valid maps.
     std::vector<std::int64_t> m_anchor_beat_indices;
+
+    // Quarter-note position of each anchor, parallel to m_anchors; the interpolation axis, so
+    // seconds stay linear in metronome time between anchors regardless of meter changes.
+    std::vector<double> m_anchor_quarter_positions;
 };
 
 } // namespace rock_hero::common::core

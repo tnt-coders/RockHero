@@ -10,6 +10,9 @@
 namespace rock_hero::editor::ui
 {
 
+/*! \brief Editor window background, also the tempo band above the timeline ruler's body. */
+inline const juce::Colour g_editor_background_color{juce::Colours::darkgrey};
+
 /*! \brief Track viewport background, reused for the seam beneath the timeline ruler. */
 inline const juce::Colour g_track_viewport_color{juce::Colours::darkgrey.darker(0.34f)};
 
