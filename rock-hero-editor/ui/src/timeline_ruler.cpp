@@ -1,9 +1,9 @@
 #include "timeline_ruler.h"
 
 #include "editor_colors.h"
+#include "text_metrics.h"
 #include "timeline_cursor.h"
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
@@ -49,14 +49,6 @@ constexpr int g_subdivision_tick_height{5};
 [[nodiscard]] juce::Font noteGlyphFont()
 {
     return juce::Font{juce::FontOptions{16.0f, juce::Font::bold}};
-}
-
-// Measures text without using JUCE's deprecated Font string-width helpers.
-[[nodiscard]] int textWidth(const juce::Font& font, const juce::String& text)
-{
-    juce::GlyphArrangement arrangement;
-    arrangement.addLineOfText(font, text, 0.0f, 0.0f);
-    return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
 }
 
 // Shared label layout policy for every ruler row: labels sit g_label_inset right of the column
@@ -242,8 +234,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
         m_timeline_range,
         m_content_width,
         timeline_x,
-        event.mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
-                                : core::TimelineCursorPlacementMode::SnapToGrid);
+        placementModeFor(event.mods));
     if (position.has_value())
     {
         m_cursor_placement_callback(*position);
@@ -445,18 +436,11 @@ void TimelineRuler::drawLabelRow(
 }
 
 // Draws the same transport cursor through the ruler body for vertical alignment. The cursor
-// starts at the body's top edge instead of y 0 because the event band above blends into the
+// starts at the body's top edge instead of y 0 because the header bands above blend into the
 // editor chrome, so a full-height line would read as poking out above the ruler.
 void TimelineRuler::drawCursor(juce::Graphics& g)
 {
-    if (!m_cursor_x.has_value() || getWidth() <= 0)
-    {
-        return;
-    }
-
-    const int cursor_x = std::clamp(static_cast<int>(std::round(*m_cursor_x)), 0, getWidth() - 1);
-    g.setColour(juce::Colours::white);
-    g.fillRect(cursor_x, g_ruler_body_top, 1, getHeight() - g_ruler_body_top);
+    drawTimelineCursor(g, *this, m_cursor_x, g_ruler_body_top);
 }
 
 } // namespace rock_hero::editor::ui

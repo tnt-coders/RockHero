@@ -38,4 +38,28 @@ void repaintCursorStrip(
     component.repaint(left, 0, right - left, component.getHeight());
 }
 
+// Rounds, clamps, and fills the shared cursor column so every timeline view draws the transport
+// cursor identically.
+void drawTimelineCursor(
+    juce::Graphics& g, const juce::Component& component, std::optional<float> cursor_x, int top)
+{
+    if (!cursor_x.has_value() || component.getWidth() <= 0)
+    {
+        return;
+    }
+
+    const int cursor_column =
+        std::clamp(static_cast<int>(std::round(*cursor_x)), 0, component.getWidth() - 1);
+    g.setColour(juce::Colours::white);
+    g.fillRect(cursor_column, top, 1, component.getHeight() - top);
+}
+
+// One mapping for every timeline click site, so the snap-bypass modifier cannot drift between
+// the ruler and the content overlay.
+core::TimelineCursorPlacementMode placementModeFor(const juce::ModifierKeys& mods)
+{
+    return mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
+                             : core::TimelineCursorPlacementMode::SnapToGrid;
+}
+
 } // namespace rock_hero::editor::ui

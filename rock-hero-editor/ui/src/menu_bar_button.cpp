@@ -2,7 +2,7 @@
 
 #include "menu_bar_button.h"
 
-#include <cmath>
+#include "text_metrics.h"
 
 namespace rock_hero::editor::ui
 {
@@ -48,11 +48,8 @@ int MenuBarButton::preferredWidthForHeight(int height) const
 {
     constexpr int horizontal_padding{16};
     const float font_height = static_cast<float>(height > 0 ? height : 1) * 0.7f;
-    const juce::Font font{juce::FontOptions{font_height}};
-    juce::GlyphArrangement arrangement;
-    arrangement.addLineOfText(font, getButtonText(), 0.0f, 0.0f);
-    const juce::Rectangle<float> bounds = arrangement.getBoundingBox(0, -1, true);
-    return static_cast<int>(std::ceil(bounds.getWidth())) + horizontal_padding;
+    return textWidth(juce::Font{juce::FontOptions{font_height}}, getButtonText()) +
+           horizontal_padding;
 }
 
 // Renders the button as menu-bar chrome while preserving juce::Button behavior.

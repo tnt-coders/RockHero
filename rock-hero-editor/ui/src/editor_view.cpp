@@ -361,15 +361,7 @@ public:
     // Draws only the cursor; static waveform content remains in ArrangementView below it.
     void paint(juce::Graphics& g) override
     {
-        if (!m_cursor_x.has_value() || getWidth() <= 0)
-        {
-            return;
-        }
-
-        const int cursor_x =
-            std::clamp(static_cast<int>(std::round(*m_cursor_x)), 0, getWidth() - 1);
-        g.setColour(juce::Colours::white);
-        g.fillRect(cursor_x, 0, 1, getHeight());
+        drawTimelineCursor(g, *this, m_cursor_x, 0);
     }
 
     // Converts editor-wide timeline clicks into timeline seek intent.
@@ -387,8 +379,7 @@ public:
                 m_visible_timeline,
                 getWidth(),
                 event.position.x,
-                event.mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
-                                        : core::TimelineCursorPlacementMode::SnapToGrid);
+                placementModeFor(event.mods));
         if (position.has_value())
         {
             m_controller.onTimelineSeekRequested(*position);

@@ -21,25 +21,6 @@ constexpr const char* g_interrupted_restore_project_key{"interruptedRestoreProje
 constexpr const char* g_audio_device_state_key{"audioDeviceState"};
 constexpr int g_settings_xml_format_version{1};
 constexpr const char* g_format_version_property{"formatVersion"};
-constexpr const char* g_project_cursor_positions_key{"projectCursorPositions"};
-constexpr const char* g_project_cursor_positions_tag{"PROJECT_CURSOR_POSITIONS"};
-constexpr const char* g_project_cursor_position_tag{"POSITION"};
-constexpr const char* g_cursor_project_file_property{"projectFile"};
-constexpr const char* g_cursor_position_property{"cursorPosition"};
-constexpr const char* g_project_grid_spacings_key{"projectGridSpacings"};
-constexpr const char* g_project_grid_spacings_tag{"PROJECT_GRID_SPACINGS"};
-constexpr const char* g_project_grid_spacing_tag{"SPACING"};
-constexpr const char* g_grid_spacing_project_file_property{"projectFile"};
-constexpr const char* g_grid_spacing_numerator_property{"spacingNumerator"};
-constexpr const char* g_grid_spacing_denominator_property{"spacingDenominator"};
-constexpr const char* g_input_calibration_states_key{"inputCalibrationStates"};
-constexpr const char* g_input_calibrations_tag{"INPUT_CALIBRATIONS"};
-constexpr const char* g_input_calibration_tag{"CALIBRATION"};
-constexpr const char* g_calibration_gain_db_property{"gainDb"};
-constexpr const char* g_calibration_backend_name_property{"backendName"};
-constexpr const char* g_calibration_input_device_name_property{"inputDeviceName"};
-constexpr const char* g_calibration_input_channel_index_property{"inputChannelIndex"};
-constexpr const char* g_calibration_input_channel_name_property{"inputChannelName"};
 
 struct ProjectCursorState
 {
@@ -47,28 +28,10 @@ struct ProjectCursorState
     common::core::TimePosition cursor_position{};
 };
 
-struct ProjectCursorHistory
-{
-    std::vector<ProjectCursorState> states;
-    bool malformed_xml{false};
-};
-
 struct ProjectGridSpacingState
 {
     std::filesystem::path project_file;
     common::core::Fraction grid_spacing_beats{1, 1};
-};
-
-struct ProjectGridSpacingHistory
-{
-    std::vector<ProjectGridSpacingState> states;
-    bool malformed_xml{false};
-};
-
-struct InputCalibrationHistory
-{
-    std::vector<common::audio::InputCalibrationState> states;
-    bool malformed_xml{false};
 };
 
 // Builds the per-user settings file options used by the editor app.
@@ -181,347 +144,324 @@ struct InputCalibrationHistory
     return project_file.lexically_normal();
 }
 
-// Replaces any existing cursor record for a project path with the newest resume position.
-void replaceProjectCursor(
-    std::vector<ProjectCursorState>& history, const std::filesystem::path& project_file,
-    common::core::TimePosition cursor_position)
+// One XML-valued settings property holding a list of keyed records. Project cursors, project
+// grid spacings, and input calibrations all share this lifecycle: load the whole list (deduping
+// by key while loading so corrupt duplicates cannot make lookup ambiguous), replace-by-key on
+// save, and write the whole list back under a format-versioned root, distinguishing a missing
+// property from unreadable XML so callers surface corruption instead of silently clobbering it.
+// The codec supplies everything family-specific — property/tag names, the malformed-history
+// error code, record normalization and validity, key equality, and the attribute conversions —
+// so a new record family is one codec instead of another copy of these functions.
+template <typename Codec> struct KeyedRecordStore
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || !std::isfinite(cursor_position.seconds))
+    using State = typename Codec::State;
+
+    // Replaces any existing record sharing the new record's key with the newest value, dropping
+    // records the codec cannot store.
+    static void replace(std::vector<State>& history, State state)
     {
-        return;
+        state = Codec::normalized(std::move(state));
+        if (!Codec::isValid(state))
+        {
+            return;
+        }
+
+        std::erase_if(
+            history, [&state](const State& existing) { return Codec::sameKey(existing, state); });
+        history.push_back(std::move(state));
     }
 
-    std::erase_if(history, [&key](const ProjectCursorState& existing) {
-        return projectSettingsKeyFor(existing.project_file) == key;
-    });
-    history.push_back(ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
-}
+    // Loads the family's records, or the codec's malformed-history error when the stored value
+    // exists but is not valid current-format XML. The message is per-operation so lookups and
+    // saves can report what they were attempting.
+    [[nodiscard]] static std::expected<std::vector<State>, EditorSettingsError> readOrError(
+        const juce::PropertiesFile& properties, std::string malformed_message)
+    {
+        const std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(Codec::g_list_key);
+        if (xml == nullptr)
+        {
+            if (properties.containsKey(Codec::g_list_key))
+            {
+                return malformedHistory(std::move(malformed_message));
+            }
 
-// Converts one XML element into a validated project cursor record.
-[[nodiscard]] std::optional<ProjectCursorState> readProjectCursorStateXml(
-    const juce::XmlElement& element)
+            return std::vector<State>{};
+        }
+
+        if (!hasCurrentXmlFormat(*xml, Codec::g_list_tag))
+        {
+            return malformedHistory(std::move(malformed_message));
+        }
+
+        std::vector<State> states;
+        states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
+        for (const juce::XmlElement* const item :
+             xml->getChildWithTagNameIterator(Codec::g_item_tag))
+        {
+            if (std::optional<State> state = Codec::fromXml(*item); state.has_value())
+            {
+                replace(states, std::move(*state));
+            }
+        }
+
+        return states;
+    }
+
+    // Writes a complete replacement history as one XML-valued settings property.
+    static void write(juce::PropertiesFile& properties, const std::vector<State>& history)
+    {
+        juce::XmlElement history_xml{Codec::g_list_tag};
+        history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
+        for (const State& state : history)
+        {
+            if (Codec::isValid(state))
+            {
+                Codec::toXml(*history_xml.createNewChildElement(Codec::g_item_tag), state);
+            }
+        }
+
+        properties.setValue(Codec::g_list_key, &history_xml);
+    }
+
+private:
+    // Builds the family's malformed-history error from the codec's error code.
+    [[nodiscard]] static std::unexpected<EditorSettingsError> malformedHistory(std::string message)
+    {
+        return std::unexpected{
+            EditorSettingsError{Codec::g_malformed_history_code, std::move(message)}
+        };
+    }
+};
+
+// Cursor records resume one project's transport position across editor sessions.
+struct ProjectCursorCodec
 {
-    if (!element.hasTagName(g_project_cursor_position_tag))
-    {
-        return std::nullopt;
-    }
+    using State = ProjectCursorState;
 
-    const std::optional<std::string> project_file =
-        readStringAttribute(element, g_cursor_project_file_property);
-    const std::optional<double> cursor_position =
-        parseDoubleAttribute(element, g_cursor_position_property);
-    if (!project_file.has_value() || project_file->empty() || !cursor_position.has_value() ||
-        !std::isfinite(*cursor_position))
-    {
-        return std::nullopt;
-    }
-
-    std::filesystem::path key = projectSettingsKeyFor(
-        common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
-    if (key.empty())
-    {
-        return std::nullopt;
-    }
-
-    return ProjectCursorState{
-        .project_file = std::move(key),
-        .cursor_position = common::core::TimePosition{*cursor_position},
+    static constexpr const char* g_list_key{"projectCursorPositions"};
+    static constexpr const char* g_list_tag{"PROJECT_CURSOR_POSITIONS"};
+    static constexpr const char* g_item_tag{"POSITION"};
+    static constexpr const char* g_project_file_property{"projectFile"};
+    static constexpr const char* g_position_property{"cursorPosition"};
+    static constexpr EditorSettingsErrorCode g_malformed_history_code{
+        EditorSettingsErrorCode::InvalidProjectCursorHistory
     };
-}
 
-// Loads app-local project cursor history from its XML-valued settings property.
-[[nodiscard]] ProjectCursorHistory readProjectCursorHistory(const juce::PropertiesFile& properties)
-{
-    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_project_cursor_positions_key);
-    if (xml == nullptr)
+    // Records arrive with keys already normalized: fromXml and the public API both run paths
+    // through projectSettingsKeyFor before the store sees them.
+    [[nodiscard]] static State normalized(State state)
     {
-        return properties.containsKey(g_project_cursor_positions_key)
-                   ? ProjectCursorHistory{.states = {}, .malformed_xml = true}
-                   : ProjectCursorHistory{};
+        return state;
     }
 
-    if (!hasCurrentXmlFormat(*xml, g_project_cursor_positions_tag))
+    // A storable record has a non-empty path key and a finite resume position.
+    [[nodiscard]] static bool isValid(const State& state)
     {
-        return ProjectCursorHistory{.states = {}, .malformed_xml = true};
+        return !state.project_file.empty() && std::isfinite(state.cursor_position.seconds);
     }
 
-    ProjectCursorHistory history;
-    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
-    for (const juce::XmlElement* const item :
-         xml->getChildWithTagNameIterator(g_project_cursor_position_tag))
+    // Records address the same project when their normalized path keys match.
+    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
     {
-        if (std::optional<ProjectCursorState> state = readProjectCursorStateXml(*item);
-            state.has_value())
+        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
+    }
+
+    // Converts one XML item into a validated record, dropping incomplete or malformed entries.
+    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
+    {
+        const std::optional<std::string> project_file =
+            readStringAttribute(element, g_project_file_property);
+        const std::optional<double> cursor_position =
+            parseDoubleAttribute(element, g_position_property);
+        if (!project_file.has_value() || project_file->empty() || !cursor_position.has_value() ||
+            !std::isfinite(*cursor_position))
         {
-            replaceProjectCursor(history.states, state->project_file, state->cursor_position);
+            return std::nullopt;
         }
-    }
 
-    return history;
-}
-
-// Writes a complete replacement cursor history as one XML-valued settings property.
-void writeProjectCursorHistory(
-    juce::PropertiesFile& properties, const std::vector<ProjectCursorState>& history)
-{
-    juce::XmlElement history_xml{g_project_cursor_positions_tag};
-    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
-    for (const ProjectCursorState& state : history)
-    {
-        if (!state.project_file.empty() && std::isfinite(state.cursor_position.seconds))
+        std::filesystem::path key = projectSettingsKeyFor(
+            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
+        if (key.empty())
         {
-            juce::XmlElement* const item =
-                history_xml.createNewChildElement(g_project_cursor_position_tag);
-            item->setAttribute(
-                g_cursor_project_file_property,
-                common::core::juceStringFromPath(state.project_file));
-            item->setAttribute(g_cursor_position_property, state.cursor_position.seconds);
+            return std::nullopt;
         }
+
+        return State{
+            .project_file = std::move(key),
+            .cursor_position = common::core::TimePosition{*cursor_position},
+        };
     }
 
-    properties.setValue(g_project_cursor_positions_key, &history_xml);
-}
+    // Writes one record's attributes onto its XML item.
+    static void toXml(juce::XmlElement& element, const State& state)
+    {
+        element.setAttribute(
+            g_project_file_property, common::core::juceStringFromPath(state.project_file));
+        element.setAttribute(g_position_property, state.cursor_position.seconds);
+    }
+};
 
-// Replaces any existing grid-spacing record for a project path with the newest value.
-void replaceProjectGridSpacing(
-    std::vector<ProjectGridSpacingState>& history, const std::filesystem::path& project_file,
-    common::core::Fraction grid_spacing_beats)
+// Grid-spacing records resume one project's timeline grid step across editor sessions.
+struct ProjectGridSpacingCodec
 {
-    const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || grid_spacing_beats.numerator < 1)
-    {
-        return;
-    }
+    using State = ProjectGridSpacingState;
 
-    std::erase_if(history, [&key](const ProjectGridSpacingState& existing) {
-        return projectSettingsKeyFor(existing.project_file) == key;
-    });
-    history.push_back(
-        ProjectGridSpacingState{.project_file = key, .grid_spacing_beats = grid_spacing_beats});
-}
-
-// Converts one XML element into a structurally valid grid-spacing record. Semantic spacing bounds
-// stay with the controller so this store never silently rewrites persisted values.
-[[nodiscard]] std::optional<ProjectGridSpacingState> readProjectGridSpacingStateXml(
-    const juce::XmlElement& element)
-{
-    if (!element.hasTagName(g_project_grid_spacing_tag))
-    {
-        return std::nullopt;
-    }
-
-    const std::optional<std::string> project_file =
-        readStringAttribute(element, g_grid_spacing_project_file_property);
-    const std::optional<int> numerator =
-        parseIntAttribute(element, g_grid_spacing_numerator_property);
-    const std::optional<int> denominator =
-        parseIntAttribute(element, g_grid_spacing_denominator_property);
-    if (!project_file.has_value() || project_file->empty() || !numerator.has_value() ||
-        !denominator.has_value() || *numerator < 1 || *denominator < 1)
-    {
-        return std::nullopt;
-    }
-
-    std::filesystem::path key = projectSettingsKeyFor(
-        common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
-    if (key.empty())
-    {
-        return std::nullopt;
-    }
-
-    return ProjectGridSpacingState{
-        .project_file = std::move(key),
-        .grid_spacing_beats = common::core::Fraction{*numerator, *denominator},
+    static constexpr const char* g_list_key{"projectGridSpacings"};
+    static constexpr const char* g_list_tag{"PROJECT_GRID_SPACINGS"};
+    static constexpr const char* g_item_tag{"SPACING"};
+    static constexpr const char* g_project_file_property{"projectFile"};
+    static constexpr const char* g_numerator_property{"spacingNumerator"};
+    static constexpr const char* g_denominator_property{"spacingDenominator"};
+    static constexpr EditorSettingsErrorCode g_malformed_history_code{
+        EditorSettingsErrorCode::InvalidProjectGridSpacingHistory
     };
-}
 
-// Loads app-local project grid-spacing history from its XML-valued settings property.
-[[nodiscard]] ProjectGridSpacingHistory readProjectGridSpacingHistory(
-    const juce::PropertiesFile& properties)
-{
-    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_project_grid_spacings_key);
-    if (xml == nullptr)
+    // Records arrive with keys already normalized, matching ProjectCursorCodec.
+    [[nodiscard]] static State normalized(State state)
     {
-        return properties.containsKey(g_project_grid_spacings_key)
-                   ? ProjectGridSpacingHistory{.states = {}, .malformed_xml = true}
-                   : ProjectGridSpacingHistory{};
+        return state;
     }
 
-    if (!hasCurrentXmlFormat(*xml, g_project_grid_spacings_tag))
+    // Structural validity only: semantic spacing bounds stay with the controller so this store
+    // never silently rewrites persisted values.
+    [[nodiscard]] static bool isValid(const State& state)
     {
-        return ProjectGridSpacingHistory{.states = {}, .malformed_xml = true};
+        return !state.project_file.empty() && state.grid_spacing_beats.numerator >= 1;
     }
 
-    ProjectGridSpacingHistory history;
-    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
-    for (const juce::XmlElement* const item :
-         xml->getChildWithTagNameIterator(g_project_grid_spacing_tag))
+    // Records address the same project when their normalized path keys match.
+    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
     {
-        if (std::optional<ProjectGridSpacingState> state = readProjectGridSpacingStateXml(*item);
-            state.has_value())
+        return projectSettingsKeyFor(lhs.project_file) == projectSettingsKeyFor(rhs.project_file);
+    }
+
+    // Converts one XML item into a structurally valid record.
+    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
+    {
+        const std::optional<std::string> project_file =
+            readStringAttribute(element, g_project_file_property);
+        const std::optional<int> numerator = parseIntAttribute(element, g_numerator_property);
+        const std::optional<int> denominator = parseIntAttribute(element, g_denominator_property);
+        if (!project_file.has_value() || project_file->empty() || !numerator.has_value() ||
+            !denominator.has_value() || *numerator < 1 || *denominator < 1)
         {
-            replaceProjectGridSpacing(
-                history.states, state->project_file, state->grid_spacing_beats);
+            return std::nullopt;
         }
-    }
 
-    return history;
-}
-
-// Writes a complete replacement grid-spacing history as one XML-valued settings property.
-void writeProjectGridSpacingHistory(
-    juce::PropertiesFile& properties, const std::vector<ProjectGridSpacingState>& history)
-{
-    juce::XmlElement history_xml{g_project_grid_spacings_tag};
-    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
-    for (const ProjectGridSpacingState& state : history)
-    {
-        if (!state.project_file.empty() && state.grid_spacing_beats.numerator >= 1)
+        std::filesystem::path key = projectSettingsKeyFor(
+            common::core::pathFromJuceString(juce::String::fromUTF8(project_file->c_str())));
+        if (key.empty())
         {
-            juce::XmlElement* const item =
-                history_xml.createNewChildElement(g_project_grid_spacing_tag);
-            item->setAttribute(
-                g_grid_spacing_project_file_property,
-                common::core::juceStringFromPath(state.project_file));
-            item->setAttribute(
-                g_grid_spacing_numerator_property, state.grid_spacing_beats.numerator);
-            item->setAttribute(
-                g_grid_spacing_denominator_property, state.grid_spacing_beats.denominator);
+            return std::nullopt;
         }
+
+        return State{
+            .project_file = std::move(key),
+            .grid_spacing_beats = common::core::Fraction{*numerator, *denominator},
+        };
     }
 
-    properties.setValue(g_project_grid_spacings_key, &history_xml);
-}
+    // Writes one record's attributes onto its XML item.
+    static void toXml(juce::XmlElement& element, const State& state)
+    {
+        element.setAttribute(
+            g_project_file_property, common::core::juceStringFromPath(state.project_file));
+        element.setAttribute(g_numerator_property, state.grid_spacing_beats.numerator);
+        element.setAttribute(g_denominator_property, state.grid_spacing_beats.denominator);
+    }
+};
 
-// Replaces any existing record for a route with the newest one so duplicate history cannot make
-// lookup ambiguous.
-void replaceRouteCalibration(
-    std::vector<common::audio::InputCalibrationState>& history,
-    common::audio::InputCalibrationState calibration_state)
+// Calibration records remember per-physical-route input gain across device changes.
+struct InputCalibrationCodec
 {
-    if (!common::audio::isValidInputDeviceIdentity(calibration_state.input_device_identity))
-    {
-        return;
-    }
+    using State = common::audio::InputCalibrationState;
 
-    calibration_state.calibration_gain =
-        common::audio::clampGain(calibration_state.calibration_gain);
-    std::erase_if(
-        history, [&calibration_state](const common::audio::InputCalibrationState& existing) {
-            return common::audio::samePhysicalInputRoute(
-                existing.input_device_identity, calibration_state.input_device_identity);
-        });
-    history.push_back(std::move(calibration_state));
-}
-
-// Converts one XML element into a validated calibration record, dropping incomplete entries.
-[[nodiscard]] std::optional<common::audio::InputCalibrationState> readCalibrationStateXml(
-    const juce::XmlElement& element)
-{
-    if (!element.hasTagName(g_input_calibration_tag))
-    {
-        return std::nullopt;
-    }
-
-    const std::optional<double> gain_db =
-        parseDoubleAttribute(element, g_calibration_gain_db_property);
-    const std::optional<std::string> backend_name =
-        readStringAttribute(element, g_calibration_backend_name_property);
-    const std::optional<std::string> input_device_name =
-        readStringAttribute(element, g_calibration_input_device_name_property);
-    const std::optional<int> input_channel_index =
-        parseIntAttribute(element, g_calibration_input_channel_index_property);
-    const std::optional<std::string> input_channel_name =
-        readStringAttribute(element, g_calibration_input_channel_name_property);
-    if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
-        !input_channel_index.has_value() || !input_channel_name.has_value() ||
-        *input_channel_index < 0)
-    {
-        return std::nullopt;
-    }
-
-    common::audio::InputCalibrationState state{
-        .calibration_gain = common::audio::clampGain(common::audio::Gain{*gain_db}),
-        .input_device_identity = common::audio::InputDeviceIdentity{
-            .backend_name = *backend_name,
-            .input_device_name = *input_device_name,
-            .input_channel_index = *input_channel_index,
-            .input_channel_name = *input_channel_name,
-        },
+    static constexpr const char* g_list_key{"inputCalibrationStates"};
+    static constexpr const char* g_list_tag{"INPUT_CALIBRATIONS"};
+    static constexpr const char* g_item_tag{"CALIBRATION"};
+    static constexpr const char* g_gain_db_property{"gainDb"};
+    static constexpr const char* g_backend_name_property{"backendName"};
+    static constexpr const char* g_input_device_name_property{"inputDeviceName"};
+    static constexpr const char* g_input_channel_index_property{"inputChannelIndex"};
+    static constexpr const char* g_input_channel_name_property{"inputChannelName"};
+    static constexpr EditorSettingsErrorCode g_malformed_history_code{
+        EditorSettingsErrorCode::InvalidInputCalibrationHistory
     };
-    if (!common::audio::isValidInputDeviceIdentity(state.input_device_identity))
+
+    // Every gain is clamped on the way into the store, so out-of-range persisted or caller
+    // values cannot escape the supported calibration range.
+    [[nodiscard]] static State normalized(State state)
     {
-        return std::nullopt;
+        state.calibration_gain = common::audio::clampGain(state.calibration_gain);
+        return state;
     }
 
-    return state;
-}
-
-// Loads route history from its XML-valued settings property.
-[[nodiscard]] InputCalibrationHistory readInputCalibrationHistory(
-    const juce::PropertiesFile& properties)
-{
-    std::unique_ptr<juce::XmlElement> xml = properties.getXmlValue(g_input_calibration_states_key);
-    if (xml == nullptr)
+    // A storable record names a complete physical input route.
+    [[nodiscard]] static bool isValid(const State& state)
     {
-        return properties.containsKey(g_input_calibration_states_key)
-                   ? InputCalibrationHistory{.states = {}, .malformed_xml = true}
-                   : InputCalibrationHistory{};
+        return common::audio::isValidInputDeviceIdentity(state.input_device_identity);
     }
 
-    if (!hasCurrentXmlFormat(*xml, g_input_calibrations_tag))
+    // Records address the same route when their identities match physically, so renamed
+    // channels replace their old records instead of accumulating.
+    [[nodiscard]] static bool sameKey(const State& lhs, const State& rhs)
     {
-        return InputCalibrationHistory{.states = {}, .malformed_xml = true};
+        return common::audio::samePhysicalInputRoute(
+            lhs.input_device_identity, rhs.input_device_identity);
     }
 
-    InputCalibrationHistory history;
-    history.states.reserve(static_cast<std::size_t>(xml->getNumChildElements()));
-    for (const juce::XmlElement* const item :
-         xml->getChildWithTagNameIterator(g_input_calibration_tag))
+    // Converts one XML item into a validated record, dropping incomplete entries. The gain is
+    // stored raw here; normalized() clamps it when the record enters the store.
+    [[nodiscard]] static std::optional<State> fromXml(const juce::XmlElement& element)
     {
-        if (std::optional<common::audio::InputCalibrationState> state =
-                readCalibrationStateXml(*item);
-            state.has_value())
+        const std::optional<double> gain_db = parseDoubleAttribute(element, g_gain_db_property);
+        const std::optional<std::string> backend_name =
+            readStringAttribute(element, g_backend_name_property);
+        const std::optional<std::string> input_device_name =
+            readStringAttribute(element, g_input_device_name_property);
+        const std::optional<int> input_channel_index =
+            parseIntAttribute(element, g_input_channel_index_property);
+        const std::optional<std::string> input_channel_name =
+            readStringAttribute(element, g_input_channel_name_property);
+        if (!gain_db.has_value() || !backend_name.has_value() || !input_device_name.has_value() ||
+            !input_channel_index.has_value() || !input_channel_name.has_value() ||
+            *input_channel_index < 0)
         {
-            replaceRouteCalibration(history.states, std::move(*state));
+            return std::nullopt;
         }
+
+        return State{
+            .calibration_gain = common::audio::Gain{*gain_db},
+            .input_device_identity = common::audio::InputDeviceIdentity{
+                .backend_name = *backend_name,
+                .input_device_name = *input_device_name,
+                .input_channel_index = *input_channel_index,
+                .input_channel_name = *input_channel_name,
+            },
+        };
     }
 
-    return history;
-}
-
-// Writes a complete replacement history as one XML-valued settings property.
-void writeInputCalibrationHistory(
-    juce::PropertiesFile& properties,
-    const std::vector<common::audio::InputCalibrationState>& history)
-{
-    juce::XmlElement history_xml{g_input_calibrations_tag};
-    history_xml.setAttribute(g_format_version_property, g_settings_xml_format_version);
-    for (const common::audio::InputCalibrationState& state : history)
+    // Writes one record's attributes onto its XML item.
+    static void toXml(juce::XmlElement& element, const State& state)
     {
-        if (common::audio::isValidInputDeviceIdentity(state.input_device_identity))
-        {
-            juce::XmlElement* const item =
-                history_xml.createNewChildElement(g_input_calibration_tag);
-            item->setAttribute(g_calibration_gain_db_property, state.calibration_gain.db);
-            item->setAttribute(
-                g_calibration_backend_name_property,
-                juce::String::fromUTF8(state.input_device_identity.backend_name.c_str()));
-            item->setAttribute(
-                g_calibration_input_device_name_property,
-                juce::String::fromUTF8(state.input_device_identity.input_device_name.c_str()));
-            item->setAttribute(
-                g_calibration_input_channel_index_property,
-                state.input_device_identity.input_channel_index);
-            item->setAttribute(
-                g_calibration_input_channel_name_property,
-                juce::String::fromUTF8(state.input_device_identity.input_channel_name.c_str()));
-        }
+        element.setAttribute(g_gain_db_property, state.calibration_gain.db);
+        element.setAttribute(
+            g_backend_name_property,
+            juce::String::fromUTF8(state.input_device_identity.backend_name.c_str()));
+        element.setAttribute(
+            g_input_device_name_property,
+            juce::String::fromUTF8(state.input_device_identity.input_device_name.c_str()));
+        element.setAttribute(
+            g_input_channel_index_property, state.input_device_identity.input_channel_index);
+        element.setAttribute(
+            g_input_channel_name_property,
+            juce::String::fromUTF8(state.input_device_identity.input_channel_name.c_str()));
     }
+};
 
-    properties.setValue(g_input_calibration_states_key, &history_xml);
-}
+using ProjectCursorStore = KeyedRecordStore<ProjectCursorCodec>;
+using ProjectGridSpacingStore = KeyedRecordStore<ProjectGridSpacingCodec>;
+using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
 [[nodiscard]] std::expected<void, EditorSettingsError> saveIfNeeded(
@@ -659,20 +599,17 @@ std::expected<std::optional<common::core::TimePosition>, EditorSettingsError> Ed
         return std::nullopt;
     }
 
-    const ProjectCursorHistory history = readProjectCursorHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = ProjectCursorStore::readOrError(
+        m_properties, "Saved project cursor history is not valid XML.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidProjectCursorHistory,
-            "Saved project cursor history is not valid XML."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    const auto found =
-        std::ranges::find_if(history.states, [&key](const ProjectCursorState& state) {
-            return projectSettingsKeyFor(state.project_file) == key;
-        });
-    if (found == history.states.end())
+    const auto found = std::ranges::find_if(*states, [&key](const ProjectCursorState& state) {
+        return projectSettingsKeyFor(state.project_file) == key;
+    });
+    if (found == states->end())
     {
         return std::nullopt;
     }
@@ -693,17 +630,16 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPositi
         }};
     }
 
-    ProjectCursorHistory history = readProjectCursorHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = ProjectCursorStore::readOrError(
+        m_properties, "Cannot save project cursor because saved cursor history is invalid.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidProjectCursorHistory,
-            "Cannot save project cursor because saved cursor history is invalid."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    replaceProjectCursor(history.states, key, cursor_position);
-    writeProjectCursorHistory(m_properties, history.states);
+    ProjectCursorStore::replace(
+        *states, ProjectCursorState{.project_file = key, .cursor_position = cursor_position});
+    ProjectCursorStore::write(m_properties, *states);
     return saveNow(m_properties, "Could not save project cursor setting.");
 }
 
@@ -717,20 +653,17 @@ std::expected<std::optional<common::core::Fraction>, EditorSettingsError> Editor
         return std::nullopt;
     }
 
-    const ProjectGridSpacingHistory history = readProjectGridSpacingHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = ProjectGridSpacingStore::readOrError(
+        m_properties, "Saved project grid spacing history is not valid XML.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidProjectGridSpacingHistory,
-            "Saved project grid spacing history is not valid XML."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    const auto found =
-        std::ranges::find_if(history.states, [&key](const ProjectGridSpacingState& state) {
-            return projectSettingsKeyFor(state.project_file) == key;
-        });
-    if (found == history.states.end())
+    const auto found = std::ranges::find_if(*states, [&key](const ProjectGridSpacingState& state) {
+        return projectSettingsKeyFor(state.project_file) == key;
+    });
+    if (found == states->end())
     {
         return std::nullopt;
     }
@@ -751,17 +684,17 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridSpacing(
         }};
     }
 
-    ProjectGridSpacingHistory history = readProjectGridSpacingHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = ProjectGridSpacingStore::readOrError(
+        m_properties, "Cannot save grid spacing because saved grid spacing history is invalid.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidProjectGridSpacingHistory,
-            "Cannot save grid spacing because saved grid spacing history is invalid."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    replaceProjectGridSpacing(history.states, key, grid_spacing_beats);
-    writeProjectGridSpacingHistory(m_properties, history.states);
+    ProjectGridSpacingStore::replace(
+        *states,
+        ProjectGridSpacingState{.project_file = key, .grid_spacing_beats = grid_spacing_beats});
+    ProjectGridSpacingStore::write(m_properties, *states);
     return saveNow(m_properties, "Could not save project grid spacing setting.");
 }
 
@@ -774,20 +707,18 @@ EditorSettings::inputCalibrationFor(const common::audio::InputDeviceIdentity& id
         return std::nullopt;
     }
 
-    const InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = InputCalibrationStore::readOrError(
+        m_properties, "Saved input calibration history is not valid XML.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
-            "Saved input calibration history is not valid XML."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
     const auto found = std::ranges::find_if(
-        history.states, [&identity](const common::audio::InputCalibrationState& state) {
+        *states, [&identity](const common::audio::InputCalibrationState& state) {
             return common::audio::inputCalibrationMatchesPhysicalRoute(state, identity);
         });
-    if (found == history.states.end())
+    if (found == states->end())
     {
         return std::nullopt;
     }
@@ -809,17 +740,16 @@ std::expected<void, EditorSettingsError> EditorSettings::saveInputCalibration(
         }};
     }
 
-    InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = InputCalibrationStore::readOrError(
+        m_properties,
+        "Cannot save input calibration because saved calibration history is invalid.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
-            "Cannot save input calibration because saved calibration history is invalid."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    replaceRouteCalibration(history.states, std::move(calibration_state));
-    writeInputCalibrationHistory(m_properties, history.states);
+    InputCalibrationStore::replace(*states, std::move(calibration_state));
+    InputCalibrationStore::write(m_properties, *states);
     return saveNow(m_properties, "Could not save input calibration setting.");
 }
 
@@ -835,22 +765,21 @@ std::expected<void, EditorSettingsError> EditorSettings::removeInputCalibration(
         }};
     }
 
-    InputCalibrationHistory history = readInputCalibrationHistory(m_properties);
-    if (history.malformed_xml)
+    auto states = InputCalibrationStore::readOrError(
+        m_properties,
+        "Cannot remove input calibration because saved calibration history is invalid.");
+    if (!states.has_value())
     {
-        return std::unexpected{EditorSettingsError{
-            EditorSettingsErrorCode::InvalidInputCalibrationHistory,
-            "Cannot remove input calibration because saved calibration history is invalid."
-        }};
+        return std::unexpected{std::move(states.error())};
     }
 
-    const std::size_t original_size = history.states.size();
-    std::erase_if(history.states, [&identity](const common::audio::InputCalibrationState& state) {
+    const std::size_t original_size = states->size();
+    std::erase_if(*states, [&identity](const common::audio::InputCalibrationState& state) {
         return common::audio::inputCalibrationMatchesPhysicalRoute(state, identity);
     });
-    if (history.states.size() != original_size)
+    if (states->size() != original_size)
     {
-        writeInputCalibrationHistory(m_properties, history.states);
+        InputCalibrationStore::write(m_properties, *states);
         auto saved = saveNow(m_properties, "Could not save input calibration removal.");
         if (!saved.has_value())
         {
