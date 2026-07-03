@@ -72,6 +72,8 @@ TEST_CASE("GridSpacingSelector rejects invalid entry", "[ui][grid-spacing]")
     box.setText("0/4", juce::sendNotificationSync);
     box.setText("garbage", juce::sendNotificationSync);
     box.setText("1/", juce::sendNotificationSync);
+    // Digit runs long enough to overflow int parsing are rejected before any conversion runs.
+    box.setText("99999999999/4", juce::sendNotificationSync);
 
     CHECK(listener.chosen_count == 0);
     CHECK(box.getText() == juce::String{"1/8"});

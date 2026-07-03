@@ -48,6 +48,13 @@ constexpr std::array<common::core::Fraction, 6> g_note_value_presets{
         return std::nullopt;
     }
 
+    // getIntValue accumulates into int, so digit runs long enough to overflow it are rejected
+    // before parsing; nine digits always fit and no valid note value needs more.
+    if (numerator_text.length() > 9 || denominator_text.length() > 9)
+    {
+        return std::nullopt;
+    }
+
     const int numerator = numerator_text.getIntValue();
     const int denominator = denominator_text.getIntValue();
     if (numerator < 1 || denominator < 1)

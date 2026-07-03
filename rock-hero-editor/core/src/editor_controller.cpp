@@ -1901,6 +1901,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
+        m_grid_spacing_beats = common::core::Fraction{1, 1};
         resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
@@ -1913,6 +1914,10 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project = std::move(state->project);
     m_project_file.clear();
     m_save_requires_destination = true;
+    // A fresh import has no per-project grid-spacing record to restore (no project path yet), so
+    // the grid resets to the whole-beat default instead of inheriting the replaced project's
+    // spacing.
+    m_grid_spacing_beats = common::core::Fraction{1, 1};
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
@@ -3953,6 +3958,12 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     m_has_untracked_unsaved_changes = false;
     markUndoHistoryClean("undo.mark_clean.save_project_as");
     saveCurrentProjectCursorPositionBestEffort("store project cursor after save-as");
+    // Save As is the first moment an imported project has a path (and an existing project adopts
+    // a new one), so the active grid spacing is persisted here or a selection made before the
+    // first save is lost on reopen.
+    recordSettingsResultBestEffort(
+        m_settings.saveProjectGridSpacing(m_project_file, m_grid_spacing_beats),
+        "store project grid spacing after save-as");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
