@@ -48,20 +48,36 @@ public:
     void resized() override;
 
 private:
+    // A ruler text label already resolved to a non-overlapping draw position.
+    struct RulerLabel
+    {
+        int x{0};
+        juce::String text{};
+        int width{0};
+    };
+
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
-    // Recomputes the cached grid lines from the current timeline geometry and tempo map. Kept out
-    // of paint() so cursor-only repaints, which happen at vblank cadence, do not rescan the whole
-    // visible beat range on every frame.
-    void refreshGridLines();
+    // Recomputes the cached tick, label, and anchor geometry from the current timeline geometry
+    // and tempo map. Kept out of paint() so cursor-only repaints, which happen at vblank cadence,
+    // do not rescan the visible beat range or the anchor list on every frame.
+    void refreshRulerGeometry();
+
+    // Rebuilds the merged anchor-marker path and overlap-suppressed anchor labels; part of
+    // refreshRulerGeometry and shares its font so cached label widths match the paint font.
+    void refreshAnchorGeometry(const juce::Font& font);
 
     // Draws visible grid ticks: full-height measures, quarter-height beats, and shorter
     // subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
 
-    // Draws timing anchors as diamonds and labels precise seconds when horizontal room allows.
+    // Draws the cached anchor diamonds and second-precise anchor labels.
     void drawAnchors(juce::Graphics& g);
+
+    // Draws one cached row of overlap-suppressed labels in the current colour at a fixed vertical
+    // band.
+    void drawLabelRow(juce::Graphics& g, const std::vector<RulerLabel>& labels, int y, int height);
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
@@ -91,14 +107,6 @@ private:
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};
 
-    // A measure label already resolved to a non-overlapping draw position.
-    struct MeasureLabel
-    {
-        int x{0};
-        juce::String text{};
-        int width{0};
-    };
-
     // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
     // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
@@ -107,7 +115,15 @@ private:
     // paint() because text-width measurement (GlyphArrangement layout) is comparatively expensive
     // and previously ran for every visible measure column on every repaint, including narrow
     // cursor-only repaints driven at vblank cadence or triggered by a single click.
-    std::vector<MeasureLabel> m_measure_labels{};
+    std::vector<RulerLabel> m_measure_labels{};
+
+    // All visible anchor diamonds merged into one path so paint() issues a single fill instead of
+    // building and filling a path per anchor on every repaint.
+    juce::Path m_anchor_markers{};
+
+    // Anchor labels that survived overlap suppression, cached for the same text-measurement
+    // reason as m_measure_labels.
+    std::vector<RulerLabel> m_anchor_labels{};
 };
 
 } // namespace rock_hero::editor::ui

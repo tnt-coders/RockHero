@@ -20,6 +20,10 @@ const juce::Colour g_timeline_ruler_color{juce::Colours::darkgrey.darker(0.45f)}
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 const juce::Colour g_timeline_anchor_color{180, 218, 255};
 
+// Shared ruler text size; cached label widths are measured with this same font, so the two must
+// not diverge.
+constexpr float g_ruler_font_height{11.0f};
+
 // Measures text without using JUCE's deprecated Font string-width helpers.
 [[nodiscard]] int textWidth(const juce::Font& font, const juce::String& text)
 {
@@ -62,7 +66,7 @@ void TimelineRuler::setTimelineView(
     m_timeline_range = timeline_range;
     m_content_width = content_width;
     m_view_x = view_x;
-    refreshGridLines();
+    refreshRulerGeometry();
     repaint();
 }
 
@@ -91,7 +95,7 @@ void TimelineRuler::setGrid(
 
     m_tempo_map = std::move(tempo_map);
     m_grid_spacing_beats = grid_spacing_beats;
-    refreshGridLines();
+    refreshRulerGeometry();
     repaint();
 }
 
@@ -119,10 +123,10 @@ void TimelineRuler::paint(juce::Graphics& g)
     drawCursor(g);
 }
 
-// Refreshes cached grid-line geometry after a resize changes the visible ruler width.
+// Refreshes cached ruler geometry after a resize changes the visible ruler width.
 void TimelineRuler::resized()
 {
-    refreshGridLines();
+    refreshRulerGeometry();
 }
 
 // Converts ruler clicks into timeline seek positions using scrollable timeline coordinates.
@@ -171,12 +175,13 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
     return local_x;
 }
 
-// Recomputes cached tick rectangles and measure-label draw positions from the current timeline
-// geometry and tempo map. Kept out of paint() so repaints driven only by cursor movement, whether
-// vblank-driven playback or a single click, do not repeat the beat scan or the per-label
-// GlyphArrangement text-width measurement on every frame; both only need to rerun when the
-// geometry or tempo map they depend on actually changes.
-void TimelineRuler::refreshGridLines()
+// Recomputes cached tick rectangles, measure-label draw positions, anchor markers, and anchor
+// labels from the current timeline geometry and tempo map. Kept out of paint() so repaints driven
+// only by cursor movement, whether vblank-driven playback or a single click, do not repeat the
+// beat scan, the anchor walk, or the per-label GlyphArrangement text-width measurement on every
+// frame; all of these only need to rerun when the geometry or tempo map they depend on actually
+// changes.
+void TimelineRuler::refreshRulerGeometry()
 {
     const int visible_x_begin = std::max(0, m_view_x);
     const int visible_x_end = std::min(m_content_width, m_view_x + getWidth());
@@ -191,7 +196,7 @@ void TimelineRuler::refreshGridLines()
     m_tick_rects.clear();
     m_measure_labels.clear();
 
-    const juce::Font font{juce::FontOptions{11.0f}};
+    const juce::Font font{juce::FontOptions{g_ruler_font_height}};
     int next_label_x = 4;
     const int beat_tick_height = std::max(1, getHeight() / 4);
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
@@ -216,8 +221,48 @@ void TimelineRuler::refreshGridLines()
         const int label_width = textWidth(font, label) + 8;
         if (x >= next_label_x && x + label_width <= getWidth())
         {
-            m_measure_labels.push_back(MeasureLabel{.x = x, .text = label, .width = label_width});
+            // The stored x carries the small inset off the measure tick so drawing needs no
+            // per-label offset math.
+            m_measure_labels.push_back(RulerLabel{.x = x + 4, .text = label, .width = label_width});
             next_label_x = x + label_width + 10;
+        }
+    }
+
+    refreshAnchorGeometry(font);
+}
+
+// Rebuilds the merged anchor-marker path and the overlap-suppressed anchor labels for the current
+// view. Runs on the same geometry- and tempo-map-change cadence as the tick cache.
+void TimelineRuler::refreshAnchorGeometry(const juce::Font& font)
+{
+    m_anchor_markers.clear();
+    m_anchor_labels.clear();
+
+    int next_label_x = 4;
+    for (const common::core::BeatAnchor& anchor : m_tempo_map.anchors())
+    {
+        const auto local_x = localXForSeconds(anchor.seconds);
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        const float x = *local_x;
+        m_anchor_markers.startNewSubPath(x, 11.0f);
+        m_anchor_markers.lineTo(x + 4.0f, 15.0f);
+        m_anchor_markers.lineTo(x, 19.0f);
+        m_anchor_markers.lineTo(x - 4.0f, 15.0f);
+        m_anchor_markers.closeSubPath();
+
+        const juce::String label = juce::String{anchor.measure} + ":" + juce::String{anchor.beat} +
+                                   "  " + juce::String{anchor.seconds, 3} + "s";
+        const int label_x = static_cast<int>(std::round(x)) + 7;
+        const int label_width = textWidth(font, label) + 10;
+        if (label_x >= next_label_x && label_x + label_width <= getWidth())
+        {
+            m_anchor_labels.push_back(
+                RulerLabel{.x = label_x, .text = label, .width = label_width});
+            next_label_x = label_x + label_width + 12;
         }
     }
 }
@@ -231,49 +276,28 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
         g.fillRectList(m_tick_rects);
     }
 
-    g.setFont(juce::FontOptions{11.0f});
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
-    for (const MeasureLabel& label : m_measure_labels)
-    {
-        g.drawText(label.text, label.x + 4, 2, label.width, 14, juce::Justification::centredLeft);
-    }
+    drawLabelRow(g, m_measure_labels, 2, 14);
 }
 
-// Draws timing anchors as diamonds and labels precise seconds when horizontal room allows.
+// Draws the cached anchor diamonds and labels; all geometry and text measurement happened in
+// refreshAnchorGeometry so this stays cheap on cursor-driven repaints.
 void TimelineRuler::drawAnchors(juce::Graphics& g)
 {
-    g.setFont(juce::FontOptions{11.0f});
-    int next_label_x = 4;
+    g.setColour(g_timeline_anchor_color);
+    g.fillPath(m_anchor_markers);
+    drawLabelRow(g, m_anchor_labels, 17, 13);
+}
 
-    for (const common::core::BeatAnchor& anchor : m_tempo_map.anchors())
+// Draws one cached row of overlap-suppressed labels in the current colour at a fixed vertical
+// band.
+void TimelineRuler::drawLabelRow(
+    juce::Graphics& g, const std::vector<RulerLabel>& labels, int y, int height)
+{
+    g.setFont(juce::FontOptions{g_ruler_font_height});
+    for (const RulerLabel& label : labels)
     {
-        const auto local_x = localXForSeconds(anchor.seconds);
-        if (!local_x.has_value())
-        {
-            continue;
-        }
-
-        const float x = *local_x;
-        juce::Path marker;
-        marker.startNewSubPath(x, 11.0f);
-        marker.lineTo(x + 4.0f, 15.0f);
-        marker.lineTo(x, 19.0f);
-        marker.lineTo(x - 4.0f, 15.0f);
-        marker.closeSubPath();
-
-        g.setColour(g_timeline_anchor_color);
-        g.fillPath(marker);
-
-        const juce::String label = juce::String{anchor.measure} + ":" + juce::String{anchor.beat} +
-                                   "  " + juce::String{anchor.seconds, 3} + "s";
-        const int label_x = static_cast<int>(std::round(x)) + 7;
-        const int label_width = textWidth(g.getCurrentFont(), label) + 10;
-        if (label_x >= next_label_x && label_x + label_width <= getWidth())
-        {
-            g.setColour(g_timeline_anchor_color);
-            g.drawText(label, label_x, 17, label_width, 13, juce::Justification::centredLeft);
-            next_label_x = label_x + label_width + 12;
-        }
+        g.drawText(label.text, label.x, y, label.width, height, juce::Justification::centredLeft);
     }
 }
 
