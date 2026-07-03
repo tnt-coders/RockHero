@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline_geometry.h>
 #include <utility>
@@ -57,6 +58,55 @@ constexpr int g_subdivision_tick_height{5};
     arrangement.addLineOfText(font, text, 0.0f, 0.0f);
     return static_cast<int>(std::ceil(arrangement.getBoundingBox(0, -1, true).getWidth()));
 }
+
+// Shared label layout policy for every ruler row: labels sit g_label_inset right of the column
+// they annotate, measured widths carry g_label_width_pad so drawText keeps breathing room, and
+// consecutive labels keep g_label_gap of separation.
+constexpr int g_label_inset{4};
+constexpr int g_label_width_pad{8};
+constexpr int g_label_gap{10};
+
+// Greedy left-to-right overlap suppression for one ruler label row. Every row routes its
+// candidates through one of these so the inset, padding, and gap policy cannot drift between
+// rows, and the position-only accepts() test lets callers skip text formatting and
+// GlyphArrangement measurement for columns the previous label already covers — on dense maps far
+// more candidates arrive per rebuild than survive suppression.
+class RulerRowPlacement
+{
+public:
+    // Binds the row to the ruler's right edge, past which no label may extend.
+    explicit RulerRowPlacement(int right_edge) noexcept
+        : m_right_edge(right_edge)
+    {}
+
+    // Reports whether a label anchored at this column could still be placed, before its width is
+    // known; reserve() makes the definitive fit test.
+    [[nodiscard]] bool accepts(int anchor_x) const noexcept
+    {
+        return anchor_x + g_label_inset >= m_next_x;
+    }
+
+    // Claims room for a measured label anchored at the column, returning the label's draw x when
+    // it fits between the previous label and the right edge.
+    [[nodiscard]] std::optional<int> reserve(int anchor_x, int width) noexcept
+    {
+        const int label_x = anchor_x + g_label_inset;
+        if (label_x < m_next_x || label_x + width > m_right_edge)
+        {
+            return std::nullopt;
+        }
+
+        m_next_x = label_x + width + g_label_gap;
+        return label_x;
+    }
+
+private:
+    // Right edge of the row in local coordinates.
+    int m_right_edge;
+
+    // Leftmost x the next label may occupy; starts at the inset so a column at x 0 can label.
+    int m_next_x{g_label_inset};
+};
 
 } // namespace
 
@@ -238,7 +288,7 @@ void TimelineRuler::refreshRulerGeometry()
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
     // beats even when a fine grid fills the space between them; measure ticks span the whole
     // body and carry their number, which scrolls with the tick like a DAW bar ruler.
-    int next_measure_x = 4;
+    RulerRowPlacement measure_row{getWidth()};
     for (const core::TempoGridLine& line : m_grid_lines)
     {
         const int x = line.x - m_view_x;
@@ -255,15 +305,17 @@ void TimelineRuler::refreshRulerGeometry()
         m_tick_rects.addWithoutMerging(
             juce::Rectangle<int>{x, g_ruler_body_top, 1, getHeight() - g_ruler_body_top}.toFloat());
 
-        // The stored x carries the small inset off the measure tick so drawing needs no
-        // per-label offset math.
+        if (!measure_row.accepts(x))
+        {
+            continue;
+        }
+
         const juce::String measure_text{line.measure};
-        const int measure_width = textWidth(font, measure_text) + 8;
-        if (x >= next_measure_x && x + measure_width <= getWidth())
+        const int measure_width = textWidth(font, measure_text) + g_label_width_pad;
+        if (const std::optional<int> label_x = measure_row.reserve(x, measure_width))
         {
             m_measure_labels.push_back(
-                RulerLabel{.x = x + 4, .text = measure_text, .width = measure_width});
-            next_measure_x = x + measure_width + 10;
+                RulerLabel{.x = *label_x, .text = measure_text, .width = measure_width});
         }
     }
 }
@@ -274,9 +326,10 @@ void TimelineRuler::refreshRulerGeometry()
 // signature. Anchors draw no marker of their own: tempo is not editable yet, so the markings
 // alone say everything the display needs. The pinned values need a musical frame of reference,
 // so they stay hidden until the first downbeat (the first anchor) reaches or passes the visible
-// left edge. Tempo markings split into an enlarged quarter-note glyph and text-size digits,
-// cached as adjacent labels because one text draw cannot mix fonts; only the glyph is enlarged,
-// so the equals sign rides with the digits.
+// left edge; they seed their rows at column zero so the shared placement policy positions and
+// suppresses everything uniformly. Tempo markings split into an enlarged quarter-note glyph and
+// text-size digits, cached as adjacent labels because one text draw cannot mix fonts; only the
+// glyph is enlarged, so the equals sign rides with the digits.
 void TimelineRuler::refreshHeaderBands(const juce::Font& font)
 {
     m_tempo_prefix_labels.clear();
@@ -295,73 +348,74 @@ void TimelineRuler::refreshHeaderBands(const juce::Font& font)
     const bool pinned_visible = view_left_time.has_value() && !anchors.empty() &&
                                 view_left_time->seconds >= anchors.front().seconds;
 
-    int next_tempo_x = 4;
+    // Places one metronome marking — glyph plus digits — as a single suppression unit, resolving
+    // the tempo and measuring the digits only after the cheap position test.
+    RulerRowPlacement tempo_row{getWidth()};
+    const auto place_marking = [&](int anchor_x, double marking_seconds) {
+        if (!tempo_row.accepts(anchor_x))
+        {
+            return;
+        }
+
+        const juce::String digits =
+            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(marking_seconds), 2};
+        const int digits_width = textWidth(font, digits) + g_label_width_pad;
+        const std::optional<int> label_x = tempo_row.reserve(anchor_x, prefix_width + digits_width);
+        if (!label_x.has_value())
+        {
+            return;
+        }
+
+        m_tempo_prefix_labels.push_back(
+            RulerLabel{.x = *label_x, .text = prefix, .width = prefix_width});
+        m_tempo_labels.push_back(
+            RulerLabel{.x = *label_x + prefix_width, .text = digits, .width = digits_width});
+    };
+
     if (pinned_visible)
     {
-        const juce::String number =
-            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(view_left_time->seconds), 2};
-        const int number_width = textWidth(font, number) + 8;
-        m_tempo_prefix_labels.push_back(RulerLabel{.x = 4, .text = prefix, .width = prefix_width});
-        m_tempo_labels.push_back(
-            RulerLabel{.x = 4 + prefix_width, .text = number, .width = number_width});
-        next_tempo_x = 4 + prefix_width + number_width + 10;
+        place_marking(0, view_left_time->seconds);
     }
 
     // The terminal anchor only ends the last span, so it gets no marking of its own.
     for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
     {
         const auto local_x = localXForSeconds(anchors[index].seconds);
-        if (!local_x.has_value())
+        if (local_x.has_value())
         {
-            continue;
-        }
-
-        const float x = *local_x;
-        const juce::String number =
-            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(anchors[index].seconds), 2};
-        const int number_width = textWidth(font, number) + 8;
-        const int label_x = static_cast<int>(std::round(x)) + 4;
-        const int marking_width = prefix_width + number_width;
-        if (label_x >= next_tempo_x && label_x + marking_width <= getWidth())
-        {
-            m_tempo_prefix_labels.push_back(
-                RulerLabel{.x = label_x, .text = prefix, .width = prefix_width});
-            m_tempo_labels.push_back(
-                RulerLabel{.x = label_x + prefix_width, .text = number, .width = number_width});
-            next_tempo_x = label_x + marking_width + 10;
+            place_marking(static_cast<int>(std::round(*local_x)), anchors[index].seconds);
         }
     }
 
-    // Formats one signature as "numerator/denominator".
-    const auto signature_text = [](const common::core::TimeSignatureChange& change) {
-        return juce::String{change.numerator} + "/" + juce::String{change.denominator};
+    // Places one signature label, formatting and measuring only after the position test.
+    RulerRowPlacement signature_row{getWidth()};
+    const auto place_signature = [&](int anchor_x,
+                                     const common::core::TimeSignatureChange& change) {
+        if (!signature_row.accepts(anchor_x))
+        {
+            return;
+        }
+
+        const juce::String text =
+            juce::String{change.numerator} + "/" + juce::String{change.denominator};
+        const int width = textWidth(font, text) + g_label_width_pad;
+        if (const std::optional<int> label_x = signature_row.reserve(anchor_x, width))
+        {
+            m_signature_labels.push_back(RulerLabel{.x = *label_x, .text = text, .width = width});
+        }
     };
 
-    int next_signature_x = 4;
     if (pinned_visible)
     {
-        const juce::String text =
-            signature_text(m_tempo_map.timeSignatureAtSeconds(view_left_time->seconds));
-        const int width = textWidth(font, text) + 8;
-        m_signature_labels.push_back(RulerLabel{.x = 4, .text = text, .width = width});
-        next_signature_x = 4 + width + 10;
+        place_signature(0, m_tempo_map.timeSignatureAtSeconds(view_left_time->seconds));
     }
 
     for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())
     {
         const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1));
-        if (!local_x.has_value())
+        if (local_x.has_value())
         {
-            continue;
-        }
-
-        const juce::String text = signature_text(change);
-        const int width = textWidth(font, text) + 8;
-        const int label_x = static_cast<int>(std::round(*local_x)) + 4;
-        if (label_x >= next_signature_x && label_x + width <= getWidth())
-        {
-            m_signature_labels.push_back(RulerLabel{.x = label_x, .text = text, .width = width});
-            next_signature_x = label_x + width + 10;
+            place_signature(static_cast<int>(std::round(*local_x)), change);
         }
     }
 }
