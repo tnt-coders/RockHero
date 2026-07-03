@@ -75,10 +75,9 @@ public:
     setGridLines push, matching setTimelineView.
 
     \param tempo_map Song tempo map shared with the track grid and snapping.
-    \param grid_spacing_beats Grid step measured in tempo-map beats.
+    \param grid_note_value Grid step as a fraction of a whole note.
     */
-    void setGrid(
-        const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats);
+    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value);
 
     /*!
     \brief Stores the visible-span grid lines and rebuilds the cached ruler geometry from them.
@@ -153,9 +152,9 @@ private:
     // Tempo map used for ruler measure ticks and anchor positions.
     common::core::TempoMap m_tempo_map{};
 
-    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_spacing_beats{1, 1};
+    common::core::Fraction m_grid_note_value{1, 4};
 
     // Width of the scrollable timeline canvas that shares geometry with the grid.
     int m_content_width{0};

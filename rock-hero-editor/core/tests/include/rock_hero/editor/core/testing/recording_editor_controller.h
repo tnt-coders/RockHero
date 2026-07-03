@@ -156,13 +156,13 @@ public:
     }
 
     /*!
-    \brief Captures grid-spacing change intents emitted by the grid selector.
-    \param spacing_beats Grid step measured in tempo-map beats.
+    \brief Captures grid note-value change intents emitted by the grid selector.
+    \param note_value Grid step as a fraction of a whole note.
     */
-    void onGridSpacingChangeRequested(common::core::Fraction spacing_beats) override
+    void onGridNoteValueChangeRequested(common::core::Fraction note_value) override
     {
-        last_grid_spacing_beats = spacing_beats;
-        grid_spacing_change_count += 1;
+        last_grid_note_value = note_value;
+        grid_note_value_change_count += 1;
     }
 
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
@@ -384,8 +384,8 @@ public:
     /*! \brief Last timeline seek position emitted by the view. */
     std::optional<common::core::TimePosition> last_seek_position{};
 
-    /*! \brief Last grid spacing emitted by the view, measured in tempo-map beats. */
-    std::optional<common::core::Fraction> last_grid_spacing_beats{};
+    /*! \brief Last grid note value emitted by the view, as a fraction of a whole note. */
+    std::optional<common::core::Fraction> last_grid_note_value{};
 
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};
@@ -474,8 +474,8 @@ public:
     /*! \brief Number of timeline seek intents received. */
     int timeline_seek_count{0};
 
-    /*! \brief Number of grid-spacing change intents received. */
-    int grid_spacing_change_count{0};
+    /*! \brief Number of grid note-value change intents received. */
+    int grid_note_value_change_count{0};
 
     /*! \brief Number of plugin-browser open intents received. */
     int plugin_browser_request_count{0};

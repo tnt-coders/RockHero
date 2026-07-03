@@ -1,7 +1,6 @@
 # Timeline Ruler Review Fixes
 
-Status: Phases 1–6 complete (1–5 committed; Phase 6 implemented, awaiting user build + test
-run). Phase 7 (note-value grid fix) is next, as its own change.
+Status: ALL PHASES COMPLETE (2026-07-03). Archived in docs/completed.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
 beat/quarter extensions, tempo grid geometry, TimelineRuler, timeline cursor helpers,
@@ -324,7 +323,15 @@ coincide. Exact rational per-line addressing (the whole + remainder/denominator 
 today) carries over; signature denominators are power-of-two per package validation, so the
 per-measure quarter offsets stay exact.
 
-- [ ] **7.1 Contract flip (the old 4.3(a)).** `EditorViewState.grid_spacing_beats` →
+- [x] **7.1 Contract flip (the old 4.3(a)).**
+  DONE — `EditorViewState.grid_note_value{1, 4}`; the controller intent is
+  `onGridNoteValueChangeRequested` (matching the interface's *Requested idiom rather than the
+  sketch's onGridNoteValueChosen, which stays as the selector's Listener method); the action is
+  `EditorAction::SetGridNoteValue{note_value}`. The view forwards raw note values and displays
+  the state value verbatim; both `timeSignatureAt(1)` conversion sites are gone. Rejection
+  feedback verified free: GridSpacingSelector::handleSelectionCommitted unconditionally reverts
+  its display to the last applied value after emitting, so a controller-dropped intent needs no
+  state push. The GridSpacingSelector widget name/component IDs stay (unit-neutral, test-facing). `EditorViewState.grid_spacing_beats` →
   `grid_note_value` (authoritative, default `Fraction{1, 4}` — same visual default as
   today's 1 beat in 4/4). `IEditorController::onGridSpacingChangeRequested(spacing_beats)` →
   `onGridNoteValueChosen(note_value)`. The view forwards raw note values and displays
@@ -333,11 +340,27 @@ per-measure quarter offsets stay exact.
   push, whereas today's view-local drop relies on the selector snapping back to its last
   displayed value — verify GridSpacingSelector still reverts without a push, or have the view
   re-set it explicitly after a rejected intent.
-- [ ] **7.2 Validation in note-value terms.** Replace `isValidTempoGridSpacing` bounds
+- [x] **7.2 Validation in note-value terms.**
+  DONE — `isValidTempoGridNoteValue` with terms in [1, 128]
+  (`g_max_tempo_grid_note_value_term`); 0/1 stays the documented invalid value. The 1.1 int64
+  overflow guard vanished with the conversion it guarded (no multiply exists any more);
+  GridSpacingSelector's 9-digit parse cap stays as the entry-side overflow guard. Replace `isValidTempoGridSpacing` bounds
   checking of beat fractions with a note-value validity check (terms in [1, 128] still; 0/1
   stays the documented invalid value). The 1.1 int64 overflow guard logic moves with the
   conversion it guards (see 7.3); GridSpacingSelector's 9-digit parse cap stays.
-- [ ] **7.3 Grid generation on the quarter axis.** Rework `visibleTempoGridLines` and
+- [x] **7.3 Grid generation on the quarter axis.**
+  DONE — a file-local `MeasureGridWalker` in tempo_grid_geometry.cpp owns the measure-anchored
+  walk: within a measure with signature num/den_sig, line j sits `j*n*den_sig/d` beats after the
+  downbeat (exact integers over the note denominator), restarting at every downbeat. No new
+  TempoMap API was needed after all: lines address as exact rationals on the existing global
+  beat axis (`globalBeatIndex`, `secondsAtGlobalBeatPosition`, `ForwardBeatTimeCursor`,
+  `timeSignatureAt`), so the seek keeps a binary search (measures, then steps) and the scan
+  keeps the amortized-constant forward cursor. Rank falls out of the offset (0 → Measure;
+  whole-beat multiple → Beat). `displayedTempoGridNoteValue`/`tempoGridSpacingFromNoteValue`
+  and their tests are deleted. One robustness addition beyond the sketch: non-positive
+  signature terms from a malformed map clamp to one inside the walker, because a zero step
+  would hang the scan where the old beat-axis code merely misplaced lines. Invalid note values
+  fall back to the quarter-note grid (previously whole-beat). Rework `visibleTempoGridLines` and
   `nearestTempoGridTime` to take the note value and step measure-anchored quarter offsets:
   per-measure line addressing (cumulative line counts per signature segment for the
   monotonic index used by the binary search + forward cursor), rank classification from the
@@ -347,16 +370,40 @@ per-measure quarter offsets stay exact.
   accessor, mirroring the existing derived index tables. `displayedTempoGridNoteValue` and
   `tempoGridSpacingFromNoteValue` (and their tests) are deleted with the measure-1 policy;
   any internal note-value→quarters conversion lives beside the generation code.
-- [ ] **7.4 Plumbing unit change.** `timelineCursorPlacementTime`, `TrackViewport::setGrid`,
+- [x] **7.4 Plumbing unit change.**
+  DONE — `timelineCursorPlacementTime`, `TrackViewport::setGrid`, `TimelineRuler::setGrid`,
+  `CursorOverlay::setGridNoteValue` (renamed), and `EditorController::m_grid_note_value` all
+  speak note values, defaulting to `Fraction{1, 4}`; import/close/failure-teardown resets and
+  the settings-restore fallback are quarter-note. Phase 1.2/1.3 test defaults updated, with
+  stored/entered fixture values moved off the default (1/8, 1/16) so restores and persists
+  cannot pass via the fallback. `timelineCursorPlacementTime`, `TrackViewport::setGrid`,
   `TimelineRuler::setGrid`, `CursorOverlay::setGridSpacing`, and
   `EditorController::m_grid_spacing_beats` all switch from beat fractions to the note value.
   Import/close resets become `Fraction{1, 4}` (update the Phase 1.2/1.3 tests' expected
   defaults).
-- [ ] **7.5 Persistence migration.** The editor-settings grid record stores the note value
+- [x] **7.5 Persistence migration.**
+  DONE — one new codec (`ProjectGridNoteValueCodec`, exactly as 5.4 intended): property key
+  "projectGridNoteValues", root tag PROJECT_GRID_NOTE_VALUES, item NOTE_VALUE with
+  noteValueNumerator/noteValueDenominator. Settings API renamed to
+  projectGridNoteValueFor/saveProjectGridNoteValue; the error code is
+  InvalidProjectGridNoteValueHistory. Old "projectGridSpacings" records are orphaned (never
+  read), so affected projects reset to the default grid once. Save points unchanged. The editor-settings grid record stores the note value
   under a new record tag/key so existing app-local beat-unit records are ignored rather than
   reinterpreted (one-time spacing reset per project; acceptable for convenience data). Save
   points (eager on change, save-as adoption) unchanged.
-- [ ] **7.6 Tests.** Core geometry: mixed-denominator map (4/4 → 6/8) keeps a constant
+- [x] **7.6 Tests.**
+  DONE — geometry: new mixed-meter case (4/4 → 6/8 quarter grid stays one line per second with
+  Measure-rank downbeats, plus snap-across-boundary and the halfway tie), new odd-meter case
+  (7/8 proves the downbeat restart a song-uniform walk would miss), note-value validity bounds;
+  existing 4/4 cases converted to note-value units (1/8, 1/16, 1/12, dotted-quarter 3/8 — the
+  last gaining the measure-2 downbeat line that measure anchoring adds); fallback tests now
+  target the quarter-note default. Controller: intent/validation/reset/restore/save-as round
+  trips in note values with non-default fixtures. Settings: record family renamed, malformed
+  history targets the new key, and a new case proves retired beat-unit records are ignored.
+  UI: selector forwards raw note values (recorded intent is now {1, 16} for "1/16") and
+  displays state verbatim; the shared-snapping pixel test uses 1/8 (the old half-beat); the
+  direct-ruler pixel tests use 1/4 and 1/8 (identical pixels to the old 1/1 and 1/2 beat
+  fixtures in 4/4). Core geometry: mixed-denominator map (4/4 → 6/8) keeps a constant
   musical step across the boundary with all downbeats on Measure-rank lines; odd meter (7/8)
   proves measure anchoring; snap across a signature boundary; halfway ties still resolve
   earlier. Controller: note-value intent round trip, invalid-entry rejection, persistence

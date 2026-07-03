@@ -104,10 +104,10 @@ public:
     virtual void onTimelineSeekRequested(common::core::TimePosition position) = 0;
 
     /*!
-    \brief Handles a request to change the timeline grid spacing.
-    \param spacing_beats Grid step measured in tempo-map beats.
+    \brief Handles a request to change the timeline grid note value.
+    \param note_value Grid step as a fraction of a whole note.
     */
-    virtual void onGridSpacingChangeRequested(common::core::Fraction spacing_beats) = 0;
+    virtual void onGridNoteValueChangeRequested(common::core::Fraction note_value) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

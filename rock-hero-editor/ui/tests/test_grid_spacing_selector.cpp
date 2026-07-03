@@ -95,8 +95,9 @@ TEST_CASE("GridSpacingSelector ignores unchanged entry", "[ui][grid-spacing]")
     CHECK(box.getText() == juce::String{"1/4"});
 }
 
-// Verifies the 4/4 default grid displays as 1/4 and selections convert to beat-relative spacing.
-TEST_CASE("EditorView grid selector maps note values to beats", "[ui][editor-view]")
+// Verifies the default grid displays as 1/4 and entries forward the raw note value unchanged:
+// the note value is the product-wide grid unit, so the view performs no conversion.
+TEST_CASE("EditorView grid selector forwards note values", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -112,12 +113,12 @@ TEST_CASE("EditorView grid selector maps note values to beats", "[ui][editor-vie
 
     box.setText("1/16", juce::sendNotificationSync);
 
-    CHECK(controller.grid_spacing_change_count == 1);
-    CHECK(controller.last_grid_spacing_beats == std::optional{common::core::Fraction{1, 4}});
+    CHECK(controller.grid_note_value_change_count == 1);
+    CHECK(controller.last_grid_note_value == std::optional{common::core::Fraction{1, 16}});
 }
 
-// Verifies a spacing pushed through view state is displayed as its note value.
-TEST_CASE("EditorView grid selector displays state spacing", "[ui][editor-view]")
+// Verifies a note value pushed through view state is displayed verbatim.
+TEST_CASE("EditorView grid selector displays the state note value", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -127,7 +128,7 @@ TEST_CASE("EditorView grid selector displays state spacing", "[ui][editor-view]"
 
     view.setBounds(0, 0, 1280, 800);
     auto state = makeLoadedEditorState(4.0);
-    state.grid_spacing_beats = common::core::Fraction{1, 2};
+    state.grid_note_value = common::core::Fraction{1, 8};
     view.setState(state);
 
     auto& box = findRequiredDescendant<juce::ComboBox>(view, "grid_note_value_box");

@@ -185,19 +185,19 @@ struct EditorAction
         common::core::TimePosition position;
     };
 
-    /*! \brief Set the timeline grid step measured in tempo-map beats. */
-    struct SetGridSpacing
+    /*! \brief Set the timeline grid step as a note value. */
+    struct SetGridNoteValue
     {
         /*!
-        \brief Creates a grid-spacing change action.
-        \param spacing_beats_value Grid step measured in tempo-map beats.
+        \brief Creates a grid note-value change action.
+        \param note_value_value Grid step as a fraction of a whole note.
         */
-        explicit constexpr SetGridSpacing(common::core::Fraction spacing_beats_value) noexcept
-            : spacing_beats(spacing_beats_value)
+        explicit constexpr SetGridNoteValue(common::core::Fraction note_value_value) noexcept
+            : note_value(note_value_value)
         {}
 
-        /*! \brief Grid step measured in tempo-map beats. */
-        common::core::Fraction spacing_beats;
+        /*! \brief Grid step as a fraction of a whole note. */
+        common::core::Fraction note_value;
     };
 
     /*! \brief Show the scanned plugin browser. */
@@ -351,7 +351,7 @@ struct EditorAction
     using Action = std::variant<
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
-        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridSpacing,
+        CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
         ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin,
         MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
 };
