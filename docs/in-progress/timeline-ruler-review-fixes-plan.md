@@ -1,7 +1,7 @@
 # Timeline Ruler Review Fixes
 
-Status: Phases 1–3 complete (implemented, awaiting user build + test run); later phases
-not started.
+Status: Phases 1–3 and 4.1/4.2 complete (implemented, awaiting user build + test run);
+4.3 awaits a go/no-go decision; Phases 5–6 not started.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
 beat/quarter extensions, tempo grid geometry, TimelineRuler, timeline cursor helpers,
@@ -154,7 +154,14 @@ Line numbers are as of the review; re-locate by symbol if drifted.
 
 ## Phase 4 — Layering moves (headless logic out of ui)
 
-- [ ] **4.1 Move `formattedBeatPosition` (and `formattedTimelineTime`) to editor-core.**
+- [x] **4.1 Move `formattedBeatPosition` (and `formattedTimelineTime`) to editor-core.**
+  DONE — new `transport_readout_text.h/.cpp` in editor-core, following the
+  `audio_device_status_text` precedent: `std::string` + `std::format` (editor-core's public
+  headers do not expose juce_core), renamed to the core `*Text` idiom (`timelineTimeText`,
+  `beatPositionText`). The hundredths-quantization comment moved with the code. Headless tests
+  in `test_transport_readout_text.cpp` cover the sub-hour format, hour rollover,
+  cross-field millisecond carry, negative clamp, mid-beat hundredths, and the 1.4.99 downbeat
+  regression (the JUCE component test keeps guarding the label wiring).
   `editor_view.cpp:316-352` — pure derivation, including the load-bearing invariant
   "quantize to display hundredths BEFORE splitting off the whole beat" (the 3.9999… →
   `1.4.99` bug), currently guarded only by a JUCE component test.
@@ -163,8 +170,14 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   headless tests. `juce::String` is permitted in core (or return `std::string`).
   Add headless unit tests for the hundredths quantization and the (h:)m:ss:mmm format.
 
-- [ ] **4.2 Move `timelineCursorPlacementTime` + `TimelineCursorPlacementMode` to
-  editor-core.** `timeline_cursor.cpp:46-59` is JUCE-free snap policy composing two
+- [x] **4.2 Move `timelineCursorPlacementTime` + `TimelineCursorPlacementMode` to
+  editor-core.**
+  DONE — both now live beside `nearestTempoGridTime` in tempo_grid_geometry, with full Doxygen
+  (both enumerators documented, which also settles the enum half of 6.4). `timeline_cursor.h/.cpp`
+  keep only `repaintCursorStrip`; the two mouseDown call sites qualify with `core::`. Headless
+  tests in test_tempo_grid_geometry.cpp cover snap-vs-free semantics, the halfway-tie rule, and
+  degenerate-geometry rejection. 5.2's shared `placementModeFor(mods)` helper was deliberately
+  not folded in (separate consolidation, per phase ordering). `timeline_cursor.cpp:46-59` is JUCE-free snap policy composing two
   editor-core functions, unreachable by headless tests from `ui/src`. Natural home: next to
   `nearestTempoGridTime` in tempo_grid_geometry (or timeline_geometry). `repaintCursorStrip`
   — genuinely JUCE-bound — stays in ui/timeline_cursor.
@@ -232,8 +245,9 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   documentation-conventions.md requires Doxygen for every project-owned header declaration
   visible outside a single .cpp — convert the class, public methods, and
   `g_timeline_ruler_height` (documenting the 53px ↔ cpp-private band-layout invariant).
-  `timeline_cursor.h:19` — Doxygen the `TimelineCursorPlacementMode` enum and BOTH
-  enumerators (the doc forbids partial enumerator coverage).
+  ~~`timeline_cursor.h:19` — Doxygen the `TimelineCursorPlacementMode` enum and BOTH
+  enumerators (the doc forbids partial enumerator coverage).~~ Done by 4.2's move: the enum now
+  lives in tempo_grid_geometry.h with both enumerators documented.
 - [ ] **6.5 Stale in-progress plans.** Per CLAUDE.md's documentation-maintenance rules:
   delete `docs/in-progress/timeline-snap-time-domain-plan.md` and
   `docs/in-progress/tempo-grid-spacing-plan.md` (fully landed; they reference APIs that no

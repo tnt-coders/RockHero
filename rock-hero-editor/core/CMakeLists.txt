@@ -39,6 +39,7 @@ target_sources(
             src/song_import_error.cpp
             src/tempo_grid_geometry.cpp
             src/timeline_geometry.cpp
+            src/transport_readout_text.cpp
             src/editor_settings.cpp)
 
 target_include_directories(
