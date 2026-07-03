@@ -422,4 +422,64 @@ TEST_CASE("Tempo grid note-value conversion rejects oversized entries", "[core][
     CHECK_FALSE(isValidTempoGridSpacing(spacing));
 }
 
+// Verifies free placement keeps the exact click time while snap placement resolves to the
+// nearest grid line's exact time. Width 401 over [0, 4] makes column x equal x / 100 seconds.
+TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+
+    const auto free_position = timelineCursorPlacementTime(
+        map,
+        whole_beat_spacing,
+        one_measure_window,
+        one_measure_width,
+        150.0f,
+        TimelineCursorPlacementMode::Free);
+    REQUIRE(free_position.has_value());
+    CHECK(free_position->seconds == 1.5);
+
+    const auto snapped_position = timelineCursorPlacementTime(
+        map,
+        whole_beat_spacing,
+        one_measure_window,
+        one_measure_width,
+        140.0f,
+        TimelineCursorPlacementMode::SnapToGrid);
+    REQUIRE(snapped_position.has_value());
+    CHECK(snapped_position->seconds == 1.0);
+}
+
+// Verifies a click exactly halfway between two grid lines snaps to the earlier line, so repeated
+// clicks on the same pixel place the cursor stably instead of jumping forward.
+TEST_CASE(
+    "Timeline cursor placement resolves halfway clicks to the earlier line", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+
+    const auto position = timelineCursorPlacementTime(
+        map,
+        whole_beat_spacing,
+        one_measure_window,
+        one_measure_width,
+        150.0f,
+        TimelineCursorPlacementMode::SnapToGrid);
+    REQUIRE(position.has_value());
+    CHECK(position->seconds == 1.0);
+}
+
+// Verifies degenerate timeline geometry yields no placement instead of a fabricated position.
+TEST_CASE("Timeline cursor placement rejects invalid geometry", "[core][tempo-grid]")
+{
+    const common::core::TempoMap map = makeUniform44Map(1, 4.0);
+
+    const auto position = timelineCursorPlacementTime(
+        map,
+        whole_beat_spacing,
+        one_measure_window,
+        0,
+        140.0f,
+        TimelineCursorPlacementMode::SnapToGrid);
+    CHECK_FALSE(position.has_value());
+}
+
 } // namespace rock_hero::editor::core
