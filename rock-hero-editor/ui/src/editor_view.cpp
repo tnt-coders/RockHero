@@ -38,7 +38,8 @@ constexpr int g_redo_command{102};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
-constexpr int g_time_display_width{110};
+constexpr int g_time_display_width{150};
+constexpr float g_time_display_font_height{20.0f};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
@@ -62,7 +63,6 @@ constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr int g_tempo_grid_dot_size{1};
 constexpr int g_tempo_grid_dot_gap{1};
 
-const juce::Colour g_editor_background_color{juce::Colours::darkgrey};
 const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
 
 // Reserves enough right-side menu space for the current audio status without overlapping menus.
@@ -1084,6 +1084,9 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
     m_time_display.setComponentID("transport_time_display");
+    // Large bold digits keep the readout legible at a glance next to the transport buttons.
+    m_time_display.setFont(
+        juce::Font{juce::FontOptions{g_time_display_font_height, juce::Font::bold}});
     m_time_display.setJustificationType(juce::Justification::centredLeft);
     m_time_display.setInterceptsMouseClicks(false, false);
     refreshTimeDisplay();
