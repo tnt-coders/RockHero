@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
@@ -60,7 +61,8 @@ collapse the result to Fraction's 0/1 error value.
 
 Inverse of displayedTempoGridNoteValue: entering 1/16 in 4/4 yields a quarter-beat step. Callers
 must validate the result with isValidTempoGridSpacing before using it, because out-of-bounds
-entries can convert to steps outside the supported spacing range.
+entries can convert to steps outside the supported spacing range. Products that cannot round-trip
+through int collapse to Fraction's 0/1 invalid value instead of overflowing.
 
 \param note_value Note value expressed as a fraction of a whole note.
 \param time_signature_denominator Note value that represents one beat.
@@ -70,7 +72,18 @@ entries can convert to steps outside the supported spacing range.
     common::core::Fraction note_value, int time_signature_denominator) noexcept
 {
     const int denominator = time_signature_denominator < 1 ? 1 : time_signature_denominator;
-    return common::core::Fraction{note_value.numerator * denominator, note_value.denominator};
+
+    // The product runs on unvalidated user entry, so it widens to 64 bits; any product outside
+    // int is far outside the valid spacing bounds anyway, so it becomes the invalid 0/1 value for
+    // isValidTempoGridSpacing to reject rather than signed-overflow undefined behavior. Products
+    // below one are equally invalid and would otherwise wrap through the narrowing cast.
+    const std::int64_t numerator = static_cast<std::int64_t>(note_value.numerator) * denominator;
+    if (numerator < 1 || numerator > std::numeric_limits<int>::max())
+    {
+        return common::core::Fraction{0, 1};
+    }
+
+    return common::core::Fraction{static_cast<int>(numerator), note_value.denominator};
 }
 
 /*! \brief Musical rank of a tempo-grid line, ordered weakest to strongest. */

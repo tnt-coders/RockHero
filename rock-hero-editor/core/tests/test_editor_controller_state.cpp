@@ -658,4 +658,65 @@ TEST_CASE("EditorController resets grid spacing on close", "[core][editor-contro
     CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
 }
 
+// Importing over an open project resets grid spacing to the whole-beat default, because a fresh
+// import has no per-project record to restore.
+TEST_CASE("EditorController resets grid spacing on import", "[core][editor-controller]")
+{
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        defaultControllerServices(),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .open_function = project_services.openFunction(),
+            .import_function = project_services.importFunction(),
+        }
+    };
+    REQUIRE(loadArrangement(controller, project_services, audio, std::filesystem::path{"a.wav"}));
+    FakeEditorView view;
+    controller.attachView(view);
+
+    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+    project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
+
+    const EditorViewState* state = stateOrNull(view.last_state);
+    REQUIRE(state != nullptr);
+    CHECK(state->project_loaded == true);
+    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
+}
+
+// Save As is the first moment an imported project has a path, so it persists the active grid
+// spacing under that path; without this, a selection made before the first save is lost.
+TEST_CASE("EditorController persists grid spacing on save-as", "[core][editor-controller]")
+{
+    const ScopedControllerSettingsFile settings_file{"save_as_grid_spacing.settings"};
+    EditorSettings settings{settings_file.path()};
+    FakeTransport transport;
+    ConfigurableSongAudio audio;
+    FakeProjectServices project_services;
+    EditorController controller{
+        audioPorts(transport, audio),
+        controllerServices(settings),
+        noopExitFunction(),
+        EditorController::ProjectOperations{
+            .import_function = project_services.importFunction(),
+            .save_as_function = project_services.saveAsFunction(),
+        }
+    };
+    FakeEditorView view;
+    controller.attachView(view);
+
+    project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
+    controller.onImportRequested(std::filesystem::path{"song.rock"});
+    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 4});
+    controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
+
+    const auto stored = settings.projectGridSpacingFor(std::filesystem::path{"saved.rhp"});
+    REQUIRE(stored.has_value());
+    CHECK(*stored == std::optional{common::core::Fraction{1, 4}});
+}
+
 } // namespace rock_hero::editor::core

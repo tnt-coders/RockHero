@@ -411,4 +411,15 @@ TEST_CASE("Tempo grid note-value conversions reduce exactly", "[core][tempo-grid
         common::core::Fraction{1, 3});
 }
 
+// Verifies oversized entries collapse to the invalid 0/1 spacing instead of overflowing the
+// widened numerator product back into int.
+TEST_CASE("Tempo grid note-value conversion rejects oversized entries", "[core][tempo-grid]")
+{
+    const common::core::Fraction spacing =
+        tempoGridSpacingFromNoteValue(common::core::Fraction{600000000, 1}, 4);
+
+    CHECK(spacing == common::core::Fraction{0, 1});
+    CHECK_FALSE(isValidTempoGridSpacing(spacing));
+}
+
 } // namespace rock_hero::editor::core
