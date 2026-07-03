@@ -106,6 +106,14 @@ void TempoMap::buildDerivedIndices()
     {
         m_anchor_beat_indices.push_back(globalBeatIndex(anchor.measure, anchor.beat));
     }
+
+    // Segment downbeat times resolve through anchor interpolation, so this fill must run after
+    // the anchor indices above exist.
+    for (SignatureSegment& segment : m_segments)
+    {
+        segment.start_seconds =
+            secondsAtGlobalBeatPosition(static_cast<double>(segment.start_beat_index));
+    }
 }
 
 // Finds the last segment whose reign starts at or before the measure. upper_bound lands past the
@@ -207,6 +215,66 @@ TimeSignatureChange TempoMap::timeSignatureAt(int measure) const noexcept
 int TempoMap::beatsPerMeasureAt(int measure) const noexcept
 {
     return std::max(1, timeSignatureAt(measure).numerator);
+}
+
+// Finds the signature whose reign contains the absolute time via the derived segments' downbeat
+// seconds; segments map one-to-one onto the authored signature list.
+TimeSignatureChange TempoMap::timeSignatureAtSeconds(double seconds) const noexcept
+{
+    if (m_time_signatures.empty())
+    {
+        return TimeSignatureChange{};
+    }
+
+    const auto after = std::upper_bound(
+        m_segments.begin(),
+        m_segments.end(),
+        seconds,
+        [](double target, const SignatureSegment& segment) {
+            return target < segment.start_seconds;
+        });
+    // Positions before the first downbeat still use the first signature, which governs from
+    // measure 1.
+    const std::size_t index =
+        after == m_segments.begin()
+            ? 0
+            : static_cast<std::size_t>(std::distance(m_segments.begin(), after)) - 1;
+    return m_time_signatures[index];
+}
+
+// Derives the quarter-note tempo of the anchor span containing the position. The beat rate is
+// constant inside a span because interpolation is linear in beats; the quarter-note reference
+// then scales by the active denominator (a beat is one 1/denominator note, so a quarter note is
+// denominator/4 beats).
+double TempoMap::quarterNoteBpmAtSeconds(double seconds) const noexcept
+{
+    if (m_anchors.size() < 2)
+    {
+        return 0.0;
+    }
+
+    // The span starts at the last anchor at or before the position, clamped so positions before
+    // the first anchor use the first span and positions at or past the terminal anchor use the
+    // span that ends there.
+    const auto after = std::upper_bound(
+        m_anchors.begin(), m_anchors.end(), seconds, [](double target, const BeatAnchor& anchor) {
+            return target < anchor.seconds;
+        });
+    const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
+    const std::size_t span_start =
+        std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
+
+    const auto beat_span = static_cast<double>(
+        m_anchor_beat_indices[span_start + 1] - m_anchor_beat_indices[span_start]);
+    const double seconds_span = m_anchors[span_start + 1].seconds - m_anchors[span_start].seconds;
+    if (beat_span <= 0.0 || seconds_span <= 0.0)
+    {
+        return 0.0;
+    }
+
+    const double beats_per_minute = beat_span / seconds_span * 60.0;
+    const int denominator = std::max(1, timeSignatureAtSeconds(seconds).denominator);
+    return beats_per_minute * 4.0 / static_cast<double>(denominator);
 }
 
 // Converts sparse measure/beat addresses into a continuous beat axis for interpolation.

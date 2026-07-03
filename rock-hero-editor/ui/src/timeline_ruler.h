@@ -72,9 +72,10 @@ private:
     // vblank cadence, do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
-    // Rebuilds the time-signature labels shown at each stored signature change's downbeat; part
-    // of refreshRulerGeometry and runs before measure labels so those can yield to signatures.
-    void refreshSignatureLabels(const juce::Font& font);
+    // Rebuilds the top band's signature geometry: the pinned active signature-and-tempo block at
+    // the left edge plus a measure-number and signature pair at each visible signature change.
+    // Returns the covered rectangles so plain measure numbers can flow around them.
+    [[nodiscard]] std::vector<juce::Rectangle<int>> refreshSignatureLabels(const juce::Font& font);
 
     // Rebuilds the merged anchor-marker path and overlap-suppressed anchor labels; part of
     // refreshRulerGeometry and shares its font so cached label widths match the paint font.
@@ -134,16 +135,17 @@ private:
     // cursor-only repaints driven at vblank cadence or triggered by a single click.
     std::vector<RulerLabel> m_measure_labels{};
 
-    // Time-signature labels at signature-change downbeats, sharing the top band with measure
-    // numbers; measure numbers yield to these so a meter change is never hidden by numbering.
+    // Signature-colored top-band labels: the pinned block showing the signature and quarter-note
+    // tempo active at the visible left edge, plus the signature part of each visible
+    // signature-change pair. Plain measure numbers flow around these.
     std::vector<RulerLabel> m_signature_labels{};
 
     // All visible anchor diamonds merged into one path so paint() issues a single fill instead of
     // building and filling a path per anchor on every repaint.
     juce::Path m_anchor_markers{};
 
-    // Anchor labels that survived overlap suppression, cached for the same text-measurement
-    // reason as m_measure_labels.
+    // Anchor tempo labels (quarter-note BPM of the span each anchor starts) that survived overlap
+    // suppression, cached for the same text-measurement reason as m_measure_labels.
     std::vector<RulerLabel> m_anchor_labels{};
 };
 
