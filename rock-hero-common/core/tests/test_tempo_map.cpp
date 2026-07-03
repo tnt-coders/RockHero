@@ -86,6 +86,28 @@ TEST_CASE("TempoMap resolves fractional global beat positions", "[core][tempo-ma
     CHECK(tempo_map.secondsAtGlobalBeatPosition(99.0) == Catch::Approx(15.5));
 }
 
+// Verifies the forward cursor resolves monotonic positions identically to the binary-search
+// query, including the clamped edges.
+TEST_CASE("TempoMap forward cursor matches the global-beat query", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
+            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
+        },
+    };
+
+    TempoMap::ForwardBeatTimeCursor cursor{tempo_map};
+    for (const double position : {-1.0, 0.0, 2.5, 4.0, 8.0, 10.0, 12.0, 99.0})
+    {
+        CHECK(cursor.secondsAt(position) == tempo_map.secondsAtGlobalBeatPosition(position));
+    }
+}
+
 // Verifies anchor interpolation stays aligned with the meter-aware beat axis across signature
 // changes, exercising the derived segment and anchor index tables together.
 TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")

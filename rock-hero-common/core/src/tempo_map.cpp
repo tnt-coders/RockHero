@@ -277,6 +277,14 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
         });
     const auto right_index = std::max<std::size_t>(
         1, static_cast<std::size_t>(std::distance(m_anchor_beat_indices.begin(), right_iterator)));
+    return secondsAtAnchorSpan(right_index, global_beat_position);
+}
+
+// Interpolates inside one anchor span. Shared by the binary-search query and the forward cursor so
+// both resolve identical times for the same position.
+double TempoMap::secondsAtAnchorSpan(
+    std::size_t right_index, double global_beat_position) const noexcept
+{
     if (right_index >= m_anchors.size())
     {
         return m_anchors.back().seconds;
@@ -295,6 +303,37 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
 
     const double fraction = (global_beat_position - left_beat) / (right_beat - left_beat);
     return left_seconds + ((right_seconds - left_seconds) * fraction);
+}
+
+// Binds to the map; the right-anchor index starts at the first interpolable pair.
+TempoMap::ForwardBeatTimeCursor::ForwardBeatTimeCursor(const TempoMap& tempo_map) noexcept
+    : m_tempo_map(&tempo_map)
+{}
+
+// Advances the anchor span linearly instead of binary-searching. Total advancement across a scan
+// is bounded by the anchor count, so a whole monotonic scan costs one pass over the anchors; the
+// stop condition mirrors secondsAtGlobalBeatPosition's lower_bound so both pick the same span.
+double TempoMap::ForwardBeatTimeCursor::secondsAt(double global_beat_position) noexcept
+{
+    const TempoMap& tempo_map = *m_tempo_map;
+    if (tempo_map.m_anchors.empty())
+    {
+        return 0.0;
+    }
+
+    if (tempo_map.m_anchors.size() == 1 || global_beat_position <= 0.0)
+    {
+        return tempo_map.m_anchors.front().seconds;
+    }
+
+    while (m_right_anchor < tempo_map.m_anchor_beat_indices.size() &&
+           static_cast<double>(tempo_map.m_anchor_beat_indices[m_right_anchor]) <
+               global_beat_position)
+    {
+        ++m_right_anchor;
+    }
+
+    return tempo_map.secondsAtAnchorSpan(m_right_anchor, global_beat_position);
 }
 
 // Compares vector-owned map data while BeatAnchor owns exact floating-point equality. The derived

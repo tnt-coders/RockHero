@@ -6,6 +6,7 @@
 #pragma once
 
 #include <compare>
+#include <cstddef>
 #include <cstdint>
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/timeline.h>
@@ -166,6 +167,42 @@ public:
     [[nodiscard]] double secondsAtGlobalBeatPosition(double global_beat_position) const noexcept;
 
     /*!
+    \brief Amortized-constant sequential resolver for non-decreasing global beat positions.
+
+    Grid scans resolve thousands of monotonically increasing beat positions per refresh. This
+    cursor advances an anchor-span index forward instead of re-running
+    secondsAtGlobalBeatPosition's binary search per query, so a whole scan costs one pass over the
+    anchors regardless of line count, while returning bit-identical results.
+
+    \note Positions passed to secondsAt must be non-decreasing across calls, and the cursor is
+          valid only while the tempo map it was created from is alive and unmodified.
+    */
+    class ForwardBeatTimeCursor
+    {
+    public:
+        /*!
+        \brief Binds the cursor to a tempo map.
+        \param tempo_map Map whose anchor spans the cursor walks; must outlive the cursor.
+        */
+        explicit ForwardBeatTimeCursor(const TempoMap& tempo_map) noexcept;
+
+        /*!
+        \brief Resolves a beat position that is at or after every previously resolved position.
+        \param global_beat_position Zero-based fractional position on the global beat axis.
+        \return Interpolated second position, identical to secondsAtGlobalBeatPosition.
+        */
+        [[nodiscard]] double secondsAt(double global_beat_position) noexcept;
+
+    private:
+        // Owning map; a pointer instead of a reference keeps the cursor copyable.
+        const TempoMap* m_tempo_map;
+
+        // Index of the current span's right anchor; starts at the first interpolable pair and
+        // only moves forward.
+        std::size_t m_right_anchor{1};
+    };
+
+    /*!
     \brief Returns the terminal anchor's global beat index.
     \return Zero-based global beat index for the terminal anchor.
     */
@@ -206,6 +243,12 @@ private:
     // normalized inputs always match.
     [[nodiscard]] const SignatureSegment& segmentForBeatIndex(
         std::int64_t global_beat_index) const noexcept;
+
+    // Shared interpolation tail behind secondsAtGlobalBeatPosition and ForwardBeatTimeCursor:
+    // right_index names the first anchor at or after the position (clamped to at least one so a
+    // left neighbor exists); indexes past the terminal anchor clamp to its time.
+    [[nodiscard]] double secondsAtAnchorSpan(
+        std::size_t right_index, double global_beat_position) const noexcept;
 
     std::vector<TimeSignatureChange> m_time_signatures;
     std::vector<BeatAnchor> m_anchors;

@@ -53,21 +53,15 @@ void TimelineRuler::setProjectLoaded(bool project_loaded)
     repaint();
 }
 
-// Stores the ruler geometry derived from the viewport and zoomed content.
+// Stores the ruler geometry derived from the viewport and zoomed content. The rebuild and repaint
+// are deferred to the setGridLines push that owning-view callers issue after every view change,
+// because tick coordinates need lines scanned for the new span.
 void TimelineRuler::setTimelineView(
     common::core::TimeRange timeline_range, int content_width, int view_x)
 {
-    if (m_timeline_range == timeline_range && m_content_width == content_width &&
-        m_view_x == view_x)
-    {
-        return;
-    }
-
     m_timeline_range = timeline_range;
     m_content_width = content_width;
     m_view_x = view_x;
-    refreshRulerGeometry();
-    repaint();
 }
 
 // Samples the current transport cursor for the ruler's aligned playhead mark.
@@ -83,8 +77,8 @@ void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position
     m_cursor_x = next_cursor_x;
 }
 
-// Stores the tempo map that supplies measures and anchors, plus the grid step in beats shared
-// with the track grid and snapping.
+// Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
+// shared with the track grid and snapping.
 void TimelineRuler::setGrid(
     common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats)
 {
@@ -95,6 +89,15 @@ void TimelineRuler::setGrid(
 
     m_tempo_map = std::move(tempo_map);
     m_grid_spacing_beats = grid_spacing_beats;
+    refreshRulerGeometry();
+    repaint();
+}
+
+// Stores the shared visible-span grid lines and rebuilds the cached ruler geometry from them.
+// This is the one scan result both the ruler and the track content render from.
+void TimelineRuler::setGridLines(std::vector<core::TempoGridLine> grid_lines)
+{
+    m_grid_lines = std::move(grid_lines);
     refreshRulerGeometry();
     repaint();
 }
@@ -175,24 +178,13 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
     return local_x;
 }
 
-// Recomputes cached tick rectangles, measure-label draw positions, anchor markers, and anchor
-// labels from the current timeline geometry and tempo map. Kept out of paint() so repaints driven
-// only by cursor movement, whether vblank-driven playback or a single click, do not repeat the
-// beat scan, the anchor walk, or the per-label GlyphArrangement text-width measurement on every
-// frame; all of these only need to rerun when the geometry or tempo map they depend on actually
-// changes.
+// Rebuilds cached tick rectangles, measure-label draw positions, anchor markers, and anchor
+// labels from the stored grid lines, timeline geometry, and tempo map. Kept out of paint() so
+// repaints driven only by cursor movement, whether vblank-driven playback or a single click, do
+// not rebuild geometry or repeat the per-label GlyphArrangement text-width measurement on every
+// frame; all of these only need to rerun when the state they depend on actually changes.
 void TimelineRuler::refreshRulerGeometry()
 {
-    const int visible_x_begin = std::max(0, m_view_x);
-    const int visible_x_end = std::min(m_content_width, m_view_x + getWidth());
-    const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
-        m_tempo_map,
-        m_grid_spacing_beats,
-        m_timeline_range,
-        m_content_width,
-        visible_x_begin,
-        visible_x_end);
-
     m_tick_rects.clear();
     m_measure_labels.clear();
 
@@ -202,7 +194,7 @@ void TimelineRuler::refreshRulerGeometry()
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
     // beats even when a fine grid fills the space between them.
     const int subdivision_tick_height = std::max(1, getHeight() / 8);
-    for (const core::TempoGridLine& line : lines)
+    for (const core::TempoGridLine& line : m_grid_lines)
     {
         const int x = line.x - m_view_x;
         if (line.rank != core::TempoGridLineRank::Measure)
