@@ -39,6 +39,7 @@ add_executable(
     test_signal_chain_workflow.cpp
     test_tempo_grid_geometry.cpp
     test_timeline_geometry.cpp
+    test_transport_readout_text.cpp
     test_project.cpp
     test_editor_settings.cpp)
 

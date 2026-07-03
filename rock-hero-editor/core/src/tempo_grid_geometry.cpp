@@ -236,4 +236,22 @@ common::core::TimePosition nearestTempoGridTime(
     return common::core::TimePosition{best_seconds};
 }
 
+// Converts either overlay or ruler clicks through the same placement path. The click column first
+// becomes a timeline position, so snapping happens in musical time and the resulting seek is the
+// exact grid-line time instead of a value quantized to the pixel grid.
+std::optional<common::core::TimePosition> timelineCursorPlacementTime(
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
+    common::core::TimeRange visible_timeline, int timeline_width, float timeline_x,
+    TimelineCursorPlacementMode mode)
+{
+    const std::optional<common::core::TimePosition> click_time =
+        timelinePositionForX(timeline_x, visible_timeline, timeline_width);
+    if (!click_time.has_value() || mode == TimelineCursorPlacementMode::Free)
+    {
+        return click_time;
+    }
+
+    return nearestTempoGridTime(tempo_map, grid_spacing_beats, *click_time);
+}
+
 } // namespace rock_hero::editor::core

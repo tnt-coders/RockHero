@@ -17,6 +17,8 @@
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline_geometry.h>
+#include <rock_hero/editor/core/transport_readout_text.h>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -313,42 +315,6 @@ void drawTempoGridDots(
     }
 }
 
-// Formats an absolute timeline position as (h:)m:ss:mmm for the transport-strip position
-// readout, with the hour field only once the position reaches one hour.
-[[nodiscard]] juce::String formattedTimelineTime(double seconds)
-{
-    const double clamped_seconds = std::max(0.0, seconds);
-    const auto total_milliseconds =
-        static_cast<std::int64_t>(std::llround(clamped_seconds * 1000.0));
-    const std::int64_t hours = total_milliseconds / 3600000;
-    const std::int64_t minutes = (total_milliseconds / 60000) % 60;
-    const std::int64_t remainder = total_milliseconds % 60000;
-    if (hours > 0)
-    {
-        return juce::String::formatted(
-            "%lld:%02lld:%02lld:%03lld", hours, minutes, remainder / 1000, remainder % 1000);
-    }
-
-    return juce::String::formatted(
-        "%lld:%02lld:%03lld", minutes, remainder / 1000, remainder % 1000);
-}
-
-// Formats the transport position as measure.beat.hundredths like REAPER's bars/beats readout;
-// the third field is hundredths of the way from the containing beat to the next one.
-[[nodiscard]] juce::String formattedBeatPosition(
-    const common::core::TempoMap& tempo_map, double seconds)
-{
-    // Quantize to display hundredths BEFORE splitting off the whole beat: the seconds-to-beat
-    // inverse of a downbeat produced by the forward beat-to-seconds map can come back as
-    // 3.9999... through anchor-span interpolation rounding, and flooring that raw would show
-    // 1.4.99 for what is exactly measure 2's start.
-    const auto total_hundredths =
-        static_cast<std::int64_t>(std::llround(tempo_map.beatPositionAtSeconds(seconds) * 100.0));
-    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(total_hundredths / 100);
-    return juce::String{measure} + "." + juce::String{beat} +
-           juce::String::formatted(".%02lld", total_hundredths % 100);
-}
-
 } // namespace
 
 // Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
@@ -414,14 +380,15 @@ public:
             return;
         }
 
-        const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
-            m_tempo_map,
-            m_grid_spacing_beats,
-            m_visible_timeline,
-            getWidth(),
-            event.position.x,
-            event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
-                                    : TimelineCursorPlacementMode::SnapToGrid);
+        const std::optional<common::core::TimePosition> position =
+            core::timelineCursorPlacementTime(
+                m_tempo_map,
+                m_grid_spacing_beats,
+                m_visible_timeline,
+                getWidth(),
+                event.position.x,
+                event.mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
+                                        : core::TimelineCursorPlacementMode::SnapToGrid);
         if (position.has_value())
         {
             m_controller.onTimelineSeekRequested(*position);
@@ -1891,12 +1858,13 @@ void EditorView::refreshTimeDisplay()
     }
 
     m_position_readout_seconds = seconds;
-    const juce::String time_text = formattedTimelineTime(seconds);
-    m_position_display.setText(
-        m_state.project_loaded
-            ? formattedBeatPosition(m_state.tempo_map, seconds) + " / " + time_text
-            : time_text,
-        juce::dontSendNotification);
+    std::string readout = core::timelineTimeText(seconds);
+    if (m_state.project_loaded)
+    {
+        readout = core::beatPositionText(m_state.tempo_map, seconds) + " / " + readout;
+    }
+
+    m_position_display.setText(juce::String{readout}, juce::dontSendNotification);
 }
 
 // Opens the audio-device settings window when a hardware-configuration backend is available.

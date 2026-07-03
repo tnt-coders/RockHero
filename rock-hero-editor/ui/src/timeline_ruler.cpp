@@ -236,14 +236,14 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     }
 
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
-    const std::optional<common::core::TimePosition> position = timelineCursorPlacementTime(
+    const std::optional<common::core::TimePosition> position = core::timelineCursorPlacementTime(
         m_tempo_map,
         m_grid_spacing_beats,
         m_timeline_range,
         m_content_width,
         timeline_x,
-        event.mods.isCtrlDown() ? TimelineCursorPlacementMode::Free
-                                : TimelineCursorPlacementMode::SnapToGrid);
+        event.mods.isCtrlDown() ? core::TimelineCursorPlacementMode::Free
+                                : core::TimelineCursorPlacementMode::SnapToGrid);
     if (position.has_value())
     {
         m_cursor_placement_callback(*position);
