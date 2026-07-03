@@ -19,19 +19,21 @@ namespace
 const juce::Colour g_timeline_ruler_color{juce::Colours::darkgrey.darker(0.45f)};
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 const juce::Colour g_timeline_tempo_color{180, 218, 255};
+const juce::Colour g_timeline_signature_color{255, 214, 140};
 
-// Vertical layout: the event band sits above the ruler body, holding every tempo change at its
-// timeline position with anchor triangles pointing down at the body's top edge, like a DAW tempo
-// lane. The body holds the measure-number row above the tick band; measure ticks run the body's
-// full height so the numbers stay attached to their downbeats.
-constexpr int g_event_band_row_y{1};
-constexpr int g_ruler_body_top{15};
-constexpr int g_measure_row_y{17};
+// Vertical layout: the tempo band sits on top, holding every tempo change at its timeline
+// position like a DAW tempo lane; the signature band directly below it holds every signature
+// change at its downbeat. Both bands pin the active value to the left edge while the song
+// scrolls. The ruler body below them holds the measure-number row above the tick band; measure
+// ticks run the body's full height so the numbers stay attached to their downbeats.
+constexpr int g_tempo_row_y{1};
+constexpr int g_tempo_band_bottom{15};
+constexpr int g_signature_row_y{15};
+constexpr int g_ruler_body_top{28};
+constexpr int g_measure_row_y{30};
 constexpr int g_label_row_height{12};
 constexpr int g_beat_tick_height{10};
 constexpr int g_subdivision_tick_height{5};
-constexpr int g_anchor_triangle_half_width{4};
-constexpr int g_anchor_triangle_height{6};
 
 // Shared ruler text face. Cached label widths are measured with the same face they are drawn
 // with, so measurement and drawing must both go through these helpers.
@@ -132,12 +134,12 @@ void TimelineRuler::setCursorPlacementCallback(CursorPlacementCallback callback)
     m_cursor_placement_callback = std::move(callback);
 }
 
-// Paints the event band above the ruler body, the body's measure-number row, the tick band, and
-// the anchor triangles bridging band and body.
+// Paints the tempo and signature bands above the ruler body, the body's measure-number row, and
+// the tick band.
 void TimelineRuler::paint(juce::Graphics& g)
 {
-    // The event band blends into the editor chrome so it reads as sitting above the ruler; only
-    // the body below it gets the ruler background.
+    // The tempo and signature bands blend into the editor chrome so they read as sitting above
+    // the ruler; only the body below them gets the ruler background.
     g.fillAll(g_editor_background_color);
     g.setColour(g_timeline_ruler_color);
     g.fillRect(0, g_ruler_body_top, getWidth(), getHeight() - g_ruler_body_top);
@@ -152,17 +154,18 @@ void TimelineRuler::paint(juce::Graphics& g)
 
     drawBeatTicks(g);
 
-    // Measure numbers fill the body row; tempo markings fill the event band. Markings split into
-    // an enlarged quarter-note glyph and text-size digits because one text draw cannot mix fonts;
-    // the glyph centers in the full band height so its extra size hangs evenly around the digit
-    // row.
+    // Measure numbers fill the body row; tempo markings and signature labels each fill their own
+    // band. Tempo markings split into an enlarged quarter-note glyph and text-size digits because
+    // one text draw cannot mix fonts; the glyph centers in the full tempo-band height so its
+    // extra size hangs evenly around the digit row.
     const juce::Font label_font = rulerFont();
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, label_font, g_measure_row_y, g_label_row_height);
+    g.setColour(g_timeline_signature_color);
+    drawLabelRow(g, m_signature_labels, label_font, g_signature_row_y, g_label_row_height);
     g.setColour(g_timeline_tempo_color);
-    drawLabelRow(g, m_tempo_prefix_labels, noteGlyphFont(), 0, g_ruler_body_top);
-    drawLabelRow(g, m_tempo_labels, label_font, g_event_band_row_y, g_label_row_height);
-    g.fillPath(m_anchor_markers);
+    drawLabelRow(g, m_tempo_prefix_labels, noteGlyphFont(), 0, g_tempo_band_bottom);
+    drawLabelRow(g, m_tempo_labels, label_font, g_tempo_row_y, g_label_row_height);
 
     drawCursor(g);
 }
@@ -219,7 +222,7 @@ std::optional<float> TimelineRuler::localXForSeconds(double seconds) const noexc
     return local_x;
 }
 
-// Rebuilds cached tick rectangles, the body's measure-number row, and the event band from the
+// Rebuilds cached tick rectangles, the body's measure-number row, and the header bands from the
 // stored grid lines, timeline geometry, and tempo map. Kept out of paint() so repaints driven
 // only by cursor movement, whether vblank-driven playback or a single click, do not rebuild
 // geometry or repeat the per-label GlyphArrangement text-width measurement on every frame; all of
@@ -230,7 +233,7 @@ void TimelineRuler::refreshRulerGeometry()
     m_measure_labels.clear();
 
     const juce::Font font = rulerFont();
-    refreshEventBand(font);
+    refreshHeaderBands(font);
 
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
     // beats even when a fine grid fills the space between them; measure ticks span the whole
@@ -265,16 +268,20 @@ void TimelineRuler::refreshRulerGeometry()
     }
 }
 
-// Rebuilds the event band: a triangle pointing down at the ruler body's top edge for every
-// visible anchor and a metronome marking ("♩=120.00") for the span each non-terminal anchor
-// starts. Markings split into an enlarged quarter-note glyph and text-size digits, cached as
-// adjacent labels because one text draw cannot mix fonts; only the glyph is enlarged, so the
-// equals sign rides with the digits.
-void TimelineRuler::refreshEventBand(const juce::Font& font)
+// Rebuilds the tempo and signature bands. The tempo band gets a metronome marking ("♩=120.00")
+// for the span each non-terminal anchor starts and the pinned active tempo at the left edge;
+// the signature band gets a label at each signature-change downbeat plus the pinned active
+// signature. Anchors draw no marker of their own: tempo is not editable yet, so the markings
+// alone say everything the display needs. The pinned values need a musical frame of reference,
+// so they stay hidden until the first downbeat (the first anchor) reaches or passes the visible
+// left edge. Tempo markings split into an enlarged quarter-note glyph and text-size digits,
+// cached as adjacent labels because one text draw cannot mix fonts; only the glyph is enlarged,
+// so the equals sign rides with the digits.
+void TimelineRuler::refreshHeaderBands(const juce::Font& font)
 {
     m_tempo_prefix_labels.clear();
     m_tempo_labels.clear();
-    m_anchor_markers.clear();
+    m_signature_labels.clear();
 
     // The quarter-note glyph is U+2669, supplied as escaped UTF-8 so source-file encoding cannot
     // corrupt it; text shaping falls back to a symbol font when the UI font lacks the glyph.
@@ -282,9 +289,26 @@ void TimelineRuler::refreshEventBand(const juce::Font& font)
     const juce::Font prefix_font = noteGlyphFont();
     const int prefix_width = textWidth(prefix_font, prefix) + 1;
 
-    int next_label_x = 4;
+    const auto view_left_time =
+        core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
-    for (std::size_t index = 0; index < anchors.size(); ++index)
+    const bool pinned_visible = view_left_time.has_value() && !anchors.empty() &&
+                                view_left_time->seconds >= anchors.front().seconds;
+
+    int next_tempo_x = 4;
+    if (pinned_visible)
+    {
+        const juce::String number =
+            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(view_left_time->seconds), 2};
+        const int number_width = textWidth(font, number) + 8;
+        m_tempo_prefix_labels.push_back(RulerLabel{.x = 4, .text = prefix, .width = prefix_width});
+        m_tempo_labels.push_back(
+            RulerLabel{.x = 4 + prefix_width, .text = number, .width = number_width});
+        next_tempo_x = 4 + prefix_width + number_width + 10;
+    }
+
+    // The terminal anchor only ends the last span, so it gets no marking of its own.
+    for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
     {
         const auto local_x = localXForSeconds(anchors[index].seconds);
         if (!local_x.has_value())
@@ -293,33 +317,51 @@ void TimelineRuler::refreshEventBand(const juce::Font& font)
         }
 
         const float x = *local_x;
-        const auto tip_y = static_cast<float>(g_ruler_body_top);
-        const auto base_y = static_cast<float>(g_ruler_body_top - g_anchor_triangle_height);
-        const auto half_width = static_cast<float>(g_anchor_triangle_half_width);
-        m_anchor_markers.startNewSubPath(x, tip_y);
-        m_anchor_markers.lineTo(x + half_width, base_y);
-        m_anchor_markers.lineTo(x - half_width, base_y);
-        m_anchor_markers.closeSubPath();
-
-        // The terminal anchor only ends the last span, so it keeps its triangle but gets no tempo
-        // label of its own.
-        if (index + 1 >= anchors.size())
-        {
-            continue;
-        }
-
         const juce::String number =
             "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(anchors[index].seconds), 2};
         const int number_width = textWidth(font, number) + 8;
         const int label_x = static_cast<int>(std::round(x)) + 4;
         const int marking_width = prefix_width + number_width;
-        if (label_x >= next_label_x && label_x + marking_width <= getWidth())
+        if (label_x >= next_tempo_x && label_x + marking_width <= getWidth())
         {
             m_tempo_prefix_labels.push_back(
                 RulerLabel{.x = label_x, .text = prefix, .width = prefix_width});
             m_tempo_labels.push_back(
                 RulerLabel{.x = label_x + prefix_width, .text = number, .width = number_width});
-            next_label_x = label_x + marking_width + 10;
+            next_tempo_x = label_x + marking_width + 10;
+        }
+    }
+
+    // Formats one signature as "numerator/denominator".
+    const auto signature_text = [](const common::core::TimeSignatureChange& change) {
+        return juce::String{change.numerator} + "/" + juce::String{change.denominator};
+    };
+
+    int next_signature_x = 4;
+    if (pinned_visible)
+    {
+        const juce::String text =
+            signature_text(m_tempo_map.timeSignatureAtSeconds(view_left_time->seconds));
+        const int width = textWidth(font, text) + 8;
+        m_signature_labels.push_back(RulerLabel{.x = 4, .text = text, .width = width});
+        next_signature_x = 4 + width + 10;
+    }
+
+    for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())
+    {
+        const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1));
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        const juce::String text = signature_text(change);
+        const int width = textWidth(font, text) + 8;
+        const int label_x = static_cast<int>(std::round(*local_x)) + 4;
+        if (label_x >= next_signature_x && label_x + width <= getWidth())
+        {
+            m_signature_labels.push_back(RulerLabel{.x = label_x, .text = text, .width = width});
+            next_signature_x = label_x + width + 10;
         }
     }
 }

@@ -10,7 +10,6 @@
 #include "busy_overlay.h"
 #include "grid_spacing_selector.h"
 #include "menu_bar_button.h"
-#include "musical_readout.h"
 #include "plugin_browser_window.h"
 #include "signal_chain_panel.h"
 #include "transport_controls.h"
@@ -338,14 +337,9 @@ private:
 
     // Read-only readout of the transport cursor's current position as
     // "measure.beat.hundredths / time" (plain time without a project), shown beside the
-    // transport buttons and refreshed at display cadence.
+    // transport buttons and refreshed at display cadence. The active tempo and time signature
+    // are not repeated here: the timeline ruler's header bands pin them to their left edge.
     juce::Label m_position_display;
-
-    // Read-only readout of the active time signature and quarter-note tempo at the transport
-    // cursor, shown beside the grid-spacing selector at the strip's left edge and refreshed at
-    // display cadence. Current values live here like a DAW transport LCD; the timeline ruler's
-    // event band only marks where tempo changes.
-    MusicalReadout m_musical_display;
 
     // Timeline grid-size selector shown beside the transport controls.
     GridSpacingSelector m_grid_spacing_selector;

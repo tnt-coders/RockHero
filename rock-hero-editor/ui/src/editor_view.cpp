@@ -38,10 +38,8 @@ constexpr int g_redo_command{102};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
-// Sized for a long readout like "128.4.99 / 59:59:999" at the shared readout font height.
+// Sized for a long readout like "128.4.99 / 59:59:999" at the readout font height.
 constexpr int g_position_display_width{240};
-// Sized for a long readout like "15/16  ♩=999.99" at the shared readout font height.
-constexpr int g_musical_display_width{170};
 constexpr float g_transport_readout_font_height{20.0f};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
@@ -1092,7 +1090,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
-    , m_musical_display(g_transport_readout_font_height)
     , m_grid_spacing_selector(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
@@ -1112,8 +1109,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
     m_position_display.setComponentID("transport_position_display");
-    // Large bold digits keep the readout legible at a glance next to the transport buttons; the
-    // musical readout styles itself to match.
+    // Large bold digits keep the readout legible at a glance next to the transport buttons.
     m_position_display.setFont(
         juce::Font{juce::FontOptions{g_transport_readout_font_height, juce::Font::bold}});
     m_position_display.setJustificationType(juce::Justification::centredLeft);
@@ -1133,7 +1129,6 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_position_display);
-    addAndMakeVisible(m_musical_display);
     addAndMakeVisible(m_grid_spacing_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
@@ -1294,21 +1289,29 @@ void EditorView::resized()
     control_row = control_row.withSizeKeepingCentre(
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
-    // The grid selector pins to the strip's left edge with the signature/tempo readout beside
-    // it, and the playback transport (buttons plus the position readout) centers in the space
-    // that remains before the master meter, REAPER-like. The centered group has layout priority:
-    // the meter only keeps as much of its preferred right-edge width as the group leaves free,
-    // and hides below its minimum width. The readout slot widths already include the
-    // g_content_inset their bounds trim off, so the group width is a plain sum.
+    // The grid selector pins to the strip's left edge. The playback block — transport buttons
+    // plus the position readout — centers as a whole on the WINDOW's center line. The block only
+    // slides off center when the grid selector would overlap it, and the master meter takes
+    // whatever right-edge width the block leaves free (hiding below its minimum), so the
+    // centered block wins over the meter's preferred width. The readout slot width already
+    // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
     m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
         std::min(g_grid_spacing_selector_width, control_row.getWidth())));
-    m_musical_display.setBounds(
-        control_row.removeFromLeft(std::min(g_musical_display_width, control_row.getWidth()))
-            .withTrimmedLeft(g_content_inset));
 
     constexpr int playback_group_width = g_transport_controls_width + g_position_display_width;
+    const int ideal_group_x = getLocalBounds().getCentreX() - playback_group_width / 2;
+    const int rightmost_group_x =
+        std::max(control_row.getX(), control_row.getRight() - playback_group_width);
+    const int group_x = std::clamp(ideal_group_x, control_row.getX(), rightmost_group_x);
+    juce::Rectangle<int> playback_area{
+        group_x,
+        control_row.getY(),
+        std::min(playback_group_width, control_row.getRight() - group_x),
+        control_row.getHeight(),
+    };
+
     const int master_meter_width = std::min(
-        g_master_meter_width, control_row.getWidth() - playback_group_width - g_content_inset);
+        g_master_meter_width, control_row.getRight() - playback_area.getRight() - g_content_inset);
     if (master_meter_width >= g_master_meter_min_width)
     {
         m_master_output_meter.setVisible(true);
@@ -1321,8 +1324,6 @@ void EditorView::resized()
         m_master_output_meter.setBounds({});
     }
 
-    auto playback_area = control_row.withSizeKeepingCentre(
-        std::min(playback_group_width, control_row.getWidth()), control_row.getHeight());
     m_transport_controls.setBounds(playback_area.removeFromLeft(
         std::min(g_transport_controls_width, playback_area.getWidth())));
     m_position_display.setBounds(
@@ -1860,10 +1861,10 @@ void EditorView::refreshAudioMeters()
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
 }
 
-// Samples the transport cursor into the strip readouts at display cadence, like the cursor
-// overlay; both readouts skip their repaint when the rendered values are unchanged, so idle
-// frames stay free. The musical parts stay empty without a project because the default tempo map
-// would show placeholder values; the plain time remains meaningful either way.
+// Samples the transport cursor into the strip readout at display cadence, like the cursor
+// overlay; setText skips the repaint when the rendered text is unchanged, so idle frames stay
+// free. The beat position stays off without a project because the default tempo map would show
+// placeholder values; the plain time remains meaningful either way.
 void EditorView::refreshTimeDisplay()
 {
     const double seconds = m_transport.position().seconds;
@@ -1873,18 +1874,6 @@ void EditorView::refreshTimeDisplay()
             ? formattedBeatPosition(m_state.tempo_map, seconds) + " / " + time_text
             : time_text,
         juce::dontSendNotification);
-    if (m_state.project_loaded)
-    {
-        const common::core::TimeSignatureChange signature =
-            m_state.tempo_map.timeSignatureAtSeconds(seconds);
-        m_musical_display.setReadout(
-            juce::String{signature.numerator} + "/" + juce::String{signature.denominator},
-            "=" + juce::String{m_state.tempo_map.quarterNoteBpmAtSeconds(seconds), 2});
-    }
-    else
-    {
-        m_musical_display.setReadout({}, {});
-    }
 }
 
 // Opens the audio-device settings window when a hardware-configuration backend is available.

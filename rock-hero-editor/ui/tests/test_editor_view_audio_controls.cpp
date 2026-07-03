@@ -70,7 +70,11 @@ TEST_CASE("Calibration prompt starts with target and status", "[ui][editor-view]
     CHECK(help_button.getTooltip() == "Open input calibration guide");
     CHECK(start_button.getButtonText() == "Calibrate");
     CHECK(manual_label.getText() == "Gain:");
-    CHECK(meter.getWidth() == master_meter.getWidth());
+    // The popup meter keeps the master meter's preferred 384px width. The live master meter can
+    // flex narrower than that, because the window-centered playback transport has layout
+    // priority over the meter's preferred width.
+    CHECK(meter.getWidth() == 384);
+    CHECK(master_meter.getWidth() <= meter.getWidth());
     CHECK(window.getContentComponent()->getWidth() < 520);
     CHECK(findDescendant(window, "input_calibration_gain") == nullptr);
     CHECK(findDescendant(window, "input_calibration_recommendation") == nullptr);
