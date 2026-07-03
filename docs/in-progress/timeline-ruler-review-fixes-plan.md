@@ -1,7 +1,7 @@
 # Timeline Ruler Review Fixes
 
-Status: Phase 1 complete (implemented, awaiting user build + test run); later phases not
-started.
+Status: Phases 1 and 2 complete (implemented, awaiting user build + test run); later phases
+not started.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
 beat/quarter extensions, tempo grid geometry, TimelineRuler, timeline cursor helpers,
@@ -79,7 +79,14 @@ Line numbers are as of the review; re-locate by symbol if drifted.
 
 ## Phase 2 — Ruler label placement consolidation (one refactor, three payoffs)
 
-- [ ] **2.1 Collapse the five duplicated overlap-suppression blocks.**
+- [x] **2.1 Collapse the five duplicated overlap-suppression blocks.**
+  DONE — a file-local RulerRowPlacement cursor (named constants g_label_inset/g_label_width_pad/
+  g_label_gap; cheap position-only accepts() before formatting; width-aware reserve()) now backs
+  all three rows; the tempo glyph/digit pair reserves as one unit, and the pinned labels seed
+  their rows at column zero through the same path instead of special-cased pushes. One deliberate
+  visual delta: measure-label suppression now anchors on the label x like the other rows, so a
+  measure tick at columns 0-3 draws its number (previously suppressed by the raw tick-x
+  comparison); existing pixel-test sample points verified unaffected.
   `timeline_ruler.cpp` writes the same measure→pad→place→advance pattern five times:
   measure row (~`:241-266`), pinned tempo (~`:300-307`), anchor tempo loop (~`:311-331`),
   pinned signature (~`:341-348`), signature loop (~`:350-365`). Introduce one file-local
