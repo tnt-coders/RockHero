@@ -1,4 +1,3 @@
-#include "musical_readout.h"
 #include "timeline_ruler.h"
 
 #include <algorithm>
@@ -68,11 +67,11 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // Ticks live in the ruler body below the event band: the measure tick at x = 0 spans the
-    // whole body while the beat tick at x = 75 fills only the bottom band; y = 20 is in the
-    // measure-number row, clear of measure 1's label glyphs.
-    const juce::Colour measure_body = image.getPixelAt(0, 20);
-    const juce::Colour beat_body = image.getPixelAt(75, 20);
+    // Ticks live in the ruler body below the tempo and signature bands: the measure tick at
+    // x = 0 spans the whole body while the beat tick at x = 75 fills only the bottom band;
+    // y = 32 is in the measure-number row, clear of measure 1's label glyphs.
+    const juce::Colour measure_body = image.getPixelAt(0, 32);
+    const juce::Colour beat_body = image.getPixelAt(75, 32);
     const juce::Colour beat_bottom = image.getPixelAt(75, g_timeline_ruler_height - 1);
     CHECK(measure_body != beat_body);
     CHECK(beat_bottom != beat_body);
@@ -108,10 +107,9 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
-// Verifies the transport strip readouts show the REAPER-style measure.beat.hundredths position
-// with the timeline time, plus the active signature and quarter-note tempo, for a loaded project
-// — and fall back to plain time with an empty musical readout without one.
-TEST_CASE("EditorView transport readouts track the transport position", "[ui][editor-view]")
+// Verifies the transport strip readout shows the REAPER-style measure.beat.hundredths position
+// with the timeline time for a loaded project, and falls back to plain time without one.
+TEST_CASE("EditorView transport readout tracks the transport position", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     core::testing::RecordingEditorController controller;
@@ -122,20 +120,16 @@ TEST_CASE("EditorView transport readouts track the transport position", "[ui][ed
     view.setBounds(0, 0, 1280, 800);
     auto& position_display =
         findRequiredDescendant<juce::Label>(view, "transport_position_display");
-    auto& musical_display =
-        findRequiredDescendant<MusicalReadout>(view, "transport_musical_display");
     CHECK(position_display.getText() == "0:00:000");
-    CHECK(musical_display.text().isEmpty());
 
     // One 4/4 measure over 4.0s is one beat per second, so 1.5s sits halfway through measure 1
-    // beat 2 at a quarter-note tempo of 60.
+    // beat 2.
     auto state = makeLoadedEditorState(4.0);
     state.tempo_map = makeOneMeasureTempoMap(4.0);
     transport.current_position = common::core::TimePosition{1.5};
     view.setState(state);
 
     CHECK(position_display.getText() == "1.2.50 / 0:01:500");
-    CHECK(musical_display.text() == juce::String::fromUTF8("4/4  \xE2\x99\xA9=60.00"));
 }
 
 // Verifies a mid-span downbeat displays as its own measure start. The seconds-to-beat inverse of
