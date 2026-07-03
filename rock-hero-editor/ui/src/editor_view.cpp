@@ -1294,19 +1294,21 @@ void EditorView::resized()
     control_row = control_row.withSizeKeepingCentre(
         control_row.getWidth(), std::min(g_transport_height, control_row.getHeight()));
 
-    m_transport_controls.setBounds(
-        control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
-    m_position_display.setBounds(
-        control_row.removeFromLeft(std::min(g_position_display_width, control_row.getWidth()))
-            .withTrimmedLeft(g_content_inset));
+    // The grid selector pins to the strip's left edge with the signature/tempo readout beside
+    // it, and the playback transport (buttons plus the position readout) centers in the space
+    // that remains before the master meter, REAPER-like. The centered group has layout priority:
+    // the meter only keeps as much of its preferred right-edge width as the group leaves free,
+    // and hides below its minimum width. The readout slot widths already include the
+    // g_content_inset their bounds trim off, so the group width is a plain sum.
+    m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
+        std::min(g_grid_spacing_selector_width, control_row.getWidth())));
     m_musical_display.setBounds(
         control_row.removeFromLeft(std::min(g_musical_display_width, control_row.getWidth()))
             .withTrimmedLeft(g_content_inset));
-    m_grid_spacing_selector.setBounds(
-        control_row.removeFromLeft(std::min(g_grid_spacing_selector_width, control_row.getWidth()))
-            .withTrimmedLeft(g_content_inset));
 
-    const int master_meter_width = std::min(g_master_meter_width, control_row.getWidth());
+    constexpr int playback_group_width = g_transport_controls_width + g_position_display_width;
+    const int master_meter_width = std::min(
+        g_master_meter_width, control_row.getWidth() - playback_group_width - g_content_inset);
     if (master_meter_width >= g_master_meter_min_width)
     {
         m_master_output_meter.setVisible(true);
@@ -1318,6 +1320,14 @@ void EditorView::resized()
         m_master_output_meter.setVisible(false);
         m_master_output_meter.setBounds({});
     }
+
+    auto playback_area = control_row.withSizeKeepingCentre(
+        std::min(playback_group_width, control_row.getWidth()), control_row.getHeight());
+    m_transport_controls.setBounds(playback_area.removeFromLeft(
+        std::min(g_transport_controls_width, playback_area.getWidth())));
+    m_position_display.setBounds(
+        playback_area.removeFromLeft(std::min(g_position_display_width, playback_area.getWidth()))
+            .withTrimmedLeft(g_content_inset));
 
     auto bottom_area = trackViewportBounds();
     const int target_signal_chain_panel_height = std::clamp(

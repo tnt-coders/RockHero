@@ -342,9 +342,9 @@ private:
     juce::Label m_position_display;
 
     // Read-only readout of the active time signature and quarter-note tempo at the transport
-    // cursor, shown beside the position readout and refreshed at the same display cadence.
-    // Current values live here like a DAW transport LCD; the timeline ruler's event band only
-    // marks where tempo changes.
+    // cursor, shown beside the grid-spacing selector at the strip's left edge and refreshed at
+    // display cadence. Current values live here like a DAW transport LCD; the timeline ruler's
+    // event band only marks where tempo changes.
     MusicalReadout m_musical_display;
 
     // Timeline grid-size selector shown beside the transport controls.
