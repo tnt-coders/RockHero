@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Preset = "debug",
+    [string]$Preset = "Debug",
     [string]$BuildDir = "build/debug",
     [string[]]$Targets = @(),
     [switch]$Configure,
