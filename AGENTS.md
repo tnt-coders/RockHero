@@ -38,6 +38,10 @@ behavioral change is complete. Do not reconfigure CMake unless CMake files, targ
 generated build graph inputs, or stale-build errors require it. Use full build/test logs only after
 a quiet command fails or when the user explicitly asks for detailed output.
 
+If a commit hook fails only because `clang-format` or `cmake-format` rewrote files, inspect and
+stage the formatting-only edits, then retry the commit without rerunning tests. The prior test
+result remains valid because formatting hooks are mechanical and behavior-preserving.
+
 Keep progress updates brief and less frequent for short tasks. For routine edits, report only the
 current action and any meaningful finding or blocker; avoid narrating every small inspection step.
 
