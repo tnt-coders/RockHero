@@ -977,7 +977,7 @@ private:
     // Zoomed canvas that holds the current waveform track and future track rows.
     Content m_content;
 
-    // Pinned ruler that shows measure orientation and tempo-map anchors.
+    // Pinned ruler that shows measure orientation plus the tempo and signature header bands.
     TimelineRuler m_timeline_ruler;
 
     // JUCE scrolling container around the zoomed timeline canvas.

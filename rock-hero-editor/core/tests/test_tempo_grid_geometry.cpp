@@ -53,11 +53,11 @@ TEST_CASE("Visible tempo grid returns all beats across the full width", "[core][
         map, whole_beat_spacing, one_measure_window, one_measure_width, 0, one_measure_width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 100, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 200, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 300, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Beat},
-        {.x = 400, .measure = 2, .beat = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -71,8 +71,8 @@ TEST_CASE("Visible tempo grid culls lines outside the span", "[core][tempo-grid]
         map, whole_beat_spacing, one_measure_window, one_measure_width, 150, 350);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 200, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 300, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Beat},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
     };
     CHECK(lines == expected);
 }
@@ -86,8 +86,8 @@ TEST_CASE("Visible tempo grid treats the span as half-open", "[core][tempo-grid]
         map, whole_beat_spacing, one_measure_window, one_measure_width, 100, 300);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 100, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 200, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
+        {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
     };
     CHECK(lines == expected);
 }
@@ -109,9 +109,9 @@ TEST_CASE("Visible tempo grid scans only the visible run of a long song", "[core
 
     // Global beat 200 is measure 51 beat 1, so it is the only downbeat in this span.
     const std::vector<TempoGridLine> expected{
-        {.x = 199, .measure = 50, .beat = 4, .rank = TempoGridLineRank::Beat},
-        {.x = 200, .measure = 51, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 201, .measure = 51, .beat = 2, .rank = TempoGridLineRank::Beat},
+        {.x = 199, .measure = 50, .rank = TempoGridLineRank::Beat},
+        {.x = 200, .measure = 51, .rank = TempoGridLineRank::Measure},
+        {.x = 201, .measure = 51, .rank = TempoGridLineRank::Beat},
     };
     CHECK(lines == expected);
 }
@@ -133,11 +133,11 @@ TEST_CASE("Visible tempo grid merges beats sharing a column", "[core][tempo-grid
         visibleTempoGridLines(map, whole_beat_spacing, window, width, 0, width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 1, .measure = 14, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 2, .measure = 39, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 3, .measure = 64, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 4, .measure = 89, .beat = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 1, .measure = 14, .rank = TempoGridLineRank::Measure},
+        {.x = 2, .measure = 39, .rank = TempoGridLineRank::Measure},
+        {.x = 3, .measure = 64, .rank = TempoGridLineRank::Measure},
+        {.x = 4, .measure = 89, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -181,15 +181,15 @@ TEST_CASE("Visible tempo grid places half-beat subdivisions between beats", "[co
         one_measure_width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 50, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Subdivision},
-        {.x = 100, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 150, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Subdivision},
-        {.x = 200, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 250, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Subdivision},
-        {.x = 300, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Beat},
-        {.x = 350, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Subdivision},
-        {.x = 400, .measure = 2, .beat = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 50, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 150, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 250, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 350, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 400, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -204,11 +204,11 @@ TEST_CASE("Visible tempo grid clips quarter-beat subdivisions to the span", "[co
         map, common::core::Fraction{1, 4}, one_measure_window, one_measure_width, 140, 260);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 150, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Subdivision},
-        {.x = 175, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Subdivision},
-        {.x = 200, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 225, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Subdivision},
-        {.x = 250, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Subdivision},
+        {.x = 150, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 175, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 200, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 225, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 250, .measure = 1, .rank = TempoGridLineRank::Subdivision},
     };
     CHECK(lines == expected);
 }
@@ -222,10 +222,10 @@ TEST_CASE("Visible tempo grid supports third-of-a-beat spacing", "[core][tempo-g
         map, common::core::Fraction{1, 3}, one_measure_window, one_measure_width, 0, 110);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 33, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Subdivision},
-        {.x = 67, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Subdivision},
-        {.x = 100, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Beat},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 33, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 67, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 100, .measure = 1, .rank = TempoGridLineRank::Beat},
     };
     CHECK(lines == expected);
 }
@@ -242,11 +242,11 @@ TEST_CASE("Visible tempo grid merges collapsed subdivisions by rank", "[core][te
         map, common::core::Fraction{1, 2}, one_measure_window, width, 0, width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 1, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Beat},
-        {.x = 2, .measure = 1, .beat = 3, .rank = TempoGridLineRank::Beat},
-        {.x = 3, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Beat},
-        {.x = 4, .measure = 2, .beat = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 1, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 2, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 3, .measure = 1, .rank = TempoGridLineRank::Beat},
+        {.x = 4, .measure = 2, .rank = TempoGridLineRank::Measure},
     };
     CHECK(lines == expected);
 }
@@ -261,9 +261,9 @@ TEST_CASE("Visible tempo grid supports steps larger than one beat", "[core][temp
         map, three_half_beats, one_measure_window, one_measure_width, 0, one_measure_width);
 
     const std::vector<TempoGridLine> expected{
-        {.x = 0, .measure = 1, .beat = 1, .rank = TempoGridLineRank::Measure},
-        {.x = 150, .measure = 1, .beat = 2, .rank = TempoGridLineRank::Subdivision},
-        {.x = 300, .measure = 1, .beat = 4, .rank = TempoGridLineRank::Beat},
+        {.x = 0, .measure = 1, .rank = TempoGridLineRank::Measure},
+        {.x = 150, .measure = 1, .rank = TempoGridLineRank::Subdivision},
+        {.x = 300, .measure = 1, .rank = TempoGridLineRank::Beat},
     };
     CHECK(lines == expected);
 

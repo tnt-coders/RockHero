@@ -1,8 +1,7 @@
 # Timeline Ruler Review Fixes
 
-Status: Phases 1–5 complete; PAUSED for user review/commit before Phase 6. Phase 7
-(note-value grid fix) planned, runs after 6. All implemented work awaits the user's
-build + test run.
+Status: Phases 1–6 complete (1–5 committed; Phase 6 implemented, awaiting user build + test
+run). Phase 7 (note-value grid fix) is next, as its own change.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
 beat/quarter extensions, tempo grid geometry, TimelineRuler, timeline cursor helpers,
@@ -258,20 +257,34 @@ Line numbers are as of the review; re-locate by symbol if drifted.
 
 ## Phase 6 — Leftovers and conventions sweep
 
-- [ ] **6.1 Dead struct field.** `TempoGridLine::beat` (`tempo_grid_geometry.h:99`) is
+- [x] **6.1 Dead struct field.**
+  DONE — `TempoGridLine::beat` dropped from the struct, the merge-promotion write, and the
+  aggregate construction (the `beat` local stays for rank classification); test expectation
+  literals trimmed. Phase 7's per-measure rank addressing does not need the field back. `TempoGridLine::beat` (`tempo_grid_geometry.h:99`) is
   written and merge-maintained in production (`tempo_grid_geometry.cpp:190,196`) but read
   only by test equality assertions. Drop the field (keep the local used for rank
   classification); trim test expectations; reintroduce only with a real consumer.
 
-- [ ] **6.2 Stale comments from removed iterations.**
+- [x] **6.2 Stale comments from removed iterations.**
+  DONE — the drawCursor "event band" wording was already replaced with "header bands" during
+  5.1; the editor_view.cpp TrackViewport member comment now names the header bands instead of
+  anchors; the timeline_ruler.h refreshRulerGeometry comment lost its "anchor geometry" mention
+  in the 6.4 rewrite.
   - `timeline_ruler.cpp:394` — "event band" (no such band; reword to tempo/signature bands).
   - `timeline_ruler.h:70` — "tick, label, and anchor geometry" (no anchor geometry remains).
   - `editor_view.cpp:1008` — "shows measure orientation and tempo-map anchors" (anchors are
     no longer visualized).
-- [ ] **6.3 Spelling convention.** "colour" in project-owned prose at `timeline_ruler.h:84`
+- [x] **6.3 Spelling convention.**
+  DONE — both "colour" occurrences in project prose (drawLabelRow's header and cpp comments)
+  now read "color"; JUCE API identifiers untouched. "colour" in project-owned prose at `timeline_ruler.h:84`
   and `timeline_ruler.cpp:380` → "color" (US spelling for our identifiers and comments;
   British only for JUCE API names).
-- [ ] **6.4 Doxygen coverage for the new headers.**
+- [x] **6.4 Doxygen coverage for the new headers.**
+  DONE — timeline_ruler.h converted per documentation-conventions.md: \file header, Doxygen for
+  g_timeline_ruler_height (documenting the height ↔ cpp-private band-layout coupling), the
+  class, the callback alias, and every public method with full \param coverage; private members
+  and methods keep regular comments per the convention. The TimelineCursorPlacementMode enum
+  half was already covered by 4.2's move (see the struck-through note below).
   `timeline_ruler.h` is the only src header (of 17) documented with plain `//` comments;
   documentation-conventions.md requires Doxygen for every project-owned header declaration
   visible outside a single .cpp — convert the class, public methods, and
@@ -279,7 +292,11 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   ~~`timeline_cursor.h:19` — Doxygen the `TimelineCursorPlacementMode` enum and BOTH
   enumerators (the doc forbids partial enumerator coverage).~~ Done by 4.2's move: the enum now
   lives in tempo_grid_geometry.h with both enumerators documented.
-- [ ] **6.5 Stale in-progress plans.** Per CLAUDE.md's documentation-maintenance rules:
+- [x] **6.5 Stale in-progress plans.**
+  DONE — timeline-snap-time-domain-plan.md and tempo-grid-spacing-plan.md deleted;
+  tempo-grid-declutter-plan.md moved to docs/todo/ with a staleness note (superseded sketch,
+  subdivisions landed, and Phase 7 reshapes grid generation first). Working-tree changes only;
+  staging left to the user. Per CLAUDE.md's documentation-maintenance rules:
   delete `docs/in-progress/timeline-snap-time-domain-plan.md` and
   `docs/in-progress/tempo-grid-spacing-plan.md` (fully landed; they reference APIs that no
   longer exist), and move `docs/in-progress/tempo-grid-declutter-plan.md` to `docs/todo/`
