@@ -15,7 +15,7 @@ namespace rock_hero::editor::core
 {
 
 /*! \brief Inclusive upper bound for tempo-grid spacing numerator and denominator values. */
-inline constexpr int g_max_tempo_grid_spacing_term = 1024;
+inline constexpr int g_max_tempo_grid_spacing_term = 128;
 
 /*!
 \brief Reports whether a fraction is usable as a tempo-grid step measured in beats.

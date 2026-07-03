@@ -54,10 +54,15 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    constexpr common::core::Fraction grid_spacing{1, 1};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setGrid(makeOneMeasureTempoMap(4.0), common::core::Fraction{1, 1});
+    ruler.setGrid(tempo_map, grid_spacing);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_spacing, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -77,10 +82,15 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
         .start = common::core::TimePosition{0.0},
         .end = common::core::TimePosition{4.0},
     };
+    const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
+    constexpr common::core::Fraction grid_spacing{1, 2};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setGrid(makeOneMeasureTempoMap(4.0), common::core::Fraction{1, 2});
+    ruler.setGrid(tempo_map, grid_spacing);
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map, grid_spacing, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());

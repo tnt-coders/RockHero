@@ -51,16 +51,23 @@ struct GridLineBeatAddress
     };
 }
 
+// Exact fractional global-beat position of a grid-line address. Dividing the raw remainder is
+// bit-identical to reducing it through Fraction first, because IEEE division is correctly rounded
+// for the same rational value, and it keeps a gcd off the per-line hot path.
+[[nodiscard]] double beatPositionOf(GridLineBeatAddress address, int denominator) noexcept
+{
+    return static_cast<double>(address.whole_beat) +
+           static_cast<double>(address.offset_numerator) / static_cast<double>(denominator);
+}
+
 // Resolves a grid line's beat address to seconds through the tempo map's global-beat query. Going
 // through the global beat axis directly keeps this hot path free of the measure/beat address
 // round trip that a per-line secondsAtNote call would pay.
 [[nodiscard]] double secondsAtGridLineIndex(
     const common::core::TempoMap& tempo_map, common::core::Fraction spacing, std::int64_t index)
 {
-    const GridLineBeatAddress address = gridLineBeatAddress(spacing, index);
     return tempo_map.secondsAtGlobalBeatPosition(
-        static_cast<double>(address.whole_beat) +
-        common::core::Fraction{address.offset_numerator, spacing.denominator}.toDouble());
+        beatPositionOf(gridLineBeatAddress(spacing, index), spacing.denominator));
 }
 
 // Returns the last grid-line index at or before the terminal anchor beat, so scans and snaps never
@@ -132,11 +139,16 @@ std::vector<TempoGridLine> visibleTempoGridLines(
     const std::int64_t first_visible_grid_line =
         firstGridLineAtOrAfterSeconds(tempo_map, spacing, window_start_seconds);
 
+    // Line positions increase with the index, so a forward cursor resolves each line's time in
+    // amortized constant time; it returns the same values as the binary search used above.
+    common::core::TempoMap::ForwardBeatTimeCursor beat_time_cursor{tempo_map};
     for (std::int64_t grid_line_index = first_visible_grid_line;
          grid_line_index <= terminal_grid_line;
          ++grid_line_index)
     {
-        const double seconds = secondsAtGridLineIndex(tempo_map, spacing, grid_line_index);
+        const GridLineBeatAddress address = gridLineBeatAddress(spacing, grid_line_index);
+        const double seconds =
+            beat_time_cursor.secondsAt(beatPositionOf(address, spacing.denominator));
         if (seconds > window_end_seconds)
         {
             break;
@@ -158,9 +170,8 @@ std::vector<TempoGridLine> visibleTempoGridLines(
             continue;
         }
 
-        // The musical address is only needed for lines that survive the visibility checks, so the
-        // measure/beat lookup stays off the skipped-line path.
-        const GridLineBeatAddress address = gridLineBeatAddress(spacing, grid_line_index);
+        // The measure/beat lookup is only needed for lines that survive the visibility checks, so
+        // it stays off the skipped-line path.
         const auto [measure, beat] = tempo_map.beatAtGlobalIndex(address.whole_beat);
         TempoGridLineRank rank = TempoGridLineRank::Subdivision;
         if (address.offset_numerator == 0)

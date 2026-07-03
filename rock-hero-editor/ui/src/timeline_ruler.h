@@ -6,6 +6,7 @@
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
+#include <rock_hero/editor/core/tempo_grid_geometry.h>
 #include <vector>
 
 namespace rock_hero::editor::ui
@@ -25,15 +26,22 @@ public:
     // Stores whether the ruler should draw musical position data.
     void setProjectLoaded(bool project_loaded);
 
-    // Stores the ruler geometry derived from the viewport and zoomed content.
+    // Stores the ruler geometry derived from the viewport and zoomed content. Does not rebuild
+    // cached tick geometry by itself: tick coordinates come from the grid lines, so callers must
+    // follow every view change with a setGridLines push for the new span.
     void setTimelineView(common::core::TimeRange timeline_range, int content_width, int view_x);
 
     // Samples the current transport cursor for the ruler's aligned playhead mark.
     void setCursorPosition(common::core::TimePosition cursor_position);
 
-    // Stores the tempo map that supplies measures and anchors, plus the grid step in beats shared
-    // with the track grid and snapping.
+    // Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
+    // shared with the track grid and snapping.
     void setGrid(common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats);
+
+    // Stores the tempo-grid lines computed once by the owning view for the current visible span
+    // and rebuilds the cached ruler geometry from them. The lines share the scan with the track
+    // content, so the ruler never runs its own tempo-map scan.
+    void setGridLines(std::vector<core::TempoGridLine> grid_lines);
 
     // Stores the callback that receives cursor-placement seek positions.
     void setCursorPlacementCallback(CursorPlacementCallback callback);
@@ -59,9 +67,9 @@ private:
     // Maps an absolute timeline second to this pinned ruler's local x coordinate.
     [[nodiscard]] std::optional<float> localXForSeconds(double seconds) const noexcept;
 
-    // Recomputes the cached tick, label, and anchor geometry from the current timeline geometry
-    // and tempo map. Kept out of paint() so cursor-only repaints, which happen at vblank cadence,
-    // do not rescan the visible beat range or the anchor list on every frame.
+    // Rebuilds the cached tick, label, and anchor geometry from the stored grid lines, timeline
+    // geometry, and tempo map. Kept out of paint() so cursor-only repaints, which happen at
+    // vblank cadence, do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
     // Rebuilds the merged anchor-marker path and overlap-suppressed anchor labels; part of
@@ -106,6 +114,11 @@ private:
 
     // Callback invoked when the user clicks the ruler to place the transport cursor.
     CursorPlacementCallback m_cursor_placement_callback{};
+
+    // Tempo-grid lines for the current visible span, pushed by the owning view so the ruler and
+    // the track content share one tempo-map scan. Stored in content coordinates; ticks subtract
+    // m_view_x, so the lines must be re-pushed after every view change.
+    std::vector<core::TempoGridLine> m_grid_lines{};
 
     // Precomputed tick rectangles in local ruler coordinates, cached so paint() only issues one
     // fillRectList call instead of rebuilding geometry on every repaint.
