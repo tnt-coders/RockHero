@@ -154,19 +154,19 @@ void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position
 }
 
 // Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
-// shared with the track grid and snapping.
+// shared with the track grid and snapping. Like setTimelineView, the rebuild and repaint are
+// deferred to the setGridLines push owning-view callers issue after every grid change; rebuilding
+// here would run against grid lines scanned for the previous grid and be discarded unpainted.
 void TimelineRuler::setGrid(
-    common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats)
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats)
 {
     if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
     {
         return;
     }
 
-    m_tempo_map = std::move(tempo_map);
+    m_tempo_map = tempo_map;
     m_grid_spacing_beats = grid_spacing_beats;
-    refreshRulerGeometry();
-    repaint();
 }
 
 // Stores the shared visible-span grid lines and rebuilds the cached ruler geometry from them.

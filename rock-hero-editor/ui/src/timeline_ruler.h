@@ -35,8 +35,10 @@ public:
     void setCursorPosition(common::core::TimePosition cursor_position);
 
     // Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
-    // shared with the track grid and snapping.
-    void setGrid(common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats);
+    // shared with the track grid and snapping. Does not rebuild cached geometry by itself:
+    // callers must follow every grid change with a setGridLines push, matching setTimelineView.
+    void setGrid(
+        const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats);
 
     // Stores the tempo-grid lines computed once by the owning view for the current visible span
     // and rebuilds the cached ruler geometry from them. The lines share the scan with the track
