@@ -481,7 +481,10 @@ The editor (`rock-hero-editor`) consists of:
 - **Automation area**: Shares the waveform's horizontal time axis and zoom/scroll state. Breakpoint envelopes control plugin parameters over the song's duration.
 - **Transport controls**: Play, stop, seek.
 
-The waveform and automation area share a single zoom/scroll controller. Coordinate conversion from time-to-pixels uses Tracktion Engine's tempo sequence for beat-accurate positioning.
+The waveform and automation area share a single zoom/scroll controller. Coordinate conversion from
+time-to-pixels is pure editor-core math over the song's RockHero tempo map (timeline geometry plus
+the tempo-grid scan), not Tracktion's tempo sequence; the visible-span grid is scanned once per
+view change and the one result is shared by the ruler and the track content.
 
 UI theming is planned as a distinct later phase — functionality first, polish second.
 

@@ -34,7 +34,7 @@ expensive at low zoom.
    after conversion to a beat-relative step.
 5. **Numerators are first-class.** Spacing, entry, display, persistence, and grid generation all
    handle non-unit numerators. Validation only bounds the reduced fraction (numerator and
-   denominator each in `[1, 1024]`) and rejects non-positive values.
+   denominator each in `[1, 128]`) and rejects non-positive values.
 6. **Rendering and snapping share one setting.** The track grid, timeline ruler, and cursor snapping
    must consume the same spacing value so the visible grid and interaction grid never diverge.
 7. **The first grid-size control lives in the transport strip.** A "Grid" note-value selector
@@ -50,10 +50,11 @@ expensive at low zoom.
 
 Reuse `common::core::Fraction`
 (`rock-hero-common/core/include/rock_hero/common/core/fraction.h`) as the spacing value instead of
-adding a new rational type. `Fraction` was built for exact grid-relative musical durations,
-normalizes to lowest terms with a positive denominator, and is already consumed by
-`TempoMap::secondsAtNote(measure, beat, Fraction offset)`, which lets grid generation resolve
-fractional beat positions exactly instead of accumulating floating-point step error.
+adding a new rational type. `Fraction` was built for exact grid-relative musical durations and
+normalizes to lowest terms with a positive denominator. Grid generation splits each step into a
+whole beat plus an exact fractional remainder and resolves it through the tempo map's global-beat
+query (`TempoMap::secondsAtGlobalBeatPosition`), so fractional beat positions stay exact instead
+of accumulating floating-point step error.
 
 The spacing value is the grid step measured in tempo-map beats:
 
@@ -67,14 +68,14 @@ The spacing value is the grid step measured in tempo-map beats:
 Editor-core policy around the type lives in the grid-geometry code, not in `Fraction`:
 
 - A validation helper (for example `isValidTempoGridSpacing`) requires a positive fraction whose
-  reduced numerator and denominator each fall in `[1, 1024]`.
+  reduced numerator and denominator each fall in `[1, 128]`.
 - `Fraction` default-constructs to `0/1`, which is a degenerate grid step. Every owner of a spacing
   value must initialize to `Fraction{1, 1}`, and the geometry entry points normalize invalid
   spacing to the whole-beat grid so rendering and snapping can never diverge and a corrupt stored
   value cannot blank the timeline.
 - `Fraction` has no arithmetic operators, and none are needed: the k-th subdivision of a step
-  `n/d` sits at `(k * n) / d` whole beats plus a `Fraction{(k * n) % d, d}` offset, which feeds
-  `secondsAtNote` directly with plain integer math.
+  `n/d` sits at `(k * n) / d` whole beats plus a `(k * n) % d` over `d` remainder, which feeds the
+  tempo map's global-beat query directly with plain integer math.
 
 Signatures should take `Fraction` directly with a clearly named parameter (for example
 `grid_spacing_beats`); a wrapper struct would only restate what the type already means. The
@@ -116,7 +117,7 @@ denominator.
 1. **Core spacing value**
    - Take `common::core::Fraction` spacing parameters in editor-core grid geometry.
    - Add validation helpers (positive fraction, reduced numerator and denominator each in
-     `[1, 1024]`).
+     `[1, 128]`).
    - Keep the default equal to the current whole-beat grid (`Fraction{1, 1}`).
 
 2. **Fractional grid generation**
