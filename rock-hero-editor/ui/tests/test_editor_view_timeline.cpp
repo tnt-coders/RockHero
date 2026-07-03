@@ -1,3 +1,4 @@
+#include "musical_readout.h"
 #include "timeline_ruler.h"
 
 #include <algorithm>
@@ -67,9 +68,9 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // Ticks live in the ruler body below the tempo band: the measure tick at x = 0 spans the
-    // whole body while the beat tick at x = 75 fills only the bottom band; y = 20 is in the body
-    // row, right of the pinned signature's glyphs.
+    // Ticks live in the ruler body below the event band: the measure tick at x = 0 spans the
+    // whole body while the beat tick at x = 75 fills only the bottom band; y = 20 is in the
+    // measure-number row, clear of measure 1's label glyphs.
     const juce::Colour measure_body = image.getPixelAt(0, 20);
     const juce::Colour beat_body = image.getPixelAt(75, 20);
     const juce::Colour beat_bottom = image.getPixelAt(75, g_timeline_ruler_height - 1);
@@ -100,75 +101,75 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
 
     // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band, while the
     // beat at 3.0s (x = 150) also fills the taller 10px beat band above it. These columns sit far
-    // from the pinned labels so glyph pixels cannot affect the sampling.
+    // from any labels so glyph pixels cannot affect the sampling.
     const int bottom_y = g_timeline_ruler_height - 1;
     const int beat_band_y = g_timeline_ruler_height - 10;
     CHECK(image.getPixelAt(175, bottom_y) == image.getPixelAt(150, bottom_y));
     CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
-// Verifies a time-signature change draws a label at its downbeat in the ruler's signature row.
-// The change entry repeats 4/4 so both maps produce identical ticks and measure numbers, and the
-// only pixel difference near the measure-2 tick is the signature label itself. The ruler is wide
-// enough that the label clears the pinned signature at the left edge.
-TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-ruler]")
+// Verifies the transport strip readouts show the REAPER-style measure.beat.hundredths position
+// with the timeline time, plus the active signature and quarter-note tempo, for a loaded project
+// — and fall back to plain time with an empty musical readout without one.
+TEST_CASE("EditorView transport readouts track the transport position", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
-    constexpr common::core::TimeRange two_measure_window{
-        .start = common::core::TimePosition{0.0},
-        .end = common::core::TimePosition{8.0},
-    };
-    constexpr common::core::Fraction grid_spacing{1, 1};
-    const auto ruler_snapshot = [&](const common::core::TempoMap& tempo_map) {
-        TimelineRuler ruler;
-        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
-        ruler.setTimelineView(two_measure_window, ruler.getWidth(), 0);
-        ruler.setGrid(tempo_map, grid_spacing);
-        ruler.setGridLines(
-            core::visibleTempoGridLines(
-                tempo_map,
-                grid_spacing,
-                two_measure_window,
-                ruler.getWidth(),
-                0,
-                ruler.getWidth()));
-        ruler.setProjectLoaded(true);
-        return ruler.createComponentSnapshot(ruler.getLocalBounds());
-    };
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
 
-    const std::vector anchors{
-        common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
-        common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
-    };
-    const common::core::TempoMap unchanged_map{
+    view.setBounds(0, 0, 1280, 800);
+    auto& position_display =
+        findRequiredDescendant<juce::Label>(view, "transport_position_display");
+    auto& musical_display =
+        findRequiredDescendant<MusicalReadout>(view, "transport_musical_display");
+    CHECK(position_display.getText() == "0:00:000");
+    CHECK(musical_display.text().isEmpty());
+
+    // One 4/4 measure over 4.0s is one beat per second, so 1.5s sits halfway through measure 1
+    // beat 2 at a quarter-note tempo of 60.
+    auto state = makeLoadedEditorState(4.0);
+    state.tempo_map = makeOneMeasureTempoMap(4.0);
+    transport.current_position = common::core::TimePosition{1.5};
+    view.setState(state);
+
+    CHECK(position_display.getText() == "1.2.50 / 0:01:500");
+    CHECK(musical_display.text() == juce::String::fromUTF8("4/4  \xE2\x99\xA9=60.00"));
+}
+
+// Verifies a mid-span downbeat displays as its own measure start. The seconds-to-beat inverse of
+// forward-mapped downbeat seconds can round to just under the whole beat (e.g. 3.9999...), and
+// the readout once floored that raw, showing 1.4.99 when the cursor sat exactly on measure 2.
+TEST_CASE("EditorView position readout lands on measure starts", "[ui][editor-view]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+    core::testing::RecordingEditorController controller;
+    FakeTransport transport;
+    RecordingThumbnailFactory thumbnail_factory;
+    EditorView view{controller, viewAudioPorts(transport, thumbnail_factory)};
+
+    view.setBounds(0, 0, 1280, 800);
+
+    // Two 4/4 measures over 7.3s: measure 2's downbeat is not an anchor, so its seconds resolve
+    // through anchor-span interpolation (4 of 8 beats = 3.65s) and the inverse is inexact.
+    const common::core::TempoMap two_measure_map{
         std::vector{
             common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
         },
-        anchors,
-    };
-    const common::core::TempoMap changed_map{
         std::vector{
-            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-            common::core::TimeSignatureChange{.measure = 2, .numerator = 4, .denominator = 4},
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.3},
         },
-        anchors,
     };
+    auto state = makeLoadedEditorState(7.3);
+    state.tempo_map = two_measure_map;
+    transport.current_position = common::core::TimePosition{two_measure_map.secondsAtBeat(2, 1)};
+    view.setState(state);
 
-    const juce::Image unchanged_image = ruler_snapshot(unchanged_map);
-    const juce::Image changed_image = ruler_snapshot(changed_map);
-
-    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 200 of the 401px ruler;
-    // in the changed map its body-row label reads "2 4/4" instead of just "2".
-    bool label_pixels_differ = false;
-    for (int x = 200; x < 280 && !label_pixels_differ; ++x)
-    {
-        for (int y = 17; y < 29 && !label_pixels_differ; ++y)
-        {
-            label_pixels_differ =
-                unchanged_image.getPixelAt(x, y) != changed_image.getPixelAt(x, y);
-        }
-    }
-    CHECK(label_pixels_differ);
+    auto& position_display =
+        findRequiredDescendant<juce::Label>(view, "transport_position_display");
+    CHECK(position_display.getText() == "2.1.00 / 0:03:650");
 }
 
 // Verifies the default zoom maps ten seconds of timeline to the canonical width.

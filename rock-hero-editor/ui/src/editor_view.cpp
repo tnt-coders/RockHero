@@ -38,8 +38,11 @@ constexpr int g_redo_command{102};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
-constexpr int g_time_display_width{150};
-constexpr float g_time_display_font_height{20.0f};
+// Sized for a long readout like "128.4.99 / 59:59:999" at the shared readout font height.
+constexpr int g_position_display_width{240};
+// Sized for a long readout like "15/16  ♩=999.99" at the shared readout font height.
+constexpr int g_musical_display_width{170};
+constexpr float g_transport_readout_font_height{20.0f};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
@@ -312,16 +315,40 @@ void drawTempoGridDots(
     }
 }
 
-// Formats an absolute timeline position as m:ss.mmm for the transport-strip time readout.
+// Formats an absolute timeline position as (h:)m:ss:mmm for the transport-strip position
+// readout, with the hour field only once the position reaches one hour.
 [[nodiscard]] juce::String formattedTimelineTime(double seconds)
 {
     const double clamped_seconds = std::max(0.0, seconds);
     const auto total_milliseconds =
         static_cast<std::int64_t>(std::llround(clamped_seconds * 1000.0));
-    const std::int64_t minutes = total_milliseconds / 60000;
+    const std::int64_t hours = total_milliseconds / 3600000;
+    const std::int64_t minutes = (total_milliseconds / 60000) % 60;
     const std::int64_t remainder = total_milliseconds % 60000;
+    if (hours > 0)
+    {
+        return juce::String::formatted(
+            "%lld:%02lld:%02lld:%03lld", hours, minutes, remainder / 1000, remainder % 1000);
+    }
+
     return juce::String::formatted(
-        "%lld:%02lld.%03lld", minutes, remainder / 1000, remainder % 1000);
+        "%lld:%02lld:%03lld", minutes, remainder / 1000, remainder % 1000);
+}
+
+// Formats the transport position as measure.beat.hundredths like REAPER's bars/beats readout;
+// the third field is hundredths of the way from the containing beat to the next one.
+[[nodiscard]] juce::String formattedBeatPosition(
+    const common::core::TempoMap& tempo_map, double seconds)
+{
+    // Quantize to display hundredths BEFORE splitting off the whole beat: the seconds-to-beat
+    // inverse of a downbeat produced by the forward beat-to-seconds map can come back as
+    // 3.9999... through anchor-span interpolation rounding, and flooring that raw would show
+    // 1.4.99 for what is exactly measure 2's start.
+    const auto total_hundredths =
+        static_cast<std::int64_t>(std::llround(tempo_map.beatPositionAtSeconds(seconds) * 100.0));
+    const auto [measure, beat] = tempo_map.beatAtGlobalIndex(total_hundredths / 100);
+    return juce::String{measure} + "." + juce::String{beat} +
+           juce::String::formatted(".%02lld", total_hundredths % 100);
 }
 
 } // namespace
@@ -1065,6 +1092,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
+    , m_musical_display(g_transport_readout_font_height)
     , m_grid_spacing_selector(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
@@ -1083,12 +1111,13 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_menu_bar.setComponentID("file_menu_bar");
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
-    m_time_display.setComponentID("transport_time_display");
-    // Large bold digits keep the readout legible at a glance next to the transport buttons.
-    m_time_display.setFont(
-        juce::Font{juce::FontOptions{g_time_display_font_height, juce::Font::bold}});
-    m_time_display.setJustificationType(juce::Justification::centredLeft);
-    m_time_display.setInterceptsMouseClicks(false, false);
+    m_position_display.setComponentID("transport_position_display");
+    // Large bold digits keep the readout legible at a glance next to the transport buttons; the
+    // musical readout styles itself to match.
+    m_position_display.setFont(
+        juce::Font{juce::FontOptions{g_transport_readout_font_height, juce::Font::bold}});
+    m_position_display.setJustificationType(juce::Justification::centredLeft);
+    m_position_display.setInterceptsMouseClicks(false, false);
     refreshTimeDisplay();
     m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
@@ -1103,7 +1132,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
-    addAndMakeVisible(m_time_display);
+    addAndMakeVisible(m_position_display);
+    addAndMakeVisible(m_musical_display);
     addAndMakeVisible(m_grid_spacing_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
@@ -1162,6 +1192,9 @@ void EditorView::setState(const core::EditorViewState& state)
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
+    // Project load/close swaps the tempo map behind the musical readout, and the vblank feed
+    // only runs while the view is showing, so state pushes refresh the readouts directly.
+    refreshTimeDisplay();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
@@ -1263,8 +1296,11 @@ void EditorView::resized()
 
     m_transport_controls.setBounds(
         control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
-    m_time_display.setBounds(
-        control_row.removeFromLeft(std::min(g_time_display_width, control_row.getWidth()))
+    m_position_display.setBounds(
+        control_row.removeFromLeft(std::min(g_position_display_width, control_row.getWidth()))
+            .withTrimmedLeft(g_content_inset));
+    m_musical_display.setBounds(
+        control_row.removeFromLeft(std::min(g_musical_display_width, control_row.getWidth()))
             .withTrimmedLeft(g_content_inset));
     m_grid_spacing_selector.setBounds(
         control_row.removeFromLeft(std::min(g_grid_spacing_selector_width, control_row.getWidth()))
@@ -1814,13 +1850,31 @@ void EditorView::refreshAudioMeters()
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
 }
 
-// Samples the transport cursor into the strip readout at display cadence, like the cursor
-// overlay; setText skips the repaint when the rendered text is unchanged, so idle frames stay
-// free.
+// Samples the transport cursor into the strip readouts at display cadence, like the cursor
+// overlay; both readouts skip their repaint when the rendered values are unchanged, so idle
+// frames stay free. The musical parts stay empty without a project because the default tempo map
+// would show placeholder values; the plain time remains meaningful either way.
 void EditorView::refreshTimeDisplay()
 {
-    m_time_display.setText(
-        formattedTimelineTime(m_transport.position().seconds), juce::dontSendNotification);
+    const double seconds = m_transport.position().seconds;
+    const juce::String time_text = formattedTimelineTime(seconds);
+    m_position_display.setText(
+        m_state.project_loaded
+            ? formattedBeatPosition(m_state.tempo_map, seconds) + " / " + time_text
+            : time_text,
+        juce::dontSendNotification);
+    if (m_state.project_loaded)
+    {
+        const common::core::TimeSignatureChange signature =
+            m_state.tempo_map.timeSignatureAtSeconds(seconds);
+        m_musical_display.setReadout(
+            juce::String{signature.numerator} + "/" + juce::String{signature.denominator},
+            "=" + juce::String{m_state.tempo_map.quarterNoteBpmAtSeconds(seconds), 2});
+    }
+    else
+    {
+        m_musical_display.setReadout({}, {});
+    }
 }
 
 // Opens the audio-device settings window when a hardware-configuration backend is available.

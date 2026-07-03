@@ -10,6 +10,7 @@
 #include "busy_overlay.h"
 #include "grid_spacing_selector.h"
 #include "menu_bar_button.h"
+#include "musical_readout.h"
 #include "plugin_browser_window.h"
 #include "signal_chain_panel.h"
 #include "transport_controls.h"
@@ -239,7 +240,7 @@ private:
     // Samples continuous meter display data from the audio backend.
     void refreshAudioMeters();
 
-    // Samples the transport cursor position into the transport-strip time readout.
+    // Samples the transport cursor position into the transport-strip time and musical readouts.
     void refreshTimeDisplay();
 
     // Opens the audio-device settings window.
@@ -335,9 +336,16 @@ private:
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
 
-    // Read-only readout of the transport cursor's current time, shown beside the transport
-    // buttons and refreshed at display cadence.
-    juce::Label m_time_display;
+    // Read-only readout of the transport cursor's current position as
+    // "measure.beat.hundredths / time" (plain time without a project), shown beside the
+    // transport buttons and refreshed at display cadence.
+    juce::Label m_position_display;
+
+    // Read-only readout of the active time signature and quarter-note tempo at the transport
+    // cursor, shown beside the position readout and refreshed at the same display cadence.
+    // Current values live here like a DAW transport LCD; the timeline ruler's event band only
+    // marks where tempo changes.
+    MusicalReadout m_musical_display;
 
     // Timeline grid-size selector shown beside the transport controls.
     GridSpacingSelector m_grid_spacing_selector;
