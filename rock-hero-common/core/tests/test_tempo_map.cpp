@@ -8,6 +8,28 @@
 namespace rock_hero::common::core
 {
 
+namespace
+{
+
+// Three sparse 4/4 anchors shared by the interpolation, cursor, and tempo-query cases: eight
+// beats at 0.5s each across the first span, then four beats at 0.375s each, so queries exercise
+// two different anchor-span rates plus the 10-second offset start.
+[[nodiscard]] TempoMap makeSparseAnchor44Map()
+{
+    return TempoMap{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
+            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
+        },
+    };
+}
+
+} // namespace
+
 // Verifies the draft tempo map is a valid one-measure 4/4 grid at 120 BPM.
 TEST_CASE("TempoMap default construction creates a usable grid", "[core][tempo-map]")
 {
@@ -48,16 +70,7 @@ TEST_CASE("TempoMap indexes beats across meter changes", "[core][tempo-map]")
 // Verifies sparse anchors resolve intermediate beats and fractional note offsets.
 TEST_CASE("TempoMap interpolates sparse anchors", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-        },
-        std::vector{
-            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
-            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
-            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
-        },
-    };
+    const TempoMap tempo_map = makeSparseAnchor44Map();
 
     CHECK(tempo_map.secondsAtBeat(2, 1) == Catch::Approx(12.0));
     CHECK(tempo_map.secondsAtNote(2, 2, Fraction{1, 2}) == Catch::Approx(12.75));
@@ -68,16 +81,7 @@ TEST_CASE("TempoMap interpolates sparse anchors", "[core][tempo-map]")
 // outside the authored anchor range.
 TEST_CASE("TempoMap resolves fractional global beat positions", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-        },
-        std::vector{
-            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
-            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
-            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
-        },
-    };
+    const TempoMap tempo_map = makeSparseAnchor44Map();
 
     CHECK(tempo_map.secondsAtGlobalBeatPosition(4.0) == Catch::Approx(12.0));
     CHECK(tempo_map.secondsAtGlobalBeatPosition(5.5) == Catch::Approx(12.75));
@@ -90,16 +94,7 @@ TEST_CASE("TempoMap resolves fractional global beat positions", "[core][tempo-ma
 // query, including the clamped edges.
 TEST_CASE("TempoMap forward cursor matches the global-beat query", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-        },
-        std::vector{
-            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
-            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
-            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
-        },
-    };
+    const TempoMap tempo_map = makeSparseAnchor44Map();
 
     TempoMap::ForwardBeatTimeCursor cursor{tempo_map};
     for (const double position : {-1.0, 0.0, 2.5, 4.0, 8.0, 10.0, 12.0, 99.0})
@@ -135,16 +130,7 @@ TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
 // clamps outside the authored range.
 TEST_CASE("TempoMap reports quarter-note tempo per anchor span", "[core][tempo-map]")
 {
-    const TempoMap tempo_map{
-        std::vector{
-            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
-        },
-        std::vector{
-            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
-            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
-            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
-        },
-    };
+    const TempoMap tempo_map = makeSparseAnchor44Map();
 
     // First span: 8 beats over 4 seconds; second span: 4 beats over 1.5 seconds.
     CHECK(tempo_map.quarterNoteBpmAtSeconds(11.0) == Catch::Approx(120.0));
