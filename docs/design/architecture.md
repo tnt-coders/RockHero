@@ -253,7 +253,11 @@ The tempo map is a **warp-anchor grid**: time signatures are stored as changes (
 and time is pinned only on a sparse set of addressed **anchors** (a measure/beat with an absolute
 second). A start anchor (measure 1, beat 1) and a terminal anchor at the one-past-content downbeat
 are always required; every other beat and measure interpolates, so absolute seconds appear only in
-anchors. Anchor positions are persisted as on-beat tokens such as `"1:1"` and `"17:1"`.
+anchors. Interpolation is linear in **quarter-note (metronome) time**, not in beats: the
+quarter-note tempo is constant inside each anchor span and changes only at anchors, so a
+meter-denominator change between anchors (say 4/4 to 7/8) re-slices beat durations — the
+eighth-note beats run twice as fast — instead of stretching each beat to the old length. Anchor
+positions are persisted as on-beat tokens such as `"1:1"` and `"17:1"`.
 
 The persisted tempo-map shape is:
 

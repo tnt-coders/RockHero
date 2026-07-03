@@ -12,7 +12,7 @@
 namespace rock_hero::editor::ui
 {
 
-inline constexpr int g_timeline_ruler_height{32};
+inline constexpr int g_timeline_ruler_height{40};
 
 // Draws the pinned bars-and-beats ruler above the scrollable timeline content.
 class TimelineRuler final : public juce::Component
@@ -72,25 +72,20 @@ private:
     // vblank cadence, do not rebuild geometry or remeasure label text on every frame.
     void refreshRulerGeometry();
 
-    // Rebuilds the top band's signature geometry: the pinned active signature-and-tempo block at
-    // the left edge plus a measure-number and signature pair at each visible signature change.
-    // Returns the covered rectangles so plain measure numbers can flow around them.
-    [[nodiscard]] std::vector<juce::Rectangle<int>> refreshSignatureLabels(const juce::Font& font);
+    // Rebuilds the tempo band: metronome markings (enlarged quarter-note glyph plus text-size
+    // digits) led by the pinned active tempo when pinned_time_seconds is set, an anchor triangle
+    // per visible anchor, and the tempo of the span each non-terminal anchor starts; same
+    // font-sharing contract.
+    void refreshTempoLabels(const juce::Font& font, std::optional<double> pinned_time_seconds);
 
-    // Rebuilds the merged anchor-marker path and overlap-suppressed anchor labels; part of
-    // refreshRulerGeometry and shares its font so cached label widths match the paint font.
-    void refreshAnchorGeometry(const juce::Font& font);
-
-    // Draws visible grid ticks: full-height measures, quarter-height beats, and shorter
-    // subdivision ticks.
+    // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
 
-    // Draws the cached anchor diamonds and second-precise anchor labels.
-    void drawAnchors(juce::Graphics& g);
-
     // Draws one cached row of overlap-suppressed labels in the current colour at a fixed vertical
-    // band.
-    void drawLabelRow(juce::Graphics& g, const std::vector<RulerLabel>& labels, int y, int height);
+    // band. The font must match the one the row's widths were measured with.
+    void drawLabelRow(
+        juce::Graphics& g, const std::vector<RulerLabel>& labels, const juce::Font& font, int y,
+        int height);
 
     // Draws the same transport cursor through the ruler for vertical alignment.
     void drawCursor(juce::Graphics& g);
@@ -129,24 +124,29 @@ private:
     // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
 
-    // Measure labels that survived overlap suppression, with widths already measured. Kept out of
-    // paint() because text-width measurement (GlyphArrangement layout) is comparatively expensive
-    // and previously ran for every visible measure column on every repaint, including narrow
-    // cursor-only repaints driven at vblank cadence or triggered by a single click.
+    // Measure-number part of the shared body row: the numbers that survived overlap suppression,
+    // with widths already measured. Kept out of paint() because text-width measurement
+    // (GlyphArrangement layout) is comparatively expensive and previously ran for every visible
+    // measure column on every repaint, including narrow cursor-only repaints driven at vblank
+    // cadence or triggered by a single click.
     std::vector<RulerLabel> m_measure_labels{};
 
-    // Signature-colored top-band labels: the pinned block showing the signature and quarter-note
-    // tempo active at the visible left edge, plus the signature part of each visible
-    // signature-change pair. Plain measure numbers flow around these.
+    // Signature part of the shared body row, drawn in the signature color right after the measure
+    // number it belongs to: the pinned active signature, then one per visible signature change.
     std::vector<RulerLabel> m_signature_labels{};
 
-    // All visible anchor diamonds merged into one path so paint() issues a single fill instead of
-    // building and filling a path per anchor on every repaint.
-    juce::Path m_anchor_markers{};
+    // Enlarged quarter-note glyphs of the tempo markings, one per entry in m_tempo_labels and
+    // drawn immediately left of it; split from the digits because one text draw cannot mix fonts.
+    std::vector<RulerLabel> m_tempo_prefix_labels{};
 
-    // Anchor tempo labels (quarter-note BPM of the span each anchor starts) that survived overlap
-    // suppression, cached for the same text-measurement reason as m_measure_labels.
-    std::vector<RulerLabel> m_anchor_labels{};
+    // Tempo-marking digits: the pinned active tempo at the left edge, then the quarter-note tempo
+    // of the span each visible anchor starts, with overlap suppression; cached for the same
+    // text-measurement reason as m_measure_labels.
+    std::vector<RulerLabel> m_tempo_labels{};
+
+    // All visible anchor triangles merged into one path so paint() issues a single fill; each
+    // triangle points down from the tempo band at the ruler body's top edge to mark an anchor.
+    juce::Path m_anchor_markers{};
 };
 
 } // namespace rock_hero::editor::ui

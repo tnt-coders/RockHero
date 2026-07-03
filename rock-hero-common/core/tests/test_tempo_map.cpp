@@ -171,6 +171,53 @@ TEST_CASE("TempoMap quarter-note tempo uses the active denominator", "[core][tem
     CHECK(tempo_map.quarterNoteBpmAtSeconds(1.0) == Catch::Approx(60.0));
 }
 
+// Verifies the seconds-to-beat inverse mirrors the forward query, including clamping outside the
+// authored anchor range and crossing an un-anchored denominator change.
+TEST_CASE("TempoMap resolves beat positions from seconds", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 2, .numerator = 7, .denominator = 8},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.75},
+        },
+    };
+
+    CHECK(tempo_map.beatPositionAtSeconds(0.5) == Catch::Approx(1.0));
+    CHECK(tempo_map.beatPositionAtSeconds(2.25) == Catch::Approx(5.0));
+    CHECK(tempo_map.beatPositionAtSeconds(-1.0) == Catch::Approx(0.0));
+    CHECK(tempo_map.beatPositionAtSeconds(99.0) == Catch::Approx(11.0));
+}
+
+// Verifies interpolation is linear in metronome time: an un-anchored denominator change keeps the
+// quarter-note tempo constant, so eighth-note beats after a 4/4 -> 7/8 change run twice as fast
+// instead of stretching to quarter-note length.
+TEST_CASE("TempoMap holds quarter tempo across un-anchored meter changes", "[core][tempo-map]")
+{
+    // One span pins measure 3's downbeat: 4 quarters (4/4) plus 7 eighths (7/8) is 7.5 quarter
+    // notes, which at 120 quarter notes per minute lands at 3.75 seconds.
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 2, .numerator = 7, .denominator = 8},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 3.75},
+        },
+    };
+
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(1.0) == Catch::Approx(120.0));
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(3.0) == Catch::Approx(120.0));
+    CHECK(tempo_map.secondsAtBeat(1, 2) == Catch::Approx(0.5));
+    CHECK(tempo_map.secondsAtBeat(2, 1) == Catch::Approx(2.0));
+    CHECK(tempo_map.secondsAtBeat(2, 2) == Catch::Approx(2.25));
+    CHECK(tempo_map.secondsAtBeat(3, 1) == Catch::Approx(3.75));
+}
+
 // Verifies signature lookup by absolute time follows the meter-change downbeats and clamps
 // outside the authored range.
 TEST_CASE("TempoMap resolves the active signature at a time", "[core][tempo-map]")
