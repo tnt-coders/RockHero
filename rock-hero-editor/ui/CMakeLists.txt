@@ -18,6 +18,7 @@ target_sources(
             src/grid_spacing_selector.cpp
             src/input_calibration_window.cpp
             src/menu_bar_button.cpp
+            src/musical_readout.cpp
             src/plugin_browser_window.cpp
             src/signal_chain_block_layout.cpp
             src/signal_chain_panel.cpp
