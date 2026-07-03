@@ -67,7 +67,10 @@ struct BeatAnchor
 
 TempoMap stores the durable native chart timing model: time-signature changes define the musical
 grid, while anchors pin sparse measure beats to absolute seconds. All intermediate beat and note
-positions resolve by linear interpolation between neighboring anchors.
+positions resolve by linear interpolation between neighboring anchors. Construction precomputes
+signature-segment and anchor beat indices so address and time queries stay logarithmic in the
+authored list sizes instead of rescanning them; per-frame consumers such as the timeline grid scan
+rely on that bound.
 */
 class TempoMap
 {
@@ -149,6 +152,20 @@ public:
     [[nodiscard]] double secondsAtNote(int measure, int beat, Fraction offset) const noexcept;
 
     /*!
+    \brief Resolves a fractional global beat position to absolute seconds.
+
+    This is the shared interpolation query behind secondsAtBeat and secondsAtNote, exposed for hot
+    paths such as the timeline grid scan that already address lines on the global beat axis and
+    should not pay a measure/beat address round trip per line. Positions outside the authored
+    anchor range clamp to the first or last anchor's time.
+
+    \param global_beat_position Zero-based position on the global beat axis counted from measure 1
+           beat 1; fractional values address points between whole beats.
+    \return Interpolated second position.
+    */
+    [[nodiscard]] double secondsAtGlobalBeatPosition(double global_beat_position) const noexcept;
+
+    /*!
     \brief Returns the terminal anchor's global beat index.
     \return Zero-based global beat index for the terminal anchor.
     */
@@ -163,10 +180,41 @@ public:
     friend bool operator==(const TempoMap& lhs, const TempoMap& rhs);
 
 private:
-    [[nodiscard]] double secondsAtGlobalBeatPosition(double global_beat_position) const noexcept;
+    // One normalized time-signature reign covering measures [start_measure, next segment's
+    // start_measure). Derived from m_time_signatures so beat-address queries binary-search a
+    // monotonic table instead of rewalking the signature list on every call.
+    struct SignatureSegment
+    {
+        // First measure governed by this segment; segment starts are non-decreasing and begin at 1.
+        int start_measure{1};
+
+        // Beats per measure inside this segment, clamped to at least one.
+        int beats_per_measure{4};
+
+        // Global beat index of the first beat of the segment's first measure.
+        std::int64_t start_beat_index{0};
+    };
+
+    // Rebuilds the derived lookup tables; must run whenever the authored vectors change.
+    void buildDerivedIndices();
+
+    // Finds the segment governing a measure; the front segment starts at measure 1 so normalized
+    // inputs always match.
+    [[nodiscard]] const SignatureSegment& segmentForMeasure(int measure) const noexcept;
+
+    // Finds the segment containing a global beat index; the front segment starts at index 0 so
+    // normalized inputs always match.
+    [[nodiscard]] const SignatureSegment& segmentForBeatIndex(
+        std::int64_t global_beat_index) const noexcept;
 
     std::vector<TimeSignatureChange> m_time_signatures;
     std::vector<BeatAnchor> m_anchors;
+
+    // Derived signature segments; never empty, rebuilt by buildDerivedIndices on construction.
+    std::vector<SignatureSegment> m_segments;
+
+    // Global beat index of each anchor, parallel to m_anchors; non-decreasing for valid maps.
+    std::vector<std::int64_t> m_anchor_beat_indices;
 };
 
 } // namespace rock_hero::common::core

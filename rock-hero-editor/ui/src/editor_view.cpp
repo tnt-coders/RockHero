@@ -254,13 +254,15 @@ void appendDottedTempoGridLine(
     }
 }
 
-// Resolves the subdivision/beat/measure column positions visible across the full content width.
-// Kept separate from drawing so callers can cache the result and only rerun the tempo-map scan
-// when the timeline geometry, tempo map, or grid spacing actually changes, not on every repaint.
+// Resolves the subdivision/beat/measure column positions inside the visible span of the full
+// content width. Kept separate from drawing so callers can cache the result and only rerun the
+// tempo-map scan when the timeline geometry, tempo map, grid spacing, or visible span actually
+// changes, not on every repaint.
 void tempoGridColumns(
     const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats,
-    common::core::TimeRange visible_timeline, int width, std::vector<int>& subdivision_grid_x,
-    std::vector<int>& beat_grid_x, std::vector<int>& measure_grid_x)
+    common::core::TimeRange visible_timeline, int width, int visible_x_begin, int visible_x_end,
+    std::vector<int>& subdivision_grid_x, std::vector<int>& beat_grid_x,
+    std::vector<int>& measure_grid_x)
 {
     subdivision_grid_x.clear();
     beat_grid_x.clear();
@@ -272,7 +274,7 @@ void tempoGridColumns(
     }
 
     const std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
-        tempo_map, grid_spacing_beats, visible_timeline, width, 0, width);
+        tempo_map, grid_spacing_beats, visible_timeline, width, visible_x_begin, visible_x_end);
     for (const core::TempoGridLine& line : lines)
     {
         switch (line.rank)
@@ -494,19 +496,41 @@ private:
         }
 
         // Recomputes cached grid column positions from the owner's current tempo map, grid
-        // spacing, and timeline geometry. Kept out of paint() so repaints that do not change that
-        // geometry, such as cursor movement or a partial scroll reveal, do not repeat the grid
-        // scan.
+        // spacing, and timeline geometry, bounded to the viewport-visible slice of the content so
+        // the scan cost tracks what is on screen instead of the full zoomed canvas. Kept out of
+        // paint() so repaints that do not change that geometry, such as cursor movement or a
+        // partial repaint, do not repeat the grid scan.
         void refreshGridColumns()
         {
+            const auto [visible_x_begin, visible_x_end] = visibleContentSpan();
+            m_grid_visible_x_begin = visible_x_begin;
+            m_grid_visible_x_end = visible_x_end;
             tempoGridColumns(
                 m_owner.m_tempo_map,
                 m_owner.m_grid_spacing_beats,
                 m_owner.m_timeline_range,
                 getWidth(),
+                visible_x_begin,
+                visible_x_end,
                 m_subdivision_grid_x,
                 m_beat_grid_x,
                 m_measure_grid_x);
+        }
+
+        // Refreshes grid columns after the viewport scrolls, skipping the scan when the
+        // horizontal visible span is unchanged so vertical scrolls and no-op view updates stay
+        // free. Repaints because scrolled-in regions need columns the previous span never
+        // computed.
+        void refreshGridColumnsForViewChange()
+        {
+            const auto [visible_x_begin, visible_x_end] = visibleContentSpan();
+            if (visible_x_begin == m_grid_visible_x_begin && visible_x_end == m_grid_visible_x_end)
+            {
+                return;
+            }
+
+            refreshGridColumns();
+            repaint();
         }
 
         // Draws the timeline canvas, tempo grid, waveform row background, and empty-project text.
@@ -535,6 +559,15 @@ private:
         }
 
     private:
+        // Returns the content-coordinate pixel span currently visible through the owner viewport.
+        [[nodiscard]] std::pair<int, int> visibleContentSpan() const noexcept
+        {
+            const int visible_x_begin = std::max(0, m_owner.m_viewport.getViewPositionX());
+            const int visible_x_end =
+                std::min(getWidth(), visible_x_begin + m_owner.m_viewport.getViewWidth());
+            return {visible_x_begin, visible_x_end};
+        }
+
         // Owner receives input so zoom state stays centralized in TrackViewport.
         TrackViewport& m_owner;
 
@@ -542,10 +575,15 @@ private:
         bool m_project_loaded{false};
 
         // Cached grid column positions per rank, refreshed only when the owner's timeline
-        // geometry, tempo map, or grid spacing changes.
+        // geometry, tempo map, grid spacing, or visible span changes.
         std::vector<int> m_subdivision_grid_x{};
         std::vector<int> m_beat_grid_x{};
         std::vector<int> m_measure_grid_x{};
+
+        // Horizontal content span covered by the cached grid columns, used to skip scroll-driven
+        // rescans when the visible span did not move.
+        int m_grid_visible_x_begin{0};
+        int m_grid_visible_x_end{0};
     };
 
     // Viewport subclass that lets the pinned ruler track user-driven scrollbar movement.
@@ -584,7 +622,10 @@ public:
         setComponentID("track_viewport");
         m_content.setComponentID("track_viewport_content");
         m_viewport.setComponentID("track_viewport_scroll");
-        m_viewport.on_visible_area_changed = [this] { updateRulerView(); };
+        m_viewport.on_visible_area_changed = [this] {
+            updateRulerView();
+            m_content.refreshGridColumnsForViewChange();
+        };
 
         m_viewport.setScrollBarsShown(true, true);
         m_viewport.setViewedComponent(&m_content, false);
