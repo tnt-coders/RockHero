@@ -1,6 +1,6 @@
 # Timeline Ruler Review Fixes
 
-Status: Phases 1 and 2 complete (implemented, awaiting user build + test run); later phases
+Status: Phases 1–3 complete (implemented, awaiting user build + test run); later phases
 not started.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
@@ -105,7 +105,12 @@ Line numbers are as of the review; re-locate by symbol if drifted.
 
 ## Phase 3 — Redundant rebuild work in the view
 
-- [ ] **3.1 setState double grid rescan.**
+- [x] **3.1 setState double grid rescan.**
+  DONE — setProjectLoaded early-outs on an unchanged flag and setTimelineRange on an unchanged
+  range, so repeat state pushes (busy-progress ticks) skip both relayouts. The constructor's
+  setProjectLoaded(false) push is gone: the arrangement view and cursor overlay now start via
+  addChildComponent (hidden), matching the project-not-loaded member defaults the early-out
+  relies on; resized() covers the initial layout once bounds exist.
   `EditorView::setState` (`editor_view.cpp:1163-1177`) reaches `refreshTimelineGrid` twice
   unconditionally: `setProjectLoaded` (no equality guard, `:637` → `:653` → `:804`) and
   `setTimelineRange` (`layoutScaledCanvas` at `:666` sits outside the changed-range guard).
@@ -116,7 +121,11 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   the `m_timeline_range != timeline_range` branch (the scroll path already has exactly this
   skip in `refreshTimelineGridForViewChange`).
 
-- [ ] **3.2 TimelineRuler::setGrid wasted rebuild.**
+- [x] **3.2 TimelineRuler::setGrid wasted rebuild.**
+  DONE — setGrid only stores; the rebuild/repaint defers to the guaranteed setGridLines
+  follow-up, documented in the header with the same contract wording as setTimelineView. The
+  direct-ruler pixel tests already follow setGrid with setGridLines, so they exercise the new
+  contract unchanged.
   `timeline_ruler.cpp:118-119` rebuilds geometry and repaints against stale grid lines;
   the only caller (`TrackViewport::setGrid`, `editor_view.cpp:679-680`) immediately follows
   with `refreshTimelineGrid` → `setGridLines`, which rebuilds again in the same message-loop
@@ -124,13 +133,21 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   Fix: drop the rebuild/repaint from `setGrid` and rely on the guaranteed `setGridLines`
   follow-up — the same contract `setTimelineView` already documents.
 
-- [ ] **3.3 TempoMap by-value parameters.**
+- [x] **3.3 TempoMap by-value parameters.**
+  DONE — both setGrid overloads take const TempoMap& and copy into the member only after the
+  inequality check; comments note the deviation from the sink-by-value convention (the common
+  unchanged case would copy just to discard). Both call sites pass lvalues, so no move was lost.
   `TrackViewport::setGrid` (`editor_view.cpp:670`) and `TimelineRuler::setGrid`
   (`timeline_ruler.cpp:108`) take `TempoMap` by value; the common compare-equal case copies
   the map (authored vectors + three derived index tables) just to discard it.
   Fix: take `const TempoMap&`, copy into the member only after the inequality check.
 
-- [ ] **3.4 Per-vblank string churn in refreshTimeDisplay.**
+- [x] **3.4 Per-vblank string churn in refreshTimeDisplay.**
+  DONE — caches the last rendered transport seconds (optional<double> member) and returns before
+  any formatting when unchanged. Seconds alone identify the text because the other readout inputs
+  (project-loaded flag, tempo map) change only through setState, which resets the cache before
+  its direct refresh; caching project_loaded separately would have been redundant with that
+  invalidation and still insufficient for a tempo-map swap at an unchanged position.
   `editor_view.cpp:1868-1877` builds several `juce::String`s every vblank frame even while
   the transport holds position (`setText` skips only the repaint).
   Fix: cache last sampled `seconds` + `project_loaded` and early-out when unchanged.

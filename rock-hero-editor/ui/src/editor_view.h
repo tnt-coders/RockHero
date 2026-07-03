@@ -341,6 +341,12 @@ private:
     // are not repeated here: the timeline ruler's header bands pin them to their left edge.
     juce::Label m_position_display;
 
+    // Transport position behind the current m_position_display text, so vblank frames where the
+    // transport holds position skip re-formatting the readout strings. Seconds alone identify
+    // the text because the other readout inputs (project-loaded flag, tempo map) change only
+    // through setState, which clears this cache.
+    std::optional<double> m_position_readout_seconds{};
+
     // Timeline grid-size selector shown beside the transport controls.
     GridSpacingSelector m_grid_spacing_selector;
 
