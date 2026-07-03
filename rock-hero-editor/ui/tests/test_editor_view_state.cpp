@@ -56,7 +56,8 @@ TEST_CASE("EditorView applies arrangement audio to the thumbnail", "[ui][editor-
     CHECK(thumbnail_factory.last_thumbnail->set_source_call_count == 1);
 }
 
-// Verifies setState projects state and reads position only for the one-shot load focus.
+// Verifies setState projects state while the transport readout samples position independently of
+// the one-shot load focus.
 TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -111,7 +112,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK(signal_chain_panel.isVisible());
     CHECK(signal_chain_view.isVisible());
     CHECK(findDescendant(view, "add_plugin_button") == nullptr);
-    CHECK(transport.position_read_count == 0);
+    CHECK(transport.position_read_count == 1);
 
     view.setState(
         core::EditorViewState{
@@ -194,7 +195,7 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
     CHECK(arrangement_view.isVisible());
     CHECK(cursor_overlay.isVisible());
     CHECK_FALSE(getPlayPauseButton(controls).getToggleState());
-    CHECK(transport.position_read_count == 1);
+    CHECK(transport.position_read_count == 2);
 }
 
 // Verifies plugin tile remove controls reflect state and emit the selected instance ID.

@@ -131,6 +131,70 @@ TEST_CASE("TempoMap interpolates across meter changes", "[core][tempo-map]")
     CHECK(tempo_map.secondsAtGlobalBeatPosition(14.5) == Catch::Approx(7.25));
 }
 
+// Verifies quarter-note tempo is constant inside each anchor span, switches at anchors, and
+// clamps outside the authored range.
+TEST_CASE("TempoMap reports quarter-note tempo per anchor span", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 10.0},
+            BeatAnchor{.measure = 3, .beat = 1, .seconds = 14.0},
+            BeatAnchor{.measure = 4, .beat = 1, .seconds = 15.5},
+        },
+    };
+
+    // First span: 8 beats over 4 seconds; second span: 4 beats over 1.5 seconds.
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(11.0) == Catch::Approx(120.0));
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(14.0) == Catch::Approx(160.0));
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(14.75) == Catch::Approx(160.0));
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(9.0) == Catch::Approx(120.0));
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(99.0) == Catch::Approx(160.0));
+}
+
+// Verifies the quarter-note reference scales by the signature denominator, so an x/8 meter with
+// 120 eighth-note beats per minute reads as 60 quarter notes per minute.
+TEST_CASE("TempoMap quarter-note tempo uses the active denominator", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 6, .denominator = 8},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 2, .beat = 1, .seconds = 3.0},
+        },
+    };
+
+    CHECK(tempo_map.quarterNoteBpmAtSeconds(1.0) == Catch::Approx(60.0));
+}
+
+// Verifies signature lookup by absolute time follows the meter-change downbeats and clamps
+// outside the authored range.
+TEST_CASE("TempoMap resolves the active signature at a time", "[core][tempo-map]")
+{
+    const TempoMap tempo_map{
+        std::vector{
+            TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            TimeSignatureChange{.measure = 3, .numerator = 3, .denominator = 4},
+            TimeSignatureChange{.measure = 5, .numerator = 5, .denominator = 4},
+        },
+        std::vector{
+            BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            BeatAnchor{.measure = 6, .beat = 1, .seconds = 9.5},
+        },
+    };
+
+    // 19 beats over 9.5 seconds puts measure 3 at 4.0s and measure 5 at 7.0s.
+    CHECK(tempo_map.timeSignatureAtSeconds(3.9).numerator == 4);
+    CHECK(tempo_map.timeSignatureAtSeconds(4.0).numerator == 3);
+    CHECK(tempo_map.timeSignatureAtSeconds(7.2).numerator == 5);
+    CHECK(tempo_map.timeSignatureAtSeconds(-1.0).numerator == 4);
+    CHECK(tempo_map.timeSignatureAtSeconds(99.0).numerator == 5);
+}
+
 // Verifies the generated fallback map extends to a terminal downbeat after the audio.
 TEST_CASE("TempoMap defaultMap covers audio duration", "[core][tempo-map]")
 {

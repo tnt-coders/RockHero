@@ -190,14 +190,14 @@ void TimelineRuler::refreshRulerGeometry()
     m_measure_labels.clear();
 
     const juce::Font font{juce::FontOptions{g_ruler_font_height}};
-    refreshSignatureLabels(font);
+    const std::vector<juce::Rectangle<int>> reserved_labels = refreshSignatureLabels(font);
 
-    // Signature labels own their spots in the top band; measure numbers yield to them so a meter
-    // change is never hidden by routine numbering.
-    const auto overlaps_signature_label = [this](int label_x, int label_width) {
-        for (const RulerLabel& signature : m_signature_labels)
+    // The pinned block and signature-change pairs own their top-band spots; plain measure numbers
+    // flow around them so a meter change is never hidden by routine numbering.
+    const auto overlaps_reserved_label = [&reserved_labels](int label_x, int label_width) {
+        for (const juce::Rectangle<int>& reserved : reserved_labels)
         {
-            if (label_x < signature.x + signature.width && signature.x < label_x + label_width)
+            if (label_x < reserved.getRight() && reserved.getX() < label_x + label_width)
             {
                 return true;
             }
@@ -229,7 +229,7 @@ void TimelineRuler::refreshRulerGeometry()
         const juce::String label{line.measure};
         const int label_width = textWidth(font, label) + 8;
         if (x >= next_label_x && x + label_width <= getWidth() &&
-            !overlaps_signature_label(x + 4, label_width))
+            !overlaps_reserved_label(x + 4, label_width))
         {
             // The stored x carries the small inset off the measure tick so drawing needs no
             // per-label offset math.
@@ -241,15 +241,33 @@ void TimelineRuler::refreshRulerGeometry()
     refreshAnchorGeometry(font);
 }
 
-// Rebuilds the time-signature labels drawn at each stored signature change's downbeat, including
-// the initial signature at measure 1. Positions come from the tempo map rather than the grid
-// lines because a coarse or offset grid spacing can leave a change's downbeat without a grid
-// line.
-void TimelineRuler::refreshSignatureLabels(const juce::Font& font)
+// Rebuilds the top band's signature geometry. A pinned block at the left edge shows the signature
+// and quarter-note tempo active at the leftmost visible time, so the current values never scroll
+// out of view; each signature change scrolled into view then draws its measure number and
+// signature together. Positions come from the tempo map rather than the grid lines because a
+// coarse grid spacing can leave a change's downbeat without a grid line.
+std::vector<juce::Rectangle<int>> TimelineRuler::refreshSignatureLabels(const juce::Font& font)
 {
     m_signature_labels.clear();
+    std::vector<juce::Rectangle<int>> reserved_labels;
 
     int next_label_x = 4;
+    const auto view_left_time =
+        core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
+    if (view_left_time.has_value())
+    {
+        const common::core::TimeSignatureChange active_signature =
+            m_tempo_map.timeSignatureAtSeconds(view_left_time->seconds);
+        const double tempo = m_tempo_map.quarterNoteBpmAtSeconds(view_left_time->seconds);
+        const juce::String text = juce::String{active_signature.numerator} + "/" +
+                                  juce::String{active_signature.denominator} + "  " +
+                                  juce::String{tempo, 2} + " BPM";
+        const int width = textWidth(font, text) + 8;
+        m_signature_labels.push_back(RulerLabel{.x = 4, .text = text, .width = width});
+        reserved_labels.push_back(juce::Rectangle<int>{4, 2, width, 14});
+        next_label_x = 4 + width + 10;
+    }
+
     for (const common::core::TimeSignatureChange& signature : m_tempo_map.timeSignatures())
     {
         const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(signature.measure, 1));
@@ -258,30 +276,48 @@ void TimelineRuler::refreshSignatureLabels(const juce::Font& font)
             continue;
         }
 
-        const juce::String label =
+        // The change draws its measure number and signature as one unit so the meter change never
+        // hides the numbering. A change still under the pinned block is skipped; the pinned
+        // values already show it.
+        const juce::String measure_text{signature.measure};
+        const juce::String signature_text =
             juce::String{signature.numerator} + "/" + juce::String{signature.denominator};
-        const int label_x = static_cast<int>(std::round(*local_x)) + 4;
-        const int label_width = textWidth(font, label) + 8;
-        if (label_x >= next_label_x && label_x + label_width <= getWidth())
+        const int measure_width = textWidth(font, measure_text) + 8;
+        const int signature_width = textWidth(font, signature_text) + 8;
+        const int unit_x = static_cast<int>(std::round(*local_x)) + 4;
+        const int unit_width = measure_width + signature_width;
+        if (unit_x < next_label_x || unit_x + unit_width > getWidth())
         {
-            m_signature_labels.push_back(
-                RulerLabel{.x = label_x, .text = label, .width = label_width});
-            next_label_x = label_x + label_width + 10;
+            continue;
         }
+
+        m_measure_labels.push_back(
+            RulerLabel{.x = unit_x, .text = measure_text, .width = measure_width});
+        m_signature_labels.push_back(
+            RulerLabel{
+                .x = unit_x + measure_width, .text = signature_text, .width = signature_width
+            });
+        reserved_labels.push_back(juce::Rectangle<int>{unit_x, 2, unit_width, 14});
+        next_label_x = unit_x + unit_width + 10;
     }
+
+    return reserved_labels;
 }
 
-// Rebuilds the merged anchor-marker path and the overlap-suppressed anchor labels for the current
-// view. Runs on the same geometry- and tempo-map-change cadence as the tick cache.
+// Rebuilds the merged anchor-marker path and the overlap-suppressed anchor tempo labels for the
+// current view. Each anchor is labeled with the quarter-note tempo of the span it starts; its
+// measure:beat address is omitted because the ruler ticks already carry that context. Runs on the
+// same geometry- and tempo-map-change cadence as the tick cache.
 void TimelineRuler::refreshAnchorGeometry(const juce::Font& font)
 {
     m_anchor_markers.clear();
     m_anchor_labels.clear();
 
+    const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
     int next_label_x = 4;
-    for (const common::core::BeatAnchor& anchor : m_tempo_map.anchors())
+    for (std::size_t index = 0; index < anchors.size(); ++index)
     {
-        const auto local_x = localXForSeconds(anchor.seconds);
+        const auto local_x = localXForSeconds(anchors[index].seconds);
         if (!local_x.has_value())
         {
             continue;
@@ -294,8 +330,15 @@ void TimelineRuler::refreshAnchorGeometry(const juce::Font& font)
         m_anchor_markers.lineTo(x - 4.0f, 15.0f);
         m_anchor_markers.closeSubPath();
 
-        const juce::String label = juce::String{anchor.measure} + ":" + juce::String{anchor.beat} +
-                                   "  " + juce::String{anchor.seconds, 3} + "s";
+        // The terminal anchor only ends the last span, so it keeps its marker but gets no tempo
+        // label of its own.
+        if (index + 1 >= anchors.size())
+        {
+            continue;
+        }
+
+        const double tempo = m_tempo_map.quarterNoteBpmAtSeconds(anchors[index].seconds);
+        const juce::String label = juce::String{tempo, 2} + " BPM";
         const int label_x = static_cast<int>(std::round(x)) + 7;
         const int label_width = textWidth(font, label) + 10;
         if (label_x >= next_label_x && label_x + label_width <= getWidth())
