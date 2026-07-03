@@ -92,16 +92,16 @@ TEST_CASE("TransportControls setState updates enabledness", "[ui][transport-cont
     CHECK(getStopButton(controls).isEnabled());
 }
 
-// Verifies fixed transport buttons are centered and ordered Stop, then Play/Pause.
-TEST_CASE("TransportControls centers stop before play pause", "[ui][transport-controls]")
+// Verifies fixed transport buttons are centered and ordered Play/Pause, then Stop.
+TEST_CASE("TransportControls centers play pause before stop", "[ui][transport-controls]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
     FakeTransportControlsListener listener;
     TransportControls controls{listener};
     controls.setBounds(0, 0, 120, 40);
 
-    CHECK(getStopButton(controls).getBounds() == juce::Rectangle<int>{22, 4, 32, 32});
-    CHECK(getPlayPauseButton(controls).getBounds() == juce::Rectangle<int>{66, 4, 32, 32});
+    CHECK(getPlayPauseButton(controls).getBounds() == juce::Rectangle<int>{22, 4, 32, 32});
+    CHECK(getStopButton(controls).getBounds() == juce::Rectangle<int>{66, 4, 32, 32});
 }
 
 // Verifies pause-icon state does not use JUCE toggle state, which paints a button background.
