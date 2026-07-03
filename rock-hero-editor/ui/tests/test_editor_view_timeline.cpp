@@ -67,11 +67,13 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
+    // The bottom row stays label-free (anchor labels end one row above), so tick sampling there
+    // cannot collide with tempo-label glyphs.
     const juce::Colour beat_top = image.getPixelAt(25, 0);
     const juce::Colour measure_top = image.getPixelAt(0, 0);
-    const juce::Colour beat_lower_quarter = image.getPixelAt(25, 24);
+    const juce::Colour beat_bottom = image.getPixelAt(25, g_timeline_ruler_height - 1);
     CHECK(measure_top != beat_top);
-    CHECK(beat_lower_quarter != beat_top);
+    CHECK(beat_bottom != beat_top);
 }
 
 // Verifies subdivision ticks draw shorter than beat ticks so beats stay readable on fine grids.
@@ -85,7 +87,7 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
     constexpr common::core::Fraction grid_spacing{1, 2};
     TimelineRuler ruler;
-    ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
+    ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
     ruler.setGrid(tempo_map, grid_spacing);
     ruler.setGridLines(
@@ -95,17 +97,19 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
 
-    // The half-beat subdivision at 0.5s (x = 13) fills only the shorter bottom band, while the
-    // beat at 1.0s (x = 25) also fills the taller beat band above it.
+    // The half-beat subdivision at 3.5s (x = 175) fills only the shorter bottom band, while the
+    // beat at 3.0s (x = 150) also fills the taller beat band above it. These columns sit right of
+    // the anchor tempo label at the left edge so glyph pixels cannot affect the sampling.
     const int bottom_y = g_timeline_ruler_height - 1;
     const int beat_band_y = g_timeline_ruler_height - g_timeline_ruler_height / 4;
-    CHECK(image.getPixelAt(13, bottom_y) == image.getPixelAt(25, bottom_y));
-    CHECK(image.getPixelAt(13, beat_band_y) != image.getPixelAt(25, beat_band_y));
+    CHECK(image.getPixelAt(175, bottom_y) == image.getPixelAt(150, bottom_y));
+    CHECK(image.getPixelAt(175, beat_band_y) != image.getPixelAt(150, beat_band_y));
 }
 
-// Verifies a time-signature change draws a signature label at its downbeat in the ruler's top
-// band. The change entry repeats 4/4 so both maps produce identical ticks and the only pixel
-// difference near the measure-2 tick is the signature label itself.
+// Verifies a time-signature change draws a measure-number and signature pair at its downbeat in
+// the ruler's top band. The change entry repeats 4/4 so both maps produce identical ticks and the
+// only pixel difference near the measure-2 tick is the signature pair itself. The ruler is wide
+// enough that the pair clears the pinned signature/tempo block at the left edge.
 TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-ruler]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -116,7 +120,7 @@ TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-rul
     constexpr common::core::Fraction grid_spacing{1, 1};
     const auto ruler_snapshot = [&](const common::core::TempoMap& tempo_map) {
         TimelineRuler ruler;
-        ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
+        ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
         ruler.setTimelineView(two_measure_window, ruler.getWidth(), 0);
         ruler.setGrid(tempo_map, grid_spacing);
         ruler.setGridLines(
@@ -152,10 +156,10 @@ TEST_CASE("TimelineRuler draws time-signature change labels", "[ui][timeline-rul
     const juce::Image unchanged_image = ruler_snapshot(unchanged_map);
     const juce::Image changed_image = ruler_snapshot(changed_map);
 
-    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 100 of the 201px ruler
+    // Measure 2 sits at 4.0s of the 8.0s window, so its tick lands at x = 200 of the 401px ruler
     // and the label band starts just right of it.
     bool label_pixels_differ = false;
-    for (int x = 100; x < 160 && !label_pixels_differ; ++x)
+    for (int x = 200; x < 280 && !label_pixels_differ; ++x)
     {
         for (int y = 2; y < 16 && !label_pixels_differ; ++y)
         {

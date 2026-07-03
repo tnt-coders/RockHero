@@ -239,6 +239,9 @@ private:
     // Samples continuous meter display data from the audio backend.
     void refreshAudioMeters();
 
+    // Samples the transport cursor position into the transport-strip time readout.
+    void refreshTimeDisplay();
+
     // Opens the audio-device settings window.
     void showAudioDeviceSettingsWindow();
 
@@ -317,6 +320,9 @@ private:
     // Live-input source sampled by the calibration popup.
     const common::audio::ILiveInput& m_live_input;
 
+    // Read-only transport sampled at display cadence for the transport-strip time readout.
+    const common::audio::ITransport& m_transport;
+
     // Last state pushed by the controller; used for load target lookup and layout mapping.
     core::EditorViewState m_state{};
 
@@ -328,6 +334,10 @@ private:
 
     // Concrete presentation-only transport control strip.
     TransportControls m_transport_controls;
+
+    // Read-only readout of the transport cursor's current time, shown beside the transport
+    // buttons and refreshed at display cadence.
+    juce::Label m_time_display;
 
     // Timeline grid-size selector shown beside the transport controls.
     GridSpacingSelector m_grid_spacing_selector;
@@ -368,7 +378,8 @@ private:
     // Editor-wide busy overlay rendered on top of the editor content during slow operations.
     BusyOverlay m_busy_overlay;
 
-    // Vblank callback used for continuous meter refresh without controller state churn.
+    // Vblank callback used for continuous meter and time-readout refresh without controller
+    // state churn.
     juce::VBlankAttachment m_meter_vblank_attachment;
 
     // Pending single-shot callback waiting for the next busy overlay paint.

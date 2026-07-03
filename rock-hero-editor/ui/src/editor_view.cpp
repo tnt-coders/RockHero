@@ -38,6 +38,7 @@ constexpr int g_redo_command{102};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
+constexpr int g_time_display_width{110};
 constexpr int g_transport_height{32};
 constexpr int g_transport_bar_height{g_content_inset + g_transport_height};
 constexpr int g_transport_controls_width{96};
@@ -309,6 +310,18 @@ void drawTempoGridDots(
         g.setColour(g_measure_grid_color);
         g.fillRectList(measure_dots);
     }
+}
+
+// Formats an absolute timeline position as m:ss.mmm for the transport-strip time readout.
+[[nodiscard]] juce::String formattedTimelineTime(double seconds)
+{
+    const double clamped_seconds = std::max(0.0, seconds);
+    const auto total_milliseconds =
+        static_cast<std::int64_t>(std::llround(clamped_seconds * 1000.0));
+    const std::int64_t minutes = total_milliseconds / 60000;
+    const std::int64_t remainder = total_milliseconds % 60000;
+    return juce::String::formatted(
+        "%lld:%02lld.%03lld", minutes, remainder / 1000, remainder % 1000);
 }
 
 } // namespace
@@ -1048,6 +1061,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_audio_devices(audio_ports.audio_devices)
     , m_audio_meters(audio_ports.meter_source)
     , m_live_input(audio_ports.live_input)
+    , m_transport(audio_ports.transport)
     , m_menu_look_and_feel(std::make_unique<MenuLookAndFeel>())
     , m_menu_bar(this)
     , m_transport_controls(*this)
@@ -1059,13 +1073,20 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_track_viewport(
           std::make_unique<TrackViewport>(
               controller, m_arrangement_view, *m_cursor_overlay, audio_ports.transport))
-    , m_meter_vblank_attachment(this, [this] { refreshAudioMeters(); })
+    , m_meter_vblank_attachment(this, [this] {
+        refreshAudioMeters();
+        refreshTimeDisplay();
+    })
 {
     setWantsKeyboardFocus(true);
 
     m_menu_bar.setComponentID("file_menu_bar");
     m_menu_bar.setLookAndFeel(m_menu_look_and_feel.get());
     m_transport_controls.setComponentID("transport_controls");
+    m_time_display.setComponentID("transport_time_display");
+    m_time_display.setJustificationType(juce::Justification::centredLeft);
+    m_time_display.setInterceptsMouseClicks(false, false);
+    refreshTimeDisplay();
     m_master_output_meter.setComponentID("master_output_meter");
     m_audio_device_button.setComponentID("audio_device_button");
     m_audio_device_button.setText("Audio Device");
@@ -1079,6 +1100,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
 
     addAndMakeVisible(m_menu_bar);
     addAndMakeVisible(m_transport_controls);
+    addAndMakeVisible(m_time_display);
     addAndMakeVisible(m_grid_spacing_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
@@ -1238,6 +1260,9 @@ void EditorView::resized()
 
     m_transport_controls.setBounds(
         control_row.removeFromLeft(std::min(g_transport_controls_width, control_row.getWidth())));
+    m_time_display.setBounds(
+        control_row.removeFromLeft(std::min(g_time_display_width, control_row.getWidth()))
+            .withTrimmedLeft(g_content_inset));
     m_grid_spacing_selector.setBounds(
         control_row.removeFromLeft(std::min(g_grid_spacing_selector_width, control_row.getWidth()))
             .withTrimmedLeft(g_content_inset));
@@ -1784,6 +1809,15 @@ void EditorView::refreshAudioMeters()
     const common::audio::AudioMeterSnapshot snapshot = m_audio_meters.audioMeterSnapshot();
     m_master_output_meter.setLevel(snapshot.master_output);
     m_signal_chain_panel.setMeterLevels(snapshot.live_rig_input, snapshot.live_rig_output);
+}
+
+// Samples the transport cursor into the strip readout at display cadence, like the cursor
+// overlay; setText skips the repaint when the rendered text is unchanged, so idle frames stay
+// free.
+void EditorView::refreshTimeDisplay()
+{
+    m_time_display.setText(
+        formattedTimelineTime(m_transport.position().seconds), juce::dontSendNotification);
 }
 
 // Opens the audio-device settings window when a hardware-configuration backend is available.

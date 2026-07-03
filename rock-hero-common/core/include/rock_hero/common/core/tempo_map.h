@@ -113,6 +113,32 @@ public:
     [[nodiscard]] TimeSignatureChange timeSignatureAt(int measure) const noexcept;
 
     /*!
+    \brief Finds the time signature active at an absolute second position.
+
+    Positions before the first signature's downbeat use the first signature, which governs from
+    measure 1.
+
+    \param seconds Absolute second position to query.
+    \return Time signature whose reign contains the supplied position.
+    */
+    [[nodiscard]] TimeSignatureChange timeSignatureAtSeconds(double seconds) const noexcept;
+
+    /*!
+    \brief Finds the quarter-note tempo active at an absolute second position.
+
+    Seconds are linear in beats between anchors, so the beat rate is constant inside each anchor
+    span; this converts it to the conventional quarter-note tempo reference using the signature
+    denominator active at the position. The quarter-note tempo therefore changes at anchors, and
+    also at any denominator change that is not itself pinned by an anchor. Positions outside the
+    authored anchor range report the first or last span's tempo.
+
+    \param seconds Absolute second position to query.
+    \return Quarter notes per minute, or zero when the map has fewer than two anchors or the
+            governing span is degenerate.
+    */
+    [[nodiscard]] double quarterNoteBpmAtSeconds(double seconds) const noexcept;
+
+    /*!
     \brief Finds the beat count for the measure's active time signature.
     \param measure One-based measure to query.
     \return Beats per measure.
@@ -230,6 +256,10 @@ private:
 
         // Global beat index of the first beat of the segment's first measure.
         std::int64_t start_beat_index{0};
+
+        // Absolute second position of the segment's first downbeat, filled after the anchor
+        // indices exist because it resolves through anchor interpolation.
+        double start_seconds{0.0};
     };
 
     // Rebuilds the derived lookup tables; must run whenever the authored vectors change.
