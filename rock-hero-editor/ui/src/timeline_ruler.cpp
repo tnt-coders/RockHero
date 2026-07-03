@@ -19,6 +19,7 @@ namespace
 const juce::Colour g_timeline_ruler_color{juce::Colours::darkgrey.darker(0.45f)};
 const juce::Colour g_timeline_ruler_text_color{210, 210, 210};
 const juce::Colour g_timeline_anchor_color{180, 218, 255};
+const juce::Colour g_timeline_signature_color{255, 214, 140};
 
 // Shared ruler text size; cached label widths are measured with this same font, so the two must
 // not diverge.
@@ -189,6 +190,22 @@ void TimelineRuler::refreshRulerGeometry()
     m_measure_labels.clear();
 
     const juce::Font font{juce::FontOptions{g_ruler_font_height}};
+    refreshSignatureLabels(font);
+
+    // Signature labels own their spots in the top band; measure numbers yield to them so a meter
+    // change is never hidden by routine numbering.
+    const auto overlaps_signature_label = [this](int label_x, int label_width) {
+        for (const RulerLabel& signature : m_signature_labels)
+        {
+            if (label_x < signature.x + signature.width && signature.x < label_x + label_width)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     int next_label_x = 4;
     const int beat_tick_height = std::max(1, getHeight() / 4);
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
@@ -211,7 +228,8 @@ void TimelineRuler::refreshRulerGeometry()
 
         const juce::String label{line.measure};
         const int label_width = textWidth(font, label) + 8;
-        if (x >= next_label_x && x + label_width <= getWidth())
+        if (x >= next_label_x && x + label_width <= getWidth() &&
+            !overlaps_signature_label(x + 4, label_width))
         {
             // The stored x carries the small inset off the measure tick so drawing needs no
             // per-label offset math.
@@ -221,6 +239,36 @@ void TimelineRuler::refreshRulerGeometry()
     }
 
     refreshAnchorGeometry(font);
+}
+
+// Rebuilds the time-signature labels drawn at each stored signature change's downbeat, including
+// the initial signature at measure 1. Positions come from the tempo map rather than the grid
+// lines because a coarse or offset grid spacing can leave a change's downbeat without a grid
+// line.
+void TimelineRuler::refreshSignatureLabels(const juce::Font& font)
+{
+    m_signature_labels.clear();
+
+    int next_label_x = 4;
+    for (const common::core::TimeSignatureChange& signature : m_tempo_map.timeSignatures())
+    {
+        const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(signature.measure, 1));
+        if (!local_x.has_value())
+        {
+            continue;
+        }
+
+        const juce::String label =
+            juce::String{signature.numerator} + "/" + juce::String{signature.denominator};
+        const int label_x = static_cast<int>(std::round(*local_x)) + 4;
+        const int label_width = textWidth(font, label) + 8;
+        if (label_x >= next_label_x && label_x + label_width <= getWidth())
+        {
+            m_signature_labels.push_back(
+                RulerLabel{.x = label_x, .text = label, .width = label_width});
+            next_label_x = label_x + label_width + 10;
+        }
+    }
 }
 
 // Rebuilds the merged anchor-marker path and the overlap-suppressed anchor labels for the current
@@ -259,7 +307,8 @@ void TimelineRuler::refreshAnchorGeometry(const juce::Font& font)
     }
 }
 
-// Draws visible beat ticks, with measure ticks promoted to the full ruler height.
+// Draws visible beat ticks, with measure ticks promoted to the full ruler height, plus the top
+// band's measure numbers and time-signature labels.
 void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 {
     if (!m_tick_rects.isEmpty())
@@ -270,6 +319,9 @@ void TimelineRuler::drawBeatTicks(juce::Graphics& g)
 
     g.setColour(g_timeline_ruler_text_color.withAlpha(0.82f));
     drawLabelRow(g, m_measure_labels, 2, 14);
+
+    g.setColour(g_timeline_signature_color);
+    drawLabelRow(g, m_signature_labels, 2, 14);
 }
 
 // Draws the cached anchor diamonds and labels; all geometry and text measurement happened in
