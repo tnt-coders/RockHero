@@ -609,13 +609,14 @@ public:
         addAndMakeVisible(m_timeline_ruler);
         addAndMakeVisible(m_viewport);
 
-        m_content.addAndMakeVisible(m_arrangement_view);
-        m_content.addAndMakeVisible(m_cursor_overlay);
+        // Track content starts hidden to match the project-not-loaded member defaults;
+        // setProjectLoaded early-outs on an unchanged flag, so no constructor push runs here.
+        m_content.addChildComponent(m_arrangement_view);
+        m_content.addChildComponent(m_cursor_overlay);
         m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
         m_timeline_ruler.setCursorPlacementCallback([this](common::core::TimePosition position) {
             m_controller.onTimelineSeekRequested(position);
         });
-        setProjectLoaded(false);
     }
 
     // Uses default destruction because the viewed component is owned by this shell.
@@ -633,9 +634,16 @@ public:
     // Move assignment is disabled because hosted component references must remain stable.
     TrackViewport& operator=(TrackViewport&&) = delete;
 
-    // Stores project-loaded state so the canvas can paint its empty-project message.
+    // Stores project-loaded state so the canvas can paint its empty-project message. Every full
+    // controller state push repeats the flag, so an unchanged flag returns before the relayout
+    // and grid rescan in layoutScaledCanvas.
     void setProjectLoaded(bool project_loaded)
     {
+        if (m_project_loaded == project_loaded)
+        {
+            return;
+        }
+
         m_project_loaded = project_loaded;
         if (!m_project_loaded)
         {
@@ -655,26 +663,32 @@ public:
     }
 
     // Stores the full timeline used to size zoomable content and resets zoom on range changes.
+    // An unchanged range returns early: every controller state push repeats the range, and the
+    // relayout would otherwise pay a redundant grid rescan per push.
     void setTimelineRange(common::core::TimeRange timeline_range)
     {
-        if (m_timeline_range != timeline_range)
+        if (m_timeline_range == timeline_range)
         {
-            m_timeline_range = timeline_range;
-            m_pixels_per_second = g_default_pixels_per_second;
+            return;
         }
 
+        m_timeline_range = timeline_range;
+        m_pixels_per_second = g_default_pixels_per_second;
         layoutScaledCanvas();
     }
 
     // Stores the tempo map and grid spacing used by the content background grid and the ruler.
-    void setGrid(common::core::TempoMap tempo_map, common::core::Fraction grid_spacing_beats)
+    // The map arrives by const& rather than the usual sink-by-value because every state push
+    // repeats it and the common unchanged case would otherwise copy the anchor vectors and
+    // derived index tables just to discard them.
+    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats)
     {
         if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
         {
             return;
         }
 
-        m_tempo_map = std::move(tempo_map);
+        m_tempo_map = tempo_map;
         m_grid_spacing_beats = grid_spacing_beats;
         m_timeline_ruler.setGrid(m_tempo_map, m_grid_spacing_beats);
         refreshTimelineGrid();
@@ -1188,7 +1202,9 @@ void EditorView::setState(const core::EditorViewState& state)
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
     // Project load/close swaps the tempo map behind the musical readout, and the vblank feed
-    // only runs while the view is showing, so state pushes refresh the readouts directly.
+    // only runs while the view is showing, so state pushes invalidate the cached readout sample
+    // and refresh the readouts directly.
+    m_position_readout_seconds.reset();
     refreshTimeDisplay();
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
@@ -1862,12 +1878,19 @@ void EditorView::refreshAudioMeters()
 }
 
 // Samples the transport cursor into the strip readout at display cadence, like the cursor
-// overlay; setText skips the repaint when the rendered text is unchanged, so idle frames stay
-// free. The beat position stays off without a project because the default tempo map would show
-// placeholder values; the plain time remains meaningful either way.
+// overlay. Vblank frames where the transport holds position return before any string formatting;
+// setState clears the cached sample so a swapped tempo map or project-loaded flag re-renders
+// even at an unchanged position. The beat position stays off without a project because the
+// default tempo map would show placeholder values; the plain time remains meaningful either way.
 void EditorView::refreshTimeDisplay()
 {
     const double seconds = m_transport.position().seconds;
+    if (m_position_readout_seconds == seconds)
+    {
+        return;
+    }
+
+    m_position_readout_seconds = seconds;
     const juce::String time_text = formattedTimelineTime(seconds);
     m_position_display.setText(
         m_state.project_loaded
