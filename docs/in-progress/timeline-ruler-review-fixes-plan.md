@@ -1,7 +1,8 @@
 # Timeline Ruler Review Fixes
 
-Status: Phases 1–3 and 4.1/4.2 complete (implemented, awaiting user build + test run);
-4.3 awaits a go/no-go decision; Phases 5–6 not started.
+Status: Phases 1–5 complete; PAUSED for user review/commit before Phase 6. Phase 7
+(note-value grid fix) planned, runs after 6. All implemented work awaits the user's
+build + test run.
 
 Source: full review of the timeline-ruler feature arc (`git diff tmp` — TempoMap
 beat/quarter extensions, tempo grid geometry, TimelineRuler, timeline cursor helpers,
@@ -183,7 +184,12 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   — genuinely JUCE-bound — stays in ui/timeline_cursor.
   Add headless tests for snap-vs-free semantics and the halfway-tie rule.
 
-- [ ] **4.3 (Decide) Grid display policy in the controller.**
+- [x] **4.3 (Decide) Grid display policy in the controller.**
+  DECIDED (2026-07-03) — superseded by Phase 7. The user wants the underlying musical
+  wrongness fixed, not just the policy consolidated: the grid becomes note-value-authoritative
+  (Phase 7), which deletes the measure-1-denominator conversion policy from both view sites
+  entirely instead of moving it. Option (a)'s contract change (view forwards raw note-value
+  intents; state carries the display note value) happens as Phase 7's first step.
   The measure-1-denominator policy for note-value↔spacing conversion is encoded twice in
   the view (`editor_view.cpp:1185`, `:2038`) while the controller validates separately.
   Verified self-consistent today; the cost is a future signature-aware grid needing
@@ -194,23 +200,45 @@ Line numbers are as of the review; re-locate by symbol if drifted.
 
 ## Phase 5 — Duplication consolidations
 
-- [ ] **5.1 Shared cursor drawing.** `TimelineRuler::drawCursor`
+- [x] **5.1 Shared cursor drawing.**
+  DONE — `drawTimelineCursor(Graphics&, const Component&, optional<float> cursor_x, int top)`
+  in timeline_cursor owns the guard, round, clamp, and one-pixel white fill; the ruler passes
+  `g_ruler_body_top`, the overlay passes 0. The advance/set mirror was left alone (it is the
+  same two-line update pattern, but sharing it would mean sharing m_cursor_x state for no
+  drawing benefit). `TimelineRuler::drawCursor`
   (`timeline_ruler.cpp:~396-406`) and `CursorOverlay::paint` (`editor_view.cpp:~403-406`)
   duplicate the clamp/round/white/1px column draw; `advanceCursor` mirrors
   `setCursorPosition`. timeline_cursor.h exists precisely as the shared cursor seam but
   holds only half the logic. Add a `drawTimelineCursor(Graphics&, float x, int top, int
   height, int width)` helper (ruler passes its body-top offset) and call it from both.
 
-- [ ] **5.2 Shared snap-modifier mapping.** The `event.mods.isCtrlDown() ? Free :
+- [x] **5.2 Shared snap-modifier mapping.**
+  DONE — `placementModeFor(const juce::ModifierKeys&)` lives in timeline_cursor (not beside the
+  placement function as first sketched: that moved to editor-core in 4.2, and core cannot see
+  juce::ModifierKeys, so the ui-side cursor seam is its natural home). Both mouseDown sites call
+  it. The `event.mods.isCtrlDown() ? Free :
   SnapToGrid` ternary is duplicated in `TimelineRuler::mouseDown` and
   `CursorOverlay::mouseDown`. One `placementModeFor(const juce::ModifierKeys&)` beside the
   placement function removes the divergence point. (Folds naturally into 4.2's move.)
 
-- [ ] **5.3 Shared text-width helper.** The GlyphArrangement `textWidth` workaround for
+- [x] **5.3 Shared text-width helper.**
+  DONE — new ui-internal `text_metrics.h/.cpp` holds `textWidth(font, text)`;
+  timeline_ruler.cpp's file-local copy is deleted and MenuBarButton::preferredWidthForHeight
+  now measures through it (behavior-identical: same GlyphArrangement layout and ceil). The GlyphArrangement `textWidth` workaround for
   JUCE's deprecated string-width API exists in `timeline_ruler.cpp:54-60` and
   `menu_bar_button.cpp:52-55`. Hoist one small ui-internal helper.
 
-- [ ] **5.4 (Decide) editor_settings keyed-record family.** Grid-spacing persistence is
+- [x] **5.4 (Decide) editor_settings keyed-record family.**
+  DECIDED go + DONE (2026-07-03) — file-local `KeyedRecordStore<Codec>` template owns the shared
+  lifecycle (replace-by-key with normalize/validate, read with load-time dedup and
+  malformed-vs-missing distinction mapped onto the codec's error code, format-versioned
+  whole-list write); each family reduced to one codec struct carrying its property/tag names,
+  error code, `normalized`/`isValid`/`sameKey`, and `fromXml`/`toXml`. XML format, error codes,
+  and messages are byte-identical, so existing settings files and test_editor_settings.cpp are
+  unchanged. Behavior notes: the per-item tag check moved out of fromXml (the child iterator
+  already filters by tag); calibration gain clamping now happens once in `normalized()` on every
+  store entry instead of twice (read + replace) — same observable values. Done ahead of Phase 7
+  deliberately: 7.5's new note-value grid record becomes one more codec. Grid-spacing persistence is
   the third structurally identical record family in `editor_settings.cpp` (cursor:
   `:44-54/:184-284/:652-708`; grid spacing: `:56-66/:286-395/:710-766`; input calibration:
   `:68-72/:397-524/:768-862`) — same five-function shape (replace / read-state-xml /
@@ -220,7 +248,10 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   consolidation, not speculative generality — but it is a standalone refactor; do it as its
   own change, not bundled with bug fixes.
 
-- [ ] **5.5 Test fixture dedup.** `test_tempo_map.cpp` inlines the same three-anchor 4/4
+- [x] **5.5 Test fixture dedup.**
+  DONE — the four identical three-anchor 4/4 maps collapsed into a file-local
+  `makeSparseAnchor44Map()` builder; the Phase 1.4 below-first-anchor map is a different
+  fixture and stays inline. `test_tempo_map.cpp` inlines the same three-anchor 4/4
   map four times (`:51-60`, `:71-80`, `:93-102`, `:138-147`); extract a file-local builder
   following the `makeUniform44Map` / `makeOneMeasureTempoMap` pattern used by the other
   test files.
@@ -255,12 +286,79 @@ Line numbers are as of the review; re-locate by symbol if drifted.
   (deferred; its `TempoGridLineStrength` sketch is superseded by the landed
   `TempoGridLineRank` and needs revision before any future use).
 
+## Phase 7 — Note-value-authoritative grid (fix the measure-1 signature policy for real)
+
+Decision (2026-07-03, user): the grid's musical meaning must not silently change across
+time-signature changes, and the selector label must never lie. Today the step is authoritative
+in tempo-map beats, and a beat is denominator-relative (`tempo_map.h` segments:
+`quarters_per_beat = 4 / denominator`), so a 1-beat grid means quarter notes in 4/4 but eighth
+notes in 6/8 — while the selector label converts against measure 1's denominator everywhere.
+The fix: the user's chosen note value (1/8, 1/16, …) becomes the single authoritative grid
+unit, and grid lines mean that musical duration in every section (REAPER's grid semantics).
+
+Design anchor: a note value of n/d whole notes is a constant `4n/d` quarter notes regardless
+of meter, and the tempo map's metronome axis is quarter notes. So generation moves from the
+beat axis to the quarter axis, **measure-anchored**: within each measure, lines sit at
+`j * (4n/d)` quarters from the measure's start quarter position. Measure anchoring (rather
+than song-start-uniform stepping) keeps every downbeat on a grid line even in meters whose
+measure length is not a multiple of the step (7/8 measure = 3.5 quarters with a 1/4-note
+grid), matching REAPER. Within standard meters and power-of-two grids the two schemes
+coincide. Exact rational per-line addressing (the whole + remainder/denominator trick used
+today) carries over; signature denominators are power-of-two per package validation, so the
+per-measure quarter offsets stay exact.
+
+- [ ] **7.1 Contract flip (the old 4.3(a)).** `EditorViewState.grid_spacing_beats` →
+  `grid_note_value` (authoritative, default `Fraction{1, 4}` — same visual default as
+  today's 1 beat in 4/4). `IEditorController::onGridSpacingChangeRequested(spacing_beats)` →
+  `onGridNoteValueChosen(note_value)`. The view forwards raw note values and displays
+  `m_state.grid_note_value` directly; both `timeSignatureAt(1)` conversion sites disappear.
+  Decide rejection feedback while here: the controller drops invalid entries without a state
+  push, whereas today's view-local drop relies on the selector snapping back to its last
+  displayed value — verify GridSpacingSelector still reverts without a push, or have the view
+  re-set it explicitly after a rejected intent.
+- [ ] **7.2 Validation in note-value terms.** Replace `isValidTempoGridSpacing` bounds
+  checking of beat fractions with a note-value validity check (terms in [1, 128] still; 0/1
+  stays the documented invalid value). The 1.1 int64 overflow guard logic moves with the
+  conversion it guards (see 7.3); GridSpacingSelector's 9-digit parse cap stays.
+- [ ] **7.3 Grid generation on the quarter axis.** Rework `visibleTempoGridLines` and
+  `nearestTempoGridTime` to take the note value and step measure-anchored quarter offsets:
+  per-measure line addressing (cumulative line counts per signature segment for the
+  monotonic index used by the binary search + forward cursor), rank classification from the
+  per-measure address (offset 0 → Measure; on a whole beat, i.e. offset a multiple of the
+  section's `4/denominator` quarters → Beat; else Subdivision). TempoMap may need a narrow
+  public query for segment/measure quarter geometry — keep it a read-only derived-data
+  accessor, mirroring the existing derived index tables. `displayedTempoGridNoteValue` and
+  `tempoGridSpacingFromNoteValue` (and their tests) are deleted with the measure-1 policy;
+  any internal note-value→quarters conversion lives beside the generation code.
+- [ ] **7.4 Plumbing unit change.** `timelineCursorPlacementTime`, `TrackViewport::setGrid`,
+  `TimelineRuler::setGrid`, `CursorOverlay::setGridSpacing`, and
+  `EditorController::m_grid_spacing_beats` all switch from beat fractions to the note value.
+  Import/close resets become `Fraction{1, 4}` (update the Phase 1.2/1.3 tests' expected
+  defaults).
+- [ ] **7.5 Persistence migration.** The editor-settings grid record stores the note value
+  under a new record tag/key so existing app-local beat-unit records are ignored rather than
+  reinterpreted (one-time spacing reset per project; acceptable for convenience data). Save
+  points (eager on change, save-as adoption) unchanged.
+- [ ] **7.6 Tests.** Core geometry: mixed-denominator map (4/4 → 6/8) keeps a constant
+  musical step across the boundary with all downbeats on Measure-rank lines; odd meter (7/8)
+  proves measure anchoring; snap across a signature boundary; halfway ties still resolve
+  earlier. Controller: note-value intent round trip, invalid-entry rejection, persistence
+  round trip incl. old-tag records being ignored. UI: selector displays the pushed note value
+  with no tempo-map dependency; existing ruler/grid pixel tests updated only where the unit
+  rename touches them (uniform 4/4 fixtures produce identical pixels).
+
+Implementation note: this is its own change after Phases 5–6 land, with 7.1 as the first
+commit. It deliberately does not touch the tempo map's beat↔seconds model, the transport
+readout, or anything shared with the future game runtime — the grid becomes a pure
+note-value consumer of the existing quarter-note axis.
+
 ## Suggested order
 
 Phase 1 first (real bugs, each independently testable). Phase 2 next (single refactor,
 pixel-test-guarded). Phase 3 items are small and independent. Phases 4–6 as follow-ups;
-4.3 and 5.4 need an explicit go/no-go decision before implementation. Keep bug fixes,
-the ruler refactor, and each consolidation as separate commits.
+5.4 needs an explicit go/no-go decision before implementation (4.3 is decided — see Phase 7).
+Phase 7 runs last as its own change once 5–6 land. Keep bug fixes, the ruler refactor, each
+consolidation, and the Phase 7 feature as separate commits.
 
 ## Review notes for posterity
 
