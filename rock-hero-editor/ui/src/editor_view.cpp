@@ -11,6 +11,7 @@
 #include <filesystem>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <rock_hero/common/audio/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/juce_path.h>
@@ -65,6 +66,18 @@ constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr int g_tempo_grid_dot_size{1};
 constexpr int g_tempo_grid_dot_gap{1};
+
+// Playback-follow tuning: the cursor travels across a stationary window and may reach the
+// trigger fraction of the view width before the window glides forward far enough to drop it
+// back at the pin fraction; the glide runs for the shift duration with a cubic ease-out. The
+// cursor keeps playing during the glide, so it lands slightly right of the pin fraction —
+// intended, since the shift target is captured when the glide starts. A continuous fixed-cursor
+// smooth scroll was also evaluated (recover from git) and is deferred until tablature rendering
+// makes the reading-versus-timing comparison honest; see
+// docs/todo/smooth-scroll-follow-evaluation.md.
+constexpr double g_follow_shift_trigger_fraction{0.8};
+constexpr double g_follow_shift_pin_fraction{0.05};
+constexpr double g_follow_shift_duration_seconds{0.3};
 
 const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
 
@@ -607,7 +620,6 @@ public:
         {
             m_pixels_per_second = g_default_pixels_per_second;
             m_playback_active = false;
-            m_playback_start_pending = false;
             m_stop_enabled = false;
             m_cursor_focus_pending = false;
         }
@@ -655,11 +667,6 @@ public:
     // Stores coarse transport state pushed by the controller and handles Stop-button reset.
     void setTransportDisplayState(bool playback_active, bool stop_enabled)
     {
-        if (playback_active && !m_playback_active)
-        {
-            m_playback_start_pending = true;
-        }
-
         const bool stopped_now = m_stop_enabled && !stop_enabled && !playback_active;
         m_playback_active = playback_active;
         m_stop_enabled = stop_enabled;
@@ -850,6 +857,7 @@ private:
     {
         if (!m_project_loaded || !m_playback_active || timelineDurationSeconds() <= 0.0)
         {
+            m_window_shift.reset();
             return;
         }
 
@@ -857,38 +865,76 @@ private:
             m_transport.position(), m_timeline_range, m_content.getWidth());
         if (!cursor_x.has_value())
         {
+            m_window_shift.reset();
             return;
         }
 
-        if (m_playback_start_pending)
+        followCursorWithWindowShifts(*cursor_x);
+    }
+
+    // Returns the viewport left edge that places the cursor at the shifted-window pin fraction.
+    [[nodiscard]] double pinnedWindowLeftFor(float cursor_x) const noexcept
+    {
+        return static_cast<double>(cursor_x) -
+               static_cast<double>(m_viewport.getViewWidth()) * g_follow_shift_pin_fraction;
+    }
+
+    // Guitar Pro-style playback follow: lets the cursor travel across a stationary window and
+    // glides the window forward once the cursor sits at or past the trigger fraction, so it
+    // resumes its travel from the pin fraction. An on-screen cursor below the trigger — mid-
+    // window travel, entering from the left, or playback just started — leaves the window
+    // alone; a cursor past the trigger (even beyond the right edge after a seek or a play start
+    // elsewhere) glides back to the pin, the fixed duration keeping distant glides one quick
+    // sweep instead of a long chase; a cursor off-screen left snaps straight to the pin so
+    // playback is never running invisibly behind the view. The glide eases toward a target
+    // captured when it starts: chasing the live cursor instead would never converge and the
+    // follow would degenerate into smooth scrolling.
+    void followCursorWithWindowShifts(float cursor_x)
+    {
+        const auto view_width = static_cast<double>(m_viewport.getViewWidth());
+        if (view_width <= 0.0)
         {
-            m_playback_start_pending = false;
-            scrollToCursorIfOutOfView(*cursor_x);
             return;
         }
 
-        scrollToCursorIfAtRightEdge(*cursor_x);
-    }
-
-    // Snaps playback start to the cursor only when the cursor is outside the viewport.
-    void scrollToCursorIfOutOfView(float cursor_x)
-    {
-        const auto view_area = m_viewport.getViewArea();
-        if (cursor_x < static_cast<float>(view_area.getX()) ||
-            cursor_x >= static_cast<float>(view_area.getRight()))
+        const double local_x =
+            static_cast<double>(cursor_x) - static_cast<double>(m_viewport.getViewPositionX());
+        if (local_x < 0.0)
         {
-            setViewportLeft(static_cast<int>(std::floor(cursor_x)));
+            m_window_shift.reset();
+            setViewportLeft(static_cast<int>(std::round(pinnedWindowLeftFor(cursor_x))));
+            return;
         }
-    }
 
-    // Starts the next visible page at the cursor once playback reaches the right edge.
-    void scrollToCursorIfAtRightEdge(float cursor_x)
-    {
-        const auto view_area = m_viewport.getViewArea();
-        if (cursor_x >= static_cast<float>(view_area.getRight()))
+        if (!m_window_shift.has_value())
         {
-            setViewportLeft(static_cast<int>(std::floor(cursor_x)));
+            if (local_x < view_width * g_follow_shift_trigger_fraction)
+            {
+                return;
+            }
+
+            m_window_shift = WindowShift{
+                .start_left = static_cast<double>(m_viewport.getViewPositionX()),
+                .target_left = pinnedWindowLeftFor(cursor_x),
+                .start_seconds = juce::Time::getMillisecondCounterHiRes() * 0.001,
+            };
         }
+
+        const double progress =
+            (juce::Time::getMillisecondCounterHiRes() * 0.001 - m_window_shift->start_seconds) /
+            g_follow_shift_duration_seconds;
+        if (progress >= 1.0)
+        {
+            setViewportLeft(static_cast<int>(std::round(m_window_shift->target_left)));
+            m_window_shift.reset();
+            return;
+        }
+
+        const double eased = 1.0 - std::pow(1.0 - progress, 3.0);
+        setViewportLeft(
+            static_cast<int>(std::round(
+                m_window_shift->start_left +
+                (m_window_shift->target_left - m_window_shift->start_left) * eased)));
     }
 
     // Moves the horizontal viewport position while preserving the current vertical scroll. Ruler
@@ -1010,8 +1056,20 @@ private:
     // Coarse playing flag from core::EditorViewState, used to avoid vblank state polling.
     bool m_playback_active{false};
 
-    // True for one follow tick after playback starts so the viewport can reveal the cursor.
-    bool m_playback_start_pending{false};
+    // In-flight shifted-window glide, present only while the window is animating forward.
+    struct WindowShift
+    {
+        // Viewport left edge when the glide started.
+        double start_left{};
+
+        // Viewport left edge the glide eases toward, captured at the trigger crossing so the
+        // glide converges while the cursor keeps moving.
+        double target_left{};
+
+        // Wall-clock glide start in seconds, driving the eased progress.
+        double start_seconds{};
+    };
+    std::optional<WindowShift> m_window_shift{};
 
     // Previous stop-button enabled state, used to identify a Stop action reset.
     bool m_stop_enabled{false};
