@@ -67,14 +67,14 @@ void logEditorControllerBestEffortFailure(std::string_view context, const std::s
 }
 
 // Distinguishes live slider audition from a value that should enter undo history.
-enum class OutputGainChangeIntent
+enum class OutputGainChangeIntent : std::uint8_t
 {
     Preview,
     Commit,
 };
 
 // Outcome of trying to undo a just-completed insert whose undo entry could not be prepared.
-enum class InsertUndoPreparationRollbackStatus
+enum class InsertUndoPreparationRollbackStatus : std::uint8_t
 {
     RolledBack,
     Failed,
@@ -935,7 +935,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::vector<PluginBlockAssignment>& before_placement);
     void beginInsertKnownPlugin(
         const common::audio::PluginCandidate& plugin_candidate, std::size_t chain_index);
-    void applySignalChainMutationSnapshot(common::audio::PluginChainSnapshot snapshot);
+    void applySignalChainMutationSnapshot(const common::audio::PluginChainSnapshot& snapshot);
     void completePluginCatalogScan(const std::shared_ptr<PluginCatalogTaskState>& state);
     void refreshKnownPluginCatalog();
     [[nodiscard]] bool closeProject();
@@ -3068,7 +3068,7 @@ void EditorController::Impl::completeSelectedPluginInsert(
     }
 
     const std::string inserted_instance_id = insert_result->inserted_instance_id;
-    applySignalChainMutationSnapshot(std::move(insert_result->snapshot));
+    applySignalChainMutationSnapshot(insert_result->snapshot);
     auto inserted_state = m_plugin_host.capturePluginState(inserted_instance_id);
     const std::optional<PluginVisualEditState> visual_state =
         pluginVisualStateFor(m_signal_chain.plugins(), inserted_instance_id);
@@ -3164,7 +3164,7 @@ auto EditorController::Impl::rollbackInsertedPluginAfterUndoPreparationFailure(
         };
     }
 
-    applySignalChainMutationSnapshot(std::move(*rollback_snapshot));
+    applySignalChainMutationSnapshot(*rollback_snapshot);
     (void)m_signal_chain.setBlockPlacement(before_placement);
     return {};
 }
@@ -3189,9 +3189,9 @@ void EditorController::Impl::beginInsertKnownPlugin(
 
 // Applies a successful structural chain mutation from the audio boundary.
 void EditorController::Impl::applySignalChainMutationSnapshot(
-    common::audio::PluginChainSnapshot snapshot)
+    const common::audio::PluginChainSnapshot& snapshot)
 {
-    m_signal_chain.replaceSnapshot(std::move(snapshot));
+    m_signal_chain.replaceSnapshot(snapshot);
 }
 
 // Replaces the browser catalog with the latest scan result while keeping the browser open.
@@ -3261,7 +3261,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::RemovePlugin&
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot));
+    applySignalChainMutationSnapshot(*snapshot);
     auto undo_edit = std::make_unique<PluginRemoveEdit>();
     undo_edit->instance_id = action.instance_id;
     undo_edit->chain_index = *chain_index;
@@ -3299,7 +3299,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::MovePlugin& a
         return;
     }
 
-    applySignalChainMutationSnapshot(std::move(*snapshot));
+    applySignalChainMutationSnapshot(*snapshot);
     // The reorder already changed chain state, so the view must refresh whether or not the
     // instance-keyed placement differed; the [[nodiscard]] result is intentionally ignored.
     (void)m_signal_chain.setBlockPlacement(action.placement);

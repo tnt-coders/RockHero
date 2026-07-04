@@ -76,8 +76,10 @@ private:
         .name = plugin_id,
         .manufacturer = "Example Audio",
         .format_name = "VST3",
+        .category = {},
         .chain_index = chain_index,
         .block_index = block_index,
+        .display_type_override = {},
     };
 }
 
@@ -424,8 +426,11 @@ TEST_CASE("EditorController cancel scan keeps known plugins", "[core][editor-con
     const EditorViewState* scanning_state = stateOrNull(view.last_state);
     REQUIRE(scanning_state != nullptr);
     REQUIRE(scanning_state->busy.has_value());
-    CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
-    CHECK(scanning_state->busy->cancel_enabled);
+    if (scanning_state->busy.has_value())
+    {
+        CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
+        CHECK(scanning_state->busy->cancel_enabled);
+    }
 
     controller.onBusyCancelRequested();
 
@@ -512,7 +517,10 @@ TEST_CASE("EditorController cancel scan stops the scan worker", "[core][editor-c
     const EditorViewState* scanning_state = stateOrNull(view.last_state);
     REQUIRE(scanning_state != nullptr);
     REQUIRE(scanning_state->busy.has_value());
-    CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
+    if (scanning_state->busy.has_value())
+    {
+        CHECK(scanning_state->busy->operation == BusyOperation::ScanningPlugins);
+    }
 
     // Cancel before the deferred worker body runs, then let it run. The worker must observe
     // cancellation and stop without publishing the scanned catalog.
@@ -933,7 +941,10 @@ TEST_CASE("EditorController fences plugin recreate behind loading", "[core][edit
     const EditorViewState* loading_state = stateOrNull(view.last_state);
     REQUIRE(loading_state != nullptr);
     REQUIRE(loading_state->busy.has_value());
-    CHECK(loading_state->busy->operation == BusyOperation::LoadingPlugin);
+    if (loading_state->busy.has_value())
+    {
+        CHECK(loading_state->busy->operation == BusyOperation::LoadingPlugin);
+    }
 
     view.runNextBusyOverlayPaintCallback();
 
@@ -1004,7 +1015,11 @@ TEST_CASE("EditorController aborts stale plugin recreate before close", "[core][
     const EditorViewState* prompt_state = stateOrNull(view.last_state);
     REQUIRE(prompt_state != nullptr);
     REQUIRE(prompt_state->unsaved_changes_prompt.has_value());
-    CHECK(prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    if (prompt_state->unsaved_changes_prompt.has_value())
+    {
+        CHECK(
+            prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    }
     CHECK_FALSE(prompt_state->busy.has_value());
 
     controller.onUnsavedChangesDecision(UnsavedChangesDecision::Cancel);
@@ -1203,7 +1218,9 @@ TEST_CASE("EditorController rejects over-limit live rig on open", "[core][editor
                 .name = "Loaded Plugin " + std::to_string(index),
                 .manufacturer = "Example Audio",
                 .format_name = "VST3",
+                .category = {},
                 .chain_index = index,
+                .display_type_override = {},
             });
     }
     FakeProjectServices project_services;
@@ -1249,7 +1266,9 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
             .name = "Amp Sim",
             .manufacturer = "Example Audio",
             .format_name = "VST3",
+            .category = {},
             .chain_index = 0,
+            .display_type_override = {},
         },
         common::audio::PluginChainEntry{
             .instance_id = "cab-instance",
@@ -1257,7 +1276,9 @@ TEST_CASE("EditorController reports live rig plugin load progress", "[core][edit
             .name = "Cab IR",
             .manufacturer = "Example Audio",
             .format_name = "VST3",
+            .category = {},
             .chain_index = 1,
+            .display_type_override = {},
         },
     };
     FakeProjectServices project_services;
@@ -1431,7 +1452,10 @@ TEST_CASE("EditorController captures signal-chain placement", "[core][editor-con
     controller.onSaveRequested();
 
     REQUIRE(live_rig.last_capture_request.has_value());
-    CHECK(live_rig.last_capture_request->block_indices == std::vector<std::size_t>{3});
+    if (live_rig.last_capture_request.has_value())
+    {
+        CHECK(live_rig.last_capture_request->block_indices == std::vector<std::size_t>{3});
+    }
 }
 
 // Saving after a display override captures the authored display type token.
@@ -1474,7 +1498,12 @@ TEST_CASE(
     controller.onSaveRequested();
 
     REQUIRE(live_rig.last_capture_request.has_value());
-    CHECK(live_rig.last_capture_request->display_type_overrides == std::vector<std::string>{"cab"});
+    if (live_rig.last_capture_request.has_value())
+    {
+        CHECK(
+            live_rig.last_capture_request->display_type_overrides ==
+            std::vector<std::string>{"cab"});
+    }
 }
 
 // Plugin insertions are tracked as undoable tone edits, which makes the project dirty.
@@ -1601,7 +1630,11 @@ TEST_CASE("EditorController placement edit marks tone dirty", "[core][editor-con
     const EditorViewState* prompt_state = stateOrNull(view.last_state);
     REQUIRE(prompt_state != nullptr);
     REQUIRE(prompt_state->unsaved_changes_prompt.has_value());
-    CHECK(prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    if (prompt_state->unsaved_changes_prompt.has_value())
+    {
+        CHECK(
+            prompt_state->unsaved_changes_prompt->prompted_action == EditorActionId::CloseProject);
+    }
 }
 
 // Placement-only undo and redo restore editor metadata without exposing user-facing commands yet.

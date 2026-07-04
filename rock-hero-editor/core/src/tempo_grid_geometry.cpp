@@ -52,6 +52,13 @@ public:
         moveToMeasure(1, 0);
     }
 
+    // Non-copyable: the walker is a scoped scan cursor over one tempo map reference.
+    ~MeasureGridWalker() = default;
+    MeasureGridWalker(const MeasureGridWalker&) = delete;
+    MeasureGridWalker& operator=(const MeasureGridWalker&) = delete;
+    MeasureGridWalker(MeasureGridWalker&&) = delete;
+    MeasureGridWalker& operator=(MeasureGridWalker&&) = delete;
+
     // Reports whether the walker still addresses a line at or before the terminal anchor beat.
     [[nodiscard]] bool valid() const noexcept
     {

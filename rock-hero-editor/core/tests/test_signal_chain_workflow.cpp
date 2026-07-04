@@ -28,6 +28,7 @@ namespace
         .format_name = "VST3",
         .category = std::move(category),
         .chain_index = chain_index,
+        .display_type_override = {},
     };
 }
 

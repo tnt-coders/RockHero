@@ -30,6 +30,8 @@ namespace
         .requires_fault = should_fault,
         .events = {EditorUndoEvent{
             .type = EditorUndoEventType::TransitionRejected,
+            .label = {},
+            .direction = std::nullopt,
             .failure_code = failure_code,
             .requires_fault = should_fault,
         }},
@@ -181,7 +183,7 @@ void applyPluginVisualState(
         return std::unexpected{EditorUndoFailureCode::RollbackContractViolation};
     }
 
-    context.signal_chain.replaceSnapshot(std::move(*snapshot));
+    context.signal_chain.replaceSnapshot(*snapshot);
     (void)context.signal_chain.setBlockPlacement(after_placement);
     return {};
 }
@@ -217,7 +219,7 @@ void applyPluginVisualState(
         return std::unexpected{EditorUndoFailureCode::RollbackContractViolation};
     }
 
-    context.signal_chain.replaceSnapshot(std::move(*snapshot));
+    context.signal_chain.replaceSnapshot(*snapshot);
     applyPluginVisualState(visual_state, after_placement, context);
     return {};
 }
@@ -295,7 +297,7 @@ void applyPluginVisualState(
         return std::unexpected{undoFailureFromPluginHostError(snapshot.error())};
     }
 
-    context.signal_chain.replaceSnapshot(std::move(*snapshot));
+    context.signal_chain.replaceSnapshot(*snapshot);
     (void)context.signal_chain.setBlockPlacement(placement);
     return {};
 }
@@ -590,7 +592,12 @@ EditorUndoTransitionResult EditorUndoHistory::push(std::unique_ptr<IEdit> edit)
     const std::string label = edit->label();
     m_entries.push_back(std::move(edit));
     m_position = m_entries.size();
-    events.push_back(EditorUndoEvent{.type = EditorUndoEventType::EntryPushed, .label = label});
+    events.push_back(
+        EditorUndoEvent{
+            .type = EditorUndoEventType::EntryPushed,
+            .label = label,
+            .direction = std::nullopt,
+        });
     enforceMaxEntries(events);
 
     return EditorUndoTransitionResult{
@@ -738,7 +745,11 @@ EditorUndoTransitionResult EditorUndoHistory::markClean()
 
     return EditorUndoTransitionResult{
         .status = EditorUndoTransitionStatus::Applied,
-        .events = {EditorUndoEvent{.type = EditorUndoEventType::CleanMarked}},
+        .events = {EditorUndoEvent{
+            .type = EditorUndoEventType::CleanMarked,
+            .label = {},
+            .direction = std::nullopt,
+        }},
     };
 }
 
@@ -753,7 +764,11 @@ EditorUndoTransitionResult EditorUndoHistory::reset()
 
     return EditorUndoTransitionResult{
         .status = EditorUndoTransitionStatus::Applied,
-        .events = {EditorUndoEvent{.type = EditorUndoEventType::HistoryReset}},
+        .events = {EditorUndoEvent{
+            .type = EditorUndoEventType::HistoryReset,
+            .label = {},
+            .direction = std::nullopt,
+        }},
     };
 }
 
@@ -777,7 +792,12 @@ void EditorUndoHistory::truncateRedo(std::vector<EditorUndoEvent>& events)
     }
 
     m_entries.erase(m_entries.begin() + static_cast<std::ptrdiff_t>(m_position), m_entries.end());
-    events.push_back(EditorUndoEvent{.type = EditorUndoEventType::RedoEntriesDiscarded});
+    events.push_back(
+        EditorUndoEvent{
+            .type = EditorUndoEventType::RedoEntriesDiscarded,
+            .label = {},
+            .direction = std::nullopt,
+        });
 }
 
 // Enforces bounded history depth while keeping the current position and clean marker aligned.
@@ -815,7 +835,12 @@ void EditorUndoHistory::makeCleanMarkerUnreachable(std::vector<EditorUndoEvent>&
     }
 
     m_clean_marker_state = CleanMarkerState::Unreachable;
-    events.push_back(EditorUndoEvent{.type = EditorUndoEventType::CleanMarkerMadeUnreachable});
+    events.push_back(
+        EditorUndoEvent{
+            .type = EditorUndoEventType::CleanMarkerMadeUnreachable,
+            .label = {},
+            .direction = std::nullopt,
+        });
 }
 
 bool EditorUndoHistory::pendingMatches(const EditorUndoPendingTransition& pending) const noexcept
