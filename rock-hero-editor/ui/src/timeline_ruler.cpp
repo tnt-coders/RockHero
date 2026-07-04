@@ -101,6 +101,19 @@ private:
     int m_next_x{g_label_inset};
 };
 
+// Decides whether a row's pinned label must yield to the row's first scrolling label. The pin
+// wins only while the incoming label still fits to its right; once the incoming label's anchor
+// crosses that boundary, the pin is dropped instead of suppressing the incoming label, so the
+// new value keeps scrolling to the left edge and takes over as the pin. The boundary mirrors
+// RulerRowPlacement: a pin reserved at column zero accepts the next anchor only from
+// pinned_width + g_label_gap onward.
+[[nodiscard]] bool pinYieldsToIncomingLabel(
+    int pinned_width, std::optional<int> first_scrolling_anchor_x) noexcept
+{
+    return first_scrolling_anchor_x.has_value() &&
+           *first_scrolling_anchor_x < pinned_width + g_label_gap;
+}
+
 } // namespace
 
 // Names the component for tests and enables direct mouse placement.
@@ -293,7 +306,8 @@ void TimelineRuler::refreshRulerGeometry()
     // beats even when a fine grid fills the space between them; measure ticks span the whole
     // body and carry their number. Like the header bands, the active measure pins to the left
     // edge while the song scrolls, seeding the row at column zero so downbeat numbers scrolling
-    // underneath suppress uniformly.
+    // underneath suppress uniformly — except when the next downbeat's own number gets close
+    // enough to collide, where the pin yields so the incoming number can scroll into its place.
     RulerRowPlacement measure_row{getWidth()};
     const auto place_measure = [&](int anchor_x, int measure) {
         if (!measure_row.accepts(anchor_x))
@@ -310,6 +324,18 @@ void TimelineRuler::refreshRulerGeometry()
         }
     };
 
+    // The first upcoming downbeat number decides whether the pin yields to it; anchors left of
+    // the view cannot place a label, so they cannot be the incoming label either.
+    std::optional<int> first_measure_anchor_x;
+    for (const core::TempoGridLine& line : m_grid_lines)
+    {
+        if (line.rank == core::TempoGridLineRank::Measure && line.x - m_view_x >= 0)
+        {
+            first_measure_anchor_x = line.x - m_view_x;
+            break;
+        }
+    }
+
     if (pinned_left_seconds.has_value())
     {
         // Quantize to hundredths before splitting off the whole beat, like the transport
@@ -317,7 +343,12 @@ void TimelineRuler::refreshRulerGeometry()
         // measure through anchor-span inverse rounding.
         const auto total_hundredths = static_cast<std::int64_t>(
             std::llround(m_tempo_map.beatPositionAtSeconds(*pinned_left_seconds) * 100.0));
-        place_measure(0, m_tempo_map.beatAtGlobalIndex(total_hundredths / 100).first);
+        const int pinned_measure = m_tempo_map.beatAtGlobalIndex(total_hundredths / 100).first;
+        const int pinned_width = textWidth(font, juce::String{pinned_measure}) + g_label_width_pad;
+        if (!pinYieldsToIncomingLabel(pinned_width, first_measure_anchor_x))
+        {
+            place_measure(0, pinned_measure);
+        }
     }
 
     for (const core::TempoGridLine& line : m_grid_lines)
@@ -344,11 +375,13 @@ void TimelineRuler::refreshRulerGeometry()
 // the signature band gets a label at each signature-change downbeat plus the pinned active
 // signature. Anchors draw no marker of their own: tempo is not editable yet, so the markings
 // alone say everything the display needs. The pinned values seed their rows at column zero so
-// the shared placement policy positions and suppresses everything uniformly; the caller owns
-// the pin gate, keeping the bands and the measure row pinning in lockstep. Tempo markings split
-// into an enlarged quarter-note glyph and text-size digits, cached as adjacent labels because
-// one text draw cannot mix fonts; only the glyph is enlarged, so the equals sign rides with the
-// digits.
+// the shared placement policy positions and suppresses everything uniformly, but each pin
+// yields to its row's first scrolling label once that label would collide, so the incoming
+// value scrolls all the way to the left edge instead of vanishing behind the pin; the caller
+// owns the pin gate, keeping the bands and the measure row pinning in lockstep. Tempo markings
+// split into an enlarged quarter-note glyph and text-size digits, cached as adjacent labels
+// because one text draw cannot mix fonts; only the glyph is enlarged, so the equals sign rides
+// with the digits.
 void TimelineRuler::refreshHeaderBands(
     const juce::Font& font, std::optional<double> pinned_left_seconds)
 {
@@ -388,9 +421,28 @@ void TimelineRuler::refreshHeaderBands(
             RulerLabel{.x = *label_x + prefix_width, .text = digits, .width = digits_width});
     };
 
+    // The first upcoming marking decides whether the pinned marking yields to it. The gate
+    // re-measures the pinned digits, so a surviving pin measures them twice per rebuild; that
+    // stays cheaper than formatting every suppressed scrolling candidate eagerly.
+    std::optional<int> first_marking_anchor_x;
+    for (std::size_t index = 0; index + 1 < anchors.size(); ++index)
+    {
+        if (const auto local_x = localXForSeconds(anchors[index].seconds))
+        {
+            first_marking_anchor_x = static_cast<int>(std::round(*local_x));
+            break;
+        }
+    }
+
     if (pinned_left_seconds.has_value())
     {
-        place_marking(0, *pinned_left_seconds);
+        const juce::String pinned_digits =
+            "=" + juce::String{m_tempo_map.quarterNoteBpmAtSeconds(*pinned_left_seconds), 2};
+        const int pinned_width = prefix_width + textWidth(font, pinned_digits) + g_label_width_pad;
+        if (!pinYieldsToIncomingLabel(pinned_width, first_marking_anchor_x))
+        {
+            place_marking(0, *pinned_left_seconds);
+        }
     }
 
     // The terminal anchor only ends the last span, so it gets no marking of its own.
@@ -421,9 +473,28 @@ void TimelineRuler::refreshHeaderBands(
         }
     };
 
+    // The first upcoming signature label decides whether the pinned signature yields to it.
+    std::optional<int> first_signature_anchor_x;
+    for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())
+    {
+        if (const auto local_x = localXForSeconds(m_tempo_map.secondsAtBeat(change.measure, 1)))
+        {
+            first_signature_anchor_x = static_cast<int>(std::round(*local_x));
+            break;
+        }
+    }
+
     if (pinned_left_seconds.has_value())
     {
-        place_signature(0, m_tempo_map.timeSignatureAtSeconds(*pinned_left_seconds));
+        const common::core::TimeSignatureChange pinned_signature =
+            m_tempo_map.timeSignatureAtSeconds(*pinned_left_seconds);
+        const juce::String pinned_text = juce::String{pinned_signature.numerator} + "/" +
+                                         juce::String{pinned_signature.denominator};
+        const int pinned_width = textWidth(font, pinned_text) + g_label_width_pad;
+        if (!pinYieldsToIncomingLabel(pinned_width, first_signature_anchor_x))
+        {
+            place_signature(0, pinned_signature);
+        }
     }
 
     for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())

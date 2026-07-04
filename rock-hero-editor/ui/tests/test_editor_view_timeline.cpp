@@ -44,6 +44,26 @@ namespace
     return y + y % 2;
 }
 
+// Counts snapshot pixels differing from the sampled background inside a region, isolating label
+// glyphs for the ruler pinning checks.
+[[nodiscard]] int countGlyphPixels(
+    const juce::Image& image, juce::Rectangle<int> region, juce::Colour background)
+{
+    int glyph_pixels = 0;
+    for (int x = region.getX(); x < region.getRight(); ++x)
+    {
+        for (int y = region.getY(); y < region.getBottom(); ++y)
+        {
+            if (image.getPixelAt(x, y) != background)
+            {
+                ++glyph_pixels;
+            }
+        }
+    }
+
+    return glyph_pixels;
+}
+
 } // namespace
 
 // Verifies ruler measure ticks span from the top while beat ticks stay in the lower quarter.
@@ -153,18 +173,157 @@ TEST_CASE("TimelineRuler pins the active measure number while scrolled", "[ui][t
     // cannot reach it. Compare against the ruler body background sampled on the same row far
     // from any label or downbeat tick.
     const juce::Colour body_background = image.getPixelAt(390, 36);
-    int glyph_pixels = 0;
-    for (int x = 4; x < 24; ++x)
-    {
-        for (int y = 31; y < 41; ++y)
-        {
-            if (image.getPixelAt(x, y) != body_background)
-            {
-                ++glyph_pixels;
-            }
-        }
-    }
-    CHECK(glyph_pixels > 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 31, 20, 10}, body_background) > 0);
+}
+
+// Verifies the pinned measure number yields to the incoming downbeat number: once the next
+// downbeat scrolls close enough that pinning would suppress its number, the pin vanishes and
+// the incoming number keeps scrolling until it reaches the left edge and becomes the new pin.
+TEST_CASE(
+    "TimelineRuler pinned measure number yields to the incoming downbeat", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // Two 4/4 measures across an 801px canvas map content x to seconds * 100; view x 385 puts
+    // measure 2's downbeat at local x 15, inside the collision distance of the pinned "1".
+    constexpr common::core::TimeRange two_measure_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr int content_width = 801;
+    constexpr int view_x = 385;
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 8.0},
+        },
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(two_measure_window, content_width, view_x);
+    ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map,
+            common::core::Fraction{1, 4},
+            two_measure_window,
+            content_width,
+            view_x,
+            view_x + 401));
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The pin region at the left inset must be empty because measure 2's number, anchored at
+    // local x 15 and drawn from x 19, has taken over the row; the measure tick at x 15 spans the
+    // body between the two sampled regions and touches neither.
+    const juce::Colour body_background = image.getPixelAt(390, 36);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 31, 10, 10}, body_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{19, 31, 16, 10}, body_background) > 0);
+}
+
+// Verifies the pinned tempo marking yields to an incoming tempo change's marking the same way
+// the measure pin does.
+TEST_CASE(
+    "TimelineRuler pinned tempo marking yields to the incoming change", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // Anchors at 0s (60bpm span), 4s (120bpm span), and a 6s terminal across an 801px canvas;
+    // view x 376 puts the 4s tempo change at local x 24, inside the collision distance of the
+    // much wider pinned marking.
+    constexpr common::core::TimeRange timeline_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr int content_width = 801;
+    constexpr int view_x = 376;
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 6.0},
+        },
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(timeline_window, content_width, view_x);
+    ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map,
+            common::core::Fraction{1, 4},
+            timeline_window,
+            content_width,
+            view_x,
+            view_x + 401));
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The tempo band's pin region must be empty because the incoming "♩=120.00" marking, drawn
+    // from x 28, has taken over the band; ticks and the measure number stay below the band, so
+    // only tempo glyphs can land in the sampled rows. The band background is the editor chrome
+    // sampled right of the incoming marking.
+    const juce::Colour band_background = image.getPixelAt(390, 7);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 2, 20, 11}, band_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 2, 20, 11}, band_background) > 0);
+}
+
+// Verifies the pinned time signature yields to an incoming signature change's label the same way
+// the measure pin does.
+TEST_CASE(
+    "TimelineRuler pinned time signature yields to the incoming change", "[ui][timeline-ruler]")
+{
+    const juce::ScopedJuceInitialiser_GUI scoped_gui;
+
+    // A 4/4 measure then a 3/4 measure across an 801px canvas; view x 376 puts the signature
+    // change's downbeat at 4s at local x 24, inside the collision distance of the pinned "4/4".
+    constexpr common::core::TimeRange timeline_window{
+        .start = common::core::TimePosition{0.0},
+        .end = common::core::TimePosition{8.0},
+    };
+    constexpr int content_width = 801;
+    constexpr int view_x = 376;
+    const common::core::TempoMap tempo_map{
+        std::vector{
+            common::core::TimeSignatureChange{.measure = 1, .numerator = 4, .denominator = 4},
+            common::core::TimeSignatureChange{.measure = 2, .numerator = 3, .denominator = 4},
+        },
+        std::vector{
+            common::core::BeatAnchor{.measure = 1, .beat = 1, .seconds = 0.0},
+            common::core::BeatAnchor{.measure = 2, .beat = 1, .seconds = 4.0},
+            common::core::BeatAnchor{.measure = 3, .beat = 1, .seconds = 7.0},
+        },
+    };
+    TimelineRuler ruler;
+    ruler.setBounds(0, 0, 401, g_timeline_ruler_height);
+    ruler.setTimelineView(timeline_window, content_width, view_x);
+    ruler.setGrid(tempo_map, common::core::Fraction{1, 4});
+    ruler.setGridLines(
+        core::visibleTempoGridLines(
+            tempo_map,
+            common::core::Fraction{1, 4},
+            timeline_window,
+            content_width,
+            view_x,
+            view_x + 401));
+    ruler.setProjectLoaded(true);
+
+    const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
+
+    // The signature band's pin region must be empty because the incoming "3/4" label, drawn from
+    // x 28, has taken over the band; the band background is the editor chrome sampled right of
+    // the incoming label.
+    const juce::Colour band_background = image.getPixelAt(390, 20);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{4, 17, 20, 8}, band_background) == 0);
+    CHECK(countGlyphPixels(image, juce::Rectangle<int>{28, 17, 20, 8}, band_background) > 0);
 }
 
 // Verifies the transport strip readout shows the REAPER-style measure.beat.hundredths position
