@@ -137,7 +137,7 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
     CHECK(history.undoDepth() == 2);
     CHECK(history.redoDepth() == 0);
 
-    EditorUndoTransitionResult undo_commit = history.commit(*undo.pending);
+    const EditorUndoTransitionResult undo_commit = history.commit(*undo.pending);
 
     CHECK(undo_commit.status == EditorUndoTransitionStatus::Applied);
     CHECK(hasEvent(undo_commit, EditorUndoEventType::UndoCommitted));
@@ -152,7 +152,7 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
     CHECK(history.undoDepth() == 1);
     CHECK(history.redoDepth() == 1);
 
-    EditorUndoTransitionResult redo_commit = history.commit(*redo.pending);
+    const EditorUndoTransitionResult redo_commit = history.commit(*redo.pending);
 
     CHECK(redo_commit.status == EditorUndoTransitionStatus::Applied);
     CHECK(hasEvent(redo_commit, EditorUndoEventType::RedoCommitted));
@@ -214,19 +214,19 @@ TEST_CASE("EditorUndoHistory rejects unavailable transitions", "[core][editor-un
 {
     EditorUndoHistory history;
 
-    EditorUndoBeginResult empty_undo = history.beginUndo();
+    const EditorUndoBeginResult empty_undo = history.beginUndo();
     CHECK_FALSE(empty_undo.pending.has_value());
     CHECK(empty_undo.result.failure_code == EditorUndoFailureCode::NothingToUndo);
 
     pushEntry(history, "Edit");
-    EditorUndoBeginResult undo = history.beginUndo();
+    const EditorUndoBeginResult undo = history.beginUndo();
     REQUIRE(undo.pending.has_value());
 
-    EditorUndoBeginResult overlapping = history.beginUndo();
+    const EditorUndoBeginResult overlapping = history.beginUndo();
     CHECK_FALSE(overlapping.pending.has_value());
     CHECK(overlapping.result.failure_code == EditorUndoFailureCode::TransitionAlreadyPending);
 
-    EditorUndoTransitionResult stale_commit = history.commit(EditorUndoPendingTransition{});
+    const EditorUndoTransitionResult stale_commit = history.commit(EditorUndoPendingTransition{});
     CHECK(stale_commit.failure_code == EditorUndoFailureCode::PendingTokenMismatch);
 }
 
@@ -298,7 +298,7 @@ TEST_CASE("EditorUndoHistory reset clears history", "[core][editor-undo-history]
     pushEntry(history, "A");
     markClean(history);
     pushEntry(history, "B");
-    EditorUndoBeginResult undo = history.beginUndo();
+    const EditorUndoBeginResult undo = history.beginUndo();
     REQUIRE(undo.pending.has_value());
 
     const EditorUndoTransitionResult reset = history.reset();

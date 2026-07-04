@@ -56,7 +56,7 @@ struct PluginIdPreservationHarness
 [[nodiscard]] bool trackHasPluginWithId(
     const tracktion::AudioTrack& track, tracktion::EditItemID id)
 {
-    for (tracktion::Plugin* const plugin : track.pluginList)
+    for (const tracktion::Plugin* const plugin : track.pluginList)
     {
         if (plugin != nullptr && plugin->itemID == id)
         {
@@ -76,7 +76,7 @@ TEST_CASE("Plugin recreate preserves the original instance id", "[audio][id-pres
     tracktion::AudioTrack& track = harness.track();
 
     tracktion::EditItemID original_id;
-    juce::ValueTree captured = captureAndRemovePlugin(track, original_id);
+    const juce::ValueTree captured = captureAndRemovePlugin(track, original_id);
     REQUIRE_FALSE(trackHasPluginWithId(track, original_id));
 
     const tracktion::Plugin::Ptr restored =

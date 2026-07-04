@@ -134,11 +134,8 @@ void TempoMap::buildDerivedIndices()
 // signature loses to the later-listed one, matching the previous sequential-walk behavior.
 const TempoMap::SignatureSegment& TempoMap::segmentForMeasure(int measure) const noexcept
 {
-    const auto after = std::upper_bound(
-        m_segments.begin(),
-        m_segments.end(),
-        measure,
-        [](int target, const SignatureSegment& segment) { return target < segment.start_measure; });
+    const auto after =
+        std::ranges::upper_bound(m_segments, measure, {}, &SignatureSegment::start_measure);
     return *std::prev(after);
 }
 
@@ -147,13 +144,8 @@ const TempoMap::SignatureSegment& TempoMap::segmentForMeasure(int measure) const
 const TempoMap::SignatureSegment& TempoMap::segmentForBeatIndex(
     std::int64_t global_beat_index) const noexcept
 {
-    const auto after = std::upper_bound(
-        m_segments.begin(),
-        m_segments.end(),
-        global_beat_index,
-        [](std::int64_t target, const SignatureSegment& segment) {
-            return target < segment.start_beat_index;
-        });
+    const auto after = std::ranges::upper_bound(
+        m_segments, global_beat_index, {}, &SignatureSegment::start_beat_index);
     return *std::prev(after);
 }
 
@@ -163,13 +155,8 @@ const TempoMap::SignatureSegment& TempoMap::segmentForBeatIndex(
 const TempoMap::SignatureSegment& TempoMap::segmentForQuarterPosition(
     double quarter_position) const noexcept
 {
-    const auto after = std::upper_bound(
-        m_segments.begin(),
-        m_segments.end(),
-        quarter_position,
-        [](double target, const SignatureSegment& segment) {
-            return target < segment.start_quarter_position;
-        });
+    const auto after = std::ranges::upper_bound(
+        m_segments, quarter_position, {}, &SignatureSegment::start_quarter_position);
     return after == m_segments.begin() ? m_segments.front() : *std::prev(after);
 }
 
@@ -268,13 +255,8 @@ TimeSignatureChange TempoMap::timeSignatureAtSeconds(double seconds) const noexc
         return TimeSignatureChange{};
     }
 
-    const auto after = std::upper_bound(
-        m_segments.begin(),
-        m_segments.end(),
-        seconds,
-        [](double target, const SignatureSegment& segment) {
-            return target < segment.start_seconds;
-        });
+    const auto after =
+        std::ranges::upper_bound(m_segments, seconds, {}, &SignatureSegment::start_seconds);
     // Positions before the first downbeat still use the first signature, which governs from
     // measure 1.
     const std::size_t index =
@@ -305,10 +287,7 @@ double TempoMap::beatPositionAtSeconds(double seconds) const noexcept
 
     // The span starts at the last anchor at or before the position; the clamps above guarantee an
     // interior position with a real span around it.
-    const auto after = std::upper_bound(
-        m_anchors.begin(), m_anchors.end(), seconds, [](double target, const BeatAnchor& anchor) {
-            return target < anchor.seconds;
-        });
+    const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
     const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
     const std::size_t span_start =
         std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
@@ -341,10 +320,7 @@ double TempoMap::quarterNoteBpmAtSeconds(double seconds) const noexcept
     // The span starts at the last anchor at or before the position, clamped so positions before
     // the first anchor use the first span and positions at or past the terminal anchor use the
     // span that ends there.
-    const auto after = std::upper_bound(
-        m_anchors.begin(), m_anchors.end(), seconds, [](double target, const BeatAnchor& anchor) {
-            return target < anchor.seconds;
-        });
+    const auto after = std::ranges::upper_bound(m_anchors, seconds, {}, &BeatAnchor::seconds);
     const auto first_after = static_cast<std::size_t>(std::distance(m_anchors.begin(), after));
     const std::size_t span_start =
         std::min(first_after > 0 ? first_after - 1 : 0, m_anchors.size() - 2);
@@ -421,8 +397,8 @@ double TempoMap::secondsAtGlobalBeatPosition(double global_beat_position) const 
     // First anchor at or after the position, clamped so a left neighbor always exists; positions
     // past the terminal anchor clamp to its time.
     const double quarter_position = quarterPositionAtBeatPosition(global_beat_position);
-    const auto right_iterator = std::lower_bound(
-        m_anchor_quarter_positions.begin(), m_anchor_quarter_positions.end(), quarter_position);
+    const auto right_iterator =
+        std::ranges::lower_bound(m_anchor_quarter_positions, quarter_position);
     const auto right_index = std::max<std::size_t>(
         1,
         static_cast<std::size_t>(

@@ -1913,7 +1913,7 @@ TEST_CASE("EditorController undoes plugin state edits", "[core][editor-controlle
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
 
-    common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    const common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
     common::audio::PluginChainEntry after_entry = before_entry;
     after_entry.name = "Gateway Clean Preset";
     after_entry.category = "Fx|Amp";
@@ -1972,7 +1972,7 @@ TEST_CASE("EditorController flushes plugin edits before undo", "[core][editor-co
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
-    common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    const common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
     common::audio::PluginChainEntry after_entry = before_entry;
     after_entry.name = "Gateway Drive";
     const common::audio::PluginInstanceState before_state = pluginStateFromEntry(before_entry);
@@ -2019,7 +2019,7 @@ TEST_CASE("EditorController routes plugin window undo", "[core][editor-controlle
     plugin_host.next_instance_id = "instance-a";
     addKnownPlugin(controller);
 
-    common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
+    const common::audio::PluginChainEntry before_entry = pluginEntry("instance-a", 0, 0);
     common::audio::PluginChainEntry after_entry = before_entry;
     after_entry.name = "Gateway Middle";
     const common::audio::PluginInstanceState before_state = pluginStateFromEntry(before_entry);

@@ -274,7 +274,7 @@ TEST_CASE("Engine starts with empty transport state", "[audio][engine][integrati
 {
     const EngineTestHarness harness;
     const Engine& engine = harness.engine;
-    ITransport const& transport = engine;
+    const ITransport& transport = engine;
 
     const auto current_state = transport.state();
 
@@ -666,7 +666,7 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
             .song_directory = song_directory.path(),
             .tone_document_ref = snapshot->tone_document_ref,
             .progress_callback = {},
-            .yield_callback = [](auto next) { next(); },
+            .yield_callback = [](const auto& next) { next(); },
         },
         [&result](auto value) { result = std::move(value); });
 

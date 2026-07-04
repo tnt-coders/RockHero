@@ -6,21 +6,21 @@
     ],
     "configurePresets": [
         {
-            "name": "Debug",
+            "name": "debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "Release",
+            "name": "release",
             "inherits": [
                 "default-release",
                 "conan-release"
             ]
         },
         {
-            "name": "RelWithDebInfo",
+            "name": "relwithdebinfo",
             "inherits": [
                 "default-relwithdebinfo",
                 "conan-relwithdebinfo"
@@ -29,24 +29,24 @@
     ],
     "buildPresets": [
         {
-            "name": "Debug",
-            "configurePreset": "Debug",
+            "name": "debug",
+            "configurePreset": "debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "Release",
-            "configurePreset": "Release",
+            "name": "release",
+            "configurePreset": "release",
             "inherits": [
                 "default-release",
                 "conan-release"
             ]
         },
         {
-            "name": "RelWithDebInfo",
-            "configurePreset": "RelWithDebInfo",
+            "name": "relwithdebinfo",
+            "configurePreset": "relwithdebinfo",
             "inherits": [
                 "default-relwithdebinfo",
                 "conan-relwithdebinfo"
@@ -55,24 +55,24 @@
     ],
     "testPresets": [
         {
-            "name": "Debug",
-            "configurePreset": "Debug",
+            "name": "debug",
+            "configurePreset": "debug",
             "inherits": [
                 "default-debug",
                 "conan-debug"
             ]
         },
         {
-            "name": "Release",
-            "configurePreset": "Release",
+            "name": "release",
+            "configurePreset": "release",
             "inherits": [
                 "default-release",
                 "conan-release"
             ]
         },
         {
-            "name": "RelWithDebInfo",
-            "configurePreset": "RelWithDebInfo",
+            "name": "relwithdebinfo",
+            "configurePreset": "relwithdebinfo",
             "inherits": [
                 "default-relwithdebinfo",
                 "conan-relwithdebinfo"

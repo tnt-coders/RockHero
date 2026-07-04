@@ -11,11 +11,11 @@ namespace
 {
 
 // A ten-second window drawn 101 pixels wide, so positions map onto the [0, 100] pixel span.
-constexpr common::core::TimeRange visible_window{
+constexpr common::core::TimeRange g_visible_window{
     .start = common::core::TimePosition{10.0},
     .end = common::core::TimePosition{20.0},
 };
-constexpr int window_width = 101;
+constexpr int g_window_width = 101;
 
 } // namespace
 
@@ -24,18 +24,18 @@ TEST_CASE("Timeline geometry maps interior positions proportionally", "[core][ti
 {
     const std::optional<float> start_x = timelineXForPosition(
         common::core::TimePosition{10.0},
-        visible_window,
-        window_width,
+        g_visible_window,
+        g_window_width,
         TimelinePositionClamping::RejectOutsideVisibleRange);
     const std::optional<float> mid_x = timelineXForPosition(
         common::core::TimePosition{15.0},
-        visible_window,
-        window_width,
+        g_visible_window,
+        g_window_width,
         TimelinePositionClamping::RejectOutsideVisibleRange);
     const std::optional<float> end_x = timelineXForPosition(
         common::core::TimePosition{20.0},
-        visible_window,
-        window_width,
+        g_visible_window,
+        g_window_width,
         TimelinePositionClamping::RejectOutsideVisibleRange);
 
     REQUIRE(start_x.has_value());
@@ -51,14 +51,14 @@ TEST_CASE("Timeline geometry rejects out-of-range positions when configured", "[
 {
     CHECK_FALSE(timelineXForPosition(
                     common::core::TimePosition{5.0},
-                    visible_window,
-                    window_width,
+                    g_visible_window,
+                    g_window_width,
                     TimelinePositionClamping::RejectOutsideVisibleRange)
                     .has_value());
     CHECK_FALSE(timelineXForPosition(
                     common::core::TimePosition{25.0},
-                    visible_window,
-                    window_width,
+                    g_visible_window,
+                    g_window_width,
                     TimelinePositionClamping::RejectOutsideVisibleRange)
                     .has_value());
 }
@@ -68,13 +68,13 @@ TEST_CASE("Timeline geometry clamps out-of-range positions when configured", "[c
 {
     const std::optional<float> before_x = timelineXForPosition(
         common::core::TimePosition{5.0},
-        visible_window,
-        window_width,
+        g_visible_window,
+        g_window_width,
         TimelinePositionClamping::ClampToVisibleRange);
     const std::optional<float> after_x = timelineXForPosition(
         common::core::TimePosition{25.0},
-        visible_window,
-        window_width,
+        g_visible_window,
+        g_window_width,
         TimelinePositionClamping::ClampToVisibleRange);
 
     REQUIRE(before_x.has_value());
@@ -88,13 +88,13 @@ TEST_CASE("Timeline geometry rejects degenerate width or range", "[core][timelin
 {
     CHECK_FALSE(timelineXForPosition(
                     common::core::TimePosition{15.0},
-                    visible_window,
+                    g_visible_window,
                     0,
                     TimelinePositionClamping::ClampToVisibleRange)
                     .has_value());
     CHECK_FALSE(timelineXForPosition(
                     common::core::TimePosition{15.0},
-                    visible_window,
+                    g_visible_window,
                     -5,
                     TimelinePositionClamping::ClampToVisibleRange)
                     .has_value());
@@ -106,7 +106,7 @@ TEST_CASE("Timeline geometry rejects degenerate width or range", "[core][timelin
     CHECK_FALSE(timelineXForPosition(
                     common::core::TimePosition{10.0},
                     empty_window,
-                    window_width,
+                    g_window_width,
                     TimelinePositionClamping::ClampToVisibleRange)
                     .has_value());
 }

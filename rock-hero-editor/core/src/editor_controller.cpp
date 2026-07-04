@@ -1717,7 +1717,7 @@ void EditorController::Impl::completeOpenProject(const std::shared_ptr<OpenTaskS
     }
 
     common::core::Song song = std::move(*state->result);
-    ProjectEditorState editor_state = state->project.editorState();
+    const ProjectEditorState editor_state = state->project.editorState();
 
     auto song_loaded = loadSessionSong(std::move(song), editor_state.selected_arrangement);
     if (!song_loaded.has_value())

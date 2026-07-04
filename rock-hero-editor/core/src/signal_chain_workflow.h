@@ -33,7 +33,7 @@ public:
     \brief Replaces the current chain with an authoritative backend snapshot.
     \param snapshot Ordered plugin chain returned by common/audio.
     */
-    void replaceSnapshot(common::audio::PluginChainSnapshot snapshot);
+    void replaceSnapshot(const common::audio::PluginChainSnapshot& snapshot);
 
     /*! \brief Clears the current chain and any pending browser insertion target. */
     void clear();

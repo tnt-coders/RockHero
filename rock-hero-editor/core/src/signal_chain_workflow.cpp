@@ -295,7 +295,7 @@ void preserveDisplayTypeOverrides(
 } // namespace
 
 // Applies the backend order exactly as returned; local reindexing would hide adapter drift.
-void SignalChainWorkflow::replaceSnapshot(common::audio::PluginChainSnapshot snapshot)
+void SignalChainWorkflow::replaceSnapshot(const common::audio::PluginChainSnapshot& snapshot)
 {
     std::vector<PluginViewState> next_plugins = makePluginViewStates(snapshot.plugins);
     preserveDisplayTypeOverrides(m_plugins, next_plugins);

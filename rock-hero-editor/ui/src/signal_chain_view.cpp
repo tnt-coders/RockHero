@@ -687,7 +687,7 @@ public:
     // Keeps fixed cells above moving tiles during drags without blocking normal tile clicks.
     bool hitTest(int x, int y) override
     {
-        juce::DragAndDropContainer* const container =
+        const juce::DragAndDropContainer* const container =
             juce::DragAndDropContainer::findParentDragContainerFor(this);
         if (container != nullptr && container->isDragAndDropActive())
         {
@@ -1040,7 +1040,7 @@ private:
                 m_plugin.display_type_override == std::optional{display_type});
         }
 
-        juce::Component::SafePointer<PluginTileView> safe_this{this};
+        const juce::Component::SafePointer<PluginTileView> safe_this{this};
         menu.showMenuAsync(
             juce::PopupMenu::Options{}.withTargetComponent(this), [safe_this](int selected_id) {
                 if (safe_this != nullptr)
@@ -1503,7 +1503,7 @@ void SignalChainView::clearPluginMovePreview()
 // Lets JUCE deliver the target drop callback before source mouse-up can clear the preview.
 void SignalChainView::clearPluginMovePreviewAsync()
 {
-    juce::Component::SafePointer<SignalChainView> safe_this{this};
+    const juce::Component::SafePointer<SignalChainView> safe_this{this};
     (void)juce::MessageManager::callAsync([safe_this] {
         if (safe_this != nullptr)
         {
