@@ -1077,7 +1077,7 @@ struct ArrangementDocumentEntry
     line += jsonString(entry.path);
     if (entry.normalization.has_value())
     {
-        line += ", \"normalization\": { \"gainDb\": ";
+        line += R"(, "normalization": { "gainDb": )";
         line += formatJsonDouble(entry.normalization->gain_db);
         line += ", \"validationSha256\": ";
         line += jsonString(entry.normalization->validation_sha256);

@@ -471,8 +471,7 @@ private:
             return;
         }
 
-        const std::size_t type_index =
-            static_cast<std::size_t>(selected_id - g_first_type_filter_id);
+        const auto type_index = static_cast<std::size_t>(selected_id - g_first_type_filter_id);
         m_selected_type_filter = type_index < m_type_filter_values.size()
                                      ? std::optional{m_type_filter_values[type_index]}
                                      : std::nullopt;

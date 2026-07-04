@@ -293,8 +293,8 @@ void drawTempoGridDots(
     juce::RectangleList<float> subdivision_dots;
     juce::RectangleList<float> beat_dots;
     juce::RectangleList<float> measure_dots;
-    const auto appendColumns = [&](const std::vector<int>& columns,
-                                   juce::RectangleList<float>& dots) {
+    const auto append_columns = [&](const std::vector<int>& columns,
+                                    juce::RectangleList<float>& dots) {
         for (const int x : columns)
         {
             const int absolute_x = bounds.getX() + x;
@@ -307,9 +307,9 @@ void drawTempoGridDots(
         }
     };
 
-    appendColumns(subdivision_grid_x, subdivision_dots);
-    appendColumns(beat_grid_x, beat_dots);
-    appendColumns(measure_grid_x, measure_dots);
+    append_columns(subdivision_grid_x, subdivision_dots);
+    append_columns(beat_grid_x, beat_dots);
+    append_columns(measure_grid_x, measure_dots);
 
     if (!subdivision_dots.isEmpty())
     {
