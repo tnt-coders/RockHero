@@ -23,8 +23,8 @@ TransportControls::TransportControls(Listener& listener)
     , m_stop_button(
           std::make_unique<juce::DrawableButton>("stop", juce::DrawableButton::ImageFitted))
 {
-    m_play_drawable = juce::Drawable::createFromImageData(
-        BinaryData::play_arrow_svg, BinaryData::play_arrow_svgSize);
+    m_play_drawable =
+        juce::Drawable::createFromImageData(BinaryData::play_svg, BinaryData::play_svgSize);
     m_pause_drawable =
         juce::Drawable::createFromImageData(BinaryData::pause_svg, BinaryData::pause_svgSize);
     m_stop_drawable =

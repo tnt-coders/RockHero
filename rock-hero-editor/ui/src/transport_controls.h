@@ -19,8 +19,8 @@ Interaction is entirely listener-based; this component has no knowledge of trans
 audio engine. The owner supplies already-derived core::TransportViewState and handles emitted
 play/pause and stop intents through Listener.
 
-Icons are SVGs embedded via juce_add_binary_data (BinaryData::play_arrow_svg, pause_svg,
-stop_svg). Buttons use DrawableButton with ImageFitted style.
+Icons are SVGs embedded via juce_add_binary_data (BinaryData::play_svg, pause_svg, stop_svg).
+Buttons use DrawableButton with ImageFitted style.
 */
 class TransportControls : public juce::Component
 {
