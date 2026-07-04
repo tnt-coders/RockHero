@@ -5,6 +5,7 @@
 #include "timeline_cursor.h"
 
 #include <cmath>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/editor/core/tempo_grid_geometry.h>
 #include <rock_hero/editor/core/timeline_geometry.h>
@@ -274,12 +275,51 @@ void TimelineRuler::refreshRulerGeometry()
     m_measure_labels.clear();
 
     const juce::Font font = rulerFont();
-    refreshHeaderBands(font);
+
+    // The pinned header values and the pinned measure number need a musical frame of reference,
+    // so they stay hidden until the first downbeat (the first anchor) reaches or passes the
+    // visible left edge; the shared gate keeps all three rows pinning in lockstep.
+    const auto view_left_time =
+        core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
+    const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
+    const bool pinnable = view_left_time.has_value() && !anchors.empty() &&
+                          view_left_time->seconds >= anchors.front().seconds;
+    const std::optional<double> pinned_left_seconds =
+        pinnable ? std::optional{view_left_time->seconds} : std::nullopt;
+
+    refreshHeaderBands(font, pinned_left_seconds);
 
     // Subdivision ticks stay half the beat height so the ruler reads which short ticks are real
     // beats even when a fine grid fills the space between them; measure ticks span the whole
-    // body and carry their number, which scrolls with the tick like a DAW bar ruler.
+    // body and carry their number. Like the header bands, the active measure pins to the left
+    // edge while the song scrolls, seeding the row at column zero so downbeat numbers scrolling
+    // underneath suppress uniformly.
     RulerRowPlacement measure_row{getWidth()};
+    const auto place_measure = [&](int anchor_x, int measure) {
+        if (!measure_row.accepts(anchor_x))
+        {
+            return;
+        }
+
+        const juce::String measure_text{measure};
+        const int measure_width = textWidth(font, measure_text) + g_label_width_pad;
+        if (const std::optional<int> label_x = measure_row.reserve(anchor_x, measure_width))
+        {
+            m_measure_labels.push_back(
+                RulerLabel{.x = *label_x, .text = measure_text, .width = measure_width});
+        }
+    };
+
+    if (pinned_left_seconds.has_value())
+    {
+        // Quantize to hundredths before splitting off the whole beat, like the transport
+        // readout: a left edge sitting exactly on a downbeat can otherwise read as the previous
+        // measure through anchor-span inverse rounding.
+        const auto total_hundredths = static_cast<std::int64_t>(
+            std::llround(m_tempo_map.beatPositionAtSeconds(*pinned_left_seconds) * 100.0));
+        place_measure(0, m_tempo_map.beatAtGlobalIndex(total_hundredths / 100).first);
+    }
+
     for (const core::TempoGridLine& line : m_grid_lines)
     {
         const int x = line.x - m_view_x;
@@ -295,19 +335,7 @@ void TimelineRuler::refreshRulerGeometry()
 
         m_tick_rects.addWithoutMerging(
             juce::Rectangle<int>{x, g_ruler_body_top, 1, getHeight() - g_ruler_body_top}.toFloat());
-
-        if (!measure_row.accepts(x))
-        {
-            continue;
-        }
-
-        const juce::String measure_text{line.measure};
-        const int measure_width = textWidth(font, measure_text) + g_label_width_pad;
-        if (const std::optional<int> label_x = measure_row.reserve(x, measure_width))
-        {
-            m_measure_labels.push_back(
-                RulerLabel{.x = *label_x, .text = measure_text, .width = measure_width});
-        }
+        place_measure(x, line.measure);
     }
 }
 
@@ -315,13 +343,14 @@ void TimelineRuler::refreshRulerGeometry()
 // for the span each non-terminal anchor starts and the pinned active tempo at the left edge;
 // the signature band gets a label at each signature-change downbeat plus the pinned active
 // signature. Anchors draw no marker of their own: tempo is not editable yet, so the markings
-// alone say everything the display needs. The pinned values need a musical frame of reference,
-// so they stay hidden until the first downbeat (the first anchor) reaches or passes the visible
-// left edge; they seed their rows at column zero so the shared placement policy positions and
-// suppresses everything uniformly. Tempo markings split into an enlarged quarter-note glyph and
-// text-size digits, cached as adjacent labels because one text draw cannot mix fonts; only the
-// glyph is enlarged, so the equals sign rides with the digits.
-void TimelineRuler::refreshHeaderBands(const juce::Font& font)
+// alone say everything the display needs. The pinned values seed their rows at column zero so
+// the shared placement policy positions and suppresses everything uniformly; the caller owns
+// the pin gate, keeping the bands and the measure row pinning in lockstep. Tempo markings split
+// into an enlarged quarter-note glyph and text-size digits, cached as adjacent labels because
+// one text draw cannot mix fonts; only the glyph is enlarged, so the equals sign rides with the
+// digits.
+void TimelineRuler::refreshHeaderBands(
+    const juce::Font& font, std::optional<double> pinned_left_seconds)
 {
     m_tempo_prefix_labels.clear();
     m_tempo_labels.clear();
@@ -333,11 +362,7 @@ void TimelineRuler::refreshHeaderBands(const juce::Font& font)
     const juce::Font prefix_font = noteGlyphFont();
     const int prefix_width = textWidth(prefix_font, prefix) + 1;
 
-    const auto view_left_time =
-        core::timelinePositionForX(static_cast<float>(m_view_x), m_timeline_range, m_content_width);
     const std::vector<common::core::BeatAnchor>& anchors = m_tempo_map.anchors();
-    const bool pinned_visible = view_left_time.has_value() && !anchors.empty() &&
-                                view_left_time->seconds >= anchors.front().seconds;
 
     // Places one metronome marking — glyph plus digits — as a single suppression unit, resolving
     // the tempo and measuring the digits only after the cheap position test.
@@ -363,9 +388,9 @@ void TimelineRuler::refreshHeaderBands(const juce::Font& font)
             RulerLabel{.x = *label_x + prefix_width, .text = digits, .width = digits_width});
     };
 
-    if (pinned_visible)
+    if (pinned_left_seconds.has_value())
     {
-        place_marking(0, view_left_time->seconds);
+        place_marking(0, *pinned_left_seconds);
     }
 
     // The terminal anchor only ends the last span, so it gets no marking of its own.
@@ -396,9 +421,9 @@ void TimelineRuler::refreshHeaderBands(const juce::Font& font)
         }
     };
 
-    if (pinned_visible)
+    if (pinned_left_seconds.has_value())
     {
-        place_signature(0, m_tempo_map.timeSignatureAtSeconds(view_left_time->seconds));
+        place_signature(0, m_tempo_map.timeSignatureAtSeconds(*pinned_left_seconds));
     }
 
     for (const common::core::TimeSignatureChange& change : m_tempo_map.timeSignatures())

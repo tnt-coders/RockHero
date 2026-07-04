@@ -131,8 +131,9 @@ private:
     // Rebuilds the tempo and signature bands above the ruler body: a metronome marking (enlarged
     // quarter-note glyph plus text-size digits) for the span each non-terminal anchor starts, a
     // signature label at each signature-change downbeat, and the pinned active tempo and
-    // signature at the left edge; same font-sharing contract.
-    void refreshHeaderBands(const juce::Font& font);
+    // signature at the left edge; same font-sharing contract. The caller passes the view-left
+    // time when pinning is active (empty otherwise) so all pinned rows share one gate.
+    void refreshHeaderBands(const juce::Font& font, std::optional<double> pinned_left_seconds);
 
     // Draws visible grid ticks: body-height measures, short beats, and shorter subdivision ticks.
     void drawBeatTicks(juce::Graphics& g);
@@ -180,8 +181,9 @@ private:
     // fillRectList call instead of rebuilding geometry on every repaint.
     juce::RectangleList<float> m_tick_rects{};
 
-    // Measure-number row of the ruler body: the numbers that survived overlap suppression, with
-    // widths already measured. Kept out of paint() because text-width measurement
+    // Measure-number row of the ruler body: the pinned active measure at the left edge, then
+    // the numbers that survived overlap suppression, with widths already measured. Kept out of
+    // paint() because text-width measurement
     // (GlyphArrangement layout) is comparatively expensive and previously ran for every visible
     // measure column on every repaint, including narrow cursor-only repaints driven at vblank
     // cadence or triggered by a single click.
