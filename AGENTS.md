@@ -72,12 +72,12 @@ Initialize submodules before configuring:
 ```sh
 git submodule sync --recursive
 git submodule update --init --recursive
-cmake --preset Debug
-cmake --build --preset Debug
-ctest --preset Debug
+cmake --preset debug
+cmake --build --preset debug
+ctest --preset debug
 ```
 
-Use `cmake --preset Release` and `cmake --build --preset Release` for optimized builds, or `cmake --preset RelWithDebInfo` and `cmake --build --preset RelWithDebInfo` for an optimized build with debug info and no LTO. Generate docs with `cmake --build build/debug --target docs` when Doxygen is installed. Run static analysis with `cmake --build build/debug --target clang-tidy` or `clang-tidy-fix`. Apply formatting with `pre-commit run --all-files`.
+Use `cmake --preset release` and `cmake --build --preset release` for optimized builds, or `cmake --preset relwithdebinfo` and `cmake --build --preset relwithdebinfo` for an optimized build with debug info and no LTO. Generate docs with `cmake --build build/debug --target docs` when Doxygen is installed. Run static analysis with `cmake --build build/debug --target clang-tidy` or `clang-tidy-fix`. Apply formatting with `pre-commit run --all-files`.
 
 ### Codex Build Environment Notes
 In the current Codex PowerShell environment, `cmake` and `ctest` may not be on `PATH`, and plain
@@ -87,7 +87,7 @@ workflow. Prefer CLion's bundled CMake for configure and run Ninja through Visua
 developer environment:
 
 ```powershell
-& 'C:\Program Files\JetBrains\CLion 2025.3.2\bin\cmake\win\x64\bin\cmake.exe' --preset Debug
+& 'C:\Program Files\JetBrains\CLion 2025.3.2\bin\cmake\win\x64\bin\cmake.exe' --preset debug
 cmd.exe /d /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 && ninja -C build/debug <targets>'
 ```
 

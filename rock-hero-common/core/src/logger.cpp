@@ -82,8 +82,8 @@ struct LoggingState
 
 [[nodiscard]] LoggingState& loggingState()
 {
-    static LoggingState state;
-    return state;
+    static LoggingState g_logging_state;
+    return g_logging_state;
 }
 
 [[nodiscard]] quill::PatternFormatterOptions logPattern()
@@ -114,14 +114,14 @@ struct LoggingState
 [[nodiscard]] std::vector<std::shared_ptr<quill::Sink>> currentSinks()
 {
     LoggingState& state = loggingState();
-    const std::lock_guard<std::mutex> lock{state.sinks_mutex};
+    const std::scoped_lock lock{state.sinks_mutex};
     return state.sinks;
 }
 
 void installSinks(std::vector<std::shared_ptr<quill::Sink>> sinks)
 {
     LoggingState& state = loggingState();
-    const std::lock_guard<std::mutex> lock{state.sinks_mutex};
+    const std::scoped_lock lock{state.sinks_mutex};
     state.sinks = std::move(sinks);
 }
 
@@ -263,7 +263,7 @@ void Logger::shutdown()
 
     quill::Backend::stop();
 
-    const std::lock_guard<std::mutex> lock{state.sinks_mutex};
+    const std::scoped_lock lock{state.sinks_mutex};
     state.sinks.clear();
 }
 

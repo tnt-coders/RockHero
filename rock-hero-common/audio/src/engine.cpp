@@ -719,7 +719,7 @@ void reportLiveRigLoadProgress(
     juce::var chain = core::Json::makeArray();
     for (const PluginRecord& plugin : document.chain)
     {
-        juce::var plugin_json = core::Json::makeObject({
+        const juce::var plugin_json = core::Json::makeObject({
             {"id", core::Json::makeString(plugin.id)},
             {"identity", makeIdentityJson(plugin.identity)},
             {"tracktionState", core::Json::makeString(plugin.tracktion_state_ref)},
@@ -852,7 +852,7 @@ void reportLiveRigLoadProgress(
         }};
     }
 
-    const std::size_t plugin_count = static_cast<std::size_t>(chain_json.size());
+    const auto plugin_count = static_cast<std::size_t>(chain_json.size());
     if (plugin_count > max_signal_chain_plugins)
     {
         return std::unexpected{LiveRigError{
@@ -2711,7 +2711,7 @@ private:
         juce::StringArray files = format->searchPathsForPlugins(search_path, true, true);
         files.removeEmptyStrings();
         files.removeDuplicates(true);
-        const std::size_t total_plugins = static_cast<std::size_t>(files.size());
+        const auto total_plugins = static_cast<std::size_t>(files.size());
 
         try
         {
@@ -2861,7 +2861,7 @@ private:
 
         const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
         snapshot.plugins.reserve(static_cast<std::size_t>(plugins.size()));
-        for (tracktion::Plugin* const plugin : plugins)
+        for (const tracktion::Plugin* const plugin : plugins)
         {
             if (plugin == nullptr || isStructuralLiveRigPlugin(plugin))
             {
@@ -3251,7 +3251,7 @@ private:
     {
         m_plugin_parameter_dirty_trackers.clear();
         m_plugin_state_trackers.clear();
-        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
         {
             notifyPluginEditPendingStateChanged();
@@ -3280,7 +3280,7 @@ private:
 
             auto state_tracker = std::make_unique<PluginDirtyStateTracker>(
                 *external_plugin,
-                [this](tracktion::ExternalPlugin& observed_plugin)
+                [](tracktion::ExternalPlugin& observed_plugin)
                     -> std::expected<PluginInstanceState, PluginHostError> {
                     observed_plugin.flushPluginStateToValueTree();
                     auto state = makePluginInstanceState(observed_plugin.state.createCopy());
@@ -3376,7 +3376,7 @@ private:
     // Keeps user-plugin mutation, monitoring re-route, and failure routing in one path.
     template <typename Mutate, typename Rollback>
     [[nodiscard]] std::expected<void, PluginHostError> mutateAndReroutePluginChain(
-        Mutate mutate, Rollback rollback, std::string_view route_rollback_context)
+        const Mutate& mutate, const Rollback& rollback, std::string_view route_rollback_context)
     {
         const bool was_playing = m_edit != nullptr && m_edit->getTransport().isPlaying();
         RH_LOG_INFO("audio.engine", "Plugin-chain mutation started playing_before={}", was_playing);
@@ -3688,7 +3688,7 @@ private:
     // Removes only user-visible plugins, preserving fixed structural gain and meter anchors.
     [[nodiscard]] std::expected<void, LiveRigError> clearUserLiveRigPlugins()
     {
-        tracktion::AudioTrack* const instrument_track = instrumentTrack();
+        const tracktion::AudioTrack* const instrument_track = instrumentTrack();
         if (instrument_track == nullptr)
         {
             return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
@@ -4521,11 +4521,12 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
             if (plugin == nullptr)
             {
                 return std::unexpected{PluginChainMutationFailure{
-                    PluginHostError{
-                        PluginHostErrorCode::PluginCreationFailed,
-                        "Could not create plugin: " + description->name.toStdString(),
-                    },
-                    "plugin creation rollback failed",
+                    .error =
+                        PluginHostError{
+                            PluginHostErrorCode::PluginCreationFailed,
+                            "Could not create plugin: " + description->name.toStdString(),
+                        },
+                    .reroute_context = "plugin creation rollback failed",
                 }};
             }
 
@@ -4537,11 +4538,12 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
                 if (load_error.isNotEmpty())
                 {
                     return std::unexpected{PluginChainMutationFailure{
-                        PluginHostError{
-                            PluginHostErrorCode::PluginLoadFailed,
-                            load_error.toStdString(),
-                        },
-                        "plugin load rollback failed",
+                        .error =
+                            PluginHostError{
+                                PluginHostErrorCode::PluginLoadFailed,
+                                load_error.toStdString(),
+                            },
+                        .reroute_context = "plugin load rollback failed",
                     }};
                 }
             }
@@ -4550,8 +4552,8 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
             if (instrument_track->pluginList.indexOf(plugin.get()) < 0)
             {
                 return std::unexpected{PluginChainMutationFailure{
-                    PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
-                    "plugin insertion rollback failed",
+                    .error = PluginHostError{PluginHostErrorCode::PluginInsertionFailed},
+                    .reroute_context = "plugin insertion rollback failed",
                 }};
             }
 
@@ -4673,8 +4675,8 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::movePlugin(
             {
                 rollback_move();
                 return std::unexpected{PluginChainMutationFailure{
-                    PluginHostError{PluginHostErrorCode::PluginMoveFailed},
-                    "plugin move rollback failed",
+                    .error = PluginHostError{PluginHostErrorCode::PluginMoveFailed},
+                    .reroute_context = "plugin move rollback failed",
                 }};
             }
 
@@ -4722,8 +4724,8 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::removePlugin(
             if (instrument_track->pluginList.indexOf(plugin) >= 0)
             {
                 return std::unexpected{PluginChainMutationFailure{
-                    PluginHostError{PluginHostErrorCode::PluginRemovalFailed},
-                    "plugin removal rollback failed",
+                    .error = PluginHostError{PluginHostErrorCode::PluginRemovalFailed},
+                    .reroute_context = "plugin removal rollback failed",
                 }};
             }
 
@@ -4853,7 +4855,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
                  &inserted_plugin] -> std::expected<void, PluginChainMutationFailure> {
                 if (inserted_plugin != nullptr)
                 {
-                    tracktion::Plugin* const inserted_plugin_ptr = inserted_plugin.get();
+                    const tracktion::Plugin* const inserted_plugin_ptr = inserted_plugin.get();
                     inserted_plugin->deleteFromParent();
                     if (instrument_track->pluginList.indexOf(inserted_plugin_ptr) >= 0)
                     {

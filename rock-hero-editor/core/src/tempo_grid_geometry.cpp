@@ -279,7 +279,7 @@ std::vector<TempoGridLine> visibleTempoGridLines(
     // timelineXForPosition spreads the visible range across [0, width - 1], so a zero span means a
     // single-pixel canvas where the inverse is undefined. There, skip the bounding search and scan
     // every line; the exact column test below still keeps the output correct.
-    const double width_span = static_cast<double>(width - 1);
+    const auto width_span = static_cast<double>(width - 1);
     const bool can_bound_scan = width_span > 0.0;
 
     // One-pixel margins absorb the rounding in the forward map so the bounds never exclude a line

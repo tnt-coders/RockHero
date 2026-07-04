@@ -608,7 +608,7 @@ EditorUndoBeginResult EditorUndoHistory::beginUndo()
         pending = m_pending;
     }
 
-    return EditorUndoBeginResult{.pending = std::move(pending), .result = std::move(result)};
+    return EditorUndoBeginResult{.pending = pending, .result = std::move(result)};
 }
 
 EditorUndoBeginResult EditorUndoHistory::beginRedo()
@@ -620,7 +620,7 @@ EditorUndoBeginResult EditorUndoHistory::beginRedo()
         pending = m_pending;
     }
 
-    return EditorUndoBeginResult{.pending = std::move(pending), .result = std::move(result)};
+    return EditorUndoBeginResult{.pending = pending, .result = std::move(result)};
 }
 
 // Opens a pending transition without mutating the committed history position.

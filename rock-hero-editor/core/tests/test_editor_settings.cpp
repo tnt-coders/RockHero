@@ -168,7 +168,7 @@ void writeRawSetting(
 {
     auto result = settings.projectCursorPositionFor(project_file);
     REQUIRE(result.has_value());
-    return std::move(*result);
+    return *result;
 }
 
 // Reads project grid spacing through the typed settings contract and returns the optional payload.
@@ -177,7 +177,7 @@ void writeRawSetting(
 {
     auto result = settings.projectGridNoteValueFor(project_file);
     REQUIRE(result.has_value());
-    return std::move(*result);
+    return *result;
 }
 
 // Seeds obsolete flat calibration keys so no-migration behavior can be verified.

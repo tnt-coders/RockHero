@@ -135,7 +135,7 @@ void dropPluginOnTarget(
     auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&target);
     REQUIRE(drop_target != nullptr);
 
-    juce::DragAndDropTarget::SourceDetails details{
+    const juce::DragAndDropTarget::SourceDetails details{
         juce::var{pluginDragPayload(source_index, instance_id)},
         &source_tile,
         local_position,
@@ -1182,7 +1182,7 @@ TEST_CASE("Signal-chain drag drops respect move gate", "[ui][editor-view]")
     auto* const drop_target = dynamic_cast<juce::DragAndDropTarget*>(&slot_amp);
     REQUIRE(drop_target != nullptr);
 
-    juce::DragAndDropTarget::SourceDetails details{
+    const juce::DragAndDropTarget::SourceDetails details{
         juce::var{pluginDragPayload(1, "cab")},
         &tile_cab,
         juce::Point<int>{4, 4},
@@ -1281,7 +1281,7 @@ TEST_CASE("Signal-chain tile click still opens plugin", "[ui][editor-view]")
         });
 
     auto& tile = findRequiredDescendant<juce::Component>(view, "plugin_tile_amp");
-    juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
+    const juce::MouseEvent event = testing::makeMouseDownEvent(tile, 8.0f, 8.0f);
     tile.mouseDown(event);
     tile.mouseUp(event);
 

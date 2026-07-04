@@ -1,4 +1,5 @@
 #include <JuceHeader.h>
+#include <cstddef>
 #include <filesystem>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
@@ -22,7 +23,7 @@ using rock_hero::common::core::Logger;
 namespace
 {
 
-constexpr std::size_t max_log_file_size_bytes = 8U * 1024U * 1024U;
+constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 1024U * 1024U);
 
 // Resolves the rolling editor log file under the same "Rock Hero" app-data folder as editor
 // settings, matching the location users and developers already look in.
@@ -92,7 +93,7 @@ public:
             Logger::init(
                 Logger::Config{
                     .log_file = log_file,
-                    .max_file_size_bytes = max_log_file_size_bytes,
+                    .max_file_size_bytes = g_max_log_file_size_bytes,
                 });
         m_logging_started = logging_result.has_value();
         if (logging_result.has_value())

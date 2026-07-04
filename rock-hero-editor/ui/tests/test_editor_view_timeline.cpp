@@ -832,7 +832,7 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
     const auto last_seek_position = controller.last_seek_position;
     REQUIRE(last_seek_position.has_value());
     // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
-    const double max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
+    const auto max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
     const double expected_seconds =
         std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
     CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
@@ -862,7 +862,7 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     REQUIRE(grid_x.has_value());
 
     const int expected_grid_x = static_cast<int>(std::round(*grid_x));
-    const float click_x = static_cast<float>(expected_grid_x + 20);
+    const auto click_x = static_cast<float>(expected_grid_x + 20);
     const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
     REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
     REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
@@ -898,7 +898,7 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     REQUIRE(grid_x.has_value());
 
     const int expected_grid_x = static_cast<int>(std::round(*grid_x));
-    const float click_x = static_cast<float>(expected_grid_x + 20);
+    const auto click_x = static_cast<float>(expected_grid_x + 20);
     timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
 
     CHECK(controller.timeline_seek_count == 1);
@@ -944,7 +944,7 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
             image.getPixelAt(background_x, lower_track_y).getBrightness()) > 0.01f);
 
     // Overlay clicks near the subdivision snap to its exact time.
-    const float click_x = static_cast<float>(line_x + 10);
+    const auto click_x = static_cast<float>(line_x + 10);
     const auto click_y = static_cast<float>(cursor_overlay.getHeight() - 20);
     REQUIRE(click_y > static_cast<float>(arrangement_view.getBottom()));
     REQUIRE(click_y < static_cast<float>(cursor_overlay.getHeight()));
@@ -990,7 +990,7 @@ TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-vie
     const auto last_seek_position = controller.last_seek_position;
     REQUIRE(last_seek_position.has_value());
     // Free placement keeps the sub-pixel click point's time over the 4-second visible range.
-    const double max_column = static_cast<double>(track_content.getWidth() - 1);
+    const auto max_column = static_cast<double>(track_content.getWidth() - 1);
     const double expected_seconds =
         std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
     CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));

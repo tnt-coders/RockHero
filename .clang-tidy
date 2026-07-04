@@ -135,7 +135,8 @@ CheckOptions:
     value: lower_case
 
   # --------------------------------------------------------------------------
-  # Member Variables (m_ prefix for private/protected, no prefix for public)
+  # Member Variables (m_ prefix for private/protected, no prefix for public;
+  # ClassMember covers static data members, which take s_ instead of m_)
   # --------------------------------------------------------------------------
   - key: readability-identifier-naming.MemberCase
     value: lower_case
@@ -144,7 +145,7 @@ CheckOptions:
   - key: readability-identifier-naming.ClassMemberCase
     value: lower_case
   - key: readability-identifier-naming.ClassMemberPrefix
-    value: m_
+    value: s_
   - key: readability-identifier-naming.PrivateMemberCase
     value: lower_case
   - key: readability-identifier-naming.PrivateMemberPrefix
