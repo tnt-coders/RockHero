@@ -65,7 +65,7 @@ constexpr auto g_plugin_dirty_transaction_quiet_debounce = std::chrono::millisec
 // inside the longer quiet debounce.
 constexpr auto g_plugin_post_restore_absorb_window = std::chrono::milliseconds{100};
 
-enum class PluginWindowCommand
+enum class PluginWindowCommand : std::uint8_t
 {
     Undo,
     Redo,
@@ -148,7 +148,8 @@ using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
 #if defined(_WIN32)
     const std::filesystem::path architecture_path = path.parent_path();
     const std::filesystem::path contents_path = architecture_path.parent_path();
-    const std::filesystem::path bundle_path = contents_path.parent_path();
+    // Not const: a const local would force the return to copy instead of move.
+    std::filesystem::path bundle_path = contents_path.parent_path();
     if (contents_path.filename() == "Contents" && hasVst3Extension(bundle_path))
     {
         return bundle_path;
@@ -678,6 +679,7 @@ void reportLiveRigLoadProgress(
             .format_name = external_plugin->desc.pluginFormatName.toStdString(),
             .category = external_plugin->desc.category.toStdString(),
             .chain_index = chain_index,
+            .display_type_override = {},
         };
     }
 
@@ -692,6 +694,7 @@ void reportLiveRigLoadProgress(
         .format_name = {},
         .category = {},
         .chain_index = chain_index,
+        .display_type_override = {},
     };
 }
 
@@ -1155,6 +1158,11 @@ public:
         }
     }
 
+    PluginParameterDirtyTracker(const PluginParameterDirtyTracker&) = delete;
+    PluginParameterDirtyTracker& operator=(const PluginParameterDirtyTracker&) = delete;
+    PluginParameterDirtyTracker(PluginParameterDirtyTracker&&) = delete;
+    PluginParameterDirtyTracker& operator=(PluginParameterDirtyTracker&&) = delete;
+
 private:
     void markDirty()
     {
@@ -1291,6 +1299,11 @@ public:
             m_plugin.removeSelectableListener(this);
         }
     }
+
+    PluginDirtyStateTracker(const PluginDirtyStateTracker&) = delete;
+    PluginDirtyStateTracker& operator=(const PluginDirtyStateTracker&) = delete;
+    PluginDirtyStateTracker(PluginDirtyStateTracker&&) = delete;
+    PluginDirtyStateTracker& operator=(PluginDirtyStateTracker&&) = delete;
 
     [[nodiscard]] bool hasPendingEdit() const noexcept
     {
@@ -1835,14 +1848,16 @@ private:
         m_command_dispatcher(command);
     }
 
+    // The source view must reference static-storage text (call sites pass literals): the dispatch
+    // runs after this call returns, and capturing the view keeps every closure member
+    // nothrow-copyable so posting the message cannot leak an exception.
     void postCommandShortcut(PluginWindowCommand command, std::string_view source)
     {
         const juce::Component::SafePointer<PluginWindow> safe_this{this};
-        const std::string source_text{source};
-        juce::MessageManager::callAsync([safe_this, command, source_text] {
+        juce::MessageManager::callAsync([safe_this, command, source] {
             if (auto* const window = safe_this.getComponent())
             {
-                window->dispatchCommandShortcut(command, source_text);
+                window->dispatchCommandShortcut(command, source);
             }
         });
     }
@@ -1958,7 +1973,7 @@ private:
     }
 
     // How the native hook should treat a key that matches a plugin-window shortcut.
-    enum class CommandKeyDisposition
+    enum class CommandKeyDisposition : std::uint8_t
     {
         FireShortcut,   // No plugin control wants the key: post the command, swallow the message.
         PluginConsumed, // The plugin handled the key via onKeyDown (already delivered): swallow.
@@ -1993,6 +2008,9 @@ private:
     {
         if (code >= 0 && w_param == PM_REMOVE)
         {
+            // The WH_GETMESSAGE contract delivers the MSG through LPARAM, so this
+            // integer-to-pointer reinterpret_cast is imposed by the Win32 ABI.
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast,performance-no-int-to-ptr)
             auto* const message = reinterpret_cast<MSG*>(l_param);
             if (message != nullptr)
             {
@@ -2062,7 +2080,9 @@ private:
         std::vector<PluginWindow*> windows;
     };
 
-    inline static WindowsHookState s_windows_hook_state{};
+    // Defined after the class: clang cannot evaluate a nested class's default member initializers
+    // in an inline initializer while the enclosing class is still incomplete.
+    static WindowsHookState s_windows_hook_state;
 #endif
 
     // Installs Tracktion's editor wrapper while preserving plugin-owned resize notifications.
@@ -2114,6 +2134,10 @@ private:
     // Prevents construction-time resized callbacks from overwriting Tracktion's default position.
     bool m_update_stored_bounds = false;
 };
+
+#if JUCE_WINDOWS
+PluginWindow::WindowsHookState PluginWindow::s_windows_hook_state{};
+#endif
 
 // Supplies Tracktion with Rock Hero's minimal plugin editor window implementation.
 class RockHeroUIBehaviour final : public tracktion::UIBehaviour
@@ -3171,7 +3195,16 @@ private:
 
         ~ScopedPluginUndoCaptureDeferral()
         {
-            m_impl.endPluginUndoCaptureDeferral(m_absorb_reannounce);
+            // Reinstalling the observers logs through Quill, which can throw when its queue is
+            // saturated; a destructor must not let that escape and nothing can safely log here.
+            try
+            {
+                m_impl.endPluginUndoCaptureDeferral(m_absorb_reannounce);
+            }
+            catch (...)
+            {
+                m_impl.clearPluginUndoCaptureDeferral();
+            }
         }
 
         ScopedPluginUndoCaptureDeferral(const ScopedPluginUndoCaptureDeferral&) = delete;

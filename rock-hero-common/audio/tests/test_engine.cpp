@@ -485,6 +485,7 @@ TEST_CASE("Engine plugin host rejects unknown plugin IDs", "[audio][engine][inte
             .name = "Missing Plugin",
             .manufacturer = {},
             .format_name = "VST3",
+            .category = {},
             .file_path = {},
         },
         0);
@@ -578,6 +579,8 @@ TEST_CASE("Engine plugin host rejects missing recreated plugin", "[audio][engine
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
             .existing_tone_document_ref = {},
+            .block_indices = {},
+            .display_type_overrides = {},
         });
     REQUIRE(snapshot.has_value());
     CHECK(snapshot->plugins.empty());
@@ -653,6 +656,8 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
             .existing_tone_document_ref = {},
+            .block_indices = {},
+            .display_type_overrides = {},
         });
 
     REQUIRE(snapshot.has_value());
@@ -671,12 +676,15 @@ TEST_CASE("Engine live rig loads tone without clearing input gain", "[audio][eng
         [&result](auto value) { result = std::move(value); });
 
     REQUIRE(result.has_value());
-    const auto& load_result = result.value();
-    REQUIRE(load_result.has_value());
-    CHECK(load_result->plugins.empty());
-    CHECK(load_result->output_gain.db == Catch::Approx(-9.0));
-    CHECK(live_rig.outputGain().db == Catch::Approx(-9.0));
-    CHECK(live_input.inputGain().db == Catch::Approx(9.0));
+    if (result.has_value())
+    {
+        const auto& load_result = result.value();
+        REQUIRE(load_result.has_value());
+        CHECK(load_result->plugins.empty());
+        CHECK(load_result->output_gain.db == Catch::Approx(-9.0));
+        CHECK(live_rig.outputGain().db == Catch::Approx(-9.0));
+        CHECK(live_input.inputGain().db == Catch::Approx(9.0));
+    }
 }
 
 // Verifies output gain persists through captured tone-chain metadata while input gain remains
@@ -701,6 +709,8 @@ TEST_CASE("Engine live rig output gain persists through capture", "[audio][engin
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
             .existing_tone_document_ref = {},
+            .block_indices = {},
+            .display_type_overrides = {},
         });
 
     REQUIRE(snapshot.has_value());
@@ -737,6 +747,8 @@ TEST_CASE("Engine live rig captures UUID tone refs", "[audio][engine][integratio
             .song_directory = song_directory.path(),
             .arrangement_id = g_arrangement_id,
             .existing_tone_document_ref = {},
+            .block_indices = {},
+            .display_type_overrides = {},
         });
 
     if (!snapshot.has_value())
