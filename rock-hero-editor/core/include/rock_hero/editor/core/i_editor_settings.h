@@ -92,21 +92,21 @@ public:
         const std::filesystem::path& project_file, common::core::TimePosition cursor_position) = 0;
 
     /*!
-    \brief Reads the app-local timeline grid spacing stored for an editor project path.
-    \param project_file Project path whose grid spacing should be restored.
-    \return Grid step measured in tempo-map beats, absence, or a typed settings failure.
+    \brief Reads the app-local timeline grid note value stored for an editor project path.
+    \param project_file Project path whose grid note value should be restored.
+    \return Grid step as a fraction of a whole note, absence, or a typed settings failure.
     */
     [[nodiscard]] virtual std::expected<std::optional<common::core::Fraction>, EditorSettingsError>
-    projectGridSpacingFor(const std::filesystem::path& project_file) const = 0;
+    projectGridNoteValueFor(const std::filesystem::path& project_file) const = 0;
 
     /*!
-    \brief Stores or replaces the app-local timeline grid spacing for an editor project path.
-    \param project_file Project path that owns the grid spacing.
-    \param grid_spacing_beats Grid step measured in tempo-map beats.
+    \brief Stores or replaces the app-local timeline grid note value for an editor project path.
+    \param project_file Project path that owns the grid note value.
+    \param grid_note_value Grid step as a fraction of a whole note.
     \return Empty success, or a typed settings failure.
     */
-    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectGridSpacing(
-        const std::filesystem::path& project_file, common::core::Fraction grid_spacing_beats) = 0;
+    [[nodiscard]] virtual std::expected<void, EditorSettingsError> saveProjectGridNoteValue(
+        const std::filesystem::path& project_file, common::core::Fraction grid_note_value) = 0;
 
     /*!
     \brief Reads app-local input calibration for one physical input route.

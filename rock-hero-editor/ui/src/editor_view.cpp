@@ -211,7 +211,7 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
         case core::EditorActionId::PlayPause:
         case core::EditorActionId::Stop:
         case core::EditorActionId::SeekTimeline:
-        case core::EditorActionId::SetGridSpacing:
+        case core::EditorActionId::SetGridNoteValue:
         case core::EditorActionId::ShowPluginBrowser:
         case core::EditorActionId::BeginPluginInsert:
         case core::EditorActionId::ScanPluginCatalog:
@@ -351,11 +351,11 @@ public:
         m_visible_timeline = visible_timeline;
     }
 
-    // Stores the grid step in beats pushed by EditorView::setState(), so click snapping always
-    // uses the same spacing the grid and ruler render.
-    void setGridSpacing(common::core::Fraction grid_spacing_beats) noexcept
+    // Stores the grid note value pushed by EditorView::setState(), so click snapping always
+    // uses the same grid the timeline and ruler render.
+    void setGridNoteValue(common::core::Fraction grid_note_value) noexcept
     {
-        m_grid_spacing_beats = grid_spacing_beats;
+        m_grid_note_value = grid_note_value;
     }
 
     // Draws only the cursor; static waveform content remains in ArrangementView below it.
@@ -375,7 +375,7 @@ public:
         const std::optional<common::core::TimePosition> position =
             core::timelineCursorPlacementTime(
                 m_tempo_map,
-                m_grid_spacing_beats,
+                m_grid_note_value,
                 m_visible_timeline,
                 getWidth(),
                 event.position.x,
@@ -417,9 +417,9 @@ private:
     // Tempo map owned by EditorView::m_state, referenced to snap non-modified timeline clicks.
     const common::core::TempoMap& m_tempo_map;
 
-    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_spacing_beats{1, 1};
+    common::core::Fraction m_grid_note_value{1, 4};
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
@@ -635,20 +635,20 @@ public:
         layoutScaledCanvas();
     }
 
-    // Stores the tempo map and grid spacing used by the content background grid and the ruler.
+    // Stores the tempo map and grid note value used by the content background grid and the ruler.
     // The map arrives by const& rather than the usual sink-by-value because every state push
     // repeats it and the common unchanged case would otherwise copy the anchor vectors and
     // derived index tables just to discard them.
-    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats)
+    void setGrid(const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value)
     {
-        if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
+        if (m_tempo_map == tempo_map && m_grid_note_value == grid_note_value)
         {
             return;
         }
 
         m_tempo_map = tempo_map;
-        m_grid_spacing_beats = grid_spacing_beats;
-        m_timeline_ruler.setGrid(m_tempo_map, m_grid_spacing_beats);
+        m_grid_note_value = grid_note_value;
+        m_timeline_ruler.setGrid(m_tempo_map, m_grid_note_value);
         refreshTimelineGrid();
     }
 
@@ -929,7 +929,7 @@ private:
 
         std::vector<core::TempoGridLine> lines = core::visibleTempoGridLines(
             m_tempo_map,
-            m_grid_spacing_beats,
+            m_grid_note_value,
             m_timeline_range,
             m_content.getWidth(),
             visible_x_begin,
@@ -992,9 +992,9 @@ private:
     // Song-level tempo map used to render beat and measure grid lines.
     common::core::TempoMap m_tempo_map{};
 
-    // Grid step measured in tempo-map beats, initialized to the whole-beat grid because the
+    // Grid step as a fraction of a whole note, initialized to the quarter-note default because the
     // Fraction default of 0/1 is a degenerate step.
-    common::core::Fraction m_grid_spacing_beats{1, 1};
+    common::core::Fraction m_grid_note_value{1, 4};
 
     // Horizontal content span covered by the last shared grid scan, used to skip scroll-driven
     // rescans when the visible span did not move.
@@ -1146,15 +1146,13 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setTimelineRange(m_state.visible_timeline);
     m_track_viewport->setTransportDisplayState(
         m_state.transport.play_pause_shows_pause_icon, m_state.transport.stop_enabled);
-    m_track_viewport->setGrid(m_state.tempo_map, m_state.grid_spacing_beats);
+    m_track_viewport->setGrid(m_state.tempo_map, m_state.grid_note_value);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
         m_track_viewport->requestCursorFocus();
     }
     m_transport_controls.setState(m_state.transport);
-    m_grid_spacing_selector.setNoteValue(
-        core::displayedTempoGridNoteValue(
-            m_state.grid_spacing_beats, m_state.tempo_map.timeSignatureAt(1).denominator));
+    m_grid_spacing_selector.setNoteValue(m_state.grid_note_value);
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
@@ -1169,7 +1167,7 @@ void EditorView::setState(const core::EditorViewState& state)
     m_arrangement_view.setState(m_state.arrangement);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
-    m_cursor_overlay->setGridSpacing(m_state.grid_spacing_beats);
+    m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);
     presentUnsavedChangesPromptIfNeeded(m_state.unsaved_changes_prompt);
     presentSaveAsPromptIfNeeded(m_state.save_as_prompt);
     presentRestoreInterruptedPromptIfNeeded(m_state.restore_interrupted_prompt);
@@ -2010,18 +2008,11 @@ void EditorView::onStopPressed()
     m_controller.onStopPressed();
 }
 
-// Converts the chosen note value into beat-relative spacing before emitting the controller
-// intent, using the same time-signature denominator the selector display derives from. Entries
-// that convert outside the supported spacing bounds are dropped here so the selector display
-// simply reverts.
+// Forwards the raw note value; the controller owns validation, and a rejected entry needs no
+// feedback because the selector already reverted its display to the last applied value.
 void EditorView::onGridNoteValueChosen(common::core::Fraction note_value)
 {
-    const common::core::Fraction spacing_beats = core::tempoGridSpacingFromNoteValue(
-        note_value, m_state.tempo_map.timeSignatureAt(1).denominator);
-    if (core::isValidTempoGridSpacing(spacing_beats))
-    {
-        m_controller.onGridSpacingChangeRequested(spacing_beats);
-    }
+    m_controller.onGridNoteValueChangeRequested(note_value);
 }
 
 // Opens the plugin browser for a specific insertion slot selected in the signal-chain panel.

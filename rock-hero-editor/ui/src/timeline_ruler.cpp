@@ -145,20 +145,20 @@ void TimelineRuler::setCursorPosition(common::core::TimePosition cursor_position
     m_cursor_x = next_cursor_x;
 }
 
-// Stores the tempo map that supplies anchors and click snapping, plus the grid step in beats
+// Stores the tempo map that supplies anchors and click snapping, plus the grid note value
 // shared with the track grid and snapping. Like setTimelineView, the rebuild and repaint are
 // deferred to the setGridLines push owning-view callers issue after every grid change; rebuilding
 // here would run against grid lines scanned for the previous grid and be discarded unpainted.
 void TimelineRuler::setGrid(
-    const common::core::TempoMap& tempo_map, common::core::Fraction grid_spacing_beats)
+    const common::core::TempoMap& tempo_map, common::core::Fraction grid_note_value)
 {
-    if (m_tempo_map == tempo_map && m_grid_spacing_beats == grid_spacing_beats)
+    if (m_tempo_map == tempo_map && m_grid_note_value == grid_note_value)
     {
         return;
     }
 
     m_tempo_map = tempo_map;
-    m_grid_spacing_beats = grid_spacing_beats;
+    m_grid_note_value = grid_note_value;
 }
 
 // Stores the shared visible-span grid lines and rebuilds the cached ruler geometry from them.
@@ -230,7 +230,7 @@ void TimelineRuler::mouseDown(const juce::MouseEvent& event)
     const float timeline_x = static_cast<float>(m_view_x) + event.position.x;
     const std::optional<common::core::TimePosition> position = core::timelineCursorPlacementTime(
         m_tempo_map,
-        m_grid_spacing_beats,
+        m_grid_note_value,
         m_timeline_range,
         m_content_width,
         timeline_x,

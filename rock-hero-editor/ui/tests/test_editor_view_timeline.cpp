@@ -55,14 +55,14 @@ TEST_CASE("TimelineRuler draws full measure and short beat ticks", "[ui][timelin
         .end = common::core::TimePosition{4.0},
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
-    constexpr common::core::Fraction grid_spacing{1, 1};
+    constexpr common::core::Fraction grid_note_value{1, 4};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 101, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setGrid(tempo_map, grid_spacing);
+    ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
         core::visibleTempoGridLines(
-            tempo_map, grid_spacing, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -86,14 +86,14 @@ TEST_CASE("TimelineRuler draws shorter subdivision ticks", "[ui][timeline-ruler]
         .end = common::core::TimePosition{4.0},
     };
     const common::core::TempoMap tempo_map = makeOneMeasureTempoMap(4.0);
-    constexpr common::core::Fraction grid_spacing{1, 2};
+    constexpr common::core::Fraction grid_note_value{1, 8};
     TimelineRuler ruler;
     ruler.setBounds(0, 0, 201, g_timeline_ruler_height);
     ruler.setTimelineView(one_measure_window, ruler.getWidth(), 0);
-    ruler.setGrid(tempo_map, grid_spacing);
+    ruler.setGrid(tempo_map, grid_note_value);
     ruler.setGridLines(
         core::visibleTempoGridLines(
-            tempo_map, grid_spacing, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
+            tempo_map, grid_note_value, one_measure_window, ruler.getWidth(), 0, ruler.getWidth()));
     ruler.setProjectLoaded(true);
 
     const juce::Image image = ruler.createComponentSnapshot(ruler.getLocalBounds());
@@ -689,7 +689,7 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     CHECK(last_seek_position->seconds == Catch::Approx(1.0));
 }
 
-// Verifies the track grid, overlay snapping, and ruler snapping all use the state grid spacing.
+// Verifies the track grid, overlay snapping, and ruler snapping all use the state note value.
 TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor-view]")
 {
     const juce::ScopedJuceInitialiser_GUI scoped_gui;
@@ -701,7 +701,7 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     view.setBounds(0, 0, 1600, 1000);
     auto state = makeLoadedEditorState(4.0);
     state.tempo_map = makeOneMeasureTempoMap(4.0);
-    state.grid_spacing_beats = common::core::Fraction{1, 2};
+    state.grid_note_value = common::core::Fraction{1, 8};
     view.setState(state);
 
     auto& cursor_overlay = findRequiredDescendant<juce::Component>(view, "cursor_overlay");
@@ -710,7 +710,8 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     auto& arrangement_view = findRequiredDescendant<ArrangementView>(view, "arrangement_view");
     REQUIRE(track_content.getWidth() > 1);
 
-    // The half-beat subdivision at 0.5s draws a grid column in the lower track area.
+    // The eighth-note (half-beat in 4/4) subdivision at 0.5s draws a grid column in the lower
+    // track area.
     const auto subdivision_x = cursorXForTimelinePosition(
         common::core::TimePosition{0.5}, state.visible_timeline, track_content.getWidth());
     REQUIRE(subdivision_x.has_value());
