@@ -48,6 +48,11 @@ CheckOptions:
   - key: readability-braces-around-statements.ShortStatementLines
     value: '0'
 
+  # The do { } while (0) statement wrapper inside the sanctioned RH_LOG_* macros is the standard
+  # way to make a multi-statement macro behave as one statement; only flag hand-written do-while.
+  - key: cppcoreguidelines-avoid-do-while.IgnoreMacros
+    value: 'true'
+
   # --------------------------------------------------------------------------
   # Const correctness
   # --------------------------------------------------------------------------

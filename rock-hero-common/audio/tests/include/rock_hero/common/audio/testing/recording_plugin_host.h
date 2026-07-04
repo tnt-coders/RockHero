@@ -148,6 +148,7 @@ public:
             .format_name = plugin_candidate.format_name,
             .category = plugin_candidate.category,
             .chain_index = chain_index,
+            .display_type_override = {},
         };
         const std::string inserted_instance_id = entry.instance_id;
         chain.insert(chain.begin() + static_cast<std::ptrdiff_t>(chain_index), std::move(entry));

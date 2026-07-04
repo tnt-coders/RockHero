@@ -11,6 +11,7 @@
 #include <rock_hero/editor/core/juce_message_thread_scheduler.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
+#include <string_view>
 #include <utility>
 
 namespace rock_hero::editor::app
@@ -29,9 +30,10 @@ constexpr std::size_t g_max_log_file_size_bytes = static_cast<std::size_t>(8U * 
 // settings, matching the location users and developers already look in.
 [[nodiscard]] std::filesystem::path editorLogFile()
 {
+    const std::string_view folder_name = common::core::applicationDataFolderName();
     const juce::File log_file =
         juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
-            .getChildFile(juce::String{common::core::applicationDataFolderName().data()})
+            .getChildFile(juce::String{folder_name.data(), folder_name.size()})
             .getChildFile("Rock Hero Editor.log");
     return std::filesystem::path{log_file.getFullPathName().toStdString()};
 }

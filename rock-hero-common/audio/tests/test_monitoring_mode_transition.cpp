@@ -15,8 +15,11 @@ TEST_CASE("Enabling live input monitoring turns calibration off", "[audio][monit
         true);
 
     REQUIRE(result.has_value());
-    REQUIRE(result->live_input);
-    REQUIRE_FALSE(result->calibration);
+    if (result.has_value())
+    {
+        REQUIRE(result->live_input);
+        REQUIRE_FALSE(result->calibration);
+    }
 }
 
 // Enabling calibration mode must enforce the same mutual-exclusion rule.
@@ -29,8 +32,11 @@ TEST_CASE("Enabling calibration monitoring turns live input off", "[audio][monit
         true);
 
     REQUIRE(result.has_value());
-    REQUIRE_FALSE(result->live_input);
-    REQUIRE(result->calibration);
+    if (result.has_value())
+    {
+        REQUIRE_FALSE(result->live_input);
+        REQUIRE(result->calibration);
+    }
 }
 
 // Disabling a mode is a one-sided change: the other mode keeps whatever state it had.
@@ -43,8 +49,11 @@ TEST_CASE("Disabling a monitoring mode leaves the other untouched", "[audio][mon
         true);
 
     REQUIRE(disabled_live.has_value());
-    REQUIRE_FALSE(disabled_live->live_input);
-    REQUIRE(disabled_live->calibration);
+    if (disabled_live.has_value())
+    {
+        REQUIRE_FALSE(disabled_live->live_input);
+        REQUIRE(disabled_live->calibration);
+    }
 }
 
 // Enabling routes the live input, which is impossible without an input device to route from.
@@ -68,8 +77,11 @@ TEST_CASE("Disabling monitoring without an input device still applies", "[audio]
         false);
 
     REQUIRE(result.has_value());
-    REQUIRE_FALSE(result->live_input);
-    REQUIRE_FALSE(result->calibration);
+    if (result.has_value())
+    {
+        REQUIRE_FALSE(result->live_input);
+        REQUIRE_FALSE(result->calibration);
+    }
 }
 
 } // namespace rock_hero::common::audio

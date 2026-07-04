@@ -325,12 +325,6 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return value > 0 && fitsIntField(value);
 }
 
-// Reports whether a parsed JSON integer fits a non-negative int field.
-[[nodiscard]] bool fitsNonNegativeIntField(std::int64_t value) noexcept
-{
-    return value >= 0 && fitsIntField(value);
-}
-
 // Reports whether a timing value can be stored safely in the native format.
 [[nodiscard]] bool isValidTimingValue(double value) noexcept
 {
@@ -390,12 +384,6 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
 [[nodiscard]] bool isPowerOfTwoDenominator(int denominator) noexcept
 {
     return denominator > 0 && (denominator & (denominator - 1)) == 0;
-}
-
-// Reports whether a JSON value represents an absent optional property.
-[[nodiscard]] bool isAbsentJsonValue(const juce::var& value) noexcept
-{
-    return value.isVoid() || value.isUndefined();
 }
 
 // Reads the tempo-map time-signature array without applying cross-entry ordering rules yet.

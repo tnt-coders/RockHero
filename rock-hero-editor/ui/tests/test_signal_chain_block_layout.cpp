@@ -140,8 +140,11 @@ TEST_CASE("Block layout drops onto occupied blocks", "[ui][signal-chain-layout]"
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(0, 2);
 
     REQUIRE(intent.has_value());
-    CHECK(intent->destination_index == 1);
-    CHECK(intent->placement.blocks() == std::vector<std::size_t>{2, 1, 3});
+    if (intent.has_value())
+    {
+        CHECK(intent->destination_index == 1);
+        CHECK(intent->placement.blocks() == std::vector<std::size_t>{2, 1, 3});
+    }
 }
 
 // Verifies adjacent occupied-block drops swap with the target occupant.
@@ -153,8 +156,11 @@ TEST_CASE("Block layout swaps adjacent occupied blocks", "[ui][signal-chain-layo
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 1);
 
     REQUIRE(intent.has_value());
-    CHECK(intent->destination_index == 1);
-    CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 2, 1});
+    if (intent.has_value())
+    {
+        CHECK(intent->destination_index == 1);
+        CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 2, 1});
+    }
     CHECK(layout.canReceiveDrop(2, 1));
 }
 
@@ -197,8 +203,11 @@ TEST_CASE("Block layout drops into empty fixed blocks", "[ui][signal-chain-layou
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(2, 5);
 
     REQUIRE(intent.has_value());
-    CHECK(intent->destination_index == 2);
-    CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 1, 5});
+    if (intent.has_value())
+    {
+        CHECK(intent->destination_index == 2);
+        CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 1, 5});
+    }
 }
 
 // Verifies source-owned blocks are valid no-op placements.
@@ -211,8 +220,11 @@ TEST_CASE("Block layout accepts source block drops", "[ui][signal-chain-layout]"
     const std::optional<SignalChainBlockLayout::DropIntent> intent = layout.dropIntent(1, 4);
 
     REQUIRE(intent.has_value());
-    CHECK(intent->destination_index == 1);
-    CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 4, 5});
+    if (intent.has_value())
+    {
+        CHECK(intent->destination_index == 1);
+        CHECK(intent->placement.blocks() == std::vector<std::size_t>{0, 4, 5});
+    }
 }
 
 // Verifies missing drop intents can use the last valid preview for final placement.

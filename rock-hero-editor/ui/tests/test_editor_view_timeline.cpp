@@ -835,7 +835,10 @@ TEST_CASE("EditorView Ctrl-click forwards free timeline position", "[ui][editor-
     const auto max_column = static_cast<double>(cursor_overlay.getWidth() - 1);
     const double expected_seconds =
         std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
-    CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+    if (last_seek_position.has_value())
+    {
+        CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+    }
 }
 
 // Verifies unmodified timeline clicks snap to the nearest tempo-grid line.
@@ -872,7 +875,10 @@ TEST_CASE("EditorView timeline click snaps to nearest grid line", "[ui][editor-v
     const auto last_seek_position = controller.last_seek_position;
     REQUIRE(last_seek_position.has_value());
     // The snapped seek is the exact beat time, not a value quantized to the beat's pixel column.
-    CHECK(last_seek_position->seconds == Catch::Approx(1.0));
+    if (last_seek_position.has_value())
+    {
+        CHECK(last_seek_position->seconds == Catch::Approx(1.0));
+    }
 }
 
 // Verifies ruler clicks use the same grid-snapped placement as timeline-content clicks.
@@ -905,7 +911,10 @@ TEST_CASE("EditorView ruler click snaps to nearest grid line", "[ui][editor-view
     const auto last_seek_position = controller.last_seek_position;
     REQUIRE(last_seek_position.has_value());
     // The snapped seek is the exact beat time, not a value quantized to the beat's pixel column.
-    CHECK(last_seek_position->seconds == Catch::Approx(1.0));
+    if (last_seek_position.has_value())
+    {
+        CHECK(last_seek_position->seconds == Catch::Approx(1.0));
+    }
 }
 
 // Verifies the track grid, overlay snapping, and ruler snapping all use the state note value.
@@ -951,13 +960,19 @@ TEST_CASE("EditorView subdivision grid and snapping share spacing", "[ui][editor
     cursor_overlay.mouseDown(makeMouseDownEvent(cursor_overlay, click_x, click_y));
     CHECK(controller.timeline_seek_count == 1);
     REQUIRE(controller.last_seek_position.has_value());
-    CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+    if (controller.last_seek_position.has_value())
+    {
+        CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+    }
 
     // Ruler clicks resolve through the same subdivision grid.
     timeline_ruler.mouseDown(makeMouseDownEvent(timeline_ruler, click_x, 10.0f));
     CHECK(controller.timeline_seek_count == 2);
     REQUIRE(controller.last_seek_position.has_value());
-    CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+    if (controller.last_seek_position.has_value())
+    {
+        CHECK(controller.last_seek_position->seconds == Catch::Approx(0.5));
+    }
 }
 
 // Verifies Ctrl-clicking the ruler keeps free cursor placement.
@@ -993,7 +1008,10 @@ TEST_CASE("EditorView ruler Ctrl-click forwards free position", "[ui][editor-vie
     const auto max_column = static_cast<double>(track_content.getWidth() - 1);
     const double expected_seconds =
         std::clamp(static_cast<double>(click_x), 0.0, max_column) / max_column * 4.0;
-    CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+    if (last_seek_position.has_value())
+    {
+        CHECK(last_seek_position->seconds == Catch::Approx(expected_seconds));
+    }
 }
 
 // Verifies non-primary (right-button) clicks never trigger a timeline seek.

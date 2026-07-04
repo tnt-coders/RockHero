@@ -82,9 +82,11 @@ private:
 [[nodiscard]] juce::PropertiesFile::Options testSettingsOptions()
 {
     juce::PropertiesFile::Options options;
-    options.applicationName = juce::String{common::core::editorApplicationName().data()};
+    const std::string_view application_name = common::core::editorApplicationName();
+    const std::string_view folder_name = common::core::applicationDataFolderName();
+    options.applicationName = juce::String{application_name.data(), application_name.size()};
     options.filenameSuffix = ".settings";
-    options.folderName = juce::String{common::core::applicationDataFolderName().data()};
+    options.folderName = juce::String{folder_name.data(), folder_name.size()};
     options.osxLibrarySubFolder = "Application Support";
     options.commonToAllUsers = false;
     options.ignoreCaseOfKeyNames = false;

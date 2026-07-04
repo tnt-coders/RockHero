@@ -131,9 +131,12 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
 
     EditorUndoBeginResult undo = history.beginUndo();
     REQUIRE(undo.pending.has_value());
-    REQUIRE(undo.pending->edit != nullptr);
+    if (undo.pending.has_value())
+    {
+        REQUIRE(undo.pending->edit != nullptr);
+        CHECK(undo.pending->edit->label() == "Second");
+    }
     CHECK(undo.result.status == EditorUndoTransitionStatus::Pending);
-    CHECK(undo.pending->edit->label() == "Second");
     CHECK(history.undoDepth() == 2);
     CHECK(history.redoDepth() == 0);
 
@@ -147,8 +150,11 @@ TEST_CASE("EditorUndoHistory commits undo and redo in two phases", "[core][edito
 
     EditorUndoBeginResult redo = history.beginRedo();
     REQUIRE(redo.pending.has_value());
-    REQUIRE(redo.pending->edit != nullptr);
-    CHECK(redo.pending->edit->label() == "Second");
+    if (redo.pending.has_value())
+    {
+        REQUIRE(redo.pending->edit != nullptr);
+        CHECK(redo.pending->edit->label() == "Second");
+    }
     CHECK(history.undoDepth() == 1);
     CHECK(history.redoDepth() == 1);
 

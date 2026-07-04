@@ -23,6 +23,7 @@ namespace
         .name = std::move(name),
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = std::filesystem::path{"Plugin.vst3"},
     };
 }
@@ -37,7 +38,9 @@ namespace
         .name = "Plugin " + std::to_string(chain_index),
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .chain_index = chain_index,
+        .display_type_override = {},
     };
 }
 
@@ -96,6 +99,7 @@ TEST_CASE("IPluginHost inserts plugins at visible chain positions", "[audio][plu
         .name = "Amp",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = std::filesystem::path{"Amp.vst3"},
     };
     const PluginCandidate cab_candidate{
@@ -103,6 +107,7 @@ TEST_CASE("IPluginHost inserts plugins at visible chain positions", "[audio][plu
         .name = "Cab",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = std::filesystem::path{"Cab.vst3"},
     };
     const PluginCandidate drive_candidate{
@@ -110,6 +115,7 @@ TEST_CASE("IPluginHost inserts plugins at visible chain positions", "[audio][plu
         .name = "Drive",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = std::filesystem::path{"Drive.vst3"},
     };
 
@@ -149,6 +155,7 @@ TEST_CASE("IPluginHost insert can fail with a typed error", "[audio][plugin-host
         .name = "Missing",
         .manufacturer = {},
         .format_name = "VST3",
+        .category = {},
         .file_path = {},
     };
 
@@ -169,6 +176,7 @@ TEST_CASE("IPluginHost rejects invalid insert positions", "[audio][plugin-host]"
         .name = "Amp",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = {},
     };
 
@@ -190,7 +198,11 @@ TEST_CASE("IPluginHost rejects inserts at plugin limit", "[audio][plugin-host]")
                 .instance_id = "instance-" + std::to_string(index),
                 .plugin_id = "plugin-" + std::to_string(index),
                 .name = "Plugin " + std::to_string(index),
+                .manufacturer = {},
+                .format_name = {},
+                .category = {},
                 .chain_index = index,
+                .display_type_override = {},
             });
     }
     const PluginCandidate selected_candidate{
@@ -198,6 +210,7 @@ TEST_CASE("IPluginHost rejects inserts at plugin limit", "[audio][plugin-host]")
         .name = "Extra",
         .manufacturer = "Rock Hero Tests",
         .format_name = "VST3",
+        .category = {},
         .file_path = {},
     };
 
@@ -217,19 +230,31 @@ TEST_CASE("IPluginHost moves plugin instances", "[audio][plugin-host]")
             .instance_id = "amp-instance",
             .plugin_id = "amp",
             .name = "Amp",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 0,
+            .display_type_override = {},
         },
         PluginChainEntry{
             .instance_id = "drive-instance",
             .plugin_id = "drive",
             .name = "Drive",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 1,
+            .display_type_override = {},
         },
         PluginChainEntry{
             .instance_id = "cab-instance",
             .plugin_id = "cab",
             .name = "Cab",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 2,
+            .display_type_override = {},
         },
     };
 
@@ -261,7 +286,11 @@ TEST_CASE("IPluginHost rejects invalid plugin moves", "[audio][plugin-host]")
             .instance_id = "amp-instance",
             .plugin_id = "amp",
             .name = "Amp",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 0,
+            .display_type_override = {},
         },
     };
 
@@ -285,13 +314,21 @@ TEST_CASE("IPluginHost removes a plugin instance", "[audio][plugin-host]")
             .instance_id = "instance-1",
             .plugin_id = "amp",
             .name = "Amp",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 0,
+            .display_type_override = {},
         },
         PluginChainEntry{
             .instance_id = "instance-2",
             .plugin_id = "cab",
             .name = "Cab",
+            .manufacturer = {},
+            .format_name = {},
+            .category = {},
             .chain_index = 1,
+            .display_type_override = {},
         },
     };
 

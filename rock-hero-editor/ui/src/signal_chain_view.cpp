@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdint>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
@@ -94,7 +95,7 @@ struct DraggedPlugin
     std::size_t source_index{};
 };
 
-enum class PluginIconType
+enum class PluginIconType : std::uint8_t
 {
     Generic,
     Amp,
@@ -1032,7 +1033,7 @@ private:
 
         for (std::size_t index = 0; index < g_display_type_menu_values.size(); ++index)
         {
-            const core::PluginDisplayType display_type = g_display_type_menu_values[index];
+            const core::PluginDisplayType display_type = g_display_type_menu_values.at(index);
             menu.addItem(
                 g_first_display_type_id + static_cast<int>(index),
                 displayTypeMenuLabel(m_plugin, display_type),
@@ -1067,7 +1068,8 @@ private:
         }
 
         m_listener.onPluginDisplayTypeOverrideChanged(
-            m_plugin.instance_id, g_display_type_menu_values[static_cast<std::size_t>(type_index)]);
+            m_plugin.instance_id,
+            g_display_type_menu_values.at(static_cast<std::size_t>(type_index)));
     }
 
     // Keeps the block highlight and remove affordance alive while either the tile or the child

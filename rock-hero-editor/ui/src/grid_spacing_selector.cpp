@@ -82,7 +82,7 @@ GridSpacingSelector::GridSpacingSelector(Listener& listener)
     for (std::size_t index = 0; index < g_note_value_presets.size(); ++index)
     {
         m_note_value_box.addItem(
-            noteValueText(g_note_value_presets[index]), static_cast<int>(index) + 1);
+            noteValueText(g_note_value_presets.at(index)), static_cast<int>(index) + 1);
     }
     m_note_value_box.setEditableText(true);
     m_note_value_box.setComponentID("grid_note_value_box");

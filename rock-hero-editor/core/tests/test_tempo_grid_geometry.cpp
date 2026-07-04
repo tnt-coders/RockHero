@@ -512,7 +512,10 @@ TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[
         150.0f,
         TimelineCursorPlacementMode::Free);
     REQUIRE(free_position.has_value());
-    CHECK(free_position->seconds == 1.5);
+    if (free_position.has_value())
+    {
+        CHECK(free_position->seconds == 1.5);
+    }
 
     const auto snapped_position = timelineCursorPlacementTime(
         map,
@@ -522,7 +525,10 @@ TEST_CASE("Timeline cursor placement snaps or keeps the click point by mode", "[
         140.0f,
         TimelineCursorPlacementMode::SnapToGrid);
     REQUIRE(snapped_position.has_value());
-    CHECK(snapped_position->seconds == 1.0);
+    if (snapped_position.has_value())
+    {
+        CHECK(snapped_position->seconds == 1.0);
+    }
 }
 
 // Verifies a click exactly halfway between two grid lines snaps to the earlier line, so repeated
@@ -540,7 +546,10 @@ TEST_CASE(
         150.0f,
         TimelineCursorPlacementMode::SnapToGrid);
     REQUIRE(position.has_value());
-    CHECK(position->seconds == 1.0);
+    if (position.has_value())
+    {
+        CHECK(position->seconds == 1.0);
+    }
 }
 
 // Verifies degenerate timeline geometry yields no placement instead of a fabricated position.
