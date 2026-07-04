@@ -156,9 +156,9 @@ struct InsertUndoPreparationRollbackResult
         {
             return "SeekTimeline";
         }
-        case EditorAction::Id::SetGridSpacing:
+        case EditorAction::Id::SetGridNoteValue:
         {
-            return "SetGridSpacing";
+            return "SetGridNoteValue";
         }
         case EditorAction::Id::ShowPluginBrowser:
         {
@@ -250,7 +250,7 @@ struct InsertUndoPreparationRollbackResult
             case EditorAction::Id::CancelBusyOperation:
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
-            case EditorAction::Id::SetGridSpacing:
+            case EditorAction::Id::SetGridNoteValue:
             {
                 break;
             }
@@ -282,7 +282,7 @@ struct InsertUndoPreparationRollbackResult
         }
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
-        case EditorAction::Id::SetGridSpacing:
+        case EditorAction::Id::SetGridNoteValue:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -809,7 +809,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onPlayPausePressed();
     void onStopPressed();
     void onTimelineSeekRequested(common::core::TimePosition position);
-    void onGridSpacingChangeRequested(common::core::Fraction spacing_beats);
+    void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -860,7 +860,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::PlayPause action);
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekTimeline action);
-    void performActionImpl(EditorAction::SetGridSpacing action);
+    void performActionImpl(EditorAction::SetGridNoteValue action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
@@ -964,7 +964,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] ProjectEditorState projectEditorStateForSave() const;
     [[nodiscard]] common::core::TimePosition cursorPositionForOpenedProject(
         const std::filesystem::path& project_file) const;
-    [[nodiscard]] common::core::Fraction gridSpacingForOpenedProject(
+    [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
     void saveCurrentProjectCursorPositionBestEffort(std::string_view context);
     void saveProjectCursorPositionBestEffort(
@@ -1115,10 +1115,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Current output gain shown by the signal-chain panel and persisted in tone documents.
     double m_output_gain_db{0.0};
 
-    // Timeline grid step measured in tempo-map beats, initialized to the whole-beat grid because
-    // the Fraction default of 0/1 is a degenerate step. Restored per project from app-local
-    // settings on open and reset to the default on close.
-    common::core::Fraction m_grid_spacing_beats{1, 1};
+    // Timeline grid step as a note value (fraction of a whole note), initialized to the
+    // quarter-note default because the Fraction default of 0/1 is a degenerate step. Restored
+    // per project from app-local settings on open and reset to the default on close.
+    common::core::Fraction m_grid_note_value{1, 4};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};
@@ -1382,9 +1382,9 @@ void EditorController::onTimelineSeekRequested(common::core::TimePosition positi
     m_impl->onTimelineSeekRequested(position);
 }
 
-void EditorController::onGridSpacingChangeRequested(common::core::Fraction spacing_beats)
+void EditorController::onGridNoteValueChangeRequested(common::core::Fraction note_value)
 {
-    m_impl->onGridSpacingChangeRequested(spacing_beats);
+    m_impl->onGridNoteValueChangeRequested(note_value);
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -1782,7 +1782,7 @@ void EditorController::Impl::finishOpenProjectAfterLiveRigLoad(
     const bool next_has_unsaved_changes = state->project.audioNormalizationUpdatedOnLoad();
     const common::core::TimePosition next_cursor_position =
         cursorPositionForOpenedProject(state->file);
-    m_grid_spacing_beats = gridSpacingForOpenedProject(state->file);
+    m_grid_note_value = gridNoteValueForOpenedProject(state->file);
     std::filesystem::path next_project_file{state->file};
 
     m_project = std::move(state->project);
@@ -1901,7 +1901,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_session.reset();
         m_signal_chain.clear();
         m_output_gain_db = 0.0;
-        m_grid_spacing_beats = common::core::Fraction{1, 1};
+        m_grid_note_value = common::core::Fraction{1, 4};
         resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
@@ -1914,10 +1914,10 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     m_project = std::move(state->project);
     m_project_file.clear();
     m_save_requires_destination = true;
-    // A fresh import has no per-project grid-spacing record to restore (no project path yet), so
-    // the grid resets to the whole-beat default instead of inheriting the replaced project's
+    // A fresh import has no per-project grid note-value record to restore (no project path yet), so
+    // the grid resets to the quarter-note default instead of inheriting the replaced project's
     // spacing.
-    m_grid_spacing_beats = common::core::Fraction{1, 1};
+    m_grid_note_value = common::core::Fraction{1, 4};
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
@@ -2248,9 +2248,9 @@ void EditorController::Impl::onTimelineSeekRequested(common::core::TimePosition 
 
 // Routes the spacing change as an action so a missing arrangement or busy state gates it like the
 // other timeline intents.
-void EditorController::Impl::onGridSpacingChangeRequested(common::core::Fraction spacing_beats)
+void EditorController::Impl::onGridNoteValueChangeRequested(common::core::Fraction note_value)
 {
-    runAction(EditorAction::SetGridSpacing{spacing_beats});
+    runAction(EditorAction::SetGridNoteValue{note_value});
 }
 
 // Shows the plugin browser with whatever plugins the host already knows. Full catalog discovery is
@@ -2941,22 +2941,21 @@ void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action
     updateView();
 }
 
-// Applies a validated grid-spacing change, persists it as app-local per-project state, and
+// Applies a validated grid note-value change, persists it as app-local per-project state, and
 // republishes view state so the grid, ruler, and snapping move together.
-void EditorController::Impl::performActionImpl(EditorAction::SetGridSpacing action)
+void EditorController::Impl::performActionImpl(EditorAction::SetGridNoteValue action)
 {
-    if (!isValidTempoGridSpacing(action.spacing_beats) ||
-        action.spacing_beats == m_grid_spacing_beats)
+    if (!isValidTempoGridNoteValue(action.note_value) || action.note_value == m_grid_note_value)
     {
         return;
     }
 
-    m_grid_spacing_beats = action.spacing_beats;
+    m_grid_note_value = action.note_value;
     if (!m_project_file.empty())
     {
         recordSettingsResultBestEffort(
-            m_settings.saveProjectGridSpacing(m_project_file, m_grid_spacing_beats),
-            "save project grid spacing");
+            m_settings.saveProjectGridNoteValue(m_project_file, m_grid_note_value),
+            "save project grid note value");
     }
     updateView();
 }
@@ -3682,7 +3681,7 @@ bool EditorController::Impl::closeProject()
         m_save_requires_destination = false;
         m_has_untracked_unsaved_changes = false;
         m_session_faulted = false;
-        m_grid_spacing_beats = common::core::Fraction{1, 1};
+        m_grid_note_value = common::core::Fraction{1, 4};
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
         updateView();
@@ -3695,7 +3694,7 @@ bool EditorController::Impl::closeProject()
     m_save_requires_destination = false;
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
-    m_grid_spacing_beats = common::core::Fraction{1, 1};
+    m_grid_note_value = common::core::Fraction{1, 4};
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
     return true;
@@ -3959,11 +3958,11 @@ void EditorController::Impl::applyProjectWriteSuccess(const EditorAction::SavePr
     markUndoHistoryClean("undo.mark_clean.save_project_as");
     saveCurrentProjectCursorPositionBestEffort("store project cursor after save-as");
     // Save As is the first moment an imported project has a path (and an existing project adopts
-    // a new one), so the active grid spacing is persisted here or a selection made before the
+    // a new one), so the active grid note value is persisted here or a selection made before the
     // first save is lost on reopen.
     recordSettingsResultBestEffort(
-        m_settings.saveProjectGridSpacing(m_project_file, m_grid_spacing_beats),
-        "store project grid spacing after save-as");
+        m_settings.saveProjectGridNoteValue(m_project_file, m_grid_note_value),
+        "store project grid note value after save-as");
 }
 
 void EditorController::Impl::applyProjectWriteSuccess(
@@ -4117,26 +4116,26 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
     return session().timeline().start;
 }
 
-// Chooses the grid spacing restored for a project open from app-local editor settings, falling
-// back to the whole-beat default for unknown projects or out-of-bounds stored values.
-common::core::Fraction EditorController::Impl::gridSpacingForOpenedProject(
+// Chooses the grid note value restored for a project open from app-local editor settings, falling
+// back to the quarter-note default for unknown projects or out-of-bounds stored values.
+common::core::Fraction EditorController::Impl::gridNoteValueForOpenedProject(
     const std::filesystem::path& project_file) const
 {
-    const auto saved_spacing = m_settings.projectGridSpacingFor(project_file);
-    if (saved_spacing.has_value())
+    const auto saved_note_value = m_settings.projectGridNoteValueFor(project_file);
+    if (saved_note_value.has_value())
     {
-        if (saved_spacing->has_value() && isValidTempoGridSpacing(**saved_spacing))
+        if (saved_note_value->has_value() && isValidTempoGridNoteValue(**saved_note_value))
         {
-            return **saved_spacing;
+            return **saved_note_value;
         }
     }
     else
     {
         logEditorControllerBestEffortFailure(
-            "restore project grid spacing", saved_spacing.error().message);
+            "restore project grid note value", saved_note_value.error().message);
     }
 
-    return common::core::Fraction{1, 1};
+    return common::core::Fraction{1, 4};
 }
 
 // Saves the current cursor as app-local resume state for saved projects.
@@ -4255,7 +4254,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
     state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
-    state.grid_spacing_beats = m_grid_spacing_beats;
+    state.grid_note_value = m_grid_note_value;
     state.signal_chain = SignalChainViewState{
         .insert_plugin_enabled =
             isActionAvailable(EditorAction::Id::BeginPluginInsert, action_conditions),

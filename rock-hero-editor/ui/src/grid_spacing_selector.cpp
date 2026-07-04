@@ -13,7 +13,7 @@ namespace
 // Width reserved for the static caption so the combo box gets the remaining strip space.
 constexpr int g_caption_width{36};
 
-// Power-of-two note-value presets offered as quick selections, per the tempo-grid spacing plan.
+// Power-of-two note-value presets offered as quick selections beside free fraction entry.
 constexpr std::array<common::core::Fraction, 6> g_note_value_presets{
     common::core::Fraction{1, 4},
     common::core::Fraction{1, 8},

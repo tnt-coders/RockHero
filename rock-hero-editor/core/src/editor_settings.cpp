@@ -28,10 +28,10 @@ struct ProjectCursorState
     common::core::TimePosition cursor_position{};
 };
 
-struct ProjectGridSpacingState
+struct ProjectGridNoteValueState
 {
     std::filesystem::path project_file;
-    common::core::Fraction grid_spacing_beats{1, 1};
+    common::core::Fraction grid_note_value{1, 4};
 };
 
 // Builds the per-user settings file options used by the editor app.
@@ -145,7 +145,7 @@ struct ProjectGridSpacingState
 }
 
 // One XML-valued settings property holding a list of keyed records. Project cursors, project
-// grid spacings, and input calibrations all share this lifecycle: load the whole list (deduping
+// grid note values, and input calibrations all share this lifecycle: load the whole list (deduping
 // by key while loading so corrupt duplicates cannot make lookup ambiguous), replace-by-key on
 // save, and write the whole list back under a format-versioned root, distinguishing a missing
 // property from unreadable XML so callers surface corruption instead of silently clobbering it.
@@ -301,19 +301,22 @@ struct ProjectCursorCodec
     }
 };
 
-// Grid-spacing records resume one project's timeline grid step across editor sessions.
-struct ProjectGridSpacingCodec
+// Grid note-value records resume one project's timeline grid step across editor sessions. The
+// property key is deliberately new: records written by the retired beat-unit grid family live
+// under "projectGridSpacings" and are ignored rather than reinterpreted in the wrong unit, so
+// affected projects reset to the default grid once.
+struct ProjectGridNoteValueCodec
 {
-    using State = ProjectGridSpacingState;
+    using State = ProjectGridNoteValueState;
 
-    static constexpr const char* g_list_key{"projectGridSpacings"};
-    static constexpr const char* g_list_tag{"PROJECT_GRID_SPACINGS"};
-    static constexpr const char* g_item_tag{"SPACING"};
+    static constexpr const char* g_list_key{"projectGridNoteValues"};
+    static constexpr const char* g_list_tag{"PROJECT_GRID_NOTE_VALUES"};
+    static constexpr const char* g_item_tag{"NOTE_VALUE"};
     static constexpr const char* g_project_file_property{"projectFile"};
-    static constexpr const char* g_numerator_property{"spacingNumerator"};
-    static constexpr const char* g_denominator_property{"spacingDenominator"};
+    static constexpr const char* g_numerator_property{"noteValueNumerator"};
+    static constexpr const char* g_denominator_property{"noteValueDenominator"};
     static constexpr EditorSettingsErrorCode g_malformed_history_code{
-        EditorSettingsErrorCode::InvalidProjectGridSpacingHistory
+        EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory
     };
 
     // Records arrive with keys already normalized, matching ProjectCursorCodec.
@@ -322,11 +325,11 @@ struct ProjectGridSpacingCodec
         return state;
     }
 
-    // Structural validity only: semantic spacing bounds stay with the controller so this store
-    // never silently rewrites persisted values.
+    // Structural validity only: semantic note-value bounds stay with the controller so this
+    // store never silently rewrites persisted values.
     [[nodiscard]] static bool isValid(const State& state)
     {
-        return !state.project_file.empty() && state.grid_spacing_beats.numerator >= 1;
+        return !state.project_file.empty() && state.grid_note_value.numerator >= 1;
     }
 
     // Records address the same project when their normalized path keys match.
@@ -357,7 +360,7 @@ struct ProjectGridSpacingCodec
 
         return State{
             .project_file = std::move(key),
-            .grid_spacing_beats = common::core::Fraction{*numerator, *denominator},
+            .grid_note_value = common::core::Fraction{*numerator, *denominator},
         };
     }
 
@@ -366,8 +369,8 @@ struct ProjectGridSpacingCodec
     {
         element.setAttribute(
             g_project_file_property, common::core::juceStringFromPath(state.project_file));
-        element.setAttribute(g_numerator_property, state.grid_spacing_beats.numerator);
-        element.setAttribute(g_denominator_property, state.grid_spacing_beats.denominator);
+        element.setAttribute(g_numerator_property, state.grid_note_value.numerator);
+        element.setAttribute(g_denominator_property, state.grid_note_value.denominator);
     }
 };
 
@@ -460,7 +463,7 @@ struct InputCalibrationCodec
 };
 
 using ProjectCursorStore = KeyedRecordStore<ProjectCursorCodec>;
-using ProjectGridSpacingStore = KeyedRecordStore<ProjectGridSpacingCodec>;
+using ProjectGridNoteValueStore = KeyedRecordStore<ProjectGridNoteValueCodec>;
 using InputCalibrationStore = KeyedRecordStore<InputCalibrationCodec>;
 
 // Saves pending changes and translates JUCE persistence failure into the settings domain.
@@ -643,9 +646,9 @@ std::expected<void, EditorSettingsError> EditorSettings::saveProjectCursorPositi
     return saveNow(m_properties, "Could not save project cursor setting.");
 }
 
-// Reads the app-local timeline grid spacing associated with one project path.
+// Reads the app-local timeline grid note value associated with one project path.
 std::expected<std::optional<common::core::Fraction>, EditorSettingsError> EditorSettings::
-    projectGridSpacingFor(const std::filesystem::path& project_file) const
+    projectGridNoteValueFor(const std::filesystem::path& project_file) const
 {
     const std::filesystem::path key = projectSettingsKeyFor(project_file);
     if (key.empty())
@@ -653,49 +656,51 @@ std::expected<std::optional<common::core::Fraction>, EditorSettingsError> Editor
         return std::nullopt;
     }
 
-    auto states = ProjectGridSpacingStore::readOrError(
-        m_properties, "Saved project grid spacing history is not valid XML.");
+    auto states = ProjectGridNoteValueStore::readOrError(
+        m_properties, "Saved project grid note-value history is not valid XML.");
     if (!states.has_value())
     {
         return std::unexpected{std::move(states.error())};
     }
 
-    const auto found = std::ranges::find_if(*states, [&key](const ProjectGridSpacingState& state) {
-        return projectSettingsKeyFor(state.project_file) == key;
-    });
+    const auto found =
+        std::ranges::find_if(*states, [&key](const ProjectGridNoteValueState& state) {
+            return projectSettingsKeyFor(state.project_file) == key;
+        });
     if (found == states->end())
     {
         return std::nullopt;
     }
 
-    return found->grid_spacing_beats;
+    return found->grid_note_value;
 }
 
-// Stores one project's app-local grid spacing without treating it as project package data.
-std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridSpacing(
-    const std::filesystem::path& project_file, common::core::Fraction grid_spacing_beats)
+// Stores one project's app-local grid note value without treating it as project package data.
+std::expected<void, EditorSettingsError> EditorSettings::saveProjectGridNoteValue(
+    const std::filesystem::path& project_file, common::core::Fraction grid_note_value)
 {
     const std::filesystem::path key = projectSettingsKeyFor(project_file);
-    if (key.empty() || grid_spacing_beats.numerator < 1)
+    if (key.empty() || grid_note_value.numerator < 1)
     {
         return std::unexpected{EditorSettingsError{
             EditorSettingsErrorCode::InvalidSettingValue,
-            "Cannot save a grid spacing for an invalid project path or spacing."
+            "Cannot save a grid note value for an invalid project path or note value."
         }};
     }
 
-    auto states = ProjectGridSpacingStore::readOrError(
-        m_properties, "Cannot save grid spacing because saved grid spacing history is invalid.");
+    auto states = ProjectGridNoteValueStore::readOrError(
+        m_properties,
+        "Cannot save grid note value because saved grid note-value history is invalid.");
     if (!states.has_value())
     {
         return std::unexpected{std::move(states.error())};
     }
 
-    ProjectGridSpacingStore::replace(
+    ProjectGridNoteValueStore::replace(
         *states,
-        ProjectGridSpacingState{.project_file = key, .grid_spacing_beats = grid_spacing_beats});
-    ProjectGridSpacingStore::write(m_properties, *states);
-    return saveNow(m_properties, "Could not save project grid spacing setting.");
+        ProjectGridNoteValueState{.project_file = key, .grid_note_value = grid_note_value});
+    ProjectGridNoteValueStore::write(m_properties, *states);
+    return saveNow(m_properties, "Could not save project grid note value setting.");
 }
 
 // Reads the calibration history without mutating settings or compacting invalid persisted records.

@@ -103,20 +103,20 @@ public:
     }
 
     /*!
-    \brief Reports that no app-local project grid spacing is stored.
+    \brief Reports that no app-local project grid note value is stored.
     \return Always empty optional success.
     */
     [[nodiscard]] std::expected<std::optional<common::core::Fraction>, EditorSettingsError>
-    projectGridSpacingFor(const std::filesystem::path&) const override
+    projectGridNoteValueFor(const std::filesystem::path&) const override
     {
         return std::nullopt;
     }
 
     /*!
-    \brief Ignores app-local project grid spacing writes.
+    \brief Ignores app-local project grid note value writes.
     \return Always empty success.
     */
-    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectGridSpacing(
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectGridNoteValue(
         const std::filesystem::path&, common::core::Fraction) override
     {
         return {};

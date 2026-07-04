@@ -230,11 +230,12 @@ struct EditorViewState
     common::core::TempoMap tempo_map{};
 
     /*!
-    \brief Grid step measured in tempo-map beats, shared by the track grid, ruler, and snapping.
+    \brief Grid step as a fraction of a whole note, shared by the track grid, ruler, and snapping.
 
-    Initialized to the whole-beat grid because the Fraction default of 0/1 is a degenerate step.
+    A 1/8 grid means eighth notes in every meter. Initialized to the quarter-note default because
+    the Fraction default of 0/1 is a degenerate step.
     */
-    common::core::Fraction grid_spacing_beats{1, 1};
+    common::core::Fraction grid_note_value{1, 4};
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};

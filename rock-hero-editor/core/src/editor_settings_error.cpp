@@ -25,9 +25,9 @@ namespace
         {
             return "Saved project cursor settings are invalid.";
         }
-        case EditorSettingsErrorCode::InvalidProjectGridSpacingHistory:
+        case EditorSettingsErrorCode::InvalidProjectGridNoteValueHistory:
         {
-            return "Saved project grid spacing settings are invalid.";
+            return "Saved project grid note-value settings are invalid.";
         }
         case EditorSettingsErrorCode::CouldNotSave:
         {

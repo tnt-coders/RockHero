@@ -15,11 +15,12 @@ namespace rock_hero::editor::ui
 \brief A labeled combo box that selects the timeline grid size in note values.
 
 Interaction is entirely listener-based; this widget deals only in note values (fractions of a
-whole note) and has no knowledge of tempo maps or beat-relative spacing. The owner converts
-between note values and beat-relative grid spacing and handles emitted selections through
-Listener. Presets cover the power-of-two note values through 1/128, and the editable text box
-accepts free fractions such as 3/16 or 1/12. Text that does not parse as a positive fraction
-reverts to the currently applied value without emitting.
+whole note), which are the product-wide grid unit, and forwards emitted selections through
+Listener without conversion or bounds policy. Presets cover the power-of-two note values through
+1/128, and the editable text box accepts free fractions such as 3/16 or 1/12. Text that does not
+parse as a positive fraction reverts to the currently applied value without emitting; entries the
+controller rejects revert the same way, because the applied value only changes through
+setNoteValue.
 */
 class GridSpacingSelector : public juce::Component
 {

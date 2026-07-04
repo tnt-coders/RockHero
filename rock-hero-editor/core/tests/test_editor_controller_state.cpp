@@ -13,7 +13,7 @@ namespace rock_hero::editor::core
 namespace
 {
 
-// Owns one build-local settings file so grid-spacing persistence starts from clean state.
+// Owns one build-local settings file so grid note-value persistence starts from clean state.
 class ScopedControllerSettingsFile final
 {
 public:
@@ -79,7 +79,7 @@ TEST_CASE("EditorViewState represents one arrangement", "[core][editor-controlle
     CHECK(empty_state.audio_device_status_text == "[audio device closed]");
     CHECK(empty_state.audio_devices_available == false);
     CHECK(empty_state.visible_timeline == common::core::TimeRange{});
-    CHECK(empty_state.grid_spacing_beats == common::core::Fraction{1, 1});
+    CHECK(empty_state.grid_note_value == common::core::Fraction{1, 4});
     CHECK_FALSE(empty_state.arrangement.hasAudio());
     CHECK(empty_state.signal_chain.insert_plugin_enabled == false);
     CHECK(empty_state.signal_chain.remove_plugins_enabled == false);
@@ -544,8 +544,9 @@ TEST_CASE("EditorController does not replay errors across transitions", "[core][
     CHECK(view.shown_errors.size() == 1);
 }
 
-// Grid-spacing intents publish the new spacing to the view and persist it for the project.
-TEST_CASE("EditorController publishes and persists grid spacing", "[core][editor-controller]")
+// Grid note-value intents publish the new grid to the view and persist it for the project.
+TEST_CASE(
+    "EditorController publishes and persists the grid note value", "[core][editor-controller]")
 {
     const ScopedControllerSettingsFile settings_file{"controller_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
@@ -564,19 +565,19 @@ TEST_CASE("EditorController publishes and persists grid spacing", "[core][editor
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 2});
+    CHECK(state->grid_note_value == common::core::Fraction{1, 8});
 
-    const auto stored = settings.projectGridSpacingFor(std::filesystem::path{"loaded.rhp"});
+    const auto stored = settings.projectGridNoteValueFor(std::filesystem::path{"loaded.rhp"});
     REQUIRE(stored.has_value());
-    CHECK(*stored == std::optional{common::core::Fraction{1, 2}});
+    CHECK(*stored == std::optional{common::core::Fraction{1, 8}});
 }
 
-// Out-of-bounds spacing intents are ignored so the published grid can never go degenerate.
-TEST_CASE("EditorController ignores invalid grid spacing", "[core][editor-controller]")
+// Out-of-bounds note-value intents are ignored so the published grid can never go degenerate.
+TEST_CASE("EditorController ignores invalid grid note values", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -593,22 +594,24 @@ TEST_CASE("EditorController ignores invalid grid spacing", "[core][editor-contro
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onGridSpacingChangeRequested(common::core::Fraction{});
-    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2048});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 2048});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
+    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
 }
 
-// Reopening a project restores its stored grid spacing from app-local settings.
-TEST_CASE("EditorController restores project grid spacing on open", "[core][editor-controller]")
+// Reopening a project restores its stored grid note value from app-local settings. The stored
+// value deliberately differs from the quarter-note default so a silent fallback cannot pass.
+TEST_CASE(
+    "EditorController restores the project grid note value on open", "[core][editor-controller]")
 {
     const ScopedControllerSettingsFile settings_file{"restore_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
     REQUIRE(settings
-                .saveProjectGridSpacing(
-                    std::filesystem::path{"loaded.rhp"}, common::core::Fraction{1, 4})
+                .saveProjectGridNoteValue(
+                    std::filesystem::path{"loaded.rhp"}, common::core::Fraction{1, 16})
                 .has_value());
 
     FakeTransport transport;
@@ -628,11 +631,11 @@ TEST_CASE("EditorController restores project grid spacing on open", "[core][edit
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
-    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 4});
+    CHECK(state->grid_note_value == common::core::Fraction{1, 16});
 }
 
-// Closing a project resets grid spacing to the whole-beat default for the next project.
-TEST_CASE("EditorController resets grid spacing on close", "[core][editor-controller]")
+// Closing a project resets the grid to the quarter-note default for the next project.
+TEST_CASE("EditorController resets the grid note value on close", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -649,18 +652,18 @@ TEST_CASE("EditorController resets grid spacing on close", "[core][editor-contro
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
     controller.onCloseRequested();
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->project_loaded == false);
-    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
+    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
 }
 
-// Importing over an open project resets grid spacing to the whole-beat default, because a fresh
+// Importing over an open project resets the grid to the quarter-note default, because a fresh
 // import has no per-project record to restore.
-TEST_CASE("EditorController resets grid spacing on import", "[core][editor-controller]")
+TEST_CASE("EditorController resets the grid note value on import", "[core][editor-controller]")
 {
     FakeTransport transport;
     ConfigurableSongAudio audio;
@@ -678,19 +681,19 @@ TEST_CASE("EditorController resets grid spacing on import", "[core][editor-contr
     FakeEditorView view;
     controller.attachView(view);
 
-    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 2});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 8});
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
     controller.onImportRequested(std::filesystem::path{"song.rock"});
 
     const EditorViewState* state = stateOrNull(view.last_state);
     REQUIRE(state != nullptr);
     CHECK(state->project_loaded == true);
-    CHECK(state->grid_spacing_beats == common::core::Fraction{1, 1});
+    CHECK(state->grid_note_value == common::core::Fraction{1, 4});
 }
 
 // Save As is the first moment an imported project has a path, so it persists the active grid
-// spacing under that path; without this, a selection made before the first save is lost.
-TEST_CASE("EditorController persists grid spacing on save-as", "[core][editor-controller]")
+// note value under that path; without this, a selection made before the first save is lost.
+TEST_CASE("EditorController persists the grid note value on save-as", "[core][editor-controller]")
 {
     const ScopedControllerSettingsFile settings_file{"save_as_grid_spacing.settings"};
     EditorSettings settings{settings_file.path()};
@@ -711,12 +714,12 @@ TEST_CASE("EditorController persists grid spacing on save-as", "[core][editor-co
 
     project_services.next_import_song = makeSong(std::filesystem::path{"imported.ogg"});
     controller.onImportRequested(std::filesystem::path{"song.rock"});
-    controller.onGridSpacingChangeRequested(common::core::Fraction{1, 4});
+    controller.onGridNoteValueChangeRequested(common::core::Fraction{1, 16});
     controller.onSaveAsRequested(std::filesystem::path{"saved.rhp"});
 
-    const auto stored = settings.projectGridSpacingFor(std::filesystem::path{"saved.rhp"});
+    const auto stored = settings.projectGridNoteValueFor(std::filesystem::path{"saved.rhp"});
     REQUIRE(stored.has_value());
-    CHECK(*stored == std::optional{common::core::Fraction{1, 4}});
+    CHECK(*stored == std::optional{common::core::Fraction{1, 16}});
 }
 
 } // namespace rock_hero::editor::core

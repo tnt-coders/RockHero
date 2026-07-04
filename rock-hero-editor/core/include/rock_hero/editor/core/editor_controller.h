@@ -340,14 +340,14 @@ public:
     void onTimelineSeekRequested(common::core::TimePosition position) override;
 
     /*!
-    \brief Handles a request to change the timeline grid spacing.
+    \brief Handles a request to change the timeline grid note value.
 
-    Spacing outside the supported bounds is ignored. Accepted spacing is published in view state
-    for the grid, ruler, and snapping, and persisted as app-local per-project editor state.
+    Note values outside the supported bounds are ignored. Accepted values are published in view
+    state for the grid, ruler, and snapping, and persisted as app-local per-project editor state.
 
-    \param spacing_beats Grid step measured in tempo-map beats.
+    \param note_value Grid step as a fraction of a whole note.
     */
-    void onGridSpacingChangeRequested(common::core::Fraction spacing_beats) override;
+    void onGridNoteValueChangeRequested(common::core::Fraction note_value) override;
 
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
