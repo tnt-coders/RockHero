@@ -32,6 +32,30 @@ namespace
 
 } // namespace
 
+// Names the authored region whose span contains a timeline position, for cursor-follow
+// selection. Regions are beat-bounded, so the span converts through the tempo map.
+std::string EditorController::Impl::toneRegionIdAt(common::core::TimePosition position) const
+{
+    const common::core::Arrangement* const arrangement = session().currentArrangement();
+    if (arrangement == nullptr)
+    {
+        return {};
+    }
+
+    const common::core::TempoMap& tempo_map = session().song().tempo_map;
+    for (const common::core::ToneRegion& region : arrangement->tone_track.regions)
+    {
+        const double start = tempo_map.secondsAtBeat(region.start.measure, region.start.beat);
+        const double end = tempo_map.secondsAtBeat(region.end.measure, region.end.beat);
+        if (position.seconds >= start && position.seconds < end)
+        {
+            return region.id;
+        }
+    }
+
+    return {};
+}
+
 void EditorController::Impl::onToneRegionSelected(std::string region_id)
 {
     runAction(EditorAction::SelectToneRegion{std::move(region_id)});

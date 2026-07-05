@@ -229,7 +229,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_grid_spacing_selector(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
-    , m_tone_track_view(*this, m_state.tempo_map)
+    , m_tone_track_view(*this, m_state.tempo_map, audio_ports.transport)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(

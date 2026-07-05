@@ -131,6 +131,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onTimelineZoomChanged(double pixels_per_second);
+    [[nodiscard]] std::string toneRegionIdAt(common::core::TimePosition position) const;
     void onToneRegionSelected(std::string region_id);
     void onToneRegionResizeRequested(
         std::string region_id, common::core::ToneGridPosition start,
