@@ -1583,6 +1583,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
     m_transport.stop();
     // Stop resets to musical time zero, skipping any pre-anchor audio lead-in.
     m_transport.seek(songTimelineOrigin());
+    m_selected_tone_region_id = toneRegionIdAt(songTimelineOrigin());
 
     if (!transport_state.playing)
     {
@@ -1594,7 +1595,15 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
 // move the cursor outside the loaded content.
 void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action)
 {
-    m_transport.seek(session().timeline().clamp(action.position));
+    common::core::TimePosition position = session().timeline().clamp(action.position);
+    if (position.seconds < songTimelineOrigin().seconds)
+    {
+        position = songTimelineOrigin();
+    }
+    m_transport.seek(position);
+    // Selection follows the cursor: the region under the new position becomes the tone
+    // context.
+    m_selected_tone_region_id = toneRegionIdAt(position);
     updateView();
 }
 

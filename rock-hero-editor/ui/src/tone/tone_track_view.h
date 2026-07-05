@@ -12,6 +12,7 @@
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
+#include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/common/core/tone/tone_track.h>
@@ -86,8 +87,12 @@ public:
     \param listener Listener that receives tone-region intents.
     \param tempo_map Tempo map used to snap edge drags; referenced, not copied, so the owner must
     keep it alive for this view's lifetime.
+    \param transport Read-only transport sampled at render cadence so the active region
+    follows the playhead without controller round trips.
     */
-    ToneTrackView(Listener& listener, const common::core::TempoMap& tempo_map);
+    ToneTrackView(
+        Listener& listener, const common::core::TempoMap& tempo_map,
+        const common::audio::ITransport& transport);
 
     /*!
     \brief Stores the visible timeline range used to map region spans to pixels.
@@ -199,6 +204,18 @@ private:
 
     // Receives the transient snap guide while an edge drag is active.
     SnapGuideCallback m_on_snap_guide;
+
+    // Recomputes which region contains the sampled playhead and repaints on changes.
+    void advanceActiveRegion();
+
+    // Read-only transport sampled at render cadence for cursor-follow highlighting.
+    const common::audio::ITransport& m_transport;
+
+    // Vblank-driven callback keeping the active-region highlight in step with playback.
+    juce::VBlankAttachment m_vblank_attachment;
+
+    // Index of the region currently containing the playhead, if any.
+    std::optional<std::size_t> m_active_region_index{};
 
     // Live edge-drag state; empty while no drag is active.
     std::optional<DragState> m_drag{};

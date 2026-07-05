@@ -39,9 +39,13 @@ const juce::Colour g_default_region_label{juce::Colours::white.withAlpha(0.55f)}
 
 } // namespace
 
-ToneTrackView::ToneTrackView(Listener& listener, const common::core::TempoMap& tempo_map)
+ToneTrackView::ToneTrackView(
+    Listener& listener, const common::core::TempoMap& tempo_map,
+    const common::audio::ITransport& transport)
     : m_listener(listener)
     , m_tempo_map(tempo_map)
+    , m_transport(transport)
+    , m_vblank_attachment(this, [this] { advanceActiveRegion(); })
 {}
 
 void ToneTrackView::setVisibleTimeline(common::core::TimeRange visible_timeline)
@@ -126,13 +130,16 @@ void ToneTrackView::paint(juce::Graphics& g)
         };
 
         const bool is_default = region.synthesized_default;
+        const bool highlighted =
+            region.selected ||
+            (m_active_region_index.has_value() && *m_active_region_index == index && !is_default);
         if (is_default)
         {
             g.setColour(g_default_region_fill);
         }
         else
         {
-            g.setColour(region.selected ? g_tone_region_selected_fill : g_tone_region_fill);
+            g.setColour(highlighted ? g_tone_region_selected_fill : g_tone_region_fill);
         }
         g.fillRoundedRectangle(region_bounds, static_cast<float>(g_region_corner_radius));
 
@@ -142,12 +149,10 @@ void ToneTrackView::paint(juce::Graphics& g)
         }
         else
         {
-            g.setColour(region.selected ? g_tone_region_selected_border : g_tone_region_border);
+            g.setColour(highlighted ? g_tone_region_selected_border : g_tone_region_border);
         }
         g.drawRoundedRectangle(
-            region_bounds,
-            static_cast<float>(g_region_corner_radius),
-            region.selected ? 2.0f : 1.2f);
+            region_bounds, static_cast<float>(g_region_corner_radius), highlighted ? 2.0f : 1.2f);
 
         const auto label_bounds =
             region_bounds.reduced(static_cast<float>(g_region_label_inset), 0.0f).toNearestInt();
@@ -386,6 +391,33 @@ std::optional<std::int64_t> ToneTrackView::snappedBeatForDrag(float x) const
     const auto snapped = static_cast<std::int64_t>(
         std::llround(m_tempo_map.beatPositionAtSeconds(position->seconds)));
     return std::clamp(snapped, min_beat, max_beat);
+}
+
+// Recomputes which region contains the sampled playhead and repaints on changes. Runs at
+// render cadence like the cursor overlay, so boundary crossings highlight instantly during
+// playback without routing per-frame position through the controller.
+void ToneTrackView::advanceActiveRegion()
+{
+    const double position = m_transport.position().seconds;
+    std::optional<std::size_t> active;
+    for (std::size_t index = 0; index < m_state.regions.size(); ++index)
+    {
+        const core::ToneRegionViewState& region = m_state.regions[index];
+        if (!region.synthesized_default && position >= region.time_range.start.seconds &&
+            position < region.time_range.end.seconds)
+        {
+            active = index;
+            break;
+        }
+    }
+
+    if (active == m_active_region_index)
+    {
+        return;
+    }
+
+    m_active_region_index = active;
+    repaint();
 }
 
 // Reports the current snap guide, or clears it with an empty value.
