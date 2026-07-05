@@ -1,4 +1,4 @@
-#include "editor_view.h"
+#include "shell/editor_view.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "timeline_ruler.h"
+#include "timeline/timeline_ruler.h"
 
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>

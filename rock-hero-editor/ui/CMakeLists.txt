@@ -6,34 +6,38 @@ add_library(rock_hero_editor_ui STATIC)
 add_library(rock_hero::editor::ui ALIAS rock_hero_editor_ui)
 
 # JUCE editor presentation owns concrete widgets and the top-level editor window shell.
+# Sources are grouped by feature folder; folders are navigation only and add no targets.
 target_sources(
     rock_hero_editor_ui
-    PRIVATE src/arrangement_view.cpp
-            src/audio_level_meter.cpp
-            src/audio_device_settings_view.cpp
-            src/audio_device_settings_window.cpp
-            src/busy_overlay.cpp
-            src/cursor_overlay.cpp
-            src/editor.cpp
-            src/editor_view.cpp
-            src/grid_spacing_selector.cpp
-            src/input_calibration_window.cpp
-            src/menu_bar_button.cpp
-            src/menu_look_and_feel.cpp
-            src/plugin_browser_window.cpp
-            src/signal_chain_block_layout.cpp
-            src/signal_chain_panel.cpp
-            src/signal_chain_view.cpp
-            src/main_window.cpp
-            src/text_metrics.cpp
-            src/timeline_cursor.cpp
-            src/timeline_ruler.cpp
-            src/transport_controls.cpp)
+    PRIVATE src/audio_device/audio_device_settings_view.cpp
+            src/audio_device/audio_device_settings_window.cpp
+            src/busy/busy_overlay.cpp
+            src/input_calibration/input_calibration_window.cpp
+            src/shared/audio_level_meter.cpp
+            src/shared/text_metrics.cpp
+            src/shell/editor.cpp
+            src/shell/editor_view.cpp
+            src/shell/main_window.cpp
+            src/shell/menu_bar_button.cpp
+            src/shell/menu_look_and_feel.cpp
+            src/signal_chain/plugin_browser_window.cpp
+            src/signal_chain/signal_chain_block_layout.cpp
+            src/signal_chain/signal_chain_panel.cpp
+            src/signal_chain/signal_chain_view.cpp
+            src/timeline/arrangement_view.cpp
+            src/timeline/cursor_overlay.cpp
+            src/timeline/grid_spacing_selector.cpp
+            src/timeline/timeline_cursor.cpp
+            src/timeline/timeline_ruler.cpp
+            src/timeline/track_viewport.cpp
+            src/transport/transport_controls.cpp)
 
+# The PRIVATE src dir lets library and test translation units reference private headers with
+# feature-qualified quoted includes ("timeline/track_viewport.h") across feature folders.
 target_include_directories(
     rock_hero_editor_ui
     PUBLIC include
-    PRIVATE include/rock_hero/editor/ui)
+    PRIVATE include/rock_hero/editor/ui src)
 
 target_link_libraries(
     rock_hero_editor_ui

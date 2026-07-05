@@ -5,14 +5,14 @@
 
 #pragma once
 
-#include "arrangement_view.h"
-#include "audio_level_meter.h"
-#include "busy_overlay.h"
-#include "grid_spacing_selector.h"
-#include "menu_bar_button.h"
-#include "plugin_browser_window.h"
-#include "signal_chain_panel.h"
-#include "transport_controls.h"
+#include "busy/busy_overlay.h"
+#include "shared/audio_level_meter.h"
+#include "shell/menu_bar_button.h"
+#include "signal_chain/plugin_browser_window.h"
+#include "signal_chain/signal_chain_panel.h"
+#include "timeline/arrangement_view.h"
+#include "timeline/grid_spacing_selector.h"
+#include "transport/transport_controls.h"
 
 #include <cstddef>
 #include <cstdint>

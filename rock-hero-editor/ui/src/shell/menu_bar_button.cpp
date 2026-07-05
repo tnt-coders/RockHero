@@ -2,7 +2,7 @@
 
 #include "menu_bar_button.h"
 
-#include "text_metrics.h"
+#include "shared/text_metrics.h"
 
 namespace rock_hero::editor::ui
 {

@@ -1,6 +1,6 @@
 #include "cursor_overlay.h"
 
-#include "timeline_cursor.h"
+#include "timeline/timeline_cursor.h"
 
 namespace rock_hero::editor::ui
 {

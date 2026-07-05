@@ -1,4 +1,4 @@
-#include "plugin_browser_window.h"
+#include "signal_chain/plugin_browser_window.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <juce_gui_basics/juce_gui_basics.h>
