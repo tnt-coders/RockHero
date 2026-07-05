@@ -1,4 +1,4 @@
-#include "signal_chain_workflow.h"
+#include "signal_chain/signal_chain_workflow.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>

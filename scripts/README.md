@@ -13,8 +13,9 @@ the repo root:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\rockhero-build.ps1 -Targets all -RunTouchedTests
 ```
 
-- Preset names are case-sensitive; the default is `Debug` (matching `CMakePresets.json`) and the
-  build directory defaults to `build/<preset lowercased>`.
+- Preset names are case-sensitive and lowercase (`debug`, `release`, `relwithdebinfo`, matching
+  `CMakePresets.json`); the default is `debug` and the build directory defaults to
+  `build/<preset>`.
 - `-Targets` takes any Ninja target, including `all` and the `clang-tidy` custom target.
 - `-RunTouchedTests` discovers and runs every built `*_tests.exe` under the build directory
   (running the executables directly is much faster than `ctest`, which pays process startup per
