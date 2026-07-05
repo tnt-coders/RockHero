@@ -1,7 +1,94 @@
 #include "engine_impl.h"
 
+#include <algorithm>
+
 namespace rock_hero::common::audio
 {
+
+TransportState Engine::Impl::currentTransportState() const noexcept
+{
+    return TransportState{
+        .playing = m_edit->getTransport().isPlaying(),
+    };
+}
+
+void Engine::Impl::updateTransportState()
+{
+    const TransportState current_state = currentTransportState();
+    if (m_last_notified_transport_state == current_state)
+    {
+        return;
+    }
+
+    // Project-owned transport listeners observe only coarse transport state. Position is
+    // intentionally excluded so view code polls it at render cadence without forcing callbacks
+    // on every playhead tick.
+    m_last_notified_transport_state = current_state;
+    m_transport_listeners.call(
+        &ITransport::Listener::onTransportStateChanged, m_last_notified_transport_state);
+}
+
+void Engine::Impl::valueTreePropertyChanged(
+    juce::ValueTree& /*tree*/, const juce::Identifier& property)
+{
+    if (property != tracktion::IDs::position)
+    {
+        return;
+    }
+
+    const double position_seconds = m_edit->getTransport().getPosition().inSeconds();
+    if (loadedAudioEndReached(position_seconds))
+    {
+        stopTransport();
+    }
+}
+
+double Engine::Impl::clampToLoadedRange(double seconds) const noexcept
+{
+    if (m_loaded_length_seconds <= 0.0)
+    {
+        return std::max(0.0, seconds);
+    }
+
+    return std::clamp(seconds, 0.0, m_loaded_length_seconds);
+}
+
+bool Engine::Impl::loadedAudioEndReached(double position_seconds) const
+{
+    return m_loaded_length_seconds > 0.0 && m_edit->getTransport().isPlaying() &&
+           position_seconds >= m_loaded_length_seconds;
+}
+
+void Engine::Impl::stopTracktionPlayback()
+{
+    constexpr bool discard_recordings = false;
+    constexpr bool clear_devices = false;
+    m_edit->getTransport().stop(discard_recordings, clear_devices);
+}
+
+void Engine::Impl::pauseTransport()
+{
+    stopTracktionPlayback();
+}
+
+void Engine::Impl::stopTransportAndReleaseContext()
+{
+    constexpr bool discard_recordings = false;
+    constexpr bool clear_devices = true;
+    auto& transport = m_edit->getTransport();
+    m_input_meter_reader.detach();
+    m_output_meter_reader.detach();
+    m_master_meter_reader.detach();
+    transport.stop(discard_recordings, clear_devices);
+    transport.freePlaybackContext();
+}
+
+void Engine::Impl::stopTransport()
+{
+    auto& transport = m_edit->getTransport();
+    stopTracktionPlayback();
+    transport.setPosition(tracktion::TimePosition{});
+}
 
 // Registers a project-owned transport listener that observes the message-thread snapshot.
 void Engine::addListener(ITransport::Listener& listener)

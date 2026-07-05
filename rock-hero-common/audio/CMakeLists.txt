@@ -7,33 +7,44 @@ find_package(libebur128 CONFIG REQUIRED)
 # Shared audio ports, audio-device settings policy, and the default Tracktion/JUCE-backed adapter.
 target_sources(
     rock_hero_common_audio
-    PRIVATE src/device/audio_device_settings.cpp
-            src/engine_impl.h
-            src/meter_reader.h
-            src/device/audio_device_configuration_error.cpp
-            src/input/input_calibration.cpp
-            src/audio_normalization.cpp
+    PRIVATE src/audio_normalization.cpp
             src/audio_path_util.cpp
             src/audio_path_util.h
+            src/device/audio_device_configuration_error.cpp
+            src/device/audio_device_settings.cpp
             src/engine.cpp
             src/engine_device_config.cpp
+            src/engine_impl.h
             src/engine_live_input.cpp
             src/engine_live_rig.cpp
             src/engine_plugin_host.cpp
             src/engine_song_audio.cpp
             src/engine_transport.cpp
-            src/plugin_scan.cpp
-            src/plugin_scan.h
-            src/tone_document.cpp
-            src/tone_document.h
-            src/tracktion/live_rig_gain_plugin.cpp
+            src/input/input_calibration.cpp
             src/input/live_input_error.cpp
             src/live_rig/live_rig_error.cpp
-            src/tracktion/monitoring_mode_transition.cpp
+            src/meter_reader.h
             src/plugin/plugin_host_error.cpp
+            src/plugin_scan.cpp
+            src/plugin_scan.h
             src/song/song_audio_error.cpp
+            src/tone_document.cpp
+            src/tone_document.h
+            src/tracktion/engine_behaviours.cpp
+            src/tracktion/engine_behaviours.h
+            src/tracktion/live_rig_gain_plugin.cpp
+            src/tracktion/live_rig_gain_plugin.h
+            src/tracktion/monitoring_mode_transition.cpp
+            src/tracktion/monitoring_mode_transition.h
+            src/tracktion/plugin_dirty_tracking.cpp
+            src/tracktion/plugin_dirty_tracking.h
+            src/tracktion/plugin_move_index.h
+            src/tracktion/plugin_window.cpp
+            src/tracktion/plugin_window.h
             src/tracktion/tracktion_instrument_wave_device_mapping.cpp
-            src/tracktion/tracktion_thumbnail.cpp)
+            src/tracktion/tracktion_instrument_wave_device_mapping.h
+            src/tracktion/tracktion_thumbnail.cpp
+            src/tracktion/tracktion_thumbnail.h)
 
 target_include_directories(
     rock_hero_common_audio

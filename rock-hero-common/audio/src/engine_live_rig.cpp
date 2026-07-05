@@ -54,6 +54,326 @@ void reportLiveRigLoadProgress(
 
 } // namespace
 
+bool Engine::Impl::isStructuralLiveRigPlugin(const tracktion::Plugin* plugin) const
+{
+    if (plugin == nullptr)
+    {
+        return false;
+    }
+    return plugin->itemID == m_input_gain_plugin_id || plugin->itemID == m_input_meter_plugin_id ||
+           plugin->itemID == m_output_gain_plugin_id || plugin->itemID == m_output_meter_plugin_id;
+}
+
+LiveRigGainPlugin* Engine::Impl::findStructuralGainPlugin(tracktion::EditItemID plugin_id) const
+{
+    if (!plugin_id.isValid())
+    {
+        return nullptr;
+    }
+    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return nullptr;
+    }
+    for (tracktion::Plugin* const plugin : instrument_track->pluginList)
+    {
+        if (plugin != nullptr && plugin->itemID == plugin_id)
+        {
+            return dynamic_cast<LiveRigGainPlugin*>(plugin);
+        }
+    }
+    return nullptr;
+}
+
+tracktion::LevelMeterPlugin* Engine::Impl::findLevelMeter(
+    tracktion::PluginList& list, tracktion::EditItemID plugin_id)
+{
+    if (!plugin_id.isValid())
+    {
+        return nullptr;
+    }
+    for (tracktion::Plugin* const plugin : list)
+    {
+        if (plugin != nullptr && plugin->itemID == plugin_id)
+        {
+            return dynamic_cast<tracktion::LevelMeterPlugin*>(plugin);
+        }
+    }
+    return nullptr;
+}
+
+tracktion::LevelMeterPlugin* Engine::Impl::findStructuralMeterPlugin(
+    tracktion::EditItemID plugin_id) const
+{
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return nullptr;
+    }
+    return findLevelMeter(instrument_track->pluginList, plugin_id);
+}
+
+tracktion::LevelMeterPlugin* Engine::Impl::findStructuralMasterMeterPlugin(
+    tracktion::EditItemID plugin_id) const
+{
+    if (m_edit == nullptr)
+    {
+        return nullptr;
+    }
+    return findLevelMeter(m_edit->getMasterPluginList(), plugin_id);
+}
+
+std::expected<LiveRigGainPlugin*, LiveRigError> Engine::Impl::createLiveRigGainPlugin(
+    int insert_index)
+{
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+    const tracktion::Plugin::Ptr plugin =
+        m_edit->getPluginCache().createNewPlugin(LiveRigGainPlugin::createState());
+    if (plugin == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not create structural live rig gain plugin",
+        }};
+    }
+    instrument_track->pluginList.insertPlugin(plugin, insert_index, nullptr);
+    auto* const live_rig_gain = dynamic_cast<LiveRigGainPlugin*>(plugin.get());
+    if (live_rig_gain == nullptr || !instrument_track->pluginList.contains(live_rig_gain))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not insert structural live rig gain plugin",
+        }};
+    }
+
+    return live_rig_gain;
+}
+
+std::expected<tracktion::LevelMeterPlugin*, LiveRigError> Engine::Impl::createLevelMeter(
+    tracktion::PluginList& list, int insert_index)
+{
+    const tracktion::Plugin::Ptr plugin =
+        m_edit->getPluginCache().createNewPlugin(tracktion::LevelMeterPlugin::xmlTypeName, {});
+    if (plugin == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not create structural meter plugin",
+        }};
+    }
+    list.insertPlugin(plugin, insert_index, nullptr);
+    auto* const level_meter = dynamic_cast<tracktion::LevelMeterPlugin*>(plugin.get());
+    if (level_meter == nullptr || !list.contains(level_meter))
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Could not insert structural meter plugin",
+        }};
+    }
+
+    return level_meter;
+}
+
+std::expected<tracktion::LevelMeterPlugin*, LiveRigError> Engine::Impl::createLevelMeterPlugin(
+    int insert_index)
+{
+    tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+    return createLevelMeter(instrument_track->pluginList, insert_index);
+}
+
+std::expected<tracktion::LevelMeterPlugin*, LiveRigError> Engine::Impl::
+    createMasterLevelMeterPlugin()
+{
+    if (m_edit == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Edit is not available for master meter creation",
+        }};
+    }
+    return createLevelMeter(m_edit->getMasterPluginList(), -1);
+}
+
+void Engine::Impl::detachAndClearMeter(MeterReader& reader, tracktion::LevelMeterPlugin* meter)
+{
+    reader.detach();
+    if (meter != nullptr)
+    {
+        meter->measurer.clear();
+    }
+}
+
+std::expected<void, LiveRigError> Engine::Impl::validateStructuralLiveRigPlugins() const
+{
+    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    const auto* const input_plugin = findStructuralGainPlugin(m_input_gain_plugin_id);
+    const auto* const input_meter = findStructuralMeterPlugin(m_input_meter_plugin_id);
+    const auto* const output_plugin = findStructuralGainPlugin(m_output_gain_plugin_id);
+    const auto* const output_meter = findStructuralMeterPlugin(m_output_meter_plugin_id);
+    if (input_plugin == nullptr || input_meter == nullptr || output_plugin == nullptr ||
+        output_meter == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Structural live rig plugins are missing",
+        }};
+    }
+
+    const auto& plugin_list = instrument_track->pluginList.getPlugins();
+    if (plugin_list.size() < 4 || plugin_list[0] == nullptr || plugin_list[1] == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Structural live rig plugins are not in fixed slots",
+        }};
+    }
+    if (plugin_list.getLast() == nullptr || plugin_list[plugin_list.size() - 2] == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Structural live rig plugins are not in fixed slots",
+        }};
+    }
+
+    if (plugin_list[0]->itemID != m_input_gain_plugin_id ||
+        plugin_list[1]->itemID != m_input_meter_plugin_id ||
+        plugin_list[plugin_list.size() - 2]->itemID != m_output_gain_plugin_id ||
+        plugin_list.getLast()->itemID != m_output_meter_plugin_id)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Structural live rig plugins are not in fixed slots",
+        }};
+    }
+
+    return {};
+}
+
+std::expected<void, LiveRigError> Engine::Impl::createStructuralLiveRigPlugins()
+{
+    if (instrumentTrack() == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    auto created_input_plugin = createLiveRigGainPlugin(0);
+    if (!created_input_plugin.has_value())
+    {
+        return std::unexpected{std::move(created_input_plugin.error())};
+    }
+    m_input_gain_plugin_id = (*created_input_plugin)->itemID;
+
+    auto created_input_meter = createLevelMeterPlugin(1);
+    if (!created_input_meter.has_value())
+    {
+        return std::unexpected{std::move(created_input_meter.error())};
+    }
+    m_input_meter_plugin_id = (*created_input_meter)->itemID;
+
+    auto created_output_plugin = createLiveRigGainPlugin(-1);
+    if (!created_output_plugin.has_value())
+    {
+        return std::unexpected{std::move(created_output_plugin.error())};
+    }
+    m_output_gain_plugin_id = (*created_output_plugin)->itemID;
+
+    auto created_output_meter = createLevelMeterPlugin(-1);
+    if (!created_output_meter.has_value())
+    {
+        return std::unexpected{std::move(created_output_meter.error())};
+    }
+    m_output_meter_plugin_id = (*created_output_meter)->itemID;
+
+    auto created_master_meter = createMasterLevelMeterPlugin();
+    if (!created_master_meter.has_value())
+    {
+        return std::unexpected{std::move(created_master_meter.error())};
+    }
+    m_master_meter_plugin_id = (*created_master_meter)->itemID;
+
+    return validateStructuralLiveRigPlugins();
+}
+
+std::expected<void, LiveRigError> Engine::Impl::clearUserLiveRigPlugins()
+{
+    const tracktion::AudioTrack* const instrument_track = instrumentTrack();
+    if (instrument_track == nullptr)
+    {
+        return std::unexpected{LiveRigError{LiveRigErrorCode::TrackMissing}};
+    }
+
+    clearPluginEditObservers();
+    const tracktion::Plugin::Array plugins = instrument_track->pluginList.getPlugins();
+    for (tracktion::Plugin* const plugin : plugins)
+    {
+        if (plugin != nullptr && !isStructuralLiveRigPlugin(plugin))
+        {
+            plugin->removeFromParent();
+        }
+    }
+
+    return validateStructuralLiveRigPlugins();
+}
+
+void Engine::Impl::clearRetainedLiveRigMeterState()
+{
+    detachAndClearMeter(m_input_meter_reader, findStructuralMeterPlugin(m_input_meter_plugin_id));
+    detachAndClearMeter(m_output_meter_reader, findStructuralMeterPlugin(m_output_meter_plugin_id));
+    detachAndClearMeter(
+        m_master_meter_reader, findStructuralMasterMeterPlugin(m_master_meter_plugin_id));
+}
+
+std::expected<void, LiveRigError> Engine::Impl::resetLiveRigProjectState()
+{
+    auto output_reset = applyGainToPlugin(m_output_gain_plugin_id, Gain{defaultGainDb()});
+    if (!output_reset.has_value())
+    {
+        return std::unexpected{std::move(output_reset.error())};
+    }
+
+    clearRetainedLiveRigMeterState();
+    return {};
+}
+
+Gain Engine::Impl::readGainFromPlugin(tracktion::EditItemID plugin_id) const
+{
+    const auto* const plugin = findStructuralGainPlugin(plugin_id);
+    if (plugin == nullptr)
+    {
+        return Gain{};
+    }
+    return plugin->gain();
+}
+
+std::expected<void, LiveRigError> Engine::Impl::applyGainToPlugin(
+    tracktion::EditItemID plugin_id, Gain gain)
+{
+    auto* const plugin = findStructuralGainPlugin(plugin_id);
+    if (plugin == nullptr)
+    {
+        return std::unexpected{LiveRigError{
+            LiveRigErrorCode::PluginRestoreFailed,
+            "Structural live rig gain plugin is missing",
+        }};
+    }
+
+    plugin->setGain(gain);
+    return {};
+}
+
 // Clears the instrument plugin chain without touching the active backing arrangement.
 std::expected<void, LiveRigError> Engine::clearLiveRig()
 {
