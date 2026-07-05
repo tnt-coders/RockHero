@@ -1,4 +1,4 @@
-#include "arrangement_view.h"
+#include "timeline/arrangement_view.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>

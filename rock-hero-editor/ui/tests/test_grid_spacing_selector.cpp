@@ -1,4 +1,4 @@
-#include "grid_spacing_selector.h"
+#include "timeline/grid_spacing_selector.h"
 
 #include <optional>
 #include <rock_hero/common/core/fraction.h>

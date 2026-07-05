@@ -1,9 +1,9 @@
 #include "track_viewport.h"
 
-#include "arrangement_view.h"
-#include "cursor_overlay.h"
-#include "editor_colors.h"
-#include "timeline_cursor.h"
+#include "shell/editor_colors.h"
+#include "timeline/arrangement_view.h"
+#include "timeline/cursor_overlay.h"
+#include "timeline/timeline_cursor.h"
 
 #include <algorithm>
 #include <cmath>

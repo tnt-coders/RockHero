@@ -1,6 +1,6 @@
 #include "input_calibration_window.h"
 
-#include "audio_level_meter.h"
+#include "shared/audio_level_meter.h"
 
 #include <BinaryData.h>
 #include <memory>

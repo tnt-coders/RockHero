@@ -1,6 +1,6 @@
 #include "plugin_browser_window.h"
 
-#include "busy_overlay.h"
+#include "busy/busy_overlay.h"
 
 #include <algorithm>
 #include <cctype>
