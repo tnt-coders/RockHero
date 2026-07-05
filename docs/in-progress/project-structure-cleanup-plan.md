@@ -1,4 +1,4 @@
-# Project Structure Cleanup Plan
+with fa# Project Structure Cleanup Plan
 
 Status: active plan, written 2026-07-04. Phase 0 was approved and executed the same day, then
 amended after user review (revision notes below); Phases 1+ are gated on Phase 0.
@@ -264,12 +264,11 @@ Free-function (projection) modules, for the record: `tempo_grid_geometry`, `time
 
 ## 4. Phases
 
-Every phase: batch the edits, then one verification pass. **Acceptance gate:** builds are run by
-the user, not the agent (agent-run builds break CLion include paths), so a phase is *not complete*
-— and the next phase does not start — until the user reports all four commands run:
-`cmake --build --preset debug`, `ctest --preset debug`,
-`cmake --build build/debug --target clang-tidy`, and `pre-commit run --all-files`. Build, ctest,
-and pre-commit must be green. The clang-tidy leg is expected to fail on the pre-existing header
+Every phase: batch the edits, then one verification pass. **Acceptance gate (agent-run since
+2026-07-04):** the agent runs verification itself through `scripts/rockhero-build.ps1` (CLion's
+bundled CMake + VsDevCmd Ninja — the combination that keeps agent builds from breaking CLion's
+include paths). A phase is *not complete* — and the next phase does not start — until build, all
+per-library test executables, and `pre-commit run --all-files` are green. The clang-tidy leg is expected to fail on the pre-existing header
 backlog until Phase 6 triage; its gate criterion for Phases 2–5 is "no new findings in files the
 phase touched". Pure-move commits never mix with extraction commits; public-churn commits never
 mix with either. Each phase leaves the repo strictly better and is a safe stopping point.
