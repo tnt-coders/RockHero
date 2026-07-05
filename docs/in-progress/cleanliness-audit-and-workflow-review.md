@@ -227,22 +227,73 @@ scratch for these requirements.
   "tablature renders over the waveform" — that moment arrives with this feature; re-evaluate
   smooth scroll (plan preserved in `docs/todo/smooth-scroll-follow-evaluation.md`).
 
-## 7. Execution Items
+## 7. Execution Items — ALL COMPLETE (user-approved 2026-07-05)
 
-Ordered; each is one commit with the standard gate.
+1. **DONE (112787ff)** — SignalChainView extraction. `PluginTileView` and `InsertSlotView` moved
+   to their own units as out-of-line **nested member classes** (nesting is what legitimizes their
+   access to the view's drag-preview state — the multi-TU pattern, not a promotion); shared
+   vocabulary split by consumer count into `plugin_drag.{h,cpp}` (three consumers) and
+   `signal_chain_view_metrics.h` (view + tile). Deviation from the original sketch:
+   `SignalPathContent` (~50 lines) and the slider look-and-feel (~30) stayed in the view TU —
+   they are below component size and single-consumer; extraction would be churn. View TU:
+   1,570 → 637 lines.
+2. **DONE (94d8440a)** — song-package split: `rock_song_package_read.cpp` (838),
+   `rock_song_package_write.cpp` (720), `rock_song_package_format.{h,cpp}` holding the rules both
+   sides share (`song.json` name, the timing-decimals grid, `isSafeRelativePath`,
+   `validateTempoMap`). Public header unchanged.
+3. **DONE (782a5b5b)** — CMake precision: dead duplicate tidy-regex block removed from root;
+   `common/audio` declares its four directly included JUCE modules PRIVATE; `editor/ui` tightened
+   `common::audio` to PRIVATE and declares `juce_graphics`; all private headers listed uniformly
+   in `target_sources`.
+4. **DONE (36e23f03)** — rules codified: "Sum Types vs Interfaces" and "Async Choreography" in
+   `architectural-principles.md`; "Listener Interfaces vs Observer Structs" in
+   `coding-conventions.md`.
+5. **No change needed** — the output-gain nit was stale: `applyOutputGainChange` and
+   `pushOutputGainUndoEntry` already live in `signal_chain_handlers.cpp`; the audit misread the
+   impl-header declaration list as TU placement.
 
-1. **Extract SignalChainView's nested components** — `plugin_tile_view.{h,cpp}`,
-   `insert_slot_view.{h,cpp}`, `signal_path_content.{h,cpp}` (+ the slider look-and-feel with its
-   consumer) into `editor/ui/src/signal_chain/`.
-2. **Split `rock_song_package.cpp`** into read/write TUs (pre-chart-model preparation).
-3. **Codify the three rules** in `docs/design/`: expression-problem rule (variant vs interface,
-   §2.1/2.2), Async Choreography idioms (§2.3), notification-style rule (§2.6).
-4. Optional nit: move output-gain undo helpers from the controller hub TU into
-   `signal_chain_handlers.cpp`.
-
-Completed during the audit: repaired two control-character-mangled `\file` commands
+Also completed during the audit: repaired two control-character-mangled `\file` commands
 (`editor_controller_impl.h`, `editor_controller_logging.h`), added the missing `\file` block to
-`plugin_move_index.h`.
+`plugin_move_index.h`. Tone-track feature naming approved by the user: **`tone/`**.
+
+## 8. Static vs Dynamic Libraries (analysis for discussion)
+
+Current shape: nine first-party static libraries + static JUCE/Tracktion wrapper targets, linked
+into two self-contained executables. The architecture doc's one-line justification ("avoids
+singleton aliasing, simplifies deployment") understates the real case. The full argument:
+
+**What dynamic linking would cost here:**
+
+- **JUCE and Tracktion are the seam that matters, and they are hostile to it.** JUCE leans on
+  process-global singletons (`MessageManager`, `Desktop`, the `DeletedAtShutdown` registry);
+  JUCE's own forums document assertion failures when the MessageManager is reached from a shared
+  library and singleton lifetime bugs in DLLs. Tracktion has no export annotations at all.
+  Statically linking JUCE into each of several first-party DLLs would *create* the singleton
+  aliasing problem (N copies of JUCE state in one process) that the current design avoids.
+- **Export annotation is a permanent tax.** Windows DLLs need `__declspec(dllexport/import)` on
+  every public symbol. CMake's `WINDOWS_EXPORT_ALL_SYMBOLS` escape hatch does not cover global
+  data or vftable references and caps at 65,535 symbols — JUCE + Tracktion together would blow
+  past it. The alternative is `ROCK_HERO_API` macros on every public class: header noise in
+  direct conflict with the cleanliness goal, forever.
+- **Cross-DLL C++ hazards** (ODR for inline/template code, CRT coupling) become our problem;
+  whole-program optimization across the seam is lost.
+
+**What dynamic linking would buy here — and why each is weak today:**
+
+- *Incremental link speed*: relink only a changed DLL. Real benefit in huge codebases; at ~48k
+  lines the exe links in seconds.
+- *Shared code between editor and game on disk*: megabytes; irrelevant.
+- *Self-registering module loading*: DllMain-forced registration does fix the static-lib
+  dead-stripping veto — but the modules question was re-rejected on the merits, and the product
+  already has its dynamic extension boundary: **VST3 plugins**, which are DLLs loaded through the
+  host boundary.
+- *AGPL*: imposes no LGPL-style relinking pressure toward shared libraries.
+
+**Recommendation:** static stays, as a *reasoned* decision rather than a default. Record the
+re-open triggers: (a) exe link time materially hurting iteration, (b) a product need to load
+first-party code at runtime (mod system beyond VST), (c) a second process needing to share live
+JUCE/Tracktion state. Pending user confirmation, `architecture.md`'s one-line justification
+should be expanded to carry this rationale.
 
 Watch items (no action now): `engine_plugin_host.cpp` sub-split at ~2,000 lines;
 `editor_settings.cpp` codec split at ~1,200 lines / six codecs; `EditorEditContext` at six
