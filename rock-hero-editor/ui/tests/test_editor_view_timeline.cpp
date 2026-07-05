@@ -1,3 +1,4 @@
+#include "timeline_cursor.h"
 #include "timeline_ruler.h"
 
 #include <algorithm>

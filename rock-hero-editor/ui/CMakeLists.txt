@@ -13,6 +13,7 @@ target_sources(
             src/audio_device_settings_view.cpp
             src/audio_device_settings_window.cpp
             src/busy_overlay.cpp
+            src/cursor_overlay.cpp
             src/editor.cpp
             src/editor_view.cpp
             src/grid_spacing_selector.cpp

@@ -26,7 +26,6 @@
 #include <rock_hero/common/audio/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/i_transport.h>
 #include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>
@@ -42,17 +41,8 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-/*!
-\brief Computes a cursor x coordinate for a timeline position and visible range.
-
-\param position Current transport position.
-\param visible_timeline Visible timeline range.
-\param width Drawing width in pixels.
-\return Subpixel x coordinate in [0, width - 1], or empty when no cursor can be mapped.
-*/
-[[nodiscard]] std::optional<float> cursorXForTimelinePosition(
-    common::core::TimePosition position, common::core::TimeRange visible_timeline,
-    int width) noexcept;
+// Forward declaration so the timeline cursor overlay unit can stay out of this header.
+class CursorOverlay;
 
 /*!
 \brief JUCE implementation of the editor view contract.
@@ -186,8 +176,6 @@ public:
     void menuItemSelected(int menu_item_id, int top_level_menu_index) override;
 
 private:
-    class CursorOverlay;
-
     // Private viewport shell that hosts zoomable track content for the editor timeline.
     class TrackViewport;
 
