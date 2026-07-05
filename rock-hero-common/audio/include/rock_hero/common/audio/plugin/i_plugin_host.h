@@ -14,7 +14,7 @@
 #include <rock_hero/common/audio/plugin/plugin_chain_snapshot.h>
 #include <rock_hero/common/audio/plugin/plugin_host_error.h>
 #include <rock_hero/common/audio/plugin/plugin_instance_state.h>
-#include <rock_hero/common/core/cancellation_token.h>
+#include <rock_hero/common/core/infrastructure/cancellation_token.h>
 #include <string>
 #include <vector>
 

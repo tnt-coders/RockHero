@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 #include <string>
 #include <string_view>
 

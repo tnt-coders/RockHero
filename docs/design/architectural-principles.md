@@ -187,6 +187,17 @@ boundary (test-only targets), which is exactly what namespaces are for.
 - Do not create role folders (`ports/`, `errors/`, `view_states/`). The type-name suffix answers
   "what kind"; the folder answers "which feature".
 
+### Subsystem Groups in `common/core`
+
+`common/core` has no user-facing features to fold by, so its folders name its three subsystems
+instead: `domain/` (the song model — song, arrangement, tempo map, timeline, session, and their
+value types), `package/` (song-package persistence — archive IO, package IDs, workspace paths, and
+their errors), and `infrastructure/` (app-level utilities with no song semantics — logging, JSON,
+path bridging, cancellation, application identity). These are subsystem names, not kind names, so
+they do not violate the no-role-folders rule. Every new `common/core` file goes in exactly one of
+these groups; a file that fits none is a signal to discuss a fourth subsystem, not to park it at
+the root.
+
 ## Library Roots Are the Cross-Feature Contract
 
 A file belongs at a library root only because it is cross-feature contract: facades, action sums,

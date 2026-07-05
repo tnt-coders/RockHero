@@ -11,9 +11,9 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/tempo_map.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>

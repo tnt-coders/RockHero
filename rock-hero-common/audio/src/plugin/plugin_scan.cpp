@@ -2,8 +2,8 @@
 
 #include "audio_path_util.h"
 
-#include <rock_hero/common/core/json.h>
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/infrastructure/json.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 #include <tracktion_engine/tracktion_engine.h>
 #include <utility>
 

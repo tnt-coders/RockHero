@@ -6,9 +6,9 @@
 #include <fstream>
 #include <juce_core/juce_core.h>
 #include <optional>
-#include <rock_hero/common/core/json.h>
-#include <rock_hero/common/core/juce_path.h>
-#include <rock_hero/common/core/rock_song_package.h>
+#include <rock_hero/common/core/infrastructure/json.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
 #include <string>
 #include <string_view>
 #include <system_error>

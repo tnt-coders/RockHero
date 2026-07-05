@@ -5,9 +5,9 @@
 #include <filesystem>
 #include <fstream>
 #include <iterator>
-#include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/package_id.h>
-#include <rock_hero/common/core/rock_song_package.h>
+#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
 #include <string>
 #include <string_view>
 #include <vector>

@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <rock_hero/common/core/arrangement.h>
-#include <rock_hero/common/core/tempo_map.h>
+#include <rock_hero/common/core/domain/arrangement.h>
+#include <rock_hero/common/core/domain/tempo_map.h>
 #include <string>
 #include <vector>
 

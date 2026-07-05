@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/audio_asset.h>
+#include <rock_hero/common/core/domain/timeline.h>
 
 // Forward declarations; full definitions provided by juce_gui_basics, which consuming
 // translation units (rock-hero-editor/ui) already link.

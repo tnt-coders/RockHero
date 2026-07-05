@@ -1,4 +1,4 @@
-#include "package_id.h"
+#include "package/package_id.h"
 
 #include <cstddef>
 #include <juce_core/juce_core.h>

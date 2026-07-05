@@ -1,7 +1,7 @@
 #include "audio_path_util.h"
 #include "engine_impl.h"
 
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 
 namespace rock_hero::common::audio
 {

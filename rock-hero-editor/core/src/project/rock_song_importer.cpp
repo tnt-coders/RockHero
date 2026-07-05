@@ -2,8 +2,8 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/archive_io.h>
-#include <rock_hero/common/core/rock_song_package.h>
+#include <rock_hero/common/core/package/archive_io.h>
+#include <rock_hero/common/core/package/rock_song_package.h>
 #include <string>
 #include <system_error>
 #include <utility>
