@@ -8,7 +8,7 @@
 #include <expected>
 #include <filesystem>
 #include <rock_hero/common/core/song.h>
-#include <rock_hero/editor/core/song_import_error.h>
+#include <rock_hero/editor/core/project/song_import_error.h>
 
 namespace rock_hero::editor::core
 {

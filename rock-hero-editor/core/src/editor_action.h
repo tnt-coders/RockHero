@@ -12,8 +12,8 @@
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/plugin_block_assignment.h>
-#include <rock_hero/editor/core/plugin_display_type.h>
+#include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
+#include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>
 #include <utility>
 #include <variant>

@@ -14,7 +14,7 @@
 #include <optional>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/plugin_catalog_scan_progress.h>
-#include <rock_hero/editor/core/i_message_thread_scheduler.h>
+#include <rock_hero/editor/core/tasks/i_message_thread_scheduler.h>
 #include <string>
 
 namespace rock_hero::editor::core

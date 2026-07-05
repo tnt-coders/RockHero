@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <rock_hero/common/audio/i_live_rig.h>
 #include <rock_hero/common/audio/i_plugin_host.h>
-#include <rock_hero/editor/core/plugin_view_state.h>
+#include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 
 namespace rock_hero::editor::core
 {

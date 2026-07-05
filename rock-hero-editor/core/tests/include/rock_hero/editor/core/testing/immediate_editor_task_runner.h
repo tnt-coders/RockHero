@@ -6,7 +6,7 @@
 #pragma once
 
 #include <functional>
-#include <rock_hero/editor/core/i_editor_task_runner.h>
+#include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 
 namespace rock_hero::editor::core::testing
 {

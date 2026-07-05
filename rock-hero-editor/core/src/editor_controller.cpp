@@ -37,11 +37,11 @@
 #include <rock_hero/common/core/cancellation_token.h>
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/logger.h>
-#include <rock_hero/editor/core/busy_view_state.h>
-#include <rock_hero/editor/core/i_editor_settings.h>
-#include <rock_hero/editor/core/i_editor_task_runner.h>
+#include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_view.h>
-#include <rock_hero/editor/core/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/settings/i_editor_settings.h>
+#include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <string>
 #include <string_view>
 #include <system_error>

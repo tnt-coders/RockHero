@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/common/core/tempo_map.h>
-#include <rock_hero/editor/core/transport_readout_text.h>
+#include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <vector>
 
 namespace rock_hero::editor::core

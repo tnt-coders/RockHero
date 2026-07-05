@@ -12,8 +12,8 @@
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/song.h>
-#include <rock_hero/editor/core/i_song_importer.h>
-#include <rock_hero/editor/core/project_error.h>
+#include <rock_hero/editor/core/project/i_song_importer.h>
+#include <rock_hero/editor/core/project/project_error.h>
 #include <string>
 
 namespace rock_hero::editor::core

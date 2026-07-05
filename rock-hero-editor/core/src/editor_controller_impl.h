@@ -43,10 +43,10 @@ definitions, no state added just to make a translation-unit split work.
 #include <rock_hero/common/core/timeline.h>
 #include <rock_hero/editor/core/editor_controller.h>
 #include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/i_editor_settings.h>
-#include <rock_hero/editor/core/i_editor_task_runner.h>
 #include <rock_hero/editor/core/i_editor_view.h>
-#include <rock_hero/editor/core/project.h>
+#include <rock_hero/editor/core/project/project.h>
+#include <rock_hero/editor/core/settings/i_editor_settings.h>
+#include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <string>
 #include <string_view>
 #include <vector>

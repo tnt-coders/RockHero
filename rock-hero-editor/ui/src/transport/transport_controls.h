@@ -7,7 +7,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
-#include <rock_hero/editor/core/transport_view_state.h>
+#include <rock_hero/editor/core/transport/transport_view_state.h>
 
 namespace rock_hero::editor::ui
 {

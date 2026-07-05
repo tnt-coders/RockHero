@@ -1,4 +1,4 @@
-#include "editor_settings.h"
+#include "settings/editor_settings.h"
 
 #include <algorithm>
 #include <charconv>

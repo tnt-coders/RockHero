@@ -8,8 +8,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/editor/core/busy_view_state.h>
-#include <rock_hero/editor/core/plugin_browser_view_state.h>
+#include <rock_hero/editor/core/busy/busy_view_state.h>
+#include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::ui

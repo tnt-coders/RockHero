@@ -1,4 +1,4 @@
-#include <rock_hero/editor/core/editor_settings.h>
+#include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string_view>
 #include <system_error>

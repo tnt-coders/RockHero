@@ -1,6 +1,6 @@
 #include <algorithm>
 #include <juce_events/juce_events.h>
-#include <rock_hero/editor/core/juce_message_thread_scheduler.h>
+#include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
 
 namespace rock_hero::editor::core
 {

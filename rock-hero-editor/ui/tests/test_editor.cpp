@@ -18,8 +18,8 @@
 #include <rock_hero/common/audio/input_calibration_state.h>
 #include <rock_hero/common/audio/testing/configurable_song_audio.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
-#include <rock_hero/editor/core/i_editor_settings.h>
-#include <rock_hero/editor/core/i_editor_task_runner.h>
+#include <rock_hero/editor/core/settings/i_editor_settings.h>
+#include <rock_hero/editor/core/tasks/i_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>

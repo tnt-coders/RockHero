@@ -4,7 +4,7 @@
 
 #include <memory>
 #include <rock_hero/common/audio/audio_device_settings.h>
-#include <rock_hero/editor/core/audio_device_settings_controller.h>
+#include <rock_hero/editor/core/audio_device/audio_device_settings_controller.h>
 #include <utility>
 
 namespace rock_hero::editor::ui

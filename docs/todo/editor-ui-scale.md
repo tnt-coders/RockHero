@@ -42,7 +42,7 @@ For each editor session:
 ## File shape
 
 The editor already has `editor_settings.h`
-(`rock-hero-editor/core/include/rock_hero/editor/core/editor_settings.h`). Adding a
+(`rock-hero-editor/core/include/rock_hero/editor/core/settings/editor_settings.h`). Adding a
 `ui_scale_percent` field (or similar) fits the existing precedent. Persistence and
 serialization should follow the patterns already used for whatever lives there.
 

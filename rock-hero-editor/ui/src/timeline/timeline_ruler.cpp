@@ -7,8 +7,8 @@
 #include <cmath>
 #include <cstdint>
 #include <optional>
-#include <rock_hero/editor/core/tempo_grid_geometry.h>
-#include <rock_hero/editor/core/timeline_geometry.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
 #include <vector>
 

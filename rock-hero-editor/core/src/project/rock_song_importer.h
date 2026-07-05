@@ -7,7 +7,7 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/editor/core/i_song_importer.h>
+#include <rock_hero/editor/core/project/i_song_importer.h>
 
 namespace rock_hero::editor::core
 {

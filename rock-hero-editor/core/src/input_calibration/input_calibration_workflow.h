@@ -11,7 +11,7 @@
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/input_calibration_state.h>
 #include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/signal_chain_view_state.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <string>
 #include <variant>
 #include <vector>

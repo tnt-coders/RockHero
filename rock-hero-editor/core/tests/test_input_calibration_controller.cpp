@@ -2,7 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <expected>
 #include <optional>
-#include <rock_hero/editor/core/input_calibration_controller.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <string>
 #include <utility>
 #include <vector>

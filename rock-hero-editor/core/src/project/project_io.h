@@ -9,7 +9,7 @@
 #include <filesystem>
 #include <optional>
 #include <rock_hero/common/core/song.h>
-#include <rock_hero/editor/core/project.h>
+#include <rock_hero/editor/core/project/project.h>
 #include <string>
 #include <string_view>
 #include <vector>
