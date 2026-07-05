@@ -187,9 +187,8 @@ constexpr int g_zip_compression_level = 9;
 // token and pinning it to seconds at the fixed package precision.
 [[nodiscard]] std::string formatAnchorLine(const BeatAnchor& anchor)
 {
-    return R"({ "position": ")" + std::to_string(anchor.measure) + ":" +
-           std::to_string(anchor.beat) + R"(", "seconds": )" + formatTimingValue(anchor.seconds) +
-           " }";
+    return R"({ "position": ")" + formatBeatPositionToken(anchor.measure, anchor.beat) +
+           R"(", "seconds": )" + formatTimingValue(anchor.seconds) + " }";
 }
 
 // Song-document audio entry retained between validation and final JSON formatting.
@@ -200,6 +199,16 @@ struct AudioAssetDocumentEntry
     std::optional<AudioNormalization> normalization;
 };
 
+// One authored tone region retained between validation and final JSON formatting.
+struct ToneRegionDocumentEntry
+{
+    std::string id;
+    std::string name;
+    std::string start;
+    std::string end;
+    std::string tone_document;
+};
+
 // Song-document arrangement entry retained between validation and final JSON formatting.
 struct ArrangementDocumentEntry
 {
@@ -207,7 +216,29 @@ struct ArrangementDocumentEntry
     std::string part;
     std::string audio;
     std::string tone_document;
+    std::vector<ToneRegionDocumentEntry> tone_regions;
 };
+
+// Renders one authored tone region as a compact object line.
+[[nodiscard]] std::string formatToneRegionLine(const ToneRegionDocumentEntry& entry)
+{
+    std::string line = "{ \"id\": ";
+    line += jsonString(entry.id);
+    if (!entry.name.empty())
+    {
+        line += ", \"name\": ";
+        line += jsonString(entry.name);
+    }
+    line += ", \"start\": ";
+    line += jsonString(entry.start);
+    line += ", \"end\": ";
+    line += jsonString(entry.end);
+    line += ", \"toneDocument\": ";
+    line += jsonString(entry.tone_document);
+    line += " }";
+
+    return line;
+}
 
 // Renders one audio asset entry as a compact object line.
 [[nodiscard]] std::string formatAudioAssetLine(const AudioAssetDocumentEntry& entry)
@@ -242,6 +273,16 @@ struct ArrangementDocumentEntry
     {
         line += ", \"toneDocument\": ";
         line += jsonString(entry.tone_document);
+    }
+    if (!entry.tone_regions.empty())
+    {
+        line += R"(, "toneTrack": { "regions": [)";
+        for (std::size_t index = 0; index < entry.tone_regions.size(); ++index)
+        {
+            line += (index == 0 ? "\n      " : ",\n      ");
+            line += formatToneRegionLine(entry.tone_regions[index]);
+        }
+        line += "\n    ] }";
     }
     line += " }";
 
@@ -343,23 +384,17 @@ struct SongDocumentForSave
     return candidate;
 }
 
-// Validates an arrangement's tone document reference (canonical, safe, present) without writing
+// Validates one tone document reference (canonical, safe, present on disk) without writing
 // anything, so a bad reference fails a save before any side effect occurs.
-[[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneReference(
-    const std::filesystem::path& workspace_directory, const Arrangement& arrangement)
+[[nodiscard]] std::expected<void, SongPackageError> validateToneDocumentOnDisk(
+    const std::filesystem::path& workspace_directory, const std::string& tone_document_ref)
 {
-    if (arrangement.tone_document_ref.empty())
-    {
-        return std::expected<void, SongPackageError>{};
-    }
-
-    const std::filesystem::path tone_document_path{arrangement.tone_document_ref};
-    if (!isSafeRelativePath(tone_document_path) ||
-        !isCanonicalToneDocumentRef(arrangement.tone_document_ref))
+    const std::filesystem::path tone_document_path{tone_document_ref};
+    if (!isSafeRelativePath(tone_document_path) || !isCanonicalToneDocumentRef(tone_document_ref))
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "Cannot save a non-canonical tone document path: " + arrangement.tone_document_ref,
+            "Cannot save a non-canonical tone document path: " + tone_document_ref,
         }};
     }
 
@@ -370,8 +405,43 @@ struct SongDocumentForSave
     {
         return std::unexpected{SongPackageError{
             SongPackageErrorCode::InvalidSongDocument,
-            "Cannot save a missing tone document: " + arrangement.tone_document_ref,
+            "Cannot save a missing tone document: " + tone_document_ref,
         }};
+    }
+
+    return std::expected<void, SongPackageError>{};
+}
+
+// Validates an arrangement's tone references (legacy document plus authored tone track) without
+// writing anything, so a bad reference fails a save before any side effect occurs.
+[[nodiscard]] std::expected<void, SongPackageError> validateArrangementToneReference(
+    const std::filesystem::path& workspace_directory, const Arrangement& arrangement,
+    const TempoMap& tempo_map)
+{
+    if (!arrangement.tone_document_ref.empty())
+    {
+        if (const auto tone_error =
+                validateToneDocumentOnDisk(workspace_directory, arrangement.tone_document_ref);
+            !tone_error.has_value())
+        {
+            return tone_error;
+        }
+    }
+
+    if (const auto structural = validateToneTrack(arrangement.tone_track, tempo_map);
+        !structural.has_value())
+    {
+        return std::unexpected{structural.error()};
+    }
+
+    for (const ToneRegion& region : arrangement.tone_track.regions)
+    {
+        if (const auto tone_error =
+                validateToneDocumentOnDisk(workspace_directory, region.tone_document_ref);
+            !tone_error.has_value())
+        {
+            return tone_error;
+        }
     }
 
     return std::expected<void, SongPackageError>{};
@@ -417,7 +487,7 @@ struct SongDocumentForSave
         // Validate this arrangement before any side effect (audio copy, document write), so a
         // validation failure does not leave copied audio behind.
         if (const auto tone_error =
-                validateArrangementToneReference(workspace_directory, arrangement);
+                validateArrangementToneReference(workspace_directory, arrangement, song.tempo_map);
             !tone_error.has_value())
         {
             return std::unexpected{tone_error.error()};
@@ -464,12 +534,27 @@ struct SongDocumentForSave
             audio_id = audio_ids_by_path.emplace(relative_audio_name, generated_id).first;
         }
 
+        std::vector<ToneRegionDocumentEntry> tone_regions;
+        tone_regions.reserve(arrangement.tone_track.regions.size());
+        for (const ToneRegion& region : arrangement.tone_track.regions)
+        {
+            tone_regions.push_back(
+                ToneRegionDocumentEntry{
+                    .id = region.id,
+                    .name = region.name,
+                    .start = formatBeatPositionToken(region.start.measure, region.start.beat),
+                    .end = formatBeatPositionToken(region.end.measure, region.end.beat),
+                    .tone_document = region.tone_document_ref,
+                });
+        }
+
         arrangements.push_back(
             ArrangementDocumentEntry{
                 .id = *arrangement_id,
                 .part = partName(arrangement.part),
                 .audio = audio_id->second,
                 .tone_document = arrangement.tone_document_ref,
+                .tone_regions = std::move(tone_regions),
             });
         arrangement_ids.push_back(*arrangement_id);
     }

@@ -231,7 +231,8 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
           std::make_unique<TrackViewport>(
-              controller, m_arrangement_view, *m_cursor_overlay, audio_ports.transport))
+              controller, m_arrangement_view, m_tone_track_view, *m_cursor_overlay,
+              audio_ports.transport))
     , m_meter_vblank_attachment(this, [this] {
         refreshAudioMeters();
         refreshTimeDisplay();
@@ -254,6 +255,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.setText("Audio Device");
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
+    m_tone_track_view.setComponentID("tone_track_view");
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
     m_busy_overlay.setCancelCallback([this] { m_controller.onBusyCancelRequested(); });
@@ -337,6 +339,9 @@ void EditorView::setState(const core::EditorViewState& state)
 
     m_arrangement_view.setVisibleTimeline(m_state.visible_timeline);
     m_arrangement_view.setState(m_state.arrangement);
+
+    m_tone_track_view.setVisibleTimeline(m_state.visible_timeline);
+    m_tone_track_view.setState(m_state.tone_track);
 
     m_cursor_overlay->setVisibleTimelineRange(m_state.visible_timeline);
     m_cursor_overlay->setGridNoteValue(m_state.grid_note_value);

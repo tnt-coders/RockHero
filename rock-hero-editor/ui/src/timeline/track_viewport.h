@@ -24,6 +24,7 @@ namespace rock_hero::editor::ui
 
 class ArrangementView;
 class CursorOverlay;
+class ToneTrackView;
 
 /*!
 \brief Hosts zoomable track content inside a JUCE viewport for future multi-track scrolling.
@@ -91,13 +92,15 @@ public:
 
     \param controller Controller that receives ruler-level and canvas-level timeline seek intents.
     \param arrangement_view Waveform view hosted as the first track row; must outlive this shell.
+    \param tone_track_view Tone track row hosted below the waveform; must outlive this shell.
     \param cursor_overlay Editor-wide cursor overlay hosted above the canvas; must outlive this
     shell.
     \param transport Read-only transport sampled to keep playback visible during follow.
     */
     TrackViewport(
         core::IEditorController& controller, ArrangementView& arrangement_view,
-        CursorOverlay& cursor_overlay, const common::audio::ITransport& transport);
+        ToneTrackView& tone_track_view, CursorOverlay& cursor_overlay,
+        const common::audio::ITransport& transport);
 
     /*! \brief Uses default destruction because the viewed component is owned by this shell. */
     ~TrackViewport() override = default;
@@ -194,6 +197,9 @@ private:
     // Keeps each track at one third of the default usable viewport height.
     [[nodiscard]] int primaryTrackHeight() const noexcept;
 
+    // Compact height of the tone track row hosted below the waveform.
+    [[nodiscard]] int toneTrackHeight() const noexcept;
+
     // Converts the current pixel density into the width of the full timeline content.
     [[nodiscard]] int scaledContentWidth() const noexcept;
 
@@ -270,6 +276,9 @@ private:
 
     // Existing waveform view hosted as the first track row.
     ArrangementView& m_arrangement_view;
+
+    // Tone track row hosted below the waveform on the shared canvas.
+    ToneTrackView& m_tone_track_view;
 
     // Full-canvas cursor and click overlay.
     CursorOverlay& m_cursor_overlay;

@@ -9,6 +9,7 @@
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/difficulty.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_track.h>
 #include <string>
 
 namespace rock_hero::common::core
@@ -56,6 +57,15 @@ struct Arrangement
     the target document as opaque audio-owned data.
     */
     std::string tone_document_ref;
+
+    /*!
+    \brief Authored tone schedule for this arrangement.
+
+    Empty until the user authors tone regions; loading synthesizes a runtime-only default region
+    from tone_document_ref instead of storing one here, so untouched projects never gain a
+    persisted tone track on re-save.
+    */
+    ToneTrack tone_track;
 
     /*!
     \brief Calculates the range occupied by the arrangement audio on the session timeline.

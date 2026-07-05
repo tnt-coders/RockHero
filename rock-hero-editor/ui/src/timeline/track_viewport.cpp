@@ -4,6 +4,7 @@
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/timeline_cursor.h"
+#include "tone/tone_track_view.h"
 
 #include <algorithm>
 #include <cmath>
@@ -212,9 +213,11 @@ void TrackViewport::TimelineViewport::visibleAreaChanged(
 // Installs the existing waveform track and cursor overlay into viewport-owned content.
 TrackViewport::TrackViewport(
     core::IEditorController& controller, ArrangementView& arrangement_view,
-    CursorOverlay& cursor_overlay, const common::audio::ITransport& transport)
+    ToneTrackView& tone_track_view, CursorOverlay& cursor_overlay,
+    const common::audio::ITransport& transport)
     : m_controller(controller)
     , m_arrangement_view(arrangement_view)
+    , m_tone_track_view(tone_track_view)
     , m_cursor_overlay(cursor_overlay)
     , m_transport(transport)
     , m_content(*this)
@@ -239,6 +242,7 @@ TrackViewport::TrackViewport(
     // Track content starts hidden to match the project-not-loaded member defaults;
     // setProjectLoaded early-outs on an unchanged flag, so no constructor push runs here.
     m_content.addChildComponent(m_arrangement_view);
+    m_content.addChildComponent(m_tone_track_view);
     m_content.addChildComponent(m_cursor_overlay);
     m_content.setSize(g_track_canvas_width, g_track_canvas_default_height);
     m_timeline_ruler.setCursorPlacementCallback([this](common::core::TimePosition position) {
@@ -268,6 +272,7 @@ void TrackViewport::setProjectLoaded(bool project_loaded)
     m_content.setProjectLoaded(project_loaded);
     m_timeline_ruler.setProjectLoaded(project_loaded);
     m_arrangement_view.setVisible(project_loaded);
+    m_tone_track_view.setVisible(project_loaded);
     m_cursor_overlay.setVisible(project_loaded);
     layoutScaledCanvas();
     repaint();
@@ -371,6 +376,12 @@ int TrackViewport::defaultVisibleCanvasHeight() const noexcept
     return std::max(1, g_track_canvas_default_height - m_viewport.getScrollBarThickness());
 }
 
+// Keeps the compact tone row at half a primary track so regions read as a schedule strip.
+int TrackViewport::toneTrackHeight() const noexcept
+{
+    return primaryTrackHeight() / 2;
+}
+
 // Keeps each track at one third of the default usable viewport height.
 int TrackViewport::primaryTrackHeight() const noexcept
 {
@@ -433,6 +444,7 @@ void TrackViewport::layoutScaledCanvas()
     const int content_width = scaledContentWidth();
     m_content.setSize(content_width, scaledContentHeight(content_width));
     m_arrangement_view.setBounds(0, 0, m_content.getWidth(), primaryTrackHeight());
+    m_tone_track_view.setBounds(0, primaryTrackHeight(), m_content.getWidth(), toneTrackHeight());
     m_cursor_overlay.setBounds(m_content.getLocalBounds());
     m_cursor_overlay.toFront(false);
     updateRulerView();
