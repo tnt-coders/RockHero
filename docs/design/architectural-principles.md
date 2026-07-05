@@ -181,8 +181,10 @@ boundary (test-only targets), which is exactly what namespaces are for.
 
 - Inside every library, group files by feature. Use the same feature names across `core`, `ui`,
   and test file names.
-- A feature earns a folder at three or more files; until then its files sit at the library root.
-  Once a feature folder exists, every new file for that feature goes in it immediately.
+- A feature earns its folder at its **first** file. Folders holding one file are correct, not
+  premature: the library root is never a waiting room.
+- When a feature grows large enough to want subfolders, its defining files keep living at the
+  feature folder's top level. Subfolders subdivide a feature; they never force its core files out.
 - `include/` and `src/` mirror feature-folder names, with identical basenames for paired files.
 - Do not create role folders (`ports/`, `errors/`, `view_states/`). The type-name suffix answers
   "what kind"; the folder answers "which feature".
@@ -192,20 +194,30 @@ boundary (test-only targets), which is exactly what namespaces are for.
 `common/core` folds by the same feature axis as every other library: `song/` (the song model —
 song, arrangement, difficulty, audio assets and their normalization metadata), `timeline/`
 (musical time — time value types, the tempo map, and the exact rational type for grid-relative
-positions; the same feature name the editor libraries use), and `package/` (song-package
-persistence — archive IO, package IDs, workspace paths, and their errors). `session.h` sits at
-the library root because it composes song, arrangement, and timeline state — the cross-feature
-statement the root exists for. Mechanisms with no feature (logging, JSON, path bridging,
-cancellation, application identity) live in `shared/`.
+positions; the same feature name the editor libraries use), `package/` (song-package
+persistence — archive IO, package IDs, workspace paths, and their errors), and `session/` (the
+editable workspace session composing song, arrangement, and timeline state). Mechanisms with no
+feature (logging, JSON, path bridging, cancellation, application identity) live in `shared/`.
+`common/core` has no facade, so its root holds no files.
 
-## Library Roots Are the Cross-Feature Contract
+## Library Roots Hold Folders Only
 
-A file belongs at a library root only because it is cross-feature contract: facades, action sums,
-availability policy, aggregate view state, undo timelines, session composition, and similar types
-that must see multiple features. Root placement is a statement, not a default. The admission test
-is strict: a root file must either compose or join two or more features, be the library's facade,
-or be a feature still below the folder threshold. A file that fits none of those and is not
-`shared/`-admissible signals a design question to resolve — never a root placement by default.
+No `.h` or `.cpp` file sits directly at a library's include root or src root. A library's facade
+and cross-feature contract — the types that define the library itself — live in the library's
+**hub folder**, named after the hub object: `engine/` in `common/audio` (the engine facade, its
+private implementation header, and its per-port translation units), `controller/` in
+`editor/core` (the editor-controller facade, the action sum, availability policy, deferred
+actions, aggregate view state, and the unified undo timeline), `main_window/` in `editor/ui` (the
+composition wrappers). The hub folder is not a role folder: it holds one nameable thing — the
+object that joins the library's features — exactly as a feature folder holds one feature.
+
+This keeps the rule purely structural and therefore trivially checkable: a root is either all
+folders or it is wrong. `scripts/check_library_roots.py` runs in pre-commit (and therefore CI)
+and fails on any file dropped at a root, with no allowlist to maintain. The one exemption is
+`placeholder.cpp`, the scaffolding translation unit in not-yet-implemented libraries.
+
+A file that is neither the hub's, one feature's, nor `shared/`-admissible signals a design
+question to resolve — never a root placement, which no longer exists as an option.
 
 Shared mechanism files that serve two or more features but carry no feature semantics (for
 example, text metrics, path utilities, logging) go in a `shared/` folder in every library — in
@@ -255,8 +267,8 @@ headers; they never define framework subclasses inline. Proven by `live_rig_gain
    implementation; JUCE UI → a `ui` library; headless → a `core` library; both products →
    `common`).
 2. **Feature** — name the user-facing feature the file serves. Exactly one → that feature's
-   folder. A mechanism with two or more feature consumers → `shared/` or the core-library root.
-   Composes or joins features → the library root.
+   folder. A mechanism with two or more feature consumers → `shared/`. Composes or joins
+   features → the library's hub folder (`engine/`, `controller/`, `main_window/`).
 3. **Kind never decides placement.** Suffixes carry kind; folders carry feature.
 4. **Visibility** — `src/` first. A header moves to `include/` only when a consumer outside the
    library exists.

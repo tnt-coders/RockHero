@@ -12,17 +12,16 @@ target_sources(
             src/busy/busy_operation_workflow.cpp
             src/busy/busy_operation_workflow.h
             src/busy/busy_view_state.cpp
-            src/deferred_project_action_state.cpp
-            src/deferred_project_action_state.h
-            src/editor_action.cpp
-            src/editor_action.h
-            src/editor_action_availability.cpp
-            src/editor_action_availability.h
-            src/editor_controller.cpp
-            src/editor_controller_impl.h
-            src/shared/editor_controller_logging.h
-            src/editor_undo_history.cpp
-            src/editor_undo_history.h
+            src/controller/deferred_project_action_state.cpp
+            src/controller/deferred_project_action_state.h
+            src/controller/editor_action.cpp
+            src/controller/editor_action.h
+            src/controller/editor_action_availability.cpp
+            src/controller/editor_action_availability.h
+            src/controller/editor_controller.cpp
+            src/controller/editor_controller_impl.h
+            src/controller/editor_undo_history.cpp
+            src/controller/editor_undo_history.h
             src/input_calibration/input_calibration_controller.cpp
             src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_workflow.cpp
@@ -35,6 +34,7 @@ target_sources(
             src/project/song_import_error.cpp
             src/settings/editor_settings.cpp
             src/settings/editor_settings_error.cpp
+            src/shared/editor_controller_logging.h
             src/signal_chain/plugin_catalog_workflow.cpp
             src/signal_chain/plugin_catalog_workflow.h
             src/signal_chain/plugin_display_type.cpp

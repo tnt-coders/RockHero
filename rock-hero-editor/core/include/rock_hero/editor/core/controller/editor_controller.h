@@ -12,9 +12,9 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/session.h>
-#include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/common/core/session/session.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
+#include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/project/project.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>

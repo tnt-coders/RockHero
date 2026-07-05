@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/session/session.h>
 #include <rock_hero/common/core/song/audio_asset.h>
 #include <rock_hero/common/core/song/song.h>
 #include <utility>

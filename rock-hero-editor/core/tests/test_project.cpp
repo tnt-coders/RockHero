@@ -10,7 +10,7 @@
 #include <juce_core/juce_core.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/audio_normalization.h>
+#include <rock_hero/common/audio/song/audio_normalization.h>
 #include <rock_hero/common/core/shared/juce_path.h>
 #include <rock_hero/common/core/song/audio_normalization.h>
 #include <rock_hero/editor/core/project/project.h>

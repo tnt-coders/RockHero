@@ -14,7 +14,7 @@
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/i_editor_controller.h>
+#include <rock_hero/editor/core/controller/i_editor_controller.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <utility>
 #include <vector>

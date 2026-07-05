@@ -6,7 +6,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 
 namespace rock_hero::common::audio
 {

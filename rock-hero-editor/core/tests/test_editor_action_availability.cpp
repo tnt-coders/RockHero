@@ -1,4 +1,4 @@
-#include "editor_action_availability.h"
+#include "controller/editor_action_availability.h"
 
 #include <catch2/catch_test_macros.hpp>
 

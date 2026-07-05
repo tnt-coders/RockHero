@@ -12,7 +12,7 @@
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
-#include <rock_hero/editor/core/editor_action_id.h>
+#include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
