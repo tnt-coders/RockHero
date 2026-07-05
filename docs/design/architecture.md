@@ -401,8 +401,17 @@ Loads a `Song` and starts a playback session. Displays the note highway and scor
 
 Both executables link scope-level umbrella targets as static libraries. The final shape is
 `rock_hero::common + rock_hero::editor` for the editor executable and
-`rock_hero::common + rock_hero::game` for the game executable. Static linking avoids singleton
-aliasing issues and simplifies deployment.
+`rock_hero::common + rock_hero::game` for the game executable.
+
+Static linking is a reasoned decision, not a default. JUCE is built on process-global singletons
+(`MessageManager`, `Desktop`, the `DeletedAtShutdown` registry) that misbehave across DLL
+boundaries, Tracktion carries no export annotations, and Windows DLLs would force either
+export-macro noise on every public class or `WINDOWS_EXPORT_ALL_SYMBOLS`, which covers neither
+global data nor vftables and caps at 65,535 symbols — below what JUCE plus Tracktion emit.
+Meanwhile the benefits are absent at this scale: executables link in seconds, and the product's
+dynamic extension boundary already exists as VST3 plugin loading behind `IPluginHost`. Revisit
+only if executable link time materially hurts iteration, first-party code must load at runtime
+beyond VST plugins, or a second process needs to share live engine state.
 
 ---
 
