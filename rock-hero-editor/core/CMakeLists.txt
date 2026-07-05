@@ -20,13 +20,16 @@ target_sources(
             src/editor_action_availability.h
             src/editor_controller.cpp
             src/editor_controller_impl.h
+            src/editor_controller_logging.h
             src/editor_undo_history.cpp
             src/editor_undo_history.h
             src/input_calibration/input_calibration_controller.cpp
+            src/input_calibration/input_calibration_handlers.cpp
             src/input_calibration/input_calibration_workflow.cpp
             src/input_calibration/input_calibration_workflow.h
             src/project/project.cpp
             src/project/project_error.cpp
+            src/project/project_handlers.cpp
             src/project/project_io.cpp
             src/project/rock_song_importer.cpp
             src/project/song_import_error.cpp
@@ -38,6 +41,7 @@ target_sources(
             src/signal_chain/signal_chain_block_placement.cpp
             src/signal_chain/signal_chain_edits.cpp
             src/signal_chain/signal_chain_edits.h
+            src/signal_chain/signal_chain_handlers.cpp
             src/signal_chain/signal_chain_workflow.cpp
             src/signal_chain/signal_chain_workflow.h
             src/tasks/juce_editor_task_runner.cpp
