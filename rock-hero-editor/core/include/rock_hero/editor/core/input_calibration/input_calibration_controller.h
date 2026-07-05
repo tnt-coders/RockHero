@@ -11,8 +11,8 @@
 #include <rock_hero/common/audio/input_calibration.h>
 #include <rock_hero/common/audio/live_input_error.h>
 #include <rock_hero/editor/core/editor_view_state.h>
-#include <rock_hero/editor/core/i_input_calibration_view.h>
-#include <rock_hero/editor/core/input_calibration_view_state.h>
+#include <rock_hero/editor/core/input_calibration/i_input_calibration_view.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
 #include <string>
 
 namespace rock_hero::editor::core

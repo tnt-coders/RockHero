@@ -1,4 +1,4 @@
-#include "plugin_display_type.h"
+#include "signal_chain/plugin_display_type.h"
 
 #include <algorithm>
 #include <cctype>

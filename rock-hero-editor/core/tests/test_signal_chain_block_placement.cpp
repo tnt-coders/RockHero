@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
 #include <optional>
-#include <rock_hero/editor/core/signal_chain_block_placement.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_block_placement.h>
 #include <utility>
 #include <vector>
 

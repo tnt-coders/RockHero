@@ -1,4 +1,4 @@
-#include "signal_chain_block_placement.h"
+#include "signal_chain/signal_chain_block_placement.h"
 
 #include <utility>
 

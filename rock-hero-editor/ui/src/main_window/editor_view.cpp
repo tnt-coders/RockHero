@@ -15,7 +15,7 @@
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/tempo_map.h>
-#include <rock_hero/editor/core/transport_readout_text.h>
+#include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>
 #include <vector>

@@ -7,9 +7,9 @@
 
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/editor/core/audio_device_settings_view_state.h>
-#include <rock_hero/editor/core/i_audio_device_settings_controller.h>
-#include <rock_hero/editor/core/i_audio_device_settings_view.h>
+#include <rock_hero/editor/core/audio_device/audio_device_settings_view_state.h>
+#include <rock_hero/editor/core/audio_device/i_audio_device_settings_controller.h>
+#include <rock_hero/editor/core/audio_device/i_audio_device_settings_view.h>
 
 namespace rock_hero::editor::ui
 {

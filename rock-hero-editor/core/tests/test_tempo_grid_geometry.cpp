@@ -2,7 +2,7 @@
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/common/core/tempo_map.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/editor/core/tempo_grid_geometry.h>
+#include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <vector>
 
 namespace rock_hero::editor::core

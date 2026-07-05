@@ -13,7 +13,7 @@
 #include <rock_hero/common/audio/audio_normalization.h>
 #include <rock_hero/common/core/audio_normalization.h>
 #include <rock_hero/common/core/juce_path.h>
-#include <rock_hero/editor/core/project.h>
+#include <rock_hero/editor/core/project/project.h>
 #include <string>
 #include <string_view>
 #include <unordered_map>

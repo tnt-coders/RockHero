@@ -10,7 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/timeline.h>
-#include <rock_hero/editor/core/arrangement_view_state.h>
+#include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 
 namespace rock_hero::common::audio
 {

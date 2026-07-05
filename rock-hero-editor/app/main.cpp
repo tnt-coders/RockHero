@@ -6,9 +6,9 @@
 #include <rock_hero/common/audio/engine.h>
 #include <rock_hero/common/core/application_identity.h>
 #include <rock_hero/common/core/logger.h>
-#include <rock_hero/editor/core/editor_settings.h>
-#include <rock_hero/editor/core/juce_editor_task_runner.h>
-#include <rock_hero/editor/core/juce_message_thread_scheduler.h>
+#include <rock_hero/editor/core/settings/editor_settings.h>
+#include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
+#include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>
 #include <rock_hero/editor/ui/editor.h>
 #include <rock_hero/editor/ui/main_window.h>
 #include <string_view>

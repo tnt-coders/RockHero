@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
-#include <rock_hero/editor/core/audio_device_settings_controller.h>
+#include <rock_hero/editor/core/audio_device/audio_device_settings_controller.h>
 #include <vector>
 
 namespace rock_hero::editor::core

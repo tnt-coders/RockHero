@@ -2,7 +2,7 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
-#include <rock_hero/editor/core/plugin_block_assignment.h>
+#include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/testing/editor_controller_test_harness.h>
 #include <string>
 #include <utility>
