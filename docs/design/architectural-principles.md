@@ -204,7 +204,9 @@ A deliberately unified coordination object (a root facade, an engine implementin
 may define its member functions across multiple translation units when its surface slices along a
 stable axis such as feature or port. This is a file-layout relief valve, not an object split.
 Proven in this repository by the editor controller's per-feature translation units
-(`input_calibration_handlers.cpp`, `signal_chain_handlers.cpp`, `project_handlers.cpp`).
+(`input_calibration_handlers.cpp`, `signal_chain_handlers.cpp`, `project_handlers.cpp`) and the
+audio engine's per-port translation units (`engine_transport.cpp` through
+`engine_device_config.cpp`).
 
 Conditions:
 
@@ -213,10 +215,24 @@ Conditions:
 - each translation unit is one named slice and lives in that slice's feature folder
 - helpers used by one slice stay in that unit's anonymous namespace; helpers shared across slices
   are promoted to a named private header, never duplicated
+- the object's own translation unit (`engine.cpp`, `editor_controller.cpp`) is the assembly file:
+  construction and teardown wiring plus the few members genuinely shared by every slice. Every
+  other member definition lives in the translation unit of the slice it serves, never in the
+  assembly file for convenience.
 
 Splitting the object itself remains a separate, deliberate design decision. When the object's
 unity is semantic (one invariant set, one coordination point), keep the object whole and
 distribute only its files.
+
+## Framework-Adapter Units
+
+In `common/audio`, every class that subclasses or plugs into a Tracktion/JUCE extension point — a
+custom plugin, an `EngineBehaviour`/`UIBehaviour`, a host window, a listener that adapts framework
+notifications into project-owned events — lives as its own named unit in `src/tracktion/`, one
+unit per cohesive class cluster. Engine translation units compose these adapters through their
+headers; they never define framework subclasses inline. Proven by `live_rig_gain_plugin`,
+`engine_behaviours`, `plugin_window`, `plugin_dirty_tracking`, `tracktion_thumbnail`,
+`monitoring_mode_transition`, and `tracktion_instrument_wave_device_mapping`.
 
 ## Placement Procedure for New Files
 

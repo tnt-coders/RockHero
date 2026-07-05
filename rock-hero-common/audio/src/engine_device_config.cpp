@@ -19,6 +19,73 @@ namespace
 
 } // namespace
 
+void Engine::Impl::scheduleAudioDeviceConfigurationRefresh()
+{
+    if (m_audio_device_configuration_refresh_pending)
+    {
+        return;
+    }
+
+    m_audio_device_configuration_refresh_pending = true;
+    const std::weak_ptr<bool> alive_source{m_alive};
+    const bool refresh_posted = juce::MessageManager::callAsync([this, alive = alive_source] {
+        if (alive.expired())
+        {
+            return;
+        }
+
+        m_audio_device_configuration_refresh_pending = false;
+        handleAudioDeviceConfigurationRefresh();
+    });
+    if (refresh_posted)
+    {
+        return;
+    }
+
+    m_audio_device_configuration_refresh_pending = false;
+    logInstrumentMonitoringFailure("audio device refresh could not be posted");
+    if (juce::MessageManager::existsAndIsCurrentThread())
+    {
+        handleAudioDeviceConfigurationRefresh();
+    }
+}
+
+void Engine::Impl::handleAudioDeviceConfigurationRefresh()
+{
+    m_live_input_monitoring_enabled = false;
+    m_calibration_input_monitoring_enabled = false;
+    detachInstrumentMonitoringRoute();
+    m_engine->getDeviceManager().dispatchPendingUpdates();
+    m_audio_device_listeners.call(
+        &IAudioDeviceConfiguration::Listener::onAudioDeviceConfigurationChanged);
+}
+
+void Engine::Impl::attachMeterReader(MeterReader& reader, tracktion::LevelMeterPlugin* meter)
+{
+    if (meter != nullptr)
+    {
+        reader.attach(&meter->measurer);
+    }
+    else
+    {
+        reader.detach();
+    }
+}
+
+AudioMeterSnapshot Engine::Impl::audioMeterSnapshot() const
+{
+    attachMeterReader(m_input_meter_reader, findStructuralMeterPlugin(m_input_meter_plugin_id));
+    attachMeterReader(m_output_meter_reader, findStructuralMeterPlugin(m_output_meter_plugin_id));
+    attachMeterReader(
+        m_master_meter_reader, findStructuralMasterMeterPlugin(m_master_meter_plugin_id));
+
+    return AudioMeterSnapshot{
+        .live_rig_input = m_input_meter_reader.read(),
+        .live_rig_output = m_output_meter_reader.read(),
+        .master_output = m_master_meter_reader.read(),
+    };
+}
+
 // Exposes the JUCE device manager so settings UI can present and apply hardware route choices.
 juce::AudioDeviceManager& Engine::deviceManager() noexcept
 {
