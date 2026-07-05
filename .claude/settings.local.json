@@ -19,7 +19,24 @@
             "Bash(pre-commit run *)",
             "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -Targets all)",
             "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -Configure -Targets all)",
-            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -RunTouchedTests)"
+            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -RunTouchedTests)",
+            "Bash(python *)",
+            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -Tests build/debug/rock-hero-editor/core/tests/rock_hero_editor_core_tests.exe,build/debug/rock-hero-editor/ui/tests/rock_hero_editor_ui_tests.exe)",
+            "Bash(grep -v \"//\")",
+            "Bash(awk -F: '{print $1\": \"$3}')",
+            "Bash(python3 *)",
+            "Bash(grep *)",
+            "Bash(sed *)",
+            "Bash(head *)",
+            "Bash(tail *)",
+            "Bash(cat *)",
+            "Bash(wc *)",
+            "Bash(ls *)",
+            "Bash(mkdir *)",
+            "Bash(rg *)",
+            "Bash(rm build_scratch_*)",
+            "PowerShell(powershell *)",
+            "PowerShell(pre-commit *)"
         ],
         "defaultMode": "dontAsk"
     }

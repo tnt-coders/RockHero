@@ -322,6 +322,20 @@ Do this **before** tablature/note-editing work begins — it lands in exactly th
 6. **Close-out:** with the pilot proven and the distribution green, codify §2.4 into
    `docs/design/architectural-principles.md` (the staged Phase 0 remainder).
 
+**Executed 2026-07-05 (gate green: build, all 4 suites, pre-commit, tidy clean on touched
+files).** Pilot passed every checkpoint criterion; §2.4 codified. The hub is 1,844 lines (was
+4,807): `input_calibration_handlers.cpp` (~500), `signal_chain_handlers.cpp` (~665),
+`project_handlers.cpp` (~1,330). Recorded deviations from the sketch:
+
+- The view-state projection slice was **not** extracted: `deriveViewState()` stays whole in the
+  hub, because carving per-feature slices would have required adding new members to the impl
+  header, violating its declaration-surface-only rule. Projection remains hub narrative.
+- Transport and audio-device handler clusters stayed in the hub per the ~150-line threshold.
+- `onRestoreInterruptedDecision` moved to `project_handlers.cpp` (it is project-lifecycle logic
+  and sole co-user of the `projectFileExists` helper).
+- The one cross-slice helper became `editor_controller_logging.h` per the shared-helper rule.
+- `OutputGainEdit` landed in `signal_chain/` as recommended (§6.2 resolved).
+
 ### Phase 3 — `editor/core/include` feature folders *(public churn commit #1)*
 
 Move per §3.3; update every `#include` repo-wide (`rg` + scripted replace), Doxygen `\file`
