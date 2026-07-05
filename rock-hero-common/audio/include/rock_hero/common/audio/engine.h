@@ -7,14 +7,14 @@
 
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_audio_meter_source.h>
-#include <rock_hero/common/audio/i_live_input.h>
-#include <rock_hero/common/audio/i_live_rig.h>
-#include <rock_hero/common/audio/i_plugin_host.h>
-#include <rock_hero/common/audio/i_song_audio.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
-#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/device/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/input/i_audio_meter_source.h>
+#include <rock_hero/common/audio/input/i_live_input.h>
+#include <rock_hero/common/audio/live_rig/i_live_rig.h>
+#include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/song/i_song_audio.h>
+#include <rock_hero/common/audio/song/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/transport/i_transport.h>
 #include <string>
 #include <string_view>
 #include <vector>

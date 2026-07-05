@@ -1,4 +1,4 @@
-#include "plugin_move_index.h"
+#include "tracktion/plugin_move_index.h"
 
 #include <catch2/catch_test_macros.hpp>
 

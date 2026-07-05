@@ -11,7 +11,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/song/i_thumbnail.h>
 #include <rock_hero/common/core/audio_asset.h>
 #include <rock_hero/common/core/juce_path.h>
 #include <rock_hero/common/core/tempo_map.h>

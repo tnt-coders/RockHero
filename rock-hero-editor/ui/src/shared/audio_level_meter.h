@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/common/audio/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 
 namespace rock_hero::editor::ui
 {

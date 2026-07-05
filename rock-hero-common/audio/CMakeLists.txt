@@ -7,19 +7,33 @@ find_package(libebur128 CONFIG REQUIRED)
 # Shared audio ports, audio-device settings policy, and the default Tracktion/JUCE-backed adapter.
 target_sources(
     rock_hero_common_audio
-    PRIVATE src/audio_device_settings.cpp
-            src/audio_device_configuration_error.cpp
-            src/input_calibration.cpp
+    PRIVATE src/device/audio_device_settings.cpp
+            src/engine_impl.h
+            src/meter_reader.h
+            src/device/audio_device_configuration_error.cpp
+            src/input/input_calibration.cpp
             src/audio_normalization.cpp
+            src/audio_path_util.cpp
+            src/audio_path_util.h
             src/engine.cpp
-            src/live_rig_gain_plugin.cpp
-            src/live_input_error.cpp
-            src/live_rig_error.cpp
-            src/monitoring_mode_transition.cpp
-            src/plugin_host_error.cpp
-            src/song_audio_error.cpp
-            src/tracktion_instrument_wave_device_mapping.cpp
-            src/tracktion_thumbnail.cpp)
+            src/engine_device_config.cpp
+            src/engine_live_input.cpp
+            src/engine_live_rig.cpp
+            src/engine_plugin_host.cpp
+            src/engine_song_audio.cpp
+            src/engine_transport.cpp
+            src/plugin_scan.cpp
+            src/plugin_scan.h
+            src/tone_document.cpp
+            src/tone_document.h
+            src/tracktion/live_rig_gain_plugin.cpp
+            src/input/live_input_error.cpp
+            src/live_rig/live_rig_error.cpp
+            src/tracktion/monitoring_mode_transition.cpp
+            src/plugin/plugin_host_error.cpp
+            src/song/song_audio_error.cpp
+            src/tracktion/tracktion_instrument_wave_device_mapping.cpp
+            src/tracktion/tracktion_thumbnail.cpp)
 
 target_include_directories(
     rock_hero_common_audio

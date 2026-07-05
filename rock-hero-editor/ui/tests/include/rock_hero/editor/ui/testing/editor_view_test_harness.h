@@ -17,13 +17,13 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <limits>
 #include <optional>
+#include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <rock_hero/common/audio/gain.h>
-#include <rock_hero/common/audio/i_audio_device_configuration.h>
-#include <rock_hero/common/audio/i_audio_meter_source.h>
-#include <rock_hero/common/audio/i_live_input.h>
-#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/input/i_audio_meter_source.h>
+#include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <rock_hero/common/audio/testing/recording_thumbnail.h>
+#include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/editor/core/testing/recording_editor_controller.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <stdexcept>

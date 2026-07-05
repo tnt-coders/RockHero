@@ -1,7 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>
-#include <rock_hero/common/audio/input_calibration.h>
+#include <rock_hero/common/audio/input/input_calibration.h>
 
 namespace rock_hero::common::audio
 {

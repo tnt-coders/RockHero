@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/audio/i_transport.h>
+#include <rock_hero/common/audio/transport/i_transport.h>
 #include <vector>
 
 namespace rock_hero::common::audio

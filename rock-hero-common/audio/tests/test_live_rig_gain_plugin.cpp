@@ -1,4 +1,4 @@
-#include "live_rig_gain_plugin.h"
+#include "tracktion/live_rig_gain_plugin.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>

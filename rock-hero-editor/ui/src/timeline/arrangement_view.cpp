@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
-#include <rock_hero/common/audio/i_thumbnail.h>
-#include <rock_hero/common/audio/i_thumbnail_factory.h>
+#include <rock_hero/common/audio/song/i_thumbnail.h>
+#include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/editor/core/timeline/timeline_geometry.h>
 #include <utility>
 

@@ -7,7 +7,7 @@
 
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/audio/input_calibration_state.h>
+#include <rock_hero/common/audio/input/input_calibration_state.h>
 #include <rock_hero/common/core/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>

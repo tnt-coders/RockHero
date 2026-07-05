@@ -173,7 +173,7 @@ Example from a product-scope library source file:
 \code{.cpp}
 #include "engine.h"
 
-#include <rock_hero/common/audio/i_thumbnail.h>
+#include <rock_hero/common/audio/song/i_thumbnail.h>
 
 #include <tracktion_engine/tracktion_engine.h>
 

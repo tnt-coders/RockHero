@@ -3,7 +3,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/audio/audio_device_settings.h>
+#include <rock_hero/common/audio/device/audio_device_settings.h>
 #include <rock_hero/common/audio/testing/configurable_audio_device_configuration.h>
 #include <utility>
 

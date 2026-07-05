@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/common/audio/audio_device_status.h>
+#include <rock_hero/common/audio/device/audio_device_status.h>
 #include <string>
 #include <string_view>
 

@@ -6,7 +6,7 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/common/audio/i_plugin_host.h>
+#include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string_view>

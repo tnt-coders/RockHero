@@ -7,7 +7,7 @@
 
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <optional>
-#include <rock_hero/common/audio/i_audio_device_configuration.h>
+#include <rock_hero/common/audio/device/i_audio_device_configuration.h>
 #include <string>
 #include <vector>
 
