@@ -1,4 +1,4 @@
-#include "domain/session.h"
+#include "session.h"
 
 #include <algorithm>
 #include <utility>

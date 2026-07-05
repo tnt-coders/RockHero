@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <vector>
 

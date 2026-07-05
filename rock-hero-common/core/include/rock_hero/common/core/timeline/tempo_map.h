@@ -8,8 +8,8 @@
 #include <compare>
 #include <cstddef>
 #include <cstdint>
-#include <rock_hero/common/core/domain/fraction.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <utility>
 #include <vector>
 

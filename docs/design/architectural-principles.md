@@ -187,27 +187,31 @@ boundary (test-only targets), which is exactly what namespaces are for.
 - Do not create role folders (`ports/`, `errors/`, `view_states/`). The type-name suffix answers
   "what kind"; the folder answers "which feature".
 
-### Subsystem Groups in `common/core`
+### Feature Groups in `common/core`
 
-`common/core` has no user-facing features to fold by, so its folders name its three subsystems
-instead: `domain/` (the song model — song, arrangement, tempo map, timeline, session, and their
-value types), `package/` (song-package persistence — archive IO, package IDs, workspace paths, and
-their errors), and `infrastructure/` (app-level utilities with no song semantics — logging, JSON,
-path bridging, cancellation, application identity). These are subsystem names, not kind names, so
-they do not violate the no-role-folders rule. Every new `common/core` file goes in exactly one of
-these groups; a file that fits none is a signal to discuss a fourth subsystem, not to park it at
-the root.
+`common/core` folds by the same feature axis as every other library: `song/` (the song model —
+song, arrangement, difficulty, audio assets and their normalization metadata), `timeline/`
+(musical time — time value types, the tempo map, and the exact rational type for grid-relative
+positions; the same feature name the editor libraries use), and `package/` (song-package
+persistence — archive IO, package IDs, workspace paths, and their errors). `session.h` sits at
+the library root because it composes song, arrangement, and timeline state — the cross-feature
+statement the root exists for. Mechanisms with no feature (logging, JSON, path bridging,
+cancellation, application identity) live in `shared/`.
 
 ## Library Roots Are the Cross-Feature Contract
 
 A file belongs at a library root only because it is cross-feature contract: facades, action sums,
-availability policy, aggregate view state, undo timelines, and similar composition types that must
-see multiple features. Root placement is a statement, not a default.
+availability policy, aggregate view state, undo timelines, session composition, and similar types
+that must see multiple features. Root placement is a statement, not a default. The admission test
+is strict: a root file must either compose or join two or more features, be the library's facade,
+or be a feature still below the folder threshold. A file that fits none of those and is not
+`shared/`-admissible signals a design question to resolve — never a root placement by default.
 
 Shared mechanism files that serve two or more features but carry no feature semantics (for
-example, text metrics) go in a `shared/` folder in `ui` libraries and at the library root in
-`core` libraries. Admission rule for `shared/`: at least two consumers, and the file is nameable
-without any feature word. Anything that fails that test belongs to a feature.
+example, text metrics, path utilities, logging) go in a `shared/` folder in every library — in
+`include/` when public, in `src/` when private. Admission rule for `shared/`: at least two
+consumers, and the file is nameable without any feature word. Anything that fails that test
+belongs to a feature.
 
 ## Multi-TU Coordination Objects
 

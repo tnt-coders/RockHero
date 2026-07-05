@@ -24,9 +24,9 @@
 #include <rock_hero/common/audio/testing/recording_plugin_host.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
 #include <rock_hero/common/audio/transport/transport_state.h>
-#include <rock_hero/common/core/domain/audio_asset.h>
-#include <rock_hero/common/core/domain/session.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/song/audio_asset.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/editor_controller.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_view.h>

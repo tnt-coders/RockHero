@@ -1,5 +1,5 @@
 #include "editor_controller_impl.h"
-#include "editor_controller_logging.h"
+#include "shared/editor_controller_logging.h"
 
 #include <cassert>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>

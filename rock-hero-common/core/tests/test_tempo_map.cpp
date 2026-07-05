@@ -1,7 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/domain/fraction.h>
-#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <utility>
 #include <vector>
 

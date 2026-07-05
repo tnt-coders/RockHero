@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/domain/fraction.h>
-#include <rock_hero/common/core/domain/tempo_map.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <rock_hero/editor/core/timeline/tempo_grid_geometry.h>
 #include <vector>
 
