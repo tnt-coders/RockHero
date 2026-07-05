@@ -119,7 +119,10 @@ CLion's bundled CMake for configure and runs Ninja through Visual Studio's devel
 which keeps agent builds from breaking CLion's include paths — do not configure or build through
 other CMake/compiler environments. Batch verification after coherent edit groups rather than
 building after every small change, keep the quiet default output, and pass `-Configure` only
-after CMake graph changes or stale-Ninja errors.
+after CMake graph changes or stale-Ninja errors. Run build, tests, and clang-tidy as separate
+invocations, each only when there is a determinate reason for that specific check (code changed →
+build; behavior changed → tests; lint-relevant change → clang-tidy) — never as a reflexive
+bundle.
 
 ## Architecture
 
