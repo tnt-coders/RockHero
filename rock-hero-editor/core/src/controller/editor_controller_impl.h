@@ -54,18 +54,26 @@ definitions, no state added just to make a translation-unit split work.
 namespace rock_hero::editor::core
 {
 
-// Distinguishes live slider audition from a value that should enter undo history.
+/*! \brief Distinguishes live slider audition from a value that should enter undo history. */
 enum class OutputGainChangeIntent : std::uint8_t
 {
+    /*! \brief Drag-scoped audition value; applied live but never recorded. */
     Preview,
+
+    /*! \brief Final value; applied and recorded as an undo entry. */
     Commit,
 };
 
-// Outcome of trying to undo a just-completed insert whose undo entry could not be prepared.
+/*! \brief Outcome of undoing a just-completed insert whose undo entry could not be prepared. */
 enum class InsertUndoPreparationRollbackStatus : std::uint8_t
 {
+    /*! \brief The inserted plugin was removed again; the session stays trusted. */
     RolledBack,
+
+    /*! \brief The rollback failed but the chain state is still known. */
     Failed,
+
+    /*! \brief The rollback left the backend unproven; the session must fault. */
     RollbackContractViolation,
 };
 
