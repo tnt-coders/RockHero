@@ -42,6 +42,18 @@ public:
     /*! \brief Uses default destruction; no backend listener is owned by the view. */
     ~AudioDeviceSettingsView() override;
 
+    /*! \brief Copying is disabled because JUCE component ownership is not copyable. */
+    AudioDeviceSettingsView(const AudioDeviceSettingsView&) = delete;
+
+    /*! \brief Copy assignment is disabled because component ownership is not copyable. */
+    AudioDeviceSettingsView& operator=(const AudioDeviceSettingsView&) = delete;
+
+    /*! \brief Moving is disabled because child registrations are not movable. */
+    AudioDeviceSettingsView(AudioDeviceSettingsView&&) = delete;
+
+    /*! \brief Move assignment is disabled because child registrations are not movable. */
+    AudioDeviceSettingsView& operator=(AudioDeviceSettingsView&&) = delete;
+
     /*!
     \brief Returns the default window width for the current control set.
     \return Preferred window width in pixels.

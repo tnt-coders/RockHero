@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,7 +15,7 @@ namespace rock_hero::editor::core
 {
 
 /*! \brief Stable plugin type used by plugin-browser filters and signal-chain icons. */
-enum class PluginDisplayType
+enum class PluginDisplayType : std::uint8_t
 {
     /*! \brief The scanner did not provide a recognized type. */
     Uncategorized,

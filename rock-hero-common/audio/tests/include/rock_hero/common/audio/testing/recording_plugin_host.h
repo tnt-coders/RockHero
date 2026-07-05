@@ -129,7 +129,7 @@ public:
             return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
         }
 
-        if (chain.size() >= max_signal_chain_plugins)
+        if (chain.size() >= g_max_signal_chain_plugins)
         {
             return std::unexpected{PluginHostError{
                 PluginHostErrorCode::PluginChainLimitExceeded,
@@ -338,7 +338,7 @@ public:
             }};
         }
 
-        if (chain.size() >= max_signal_chain_plugins)
+        if (chain.size() >= g_max_signal_chain_plugins)
         {
             return std::unexpected{PluginHostError{
                 PluginHostErrorCode::PluginChainLimitExceeded,

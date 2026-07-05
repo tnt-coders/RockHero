@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <expected>
 #include <memory>
 #include <rock_hero/common/audio/device/i_audio_device_configuration.h>
@@ -15,7 +16,7 @@ namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure codes for audio-device settings operations. */
-enum class AudioDeviceSettingsErrorCode
+enum class AudioDeviceSettingsErrorCode : std::uint8_t
 {
     /*! \brief No audio system is available to configure. */
     NoAudioSystem,

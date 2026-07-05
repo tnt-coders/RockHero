@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
 /*! \brief Stable failure reasons for app-local editor settings operations. */
-enum class EditorSettingsErrorCode
+enum class EditorSettingsErrorCode : std::uint8_t
 {
     /*! \brief A settings value was not valid for persistence or lookup. */
     InvalidSettingValue,

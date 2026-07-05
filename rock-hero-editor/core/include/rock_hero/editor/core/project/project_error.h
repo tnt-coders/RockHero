@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
 /*! \brief Stable editor project failure reasons. */
-enum class ProjectErrorCode
+enum class ProjectErrorCode : std::uint8_t
 {
     /*! \brief The requested editor project package was missing. */
     MissingProjectPackage,

@@ -260,7 +260,7 @@ constexpr std::string_view g_plugin_state_extension{".tracktion-plugin"};
     }
 
     const auto plugin_count = static_cast<std::size_t>(chain_json.size());
-    if (plugin_count > max_signal_chain_plugins)
+    if (plugin_count > g_max_signal_chain_plugins)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::PluginChainLimitExceeded,

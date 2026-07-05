@@ -9,6 +9,7 @@
 #include "signal_chain/signal_chain_block_layout.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
@@ -169,7 +170,7 @@ private:
     class PluginTileView;
     class SignalPathContent;
 
-    enum class TileLayoutMotion
+    enum class TileLayoutMotion : std::uint8_t
     {
         Immediate,
         Animated,

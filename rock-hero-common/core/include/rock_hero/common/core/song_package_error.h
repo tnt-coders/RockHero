@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::core
 {
 
 /*! \brief Stable native song package failure reasons. */
-enum class SongPackageErrorCode
+enum class SongPackageErrorCode : std::uint8_t
 {
     /*! \brief The extracted package directory was missing or not a directory. */
     MissingPackageDirectory,

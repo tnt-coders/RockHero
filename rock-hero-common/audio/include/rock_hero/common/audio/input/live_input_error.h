@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for live input calibration and monitoring operations. */
-enum class LiveInputErrorCode
+enum class LiveInputErrorCode : std::uint8_t
 {
     /*! \brief A live input operation was invoked from the wrong thread. */
     MessageThreadRequired,

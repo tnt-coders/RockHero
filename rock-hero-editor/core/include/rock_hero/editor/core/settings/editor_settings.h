@@ -47,6 +47,9 @@ public:
     /*! \brief Move assignment is disabled because the settings file owns runtime file state. */
     EditorSettings& operator=(EditorSettings&&) = delete;
 
+    /*! \brief Destroys the EditorSettings. */
+    ~EditorSettings() override = default;
+
     /*!
     \brief Reads the editor project path stored by a previous allowed editor exit.
     \return Stored project path, or empty when no project should be restored.

@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for live rig capture and restore. */
-enum class LiveRigErrorCode
+enum class LiveRigErrorCode : std::uint8_t
 {
     /*! \brief A live rig operation was invoked from the wrong thread. */
     MessageThreadRequired,

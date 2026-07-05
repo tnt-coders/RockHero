@@ -40,7 +40,7 @@ constexpr double g_signal_preview_animation_end_speed{0.0};
 constexpr int g_tile_remove_button_size{20};
 constexpr int g_tile_remove_button_inset{3};
 constexpr int g_tile_inset{6};
-constexpr std::size_t g_signal_path_min_block_count{common::audio::max_signal_chain_plugins};
+constexpr std::size_t g_signal_path_min_block_count{common::audio::g_max_signal_chain_plugins};
 // Insert rails stay faintly visible for discoverability; tile removal stays invisible at rest so
 // plugin blocks read as icon-only until hovered.
 constexpr float g_idle_insert_affordance_alpha{0.12f};

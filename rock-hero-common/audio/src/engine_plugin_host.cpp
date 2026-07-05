@@ -180,7 +180,7 @@ std::expected<PluginInsertResult, PluginHostError> Engine::Impl::insertPluginCan
         return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
     }
 
-    if (plugin_count >= max_signal_chain_plugins)
+    if (plugin_count >= g_max_signal_chain_plugins)
     {
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginChainLimitExceeded,
@@ -529,7 +529,7 @@ std::expected<PluginChainSnapshot, PluginHostError> Engine::recreatePluginStateP
         return std::unexpected{PluginHostError{PluginHostErrorCode::InvalidChainIndex}};
     }
 
-    if (plugin_count >= max_signal_chain_plugins)
+    if (plugin_count >= g_max_signal_chain_plugins)
     {
         return std::unexpected{PluginHostError{
             PluginHostErrorCode::PluginChainLimitExceeded,

@@ -58,7 +58,7 @@ struct Logger
         static constexpr quill::QueueType queue_type = quill::QueueType::BoundedDropping;
 
         /*! \brief Per-thread realtime queue size allocated by \ref prepareRealtimeThread. */
-        static constexpr std::size_t initial_queue_capacity = 256U * 1024U;
+        static constexpr std::size_t initial_queue_capacity = std::size_t{256} * std::size_t{1024};
 
         /*! \brief Unused for dropping queues, kept zero to document the no-blocking contract. */
         static constexpr std::uint32_t blocking_queue_retry_interval_ns = 0;
@@ -149,7 +149,7 @@ struct Logger
         std::filesystem::path log_file;
 
         /*! \brief Size at which the active log file rotates to a numbered backup. */
-        std::size_t max_file_size_bytes = 8U * 1024U * 1024U;
+        std::size_t max_file_size_bytes = std::size_t{8} * std::size_t{1024} * std::size_t{1024};
 
         /*! \brief Number of rotated backup files retained before the oldest is dropped. */
         std::size_t max_backup_files = 5;

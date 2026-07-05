@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 #include <string>
 #include <vector>
@@ -13,7 +14,7 @@ namespace rock_hero::editor::core
 {
 
 /*! \brief Live input calibration state shown by the signal-chain view. */
-enum class InputCalibrationStatus
+enum class InputCalibrationStatus : std::uint8_t
 {
     /*! \brief No usable mono input route is active. */
     NoActiveInputDevice,
