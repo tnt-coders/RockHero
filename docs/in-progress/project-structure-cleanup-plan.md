@@ -17,6 +17,10 @@ Revision 2026-07-04 (post-review amendments):
 - Line counts corrected to current measurements (2026-07-04): `editor_controller.cpp` 4,807
   (grew ~35% past the June figure this plan originally carried), `editor_view.cpp` 2,187,
   `engine.cpp` 5,941.
+- The clang-tidy `HeaderFilterRegex` fix moved from Phase 1 to Phase 6 (user decision after the
+  Phase 1 gate run): the corrected filter un-silences a large pre-existing header-finding
+  backlog, and triaging it mid-refactor would leave the clang-tidy gate leg permanently red.
+  Until Phase 6, per-phase clang-tidy runs use the old (source-file-only) scope.
 
 Companion findings: `docs/in-progress/project-structure-analysis.md` (2026-07-03 full-repo
 analysis) and the 2026-07-04 coupling deep-dive it led to. This plan restates only the
@@ -343,9 +347,19 @@ ride along if package work is touched anyway; otherwise it stays an accepted exc
 
 ### Phase 6 — Close out
 
-Move `project-structure-analysis.md` and this plan to `docs/completed/`; final
-`architecture.md` key-file sweep; confirm every §1 criterion; record the outcome and the §6.3
-break-even signals in a durable place.
+1. **Re-land the clang-tidy header-filter fix and triage the backlog.** The corrected
+   `HeaderFilterRegex` (`rock-hero-(common|editor|game)` instead of the stale `apps|libs`) was
+   landed in Phase 1, then reverted (`c8a44939`) when the user's gate run showed a large
+   pre-existing header-finding backlog: with `WarningsAsErrors: '*'`, leaving it in would have
+   made the clang-tidy leg of every later phase gate permanently red and useless as a regression
+   signal. Re-apply the regex here, run clang-tidy, and fix every surfaced finding properly — per
+   the no-NOLINT rule, by correcting code or consciously updating the convention, never by
+   suppression. External sources cannot appear in the backlog: the positive filter only matches
+   `rock-hero-*` paths and `ExcludeHeaderFilterRegex` independently blocks `external/` and
+   `build/`.
+2. Move `project-structure-analysis.md` and this plan to `docs/completed/`; final
+   `architecture.md` key-file sweep; confirm every §1 criterion; record the outcome and the §6.3
+   break-even signals in a durable place.
 
 ---
 
