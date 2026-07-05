@@ -21,6 +21,14 @@ Revision 2026-07-04 (post-review amendments):
   backlog *triage* is deferred to Phase 6 (user decision after the Phase 1 gate run). The
   clang-tidy gate leg is therefore expected red on pre-existing header findings until Phase 6;
   Phases 2–5 gate on build + ctest + pre-commit green plus no new findings in touched files.
+- **One commit per phase from Phase 4 onward** (user decision 2026-07-05): each remaining phase
+  lands as exactly one commit, superseding the earlier per-seam/per-move commit shapes for
+  Phases 4–6. Verification stays one gate per phase; hook reformats fold into the phase commit.
+- Clarification recorded for Phase 4 step 1: `Engine` already is a pimpl; "move in-class
+  definitions out-of-line" means the ordinary header/source split applied to `Impl` itself (cut
+  each body from inside the class braces into `Engine::Impl::name(...)` definitions in
+  `engine_impl.cpp` or the owning port TU), so the TU-local anonymous-namespace helpers those
+  bodies call can stay out of the header. No new idiom is introduced.
 
 Companion findings: `docs/in-progress/project-structure-analysis.md` (2026-07-03 full-repo
 analysis) and the 2026-07-04 coupling deep-dive it led to. This plan restates only the
