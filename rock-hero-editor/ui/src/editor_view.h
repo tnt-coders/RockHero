@@ -41,8 +41,9 @@ class Component;
 namespace rock_hero::editor::ui
 {
 
-// Forward declaration so the timeline cursor overlay unit can stay out of this header.
+// Forward declarations so the timeline cursor overlay and viewport units stay out of this header.
 class CursorOverlay;
+class TrackViewport;
 
 /*!
 \brief JUCE implementation of the editor view contract.
@@ -176,9 +177,6 @@ public:
     void menuItemSelected(int menu_item_id, int top_level_menu_index) override;
 
 private:
-    // Private viewport shell that hosts zoomable track content for the editor timeline.
-    class TrackViewport;
-
     enum class SaveAsChooserPurpose : std::uint8_t
     {
         UserSaveAs,
