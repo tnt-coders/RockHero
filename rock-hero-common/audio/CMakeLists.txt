@@ -58,8 +58,12 @@ target_link_libraries(
     rock_hero_common_audio
     PUBLIC rock_hero::common::core rock_hero::juce_gui_basics
     PRIVATE rock_hero::build_policy
+            rock_hero::juce_audio_devices
             rock_hero::juce_audio_formats
+            rock_hero::juce_audio_processors_headless
+            rock_hero::juce_core
             rock_hero::juce_cryptography
+            rock_hero::juce_data_structures
             rock_hero::tracktion_core
             rock_hero::tracktion_engine
             rock_hero::tracktion_graph
