@@ -305,7 +305,6 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     [[nodiscard]] std::optional<std::filesystem::path> restorableProjectFileForExit() const;
     [[nodiscard]] std::expected<void, common::audio::SongAudioError> loadSessionSong(
         common::core::Song song, const std::optional<std::string>& selected_arrangement);
-    [[nodiscard]] common::core::TimePosition songTimelineOrigin() const;
     [[nodiscard]] EditorViewState deriveViewState() const;
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] std::uint64_t beginBusy(BusyOperation operation);

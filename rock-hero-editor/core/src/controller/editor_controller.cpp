@@ -1592,9 +1592,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
         return;
     }
     m_transport.stop();
-    // Stop resets to musical time zero, skipping any pre-anchor audio lead-in.
-    m_transport.seek(songTimelineOrigin());
-    m_selected_tone_region_id = toneRegionIdAt(songTimelineOrigin());
+    m_selected_tone_region_id = toneRegionIdAt(common::core::TimePosition{});
 
     if (!transport_state.playing)
     {
@@ -1606,11 +1604,7 @@ void EditorController::Impl::performActionImpl(EditorAction::Stop /*action*/)
 // move the cursor outside the loaded content.
 void EditorController::Impl::performActionImpl(EditorAction::SeekTimeline action)
 {
-    common::core::TimePosition position = session().timeline().clamp(action.position);
-    if (position.seconds < songTimelineOrigin().seconds)
-    {
-        position = songTimelineOrigin();
-    }
+    const common::core::TimePosition position = session().timeline().clamp(action.position);
     m_transport.seek(position);
     // Selection follows the cursor: the region under the new position becomes the tone
     // context.
@@ -1761,14 +1755,6 @@ std::optional<std::filesystem::path> EditorController::Impl::currentProjectFile(
     return choices;
 }
 
-// The song timeline starts at the first tempo anchor (measure 1 beat 1): audio before it is
-// lead-in that the editor neither displays nor seeks into, so musical time zero is the origin
-// for the visible range, the Stop reset, and restored cursors.
-common::core::TimePosition EditorController::Impl::songTimelineOrigin() const
-{
-    return common::core::TimePosition{session().song().tempo_map.secondsAtBeat(1, 1)};
-}
-
 EditorViewState EditorController::Impl::deriveViewState() const
 {
     const common::audio::TransportState transport_state = m_transport.state();
@@ -1804,11 +1790,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
     state.audio_devices_available = true;
     state.audio_device_settings_enabled = input_calibration.audio_device_settings_enabled;
     state.audio_device_status_text = audioDeviceStatusText(m_audio_devices.currentDeviceStatus());
-    state.visible_timeline = common::core::TimeRange{
-        .start = common::core::TimePosition{std::min(
-            songTimelineOrigin().seconds, timeline_range.end.seconds)},
-        .end = timeline_range.end,
-    };
+    state.visible_timeline = timeline_range;
     state.tempo_map = session().song().tempo_map;
     state.grid_note_value = m_grid_note_value;
     state.timeline_zoom_pixels_per_second = m_timeline_zoom_pixels_per_second;

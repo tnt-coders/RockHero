@@ -893,8 +893,7 @@ void EditorController::Impl::performActionImpl(const EditorAction::SelectArrange
                 }
 
                 m_project_audio_ready = true;
-                m_transport.seek(songTimelineOrigin());
-                m_selected_tone_region_id = toneRegionIdAt(songTimelineOrigin());
+                m_selected_tone_region_id = toneRegionIdAt(common::core::TimePosition{});
                 finishBusyOperation();
                 updateView();
             },
@@ -1268,8 +1267,7 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
     {
         if (saved_position->has_value())
         {
-            const common::core::TimePosition clamped = session().timeline().clamp(**saved_position);
-            return clamped.seconds < songTimelineOrigin().seconds ? songTimelineOrigin() : clamped;
+            return session().timeline().clamp(**saved_position);
         }
     }
     else
@@ -1278,7 +1276,7 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
             "restore project cursor position", saved_position.error().message);
     }
 
-    return songTimelineOrigin();
+    return session().timeline().start;
 }
 
 // Chooses the grid note value restored for a project open from app-local editor settings, falling
