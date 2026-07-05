@@ -159,6 +159,23 @@ public:
     void requestCursorFocus();
 
     /*!
+    \brief Installs the callback that reports user-driven zoom changes for persistence.
+    \param on_zoom_changed Callback receiving the new pixels-per-second scale.
+    */
+    void setZoomChangedCallback(std::function<void(double)> on_zoom_changed);
+
+    /*!
+    \brief Applies a per-project zoom restored from app-local settings.
+
+    Called only on a fresh project load, before the cursor recenter, so restored zoom never
+    fights the user's live wheel zooming. The value is clamped to the current timeline bounds
+    and does not re-report through the zoom-changed callback.
+
+    \param pixels_per_second Restored horizontal timeline scale.
+    */
+    void setRestoredZoomPixelsPerSecond(double pixels_per_second);
+
+    /*!
     \brief Paints the area around zoomed content when the viewport is larger than the canvas.
     \param g Graphics context used for drawing.
     */
@@ -271,6 +288,9 @@ private:
 
     // Vblank callback used for viewport-follow behavior without continuous controller pushes.
     juce::VBlankAttachment m_vblank_attachment;
+
+    // Reports user-driven zoom changes so the controller can persist them per project.
+    std::function<void(double)> m_on_zoom_changed;
 
     // Full timeline range represented by the current zoomed content width.
     common::core::TimeRange m_timeline_range{};

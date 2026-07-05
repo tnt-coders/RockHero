@@ -122,6 +122,7 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onStopPressed();
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
+    void onTimelineZoomChanged(double pixels_per_second);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -278,6 +279,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
         const std::filesystem::path& project_file) const;
     [[nodiscard]] common::core::Fraction gridNoteValueForOpenedProject(
         const std::filesystem::path& project_file) const;
+    [[nodiscard]] double timelineZoomForOpenedProject(
+        const std::filesystem::path& project_file) const;
     void saveCurrentProjectCursorPositionBestEffort(std::string_view context);
     void saveProjectCursorPositionBestEffort(
         const std::filesystem::path& project_file, common::core::TimePosition cursor_position,
@@ -431,6 +434,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // quarter-note default because the Fraction default of 0/1 is a degenerate step. Restored
     // per project from app-local settings on open and reset to the default on close.
     common::core::Fraction m_grid_note_value{1, 4};
+
+    // Horizontal timeline scale last reported by the view, persisted per project as app-local
+    // resume state. Zero means no zoom has been reported or restored (view default applies).
+    double m_timeline_zoom_pixels_per_second{0.0};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};

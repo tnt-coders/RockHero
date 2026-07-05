@@ -396,6 +396,31 @@ TEST_CASE("EditorSettings persists the project grid note value", "[core][setting
 }
 
 // Saving again for the same project replaces the record instead of accumulating duplicates.
+// Zoom mirrors cursor/grid persistence: app-local per-project resume state, keyed by path.
+TEST_CASE("EditorSettings persists the project timeline zoom", "[core][settings]")
+{
+    const ScopedSettingsFile settings_file{"persists_project_timeline_zoom.settings"};
+    const std::filesystem::path project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Zoom Project.rhp";
+    const std::filesystem::path other_project_file =
+        std::filesystem::path{TEST_SETTINGS_DIR} / "Other Zoom Project.rhp";
+
+    {
+        EditorSettings settings{settings_file.path()};
+        REQUIRE(settings.saveProjectTimelineZoom(project_file, 252.8).has_value());
+        CHECK_FALSE(settings.saveProjectTimelineZoom(project_file, 0.0).has_value());
+    }
+
+    const EditorSettings reloaded_settings{settings_file.path()};
+
+    const auto restored = reloaded_settings.projectTimelineZoomFor(project_file);
+    REQUIRE(restored.has_value());
+    CHECK(*restored == std::optional{252.8});
+    const auto missing = reloaded_settings.projectTimelineZoomFor(other_project_file);
+    REQUIRE(missing.has_value());
+    CHECK_FALSE(missing->has_value());
+}
+
 TEST_CASE("EditorSettings overwrites the project grid note value", "[core][settings]")
 {
     const ScopedSettingsFile settings_file{"overwrites_project_grid_spacing.settings"};

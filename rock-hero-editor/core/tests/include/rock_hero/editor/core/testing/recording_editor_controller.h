@@ -165,6 +165,16 @@ public:
         grid_note_value_change_count += 1;
     }
 
+    /*!
+    \brief Records the view-reported timeline zoom.
+    \param pixels_per_second Reported horizontal timeline scale.
+    */
+    void onTimelineZoomChanged(double pixels_per_second) override
+    {
+        last_timeline_zoom_pixels_per_second = pixels_per_second;
+        timeline_zoom_change_count += 1;
+    }
+
     /*! \brief Counts plugin-browser open intents emitted by the signal-chain panel. */
     void onPluginBrowserRequested() override
     {
@@ -387,6 +397,9 @@ public:
     /*! \brief Last grid note value emitted by the view, as a fraction of a whole note. */
     std::optional<common::core::Fraction> last_grid_note_value{};
 
+    /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
+    std::optional<double> last_timeline_zoom_pixels_per_second{};
+
     /*! \brief Last plugin ID selected through the plugin browser. */
     std::optional<std::string> last_selected_plugin_id{};
 
@@ -476,6 +489,9 @@ public:
 
     /*! \brief Number of grid note-value change intents received. */
     int grid_note_value_change_count{0};
+
+    /*! \brief Counts timeline zoom reports. */
+    int timeline_zoom_change_count{0};
 
     /*! \brief Number of plugin-browser open intents received. */
     int plugin_browser_request_count{0};
