@@ -10,6 +10,7 @@
 #include "project/project_io.h"
 #include "project/rock_song_importer.h"
 #include "signal_chain/plugin_catalog_workflow.h"
+#include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
 
 #include <algorithm>
