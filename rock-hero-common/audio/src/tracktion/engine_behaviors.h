@@ -1,5 +1,5 @@
 /*!
-\file engine_behaviours.h
+\file engine_behaviors.h
 \brief Rock Hero's Tracktion EngineBehaviour and UIBehaviour customization points.
 */
 
@@ -17,7 +17,7 @@ namespace rock_hero::common::audio
 
 /*! \brief Describes the single instrument input and stereo output that Rock Hero exposes to
 Tracktion. */
-class RockHeroEngineBehaviour final : public tracktion::EngineBehaviour
+class RockHeroEngineBehavior final : public tracktion::EngineBehaviour
 {
 public:
     /*!
@@ -59,14 +59,14 @@ public:
 };
 
 /*! \brief Supplies Tracktion with Rock Hero's minimal plugin editor window implementation. */
-class RockHeroUIBehaviour final : public tracktion::UIBehaviour
+class RockHeroUIBehavior final : public tracktion::UIBehaviour
 {
 public:
     /*!
     \brief Stores the dispatcher handed to every plugin window this behaviour creates.
     \param command_dispatcher Host callback receiving forwarded plugin-window commands.
     */
-    explicit RockHeroUIBehaviour(PluginWindowCommandDispatcher command_dispatcher);
+    explicit RockHeroUIBehavior(PluginWindowCommandDispatcher command_dispatcher);
 
     /*!
     \brief Creates windows only for normal plugin instances; rack windows will get their own UI

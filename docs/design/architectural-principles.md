@@ -242,7 +242,7 @@ custom plugin, an `EngineBehaviour`/`UIBehaviour`, a host window, a listener tha
 notifications into project-owned events — lives as its own named unit in `src/tracktion/`, one
 unit per cohesive class cluster. Engine translation units compose these adapters through their
 headers; they never define framework subclasses inline. Proven by `live_rig_gain_plugin`,
-`engine_behaviours`, `plugin_window`, `plugin_dirty_tracking`, `tracktion_thumbnail`,
+`engine_behaviors`, `plugin_window`, `plugin_dirty_tracking`, `tracktion_thumbnail`,
 `monitoring_mode_transition`, and `tracktion_instrument_wave_device_mapping`.
 
 ## Placement Procedure for New Files

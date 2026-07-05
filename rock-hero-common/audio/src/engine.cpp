@@ -2,7 +2,7 @@
 
 #include "audio_path_util.h"
 #include "engine_impl.h"
-#include "tracktion/engine_behaviours.h"
+#include "tracktion/engine_behaviors.h"
 #include "tracktion/plugin_dirty_tracking.h"
 #include "tracktion/tracktion_thumbnail.h"
 
@@ -80,9 +80,9 @@ Engine::Engine()
     Impl* const impl = m_impl.get();
     m_impl->m_engine = std::make_unique<tracktion::Engine>(
         toJuceString(core::applicationDataFolderName()),
-        std::make_unique<RockHeroUIBehaviour>(
+        std::make_unique<RockHeroUIBehavior>(
             [impl](PluginWindowCommand command) { impl->dispatchPluginWindowCommand(command); }),
-        std::make_unique<RockHeroEngineBehaviour>());
+        std::make_unique<RockHeroEngineBehavior>());
     m_impl->m_engine->getPluginManager().setUsesSeparateProcessForScanning(true);
 
     // createSingleTrackEdit already provides one AudioTrack ready for media.
