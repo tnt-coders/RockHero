@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "signal_chain_view.h"
+#include "signal_chain/signal_chain_view.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <rock_hero/common/audio/audio_meter_snapshot.h>

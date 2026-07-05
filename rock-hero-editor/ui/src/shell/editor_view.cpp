@@ -1,11 +1,11 @@
 #include "editor_view.h"
 
-#include "audio_device_settings_window.h"
-#include "cursor_overlay.h"
-#include "editor_colors.h"
-#include "input_calibration_window.h"
-#include "menu_look_and_feel.h"
-#include "track_viewport.h"
+#include "audio_device/audio_device_settings_window.h"
+#include "input_calibration/input_calibration_window.h"
+#include "shell/editor_colors.h"
+#include "shell/menu_look_and_feel.h"
+#include "timeline/cursor_overlay.h"
+#include "timeline/track_viewport.h"
 
 #include <algorithm>
 #include <filesystem>

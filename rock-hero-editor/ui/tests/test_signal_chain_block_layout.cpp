@@ -1,4 +1,4 @@
-#include "signal_chain_block_layout.h"
+#include "signal_chain/signal_chain_block_layout.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstddef>

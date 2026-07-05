@@ -1,4 +1,4 @@
-#include "audio_device_settings_view.h"
+#include "audio_device/audio_device_settings_view.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>

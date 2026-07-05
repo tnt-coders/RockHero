@@ -1,8 +1,8 @@
 #include "timeline_ruler.h"
 
-#include "editor_colors.h"
-#include "text_metrics.h"
-#include "timeline_cursor.h"
+#include "shared/text_metrics.h"
+#include "shell/editor_colors.h"
+#include "timeline/timeline_cursor.h"
 
 #include <cmath>
 #include <cstdint>

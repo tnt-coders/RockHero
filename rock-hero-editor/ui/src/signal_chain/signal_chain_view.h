@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include "audio_level_meter.h"
-#include "signal_chain_block_layout.h"
+#include "shared/audio_level_meter.h"
+#include "signal_chain/signal_chain_block_layout.h"
 
 #include <cstddef>
 #include <juce_gui_basics/juce_gui_basics.h>

@@ -1,5 +1,5 @@
-#include "timeline_cursor.h"
-#include "timeline_ruler.h"
+#include "timeline/timeline_cursor.h"
+#include "timeline/timeline_ruler.h"
 
 #include <algorithm>
 #include <cmath>

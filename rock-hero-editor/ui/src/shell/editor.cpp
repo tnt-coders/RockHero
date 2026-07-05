@@ -1,6 +1,6 @@
 #include "editor.h"
 
-#include "editor_view.h"
+#include "shell/editor_view.h"
 
 #include <memory>
 #include <utility>

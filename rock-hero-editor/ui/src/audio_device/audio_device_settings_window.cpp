@@ -1,6 +1,6 @@
 #include "audio_device_settings_window.h"
 
-#include "audio_device_settings_view.h"
+#include "audio_device/audio_device_settings_view.h"
 
 #include <memory>
 #include <rock_hero/common/audio/audio_device_settings.h>
