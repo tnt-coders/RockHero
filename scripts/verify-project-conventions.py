@@ -1,4 +1,10 @@
-"""Enforce the library-root rule from docs/design/architectural-principles.md.
+"""Verify mechanical project conventions from docs/design/.
+
+Each convention gets one check function; the script fails when any check reports violations.
+
+Current checks:
+
+- Library roots hold folders only (architectural-principles.md).
 
 Library roots hold folders only. Every source file lives in a feature folder, the library's hub
 folder (`engine/`, `controller/`, `main_window/`), or `shared/` — no .h/.cpp may sit directly at
