@@ -35,8 +35,7 @@ constexpr int g_exit_command{6};
 constexpr int g_publish_command{7};
 constexpr int g_undo_command{101};
 constexpr int g_redo_command{102};
-// Arrangement switcher entries occupy one id per arrangement, in song order.
-constexpr int g_arrangement_command_base{201};
+constexpr int g_arrangement_selector_width{132};
 constexpr int g_menu_bar_height{24};
 constexpr int g_content_inset{8};
 constexpr int g_control_gap{8};
@@ -280,6 +279,18 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     addAndMakeVisible(m_transport_controls);
     addAndMakeVisible(m_position_display);
     addAndMakeVisible(m_grid_spacing_selector);
+    m_arrangement_selector.setComponentID("arrangement_selector");
+    m_arrangement_selector.setTextWhenNothingSelected("Arrangement");
+    m_arrangement_selector.onChange = [this] {
+        const int item_index = m_arrangement_selector.getSelectedItemIndex();
+        const auto& choices = m_state.arrangement.choices;
+        if (item_index >= 0 && static_cast<std::size_t>(item_index) < choices.size() &&
+            !choices[static_cast<std::size_t>(item_index)].selected)
+        {
+            m_controller.onArrangementSelected(choices[static_cast<std::size_t>(item_index)].id);
+        }
+    };
+    addAndMakeVisible(m_arrangement_selector);
     addAndMakeVisible(m_master_output_meter);
     addAndMakeVisible(m_audio_device_button);
     addAndMakeVisible(m_signal_chain_panel);
@@ -342,6 +353,23 @@ void EditorView::setState(const core::EditorViewState& state)
     m_transport_controls.setState(m_state.transport);
     m_grid_spacing_selector.setNoteValue(m_state.grid_note_value);
     m_grid_spacing_selector.setEnabled(m_state.project_loaded);
+    if (previous_state.arrangement.choices != m_state.arrangement.choices)
+    {
+        m_arrangement_selector.clear(juce::dontSendNotification);
+        for (std::size_t index = 0; index < m_state.arrangement.choices.size(); ++index)
+        {
+            m_arrangement_selector.addItem(
+                juce::String{m_state.arrangement.choices[index].label},
+                static_cast<int>(index) + 1);
+            if (m_state.arrangement.choices[index].selected)
+            {
+                m_arrangement_selector.setSelectedItemIndex(
+                    static_cast<int>(index), juce::dontSendNotification);
+            }
+        }
+    }
+    m_arrangement_selector.setEnabled(
+        m_state.project_loaded && m_state.arrangement.choices.size() > 1);
     updateAudioDeviceButton();
     m_signal_chain_panel.setState(m_state.signal_chain);
     refreshAudioMeters();
@@ -458,6 +486,10 @@ void EditorView::resized()
     // whatever right-edge width the block leaves free (hiding below its minimum), so the
     // centered block wins over the meter's preferred width. The readout slot width already
     // includes the g_content_inset its bounds trim off, so the block width is a plain sum.
+    m_arrangement_selector.setBounds(
+        control_row.removeFromLeft(std::min(g_arrangement_selector_width, control_row.getWidth()))
+            .reduced(0, 4));
+    control_row.removeFromLeft(g_control_gap);
     m_grid_spacing_selector.setBounds(control_row.removeFromLeft(
         std::min(g_grid_spacing_selector_width, control_row.getWidth())));
 
@@ -561,7 +593,7 @@ bool EditorView::keyPressed(const juce::KeyPress& key)
 // Returns the top-level editor menus displayed by the editor.
 juce::StringArray EditorView::getMenuBarNames()
 {
-    return {"File", "Edit", "Arrangement"};
+    return {"File", "Edit"};
 }
 
 // Builds menus using only controller-derived state.
@@ -592,37 +624,12 @@ juce::PopupMenu EditorView::getMenuForIndex(int top_level_menu_index, const juce
         return menu;
     }
 
-    if (top_level_menu_index == 2 && menu_name == "Arrangement")
-    {
-        juce::PopupMenu menu;
-        const auto& choices = m_state.arrangement.choices;
-        for (std::size_t index = 0; index < choices.size(); ++index)
-        {
-            menu.addItem(
-                g_arrangement_command_base + static_cast<int>(index),
-                juce::String{choices[index].label},
-                m_state.project_loaded,
-                choices[index].selected);
-        }
-        return menu;
-    }
-
     return {};
 }
 
 // Routes menu selections to either a chooser or a direct controller intent.
 void EditorView::menuItemSelected(int menu_item_id, int /*top_level_menu_index*/)
 {
-    const auto& arrangement_choices = m_state.arrangement.choices;
-    if (menu_item_id >= g_arrangement_command_base &&
-        menu_item_id < g_arrangement_command_base + static_cast<int>(arrangement_choices.size()))
-    {
-        const auto choice_index =
-            static_cast<std::size_t>(menu_item_id - g_arrangement_command_base);
-        m_controller.onArrangementSelected(arrangement_choices[choice_index].id);
-        return;
-    }
-
     switch (menu_item_id)
     {
         case g_undo_command:
