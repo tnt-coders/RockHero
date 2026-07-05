@@ -128,6 +128,23 @@ public:
         const std::filesystem::path& project_file, common::core::Fraction grid_note_value) override;
 
     /*!
+    \brief Reads the app-local timeline zoom stored for an editor project path.
+    \param project_file Project path whose zoom should be restored.
+    \return Zoom in pixels per second, absence, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<std::optional<double>, EditorSettingsError> projectTimelineZoomFor(
+        const std::filesystem::path& project_file) const override;
+
+    /*!
+    \brief Stores or replaces the app-local timeline zoom for an editor project path.
+    \param project_file Project path that owns the zoom.
+    \param pixels_per_second Horizontal timeline scale to restore on next open.
+    \return Empty success, or a typed settings failure.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectTimelineZoom(
+        const std::filesystem::path& project_file, double pixels_per_second) override;
+
+    /*!
     \brief Reads app-local input calibration for one physical input route.
     \param identity Physical input route to look up.
     \return Calibration state, absence, or a typed settings failure.

@@ -123,6 +123,26 @@ public:
     }
 
     /*!
+    \brief Reports that no app-local project timeline zoom is stored.
+    \return Always empty optional success.
+    */
+    [[nodiscard]] std::expected<std::optional<double>, EditorSettingsError> projectTimelineZoomFor(
+        const std::filesystem::path&) const override
+    {
+        return std::nullopt;
+    }
+
+    /*!
+    \brief Ignores app-local project timeline zoom writes.
+    \return Always empty success.
+    */
+    [[nodiscard]] std::expected<void, EditorSettingsError> saveProjectTimelineZoom(
+        const std::filesystem::path&, double) override
+    {
+        return {};
+    }
+
+    /*!
     \brief Reports that no calibration is stored for the supplied input route.
     \return Always empty optional success.
     */

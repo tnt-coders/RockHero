@@ -237,6 +237,14 @@ struct EditorViewState
     */
     common::core::Fraction grid_note_value{1, 4};
 
+    /*!
+    \brief Horizontal timeline scale to restore on a fresh project load.
+
+    Zero means no per-project zoom is stored and the view keeps its default. The view applies
+    this only when project_load_id changes; ordinary state pushes never fight user zooming.
+    */
+    double timeline_zoom_pixels_per_second{0.0};
+
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};
 

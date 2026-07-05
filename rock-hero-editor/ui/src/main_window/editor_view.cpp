@@ -273,6 +273,10 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     // is already correct before the first push.
     addChildComponent(m_busy_overlay);
     m_track_viewport->setProjectLoaded(m_state.project_loaded);
+    // Zoom is app-local resume state like the cursor; the controller persists it per project.
+    m_track_viewport->setZoomChangedCallback([this](double pixels_per_second) {
+        m_controller.onTimelineZoomChanged(pixels_per_second);
+    });
 
     setSize(1280, 800);
 }
@@ -311,6 +315,12 @@ void EditorView::setState(const core::EditorViewState& state)
     m_track_viewport->setGrid(m_state.tempo_map, m_state.grid_note_value);
     if (shouldFocusCursorAfterStateChange(previous_state, m_state))
     {
+        // Restored zoom applies before the recenter so centering math uses the restored scale.
+        if (m_state.timeline_zoom_pixels_per_second > 0.0)
+        {
+            m_track_viewport->setRestoredZoomPixelsPerSecond(
+                m_state.timeline_zoom_pixels_per_second);
+        }
         m_track_viewport->requestCursorFocus();
     }
     m_transport_controls.setState(m_state.transport);
