@@ -79,21 +79,13 @@ ctest --preset debug
 
 Use `cmake --preset release` and `cmake --build --preset release` for optimized builds, or `cmake --preset relwithdebinfo` and `cmake --build --preset relwithdebinfo` for an optimized build with debug info and no LTO. Generate docs with `cmake --build build/debug --target docs` when Doxygen is installed. Run static analysis with `cmake --build build/debug --target clang-tidy` or `clang-tidy-fix`. Apply formatting with `pre-commit run --all-files`.
 
-### Codex Build Environment Notes
-In the current Codex PowerShell environment, `cmake` and `ctest` may not be on `PATH`, and plain
+### Agent Build Environment Notes
+In agent PowerShell environments, `cmake` and `ctest` may not be on `PATH`, and plain
 `ninja -C build/debug ...` may fail because MSVC's standard-library include environment is not
-loaded. The project-local Codex skill `.codex/skills/rockhero-build/` captures the validated
-workflow. Prefer CLion's bundled CMake for configure and run Ninja through Visual Studio's
-developer environment:
-
-```powershell
-& 'C:\Program Files\JetBrains\CLion 2025.3.2\bin\cmake\win\x64\bin\cmake.exe' --preset debug
-cmd.exe /d /c 'call "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 && ninja -C build/debug <targets>'
-```
-
-If Ninja references deleted or renamed files, regenerate with the CLion CMake command before
-building. If `cl.exe` cannot find standard headers such as `algorithm`, `memory`, or `cstddef`,
-rerun Ninja through `VsDevCmd.bat`.
+loaded. The agent-neutral helper `scripts/rockhero-build.ps1` (usage in `scripts/README.md`)
+captures the validated workflow: CLion's bundled CMake for configure and Ninja through Visual
+Studio's developer environment. Use the helper rather than reproducing those steps by hand. If
+Ninja references deleted or renamed files, reconfigure (`-Configure`) before building.
 
 ## Coding Style & Naming Conventions
 The project uses C++23. Formatting is enforced by `.clang-format` (Microsoft base style, 4-space indentation, 100-column limit, left-aligned pointers). Naming comes from `.clang-tidy`: types use `CamelCase`, functions/methods use `camelCase`, namespaces and local variables use `lower_case`, private/protected member fields use `m_lower_case`, and macros use `UPPER_CASE`. Keep CMake formatted with `cmake-format` through pre-commit.
