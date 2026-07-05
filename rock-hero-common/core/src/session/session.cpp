@@ -95,4 +95,15 @@ bool Session::loadSong(Song song, std::size_t selected_arrangement)
     return true;
 }
 
+// Returns mutable access to the current arrangement's tone schedule.
+ToneTrack* Session::currentToneTrack() noexcept
+{
+    if (m_current_arrangement_index >= m_song.arrangements.size())
+    {
+        return nullptr;
+    }
+
+    return &m_song.arrangements[m_current_arrangement_index].tone_track;
+}
+
 } // namespace rock_hero::common::core

@@ -6,7 +6,8 @@ namespace rock_hero::editor::core
 {
 
 ToneTrackViewState toneTrackViewStateFor(
-    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map)
+    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
+    const std::string& selected_region_id)
 {
     ToneTrackViewState state;
 
@@ -23,6 +24,11 @@ ToneTrackViewState toneTrackViewStateFor(
             ToneRegionViewState{
                 .id = std::string{},
                 .name = std::string{},
+                .grid_start = common::core::ToneGridPosition{.measure = 1, .beat = 1},
+                .grid_end =
+                    common::core::ToneGridPosition{
+                        .measure = terminal_measure, .beat = terminal_beat
+                    },
                 .time_range =
                     common::core::TimeRange{
                         .start = common::core::TimePosition{tempo_map.secondsAtBeat(1, 1)},
@@ -30,6 +36,7 @@ ToneTrackViewState toneTrackViewStateFor(
                             terminal_measure, terminal_beat)},
                     },
                 .synthesized_default = true,
+                .selected = false,
             });
         return state;
     }
@@ -41,6 +48,8 @@ ToneTrackViewState toneTrackViewStateFor(
             ToneRegionViewState{
                 .id = region.id,
                 .name = region.name,
+                .grid_start = region.start,
+                .grid_end = region.end,
                 .time_range =
                     common::core::TimeRange{
                         .start = common::core::TimePosition{tempo_map.secondsAtBeat(
@@ -49,6 +58,7 @@ ToneTrackViewState toneTrackViewStateFor(
                             region.end.measure, region.end.beat)},
                     },
                 .synthesized_default = false,
+                .selected = !selected_region_id.empty() && region.id == selected_region_id,
             });
     }
 

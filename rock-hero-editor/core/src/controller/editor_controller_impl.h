@@ -131,6 +131,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void onTimelineSeekRequested(common::core::TimePosition position);
     void onGridNoteValueChangeRequested(common::core::Fraction note_value);
     void onTimelineZoomChanged(double pixels_per_second);
+    void onToneRegionSelected(std::string region_id);
+    void onToneRegionResizeRequested(
+        std::string region_id, common::core::ToneGridPosition start,
+        common::core::ToneGridPosition end);
     void onPluginBrowserRequested();
     void onPluginInsertSlotSelected(std::size_t chain_index, std::size_t block_index);
     void onPluginBrowserClosed();
@@ -182,6 +186,8 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     void performActionImpl(EditorAction::Stop action);
     void performActionImpl(EditorAction::SeekTimeline action);
     void performActionImpl(EditorAction::SetGridNoteValue action);
+    void performActionImpl(EditorAction::SelectToneRegion action);
+    void performActionImpl(const EditorAction::ResizeToneRegion& action);
     void performActionImpl(EditorAction::ShowPluginBrowser action);
     void performActionImpl(EditorAction::BeginPluginInsert action);
     void performActionImpl(EditorAction::ScanPluginCatalog action);
@@ -446,6 +452,10 @@ struct EditorController::Impl final : private common::audio::ITransport::Listene
     // Horizontal timeline scale last reported by the view, persisted per project as app-local
     // resume state. Zero means no zoom has been reported or restored (view default applies).
     double m_timeline_zoom_pixels_per_second{0.0};
+
+    // Stable id of the selected authored tone region; empty when nothing is selected.
+    // Cleared on project close and load because ids are project-local.
+    std::string m_selected_tone_region_id{};
 
     // Present only while a live slider preview is waiting for its final commit.
     std::optional<common::audio::Gain> m_output_gain_preview_before{};

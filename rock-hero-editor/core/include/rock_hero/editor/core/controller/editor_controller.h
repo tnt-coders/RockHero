@@ -356,6 +356,14 @@ public:
     */
     void onTimelineZoomChanged(double pixels_per_second) override;
 
+    /*! \copydoc IEditorController::onToneRegionSelected */
+    void onToneRegionSelected(std::string region_id) override;
+
+    /*! \copydoc IEditorController::onToneRegionResizeRequested */
+    void onToneRegionResizeRequested(
+        std::string region_id, common::core::ToneGridPosition start,
+        common::core::ToneGridPosition end) override;
+
     /*! \brief Shows the scanned plugin browser and starts an initial catalog scan when needed. */
     void onPluginBrowserRequested() override;
 

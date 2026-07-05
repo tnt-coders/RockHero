@@ -165,6 +165,22 @@ public:
         grid_note_value_change_count += 1;
     }
 
+    /*! \copydoc IEditorController::onToneRegionSelected */
+    void onToneRegionSelected(std::string region_id) override
+    {
+        last_selected_tone_region_id = std::move(region_id);
+    }
+
+    /*! \copydoc IEditorController::onToneRegionResizeRequested */
+    void onToneRegionResizeRequested(
+        std::string region_id, common::core::ToneGridPosition start,
+        common::core::ToneGridPosition end) override
+    {
+        last_resized_tone_region_id = std::move(region_id);
+        last_tone_region_start = start;
+        last_tone_region_end = end;
+    }
+
     /*!
     \brief Records the view-reported timeline zoom.
     \param pixels_per_second Reported horizontal timeline scale.
@@ -396,6 +412,18 @@ public:
 
     /*! \brief Last grid note value emitted by the view, as a fraction of a whole note. */
     std::optional<common::core::Fraction> last_grid_note_value{};
+
+    /*! \brief Last tone region id reported through onToneRegionSelected(). */
+    std::string last_selected_tone_region_id{};
+
+    /*! \brief Last tone region id reported through onToneRegionResizeRequested(). */
+    std::string last_resized_tone_region_id{};
+
+    /*! \brief Last resize start reported through onToneRegionResizeRequested(). */
+    common::core::ToneGridPosition last_tone_region_start{};
+
+    /*! \brief Last resize end reported through onToneRegionResizeRequested(). */
+    common::core::ToneGridPosition last_tone_region_end{};
 
     /*! \brief Last timeline zoom reported through onTimelineZoomChanged(). */
     std::optional<double> last_timeline_zoom_pixels_per_second{};

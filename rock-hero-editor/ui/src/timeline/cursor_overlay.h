@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <optional>
 #include <rock_hero/common/audio/transport/i_transport.h>
@@ -15,6 +16,24 @@
 
 namespace rock_hero::editor::ui
 {
+
+/*! \brief Transient full-height alignment guide shown while a track-row drag snaps. */
+struct TimelineSnapGuide
+{
+    /*! \brief Guide x position in timeline-canvas coordinates. */
+    float x{};
+
+    /*! \brief Musical readout (for example "17:3") drawn beside the guide. */
+    juce::String label;
+
+    /*!
+    \brief Compares two snap guides by their stored values.
+    \param lhs Left-hand snap guide.
+    \param rhs Right-hand snap guide.
+    \return True when both guides store equal values.
+    */
+    friend bool operator==(const TimelineSnapGuide& lhs, const TimelineSnapGuide& rhs) = default;
+};
 
 /*!
 \brief Handles editor-wide timeline interaction and draws the cursor from transport position.
@@ -49,6 +68,30 @@ public:
     \param grid_note_value Grid step as a fraction of a whole note.
     */
     void setGridNoteValue(common::core::Fraction grid_note_value) noexcept;
+
+    /*!
+    \brief Shows or clears the transient snap guide reported by a track-row drag.
+    \param guide Guide to draw, or empty to clear it.
+    */
+    void setSnapGuide(std::optional<TimelineSnapGuide> guide);
+
+    /*!
+    \brief Installs the predicate that lets track-row pointer targets receive clicks.
+
+    The overlay spans the whole canvas above every track row, so by default it consumes
+    all clicks as seeks. Positions the predicate claims fall through to the row beneath.
+
+    \param pass_through Predicate over overlay-local positions; empty restores full capture.
+    */
+    void setHitTestPassThrough(std::function<bool(juce::Point<int>)> pass_through);
+
+    /*!
+    \brief Claims pointer events except where the pass-through predicate declines them.
+    \param x Pointer x position in local coordinates.
+    \param y Pointer y position in local coordinates.
+    \return True when the overlay should receive the pointer event.
+    */
+    bool hitTest(int x, int y) override;
 
     /*!
     \brief Draws only the cursor; static waveform content remains in the views below.
@@ -87,6 +130,12 @@ private:
 
     // Last subpixel cursor x coordinate drawn by the overlay, if a cursor is currently mappable.
     std::optional<float> m_cursor_x{};
+
+    // Transient snap guide reported by an active track-row drag, if one is showing.
+    std::optional<TimelineSnapGuide> m_snap_guide{};
+
+    // Lets track-row pointer targets beneath the overlay receive clicks.
+    std::function<bool(juce::Point<int>)> m_hit_test_pass_through;
 };
 
 } // namespace rock_hero::editor::ui

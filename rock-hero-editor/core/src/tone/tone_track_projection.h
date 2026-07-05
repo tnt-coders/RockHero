@@ -8,6 +8,7 @@
 #include <rock_hero/common/core/song/arrangement.h>
 #include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/tone/tone_track_view_state.h>
+#include <string>
 
 namespace rock_hero::editor::core
 {
@@ -22,9 +23,11 @@ runtime-only presentation and is never written back to the song document.
 
 \param arrangement Arrangement whose tone schedule should be displayed.
 \param tempo_map Tempo map used to resolve musical endpoints to seconds.
+\param selected_region_id Stable id of the selected region; empty selects nothing.
 \return Render state for the tone track row.
 */
 [[nodiscard]] ToneTrackViewState toneTrackViewStateFor(
-    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map);
+    const common::core::Arrangement& arrangement, const common::core::TempoMap& tempo_map,
+    const std::string& selected_region_id);
 
 } // namespace rock_hero::editor::core

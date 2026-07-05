@@ -23,6 +23,7 @@ namespace
         case EditorAction::Id::OpenPlugin:
         case EditorAction::Id::Undo:
         case EditorAction::Id::Redo:
+        case EditorAction::Id::ResizeToneRegion:
         {
             return true;
         }
@@ -40,6 +41,7 @@ namespace
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectToneRegion:
         {
             return false;
         }
@@ -82,6 +84,8 @@ namespace
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::SetGridNoteValue:
+            case EditorAction::Id::SelectToneRegion:
+            case EditorAction::Id::ResizeToneRegion:
             case EditorAction::Id::ShowPluginBrowser:
             case EditorAction::Id::BeginPluginInsert:
             case EditorAction::Id::ScanPluginCatalog:
@@ -144,6 +148,8 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectToneRegion:
+        case EditorAction::Id::ResizeToneRegion:
         {
             return conditions.has_loaded_arrangement;
         }
@@ -207,6 +213,8 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectToneRegion:
+        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::ShowPluginBrowser:
         case EditorAction::Id::BeginPluginInsert:
         case EditorAction::Id::ScanPluginCatalog:

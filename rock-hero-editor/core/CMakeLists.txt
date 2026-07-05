@@ -52,6 +52,9 @@ target_sources(
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/timeline_geometry.cpp
             src/timeline/transport_readout_text.cpp
+            src/tone/tone_handlers.cpp
+            src/tone/tone_region_edits.cpp
+            src/tone/tone_region_edits.h
             src/tone/tone_track_projection.cpp
             src/tone/tone_track_projection.h)
 

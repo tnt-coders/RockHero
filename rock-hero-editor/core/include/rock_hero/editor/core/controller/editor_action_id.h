@@ -69,6 +69,12 @@ enum class EditorActionId : std::uint8_t
     /*! \brief Set the timeline grid step as a note value. */
     SetGridNoteValue,
 
+    /*! \brief Select a tone region on the tone track (empty id clears the selection). */
+    SelectToneRegion,
+
+    /*! \brief Resize a tone region to new musical endpoints. */
+    ResizeToneRegion,
+
     /*! \brief Show the scanned plugin browser. */
     ShowPluginBrowser,
 
