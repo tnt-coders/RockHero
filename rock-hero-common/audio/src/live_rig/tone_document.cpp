@@ -1,4 +1,4 @@
-#include "tone_document.h"
+#include "live_rig/tone_document.h"
 
 #include "audio_path_util.h"
 

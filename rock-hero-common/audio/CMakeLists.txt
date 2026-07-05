@@ -23,13 +23,13 @@ target_sources(
             src/input/input_calibration.cpp
             src/input/live_input_error.cpp
             src/live_rig/live_rig_error.cpp
+            src/live_rig/tone_document.cpp
+            src/live_rig/tone_document.h
             src/meter_reader.h
             src/plugin/plugin_host_error.cpp
-            src/plugin_scan.cpp
-            src/plugin_scan.h
+            src/plugin/plugin_scan.cpp
+            src/plugin/plugin_scan.h
             src/song/song_audio_error.cpp
-            src/tone_document.cpp
-            src/tone_document.h
             src/tracktion/engine_behaviours.cpp
             src/tracktion/engine_behaviours.h
             src/tracktion/live_rig_gain_plugin.cpp
