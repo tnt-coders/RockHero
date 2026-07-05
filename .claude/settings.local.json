@@ -1,4 +1,8 @@
 {
+    "attribution": {
+        "commit": "",
+        "pr": ""
+    },
     "permissions": {
         "allow": [
             "Bash(git *)",
@@ -8,7 +12,12 @@
             "Bash(xargs grep -ln \"override\")",
             "Bash(xargs grep -ln \"onTimelineSeekRequested\\\\|IEditorController\")",
             "Skill(artifact-design)",
-            "Artifact"
+            "Artifact",
+            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\rockhero-build.ps1 *)",
+            "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/rockhero-build.ps1 *)",
+            "PowerShell(pre-commit run *)",
+            "Bash(pre-commit run *)",
+            "PowerShell(powershell -NoProfile -ExecutionPolicy Bypass -File .\\\\scripts\\\\rockhero-build.ps1 -Targets all)"
         ]
     }
 }
