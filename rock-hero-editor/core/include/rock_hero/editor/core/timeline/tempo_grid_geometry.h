@@ -7,9 +7,9 @@
 
 #include <cstdint>
 #include <optional>
-#include <rock_hero/common/core/domain/fraction.h>
-#include <rock_hero/common/core/domain/tempo_map.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/timeline/fraction.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 #include <vector>
 
 namespace rock_hero::editor::core

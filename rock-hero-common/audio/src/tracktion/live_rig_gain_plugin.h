@@ -6,7 +6,7 @@
 #pragma once
 
 #include <atomic>
-#include <rock_hero/common/audio/gain.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace rock_hero::common::audio

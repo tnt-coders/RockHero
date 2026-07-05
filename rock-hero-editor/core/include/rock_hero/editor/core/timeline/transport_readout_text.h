@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <string>
 
 namespace rock_hero::editor::core

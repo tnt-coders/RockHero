@@ -1,9 +1,9 @@
-#include "plugin/plugin_scan.h"
+#include "plugin_scan.h"
 
-#include "audio_path_util.h"
+#include "shared/audio_path_util.h"
 
-#include <rock_hero/common/core/infrastructure/json.h>
-#include <rock_hero/common/core/infrastructure/logger.h>
+#include <rock_hero/common/core/shared/json.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <tracktion_engine/tracktion_engine.h>
 #include <utility>
 

@@ -1,13 +1,13 @@
-#include "live_rig/tone_document.h"
+#include "tone_document.h"
 
-#include "audio_path_util.h"
+#include "shared/audio_path_util.h"
 
 #include <fstream>
-#include <rock_hero/common/core/infrastructure/application_identity.h>
-#include <rock_hero/common/core/infrastructure/json.h>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
-#include <rock_hero/common/core/infrastructure/logger.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/json.h>
+#include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <system_error>
 #include <utility>
 

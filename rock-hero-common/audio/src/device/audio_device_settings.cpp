@@ -7,7 +7,7 @@
 #include <juce_audio_devices/juce_audio_devices.h>
 #include <juce_core/juce_core.h>
 #include <optional>
-#include <rock_hero/common/audio/scoped_listener.h>
+#include <rock_hero/common/audio/shared/scoped_listener.h>
 #include <utility>
 
 namespace rock_hero::common::audio

@@ -7,8 +7,8 @@
 
 #include <expected>
 #include <rock_hero/common/audio/song/song_audio_error.h>
-#include <rock_hero/common/core/domain/arrangement.h>
-#include <rock_hero/common/core/domain/song.h>
+#include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/song/song.h>
 
 namespace rock_hero::common::audio
 {

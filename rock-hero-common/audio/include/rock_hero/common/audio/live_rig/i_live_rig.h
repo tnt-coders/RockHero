@@ -9,10 +9,10 @@
 #include <expected>
 #include <filesystem>
 #include <functional>
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/live_rig/live_rig_error.h>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
 #include <rock_hero/common/audio/plugin/plugin_chain_snapshot.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <vector>
 

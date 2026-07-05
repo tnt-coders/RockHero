@@ -6,9 +6,9 @@
 #pragma once
 
 #include <expected>
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
 #include <rock_hero/common/audio/input/live_input_error.h>
+#include <rock_hero/common/audio/shared/gain.h>
 
 namespace rock_hero::common::audio
 {

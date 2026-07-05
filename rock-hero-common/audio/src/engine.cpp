@@ -1,13 +1,13 @@
 #include "engine.h"
 
-#include "audio_path_util.h"
 #include "engine_impl.h"
+#include "shared/audio_path_util.h"
 #include "tracktion/engine_behaviors.h"
 #include "tracktion/plugin_dirty_tracking.h"
 #include "tracktion/tracktion_thumbnail.h"
 
 #include <memory>
-#include <rock_hero/common/core/infrastructure/application_identity.h>
+#include <rock_hero/common/core/shared/application_identity.h>
 
 namespace rock_hero::common::audio
 {

@@ -4,8 +4,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <rock_hero/common/audio/engine.h>
-#include <rock_hero/common/core/infrastructure/application_identity.h>
-#include <rock_hero/common/core/infrastructure/logger.h>
+#include <rock_hero/common/core/shared/application_identity.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <rock_hero/editor/core/settings/editor_settings.h>
 #include <rock_hero/editor/core/tasks/juce_editor_task_runner.h>
 #include <rock_hero/editor/core/tasks/juce_message_thread_scheduler.h>

@@ -1,4 +1,4 @@
-#include "infrastructure/juce_path.h"
+#include "shared/juce_path.h"
 
 namespace rock_hero::common::core
 {

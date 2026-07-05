@@ -10,8 +10,8 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/domain/audio_normalization.h>
-#include <rock_hero/common/core/domain/song.h>
+#include <rock_hero/common/core/song/audio_normalization.h>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/editor/core/project/i_song_importer.h>
 #include <rock_hero/editor/core/project/project_error.h>
 #include <string>
