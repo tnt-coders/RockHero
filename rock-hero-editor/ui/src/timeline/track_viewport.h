@@ -240,6 +240,14 @@ private:
     // Keeps the ruler cursor aligned with the main cursor overlay.
     void updateRulerCursor();
 
+    // Zoomed-canvas width and zoom bounds; class-scope (unlike the other tuning constants in the
+    // implementation file) so the zoom default can be a default member initializer.
+    static constexpr int g_track_canvas_width{1264};
+    static constexpr double g_default_pixels_per_second{
+        static_cast<double>(g_track_canvas_width) / 10.0
+    };
+    static constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
+
     // Controller receives ruler-level timeline seek intent.
     core::IEditorController& m_controller;
 
@@ -280,7 +288,7 @@ private:
     int m_grid_span_end{0};
 
     // Horizontal timeline scale used to size the zoomed content canvas.
-    double m_pixels_per_second;
+    double m_pixels_per_second{g_default_pixels_per_second};
 
     // Tracks empty vs loaded display mode for layout and zoom gating.
     bool m_project_loaded{false};

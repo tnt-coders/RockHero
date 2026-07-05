@@ -15,11 +15,8 @@ namespace rock_hero::editor::ui
 namespace
 {
 
-constexpr int g_track_canvas_width{1264};
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
-constexpr double g_default_pixels_per_second{static_cast<double>(g_track_canvas_width) / 10.0};
-constexpr double g_max_pixels_per_second{static_cast<double>(g_track_canvas_width)};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
 constexpr float g_min_mouse_wheel_delta{std::numeric_limits<float>::epsilon()};
 constexpr int g_tempo_grid_dot_size{1};
@@ -221,13 +218,10 @@ TrackViewport::TrackViewport(
     , m_cursor_overlay(cursor_overlay)
     , m_transport(transport)
     , m_content(*this)
-    , m_vblank_attachment(
-          this,
-          [this] {
-              updatePlaybackFollow();
-              updateRulerCursor();
-          })
-    , m_pixels_per_second(g_default_pixels_per_second)
+    , m_vblank_attachment(this, [this] {
+        updatePlaybackFollow();
+        updateRulerCursor();
+    })
 {
     setComponentID("track_viewport");
     m_content.setComponentID("track_viewport_content");

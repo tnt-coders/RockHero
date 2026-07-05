@@ -108,8 +108,14 @@ function Invoke-Checked
         [string]$SuccessMessage
     )
 
+    # Windows PowerShell 5.1 turns native stderr lines into ErrorRecords under 2>&1; with the
+    # script's ErrorActionPreference=Stop, harmless stderr chatter (e.g. VsDevCmd debug lines)
+    # would become a terminating error even when the command exits 0. Judge by exit code only.
+    $previous_preference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
     $output = & $Command 2>&1
     $exit_code = $LASTEXITCODE
+    $ErrorActionPreference = $previous_preference
     if ($FullOutput -or $exit_code -ne 0)
     {
         $output | ForEach-Object { Write-Host $_ }
@@ -168,8 +174,11 @@ if ($Configure)
 if ($Targets.Count -gt 0)
 {
     $target_text = ($Targets | ForEach-Object { '"' + ($_ -replace '"', '\"') + '"' }) -join " "
-    $build_command = 'call "' + $vs_dev_cmd + '" -arch=x64 -host_arch=x64 && ninja -C "' +
-        $BuildDir + '" ' + $target_text
+    # VsDevCmd.bat shells out to vswhere.exe from the VS Installer directory, which minimal
+    # agent-shell PATHs do not include; prepend it so the developer environment can bootstrap.
+    $installer_dir = 'C:\Program Files (x86)\Microsoft Visual Studio\Installer'
+    $build_command = 'set "PATH=' + $installer_dir + ';%PATH%" && call "' + $vs_dev_cmd +
+        '" -arch=x64 -host_arch=x64 && ninja -C "' + $BuildDir + '" ' + $target_text
 
     Invoke-Checked -Command { & cmd.exe /d /c $build_command } `
         -FailureMessage "Ninja build failed for targets: $($Targets -join ', ')." `
