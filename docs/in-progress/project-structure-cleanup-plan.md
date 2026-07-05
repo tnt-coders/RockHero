@@ -376,7 +376,9 @@ break-even signals in a durable place.
 
 ### 6.2 Confirm at the named phase (small, flagged inline)
 
-`main_window.h` → app target (P1) · `TimelineViewport` own files vs riding (P1) ·
+`main_window.h` → app target (moved P1 → P3: it is public churn, and P1 stays churn-free;
+decide with the other include moves) · `TimelineViewport` rode inside `track_viewport.{h,cpp}`
+(decided at P1 extraction — it is ~15 lines) ·
 `OutputGainEdit` home (P2) · calibration/transport handler-TU threshold (P2) ·
 `arrangement_view_state.h` → `timeline/` (P3) · `input/` vs `calibration/`, `audio_normalization.h`
 home (P4) · `common/core` go/no-go (P5).
