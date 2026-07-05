@@ -1,4 +1,4 @@
-#include "input_calibration_workflow.h"
+#include "input_calibration/input_calibration_workflow.h"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

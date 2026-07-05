@@ -1,6 +1,6 @@
 #include "editor_undo_history.h"
 
-#include "signal_chain_workflow.h"
+#include "signal_chain/signal_chain_workflow.h"
 
 #include <algorithm>
 #include <rock_hero/common/audio/i_live_rig.h>

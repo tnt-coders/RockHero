@@ -1,4 +1,4 @@
-#include "audio_device_status_text.h"
+#include "audio_device/audio_device_status_text.h"
 
 #include <catch2/catch_test_macros.hpp>
 

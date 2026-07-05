@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Preset = "Debug",
+    # Preset names are case-sensitive and lowercase in CMakePresets.json.
+    [string]$Preset = "debug",
     # Defaults to build/<preset lowercased> so alternate presets do not need a second flag.
     [string]$BuildDir = "",
     [string[]]$Targets = @(),

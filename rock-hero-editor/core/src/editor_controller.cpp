@@ -1,16 +1,16 @@
 #include "editor_controller.h"
 
-#include "audio_device_status_text.h"
-#include "busy_operation_workflow.h"
+#include "audio_device/audio_device_status_text.h"
+#include "busy/busy_operation_workflow.h"
 #include "deferred_project_action_state.h"
 #include "editor_action.h"
 #include "editor_action_availability.h"
 #include "editor_undo_history.h"
-#include "input_calibration_workflow.h"
-#include "plugin_catalog_workflow.h"
-#include "project_io.h"
-#include "rock_song_importer.h"
-#include "signal_chain_workflow.h"
+#include "input_calibration/input_calibration_workflow.h"
+#include "project/project_io.h"
+#include "project/rock_song_importer.h"
+#include "signal_chain/plugin_catalog_workflow.h"
+#include "signal_chain/signal_chain_workflow.h"
 
 #include <algorithm>
 #include <cassert>
