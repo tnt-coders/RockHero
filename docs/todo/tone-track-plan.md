@@ -1,5 +1,8 @@
 # Guitar Tone Track — Implementation Plan
 
+Status: superseded by `docs/in-progress/tone-track-tempo-map-plan.md`. Kept for the parameter
+ideas that later slices may still mine; do not implement from this document.
+
 ## Goal
 
 Add a second track to the Rock Hero audio engine that accepts live guitar input through ASIO,

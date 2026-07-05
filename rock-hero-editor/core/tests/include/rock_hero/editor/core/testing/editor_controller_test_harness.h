@@ -1226,6 +1226,7 @@ private:
                 common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
             .audio_duration = timeline_range.duration(),
             .tone_document_ref = std::move(tone_document_ref),
+            .tone_track = {},
         });
 
     return song;
@@ -1314,6 +1315,7 @@ private:
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
     song.arrangements.push_back(
         common::core::Arrangement{
@@ -1326,6 +1328,7 @@ private:
                 },
             .audio_duration = common::core::TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
 
     return song;

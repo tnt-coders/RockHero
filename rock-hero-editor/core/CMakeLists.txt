@@ -51,7 +51,9 @@ target_sources(
             src/tasks/juce_message_thread_scheduler.cpp
             src/timeline/tempo_grid_geometry.cpp
             src/timeline/timeline_geometry.cpp
-            src/timeline/transport_readout_text.cpp)
+            src/timeline/transport_readout_text.cpp
+            src/tone/tone_track_projection.cpp
+            src/tone/tone_track_projection.h)
 
 # The PRIVATE src dir lets library and test translation units reference private headers with
 # feature-qualified quoted includes ("busy/busy_operation_state.h") across feature folders.

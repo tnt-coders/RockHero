@@ -47,6 +47,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
     song.arrangements.push_back(
         Arrangement{
@@ -59,6 +60,7 @@ TEST_CASE("Song holds multiple arrangements", "[core][song]")
                 },
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
 
     REQUIRE(song.arrangements.size() == 2);
@@ -97,7 +99,8 @@ TEST_CASE("Song stores top-level value fields", "[core][song]")
                  .path = std::filesystem::path{"audio/rhythm.wav"}, .normalization = std::nullopt
              },
          .audio_duration = TimeDuration{42.0},
-         .tone_document_ref = "tone/rhythm.json"});
+         .tone_document_ref = "tone/rhythm.json",
+         .tone_track = {}});
 
     CHECK(song.metadata.title == "Test Song");
     CHECK(song.metadata.artist == "Test Artist");

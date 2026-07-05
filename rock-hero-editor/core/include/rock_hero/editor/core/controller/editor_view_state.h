@@ -16,6 +16,7 @@
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>
 #include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
+#include <rock_hero/editor/core/tone/tone_track_view_state.h>
 #include <rock_hero/editor/core/transport/transport_view_state.h>
 #include <string>
 #include <utility>
@@ -247,6 +248,9 @@ struct EditorViewState
 
     /*! \brief Current arrangement waveform state shown by the editor. */
     ArrangementViewState arrangement{};
+
+    /*! \brief Current tone track row state shown below the backing waveform. */
+    ToneTrackViewState tone_track{};
 
     /*! \brief Current signal-chain view state. */
     SignalChainViewState signal_chain{};

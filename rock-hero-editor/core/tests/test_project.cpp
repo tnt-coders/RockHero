@@ -423,6 +423,7 @@ public:
             .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
     return song;
 }
