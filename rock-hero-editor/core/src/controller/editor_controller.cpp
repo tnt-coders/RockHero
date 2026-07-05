@@ -14,6 +14,7 @@
 #include "signal_chain/plugin_catalog_workflow.h"
 #include "signal_chain/signal_chain_edits.h"
 #include "signal_chain/signal_chain_workflow.h"
+#include "tone/tone_track_projection.h"
 
 #include <algorithm>
 #include <cassert>
@@ -1722,6 +1723,7 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_asset = arrangement->audio_asset,
             .audio_duration = arrangement->audio_duration,
         };
+        state.tone_track = toneTrackViewStateFor(*arrangement, state.tempo_map);
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
     state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();

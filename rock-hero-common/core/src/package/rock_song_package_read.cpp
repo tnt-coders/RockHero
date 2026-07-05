@@ -40,12 +40,6 @@ namespace
 {
 
 // Lightweight parsed form of a persisted tempo-map anchor address.
-struct AnchorPosition
-{
-    int measure{1};
-    int beat{1};
-};
-
 // Finds the required native song document in an extracted song package directory.
 [[nodiscard]] std::optional<std::filesystem::path> findSongDocument(
     const std::filesystem::path& directory)
@@ -288,37 +282,6 @@ readAudioAssets(const std::filesystem::path& directory, const juce::var& song_do
     return value > 0 && fitsIntField(value);
 }
 
-// Reports whether a timing value can be stored safely in the native format.
-// Parses a tempo-map anchor position token: "<measure>:<beat>".
-[[nodiscard]] std::optional<AnchorPosition> parseAnchorPosition(const std::string& text)
-{
-    const std::size_t colon = text.find(':');
-    if (colon == std::string::npos || text.find('+') != std::string::npos)
-    {
-        return std::nullopt;
-    }
-
-    int measure = 0;
-    if (const auto result = std::from_chars(text.data(), text.data() + colon, measure);
-        result.ec != std::errc{} || result.ptr != text.data() + colon || measure <= 0)
-    {
-        return std::nullopt;
-    }
-
-    const char* const beat_begin = text.data() + colon + 1;
-    const char* const beat_end = text.data() + text.size();
-
-    int beat = 0;
-    if (const auto result = std::from_chars(beat_begin, beat_end, beat);
-        result.ec != std::errc{} || result.ptr != beat_end || beat <= 0)
-    {
-        return std::nullopt;
-    }
-
-    return AnchorPosition{.measure = measure, .beat = beat};
-}
-
-// Reports whether a denominator is a positive power of two, matching conventional meter values.
 // Reads the tempo-map time-signature array without applying cross-entry ordering rules yet.
 [[nodiscard]] std::expected<std::vector<TimeSignatureChange>, SongPackageError>
 readTimeSignatureChanges(const juce::var& tempo_map_json)
@@ -414,7 +377,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }};
         }
 
-        const auto position = parseAnchorPosition(*position_text);
+        const auto position = parseBeatPositionToken(*position_text);
         if (!position.has_value())
         {
             return std::unexpected{SongPackageError{
@@ -468,10 +431,103 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
     return tempo_map;
 }
 
+// Reads one arrangement's optional authored tone track and validates it against the tempo map.
+[[nodiscard]] std::expected<ToneTrack, SongPackageError> readToneTrack(
+    const std::filesystem::path& directory, const juce::var& arrangement_json,
+    const TempoMap& tempo_map)
+{
+    ToneTrack tone_track;
+    const juce::var& tone_track_json = Json::value(arrangement_json, "toneTrack");
+    if (tone_track_json.isVoid() || tone_track_json.isUndefined())
+    {
+        return tone_track;
+    }
+
+    if (!tone_track_json.isObject())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "arrangement toneTrack must be an object when present",
+        }};
+    }
+
+    const juce::var& regions_json = Json::value(tone_track_json, "regions");
+    if (!regions_json.isArray())
+    {
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            "toneTrack.regions must be an array",
+        }};
+    }
+
+    tone_track.regions.reserve(static_cast<std::size_t>(regions_json.size()));
+    const juce::Array<juce::var>* const region_array = regions_json.getArray();
+    for (const juce::var& region_json : *region_array)
+    {
+        if (!region_json.isObject())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "toneTrack.regions entries must be objects",
+            }};
+        }
+
+        const auto id = Json::tryReadString(region_json, "id");
+        const auto start_text = Json::tryReadString(region_json, "start");
+        const auto end_text = Json::tryReadString(region_json, "end");
+        const auto tone_document = Json::tryReadString(region_json, "toneDocument");
+        if (!id.has_value() || !start_text.has_value() || !end_text.has_value() ||
+            !tone_document.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "tone regions require id, start, end, and toneDocument fields",
+            }};
+        }
+
+        const auto start = parseBeatPositionToken(*start_text);
+        const auto end = parseBeatPositionToken(*end_text);
+        if (!start.has_value() || !end.has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "tone region endpoints must be \"<measure>:<beat>\" tokens",
+            }};
+        }
+
+        tone_track.regions.push_back(
+            ToneRegion{
+                .id = *id,
+                .name = Json::tryReadString(region_json, "name").value_or(std::string{}),
+                .start = ToneGridPosition{.measure = start->measure, .beat = start->beat},
+                .end = ToneGridPosition{.measure = end->measure, .beat = end->beat},
+                .tone_document_ref = *tone_document,
+            });
+    }
+
+    if (const auto structural = validateToneTrack(tone_track, tempo_map); !structural.has_value())
+    {
+        return std::unexpected{structural.error()};
+    }
+
+    for (const ToneRegion& region : tone_track.regions)
+    {
+        if (!resolveExistingFile(directory, region.tone_document_ref).has_value())
+        {
+            return std::unexpected{SongPackageError{
+                SongPackageErrorCode::InvalidArrangement,
+                "tone region document is missing or unsafe: " + region.tone_document_ref,
+            }};
+        }
+    }
+
+    return tone_track;
+}
+
 // Reads arrangements from song-document entries into project-owned core values.
 [[nodiscard]] std::expected<std::vector<Arrangement>, SongPackageError> readArrangements(
     const std::filesystem::path& directory, const juce::var& song_document,
-    const std::unordered_map<std::string, AudioAsset>& audio_assets)
+    const std::unordered_map<std::string, AudioAsset>& audio_assets, const TempoMap& tempo_map)
 {
     const juce::var& arrangements_json = Json::value(song_document, "arrangements");
     if (!arrangements_json.isArray() || arrangements_json.size() == 0)
@@ -563,6 +619,12 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
             }
         }
 
+        auto tone_track = readToneTrack(directory, arrangement_json, tempo_map);
+        if (!tone_track.has_value())
+        {
+            return std::unexpected{std::move(tone_track.error())};
+        }
+
         const auto audio_asset = audio_assets.find(*audio_id);
         if (audio_asset == audio_assets.end())
         {
@@ -580,6 +642,7 @@ readTimeSignatureChanges(const juce::var& tempo_map_json)
                 .audio_asset = audio_asset->second,
                 .audio_duration = TimeDuration{},
                 .tone_document_ref = std::move(tone_document_ref),
+                .tone_track = std::move(*tone_track),
             });
     }
 
@@ -803,7 +866,7 @@ std::expected<Song, SongPackageError> readRockSongPackageDirectory(
         return std::unexpected{std::move(tempo_map.error())};
     }
 
-    auto arrangements = readArrangements(directory, song_document, *audio_assets);
+    auto arrangements = readArrangements(directory, song_document, *audio_assets, *tempo_map);
     if (!arrangements.has_value())
     {
         return std::unexpected{std::move(arrangements.error())};

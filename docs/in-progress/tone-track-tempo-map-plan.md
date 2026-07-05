@@ -235,12 +235,20 @@ e.g. by bypass-ramping inactive branches rather than only zeroing their gain.
    - Draw measure and beat grid lines in the track viewport.
    - Add editor UI tests for grid visibility and viewport scaling.
 
-2. **Read-only tone row**
-   - Add `ToneTrack` and `ToneRegion` domain values.
-   - Parse/write `toneTrack.regions`.
-   - Project existing `toneDocument` as a default region when no tone track exists.
-   - Add `ToneTrackViewState`.
-   - Render the `Tones` row and regions.
+2. **Read-only tone row** (complete)
+   - Added `ToneTrack`/`ToneRegion`/`ToneGridPosition` in `common/core/tone/` (the approved
+     `tone/` feature folder used across libraries).
+   - Parse/write `toneTrack.regions` through the shared `"<measure>:<beat>"` token codec, which
+     was promoted into `rock_song_package_format` so anchors and regions share one parser;
+     structural validation (`validateToneTrack`) is shared by reader and writer.
+   - The legacy `toneDocument` default region is synthesized at view-state projection time
+     (`editor/core/src/tone/tone_track_projection`), never stored, so untouched projects never
+     gain a persisted tone track on re-save.
+   - Added public `ToneTrackViewState` and the `tone_track` slice on `EditorViewState`.
+   - Added `ToneTrackView` (editor/ui `tone/`), hosted by `TrackViewport` below the waveform at
+     half a primary track height. The row is intentionally transparent so the shared tempo grid
+     shows through between regions; the synthesized default region renders as a dim read-only
+     continuation while authored regions render as filled labeled blocks.
 
 3. **Selection and resize**
    - Add editor-core selection state.

@@ -20,6 +20,8 @@ namespace
 
 constexpr std::string_view g_lead_arrangement_id{"4f3a1c5e-9d2b-48a6-b1f0-c7e8d9a2b3c4"};
 constexpr std::string_view g_tone_id{"9b26d8e8-3ec5-4f97-9a81-d18ef6bce30d"};
+constexpr std::string_view g_verse_region_id{"5a1f0c3d-7e2b-4a9c-8d1e-2f3a4b5c6d7e"};
+constexpr std::string_view g_chorus_region_id{"c9d8e7f6-a5b4-4c3d-9e2f-1a0b9c8d7e6f"};
 
 // Owns a clean temporary directory for native Rock Hero song package tests.
 class TemporaryRockSongPackageDirectory final
@@ -137,6 +139,7 @@ void writeAudioFile(const std::filesystem::path& path)
             .audio_asset = AudioAsset{.path = audio_path, .normalization = std::nullopt},
             .audio_duration = TimeDuration{},
             .tone_document_ref = {},
+            .tone_track = {},
         });
     return song;
 }
@@ -719,6 +722,160 @@ TEST_CASE("Rock song package rejects malformed tempo maps", "[core][rock-song-pa
         CHECK(read_song.error().code == SongPackageErrorCode::InvalidSongDocument);
         CHECK(read_song.error().message.find("tempoMap") != std::string::npos);
     }
+}
+
+TEST_CASE("Rock song package round-trips authored tone regions", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+
+    Song song = makeSongWithToneDocument(source_audio);
+    song.arrangements.front().tone_track.regions = {
+        ToneRegion{
+            .id = std::string{g_verse_region_id},
+            .name = "Clean Verse",
+            .start = ToneGridPosition{.measure = 1, .beat = 1},
+            .end = ToneGridPosition{.measure = 2, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+        ToneRegion{
+            .id = std::string{g_chorus_region_id},
+            .name = std::string{},
+            .start = ToneGridPosition{.measure = 2, .beat = 3},
+            .end = ToneGridPosition{.measure = 3, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+    };
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE(written.has_value());
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE(loaded.has_value());
+    REQUIRE(loaded->arrangements.size() == 1);
+    CHECK(loaded->arrangements.front().tone_track == song.arrangements.front().tone_track);
+}
+
+TEST_CASE("Rock song package write rejects overlapping tone regions", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+
+    Song song = makeSongWithToneDocument(source_audio);
+    song.arrangements.front().tone_track.regions = {
+        ToneRegion{
+            .id = std::string{g_verse_region_id},
+            .name = "Clean Verse",
+            .start = ToneGridPosition{.measure = 1, .beat = 1},
+            .end = ToneGridPosition{.measure = 2, .beat = 3},
+            .tone_document_ref = toneDocumentRef(),
+        },
+        ToneRegion{
+            .id = std::string{g_chorus_region_id},
+            .name = "Crunch Chorus",
+            .start = ToneGridPosition{.measure = 2, .beat = 1},
+            .end = ToneGridPosition{.measure = 3, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+    };
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+TEST_CASE(
+    "Rock song package write rejects tone regions past the terminal anchor",
+    "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+
+    Song song = makeSongWithToneDocument(source_audio);
+    song.arrangements.front().tone_track.regions = {
+        ToneRegion{
+            .id = std::string{g_verse_region_id},
+            .name = "Clean Verse",
+            .start = ToneGridPosition{.measure = 1, .beat = 1},
+            .end = ToneGridPosition{.measure = 9, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+    };
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+TEST_CASE(
+    "Rock song package read rejects malformed tone region tokens", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    writeReadablePackageDirectory(package_directory);
+    writeTextFile(package_directory / toneDocumentPath(g_tone_id), "{}");
+    writeTextFile(
+        package_directory / "song.json",
+        R"({
+            "formatVersion": 1,)" +
+            tempoMapJsonFragment() +
+            R"(
+            "audioAssets": [
+                { "id": "backing", "path": "audio/backing.wav" }
+            ],
+            "arrangements": [
+                {
+                    "id": ")" +
+            std::string{g_lead_arrangement_id} +
+            R"(",
+                    "part": "Lead",
+                    "audio": "backing",
+                    "toneTrack": { "regions": [
+                        { "id": ")" +
+            std::string{g_verse_region_id} +
+            R"(", "start": "1:1+1/2", "end": "2:1", "toneDocument": ")" + toneDocumentRef() +
+            R"(" }
+                    ] }
+                }
+            ]
+        })");
+
+    const auto loaded = readRockSongPackageDirectory(package_directory);
+    REQUIRE_FALSE(loaded.has_value());
+    CHECK(loaded.error().code == SongPackageErrorCode::InvalidArrangement);
+}
+
+TEST_CASE(
+    "Rock song package write rejects missing tone region documents", "[core][rock-song-package]")
+{
+    const TemporaryRockSongPackageDirectory temp;
+    const std::filesystem::path package_directory = temp.path() / "package";
+    const std::filesystem::path source_audio = package_directory / "audio" / "backing.wav";
+    writeAudioFile(source_audio);
+
+    Song song = makeSong(source_audio);
+    song.arrangements.front().tone_track.regions = {
+        ToneRegion{
+            .id = std::string{g_verse_region_id},
+            .name = "Clean Verse",
+            .start = ToneGridPosition{.measure = 1, .beat = 1},
+            .end = ToneGridPosition{.measure = 2, .beat = 1},
+            .tone_document_ref = toneDocumentRef(),
+        },
+    };
+
+    const auto written = writeRockSongPackageDirectory(package_directory, song);
+    REQUIRE_FALSE(written.has_value());
+    CHECK(written.error().code == SongPackageErrorCode::InvalidSongDocument);
 }
 
 } // namespace rock_hero::common::core

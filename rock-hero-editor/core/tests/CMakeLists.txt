@@ -35,6 +35,7 @@ add_executable(
     test_input_calibration_workflow.cpp
     test_plugin_catalog_workflow.cpp
     test_plugin_display_type.cpp
+    test_tone_track_projection.cpp
     test_signal_chain_block_placement.cpp
     test_signal_chain_workflow.cpp
     test_tempo_grid_geometry.cpp

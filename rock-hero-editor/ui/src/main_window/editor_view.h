@@ -12,6 +12,7 @@
 #include "signal_chain/signal_chain_panel.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/grid_spacing_selector.h"
+#include "tone/tone_track_view.h"
 #include "transport/transport_controls.h"
 
 #include <cstddef>
@@ -347,6 +348,9 @@ private:
 
     // Waveform track for the currently displayed arrangement, hosted inside the track viewport.
     ArrangementView m_arrangement_view;
+
+    // Tone track row hosted below the waveform inside the track viewport.
+    ToneTrackView m_tone_track_view;
 
     // Editor-wide cursor and seek overlay drawn above the zoomable track canvas.
     std::unique_ptr<CursorOverlay> m_cursor_overlay;
