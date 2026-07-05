@@ -204,6 +204,8 @@ const juce::Colour g_transport_bar_color{juce::Colours::darkgrey.darker(0.16f)};
         case core::EditorActionId::SetSignalChainPlacement:
         case core::EditorActionId::SetPluginDisplayTypeOverride:
         case core::EditorActionId::OpenPlugin:
+        case core::EditorActionId::SelectToneRegion:
+        case core::EditorActionId::ResizeToneRegion:
         {
             return "Save changes before continuing?";
         }
@@ -227,6 +229,7 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     , m_grid_spacing_selector(*this)
     , m_master_output_meter(AudioLevelMeterOrientation::Horizontal, "Master")
     , m_signal_chain_panel(*this)
+    , m_tone_track_view(*this, m_state.tempo_map)
     , m_cursor_overlay(
           std::make_unique<CursorOverlay>(controller, audio_ports.transport, m_state.tempo_map))
     , m_track_viewport(
@@ -256,6 +259,14 @@ EditorView::EditorView(core::IEditorController& controller, AudioPorts audio_por
     m_audio_device_button.onClick = [this] { showAudioDeviceSettingsWindow(); };
     m_arrangement_view.setComponentID("arrangement_view");
     m_tone_track_view.setComponentID("tone_track_view");
+    m_tone_track_view.setSnapGuideCallback([this](std::optional<TimelineSnapGuide> guide) {
+        m_cursor_overlay->setSnapGuide(std::move(guide));
+    });
+    m_cursor_overlay->setHitTestPassThrough([this](juce::Point<int> position) {
+        const juce::Rectangle<int> row_bounds = m_tone_track_view.getBounds();
+        return row_bounds.contains(position) &&
+               m_tone_track_view.wantsPointerAt(position - row_bounds.getPosition());
+    });
     m_busy_overlay.setComponentID("busy_overlay");
     m_busy_overlay.setPaintCallback([this] { handleBusyOverlayPainted(); });
     m_busy_overlay.setCancelCallback([this] { m_controller.onBusyCancelRequested(); });
@@ -1269,6 +1280,19 @@ void EditorView::onOutputGainPreviewChanged(double gain_db)
 }
 
 // Forwards committed output gain slider changes to the controller when controls are enabled.
+// Routes a tone-region selection intent to the controller.
+void EditorView::onToneRegionSelected(std::string region_id)
+{
+    m_controller.onToneRegionSelected(std::move(region_id));
+}
+
+// Routes a committed tone-region resize to the controller.
+void EditorView::onToneRegionResizeRequested(
+    std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
+{
+    m_controller.onToneRegionResizeRequested(std::move(region_id), start, end);
+}
+
 void EditorView::onOutputGainChanged(double gain_db)
 {
     if (!m_state.signal_chain.output_gain_controls_enabled)

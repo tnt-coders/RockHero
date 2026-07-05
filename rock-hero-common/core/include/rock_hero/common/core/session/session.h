@@ -56,6 +56,16 @@ public:
     [[nodiscard]] const Arrangement* currentArrangement() const noexcept;
 
     /*!
+    \brief Returns mutable access to the current arrangement's tone schedule.
+
+    The narrowest mutation surface the tone editing workflow needs; broader arrangement fields
+    stay read-only through this session.
+
+    \return Current arrangement's tone track, or null when no arrangement is loaded.
+    */
+    [[nodiscard]] ToneTrack* currentToneTrack() noexcept;
+
+    /*!
     \brief Replaces the current session song.
 
     The selected arrangement index is stored as session state, not as persistent arrangement

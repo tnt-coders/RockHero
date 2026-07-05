@@ -167,6 +167,14 @@ namespace
         {
             return "OpenPlugin";
         }
+        case EditorAction::Id::SelectToneRegion:
+        {
+            return "SelectToneRegion";
+        }
+        case EditorAction::Id::ResizeToneRegion:
+        {
+            return "ResizeToneRegion";
+        }
     }
 
     return "Unknown";
@@ -205,6 +213,7 @@ namespace
             case EditorAction::Id::SetSignalChainPlacement:
             case EditorAction::Id::SetPluginDisplayTypeOverride:
             case EditorAction::Id::OpenPlugin:
+            case EditorAction::Id::ResizeToneRegion:
             {
                 return "input-calibration-prompt";
             }
@@ -222,6 +231,7 @@ namespace
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::SetGridNoteValue:
+            case EditorAction::Id::SelectToneRegion:
             {
                 break;
             }
@@ -254,6 +264,8 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectToneRegion:
+        case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::ScanPluginCatalog:
         {
             return "no-loaded-arrangement";
@@ -694,6 +706,17 @@ void EditorController::onGridNoteValueChangeRequested(common::core::Fraction not
 void EditorController::onTimelineZoomChanged(double pixels_per_second)
 {
     m_impl->onTimelineZoomChanged(pixels_per_second);
+}
+
+void EditorController::onToneRegionSelected(std::string region_id)
+{
+    m_impl->onToneRegionSelected(std::move(region_id));
+}
+
+void EditorController::onToneRegionResizeRequested(
+    std::string region_id, common::core::ToneGridPosition start, common::core::ToneGridPosition end)
+{
+    m_impl->onToneRegionResizeRequested(std::move(region_id), start, end);
 }
 
 void EditorController::onPluginBrowserRequested()
@@ -1435,6 +1458,7 @@ void EditorController::Impl::applyUndoTransitionBehindBusy(
 EditorEditContext EditorController::Impl::editContext() noexcept
 {
     return EditorEditContext{
+        .session = m_session,
         .signal_chain = m_signal_chain,
         .plugin_host = m_plugin_host,
         .live_rig = m_live_rig,
@@ -1723,7 +1747,8 @@ EditorViewState EditorController::Impl::deriveViewState() const
             .audio_asset = arrangement->audio_asset,
             .audio_duration = arrangement->audio_duration,
         };
-        state.tone_track = toneTrackViewStateFor(*arrangement, state.tempo_map);
+        state.tone_track =
+            toneTrackViewStateFor(*arrangement, state.tempo_map, m_selected_tone_region_id);
     }
     state.unsaved_changes_prompt = m_deferred_project_action_state.unsavedChangesPrompt();
     state.save_as_prompt = m_deferred_project_action_state.saveAsPrompt();
