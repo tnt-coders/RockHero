@@ -3,6 +3,14 @@
 Status: future work. This broad audio/editor decomposition is not part of the current tempo-map or
 tone-system slice. Re-read the current code before implementing it.
 
+**Update 2026-07-04:** Part A (the engine seam split) is now scheduled as Phase 4 of
+`docs/in-progress/project-structure-cleanup-plan.md`; execute it from there against current code.
+Note also that this document's "never split `editor_controller.cpp`" framing was narrowed with
+user sign-off: the controller **object** stays a single root facade, but its member-function
+definitions distribute across per-feature translation units (see cleanup-plan §2.4 and Phase 2;
+that rule is provisional until the Phase 2 pilot slice proves it, and is codified into
+`docs/design/architectural-principles.md` only at the Phase 2 close-out).
+
 ## Scope
 
 This plan came out of a fresh design-and-folder analysis. That analysis confirmed the codebase is

@@ -184,6 +184,15 @@ The four blocks — main, other first-party, third-party, standard library — a
 automatically by clang-format's `IncludeBlocks: Regroup` using the `IncludeCategories`
 defined in `.clang-format`.
 
+## Feature folders
+
+Inside each library, public headers and sources are grouped by feature folder
+(`include/rock_hero/editor/core/timeline/...`, `src/timeline/...`). Feature folders are
+navigation only: they add a path segment to includes but never a namespace segment, and CMake
+targets are unchanged. Namespaces keep mirroring the product/library grid. The placement rules —
+when a feature earns a folder, what stays at a library root, and how shared helpers are admitted —
+live in \ref design_architectural_principles.
+
 **Architectural principles:**
 
 - Keep most behavior in pure or near-pure libraries rather than in UI or app targets.

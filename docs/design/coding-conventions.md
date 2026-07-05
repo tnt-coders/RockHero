@@ -61,6 +61,20 @@ Do not rename listener interfaces only to make every callback name maximally spe
 to preserve clarity as contracts grow, not to preemptively rename scoped listener types that are
 already clear.
 
+## View And Component Suffixes
+
+Use a two-tier suffix policy for project-owned UI component types:
+
+- `*View` names a feature's top-level presentation component (`SignalChainView`,
+  `AudioDeviceSettingsView`).
+- `*Panel`, `*Controls`, `*Overlay`, `*Meter`, and `*Window` name parts and hosts: sub-components
+  inside a view, transient surfaces, and window shells (`SignalChainPanel`, `TransportControls`,
+  `BusyOverlay`, `AudioLevelMeter`, `PluginBrowserWindow`).
+
+Keep the tier visible when refactoring: do not promote a part suffix to `View` or demote a
+feature's top-level component to a part suffix. The suffix should keep telling the reader which
+tier they are looking at.
+
 # Const Correctness
 
 Use `const` wherever practical by default.
@@ -160,6 +174,45 @@ meaningful types in one file. For example, `editor_view_state.h` should include
 This is a default, not an absolute rule. Small private helper types that are tightly coupled to
 one owning public type may still live in the same header when splitting them would make the API
 harder to read rather than easier.
+
+# Feature Role Vocabulary
+
+Editor features are built from a small set of named roles. The suffix tells the reader what kind
+of type it is; the feature folder tells the reader where it belongs (placement rules live in
+\ref design_architectural_principles).
+
+## Two-Tier Controller Rule
+
+A feature gets its own `Controller` / `I*View` / `ViewState` triad if and only if it owns a modal
+window with its own apply/cancel lifecycle. Audio-device settings and input calibration are the
+current examples: the dialog owns a transactional sub-session, so it earns a sub-controller.
+
+Everything hosted in the main editor window is a root-facade feature:
+
+- its intents land on `IEditorController`
+- its policy, when nontrivial, is a headless `*Workflow` or `*State` type
+- its render data is a `*ViewState` slice inside the aggregate `EditorViewState`
+
+Do not add per-view controllers for main-window features.
+
+## Role Subsets Are Expected
+
+Features legitimately own different subsets of the roles (workflow/state, view state, projection
+modules, widgets, controller triad). Transport has a view-state slice and a widget but no
+workflow, because its policy is trivial; busy has state, workflow, view state, and an overlay.
+The absence of a role is not a gap to fill. Add a role when behavior demands it, not for
+symmetry.
+
+## Projection Modules
+
+Pure presentation math and formatting live in free-function headers named
+`<feature>_geometry.h`, `<feature>_text.h`, or `<feature>_layout.h` — for example
+`tempo_grid_geometry.h`, `transport_readout_text.h`, `signal_chain_block_layout.h`. They hold
+free functions plus small result structs, with no state and no side effects, so they stay
+headless and directly testable.
+
+Projection modules live with their feature and stay private to the library until a consumer
+outside the library exists.
 
 # Parameter Passing
 
