@@ -154,9 +154,11 @@ stay underscore-separated, with aliases using the same product-scope shape such 
 
 Key files:
 - **`rock-hero-common/audio/include/rock_hero/common/audio/engine.h`** /
-  **`rock-hero-common/audio/src/engine.cpp`** - Tracktion isolation; Tracktion API calls live here
+  **`rock-hero-common/audio/src/`** - Tracktion isolation; Tracktion API calls live in the engine
+  per-port TUs and `src/tracktion/` adapter units, with `engine.cpp` as the assembly file
 - **`rock-hero-common/core/include/rock_hero/common/core/`** - `Song`, `Arrangement` types +
-  format serialization; headless code may use narrow JUCE core utilities
+  format serialization, grouped into `domain/`, `package/`, and `infrastructure/` subsystem
+  folders; headless code may use narrow JUCE core utilities
 - **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow
 - **`rock-hero-editor/ui/include/rock_hero/editor/ui/`** - Editor JUCE components
 - **`rock-hero-editor/app/`** - editor executable entry point
