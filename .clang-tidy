@@ -37,7 +37,7 @@ WarningsAsErrors: '*'
 # clang-tidy parses HeaderFilterRegex with llvm::Regex, which does not support negative
 # lookahead. Keep this as a positive match over project-owned paths rather than trying to
 # exclude external/ with a pattern like ^(?!.*[\\/]external[\\/]).*.
-HeaderFilterRegex: '.*[\\/]rock-hero-(common|editor|game)[\\/].*'
+HeaderFilterRegex: '.*[\\/](apps|libs)[\\/].*'
 
 # Exclude third-party and generated headers explicitly when the current clang-tidy version
 # supports ExcludeHeaderFilterRegex. This keeps generated files such as BinaryData.h and
