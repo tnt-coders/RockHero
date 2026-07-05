@@ -11,23 +11,37 @@
 namespace rock_hero::common::audio
 {
 
-// Owns one Tracktion meter client and converts its most recent peak window into a project value.
+/*!
+\brief Owns one Tracktion meter client and converts its peak window into a project value.
+*/
 class MeterReader
 {
 public:
+    /*! \brief Creates a detached reader. */
     MeterReader() = default;
+
+    /*! \brief Copying is disabled; the client registration is identity-based. */
     MeterReader(const MeterReader&) = delete;
+
+    /*! \brief Copy assignment is disabled; the client registration is identity-based. */
     MeterReader& operator=(const MeterReader&) = delete;
+
+    /*! \brief Moving is disabled; Tracktion holds a pointer to the client member. */
     MeterReader(MeterReader&&) = delete;
+
+    /*! \brief Move assignment is disabled; Tracktion points at the client member. */
     MeterReader& operator=(MeterReader&&) = delete;
 
-    // Detaches from Tracktion before the reader's client storage is destroyed.
+    /*! \brief Detaches from Tracktion before the reader's client storage is destroyed. */
     ~MeterReader()
     {
         detach();
     }
 
-    // Moves this reader to a new Tracktion measurer when playback graphs or plugins are rebuilt.
+    /*!
+    \brief Moves this reader to a new Tracktion measurer after graph rebuilds.
+    \param measurer Measurer to observe, or null to only detach.
+    */
     void attach(tracktion::LevelMeasurer* measurer)
     {
         if (m_measurer == measurer)
@@ -45,7 +59,7 @@ public:
         m_measurer = measurer;
     }
 
-    // Removes the client from the current Tracktion measurer, if one is still attached.
+    /*! \brief Removes the client from the current measurer, if one is attached. */
     void detach()
     {
         if (m_measurer != nullptr)
@@ -56,7 +70,10 @@ public:
         m_client.reset();
     }
 
-    // Reads and clears the peak window accumulated since the last snapshot.
+    /*!
+    \brief Reads and clears the peak window accumulated since the last snapshot.
+    \return Peak level for the window, clamped to the project meter range.
+    */
     [[nodiscard]] AudioMeterLevel read()
     {
         if (m_measurer == nullptr)

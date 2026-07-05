@@ -48,8 +48,13 @@ void logInstrumentMonitoringFailure(const juce::String& message);
 /*! rief Commands forwarded from plugin editor windows to the host-level shortcut observer. */
 enum class PluginWindowCommand : std::uint8_t
 {
+    /*! \brief Forward Ctrl+Z from a plugin window to the editor undo intent. */
     Undo,
+
+    /*! \brief Forward Ctrl+Y from a plugin window to the editor redo intent. */
     Redo,
+
+    /*! \brief Forward Space from a plugin window to the transport play/pause intent. */
     PlayPause,
 };
 

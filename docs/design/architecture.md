@@ -329,7 +329,7 @@ The plugin-host boundary is `common::audio::IPluginHost`. It scans plugin catalo
 project-owned candidate descriptions, then inserts a selected candidate into the instrument chain
 without exposing Tracktion or JUCE plugin descriptions through public application code. The first
 implementation mutates the linear Tracktion plugin list on the instrument track and caps authored
-chains at `common::audio::max_signal_chain_plugins` user plugins so project loads stay bounded.
+chains at `common::audio::g_max_signal_chain_plugins` user plugins so project loads stay bounded.
 Longer term tone graphs can add richer addressing for racks, containers, and parallel blended
 chains while keeping plugin discovery and mutation behind the same audio adapter boundary.
 
