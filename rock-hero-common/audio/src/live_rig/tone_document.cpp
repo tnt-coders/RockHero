@@ -3,11 +3,11 @@
 #include "audio_path_util.h"
 
 #include <fstream>
-#include <rock_hero/common/core/application_identity.h>
-#include <rock_hero/common/core/json.h>
-#include <rock_hero/common/core/juce_path.h>
-#include <rock_hero/common/core/logger.h>
-#include <rock_hero/common/core/package_id.h>
+#include <rock_hero/common/core/infrastructure/application_identity.h>
+#include <rock_hero/common/core/infrastructure/json.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
+#include <rock_hero/common/core/package/package_id.h>
 #include <system_error>
 #include <utility>
 

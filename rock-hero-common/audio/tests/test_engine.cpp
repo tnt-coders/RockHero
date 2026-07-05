@@ -16,7 +16,7 @@
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
-#include <rock_hero/common/core/package_id.h>
+#include <rock_hero/common/core/package/package_id.h>
 #include <string>
 #include <string_view>
 #include <utility>

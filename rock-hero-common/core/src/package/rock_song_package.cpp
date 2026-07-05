@@ -1,4 +1,4 @@
-﻿#include "rock_song_package.h"
+﻿#include "package/rock_song_package.h"
 
 #include <algorithm>
 #include <array>
@@ -15,15 +15,15 @@
 #include <limits>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/archive_io.h>
-#include <rock_hero/common/core/arrangement.h>
-#include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/json.h>
-#include <rock_hero/common/core/juce_path.h>
-#include <rock_hero/common/core/package_id.h>
-#include <rock_hero/common/core/tempo_map.h>
-#include <rock_hero/common/core/workspace_paths.h>
+#include <rock_hero/common/core/domain/arrangement.h>
+#include <rock_hero/common/core/domain/audio_asset.h>
+#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/infrastructure/json.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/package/archive_io.h>
+#include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/package/workspace_paths.h>
 #include <set>
 #include <string>
 #include <string_view>

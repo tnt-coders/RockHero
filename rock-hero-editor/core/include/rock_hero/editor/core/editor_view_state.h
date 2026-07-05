@@ -8,9 +8,9 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/tempo_map.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/domain/tempo_map.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/editor_action_id.h>
 #include <rock_hero/editor/core/signal_chain/plugin_browser_view_state.h>

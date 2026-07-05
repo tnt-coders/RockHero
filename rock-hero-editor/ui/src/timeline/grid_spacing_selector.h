@@ -6,7 +6,7 @@
 #pragma once
 
 #include <juce_gui_basics/juce_gui_basics.h>
-#include <rock_hero/common/core/fraction.h>
+#include <rock_hero/common/core/domain/fraction.h>
 
 namespace rock_hero::editor::ui
 {

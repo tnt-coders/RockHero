@@ -6,9 +6,9 @@
 #pragma once
 
 #include <cstdint>
-#include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/difficulty.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/audio_asset.h>
+#include <rock_hero/common/core/domain/difficulty.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <string>
 
 namespace rock_hero::common::core

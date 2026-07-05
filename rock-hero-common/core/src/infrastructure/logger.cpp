@@ -1,4 +1,4 @@
-#include "logger.h"
+#include "infrastructure/logger.h"
 
 #include <atomic>
 #include <cstdint>
@@ -14,7 +14,7 @@
 #include <quill/sinks/ConsoleSink.h>
 #include <quill/sinks/NullSink.h>
 #include <quill/sinks/RotatingFileSink.h>
-#include <rock_hero/common/core/logger_error.h>
+#include <rock_hero/common/core/infrastructure/logger_error.h>
 #include <string>
 #include <utility>
 #include <vector>

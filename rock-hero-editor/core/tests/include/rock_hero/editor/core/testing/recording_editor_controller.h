@@ -11,8 +11,8 @@
 #include <functional>
 #include <optional>
 #include <rock_hero/common/audio/input/live_input_error.h>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <string>
 #include <utility>

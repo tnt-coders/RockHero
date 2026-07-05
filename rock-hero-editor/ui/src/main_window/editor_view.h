@@ -25,7 +25,7 @@
 #include <rock_hero/common/audio/input/i_live_input.h>
 #include <rock_hero/common/audio/song/i_thumbnail_factory.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/fraction.h>
+#include <rock_hero/common/core/domain/fraction.h>
 #include <rock_hero/editor/core/editor_view_state.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
 #include <rock_hero/editor/core/i_editor_view.h>

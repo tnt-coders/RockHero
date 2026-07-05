@@ -3,9 +3,9 @@
 #include "live_rig/tone_document.h"
 #include "tracktion/live_rig_gain_plugin.h"
 
-#include <rock_hero/common/core/json.h>
-#include <rock_hero/common/core/juce_path.h>
-#include <rock_hero/common/core/package_id.h>
+#include <rock_hero/common/core/infrastructure/json.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/package/package_id.h>
 
 namespace rock_hero::common::audio
 {

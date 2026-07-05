@@ -7,7 +7,7 @@
 
 #include <cstdint>
 #include <optional>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/timeline.h>
 
 namespace rock_hero::editor::core
 {

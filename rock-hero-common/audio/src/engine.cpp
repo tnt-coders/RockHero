@@ -7,7 +7,7 @@
 #include "tracktion/tracktion_thumbnail.h"
 
 #include <memory>
-#include <rock_hero/common/core/application_identity.h>
+#include <rock_hero/common/core/infrastructure/application_identity.h>
 
 namespace rock_hero::common::audio
 {

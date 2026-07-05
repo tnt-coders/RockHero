@@ -11,8 +11,8 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/audio_normalization.h>
-#include <rock_hero/common/core/juce_path.h>
+#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/infrastructure/juce_path.h>
 #include <rock_hero/editor/core/project/project.h>
 #include <string>
 #include <string_view>

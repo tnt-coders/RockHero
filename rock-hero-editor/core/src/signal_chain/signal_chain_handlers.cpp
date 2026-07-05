@@ -2,7 +2,7 @@
 #include "signal_chain/signal_chain_edits.h"
 
 #include <cassert>
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 
 namespace rock_hero::editor::core
 {

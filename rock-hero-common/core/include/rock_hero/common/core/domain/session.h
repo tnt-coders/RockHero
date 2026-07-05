@@ -6,9 +6,9 @@
 #pragma once
 
 #include <cstddef>
-#include <rock_hero/common/core/arrangement.h>
-#include <rock_hero/common/core/song.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/arrangement.h>
+#include <rock_hero/common/core/domain/song.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <vector>
 
 namespace rock_hero::common::core

@@ -7,7 +7,7 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/archive_error.h>
+#include <rock_hero/common/core/package/archive_error.h>
 
 namespace rock_hero::common::core
 {

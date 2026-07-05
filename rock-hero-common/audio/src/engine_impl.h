@@ -26,8 +26,8 @@ the engine translation units.
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/engine.h>
-#include <rock_hero/common/core/cancellation_token.h>
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/infrastructure/cancellation_token.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 #include <string>
 #include <string_view>
 #include <tracktion_engine/tracktion_engine.h>

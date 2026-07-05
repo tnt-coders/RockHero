@@ -8,8 +8,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/audio_asset.h>
-#include <rock_hero/common/core/timeline.h>
+#include <rock_hero/common/core/domain/audio_asset.h>
+#include <rock_hero/common/core/domain/timeline.h>
 #include <rock_hero/editor/core/timeline/arrangement_view_state.h>
 
 namespace rock_hero::common::audio

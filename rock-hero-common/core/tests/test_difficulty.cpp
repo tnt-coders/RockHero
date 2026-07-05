@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/difficulty.h>
+#include <rock_hero/common/core/domain/difficulty.h>
 
 namespace rock_hero::common::core
 {

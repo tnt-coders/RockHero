@@ -34,9 +34,9 @@
 #include <rock_hero/common/audio/scoped_listener.h>
 #include <rock_hero/common/audio/song/i_song_audio.h>
 #include <rock_hero/common/audio/transport/i_transport.h>
-#include <rock_hero/common/core/cancellation_token.h>
-#include <rock_hero/common/core/fraction.h>
-#include <rock_hero/common/core/logger.h>
+#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/infrastructure/cancellation_token.h>
+#include <rock_hero/common/core/infrastructure/logger.h>
 #include <rock_hero/editor/core/busy/busy_view_state.h>
 #include <rock_hero/editor/core/i_editor_view.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
