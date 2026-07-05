@@ -175,8 +175,8 @@ public:
 [[nodiscard]] inline common::audio::testing::ConfigurableAudioDeviceConfiguration&
 defaultAudioDevices() noexcept
 {
-    static common::audio::testing::ConfigurableAudioDeviceConfiguration audio_devices;
-    return audio_devices;
+    static common::audio::testing::ConfigurableAudioDeviceConfiguration g_audio_devices;
+    return g_audio_devices;
 }
 
 /*!
@@ -185,8 +185,8 @@ defaultAudioDevices() noexcept
 */
 [[nodiscard]] inline FakeAudioMeterSource& defaultAudioMeterSource() noexcept
 {
-    static FakeAudioMeterSource meter_source;
-    return meter_source;
+    static FakeAudioMeterSource g_meter_source;
+    return g_meter_source;
 }
 
 /*!
@@ -195,8 +195,8 @@ defaultAudioDevices() noexcept
 */
 [[nodiscard]] inline FakeLiveInput& defaultLiveInput() noexcept
 {
-    static FakeLiveInput live_input;
-    return live_input;
+    static FakeLiveInput g_live_input;
+    return g_live_input;
 }
 
 /*!

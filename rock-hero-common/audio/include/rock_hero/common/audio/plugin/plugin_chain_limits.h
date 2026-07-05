@@ -17,7 +17,7 @@ namespace rock_hero::common::audio
 This is a product rule, not a Tracktion or UI layout limit. Keep all insertion, restore,
 capture, and presentation code wired to this value so raising the limit later is localized.
 */
-inline constexpr std::size_t max_signal_chain_plugins{8};
+inline constexpr std::size_t g_max_signal_chain_plugins{8};
 
 /*!
 \brief Formats the shared signal-chain plugin limit for boundary diagnostics.
@@ -27,7 +27,7 @@ inline constexpr std::size_t max_signal_chain_plugins{8};
 [[nodiscard]] inline std::string pluginChainLimitExceededMessage(std::size_t plugin_count)
 {
     return "Signal chain contains " + std::to_string(plugin_count) +
-           " plugins; this version supports up to " + std::to_string(max_signal_chain_plugins);
+           " plugins; this version supports up to " + std::to_string(g_max_signal_chain_plugins);
 }
 
 } // namespace rock_hero::common::audio

@@ -218,7 +218,7 @@ TEST_CASE("SignalChainWorkflow compacts invalid reported placement", "[core][sig
 
     CHECK(workflow.setBlockPlacement(
         {blockAssignment("first", 0),
-         blockAssignment("second", common::audio::max_signal_chain_plugins)}));
+         blockAssignment("second", common::audio::g_max_signal_chain_plugins)}));
     CHECK(workflow.blockIndices() == std::vector<std::size_t>{0, 1});
 }
 
@@ -364,7 +364,7 @@ TEST_CASE("SignalChainWorkflow rejects insertion at capacity", "[core][signal-ch
     SignalChainWorkflow workflow;
     workflow.replaceSnapshot(
         common::audio::PluginChainSnapshot{
-            .plugins = makeEntries(common::audio::max_signal_chain_plugins),
+            .plugins = makeEntries(common::audio::g_max_signal_chain_plugins),
         });
 
     CHECK_FALSE(workflow.hasInsertCapacity());
@@ -382,22 +382,22 @@ TEST_CASE("SignalChainWorkflow clears pending insertion at capacity", "[core][si
     SignalChainWorkflow workflow;
     workflow.replaceSnapshot(
         common::audio::PluginChainSnapshot{
-            .plugins = makeEntries(common::audio::max_signal_chain_plugins - 1),
+            .plugins = makeEntries(common::audio::g_max_signal_chain_plugins - 1),
         });
     REQUIRE(workflow.requestInsertAt(1));
 
     workflow.replaceSnapshot(
         common::audio::PluginChainSnapshot{
-            .plugins = makeEntries(common::audio::max_signal_chain_plugins),
+            .plugins = makeEntries(common::audio::g_max_signal_chain_plugins),
         });
     workflow.replaceSnapshot(
         common::audio::PluginChainSnapshot{
-            .plugins = makeEntries(common::audio::max_signal_chain_plugins - 1),
+            .plugins = makeEntries(common::audio::g_max_signal_chain_plugins - 1),
         });
 
     CHECK(
         workflow.insertionIndexForSelection() ==
-        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
+        std::optional<std::size_t>{common::audio::g_max_signal_chain_plugins - 1});
 }
 
 // Verifies stale row requests are rejected before controller code calls the backend.

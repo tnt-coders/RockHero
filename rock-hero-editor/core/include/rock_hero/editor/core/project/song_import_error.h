@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::editor::core
 {
 
 /*! \brief Stable editor song import failure reasons. */
-enum class SongImportErrorCode
+enum class SongImportErrorCode : std::uint8_t
 {
     /*! \brief The requested source file was missing. */
     MissingSource,

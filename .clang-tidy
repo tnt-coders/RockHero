@@ -17,6 +17,11 @@
 #
 # ============================================================================
 
+# Two cppcoreguidelines checks are disabled as deliberate project style (comments cannot live
+# inside the YAML folded scalar below): avoid-const-or-ref-data-members conflicts with the
+# codebase's non-owning reference-member ports (controller Impl, edit contexts, view AudioPorts),
+# and non-private-member-variables-in-classes conflicts with the documented public-field value
+# structs (error types, view state, edits); see docs/design/coding-conventions.md.
 Checks: >
   -*,
   bugprone-*,
@@ -29,6 +34,8 @@ Checks: >
   readability-identifier-naming,
   cppcoreguidelines-*,
   -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-avoid-const-or-ref-data-members,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
   -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
 
@@ -251,8 +258,10 @@ CheckOptions:
     value: '^Q[A-Z].*'
   # Tracktion's plugin contract requires the exact static member name xmlTypeName; the
   # framework looks plugins up by it, so the project naming convention exempts it.
+  # quill::FrontendOptions requires these exact static member names as its
+  # customization contract, like Tracktion's xmlTypeName below.
   - key: readability-identifier-naming.ClassConstantIgnoredRegexp
-    value: '^xmlTypeName$'
+    value: '^(xmlTypeName|queue_type|initial_queue_capacity|blocking_queue_retry_interval_ns|unbounded_queue_max_capacity|huge_pages_policy)$'
   - key: readability-identifier-naming.ClassMemberIgnoredRegexp
     value: '^xmlTypeName$'
   - key: readability-identifier-naming.MethodIgnoredRegexp

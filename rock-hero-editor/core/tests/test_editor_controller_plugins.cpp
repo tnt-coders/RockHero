@@ -207,7 +207,7 @@ TEST_CASE("EditorController disables plugin insertion at limit", "[core][editor-
     REQUIRE(loadCalibratedArrangement(
         controller, project_services, audio, audio_devices, std::filesystem::path{"song.wav"}));
 
-    for (std::size_t index = 0; index < common::audio::max_signal_chain_plugins; ++index)
+    for (std::size_t index = 0; index < common::audio::g_max_signal_chain_plugins; ++index)
     {
         plugin_host.next_instance_id = "instance-" + std::to_string(index);
         addKnownPlugin(controller);
@@ -216,7 +216,7 @@ TEST_CASE("EditorController disables plugin insertion at limit", "[core][editor-
 
     const EditorViewState* full_state = stateOrNull(view.last_state);
     REQUIRE(full_state != nullptr);
-    REQUIRE(full_state->signal_chain.plugins.size() == common::audio::max_signal_chain_plugins);
+    REQUIRE(full_state->signal_chain.plugins.size() == common::audio::g_max_signal_chain_plugins);
     CHECK_FALSE(full_state->signal_chain.insert_plugin_enabled);
     CHECK_FALSE(full_state->plugin_browser.visible);
 
@@ -1209,7 +1209,7 @@ TEST_CASE("EditorController rejects over-limit live rig on open", "[core][editor
     RecordingPluginHost plugin_host;
     FakeLiveRig live_rig;
     live_rig.next_load_result.plugins.clear();
-    for (std::size_t index = 0; index <= common::audio::max_signal_chain_plugins; ++index)
+    for (std::size_t index = 0; index <= common::audio::g_max_signal_chain_plugins; ++index)
     {
         live_rig.next_load_result.plugins.push_back(
             common::audio::PluginChainEntry{
@@ -1248,7 +1248,7 @@ TEST_CASE("EditorController rejects over-limit live rig on open", "[core][editor
     CHECK(
         view.shown_errors.back() == "Could not load live rig from: song.rhp: " +
                                         common::audio::pluginChainLimitExceededMessage(
-                                            common::audio::max_signal_chain_plugins + 1));
+                                            common::audio::g_max_signal_chain_plugins + 1));
 }
 
 // Project load switches to determinate live-rig progress before restoring saved plugins.

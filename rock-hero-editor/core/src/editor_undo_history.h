@@ -25,7 +25,7 @@ namespace rock_hero::editor::core
 class SignalChainWorkflow;
 
 /*! \brief Direction of a pending undo-history transition. */
-enum class EditorUndoDirection
+enum class EditorUndoDirection : std::uint8_t
 {
     /*! \brief Transition applies an undo entry. */
     Undo,
@@ -35,7 +35,7 @@ enum class EditorUndoDirection
 };
 
 /*! \brief Non-commit reason reported by the pure undo history and edit objects. */
-enum class EditorUndoFailureCode
+enum class EditorUndoFailureCode : std::uint8_t
 {
     /*! \brief No failure occurred. */
     None,
@@ -125,15 +125,22 @@ protected:
     /*! \brief Allows construction only through derived edit objects. */
     IEdit() = default;
 
-private:
+public:
+    /*! \brief Copying and moving are disabled; edits are owned by the history. */
     IEdit(const IEdit&) = delete;
-    IEdit(IEdit&&) = delete;
+
+    /*! \brief Copy assignment is disabled; edits are owned by the history. */
     IEdit& operator=(const IEdit&) = delete;
+
+    /*! \brief Moving is disabled; edits are owned by the history. */
+    IEdit(IEdit&&) = delete;
+
+    /*! \brief Move assignment is disabled; edits are owned by the history. */
     IEdit& operator=(IEdit&&) = delete;
 };
 
 /*! \brief High-level result shape for one history transition request. */
-enum class EditorUndoTransitionStatus
+enum class EditorUndoTransitionStatus : std::uint8_t
 {
     /*! \brief The request changed history state immediately. */
     Applied,
@@ -146,7 +153,7 @@ enum class EditorUndoTransitionStatus
 };
 
 /*! \brief Structured event returned by the pure undo history for controller logging. */
-enum class EditorUndoEventType
+enum class EditorUndoEventType : std::uint8_t
 {
     /*! \brief A new undo entry was committed. */
     EntryPushed,
@@ -342,7 +349,7 @@ public:
     [[nodiscard]] EditorUndoTransitionResult reset();
 
 private:
-    enum class CleanMarkerState
+    enum class CleanMarkerState : std::uint8_t
     {
         None,
         Reachable,

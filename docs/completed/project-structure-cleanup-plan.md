@@ -1,6 +1,7 @@
 with fa# Project Structure Cleanup Plan
 
-Status: active plan, written 2026-07-04. Phase 0 was approved and executed the same day, then
+Status: COMPLETED 2026-07-05 (all six phases executed and gated; see the phase
+execution notes inline). Originally written 2026-07-04. Phase 0 was approved and executed the same day, then
 amended after user review (revision notes below); Phases 1+ are gated on Phase 0.
 
 Revision 2026-07-04 (post-review amendments):
@@ -426,6 +427,19 @@ the candidate shape).
 2. Move `project-structure-analysis.md` and this plan to `docs/completed/`; final
    `architecture.md` key-file sweep; confirm every §1 criterion; record the outcome and the §6.3
    break-even signals in a durable place.
+
+**Executed 2026-07-05.** The clang-tidy backlog is fully triaged: zero findings repo-wide with
+the corrected header filter. Resolution mix: 23 enums gained explicit uint8_t bases; the public
+chain-limit constant was renamed to the g_ convention; rule-of-five gaps were filled on five
+types; the IEdit deleted members became public; two logger widening multiplications and two
+harness const/noexcept honesty issues were fixed; generated JUCE binary-data TUs were excluded
+from linting via the root CMake file regex; two cppcoreguidelines checks that conflict with
+documented project style (reference-member ports, public-field value structs) were disabled with
+rationale; and framework-required member names (Tracktion xmlTypeName, Quill FrontendOptions)
+gained naming exemptions — no NOLINT anywhere. Accepted named exceptions to the ~1,500-line
+soft target: `engine.cpp` (~2.7k — the Impl-definition TU plus the window/behaviour/tracker
+cluster; distribute per-port only if it starts hurting) and `rock_song_package.cpp` (1,687,
+Phase 5 no-go territory).
 
 ---
 

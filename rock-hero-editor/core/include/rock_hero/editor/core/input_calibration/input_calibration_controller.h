@@ -121,6 +121,9 @@ public:
     /*! \brief Move assignment is disabled because the controller stores a host reference. */
     InputCalibrationController& operator=(InputCalibrationController&&) = delete;
 
+    /*! \brief Destroys the InputCalibrationController. */
+    ~InputCalibrationController() = default;
+
     /*!
     \brief Attaches a view and immediately pushes the current state.
     \param view View to update while attached.

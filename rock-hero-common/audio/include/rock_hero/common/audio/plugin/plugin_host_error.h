@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for plugin discovery and chain mutation. */
-enum class PluginHostErrorCode
+enum class PluginHostErrorCode : std::uint8_t
 {
     /*! \brief The requested plugin file path is empty or does not exist. */
     MissingPluginFile,

@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for audio-device configuration operations. */
-enum class AudioDeviceConfigurationErrorCode
+enum class AudioDeviceConfigurationErrorCode : std::uint8_t
 {
     /*! \brief An audio-device operation was invoked from the wrong thread. */
     MessageThreadRequired,

@@ -191,7 +191,7 @@ TEST_CASE("IPluginHost rejects invalid insert positions", "[audio][plugin-host]"
 TEST_CASE("IPluginHost rejects inserts at plugin limit", "[audio][plugin-host]")
 {
     testing::RecordingPluginHost plugin_host;
-    for (std::size_t index = 0; index < max_signal_chain_plugins; ++index)
+    for (std::size_t index = 0; index < g_max_signal_chain_plugins; ++index)
     {
         plugin_host.chain.push_back(
             PluginChainEntry{
@@ -214,11 +214,11 @@ TEST_CASE("IPluginHost rejects inserts at plugin limit", "[audio][plugin-host]")
         .file_path = {},
     };
 
-    const auto snapshot = plugin_host.insertPlugin(selected_candidate, max_signal_chain_plugins);
+    const auto snapshot = plugin_host.insertPlugin(selected_candidate, g_max_signal_chain_plugins);
 
     REQUIRE_FALSE(snapshot.has_value());
     CHECK(snapshot.error().code == PluginHostErrorCode::PluginChainLimitExceeded);
-    CHECK(plugin_host.chain.size() == max_signal_chain_plugins);
+    CHECK(plugin_host.chain.size() == g_max_signal_chain_plugins);
 }
 
 // Verifies loaded plugin instances can move up, down, and no-op in the visible chain.

@@ -135,7 +135,7 @@ template <class ComponentType>
 */
 inline void clickButton(juce::Button& button)
 {
-    juce::MouseEvent event = makeMouseDownEvent(button, 5.0f, 5.0f);
+    const juce::MouseEvent event = makeMouseDownEvent(button, 5.0f, 5.0f);
     auto& component = static_cast<juce::Component&>(button);
     component.mouseDown(event);
     component.mouseUp(event);
