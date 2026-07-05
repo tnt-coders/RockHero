@@ -13,13 +13,13 @@ target_sources(
             src/audio_device/audio_device_settings_window.cpp
             src/busy/busy_overlay.cpp
             src/input_calibration/input_calibration_window.cpp
+            src/main_window/editor.cpp
+            src/main_window/editor_view.cpp
+            src/main_window/main_window.cpp
+            src/main_window/menu_bar_button.cpp
+            src/main_window/menu_look_and_feel.cpp
             src/shared/audio_level_meter.cpp
             src/shared/text_metrics.cpp
-            src/shell/editor.cpp
-            src/shell/editor_view.cpp
-            src/shell/main_window.cpp
-            src/shell/menu_bar_button.cpp
-            src/shell/menu_look_and_feel.cpp
             src/signal_chain/plugin_browser_window.cpp
             src/signal_chain/signal_chain_block_layout.cpp
             src/signal_chain/signal_chain_panel.cpp

@@ -151,14 +151,14 @@ public-header-surface review; not a blocker.)
 
 | Target folder | Files |
 |---|---|
-| `src/shell/` | `editor.cpp`, `editor_view.{h,cpp}` (shrunk), `main_window.cpp`, `menu_bar_button.{h,cpp}`, `menu_look_and_feel.{h,cpp}` (new, from `editor_view.cpp:1082`), `editor_colors.h` |
+| `src/main_window/` | `editor.cpp`, `editor_view.{h,cpp}` (shrunk), `main_window.cpp`, `menu_bar_button.{h,cpp}`, `menu_look_and_feel.{h,cpp}` (new, from `editor_view.cpp:1082`). Renamed from the drafted `shell/` at execution (user decision 2026-07-04); `editor_colors.h` moved to `shared/` instead — it has consumers in three features, which is exactly the `shared/` admission rule. |
 | `src/timeline/` | `track_viewport.{h,cpp}` (new, from `editor_view.cpp:442` — `TrackViewport` + nested `Content`), `timeline_viewport.{h,cpp}` (new, from `editor_view.cpp:538`; may ride inside `track_viewport.*` if small — decide at extraction), `cursor_overlay.{h,cpp}` (new, from `editor_view.cpp:343`), `timeline_ruler.{h,cpp}`, `timeline_cursor.{h,cpp}`, `arrangement_view.{h,cpp}`, `grid_spacing_selector.{h,cpp}` |
 | `src/transport/` | `transport_controls.{h,cpp}` |
 | `src/signal_chain/` | `signal_chain_view.{h,cpp}`, `signal_chain_panel.{h,cpp}`, `signal_chain_block_layout.{h,cpp}`, `plugin_browser_window.{h,cpp}` (browser merge) |
 | `src/audio_device/` | `audio_device_settings_view.{h,cpp}`, `audio_device_settings_window.{h,cpp}` |
 | `src/input_calibration/` | `input_calibration_window.{h,cpp}` |
 | `src/busy/` | `busy_overlay.{h,cpp}` |
-| `src/shared/` | `audio_level_meter.{h,cpp}`, `text_metrics.{h,cpp}` |
+| `src/shared/` | `audio_level_meter.{h,cpp}`, `text_metrics.{h,cpp}`, `editor_colors.h` |
 
 After extraction, `editor_view.{h,cpp}` contains only the shell: window layout, menu wiring,
 listener-hub forwarding to `IEditorController`, `setState` fan-out, paint fences. Expected size

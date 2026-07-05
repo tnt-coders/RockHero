@@ -1,6 +1,6 @@
 #include "track_viewport.h"
 
-#include "shell/editor_colors.h"
+#include "shared/editor_colors.h"
 #include "timeline/arrangement_view.h"
 #include "timeline/cursor_overlay.h"
 #include "timeline/timeline_cursor.h"

@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "shell/editor_view.h"
+#include "main_window/editor_view.h"
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>

@@ -6,8 +6,8 @@
 #pragma once
 
 #include "busy/busy_overlay.h"
+#include "main_window/menu_bar_button.h"
 #include "shared/audio_level_meter.h"
-#include "shell/menu_bar_button.h"
 #include "signal_chain/plugin_browser_window.h"
 #include "signal_chain/signal_chain_panel.h"
 #include "timeline/arrangement_view.h"
