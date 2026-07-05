@@ -402,6 +402,14 @@ archive_error, package_id, workspace_paths), `infra/` (logger, logger_error, jso
 cancellation_token, application_identity). A `rock_song_package.cpp` (1,687 lines) seam split may
 ride along if package work is touched anyway; otherwise it stays an accepted exception.
 
+**Decided NO-GO 2026-07-05.** With Phases 1–4 landed, `common/core`'s 21 public headers are the
+only remaining flat directory above the ~15-file line, and re-inspection confirms the original
+read: tidy, single-concern units with no interleaved feature smear and no monolithic TU. Grouping
+would be include-churn without a navigation problem — the directory is recorded as the accepted
+exception under Done criterion 5. Revisit only if chart-model work grows the directory past ~25
+files or introduces a real feature cluster (the `domain/ package/ infra/` sketch above remains
+the candidate shape).
+
 ### Phase 6 — Close out
 
 1. **Triage the clang-tidy header backlog.** The corrected `HeaderFilterRegex`
