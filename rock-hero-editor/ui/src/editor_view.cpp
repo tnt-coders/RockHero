@@ -3,6 +3,7 @@
 #include "audio_device_settings_window.h"
 #include "editor_colors.h"
 #include "input_calibration_window.h"
+#include "menu_look_and_feel.h"
 #include "timeline_cursor.h"
 #include "timeline_ruler.h"
 
@@ -1076,38 +1077,6 @@ private:
 
     // Set while a project-load state is waiting for a sized viewport before centering the cursor.
     bool m_cursor_focus_pending{false};
-};
-
-// Paints the editor menu strip as flat application chrome instead of a framed control.
-class MenuLookAndFeel final : public juce::LookAndFeel_V4
-{
-public:
-    // Matches the editor background without the default JUCE top/bottom border lines.
-    void drawMenuBarBackground(
-        juce::Graphics& g, int /*width*/, int /*height*/, bool /*isMouseOverBar*/,
-        juce::MenuBarComponent& /*menu_bar*/) override
-    {
-        g.fillAll(g_editor_background_color);
-    }
-
-    // Keeps the menu item readable on the flat strip and uses a simple hover fill.
-    void drawMenuBarItem(
-        juce::Graphics& g, int width, int height, int item_index, const juce::String& item_text,
-        bool is_mouse_over_item, bool is_menu_open, bool /*isMouseOverBar*/,
-        juce::MenuBarComponent& menu_bar) override
-    {
-        const juce::Rectangle<int> bounds{0, 0, width, height};
-        if (is_menu_open || is_mouse_over_item)
-        {
-            g.setColour(juce::Colours::grey);
-            g.fillRect(bounds.reduced(2, 2));
-        }
-
-        g.setColour(
-            menu_bar.isEnabled() ? juce::Colours::white : juce::Colours::white.withAlpha(0.5f));
-        g.setFont(getMenuBarFont(menu_bar, item_index, item_text));
-        g.drawFittedText(item_text, bounds.reduced(4, 0), juce::Justification::centred, 1);
-    }
 };
 
 // Creates child widgets and gives the arrangement view its waveform-thumbnail factory.
