@@ -130,9 +130,7 @@ void ToneTrackView::paint(juce::Graphics& g)
         };
 
         const bool is_default = region.synthesized_default;
-        const bool highlighted =
-            region.selected ||
-            (m_active_region_index.has_value() && *m_active_region_index == index && !is_default);
+        const bool highlighted = region.selected;
         if (is_default)
         {
             g.setColour(g_default_region_fill);
@@ -393,9 +391,10 @@ std::optional<std::int64_t> ToneTrackView::snappedBeatForDrag(float x) const
     return std::clamp(snapped, min_beat, max_beat);
 }
 
-// Recomputes which region contains the sampled playhead and repaints on changes. Runs at
-// render cadence like the cursor overlay, so boundary crossings highlight instantly during
-// playback without routing per-frame position through the controller.
+// Recomputes which region contains the sampled playhead. Runs at render cadence like the
+// cursor overlay; when the playhead crosses into a different region, the row emits one
+// discrete selection intent so the single tone selection follows the cursor. Per-frame
+// positions never route through the controller.
 void ToneTrackView::advanceActiveRegion()
 {
     const double position = m_transport.position().seconds;
@@ -417,7 +416,10 @@ void ToneTrackView::advanceActiveRegion()
     }
 
     m_active_region_index = active;
-    repaint();
+    if (active.has_value() && !m_state.regions[*active].selected)
+    {
+        m_listener.onToneRegionSelected(m_state.regions[*active].id);
+    }
 }
 
 // Reports the current snap guide, or clears it with an empty value.

@@ -205,13 +205,13 @@ private:
     // Receives the transient snap guide while an edge drag is active.
     SnapGuideCallback m_on_snap_guide;
 
-    // Recomputes which region contains the sampled playhead and repaints on changes.
+    // Recomputes the playhead region and emits one selection intent on boundary crossings.
     void advanceActiveRegion();
 
     // Read-only transport sampled at render cadence for cursor-follow highlighting.
     const common::audio::ITransport& m_transport;
 
-    // Vblank-driven callback keeping the active-region highlight in step with playback.
+    // Vblank-driven callback keeping the selection in step with playback crossings.
     juce::VBlankAttachment m_vblank_attachment;
 
     // Index of the region currently containing the playhead, if any.
