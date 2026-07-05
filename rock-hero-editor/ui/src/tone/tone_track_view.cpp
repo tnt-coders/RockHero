@@ -15,7 +15,6 @@ constexpr int g_region_vertical_inset{6};
 constexpr int g_region_corner_radius{6};
 constexpr int g_region_label_inset{8};
 constexpr int g_edge_grab_width{6};
-const juce::Colour g_tone_row_divider{juce::Colours::white.withAlpha(0.18f)};
 const juce::Colour g_tone_region_fill{juce::Colour{0xff2b4a66}};
 const juce::Colour g_tone_region_border{juce::Colours::lightskyblue.withAlpha(0.65f)};
 const juce::Colour g_tone_region_selected_fill{juce::Colour{0xff35597a}};
@@ -84,11 +83,11 @@ bool ToneTrackView::wantsPointerAt(juce::Point<int> local_point) const
 
 void ToneTrackView::paint(juce::Graphics& g)
 {
-    // The row stays transparent so the canvas-level tempo grid shows through between regions;
-    // regions snap to that grid, so hiding it here would remove the alignment cue.
+    // The row draws no background of its own: the canvas paints its band and the shared
+    // tempo grid beneath this component (see the track-row layering contract in
+    // TrackViewport::Content::paint), so the grid stays visible between regions as the
+    // alignment cue the beat snapping targets.
     const auto bounds = getLocalBounds();
-    g.setColour(g_tone_row_divider);
-    g.drawLine(0.0f, 0.0f, static_cast<float>(bounds.getWidth()), 0.0f, 1.0f);
 
     for (std::size_t index = 0; index < m_state.regions.size(); ++index)
     {

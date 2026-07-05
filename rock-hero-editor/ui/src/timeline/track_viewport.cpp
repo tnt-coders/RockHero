@@ -16,6 +16,10 @@ namespace rock_hero::editor::ui
 namespace
 {
 
+// Tone row band: darker than the viewport backdrop, lighter than the waveform row, so the
+// three surfaces read as distinct layers under one shared grid.
+const juce::Colour g_tone_track_background{juce::Colour{0xff14181e}};
+
 constexpr int g_track_canvas_default_height{720};
 constexpr int g_tracks_visible_at_default_size{3};
 constexpr double g_mouse_wheel_zoom_factor{1.2};
@@ -183,8 +187,17 @@ void TrackViewport::Content::paint(juce::Graphics& g)
 
     if (m_project_loaded)
     {
+        // Track-row layering contract: the canvas paints one background band per track row,
+        // then the tempo grid over every band; row content components draw above the grid
+        // (sparse visualizations let it show through, discrete regions cover it), and the
+        // cursor overlay owns everything transient on top.
         g.setColour(juce::Colours::black);
         g.fillRect(bounds.withHeight(m_owner.primaryTrackHeight()));
+        g.setColour(g_tone_track_background);
+        g.fillRect(
+            juce::Rectangle<int>{
+                0, m_owner.primaryTrackHeight(), bounds.getWidth(), m_owner.toneTrackHeight()
+            });
         drawTempoGridDots(g, m_subdivision_grid_x, m_beat_grid_x, m_measure_grid_x, bounds);
         return;
     }
