@@ -1,4 +1,4 @@
-#include "tracktion/engine_behaviours.h"
+#include "tracktion/engine_behaviors.h"
 
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"
@@ -52,22 +52,22 @@ namespace
 
 } // namespace
 
-bool RockHeroEngineBehaviour::autoInitialiseDeviceManager()
+bool RockHeroEngineBehavior::autoInitialiseDeviceManager()
 {
     return false;
 }
 
-bool RockHeroEngineBehaviour::canScanPluginsOutOfProcess()
+bool RockHeroEngineBehavior::canScanPluginsOutOfProcess()
 {
     return true;
 }
 
-bool RockHeroEngineBehaviour::isDescriptionOfWaveDevicesSupported()
+bool RockHeroEngineBehavior::isDescriptionOfWaveDevicesSupported()
 {
     return true;
 }
 
-void RockHeroEngineBehaviour::describeWaveDevices(
+void RockHeroEngineBehavior::describeWaveDevices(
     std::vector<tracktion::WaveDeviceDescription>& descriptions, juce::AudioIODevice& device,
     bool is_input)
 {
@@ -87,7 +87,7 @@ void RockHeroEngineBehaviour::describeWaveDevices(
         is_input ? wave_descriptions->input : wave_descriptions->output));
 }
 
-tracktion::Plugin::Ptr RockHeroEngineBehaviour::createCustomPlugin(
+tracktion::Plugin::Ptr RockHeroEngineBehavior::createCustomPlugin(
     tracktion::PluginCreationInfo info)
 {
     if (info.state[tracktion::IDs::type].toString() == LiveRigGainPlugin::xmlTypeName)
@@ -99,11 +99,11 @@ tracktion::Plugin::Ptr RockHeroEngineBehaviour::createCustomPlugin(
     return {};
 }
 
-RockHeroUIBehaviour::RockHeroUIBehaviour(PluginWindowCommandDispatcher command_dispatcher)
+RockHeroUIBehavior::RockHeroUIBehavior(PluginWindowCommandDispatcher command_dispatcher)
     : m_command_dispatcher(std::move(command_dispatcher))
 {}
 
-std::unique_ptr<juce::Component> RockHeroUIBehaviour::createPluginWindow(
+std::unique_ptr<juce::Component> RockHeroUIBehavior::createPluginWindow(
     tracktion::PluginWindowState& window_state)
 {
     auto* const plugin_window_state = dynamic_cast<tracktion::Plugin::WindowState*>(&window_state);
@@ -115,7 +115,7 @@ std::unique_ptr<juce::Component> RockHeroUIBehaviour::createPluginWindow(
     return PluginWindow::create(plugin_window_state->plugin, m_command_dispatcher);
 }
 
-void RockHeroUIBehaviour::recreatePluginWindowContentAsync(tracktion::Plugin& plugin)
+void RockHeroUIBehavior::recreatePluginWindowContentAsync(tracktion::Plugin& plugin)
 {
     if (auto* const window = dynamic_cast<PluginWindow*>(plugin.windowState->pluginWindow.get()))
     {

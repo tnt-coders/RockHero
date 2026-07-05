@@ -30,8 +30,8 @@ target_sources(
             src/plugin/plugin_scan.cpp
             src/plugin/plugin_scan.h
             src/song/song_audio_error.cpp
-            src/tracktion/engine_behaviours.cpp
-            src/tracktion/engine_behaviours.h
+            src/tracktion/engine_behaviors.cpp
+            src/tracktion/engine_behaviors.h
             src/tracktion/live_rig_gain_plugin.cpp
             src/tracktion/live_rig_gain_plugin.h
             src/tracktion/monitoring_mode_transition.cpp
