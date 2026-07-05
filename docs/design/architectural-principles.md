@@ -162,6 +162,54 @@ The `app/` folders should mostly:
 
 If core behavior lives only in an app folder, it is likely too hard to test.
 
+# Directory Structure Inside Libraries
+
+The product/library grid answers ownership and linkage. Inside each library, a second,
+navigation-only axis organizes files by feature.
+
+## The Two-Axis Rule
+
+- **Namespace = who owns and links it.** Namespaces mirror the product/library grid
+  (`rock_hero::<product>::<library>`), stay three levels deep, and never grow with folders.
+- **Folder = where you find it.** Feature folders inside `include/` and `src/` are navigation
+  coordinates with no code meaning. They are cheap to reshape and do not introduce namespaces.
+
+`testing/` remains the only folder that carries a matching namespace, because it marks a linkage
+boundary (test-only targets), which is exactly what namespaces are for.
+
+## Feature Folders
+
+- Inside every library, group files by feature. Use the same feature names across `core`, `ui`,
+  and test file names.
+- A feature earns a folder at three or more files; until then its files sit at the library root.
+  Once a feature folder exists, every new file for that feature goes in it immediately.
+- `include/` and `src/` mirror feature-folder names, with identical basenames for paired files.
+- Do not create role folders (`ports/`, `errors/`, `view_states/`). The type-name suffix answers
+  "what kind"; the folder answers "which feature".
+
+## Library Roots Are the Cross-Feature Contract
+
+A file belongs at a library root only because it is cross-feature contract: facades, action sums,
+availability policy, aggregate view state, undo timelines, and similar composition types that must
+see multiple features. Root placement is a statement, not a default.
+
+Shared mechanism files that serve two or more features but carry no feature semantics (for
+example, text metrics) go in a `shared/` folder in `ui` libraries and at the library root in
+`core` libraries. Admission rule for `shared/`: at least two consumers, and the file is nameable
+without any feature word. Anything that fails that test belongs to a feature.
+
+## Placement Procedure for New Files
+
+1. **Library** — decided by the dependency rules (needs Tracktion → `common/audio`
+   implementation; JUCE UI → a `ui` library; headless → a `core` library; both products →
+   `common`).
+2. **Feature** — name the user-facing feature the file serves. Exactly one → that feature's
+   folder. A mechanism with two or more feature consumers → `shared/` or the core-library root.
+   Composes or joins features → the library root.
+3. **Kind never decides placement.** Suffixes carry kind; folders carry feature.
+4. **Visibility** — `src/` first. A header moves to `include/` only when a consumer outside the
+   library exists.
+
 # The Real Strategy: Architect for Testability
 
 There are many testing techniques, but the highest-leverage strategy is structural:

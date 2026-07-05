@@ -85,33 +85,32 @@ move a monolithic file into a role folder and call it cleaner.
 
 ### Editor Naming And Folder Cleanup
 
-The skipped Stage 6 ideas include reevaluating `InputCalibrationPrompt`, renaming the launcher-like
-`AudioDeviceSettingsWindow` when touched, grouping private `editor/core` workflow files, and
-grouping `editor/ui` source by role. They are not completion blockers and should not be implemented
-as a broad mechanical pass.
+**Partially superseded (2026-07-04).** The folder-grouping half of this item is now active work in
+`docs/in-progress/project-structure-cleanup-plan.md`, which groups `editor/core` and `editor/ui`
+by feature (grouping "by role" was explicitly rejected by the rules adopted in
+`docs/design/architectural-principles.md`). The naming reevaluations (`InputCalibrationPrompt`,
+renaming the launcher-like `AudioDeviceSettingsWindow` when touched) stay deferred and
+opportunistic.
 
-**Revisit when** a feature changes the affected type or adds enough files that the flat editor tree
-becomes a real cost. Keep behavior changes separate from pure taxonomy moves.
+**Revisit when** a feature changes the affected type. Keep behavior changes separate from pure
+taxonomy moves.
 
 ### `common/audio` Public Ports And Values
 
-Candidate grouping under `include/rock_hero/common/audio`: `ports/` for the `I*` audio ports,
-`values/` for value types (`Gain`, `InputDeviceIdentity`, `AudioDeviceStatus`, transport/calibration
-state), `workflows/` for `audio_device_settings` / `input_calibration`, `errors/` for the
-plugin/live-rig/live-input error types, with `engine.h` staying at the public root as the
-composition-facing facade.
-
-**Revisit when** working in `common/audio` for another reason, or when the flat folder demonstrably
-slows down finding ports vs. values.
+**Superseded (2026-07-04).** The role-based grouping sketched here (`ports/`, `values/`,
+`workflows/`, `errors/`) was rejected by the feature-folder rules adopted in
+`docs/design/architectural-principles.md` — role folders answer "what kind", which the suffix
+already carries. The public grouping now happens by feature (`device/`, `transport/`, `song/`,
+`plugin/`, `live_rig/`, `input/`) as Phase 4 of
+`docs/in-progress/project-structure-cleanup-plan.md`, with `engine.h` staying at the public root
+as the composition-facing facade.
 
 ### `common/audio` Private Tracktion Grouping
 
-Candidate `src/tracktion/` grouping for the Tracktion adapter helpers, plus `analysis/` and
-`workflows/`. This should happen **only** as private implementation seams are extracted from
-`engine.cpp` — moving the monolith wholesale into `tracktion/` would not make it easier to
-understand.
-
-**Revisit when** Tracktion helpers are actually being extracted from `engine.cpp`.
+**Scheduled (2026-07-04).** This is now Phase 4 of
+`docs/in-progress/project-structure-cleanup-plan.md`, gated exactly as stated here: `src/tracktion/`
+is created only as the engine Part A seam split extracts real units from `engine.cpp`, never by
+moving the monolith wholesale.
 
 ### `common/ui` And `game/*` Modules
 
@@ -124,14 +123,13 @@ should not be reorganized before there is real game code to organize.
 
 ## Durable Documentation
 
-Once the active runtime and editor-readability work is implemented and validated, fold the proven
-rules into `docs/design/` — but only after confirming with the user that this is the intended
-durable design, per the documentation-maintenance rules in `CLAUDE.md`:
+**Done for structure (2026-07-04).** With user confirmation, the structural rules were folded into
+`docs/design/` as Phase 0 of `docs/in-progress/project-structure-cleanup-plan.md`:
 
-- `docs/design/coding-conventions.md` — the role/naming/suffix rules and the
-  `State`/`Workflow`/`Controller` taxonomy;
-- `docs/design/architecture.md` — durable folder conventions;
-- `docs/design/architectural-principles.md` — only if a boundary rule actually changed.
+- `docs/design/coding-conventions.md` — the two-tier controller rule, role subsets, projection
+  modules, and the view/component suffix policy;
+- `docs/design/architecture.md` — the feature-folder convention note;
+- `docs/design/architectural-principles.md` — the two-axis rule, feature-folder and root/shared
+  placement rules, the new-file placement procedure, and the multi-TU coordination-object rule.
 
-**Revisit when** the extracted shape and editor folder layout have proven themselves in code and the
-user confirms the design is durable.
+Any future durable-doc updates should follow the same confirm-first flow per `CLAUDE.md`.
