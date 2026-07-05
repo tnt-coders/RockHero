@@ -1,6 +1,6 @@
 /*!
 ile editor_controller_logging.h
-rief Shared best-effort failure logging for the editor controller's translation units.
+\brief Shared best-effort failure logging for the editor controller's translation units.
 */
 
 #pragma once
@@ -13,7 +13,7 @@ namespace rock_hero::editor::core
 {
 
 /*!
-rief Routes non-fatal cleanup/persistence failures to the debug log.
+\brief Routes non-fatal cleanup/persistence failures to the debug log.
 
 Keeps the primary workflow result being handled by the caller visible while still recording the
 secondary failure. Shared by the controller's per-feature translation units.

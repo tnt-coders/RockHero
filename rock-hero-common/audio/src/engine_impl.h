@@ -15,6 +15,7 @@ the engine translation units.
 #include "meter_reader.h"
 #include "tone_document.h"
 #include "tracktion/monitoring_mode_transition.h"
+#include "tracktion/plugin_window.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"
 
 #include <cstddef>
@@ -42,23 +43,8 @@ class PluginDirtyStateTracker;
 /*! \brief Records recoverable instrument-route failures to the log. */
 void logInstrumentMonitoringFailure(const juce::String& message);
 
-/*! rief Maps monitoring rebuild failures into plugin-host mutation errors. */
+/*! \brief Maps monitoring rebuild failures into plugin-host mutation errors. */
 [[nodiscard]] PluginHostError pluginHostErrorFromLiveInputError(const LiveInputError& error);
-
-/*! rief Commands forwarded from plugin editor windows to the host-level shortcut observer. */
-enum class PluginWindowCommand : std::uint8_t
-{
-    /*! \brief Forward Ctrl+Z from a plugin window to the editor undo intent. */
-    Undo,
-
-    /*! \brief Forward Ctrl+Y from a plugin window to the editor redo intent. */
-    Redo,
-
-    /*! \brief Forward Space from a plugin window to the transport play/pause intent. */
-    PlayPause,
-};
-
-using PluginWindowCommandDispatcher = std::function<void(PluginWindowCommand)>;
 
 // Per-call state for an in-flight async live rig load. Lives on the heap inside Engine::Impl so
 // MessageManager::callAsync continuations can resume the work between plugins without each lambda

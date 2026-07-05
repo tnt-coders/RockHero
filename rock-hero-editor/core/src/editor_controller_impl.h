@@ -1,6 +1,6 @@
 /*!
 ile editor_controller_impl.h
-rief Private declaration of EditorController::Impl shared by its per-feature source files.
+\brief Private declaration of EditorController::Impl shared by its per-feature source files.
 
 Private to rock_hero_editor_core: this header lives under src/, which is on no consumer include
 path, and Impl is a private nested type of EditorController, so access control makes any outside
