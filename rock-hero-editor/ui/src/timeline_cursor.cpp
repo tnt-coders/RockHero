@@ -2,9 +2,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <rock_hero/editor/core/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {
+
+// Converts a timeline position to a bounded subpixel coordinate for the cursor overlay.
+std::optional<float> cursorXForTimelinePosition(
+    common::core::TimePosition position, common::core::TimeRange visible_timeline,
+    int width) noexcept
+{
+    return core::timelineXForPosition(
+        position, visible_timeline, width, core::TimelinePositionClamping::ClampToVisibleRange);
+}
 
 // Invalidates the union of old/new subpixel cursor strips, including antialias padding.
 void repaintCursorStrip(
