@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <optional>
 #include <rock_hero/common/audio/plugin_chain_limits.h>
-#include <rock_hero/editor/core/plugin_block_assignment.h>
-#include <rock_hero/editor/core/signal_chain_block_placement.h>
+#include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_block_placement.h>
 #include <string>
 #include <utility>
 

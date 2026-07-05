@@ -61,7 +61,7 @@ fields (zoom, scroll position, expanded panels) can join without re-architecting
 ## Plumbing checklist
 
 - [ ] Extend `ProjectEditorState`
-  (`rock-hero-editor/core/include/rock_hero/editor/core/project.h`) with a nested
+  (`rock-hero-editor/core/include/rock_hero/editor/core/project/project.h`) with a nested
   `std::unordered_map<std::string /*arrangement_id*/, ArrangementEditorState>`, where
   `ArrangementEditorState` holds
   `std::unordered_map<std::string /*instance_id*/, PluginWindowState>` with

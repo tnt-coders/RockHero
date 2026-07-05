@@ -7,7 +7,7 @@
 #include <rock_hero/common/audio/i_live_input.h>
 #include <rock_hero/common/audio/input_calibration.h>
 #include <rock_hero/editor/core/i_editor_controller.h>
-#include <rock_hero/editor/core/input_calibration_controller.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_controller.h>
 #include <utility>
 
 namespace rock_hero::editor::ui

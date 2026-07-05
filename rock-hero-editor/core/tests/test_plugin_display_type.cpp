@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
-#include <rock_hero/editor/core/plugin_display_type.h>
+#include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <vector>
 
 namespace rock_hero::editor::core

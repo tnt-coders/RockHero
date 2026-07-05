@@ -7,7 +7,7 @@
 
 #include <chrono>
 #include <functional>
-#include <rock_hero/editor/core/i_message_thread_scheduler.h>
+#include <rock_hero/editor/core/tasks/i_message_thread_scheduler.h>
 
 namespace rock_hero::editor::core::testing
 {

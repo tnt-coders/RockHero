@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/editor/core/plugin_view_state.h>
+#include <rock_hero/editor/core/signal_chain/plugin_view_state.h>
 #include <string>
 #include <vector>
 

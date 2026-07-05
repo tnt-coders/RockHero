@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/editor/core/audio_device_settings_view_state.h>
+#include <rock_hero/editor/core/audio_device/audio_device_settings_view_state.h>
 
 namespace rock_hero::editor::core
 {

@@ -6,7 +6,7 @@ browser.
 
 #pragma once
 
-#include <rock_hero/editor/core/plugin_display_type.h>
+#include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>
 #include <vector>
 

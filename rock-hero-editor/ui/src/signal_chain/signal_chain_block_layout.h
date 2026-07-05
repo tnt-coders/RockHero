@@ -7,8 +7,8 @@
 
 #include <cstddef>
 #include <optional>
-#include <rock_hero/editor/core/signal_chain_block_placement.h>
-#include <rock_hero/editor/core/signal_chain_view_state.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_block_placement.h>
+#include <rock_hero/editor/core/signal_chain/signal_chain_view_state.h>
 #include <vector>
 
 namespace rock_hero::editor::ui

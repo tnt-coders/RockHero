@@ -1,6 +1,6 @@
-#include "tempo_grid_geometry.h"
+#include "timeline/tempo_grid_geometry.h"
 
-#include "timeline_geometry.h"
+#include "timeline/timeline_geometry.h"
 
 #include <algorithm>
 #include <cmath>

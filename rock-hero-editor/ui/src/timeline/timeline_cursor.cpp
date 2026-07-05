@@ -2,7 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <rock_hero/editor/core/timeline_geometry.h>
+#include <rock_hero/editor/core/timeline/timeline_geometry.h>
 
 namespace rock_hero::editor::ui
 {

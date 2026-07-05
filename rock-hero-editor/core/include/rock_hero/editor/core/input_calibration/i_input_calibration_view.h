@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include <rock_hero/editor/core/input_calibration_view_state.h>
+#include <rock_hero/editor/core/input_calibration/input_calibration_view_state.h>
 
 namespace rock_hero::editor::core
 {

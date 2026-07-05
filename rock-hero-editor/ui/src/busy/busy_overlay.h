@@ -9,7 +9,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/editor/core/busy_view_state.h>
+#include <rock_hero/editor/core/busy/busy_view_state.h>
 
 namespace rock_hero::editor::ui
 {
