@@ -1187,7 +1187,8 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
     {
         if (saved_position->has_value())
         {
-            return session().timeline().clamp(**saved_position);
+            const common::core::TimePosition clamped = session().timeline().clamp(**saved_position);
+            return clamped.seconds < songTimelineOrigin().seconds ? songTimelineOrigin() : clamped;
         }
     }
     else
@@ -1196,7 +1197,7 @@ common::core::TimePosition EditorController::Impl::cursorPositionForOpenedProjec
             "restore project cursor position", saved_position.error().message);
     }
 
-    return session().timeline().start;
+    return songTimelineOrigin();
 }
 
 // Chooses the grid note value restored for a project open from app-local editor settings, falling
