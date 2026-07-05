@@ -164,7 +164,8 @@ The project-wide convention for `#include` form is:
 | Form | Meaning |
 |------|---------|
 | `"foo.h"` | The **main header** of the current translation unit (same-module, short form via the PRIVATE dir). Reserving quotes for the main header lets clang-format auto-promote it to the top of the file with a blank-line separator. |
-| `<rock_hero/<scope>/<module>/foo.h>` | Any other first-party header, including sibling headers in the *same* module. Keeps cross-file references uniform regardless of where they are read from. |
+| `"engine_impl.h"`, `"tracktion/plugin_window.h"` | A **private `src/` header** of the same module, reached through the module's PRIVATE `src` include directory. Always feature-qualified when it lives in a feature folder. No angle form exists for these because they are on no consumer include path. |
+| `<rock_hero/<scope>/<module>/foo.h>` | Any other first-party **public** header, including sibling headers in the *same* module. Keeps cross-file references uniform regardless of where they are read from. |
 | `<tracktion_engine/...>`, `<juce_*/...>`, `<catch2/...>`, `<BinaryData.h>`, `<JuceHeader.h>` | Third-party. |
 | `<atomic>`, `<algorithm>`, `<filesystem>` | C++ standard library (angle-bracket, no path separator, no extension). |
 
