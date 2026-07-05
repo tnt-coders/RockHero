@@ -10,7 +10,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <memory>
 #include <optional>
-#include <rock_hero/editor/core/editor_controller.h>
+#include <rock_hero/editor/core/controller/editor_controller.h>
 
 namespace rock_hero::common::audio
 {

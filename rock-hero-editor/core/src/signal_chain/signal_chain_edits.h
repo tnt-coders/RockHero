@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "editor_undo_history.h"
+#include "controller/editor_undo_history.h"
 
 #include <cstddef>
 #include <expected>

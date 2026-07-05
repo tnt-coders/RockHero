@@ -1,4 +1,4 @@
-#include "editor.h"
+#include "main_window/editor.h"
 
 #include "main_window/editor_view.h"
 

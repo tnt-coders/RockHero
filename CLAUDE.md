@@ -153,12 +153,12 @@ stay underscore-separated, with aliases using the same product-scope shape such 
 `rock_hero::editor::ui`.
 
 Key files:
-- **`rock-hero-common/audio/include/rock_hero/common/audio/engine.h`** /
+- **`rock-hero-common/audio/include/rock_hero/common/audio/engine/engine.h`** /
   **`rock-hero-common/audio/src/`** - Tracktion isolation; Tracktion API calls live in the engine
   per-port TUs and `src/tracktion/` adapter units, with `engine.cpp` as the assembly file
 - **`rock-hero-common/core/include/rock_hero/common/core/`** - `Song`, `Arrangement` types +
-  format serialization, grouped into `song/`, `timeline/`, `package/`, and `shared/` folders with
-  `session.h` at the root; headless code may use narrow JUCE core utilities
+  format serialization, grouped into `song/`, `timeline/`, `package/`, `session/`, and `shared/`
+  folders; headless code may use narrow JUCE core utilities
 - **`rock-hero-editor/core/include/rock_hero/editor/core/`** - Headless editor workflow
 - **`rock-hero-editor/ui/include/rock_hero/editor/ui/`** - Editor JUCE components
 - **`rock-hero-editor/app/`** - editor executable entry point

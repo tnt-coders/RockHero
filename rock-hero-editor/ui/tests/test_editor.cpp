@@ -23,7 +23,7 @@
 #include <rock_hero/editor/core/testing/immediate_editor_task_runner.h>
 #include <rock_hero/editor/core/testing/immediate_message_thread_scheduler.h>
 #include <rock_hero/editor/core/testing/null_editor_settings.h>
-#include <rock_hero/editor/ui/editor.h>
+#include <rock_hero/editor/ui/main_window/editor.h>
 #include <rock_hero/editor/ui/testing/component_test_helpers.h>
 #include <string>
 #include <vector>

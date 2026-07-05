@@ -10,8 +10,8 @@
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
-#include <rock_hero/editor/core/editor_action_id.h>
-#include <rock_hero/editor/core/editor_view_state.h>
+#include <rock_hero/editor/core/controller/editor_action_id.h>
+#include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>
