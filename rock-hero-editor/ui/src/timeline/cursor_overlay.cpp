@@ -2,6 +2,8 @@
 
 #include "timeline/timeline_cursor.h"
 
+#include <utility>
+
 namespace rock_hero::editor::ui
 {
 
@@ -37,6 +39,52 @@ void CursorOverlay::setGridNoteValue(common::core::Fraction grid_note_value) noe
 void CursorOverlay::paint(juce::Graphics& g)
 {
     drawTimelineCursor(g, *this, m_cursor_x, 0);
+
+    if (m_snap_guide.has_value())
+    {
+        g.setColour(juce::Colours::lightskyblue.withAlpha(0.85f));
+        g.drawLine(m_snap_guide->x, 0.0f, m_snap_guide->x, static_cast<float>(getHeight()), 1.4f);
+        if (m_snap_guide->label.isNotEmpty())
+        {
+            g.setFont(juce::FontOptions{12.0f});
+            const juce::Rectangle<int> label_bounds{
+                static_cast<int>(m_snap_guide->x) + 5, 2, 72, 16
+            };
+            g.setColour(juce::Colours::black.withAlpha(0.6f));
+            g.fillRoundedRectangle(label_bounds.toFloat(), 3.0f);
+            g.setColour(juce::Colours::white);
+            g.drawText(m_snap_guide->label, label_bounds, juce::Justification::centredLeft, true);
+        }
+    }
+}
+
+// Shows or clears the transient snap guide reported by a track-row drag.
+void CursorOverlay::setSnapGuide(std::optional<TimelineSnapGuide> guide)
+{
+    if (m_snap_guide == guide)
+    {
+        return;
+    }
+
+    m_snap_guide = std::move(guide);
+    repaint();
+}
+
+// Installs the predicate that lets track-row pointer targets receive clicks.
+void CursorOverlay::setHitTestPassThrough(std::function<bool(juce::Point<int>)> pass_through)
+{
+    m_hit_test_pass_through = std::move(pass_through);
+}
+
+// Claims pointer events except where the pass-through predicate declines them.
+bool CursorOverlay::hitTest(int x, int y)
+{
+    if (m_hit_test_pass_through && m_hit_test_pass_through(juce::Point<int>{x, y}))
+    {
+        return false;
+    }
+
+    return true;
 }
 
 // Converts editor-wide timeline clicks into timeline seek intent.

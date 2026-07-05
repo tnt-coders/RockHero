@@ -17,7 +17,8 @@ target_sources(
             src/shared/logger.cpp
             src/shared/logger_error.cpp
             src/song/song.cpp
-            src/timeline/tempo_map.cpp)
+            src/timeline/tempo_map.cpp
+            src/tone/tone_track_rules.cpp)
 
 target_include_directories(
     rock_hero_common_core

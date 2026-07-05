@@ -6,8 +6,7 @@
 #include <cstdlib>
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/package/package_id.h>
-#include <set>
+#include <rock_hero/common/core/tone/tone_track_rules.h>
 #include <string>
 #include <system_error>
 
@@ -216,85 +215,17 @@ std::string formatBeatPositionToken(int measure, int beat)
     return std::to_string(measure) + ":" + std::to_string(beat);
 }
 
-// Validates the structural tone-track rules shared by package read and write.
+// Translates shared tone-track domain rules into the package error surface.
 std::expected<void, SongPackageError> validateToneTrack(
     const ToneTrack& tone_track, const TempoMap& tempo_map)
 {
-    const std::int64_t terminal_beat_index = tempo_map.terminalGlobalBeatIndex();
-    std::set<std::string> region_ids;
-    std::int64_t previous_end_index = 0;
-    bool has_previous_region = false;
-
-    for (const ToneRegion& region : tone_track.regions)
+    if (const auto structural = validateToneTrackRules(tone_track, tempo_map);
+        !structural.has_value())
     {
-        if (!isCanonicalPackageId(region.id))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone region id must be a canonical UUIDv4: " + region.id,
-            }};
-        }
-
-        if (!region_ids.insert(region.id).second)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "duplicate tone region id: " + region.id,
-            }};
-        }
-
-        for (const ToneGridPosition& endpoint : {region.start, region.end})
-        {
-            if (endpoint.measure < 1 || endpoint.beat < 1 ||
-                endpoint.beat > tempo_map.beatsPerMeasureAt(endpoint.measure))
-            {
-                return std::unexpected{SongPackageError{
-                    SongPackageErrorCode::InvalidArrangement,
-                    "tone region endpoint is not a valid beat position: " +
-                        formatBeatPositionToken(endpoint.measure, endpoint.beat),
-                }};
-            }
-        }
-
-        const std::int64_t start_index =
-            tempo_map.globalBeatIndex(region.start.measure, region.start.beat);
-        const std::int64_t end_index =
-            tempo_map.globalBeatIndex(region.end.measure, region.end.beat);
-        if (start_index >= end_index)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone region start must be before its end: " + region.id,
-            }};
-        }
-
-        if (end_index > terminal_beat_index)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone region ends past the tempo-map terminal anchor: " + region.id,
-            }};
-        }
-
-        if (has_previous_region && start_index < previous_end_index)
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone regions must be sorted and must not overlap: " + region.id,
-            }};
-        }
-
-        if (!isCanonicalToneDocumentRef(region.tone_document_ref))
-        {
-            return std::unexpected{SongPackageError{
-                SongPackageErrorCode::InvalidArrangement,
-                "tone region document path must be tones/<uuid>/tone.json: " +
-                    region.tone_document_ref,
-            }};
-        }
-
-        previous_end_index = end_index;
-        has_previous_region = true;
+        return std::unexpected{SongPackageError{
+            SongPackageErrorCode::InvalidArrangement,
+            structural.error().message,
+        }};
     }
 
     return std::expected<void, SongPackageError>{};

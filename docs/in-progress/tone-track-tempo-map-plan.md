@@ -250,13 +250,20 @@ e.g. by bypass-ramping inactive branches rather than only zeroing their gain.
      shows through between regions; the synthesized default region renders as a dim read-only
      continuation while authored regions render as filled labeled blocks.
 
-3. **Selection and resize**
-   - Add editor-core selection state.
-   - Add resize intents for region start/end.
-   - Snap resized endpoints to valid beat positions.
-   - Validate ordering and non-overlap.
-   - Route resize edits through the existing editor-core memento/command history (the settled undo
-     mechanism); do not add a new undo system.
+3. **Selection and resize** (complete)
+   - Selection: clicking an authored region body selects it (`SelectToneRegion` action, controller
+     state, `selected` view-state flag, brighter render); the synthesized default region ignores
+     the pointer. Selection clears on project close/open.
+   - Resize: edge drags snap to whole tempo-map beats, clamp against neighbors and the terminal
+     anchor in the view, and commit through `ResizeToneRegion`; the controller revalidates through
+     the shared `validateToneTrackRules` (promoted from the package format unit into public
+     `common/core/tone/tone_track_rules` with its own `ToneTrackError` domain; the package format
+     translates it) and records a `ToneRegionResizeEdit` inverse command in the settled undo
+     history. `EditorEditContext` gained the session so tone edits can restore endpoints.
+   - Interaction routing: the cursor overlay gained a hit-test pass-through so region clicks reach
+     the tone row while empty row space keeps click-to-seek, plus a transient full-height
+     `TimelineSnapGuide` with a `measure:beat` readout drawn during edge drags (the DAW-standard
+     alignment cue chosen over grid-over-content rendering).
 
 4. **Save/load behavior**
    - Persist authored tone regions.

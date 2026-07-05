@@ -19,6 +19,11 @@ class ILiveRig;
 class IPluginHost;
 } // namespace rock_hero::common::audio
 
+namespace rock_hero::common::core
+{
+class Session;
+} // namespace rock_hero::common::core
+
 namespace rock_hero::editor::core
 {
 
@@ -71,6 +76,9 @@ enum class EditorUndoFailureCode : std::uint8_t
 /*! \brief Apply-time dependencies passed to concrete editor edit objects. */
 struct [[nodiscard]] EditorEditContext
 {
+    /*! \brief Session whose current arrangement owns the tone schedule edits mutate. */
+    common::core::Session& session;
+
     /*! \brief Editor-owned signal-chain model updated by visual and snapshot edits. */
     SignalChainWorkflow& signal_chain;
 

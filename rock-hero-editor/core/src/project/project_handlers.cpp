@@ -376,7 +376,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
         m_output_gain_db = 0.0;
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
-        m_timeline_zoom_pixels_per_second = 0.0;
+        m_selected_tone_region_id.clear();
         resetUndoHistory("undo.reset.import_live_rig_failed");
         finishBusyOperation();
         reportError(
@@ -394,6 +394,7 @@ void EditorController::Impl::finishImportSongSourceAfterLiveRigLoad(
     // spacing.
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
+    m_selected_tone_region_id.clear();
     m_has_untracked_unsaved_changes = false;
     m_session_faulted = false;
     clearDeferredProjectAction();
@@ -772,7 +773,7 @@ bool EditorController::Impl::closeProject()
         m_session_faulted = false;
         m_grid_note_value = common::core::Fraction{1, 4};
         m_timeline_zoom_pixels_per_second = 0.0;
-        m_timeline_zoom_pixels_per_second = 0.0;
+        m_selected_tone_region_id.clear();
         m_plugin_catalog.hide();
         resetUndoHistory("undo.reset.close_project_failed");
         updateView();
@@ -787,6 +788,7 @@ bool EditorController::Impl::closeProject()
     m_session_faulted = false;
     m_grid_note_value = common::core::Fraction{1, 4};
     m_timeline_zoom_pixels_per_second = 0.0;
+    m_selected_tone_region_id.clear();
     m_plugin_catalog.hide();
     resetUndoHistory("undo.reset.close_project");
     return true;

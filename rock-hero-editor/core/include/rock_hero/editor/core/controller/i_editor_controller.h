@@ -13,6 +13,7 @@
 #include <rock_hero/common/audio/input/live_input_error.h>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
@@ -118,6 +119,22 @@ public:
     \param pixels_per_second Horizontal timeline scale currently displayed.
     */
     virtual void onTimelineZoomChanged(double pixels_per_second) = 0;
+
+    /*!
+    \brief Handles selection of a tone region on the tone track.
+    \param region_id Stable region id, or empty to clear the selection.
+    */
+    virtual void onToneRegionSelected(std::string region_id) = 0;
+
+    /*!
+    \brief Handles a snapped tone-region resize committed by an edge drag.
+    \param region_id Stable region id selected by the user.
+    \param start New musical start (inclusive).
+    \param end New musical end (exclusive).
+    */
+    virtual void onToneRegionResizeRequested(
+        std::string region_id, common::core::ToneGridPosition start,
+        common::core::ToneGridPosition end) = 0;
 
     /*! \brief Handles a request to show the scanned plugin browser. */
     virtual void onPluginBrowserRequested() = 0;

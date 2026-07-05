@@ -10,6 +10,7 @@
 #include <optional>
 #include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/common/core/timeline/timeline.h>
+#include <rock_hero/common/core/tone/tone_track.h>
 #include <rock_hero/editor/core/controller/editor_action_id.h>
 #include <rock_hero/editor/core/controller/editor_view_state.h>
 #include <rock_hero/editor/core/signal_chain/plugin_block_assignment.h>
@@ -200,6 +201,48 @@ struct EditorAction
         common::core::Fraction note_value;
     };
 
+    /*! \brief Select a tone region on the tone track. */
+    struct SelectToneRegion
+    {
+        /*!
+        \brief Creates a tone-region selection action.
+        \param region_id_value Stable region id, or empty to clear the selection.
+        */
+        explicit SelectToneRegion(std::string region_id_value)
+            : region_id(std::move(region_id_value))
+        {}
+
+        /*! \brief Stable region id, or empty to clear the selection. */
+        std::string region_id;
+    };
+
+    /*! \brief Resize a tone region to new musical endpoints. */
+    struct ResizeToneRegion
+    {
+        /*!
+        \brief Creates a tone-region resize action.
+        \param region_id_value Stable region id selected by the user.
+        \param start_value New musical start (inclusive).
+        \param end_value New musical end (exclusive).
+        */
+        ResizeToneRegion(
+            std::string region_id_value, common::core::ToneGridPosition start_value,
+            common::core::ToneGridPosition end_value)
+            : region_id(std::move(region_id_value))
+            , start(start_value)
+            , end(end_value)
+        {}
+
+        /*! \brief Stable region id selected by the user. */
+        std::string region_id;
+
+        /*! \brief New musical start (inclusive). */
+        common::core::ToneGridPosition start;
+
+        /*! \brief New musical end (exclusive). */
+        common::core::ToneGridPosition end;
+    };
+
     /*! \brief Show the scanned plugin browser. */
     struct ShowPluginBrowser
     {
@@ -352,8 +395,9 @@ struct EditorAction
         OpenProject, RestoreProject, ImportSong, SaveProject, SaveProjectAs, PublishProject,
         CloseProject, ExitApplication, ResolveUnsavedChangesPrompt, CancelSaveAsPrompt,
         CancelBusyOperation, Undo, Redo, PlayPause, Stop, SeekTimeline, SetGridNoteValue,
-        ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog, InsertSelectedPlugin, RemovePlugin,
-        MovePlugin, SetSignalChainPlacement, SetPluginDisplayTypeOverride, OpenPlugin>;
+        SelectToneRegion, ResizeToneRegion, ShowPluginBrowser, BeginPluginInsert, ScanPluginCatalog,
+        InsertSelectedPlugin, RemovePlugin, MovePlugin, SetSignalChainPlacement,
+        SetPluginDisplayTypeOverride, OpenPlugin>;
 };
 
 /*!
