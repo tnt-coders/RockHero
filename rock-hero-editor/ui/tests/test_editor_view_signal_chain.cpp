@@ -327,7 +327,7 @@ TEST_CASE("Signal-chain insert controls emit indices", "[ui][editor-view]")
     auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
     auto& insert_append = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_2");
     auto& insert_later = findRequiredDescendant<juce::TextButton>(
-        view, insertPluginButtonId(common::audio::max_signal_chain_plugins - 1));
+        view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK_FALSE(insert_first.isEnabled());
     CHECK(insert_append.isEnabled());
@@ -352,7 +352,7 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
             .insert_plugin_enabled = true,
         });
 
-    for (std::size_t index = 0; index < common::audio::max_signal_chain_plugins; ++index)
+    for (std::size_t index = 0; index < common::audio::g_max_signal_chain_plugins; ++index)
     {
         auto& slot = findRequiredDescendant<juce::Component>(panel, insertSlotId(index));
         auto& button = findRequiredDescendant<juce::TextButton>(panel, insertPluginButtonId(index));
@@ -362,12 +362,12 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
         CHECK(button.isEnabled());
     }
     CHECK(
-        findDescendant(panel, insertPluginButtonId(common::audio::max_signal_chain_plugins)) ==
+        findDescendant(panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins)) ==
         nullptr);
 
     auto& insert_first = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_0");
     auto& insert_last = findRequiredDescendant<juce::TextButton>(
-        panel, insertPluginButtonId(common::audio::max_signal_chain_plugins - 1));
+        panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
     testing::clickButton(insert_first);
     testing::clickButton(insert_last);
 
@@ -375,7 +375,7 @@ TEST_CASE("Signal-chain empty chain exposes fixed placeholders", "[ui][editor-vi
     CHECK(listener.last_insert_index == std::optional<std::size_t>{0});
     CHECK(
         listener.last_insert_block ==
-        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
+        std::optional<std::size_t>{common::audio::g_max_signal_chain_plugins - 1});
 }
 
 // Verifies inserted plugin state from core can occupy the originally clicked fixed block.
@@ -395,16 +395,16 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
         });
 
     auto& selected_slot = findRequiredDescendant<juce::Component>(
-        panel, insertSlotId(common::audio::max_signal_chain_plugins - 1));
+        panel, insertSlotId(common::audio::g_max_signal_chain_plugins - 1));
     auto& insert_later = findRequiredDescendant<juce::TextButton>(
-        panel, insertPluginButtonId(common::audio::max_signal_chain_plugins - 1));
+        panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
     const int selected_block_center_x = selected_slot.getBounds().getCentreX();
     testing::clickButton(insert_later);
     CHECK(listener.insert_call_count == 1);
     CHECK(listener.last_insert_index == std::optional<std::size_t>{2});
     CHECK(
         listener.last_insert_block ==
-        std::optional<std::size_t>{common::audio::max_signal_chain_plugins - 1});
+        std::optional<std::size_t>{common::audio::g_max_signal_chain_plugins - 1});
 
     panel.setState(
         core::SignalChainViewState{
@@ -412,14 +412,14 @@ TEST_CASE("Signal-chain inserts keep selected empty block", "[ui][editor-view]")
             .plugins = {
                 makePluginAtBlock("amp", 0, 0),
                 makePluginAtBlock("cab", 1, 1),
-                makePluginAtBlock("lead", 2, common::audio::max_signal_chain_plugins - 1),
+                makePluginAtBlock("lead", 2, common::audio::g_max_signal_chain_plugins - 1),
             },
         });
 
     auto& inserted_tile = findRequiredDescendant<juce::Component>(panel, "plugin_tile_lead");
     auto& gap_insert = findRequiredDescendant<juce::TextButton>(panel, "insert_plugin_button_2");
     auto& occupied_insert = findRequiredDescendant<juce::TextButton>(
-        panel, insertPluginButtonId(common::audio::max_signal_chain_plugins - 1));
+        panel, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK(inserted_tile.getBounds().getCentreX() == selected_block_center_x);
     CHECK(gap_insert.isVisible());
@@ -440,18 +440,18 @@ TEST_CASE("Signal-chain insert controls stop at the plugin limit", "[ui][editor-
         core::EditorViewState{
             .signal_chain = core::SignalChainViewState{
                 .insert_plugin_enabled = true,
-                .plugins = makePlugins(common::audio::max_signal_chain_plugins),
+                .plugins = makePlugins(common::audio::g_max_signal_chain_plugins),
             },
         });
 
     auto& insert_first = findRequiredDescendant<juce::TextButton>(view, "insert_plugin_button_0");
     auto& insert_last = findRequiredDescendant<juce::TextButton>(
-        view, insertPluginButtonId(common::audio::max_signal_chain_plugins - 1));
+        view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK_FALSE(insert_first.isEnabled());
     CHECK_FALSE(insert_last.isEnabled());
     CHECK(
-        findDescendant(view, insertPluginButtonId(common::audio::max_signal_chain_plugins)) ==
+        findDescendant(view, insertPluginButtonId(common::audio::g_max_signal_chain_plugins)) ==
         nullptr);
     testing::clickButton(insert_last);
 
@@ -1250,7 +1250,7 @@ TEST_CASE("Signal-chain cramped panel scrolls overflowing tiles", "[ui][editor-v
     auto& tile_second = findRequiredDescendant<juce::Component>(panel, "plugin_tile_cab");
     auto& append_slot = findRequiredDescendant<juce::Component>(panel, "insert_slot_2");
     auto& final_slot = findRequiredDescendant<juce::Component>(
-        panel, insertSlotId(common::audio::max_signal_chain_plugins - 1));
+        panel, insertSlotId(common::audio::g_max_signal_chain_plugins - 1));
 
     CHECK(content.getWidth() > viewport.getWidth());
     CHECK(slot_first.isVisible());

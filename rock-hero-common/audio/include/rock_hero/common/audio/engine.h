@@ -213,7 +213,7 @@ public:
 
     The adapter stops and rebuilds backend graph state around the mutation. The instrument input
     route is rebound afterward so monitoring continues through the updated plugin chain. Insertion
-    fails once the chain already contains max_signal_chain_plugins user plugins.
+    fails once the chain already contains g_max_signal_chain_plugins user plugins.
 
     \param plugin_candidate Candidate returned by knownPluginCatalog() or a scan method.
     \param chain_index User-visible insertion index in [0, plugin_count] before the chain is full.

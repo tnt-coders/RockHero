@@ -55,7 +55,7 @@ namespace
 // oversized test or future migrated chain.
 [[nodiscard]] std::size_t blockCountFor(std::size_t plugin_count) noexcept
 {
-    return std::max(common::audio::max_signal_chain_plugins, plugin_count);
+    return std::max(common::audio::g_max_signal_chain_plugins, plugin_count);
 }
 
 // Extracts the raw opaque block indices carried by a plugin snapshot.
@@ -402,7 +402,7 @@ bool SignalChainWorkflow::hasPlugins() const noexcept
 
 bool SignalChainWorkflow::hasInsertCapacity() const noexcept
 {
-    return m_plugins.size() < common::audio::max_signal_chain_plugins;
+    return m_plugins.size() < common::audio::g_max_signal_chain_plugins;
 }
 
 std::size_t SignalChainWorkflow::appendIndex() const noexcept

@@ -32,5 +32,27 @@ public:
     */
     [[nodiscard]] virtual bool callAfterDelay(
         std::chrono::milliseconds delay, std::function<void()> work) = 0;
+
+protected:
+    /*! \brief Creates the scheduler interface. */
+    IMessageThreadScheduler() = default;
+
+    /*! \brief Copies the scheduler interface. */
+    IMessageThreadScheduler(const IMessageThreadScheduler&) = default;
+
+    /*! \brief Moves the scheduler interface. */
+    IMessageThreadScheduler(IMessageThreadScheduler&&) = default;
+
+    /*!
+    \brief Assigns the scheduler interface.
+    \return Reference to this scheduler interface.
+    */
+    IMessageThreadScheduler& operator=(const IMessageThreadScheduler&) = default;
+
+    /*!
+    \brief Move-assigns the scheduler interface.
+    \return Reference to this scheduler interface.
+    */
+    IMessageThreadScheduler& operator=(IMessageThreadScheduler&&) = default;
 };
 } // namespace rock_hero::editor::core

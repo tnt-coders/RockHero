@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for preparing or activating song audio. */
-enum class SongAudioErrorCode
+enum class SongAudioErrorCode : std::uint8_t
 {
     /*! \brief An arrangement did not provide a backing audio asset path. */
     MissingAudioAssetPath,

@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <optional>
 #include <rock_hero/common/audio/gain.h>
@@ -18,7 +19,7 @@ namespace rock_hero::common::audio
 {
 
 /*! \brief Stable failure reasons for input calibration measurement. */
-enum class InputCalibrationErrorCode
+enum class InputCalibrationErrorCode : std::uint8_t
 {
     /*! \brief Measurement did not contain enough signal to produce a useful gain. */
     NoUsableSignal,
@@ -167,7 +168,7 @@ private:
 };
 
 /*! \brief State of the raw-input capture pass used by automatic calibration. */
-enum class InputCalibrationCapturePhase
+enum class InputCalibrationCapturePhase : std::uint8_t
 {
     /*! \brief No automatic calibration capture is active. */
     Idle,

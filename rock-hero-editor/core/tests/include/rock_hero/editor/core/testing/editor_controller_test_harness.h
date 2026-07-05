@@ -132,7 +132,7 @@ public:
             return;
         }
 
-        std::function<void()> callback = std::move(busy_overlay_paint_callbacks.front());
+        const std::function<void()> callback = std::move(busy_overlay_paint_callbacks.front());
         busy_overlay_paint_callbacks.erase(busy_overlay_paint_callbacks.begin());
         if (callback)
         {
@@ -174,8 +174,8 @@ public:
 */
 [[nodiscard]] inline testing::NullEditorSettings& nullEditorSettings() noexcept
 {
-    static testing::NullEditorSettings settings;
-    return settings;
+    static testing::NullEditorSettings g_settings;
+    return g_settings;
 }
 
 /*!
@@ -184,8 +184,8 @@ public:
 */
 [[nodiscard]] inline testing::ImmediateEditorTaskRunner& immediateTaskRunner() noexcept
 {
-    static testing::ImmediateEditorTaskRunner task_runner;
-    return task_runner;
+    static testing::ImmediateEditorTaskRunner g_task_runner;
+    return g_task_runner;
 }
 
 /*!
@@ -195,8 +195,8 @@ public:
 [[nodiscard]] inline testing::ImmediateMessageThreadScheduler&
 immediateMessageThreadScheduler() noexcept
 {
-    static testing::ImmediateMessageThreadScheduler scheduler;
-    return scheduler;
+    static testing::ImmediateMessageThreadScheduler g_scheduler;
+    return g_scheduler;
 }
 
 /*!
@@ -694,32 +694,32 @@ struct FakeLiveRig final : public common::audio::ILiveRig
 */
 [[nodiscard]] inline ConfigurableAudioDeviceConfiguration& defaultAudioDevices() noexcept
 {
-    static ConfigurableAudioDeviceConfiguration audio_devices;
-    return audio_devices;
+    static ConfigurableAudioDeviceConfiguration g_audio_devices;
+    return g_audio_devices;
 }
 
 /*!
 \brief Supplies a default plugin-host port for tests that do not care about plugin behavior.
 \return Process-lifetime recording plugin-host fake.
 */
-[[nodiscard]] inline RecordingPluginHost& defaultPluginHost() noexcept
+[[nodiscard]] inline RecordingPluginHost& defaultPluginHost()
 {
-    static RecordingPluginHost plugin_host;
-    return plugin_host;
+    static RecordingPluginHost g_plugin_host;
+    return g_plugin_host;
 }
 
 /*!
 \brief Supplies a default live-rig port for tests that do not care about tone persistence behavior.
 \return Process-lifetime fake live rig.
 */
-[[nodiscard]] inline FakeLiveRig& defaultLiveRig() noexcept
+[[nodiscard]] inline FakeLiveRig& defaultLiveRig()
 {
-    static FakeLiveRig live_rig = [] {
+    static FakeLiveRig g_live_rig = [] {
         FakeLiveRig rig;
         rig.next_load_result.plugins.clear();
         return rig;
     }();
-    return live_rig;
+    return g_live_rig;
 }
 
 /*!
@@ -733,7 +733,7 @@ keeping construction explicit.
 \return Controller audio-port bundle.
 */
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, ConfigurableSongAudio& song_audio) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -754,7 +754,7 @@ keeping construction explicit.
 */
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
-    ConfigurableAudioDeviceConfiguration& audio_devices) noexcept
+    ConfigurableAudioDeviceConfiguration& audio_devices)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -774,8 +774,7 @@ keeping construction explicit.
 \return Controller audio-port bundle.
 */
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
-    FakeTransport& transport, ConfigurableSongAudio& song_audio,
-    RecordingPluginHost& plugin_host) noexcept
+    FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -797,7 +796,7 @@ keeping construction explicit.
 */
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio, RecordingPluginHost& plugin_host,
-    FakeLiveRig& live_rig) noexcept
+    FakeLiveRig& live_rig)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -819,7 +818,7 @@ keeping construction explicit.
 */
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
-    ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host) noexcept
+    ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host)
 {
     return EditorController::AudioPorts{
         .transport = transport,
@@ -843,7 +842,7 @@ keeping construction explicit.
 [[nodiscard]] inline EditorController::AudioPorts audioPorts(
     FakeTransport& transport, ConfigurableSongAudio& song_audio,
     ConfigurableAudioDeviceConfiguration& audio_devices, RecordingPluginHost& plugin_host,
-    FakeLiveRig& live_rig) noexcept
+    FakeLiveRig& live_rig)
 {
     return EditorController::AudioPorts{
         .transport = transport,

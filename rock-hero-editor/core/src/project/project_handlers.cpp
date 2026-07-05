@@ -467,7 +467,7 @@ void EditorController::Impl::startLiveRigLoadStage(
                     return;
                 }
 
-                if (rig_result->plugins.size() > common::audio::max_signal_chain_plugins)
+                if (rig_result->plugins.size() > common::audio::g_max_signal_chain_plugins)
                 {
                     captured_stage.finish(
                         std::unexpected{signalChainLimitError(rig_result->plugins.size())});
@@ -847,7 +847,7 @@ std::expected<void, common::audio::LiveRigError> EditorController::Impl::capture
         return std::unexpected{std::move(snapshot.error())};
     }
 
-    if (snapshot->plugins.size() > common::audio::max_signal_chain_plugins)
+    if (snapshot->plugins.size() > common::audio::g_max_signal_chain_plugins)
     {
         return std::unexpected{signalChainLimitError(snapshot->plugins.size())};
     }

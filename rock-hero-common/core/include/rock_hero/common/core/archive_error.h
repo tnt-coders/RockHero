@@ -5,13 +5,14 @@
 
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace rock_hero::common::core
 {
 
 /*! \brief Stable archive helper failure reasons. */
-enum class ArchiveErrorCode
+enum class ArchiveErrorCode : std::uint8_t
 {
     /*! \brief An input archive could not be opened for reading. */
     OpenFailed,

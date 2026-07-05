@@ -156,7 +156,7 @@ std::expected<LiveRigSnapshot, LiveRigError> Engine::captureActiveRig(
     }
 
     const std::size_t user_plugin_count = m_impl->userVisiblePluginCount();
-    if (user_plugin_count > max_signal_chain_plugins)
+    if (user_plugin_count > g_max_signal_chain_plugins)
     {
         return std::unexpected{LiveRigError{
             LiveRigErrorCode::PluginChainLimitExceeded,

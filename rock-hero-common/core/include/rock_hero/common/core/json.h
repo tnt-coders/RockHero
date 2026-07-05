@@ -29,7 +29,7 @@ struct Json
     Json() = delete;
 
     /*! \brief JSON helper failure reason. */
-    enum class ErrorCode
+    enum class ErrorCode : std::uint8_t
     {
         /*! \brief JSON text could not be parsed. */
         ParseFailed,

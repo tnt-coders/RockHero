@@ -5,6 +5,12 @@ project(
     DESCRIPTION "Guitar-driven rhythm game applications and supporting libraries"
     LANGUAGES C CXX)
 
+# Lint only source-tree translation units; generated build-tree sources such as JUCE
+# binary-data files are excluded from clang-tidy.
+set(PROJECT_CONFIG_CLANG_TIDY_FILE_REGEX
+    ".*[/\\]RockHero[/\\]rock-hero-.*"
+    CACHE STRING "Regex of source files to run clang-tidy on" FORCE)
+
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")

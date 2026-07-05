@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <expected>
 #include <filesystem>
 #include <functional>
@@ -56,7 +57,7 @@ class EditorController final : public IEditorController
 {
 public:
     /*! \brief Worker-reported phase for a project operation in progress. */
-    enum class ProjectOperationPhase
+    enum class ProjectOperationPhase : std::uint8_t
     {
         /*! \brief Backing-audio normalization analysis has started. */
         AnalyzingBackingAudio,

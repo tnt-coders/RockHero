@@ -164,7 +164,7 @@ public:
     The operation runs cooperatively on the message thread: each plugin is restored in its own
     message-loop turn so the message loop can service paints and input between plugins. The
     completion callback fires on the message thread with the restored chain or a typed failure.
-    Tone documents with more than max_signal_chain_plugins user plugins fail before plugin
+    Tone documents with more than g_max_signal_chain_plugins user plugins fail before plugin
     instantiation. For an empty tone document reference the completion fires immediately with an
     empty result.
 
