@@ -1,6 +1,6 @@
 #include "menu_look_and_feel.h"
 
-#include "shell/editor_colors.h"
+#include "shared/editor_colors.h"
 
 namespace rock_hero::editor::ui
 {
