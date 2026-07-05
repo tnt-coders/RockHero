@@ -7,6 +7,7 @@ target_sources(
     rock_hero_editor_core
     PRIVATE src/audio_device/audio_device_settings_controller.cpp
             src/audio_device/audio_device_status_text.cpp
+            src/audio_device/audio_device_status_text.h
             src/busy/busy_operation_state.cpp
             src/busy/busy_operation_state.h
             src/busy/busy_operation_workflow.cpp
@@ -30,7 +31,9 @@ target_sources(
             src/project/project_error.cpp
             src/project/project_handlers.cpp
             src/project/project_io.cpp
+            src/project/project_io.h
             src/project/rock_song_importer.cpp
+            src/project/rock_song_importer.h
             src/project/song_import_error.cpp
             src/settings/editor_settings.cpp
             src/settings/editor_settings_error.cpp
