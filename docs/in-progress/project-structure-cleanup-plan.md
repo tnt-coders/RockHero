@@ -344,6 +344,24 @@ Confirm first: `arrangement_view_state.h` → `timeline/`.
 
 ### Phase 4 — `common/audio`: engine Part A + include grouping
 
+**Survey refreshed 2026-07-05 against the 5,941-line file (execute from this map, not the stale
+one in the Part A doc):** `Engine::Impl` spans lines 2,297–4,134 (~1,838 lines) with ~50 in-class
+method definitions plus five out-of-line `Impl` methods interleaved in the port bands
+(`insertPluginCandidateToTrack` 4,474; `beginNextPluginStep` 5,563; `executePluginStep` 5,622;
+`yieldThenContinue` 5,733; `abortLiveRigLoad` 5,750 — these ride with their port TUs). The public
+port bands are contiguous and cleanly ordered: transport 4,210–4,282, song-audio 4,283–4,428,
+plugin-host 4,429–5,157, live-rig+live-input 5,158–5,776, device-config+meter 5,777–5,935,
+thumbnail 5,936+; ctor/dtor/scan-child-process stay as the remainder. The anonymous-namespace
+band (lines 53–2,294, 2,241 lines, ~55 entities) is an interdependent web: the tone-document
+cluster is used almost solely by the live-rig side, the plugin-scan cluster splits between `Impl`
+and the plugin-host band, and the heavy classes (`PluginWindow`, the dirty-state trackers, the
+two Tracktion behaviours, `MeterReader`) are `Impl`/ctor-owned. **Sequencing constraint
+discovered:** helpers consumed by `Impl`'s in-class definitions cannot stay TU-local once `Impl`
+moves to `engine_impl.h` — so step 1 is converting `Impl`'s in-class definitions out-of-line
+(into `engine_impl.cpp`, as Part A originally specified), which frees the helper clusters to
+land in their per-port TUs or named private units. Do this method-by-method with the build as
+the guard, not as one scripted pass.
+
 1. Execute `docs/todo/remaining-god-object-decomposition-plan.md` Part A (impl header, per-port
    TUs, helper lifts), one seam per commit, guarded by `test_engine.cpp` / `test_plugin_host.cpp`
    / `test_transport.cpp` and the editor suites.
