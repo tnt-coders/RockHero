@@ -1,3 +1,8 @@
+/*!
+\file plugin_move_index.h
+\brief Pure index translation for moving an existing plugin within a Tracktion plugin list.
+*/
+
 #pragma once
 
 namespace rock_hero::common::audio
