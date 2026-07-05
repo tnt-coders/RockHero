@@ -12,8 +12,8 @@ the engine translation units.
 
 #pragma once
 
+#include "live_rig/tone_document.h"
 #include "meter_reader.h"
-#include "tone_document.h"
 #include "tracktion/monitoring_mode_transition.h"
 #include "tracktion/plugin_window.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"

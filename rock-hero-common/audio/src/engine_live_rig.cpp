@@ -1,6 +1,6 @@
 #include "audio_path_util.h"
 #include "engine_impl.h"
-#include "tone_document.h"
+#include "live_rig/tone_document.h"
 #include "tracktion/live_rig_gain_plugin.h"
 
 #include <rock_hero/common/core/json.h>

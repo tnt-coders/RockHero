@@ -5,7 +5,7 @@
 
 #pragma once
 
-#include "plugin_scan.h"
+#include "plugin/plugin_scan.h"
 
 #include <expected>
 #include <filesystem>

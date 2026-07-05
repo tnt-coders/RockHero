@@ -1,4 +1,4 @@
-#include "plugin_scan.h"
+#include "plugin/plugin_scan.h"
 
 #include "audio_path_util.h"
 
