@@ -198,6 +198,26 @@ example, text metrics) go in a `shared/` folder in `ui` libraries and at the lib
 `core` libraries. Admission rule for `shared/`: at least two consumers, and the file is nameable
 without any feature word. Anything that fails that test belongs to a feature.
 
+## Multi-TU Coordination Objects
+
+A deliberately unified coordination object (a root facade, an engine implementing several ports)
+may define its member functions across multiple translation units when its surface slices along a
+stable axis such as feature or port. This is a file-layout relief valve, not an object split.
+Proven in this repository by the editor controller's per-feature translation units
+(`input_calibration_handlers.cpp`, `signal_chain_handlers.cpp`, `project_handlers.cpp`).
+
+Conditions:
+
+- private state is declared once, in one private implementation header that stays a declaration
+  surface: no logic, no shared helper definitions, no state added to make the split work
+- each translation unit is one named slice and lives in that slice's feature folder
+- helpers used by one slice stay in that unit's anonymous namespace; helpers shared across slices
+  are promoted to a named private header, never duplicated
+
+Splitting the object itself remains a separate, deliberate design decision. When the object's
+unity is semantic (one invariant set, one coordination point), keep the object whole and
+distribute only its files.
+
 ## Placement Procedure for New Files
 
 1. **Library** — decided by the dependency rules (needs Tracktion → `common/audio`
