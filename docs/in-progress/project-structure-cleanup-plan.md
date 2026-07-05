@@ -17,10 +17,10 @@ Revision 2026-07-04 (post-review amendments):
 - Line counts corrected to current measurements (2026-07-04): `editor_controller.cpp` 4,807
   (grew ~35% past the June figure this plan originally carried), `editor_view.cpp` 2,187,
   `engine.cpp` 5,941.
-- The clang-tidy `HeaderFilterRegex` fix moved from Phase 1 to Phase 6 (user decision after the
-  Phase 1 gate run): the corrected filter un-silences a large pre-existing header-finding
-  backlog, and triaging it mid-refactor would leave the clang-tidy gate leg permanently red.
-  Until Phase 6, per-phase clang-tidy runs use the old (source-file-only) scope.
+- The clang-tidy `HeaderFilterRegex` fix stays in effect for the whole refactor; only the
+  backlog *triage* is deferred to Phase 6 (user decision after the Phase 1 gate run). The
+  clang-tidy gate leg is therefore expected red on pre-existing header findings until Phase 6;
+  Phases 2–5 gate on build + ctest + pre-commit green plus no new findings in touched files.
 
 Companion findings: `docs/in-progress/project-structure-analysis.md` (2026-07-03 full-repo
 analysis) and the 2026-07-04 coupling deep-dive it led to. This plan restates only the
@@ -266,11 +266,13 @@ Free-function (projection) modules, for the record: `tempo_grid_geometry`, `time
 
 Every phase: batch the edits, then one verification pass. **Acceptance gate:** builds are run by
 the user, not the agent (agent-run builds break CLion include paths), so a phase is *not complete*
-— and the next phase does not start — until the user reports all four commands green:
+— and the next phase does not start — until the user reports all four commands run:
 `cmake --build --preset debug`, `ctest --preset debug`,
-`cmake --build build/debug --target clang-tidy`, and `pre-commit run --all-files`. Pure-move
-commits never mix with extraction commits; public-churn commits never mix with either. Each phase
-leaves the repo strictly better and is a safe stopping point.
+`cmake --build build/debug --target clang-tidy`, and `pre-commit run --all-files`. Build, ctest,
+and pre-commit must be green. The clang-tidy leg is expected to fail on the pre-existing header
+backlog until Phase 6 triage; its gate criterion for Phases 2–5 is "no new findings in files the
+phase touched". Pure-move commits never mix with extraction commits; public-churn commits never
+mix with either. Each phase leaves the repo strictly better and is a safe stopping point.
 
 ### Phase 0 — Rules on paper *(executed 2026-07-04; amended after review)*
 
@@ -347,13 +349,14 @@ ride along if package work is touched anyway; otherwise it stays an accepted exc
 
 ### Phase 6 — Close out
 
-1. **Re-land the clang-tidy header-filter fix and triage the backlog.** The corrected
-   `HeaderFilterRegex` (`rock-hero-(common|editor|game)` instead of the stale `apps|libs`) was
-   landed in Phase 1, then reverted (`c8a44939`) when the user's gate run showed a large
-   pre-existing header-finding backlog: with `WarningsAsErrors: '*'`, leaving it in would have
-   made the clang-tidy leg of every later phase gate permanently red and useless as a regression
-   signal. Re-apply the regex here, run clang-tidy, and fix every surfaced finding properly — per
-   the no-NOLINT rule, by correcting code or consciously updating the convention, never by
+1. **Triage the clang-tidy header backlog.** The corrected `HeaderFilterRegex`
+   (`rock-hero-(common|editor|game)` instead of the stale `apps|libs`) is in place throughout the
+   refactor (user decision: fixed in Phase 1, briefly reverted, reinstated — the correct filter
+   stays even though it keeps the clang-tidy target red until this step). It un-silences a large
+   pre-existing header-finding backlog, so for Phases 2–5 the clang-tidy gate leg is expected to
+   fail on backlog findings; those phases gate on build + ctest + pre-commit green plus no *new*
+   findings in files the phase touches. Here, fix every surfaced finding properly — per the
+   no-NOLINT rule, by correcting code or consciously updating the convention, never by
    suppression. External sources cannot appear in the backlog: the positive filter only matches
    `rock-hero-*` paths and `ExcludeHeaderFilterRegex` independently blocks `external/` and
    `build/`.
