@@ -352,6 +352,9 @@ private:
     // Right-aligned menu-bar action that opens audio-device settings.
     MenuBarButton m_audio_device_button;
 
+    // Dropdown that switches the displayed arrangement, pinned left of the grid selector.
+    juce::ComboBox m_arrangement_selector;
+
     // Bottom control panel for the plugin chain.
     SignalChainPanel m_signal_chain_panel;
 
