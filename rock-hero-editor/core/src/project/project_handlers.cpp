@@ -820,6 +820,87 @@ auto EditorController::Impl::takeProjectForWrite(EditorAction::ProjectWriteActio
     return state;
 }
 
+void EditorController::Impl::onArrangementSelected(std::string arrangement_id)
+{
+    runAction(EditorAction::SelectArrangement{std::move(arrangement_id)});
+}
+
+// Switches the displayed arrangement: captures the current live rig into its tone files, reloads
+// the session around the new arrangement, and restores that arrangement's rig behind the busy
+// presentation. Arrangement switching is deliberately not the instant tone-region switch path.
+void EditorController::Impl::performActionImpl(const EditorAction::SelectArrangement& action)
+{
+    const common::core::Arrangement* const current = session().currentArrangement();
+    if (current == nullptr || !m_project.has_value() || current->id == action.arrangement_id)
+    {
+        return;
+    }
+
+    const bool target_exists = std::ranges::any_of(
+        session().arrangements(), [&action](const common::core::Arrangement& arrangement) {
+            return arrangement.id == action.arrangement_id;
+        });
+    if (!target_exists)
+    {
+        RH_LOG_WARNING(
+            "editor.project",
+            "Ignored switch to unknown arrangement arrangement_id={:?}",
+            action.arrangement_id);
+        return;
+    }
+
+    // Capture the outgoing arrangement's rig into its tone files so switching back restores any
+    // unsaved tone edits; the capture also flushes pending plugin state.
+    common::core::Song song = session().song();
+    if (const auto captured = captureLiveRigIntoSong(song, *m_project); !captured.has_value())
+    {
+        reportError(
+            std::string{"Could not capture the current arrangement's tones: "} +
+            captured.error().message);
+        return;
+    }
+
+    m_transport.stop();
+    clearLiveRig();
+    resetUndoHistory("undo.reset.arrangement_switch");
+    m_selected_tone_region_id.clear();
+    m_project_audio_ready = false;
+
+    if (const auto loaded = loadSessionSong(std::move(song), action.arrangement_id);
+        !loaded.has_value())
+    {
+        // The session commit only happens after the backend accepts the arrangement, so a
+        // failure leaves the previous arrangement displayed; restore its rig below.
+        reportError(
+            std::string{"Could not activate the selected arrangement: "} + loaded.error().message);
+    }
+
+    const std::uint64_t token = beginBusy(BusyOperation::LoadingLiveRig);
+    updateView();
+    runLiveRigLoadStage(
+        ProjectLoadLiveRigStage{
+            .token = token,
+            .song_directory = songDirectoryForProject(*m_project),
+            .finish = [this](std::expected<void, common::audio::LiveRigError> rig_result) {
+                if (!rig_result.has_value())
+                {
+                    finishBusyOperation();
+                    reportError(
+                        std::string{"Could not load the arrangement's tones: "} +
+                        rig_result.error().message);
+                    updateView();
+                    return;
+                }
+
+                m_project_audio_ready = true;
+                m_transport.seek(songTimelineOrigin());
+                m_selected_tone_region_id = toneRegionIdAt(songTimelineOrigin());
+                finishBusyOperation();
+                updateView();
+            },
+        });
+}
+
 // Captures the selected arrangement's live rig state into song files before Project IO leaves the
 // message thread.
 std::expected<void, common::audio::LiveRigError> EditorController::Impl::captureLiveRigIntoSong(

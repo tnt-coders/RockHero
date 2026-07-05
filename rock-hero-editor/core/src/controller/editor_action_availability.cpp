@@ -24,6 +24,7 @@ namespace
         case EditorAction::Id::Undo:
         case EditorAction::Id::Redo:
         case EditorAction::Id::ResizeToneRegion:
+        case EditorAction::Id::SelectArrangement:
         {
             return true;
         }
@@ -84,6 +85,7 @@ namespace
             case EditorAction::Id::Stop:
             case EditorAction::Id::SeekTimeline:
             case EditorAction::Id::SetGridNoteValue:
+            case EditorAction::Id::SelectArrangement:
             case EditorAction::Id::SelectToneRegion:
             case EditorAction::Id::ResizeToneRegion:
             case EditorAction::Id::ShowPluginBrowser:
@@ -148,6 +150,7 @@ namespace
         case EditorAction::Id::PlayPause:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
         {
@@ -213,6 +216,7 @@ bool actionSupersedesBusy(EditorAction::Id action) noexcept
         case EditorAction::Id::Stop:
         case EditorAction::Id::SeekTimeline:
         case EditorAction::Id::SetGridNoteValue:
+        case EditorAction::Id::SelectArrangement:
         case EditorAction::Id::SelectToneRegion:
         case EditorAction::Id::ResizeToneRegion:
         case EditorAction::Id::ShowPluginBrowser:

@@ -51,6 +51,7 @@ public:
         .audio_asset =
             common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
         .audio_duration = duration,
+        .choices = {},
     };
 }
 

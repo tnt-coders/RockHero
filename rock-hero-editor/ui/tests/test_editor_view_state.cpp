@@ -87,9 +87,10 @@ TEST_CASE("EditorView setState projects controls with load focus", "[ui][editor-
 
     CHECK(menu_bar.isVisible());
     const juce::StringArray menu_names = view.getMenuBarNames();
-    REQUIRE(menu_names.size() == 2);
+    REQUIRE(menu_names.size() == 3);
     CHECK(menu_names[0] == "File");
     CHECK(menu_names[1] == "Edit");
+    CHECK(menu_names[2] == "Arrangement");
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(0, "File"), save_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), undo_command).isEnabled);
     CHECK_FALSE(requiredMenuItem(view.getMenuForIndex(1, "Edit"), redo_command).isEnabled);

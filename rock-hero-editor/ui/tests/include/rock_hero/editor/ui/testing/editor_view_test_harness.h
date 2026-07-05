@@ -312,6 +312,7 @@ template <class ComponentType>
         .audio_asset =
             common::core::AudioAsset{.path = std::move(path), .normalization = std::nullopt},
         .audio_duration = common::core::TimeDuration{duration_seconds},
+        .choices = {},
     };
 }
 
