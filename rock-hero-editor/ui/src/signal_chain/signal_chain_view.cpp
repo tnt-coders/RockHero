@@ -4,8 +4,8 @@
 #include <array>
 #include <cstdint>
 #include <optional>
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/plugin/plugin_chain_limits.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <rock_hero/editor/core/signal_chain/plugin_display_type.h>
 #include <string>
 #include <utility>

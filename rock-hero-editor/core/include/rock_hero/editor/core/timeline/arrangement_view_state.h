@@ -6,8 +6,8 @@
 #pragma once
 
 #include <optional>
-#include <rock_hero/common/core/domain/audio_asset.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/song/audio_asset.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 
 namespace rock_hero::editor::core
 {

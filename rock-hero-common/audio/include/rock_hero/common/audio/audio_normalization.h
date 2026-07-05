@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/song/audio_normalization.h>
 #include <string>
 
 namespace rock_hero::common::audio

@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/infrastructure/logger_error.h>
+#include <rock_hero/common/core/shared/logger_error.h>
 #include <string>
 #include <string_view>
 

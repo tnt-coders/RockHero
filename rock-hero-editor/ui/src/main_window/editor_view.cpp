@@ -12,9 +12,9 @@
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/song/i_thumbnail.h>
-#include <rock_hero/common/core/domain/audio_asset.h>
-#include <rock_hero/common/core/domain/tempo_map.h>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/shared/juce_path.h>
+#include <rock_hero/common/core/song/audio_asset.h>
+#include <rock_hero/common/core/timeline/tempo_map.h>
 #include <rock_hero/editor/core/timeline/transport_readout_text.h>
 #include <string>
 #include <utility>

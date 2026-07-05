@@ -13,7 +13,7 @@ the engine translation units.
 #pragma once
 
 #include "live_rig/tone_document.h"
-#include "meter_reader.h"
+#include "shared/meter_reader.h"
 #include "tracktion/monitoring_mode_transition.h"
 #include "tracktion/plugin_window.h"
 #include "tracktion/tracktion_instrument_wave_device_mapping.h"
@@ -26,8 +26,8 @@ the engine translation units.
 #include <memory>
 #include <optional>
 #include <rock_hero/common/audio/engine.h>
-#include <rock_hero/common/core/infrastructure/cancellation_token.h>
-#include <rock_hero/common/core/infrastructure/logger.h>
+#include <rock_hero/common/core/shared/cancellation_token.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <string>
 #include <string_view>
 #include <tracktion_engine/tracktion_engine.h>

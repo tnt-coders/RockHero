@@ -7,7 +7,7 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/domain/song.h>
+#include <rock_hero/common/core/song/song.h>
 #include <rock_hero/editor/core/project/song_import_error.h>
 
 namespace rock_hero::editor::core

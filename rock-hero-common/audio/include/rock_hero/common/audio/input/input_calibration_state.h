@@ -5,8 +5,8 @@
 
 #pragma once
 
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/input/input_device_identity.h>
+#include <rock_hero/common/audio/shared/gain.h>
 
 namespace rock_hero::common::audio
 {

@@ -10,8 +10,8 @@
 #include <cstdint>
 #include <expected>
 #include <optional>
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/input/audio_meter_snapshot.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <vector>
 

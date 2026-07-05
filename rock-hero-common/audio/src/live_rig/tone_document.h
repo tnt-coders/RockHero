@@ -11,9 +11,9 @@
 #include <filesystem>
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
-#include <rock_hero/common/audio/gain.h>
 #include <rock_hero/common/audio/live_rig/i_live_rig.h>
 #include <rock_hero/common/audio/plugin/i_plugin_host.h>
+#include <rock_hero/common/audio/shared/gain.h>
 #include <string>
 #include <tracktion_engine/tracktion_engine.h>
 #include <vector>

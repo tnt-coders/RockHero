@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
-#include <rock_hero/common/core/infrastructure/logger.h>
+#include <rock_hero/common/core/shared/logger.h>
 #include <string_view>
 #include <utility>
 #include <vector>

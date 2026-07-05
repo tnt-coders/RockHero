@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/common/core/domain/arrangement.h>
-#include <rock_hero/common/core/domain/timeline.h>
+#include <rock_hero/common/core/song/arrangement.h>
+#include <rock_hero/common/core/timeline/timeline.h>
 
 namespace rock_hero::common::core
 {

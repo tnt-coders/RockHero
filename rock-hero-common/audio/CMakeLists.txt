@@ -8,8 +8,6 @@ find_package(libebur128 CONFIG REQUIRED)
 target_sources(
     rock_hero_common_audio
     PRIVATE src/audio_normalization.cpp
-            src/audio_path_util.cpp
-            src/audio_path_util.h
             src/device/audio_device_configuration_error.cpp
             src/device/audio_device_settings.cpp
             src/engine.cpp
@@ -25,10 +23,12 @@ target_sources(
             src/live_rig/live_rig_error.cpp
             src/live_rig/tone_document.cpp
             src/live_rig/tone_document.h
-            src/meter_reader.h
             src/plugin/plugin_host_error.cpp
             src/plugin/plugin_scan.cpp
             src/plugin/plugin_scan.h
+            src/shared/audio_path_util.cpp
+            src/shared/audio_path_util.h
+            src/shared/meter_reader.h
             src/song/song_audio_error.cpp
             src/tracktion/engine_behaviors.cpp
             src/tracktion/engine_behaviors.h

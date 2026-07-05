@@ -20,7 +20,7 @@ target_sources(
             src/editor_action_availability.h
             src/editor_controller.cpp
             src/editor_controller_impl.h
-            src/editor_controller_logging.h
+            src/shared/editor_controller_logging.h
             src/editor_undo_history.cpp
             src/editor_undo_history.h
             src/input_calibration/input_calibration_controller.cpp

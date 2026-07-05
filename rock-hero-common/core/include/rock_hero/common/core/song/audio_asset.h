@@ -7,7 +7,7 @@
 
 #include <filesystem>
 #include <optional>
-#include <rock_hero/common/core/domain/audio_normalization.h>
+#include <rock_hero/common/core/song/audio_normalization.h>
 
 namespace rock_hero::common::core
 {

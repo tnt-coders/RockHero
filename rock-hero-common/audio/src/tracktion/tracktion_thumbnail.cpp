@@ -1,7 +1,7 @@
 #include "tracktion/tracktion_thumbnail.h"
 
 #include <cmath>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 
 namespace rock_hero::common::audio
 {

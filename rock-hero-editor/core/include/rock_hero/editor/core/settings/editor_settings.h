@@ -9,7 +9,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 #include <optional>
 #include <rock_hero/common/audio/input/input_calibration_state.h>
-#include <rock_hero/common/core/domain/fraction.h>
+#include <rock_hero/common/core/timeline/fraction.h>
 #include <rock_hero/editor/core/settings/i_editor_settings.h>
 #include <string>
 

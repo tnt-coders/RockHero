@@ -11,7 +11,7 @@
 #include <limits>
 #include <memory>
 #include <rock_hero/common/audio/audio_normalization.h>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <string>
 #include <system_error>
 #include <utility>

@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
-#include <rock_hero/common/core/domain/audio_asset.h>
-#include <rock_hero/common/core/domain/session.h>
-#include <rock_hero/common/core/domain/song.h>
+#include <rock_hero/common/core/session.h>
+#include <rock_hero/common/core/song/audio_asset.h>
+#include <rock_hero/common/core/song/song.h>
 #include <utility>
 
 namespace rock_hero::common::core

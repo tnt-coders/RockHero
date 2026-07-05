@@ -7,8 +7,8 @@
 
 #include <expected>
 #include <filesystem>
-#include <rock_hero/common/core/domain/song.h>
 #include <rock_hero/common/core/package/song_package_error.h>
+#include <rock_hero/common/core/song/song.h>
 #include <string>
 #include <vector>
 

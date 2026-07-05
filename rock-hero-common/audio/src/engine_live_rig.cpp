@@ -1,11 +1,11 @@
-#include "audio_path_util.h"
 #include "engine_impl.h"
 #include "live_rig/tone_document.h"
+#include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 
-#include <rock_hero/common/core/infrastructure/json.h>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
 #include <rock_hero/common/core/package/package_id.h>
+#include <rock_hero/common/core/shared/json.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 
 namespace rock_hero::common::audio
 {

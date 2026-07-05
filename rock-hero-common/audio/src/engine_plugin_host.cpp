@@ -1,14 +1,14 @@
-#include "audio_path_util.h"
 #include "engine_impl.h"
 #include "live_rig/tone_document.h"
 #include "plugin/plugin_scan.h"
+#include "shared/audio_path_util.h"
 #include "tracktion/live_rig_gain_plugin.h"
 #include "tracktion/plugin_dirty_tracking.h"
 #include "tracktion/plugin_move_index.h"
 
 #include <chrono>
 #include <exception>
-#include <rock_hero/common/core/infrastructure/juce_path.h>
+#include <rock_hero/common/core/shared/juce_path.h>
 #include <system_error>
 #include <unordered_set>
 

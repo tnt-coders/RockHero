@@ -1,5 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
-#include <rock_hero/common/core/infrastructure/application_identity.h>
+#include <rock_hero/common/core/shared/application_identity.h>
 #include <string_view>
 
 namespace rock_hero::common::core
